@@ -125,11 +125,17 @@ def run_gemm(
     # Build
     if "vta" in target.keys:
         mod = vta.build(
-            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+            s,
+            [data, kernel, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="dense",
         )
     else:
         mod = tvm.build(
-            s, [data, kernel, res], target=target, target_host=env.target_host, name="dense"
+            s,
+            [data, kernel, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="dense",
         )
     temp = utils.tempdir()
     mod.save(temp.relpath("dense.o"))

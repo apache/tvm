@@ -132,11 +132,17 @@ class Executable : public ModuleNode {
   std::string GetBytecode() const;
 
   /*!
-   * \brief Returns a description of all the contants in the executable in human-readable
+   * \brief Returns a description of all the constants in the executable in human-readable
    * format. Not intended to be machine readable, but rather to help with debugging and
    * diffing generated code.
    */
   std::string GetConstants() const;
+
+  /*!
+   * \brief Returns a description of all the (virtual) devices in the executable in human-readable
+   * format.
+   */
+  std::string GetVirtualDevices() const;
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
@@ -183,6 +189,16 @@ class Executable : public ModuleNode {
 
   const char* type_key() const final { return "VMExecutable"; }
 
+  /*!
+   * \brief The (compile-time, virtual) devices corresponding to each device index.
+   * Currently we only support at most one device per device type.
+   */
+  std::vector<Device> virtual_devices;
+  /*!
+   * \brief The device index corresponding to the 'host' device. That will hold and evaluate
+   * shape-related data and code.
+   */
+  int host_device_index = -1;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
   /*! \brief A map from globals (as strings) to their index in the function map. */
@@ -195,37 +211,51 @@ class Executable : public ModuleNode {
   std::map<Index, Map<String, ObjectRef>> op_attrs;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
-  /*! \brief The device type for each constant. */
-  std::vector<Index> const_device_type;
+  /*! \brief The index of the device holding each constant. */
+  std::vector<Index> const_device_indexes;
 
  private:
   /*!
+   * \brief Save the virtual devices
+   *
+   * /param strm The output stream.
+   */
+  void SaveVirtualDevicesSection(dmlc::Stream* strm);
+
+  /*!
    * \brief Save the globals.
    *
-   * \param strm The input stream.
+   * \param strm The output stream.
    */
   void SaveGlobalSection(dmlc::Stream* strm);
 
   /*!
    * \brief Save the constant pool.
    *
-   * \param strm The input stream.
+   * \param strm The output stream.
    */
   void SaveConstantSection(dmlc::Stream* strm);
 
   /*!
    * \brief Save primitive op names.
    *
-   *  \param strm The input stream.
+   *  \param strm The output stream.
    */
   void SavePrimitiveOpNames(dmlc::Stream* strm);
 
   /*!
    * \brief Save the vm functions.
    *
-   * \param strm The input stream.
+   * \param strm The output stream.
    */
   void SaveCodeSection(dmlc::Stream* strm);
+
+  /*!
+   * \brief Load the virtual devices
+   *
+   * /param strm The input stream.
+   */
+  void LoadVirtualDevicesSection(dmlc::Stream* strm);
 
   /*!
    * \brief Load the globals.

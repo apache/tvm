@@ -198,11 +198,16 @@ def _create_test_runner(accel):
         prologue="""
         uart_init();
         EthosuInit();
+
+        struct ethosu_driver* ethos_u = ethosu_reserve_driver();
+        """,
+        epilogue="""
+        ethosu_release_driver(ethos_u);
         """,
         includes=["uart.h", "ethosu_55.h", "ethosu_mod.h", "hard_fault.h"],
         parameters={"ETHOSU_TEST_ROOT": test_root, "NPU_VARIANT": ethosu_macs},
         pass_config={
-            "relay.ext.ethosu.options": {
+            "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
             }
         },
@@ -509,3 +514,56 @@ def make_ethosu_pooling(
         ofm_layout=ofm_layout,
     )
     return pooling
+
+
+def get_binary_elementwise_args(call, include_buffers=False):
+    args = call.args
+    binary_elementwise_args = []
+
+    for i, arg in enumerate(args):
+        if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
+            binary_elementwise_args.append(arg.value)
+        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
+            binary_elementwise_args.append(arg.index)
+        else:
+            binary_elementwise_args.append(arg)
+
+    return binary_elementwise_args
+
+
+def make_ethosu_binary_elementwise(
+    ifm,
+    ifm2,
+    ifm_channels,
+    ifm2_channels,
+    operator_type,
+    ofm_dtype,
+    reversed_operands=False,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ifm2_layout="NHWC",
+    ofm_layout="NHWC",
+):
+    ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
+        ifm=ifm,
+        ifm2=ifm2,
+        lut=relay.const([], dtype="int8"),
+        operator_type=operator_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ifm2_scale=1,
+        ifm2_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        ifm_channels=ifm_channels,
+        ifm2_channels=ifm2_channels,
+        reversed_operands=reversed_operands,
+        activation=activation,
+        ofm_dtype=ofm_dtype,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        ifm_layout=ifm_layout,
+        ifm2_layout=ifm2_layout,
+        ofm_layout=ofm_layout,
+    )
+    return ethosu_binary_elementwise

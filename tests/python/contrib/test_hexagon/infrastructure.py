@@ -64,7 +64,9 @@ def get_packed_filter_layout(out_channel, in_channel, kernel_h, kernel_w):
 def build_and_run(inputs, func, target, target_host, *args, **kwargs):
     schedule, placeholders, binds = func(*args, **kwargs)
 
-    func = tvm.build(schedule, placeholders, target=target, target_host=target_host, binds=binds)
+    func = tvm.build(
+        schedule, placeholders, target=tvm.target.Target(target, host=target_host), binds=binds
+    )
     dev = tvm.device(target)
     tensors = []
     for tensor in inputs:

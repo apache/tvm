@@ -34,49 +34,56 @@ namespace backend {
 
 TVM_REGISTER_NODE_TYPE(StorageInfoNode);
 
-StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
-                         std::vector<int64_t> storage_sizes_in_bytes) {
-  auto n = make_object<StorageInfoNode>();
-  n->storage_ids = std::move(storage_ids);
-  n->device_types = std::move(device_types);
-  n->storage_sizes_in_bytes = std::move(storage_sizes_in_bytes);
-  data_ = std::move(n);
-}
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<StorageInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
       const auto* node = ref.as<StorageInfoNode>();
-      p->stream << "StorageInfoNode(\n"
-                << "  storage_ids=[";
+      p->stream << "StorageInfoNode("
+                << "storage_ids=[";
       for (auto id : node->storage_ids) {
-        p->stream << id << ", ";
+        p->stream << id << ",";
       }
-      p->stream << "],\n  device_types=[";
-      for (auto device_type : node->device_types) {
-        p->stream << device_type << ", ";
+      p->stream << "], se_scopes=[";
+      for (const auto& se_scope : node->se_scopes) {
+        p->stream << se_scope << ",";
       }
-      p->stream << "],\n  storage_size_in_bytes=[";
+      p->stream << "], storage_size_in_bytes=[";
       for (auto bytes : node->storage_sizes_in_bytes) {
-        p->stream << bytes << ", ";
+        p->stream << bytes << ",";
       }
       p->stream << "])";
     });
 
+StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<SEScope> se_scopes,
+                         std::vector<int64_t> storage_sizes_in_bytes) {
+  ICHECK_EQ(storage_ids.size(), se_scopes.size());
+  ICHECK_EQ(storage_ids.size(), storage_sizes_in_bytes.size());
+  auto node = make_object<StorageInfoNode>();
+  node->storage_ids = std::move(storage_ids);
+  node->se_scopes = std::move(se_scopes);
+  node->storage_sizes_in_bytes = std::move(storage_sizes_in_bytes);
+  data_ = std::move(node);
+}
+
+// This is the legacy interface for devices as DLDeviceTypes (represented by integers)
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
-    .set_body_typed([](const Array<Integer>& sids, const Array<Integer>& dev_types,
+    .set_body_typed([](const Array<Integer>& sids, const Array<Integer>& device_types,
                        const Array<Integer>& sizes_in_bytes) {
-      std::vector<int64_t> sids_v, sizes_v;
-      std::vector<DLDeviceType> dev_types_v;
+      std::vector<int64_t> sids_v;
+      sids_v.reserve(sids.size());
       for (auto s : sids) {
         sids_v.push_back(s);
       }
-      for (auto d : dev_types) {
-        dev_types_v.push_back(static_cast<DLDeviceType>(static_cast<int64_t>(d)));
+      std::vector<SEScope> se_scopes_v;
+      se_scopes_v.reserve(device_types.size());
+      for (const auto& device_type : device_types) {
+        se_scopes_v.emplace_back(SEScope::ForDeviceType(device_type));
       }
+      std::vector<int64_t> size_in_bytes_v;
+      size_in_bytes_v.reserve(sizes_in_bytes.size());
       for (auto s : sizes_in_bytes) {
-        sizes_v.push_back(s);
+        size_in_bytes_v.push_back(s);
       }
-      return StorageInfo(sids_v, dev_types_v, sizes_v);
+      return StorageInfo(std::move(sids_v), std::move(se_scopes_v), std::move(size_in_bytes_v));
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageInfo si) {
@@ -87,10 +94,11 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageI
   return ids;
 });
 
+// This is the legacy interface for devices as DLDeviceTypes (represented by integers)
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfoDeviceTypes").set_body_typed([](StorageInfo si) {
   Array<tvm::Integer> device_types;
-  for (auto id : si->device_types) {
-    device_types.push_back(id);
+  for (const auto& se_scope : si->se_scopes) {
+    device_types.push_back(se_scope->device_type());
   }
   return device_types;
 });
@@ -116,7 +124,8 @@ TVM_REGISTER_GLOBAL("relay.ir.StaticMemoryPlan")
       return StaticMemoryPlan(expr_to_storage_info);
     });
 
-// TODO(mbs): Cf GetMemorySizeBytes in aot_executor_codegen.cc
+// TODO(mbs): Cf GetMemorySizeBytes in aot_executor_codegen.cc, GetMemorySize in
+// graph_plan_memory.cc
 int64_t CalculateRelayExprSizeBytes(const Type& expr_type) {
   if (expr_type->IsInstance<TupleTypeNode>()) {
     auto tuple_type = Downcast<TupleType>(expr_type);
@@ -166,7 +175,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  relay_primfuncs=" << node->relay_primfuncs << ")";
     });
 
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm) {
+Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
   Array<Pass> pass_seqs;
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
@@ -175,7 +184,7 @@ Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is
   pass_seqs.push_back(relay::qnn::transform::Legalize());
 
   // Legalize pass is restricted to homogeneous execution for now.
-  if (targets.size() == 1) {
+  if (is_homegeneous) {
     pass_seqs.push_back(transform::Legalize());
   }
 
@@ -217,8 +226,8 @@ Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is
   pass_seqs.push_back(transform::CanonicalizeCast());
   pass_seqs.push_back(transform::CanonicalizeOps());
 
-  // Alter layout transformation is only applied to homogeneous execution yet.
-  if (targets.size() == 1) {
+  // Alter layout transformation is currently only applied to homogeneous execution.
+  if (is_homegeneous) {
     if (!is_vm) {
       pass_seqs.push_back(transform::InferType());
     }

@@ -116,6 +116,8 @@ class AOTTestRunner(NamedTuple):
         Premade Makefile to use from the AOT test folder
     prologue: str
         Code to prepend to the main function
+    epilogue: str
+        Code to append to the main function
     includes: List[str]
         Additional includes required to run the AOT test runner
     parameters: Dict[str, str]
@@ -126,6 +128,7 @@ class AOTTestRunner(NamedTuple):
 
     makefile: str = "default"
     prologue: str = ""
+    epilogue: str = ""
     includes: List[str] = []
     parameters: Dict[str, str] = {}
     pass_config: Dict[str, Any] = {}
@@ -320,6 +323,16 @@ def emit_main_data(main_file, input_map, output_list, mod_name):
         main_file.write(f'#include "{mangle_name(mod_name,"output_data")}{i}.h"\n')
 
 
+def emit_main_device_structs(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f"struct {mangle_name(mod_name, 'devices')} {mangle_name(mod_name, 'devices')} = {{"
+        )
+        for device in devices:
+            main_file.write(f"\t.{device} = {device},\n")
+        main_file.write("};\n")
+
+
 def emit_main_data_structs(main_file, input_map, output_list, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
@@ -359,10 +372,20 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
     main_file.write("};\n")
 
 
-def emit_main_c_interface_call(main_file, mod_name):
-    main_file.write(
-        f'{mangle_name(mod_name,"run")}(&{mangle_name(mod_name,"inputs")}, &{mangle_name(mod_name,"outputs")});\n'
-    )
+def emit_main_c_interface_call(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")}, '
+            f'&{mangle_name(mod_name,"devices")});\n'
+        )
+    else:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")});\n'
+        )
 
 
 def emit_main_fake_packed_values(main_file):
@@ -446,7 +469,8 @@ def emit_main_init_memory_manager(main_file):
     main_file.write("\n")
 
 
-def emit_main_epilogue(main_file):
+def emit_main_epilogue(main_file, custom_epilogue):
+    main_file.write(custom_epilogue)
     main_file.write(f'printf("{AOT_SUCCESS_TOKEN}\\n");')
     main_file.write("return 0;")
     main_file.write("}\n")
@@ -469,10 +493,11 @@ def emit_main_micro_include(main_file, mod_name):
 
 def create_main(
     test_name,
-    models,
+    compiled_models,
     output_path,
     custom_includes,
     custom_prologue,
+    custom_epilogue,
     data_linkage,
     interface_api,
     workspace_bytes,
@@ -484,27 +509,34 @@ def create_main(
         emit_main_common_includes(main_file, custom_includes)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_micro_include(main_file, model.name)
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
         emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage)
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
+                devices = compiled_model.executor_factory.get_devices()
+                emit_main_device_structs(main_file, devices, model.name)
                 emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
-                emit_main_c_interface_call(main_file, model.name)
+                emit_main_c_interface_call(main_file, devices, model.name)
         else:
             emit_main_fake_packed_values(main_file)
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
                 emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
 
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_compare(main_file, model.outputs, model.output_tolerance, model.name)
-        emit_main_epilogue(main_file)
+        emit_main_epilogue(main_file, custom_epilogue)
 
 
 def create_header_file(tensor_name, npy_data, output_path, data_linkage):
@@ -513,6 +545,15 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
     It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
+    np_type_to_c = {
+        "int8": "int8_t",
+        "uint8": "uint8_t",
+        "int16": "int16_t",
+        "uint16": "uint16_t",
+        "int32": "int32_t",
+        "uint32": "uint32_t",
+        "float32": "float",
+    }
     # create header file
     raw_path = file_path.with_suffix(".h").resolve()
     with open(raw_path, "w") as header_file:
@@ -523,14 +564,7 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
 
         emit_data_linkage(header_file, data_linkage)
 
-        if npy_data.dtype == "int8":
-            header_file.write(f"int8_t {tensor_name}[] =")
-        elif npy_data.dtype == "int32":
-            header_file.write(f"int32_t {tensor_name}[] = ")
-        elif npy_data.dtype == "uint8":
-            header_file.write(f"uint8_t {tensor_name}[] = ")
-        elif npy_data.dtype == "float32":
-            header_file.write(f"float {tensor_name}[] = ")
+        header_file.write(f"{np_type_to_c[str(npy_data.dtype)]} {tensor_name}[] =")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
@@ -545,6 +579,7 @@ def compile_models(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
+    target_opts: Dict = None,
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -554,6 +589,9 @@ def compile_models(
 
     base_target = "c -runtime=c --link-params --executor=aot"
     extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
+    if target_opts:
+        for key, val in target_opts.items():
+            extra_target += f" {key}={val}"
     target = f"{base_target} {extra_target}"
 
     config = {"tir.disable_vectorize": True}
@@ -567,8 +605,7 @@ def compile_models(
         with tvm.transform.PassContext(opt_level=3, config=config):
             executor_factory = tvm.relay.build(
                 model.module,
-                target,
-                target_host=target,
+                tvm.target.Target(target, host=target),
                 params=model.params,
                 mod_name=model.name,
             )
@@ -647,10 +684,11 @@ def run_and_check(
 
     create_main(
         "test.c",
-        [compiled_model.model for compiled_model in models],
+        models,
         build_path,
         runner.includes,
         runner.prologue,
+        runner.epilogue,
         data_linkage,
         interface_api,
         workspace_bytes,
@@ -695,6 +733,7 @@ def compile_and_run(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
+    target_opts: Dict = None,
 ):
     """This is a wrapper API to compile and run models as test for AoT"""
     compiled_test_mods = compile_models(
@@ -704,6 +743,7 @@ def compile_and_run(
         workspace_byte_alignment=workspace_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
+        target_opts=target_opts,
     )
     run_and_check(
         models=compiled_test_mods,

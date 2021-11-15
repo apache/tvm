@@ -18,12 +18,13 @@
  */
 
 /*!
- * \file relay/backend/graph_codegen.cc
- * \brief Graph runtime codegen
+ * \file src/relay/backend/aot_executor_codegen.cc
+ * \brief AOT executor codegen
  */
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -40,7 +41,9 @@
 #include <vector>
 
 #include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
 #include "../transforms/device_aware_visitors.h"
+#include "./name_transforms.h"
 #include "./te_compiler.h"
 #include "./utils.h"
 
@@ -72,14 +75,34 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     AssignReturnSid(GetRef<Expr>(op));
   }
 
-  void DeviceAwareVisitExpr_(const CallNode* op) final {
-    // create token for the call node.
-    VisitExpr(op->op);
-    CreateStorage(op);
-    for (Expr arg : op->args) {
+  void DeviceAwareVisitExpr_(const CallNode* call_node) final {
+    // AOTOnDemandAllocator is run both before and after lowering, so we need to handle the case
+    // where the op of the call is a generic function
+
+    Expr func;
+    Array<Expr> args;
+
+    if (call_node->op == CallLoweredOp()) {
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+      func = call_lowered_props.lowered_func;
+      args = call_lowered_props.arguments;
+    } else {  // Relay functions that have not been lowered and lowered extern functions
+      func = call_node->op;
+      args = call_node->args;
+      if (call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
+        ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
+      } else {  // Relay function which has not been lowered yet
+        ICHECK(call_node->op.as<FunctionNode>())
+            << "Expected the call to be to a lowered primfunc, a lowered extern function or a "
+               "unlowered Relay function.";
+      }
+    }
+    VisitExpr(func);
+    CreateStorage(call_node);
+    for (const Expr& arg : args) {
       GetStorage(arg);
     }
-    AssignReturnSid(GetRef<Expr>(op));
+    AssignReturnSid(GetRef<Expr>(call_node));
   }
 
   void VisitExpr_(const VarNode* op) final { AssignReturnSid(GetRef<Expr>(op)); }
@@ -109,18 +132,18 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const TupleNode* op) final {
     std::vector<int64_t> storage_ids;
-    std::vector<DLDeviceType> device_types;
+    std::vector<SEScope> se_scopes;
     std::vector<int64_t> storage_sizes_in_bytes;
     Expr expr = GetRef<Expr>(op);
     for (Expr field : op->fields) {
       auto sid = GetStorage(field);
       storage_ids.insert(storage_ids.end(), sid->storage_ids.begin(), sid->storage_ids.end());
-      device_types.insert(device_types.end(), sid->device_types.begin(), sid->device_types.end());
+      se_scopes.insert(se_scopes.end(), sid->se_scopes.begin(), sid->se_scopes.end());
       storage_sizes_in_bytes.insert(storage_sizes_in_bytes.end(),
                                     sid->storage_sizes_in_bytes.begin(),
                                     sid->storage_sizes_in_bytes.end());
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, device_types, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(storage_ids, se_scopes, storage_sizes_in_bytes);
     AssignReturnSid(expr);
   }
 
@@ -129,7 +152,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     auto sids = GetStorage(op->tuple);
     ICHECK_LT(static_cast<size_t>(op->index), sids->storage_ids.size());
     storage_device_map_[expr] =
-        StorageInfo({sids->storage_ids[op->index]}, {sids->device_types[op->index]},
+        StorageInfo({sids->storage_ids[op->index]}, {sids->se_scopes[op->index]},
                     {sids->storage_sizes_in_bytes[op->index]});
     AssignReturnSid(expr);
   }
@@ -163,7 +186,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \param prototype The prototype token.
    * \return The required memory size.
    *
-   * TODO(mbs): Cf CalculateRelayExprSizeBytes in utils.cc
+   * TODO(mbs): Cf CalculateRelayExprSizeBytes in utils.cc, GetMemorySize is graph_plan_memory.cc
    */
   size_t GetMemorySizeBytes(const TensorType& ttype) {
     size_t size = 1;
@@ -195,24 +218,25 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    */
   void CreateStorage(const ExprNode* op) {
     Expr expr = GetRef<Expr>(op);
-    return CreateStorage(expr, GetInScopeDeviceType(expr));
+    return CreateStorage(expr, GetSEScope(expr));
   }
 
   /*!
-   * \brief Create storage to hold the result of evaluating \p expr on \p device_type.
+   * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
    */
-  void CreateStorage(const Expr& expr, DLDeviceType device_type) {
-    ICHECK(device_type != kInvalidDeviceType) << "invalid device type for expr:" << std::endl
+  void CreateStorage(const Expr& expr, SEScope se_scope) {
+    ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
                                               << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
-    std::vector<DLDeviceType> device_types;
+    std::vector<SEScope> se_scopes;
     std::vector<int64_t> storage_sizes_in_bytes;
     for (const auto& ttype : FlattenTupleType(expr->checked_type())) {
       storage_ids.push_back(next_available_sid_++);
-      device_types.push_back(device_type);
+      se_scopes.push_back(se_scope);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, device_types, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(se_scopes),
+                                            std::move(storage_sizes_in_bytes));
   }
 
   /*! \brief mapping of expression -> storageInfo */
@@ -287,13 +311,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief Call a function with a given name
+   * brief Create a function call
+   * \param call_lowered_props The lowered function and the arguments to call it with
+   * \param call The call we got func and args from
    */
-  void CreateFuncCall(Call call, std::string func_name) {
+  void CreateFuncCall(CallLoweredProps call_lowered_props, Call call) {
+    std::string func_name = call_lowered_props.lowered_func->name_hint;
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
+
     // Pack the inputs
-    for (Expr arg : call->args) {
+    for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
         auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                            {tir::StringImm(params_by_expr_[arg])});
@@ -318,15 +346,21 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       calling_pattern = tvm::tir::builtin::call_extern();
     }
 
-    create_func_call_stmts.push_back(
-        tir::Evaluate(tvm::tir::Call(DataType::Int(32), calling_pattern, args)));
+    GlobalVar global_var = call_lowered_props.lowered_func;
+    bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
+    if (has_c_device_api_context) {
+      args.push_back(device_contexts_[global_var]);
+    }
+
+    tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+    create_func_call_stmts.push_back(func_call);
 
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
   }
 
   /*!
-   * brief Copy a variable to the output. This function is mainly used in edge cases
+   * \brief Copy a variable to the output. This function is mainly used in edge cases
    * when we want to return an input or a parameter.
    * TODO(giuseros): we should try to avoid unnecessary copy to the output, e.g., in a
    * copy-on-write fashion.
@@ -359,6 +393,39 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     stmts_.push_back(tir::LetStmt(tmp1, tostore, copy));
   }
 
+  /*
+   * \brief Collects device context variables for passing to operators
+   */
+  void CollectDeviceVariables(const Map<GlobalVar, String>& device_contexts) {
+    Map<TargetKind, tir::Var> target_contexts;
+    TargetKindAttrMap<Bool> target_attr_map = tvm::TargetKind::GetAttrMap<Bool>("use_device_api");
+
+    for (const auto& it : device_contexts) {
+      const GlobalVar& global_var = it.first;
+      const std::string device_context_name = it.second;
+
+      Optional<TargetKind> target_kind = tvm::TargetKind::Get(device_context_name);
+      if (!target_kind || !target_attr_map.count(target_kind.value())) {
+        return;
+      }
+      if (target_attr_map[target_kind.value()]) {
+        std::string context_name = SanitizeName(device_context_name);
+        tir::Var device_context_var("device_context_" + context_name, DataType::Handle());
+
+        auto pair = target_contexts.find(target_kind.value());
+        if (pair != target_contexts.end()) {
+          device_context_var = (*pair).second;
+        } else {
+          main_signature_.push_back(device_context_var);
+          devices_.push_back(context_name);
+          target_contexts.Set(target_kind.value(), device_context_var);
+        }
+
+        device_contexts_.Set(global_var, device_context_var);
+      }
+    }
+  }
+
   /*!
    * Utility function to string together different arguments
    */
@@ -371,21 +438,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     return ss.str();
   }
 
-  void VisitExpr_(const CallNode* op) override {
+  void VisitExpr_(const CallNode* call_node) override {
     // Descend the call tree
-    for (auto arg : op->args) {
-      VisitExpr(arg);
-    }
-
-    if (op->op.as<OpNode>()) {
-      LOG(FATAL) << "Operators should be transformed away; try applying"
-                 << "the fuse_ops transformation to the expression.";
-    } else if (op->op.as<GlobalVarNode>()) {
-      GlobalVar node = GetRef<GlobalVar>(op->op.as<GlobalVarNode>());
-      CreateFuncCall(GetRef<Call>(op), node->name_hint);
+    CallLoweredProps call_lowered_props;
+    if (const auto* gvn = call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
+      ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
+      for (const auto& arg : call_node->args) {
+        VisitExpr(arg);
+      }
+      call_lowered_props = CallLoweredProps{GetRef<GlobalVar>(gvn), call_node->args, {}};
     } else {
-      LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
+      ICHECK(call_node->op == CallLoweredOp()) << "Operators should be transformed away; Try "
+                                                  "applying the fuse_ops transformation to the "
+                                                  "expression.";
+      call_lowered_props = GetCallLoweredProps(call_node);
+      for (const auto& arg : call_lowered_props.arguments) {
+        VisitExpr(arg);
+      }
     }
+    CreateFuncCall(call_lowered_props, GetRef<Call>(call_node));
   }
 
   void VisitExpr_(const VarNode* op) override {
@@ -443,7 +514,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
   void VisitExpr_(const TupleGetItemNode* op) override { VisitExpr(op->tuple); }
   void VisitExpr_(const OpNode* op) override {
-    LOG(FATAL) << "All OpNodes should have been expanded";
+    if (GetRef<Op>(op) != CallLoweredOp()) {
+      LOG(FATAL) << "All OpNodes except for call_lowered should have been expanded";
+    }
   }
   void VisitExpr_(const IfNode* op) override {
     LOG(FATAL) << "All GlobalVarNodes should be removed before AOT executor's Codegen is called";
@@ -524,6 +597,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   runtime::Module* mod_;
   /*! \brief list of input expressions (i.e., variable passed by the user) */
   std::vector<Var> input_vars_;
+  /*! \brief list of device contexts used */
+  std::vector<String> devices_;
+  /*! \brief map of GlobalVars to C Device API contexts */
+  Map<GlobalVar, tir::Var> device_contexts_;
   /*! \brief input and output variables belonging to the main function signature */
   Array<tir::Var> main_signature_;
   /*! \brief target device */
@@ -589,7 +666,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod = tec::LowerTEPass(targets_, mod_name, [this](Function func) {
+    IRModule lowered_mod = tec::LowerTEPass(mod_name, [this](Function func) {
       // We need to maintain the constant map for external
       // functions so we pass this processing function which
       // allows us to process each function as we lower it.
@@ -637,6 +714,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       main_signature_.push_back(tir::Var("output", DataType::Handle()));
     }
 
+    CollectDeviceVariables(lowered_mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value());
     VisitExpr(lowered_main_func->body);
 
     // Create the runner function. Please note that the function is not legal yet
@@ -700,11 +778,18 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::vector<String> input_var_names(input_vars_.size());
     std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
                    [](Var input_var) -> String { return input_var->name_hint(); });
-    ret.metadata =
-        runtime::Metadata(input_var_names, return_sid_.size(), runtime::kTvmExecutorAot, mod_name);
+
+    ret.metadata = runtime::Metadata(input_var_names, devices_, return_sid_.size(),
+                                     runtime::kTvmExecutorAot, mod_name);
     return ret;
   }
-};
+
+  /*!
+   * \brief Get list of devices found
+   * \return List of devices
+   */
+  Array<String> ListDevices() { return devices_; }
+};  // namespace backend
 
 class AOTExecutorCodegenModule : public runtime::ModuleNode {
  public:
@@ -746,6 +831,10 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_function_metadata") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.function_metadata;
+      });
+    } else if (name == "get_devices") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->codegen_->ListDevices();
       });
     } else if (name == "get_metadata") {
       return PackedFunc(

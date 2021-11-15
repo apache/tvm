@@ -36,7 +36,7 @@ from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import tir
 
-from .context_maintainer import BlockInfo, ContextMaintainer
+from .context_maintainer import ContextMaintainer
 from .meta_unparser import MetaUnparser
 from .registry import Registry
 from .diagnostics import TVMDiagnosticCtx
@@ -449,19 +449,8 @@ class TVMScriptParser(Transformer):
                 node.span,
             )
 
-        # New Scope : Implicit root block
-        # Each function contains an implicit root block in TensorIR,
-        # so here we need a block scope for it. Please note that `enter_block_scope`
-        # will not create a block directly but just stores some information.
-        # If the PrimFunc is not a TensorIR func (e.g. TE scheduled func or low-level func),
-        # the root block will not be added. The logic to add root block is in `_ffi_api.Complete`
-        self.context.enter_block_scope(nodes=node.body.stmts)
-
         # fetch the body of root block
         body = self.parse_body(node.body)
-        # Emit Scope : Implicit root block
-        root_info: BlockInfo = self.context.current_block_scope()
-        self.context.exit_block_scope()
 
         # return a tir.PrimFunc
         dict_attr = self.context.func_dict_attr
@@ -475,6 +464,12 @@ class TVMScriptParser(Transformer):
             span=tvm_span_from_synr(node.span),
         )
 
+        # New Scope : Implicit root block
+        # Each function contains an implicit root block in TensorIR,
+        # so here we need a block scope for it.
+        # If the PrimFunc is not a TensorIR func (e.g. TE scheduled func or low-level func),
+        # the root block will not be added. The logic to add root block is in `_ffi_api.Complete`
+
         # Fix the PrimFunc
         # 1. generate root block if necessary
         # 2. generate surrounding loops for blocks if necessary
@@ -484,7 +479,7 @@ class TVMScriptParser(Transformer):
             node.span,
             _ffi_api.Complete,
             func,
-            root_info.alloc_buffers,
+            self.context.root_alloc_buffers,
         )
 
         self.context.exit_scope()

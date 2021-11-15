@@ -82,20 +82,20 @@ struct VMFunction {
   /*! \brief The instructions representing the function. */
   std::vector<Instruction> instructions;
   /*! \brief The size of the frame for this function */
-  Index register_file_size;
-  /*! \brief The device type of each parameter for this function. */
-  std::vector<Index> params_device_type;
+  Index register_file_size = 0;
+  /*! \brief The indexes for the device holding each function parameter. */
+  std::vector<Index> param_device_indexes;
 
-  VMFunction(const std::string& name, std::vector<std::string> params,
-             const std::vector<Instruction>& instructions, Index register_file_size,
-             const std::vector<Index> params_device_type = {})
-      : name(name),
-        params(params),
-        instructions(instructions),
+  VMFunction(std::string name, std::vector<std::string> params,
+             std::vector<Instruction> instructions, Index register_file_size,
+             std::vector<Index> param_device_indexes)
+      : name(std::move(name)),
+        params(std::move(params)),
+        instructions(std::move(instructions)),
         register_file_size(register_file_size),
-        params_device_type(params_device_type) {}
+        param_device_indexes(std::move(param_device_indexes)) {}
 
-  VMFunction() {}
+  VMFunction() = default;
 
   friend std::ostream& operator<<(std::ostream& os, const VMFunction&);
 };
@@ -239,17 +239,19 @@ class VirtualMachine : public runtime::ModuleNode {
                             Index output_size, const std::vector<ObjectRef>& args);
 
   /*!
-   * \brief Initialize the virtual machine for a set of devices.
-   * \param devices The set of TVM devices.
+   * \brief Initialize the virtual machine for a set of (physical) devices.
+   * \param physical_devices The set of TVM devices.
    * \param alloc_types The allocator types for each device.
    */
-  void Init(const std::vector<Device>& devices, const std::vector<AllocatorType>& alloc_types);
+  void Init(const std::vector<Device>& physical_devices,
+            const std::vector<AllocatorType>& alloc_types);
 
   /*! \brief Run VM dispatch loop. */
   void RunLoop();
 
-  /*! \brief Get device from the device list based on a given device type. */
-  Device GetDevice(Index device_type) const;
+  /*! \brief Get device from the device list based on a given device index. */
+  Device GetDevice(Index device_index) const;
+  Allocator* GetAllocator(Index device_index) const;
 
   /*!
    * \brief Invoke a global setting up the VM state to execute.
@@ -301,9 +303,13 @@ class VirtualMachine : public runtime::ModuleNode {
   const Executable* exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
-  /*! \brief The set of TVM devices the VM is currently executing on. */
+  /*!
+   * \brief The "physical" devices the VM can execute primitives on. All "device indexes"
+   * are w.r.t. this vector. Each entry in this vector must match the corresponding entry
+   * in the executable's "virtual" devices vector.
+   */
   std::vector<Device> devices_;
-  /*! \brief The cached memory allocators. */
+  /*! \brief The cached memory allocators, one per device. */
   std::vector<Allocator*> allocators_;
   /*!
    * \brief The constant pool for runtime. It caches the device dependent

@@ -17,6 +17,7 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
+import warnings
 
 from typing import Union, Optional, List, Mapping
 
@@ -206,7 +207,7 @@ def build(
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
           m1 = tvm.lower(s1, [A, B, C], name="test_add1")
           m2 = tvm.lower(s2, [A, B, C], name="test_add2")
-          rt_mod = tvm.build({"llvm": m1, "cuda": m2}, target_host="llvm")
+          rt_mod = tvm.build({"llvm": m1, "cuda": m2})
 
     Note
     ----
@@ -227,6 +228,12 @@ def build(
         raise ValueError(
             f"Inputs must be Schedule, IRModule or dict of target to IRModule, "
             f"but got {type(inputs)}."
+        )
+
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
         )
 
     if not isinstance(inputs, (dict, container.Map)):
