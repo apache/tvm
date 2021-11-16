@@ -37,6 +37,7 @@ def test_basic(dev, target):
     res = vm.profile(tvm.nd.array(data), func_name="main")
     assert "softmax" in str(res)
 
+
 def test_vm_reshape_and_copy():
     target = "llvm"
     dev = tvm.gpu()
