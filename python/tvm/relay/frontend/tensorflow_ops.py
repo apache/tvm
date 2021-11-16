@@ -1090,7 +1090,9 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d",
+            ignores=["Tdim", "half_pixel_centers"],
+            extras={"method": method, "roi": None},
         )(inputs, attr)
 
     return _impl

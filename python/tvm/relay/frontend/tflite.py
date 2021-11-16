@@ -658,7 +658,7 @@ class OperatorConverter(object):
         if bilinear_method and input_tensor.qnn_params:
             in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.image.resize2d(
-            in_expr, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
+            in_expr, target_size, None, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
         if bilinear_method and output_tensor.qnn_params:
             out = self.quantize(out, output_tensor)
