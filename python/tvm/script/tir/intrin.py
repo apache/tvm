@@ -282,6 +282,6 @@ def pos(axis: Axis, span: Optional[Span] = None):
     elif isinstance(axis, DenseVariableAxis):
         return SpIterVar(var_temp, axis.length, SpIterVar.DenseVariable, False, axis)
     elif isinstance(axis, SparseFixedAxis):
-        return SpIterVar(var_temp, axis.num_cols, SpIterVar.SparseFixed, False, axis)
+        return SpIterVar(var_temp, axis.nnz_cols, SpIterVar.SparseFixed, False, axis)
     else:
         return SpIterVar(var_temp, axis.length, SpIterVar.SparseVariable, False, axis)

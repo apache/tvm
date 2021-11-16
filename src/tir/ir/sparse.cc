@@ -91,26 +91,26 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // SparseFixedAxis
-SparseFixedAxis::SparseFixedAxis(String name, PrimExpr length, Buffer indices, PrimExpr num_cols) {
+SparseFixedAxis::SparseFixedAxis(String name, PrimExpr length, Buffer indices, PrimExpr nnz_cols) {
   ObjectPtr<SparseFixedAxisNode> node = make_object<SparseFixedAxisNode>();
   node->name = std::move(name);
   node->length = std::move(length);
   node->indices = std::move(indices);
-  node->num_cols = std::move(num_cols);
+  node->nnz_cols = std::move(nnz_cols);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_NODE_TYPE(SparseFixedAxisNode);
 
 TVM_REGISTER_GLOBAL("tir.sparse.SparseFixedAxis")
-    .set_body_typed([](String name, PrimExpr length, Buffer indices, PrimExpr num_cols) {
-      return SparseFixedAxis(name, length, indices, num_cols);
+    .set_body_typed([](String name, PrimExpr length, Buffer indices, PrimExpr nnz_cols) {
+      return SparseFixedAxis(name, length, indices, nnz_cols);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SparseFixedAxisNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const SparseFixedAxisNode*>(node.get());
-      p->stream << "sparse_fixed(" << op->name << ", " << op->length << ", " << op->num_cols << ", "
+      p->stream << "sparse_fixed(" << op->name << ", " << op->length << ", " << op->nnz_cols << ", "
                 << op->indices->name << ")";
     });
 

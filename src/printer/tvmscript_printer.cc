@@ -1314,7 +1314,7 @@ Doc TVMScriptPrinter::PrintSparseStructDefinitions(const SparseBlockNode* sp_blo
     } else if (const auto* sf_axis = obj.as<SparseFixedAxisNode>()) {
       ICHECK_EQ(params.size(), 1);
       doc << "sparse_fixed((" << Print(sf_axis->length) << ", " << Print(sf_axis->indices->shape[0])
-          << ", " << Print(sf_axis->num_cols) << "), " << Print(params[0]) << ", "
+          << ", " << Print(sf_axis->nnz_cols) << "), " << Print(params[0]) << ", "
           << PrintDType(sf_axis->indices->dtype) << ")";
     } else if (const auto* sv_axis = obj.as<SparseVariableAxisNode>()) {
       ICHECK_EQ(params.size(), 2);

@@ -288,7 +288,7 @@ class IndexTransformer : public StmtExprMutator {
     if (axis->IsInstance<DenseFixedAxisNode>()) {
       return ana_.Simplify(std::move(prev_lowered_index) * axis->length + std::move(index));
     } else if (const auto* sf_axis = axis.as<SparseFixedAxisNode>()) {
-      return ana_.Simplify(std::move(prev_lowered_index) * sf_axis->num_cols + std::move(index));
+      return ana_.Simplify(std::move(prev_lowered_index) * sf_axis->nnz_cols + std::move(index));
     } else if (const auto* dv_axis = axis.as<DenseVariableAxisNode>()) {
       return ana_.Simplify(
           add(BufferLoad(dv_axis->indptr, {std::move(prev_lowered_index)}), std::move(index)));

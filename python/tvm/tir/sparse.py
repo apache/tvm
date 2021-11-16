@@ -118,18 +118,18 @@ class SparseFixedAxis(DenseAxis):
     indices : Buffer
         The indices buffer of the axis
 
-    num_cols : PrimExpr
-        The number of non-zero elements along the axis
+    nnz_cols : PrimExpr
+        The fixed number of non-zero elements along the axis
     """
 
     name: str
     length: PrimExpr
     indices: Buffer
-    num_cols: PrimExpr
+    nnz_cols: PrimExpr
 
-    def __init__(self, name, length, indices, num_cols):
+    def __init__(self, name, length, indices, nnz_cols):
         self.__init_handle_by_constructor__(
-            _ffi_api.SparseFixedAxis, name, length, indices, num_cols  # type: ignore
+            _ffi_api.SparseFixedAxis, name, length, indices, nnz_cols  # type: ignore
         )
 
 

@@ -198,26 +198,26 @@ class DenseVariableAxis : public DenseAxis {
 class SparseFixedAxisNode : public SparseAxisNode {
  public:
   Buffer indices;
-  /* fixed number of columns of current sparse axis. */
-  PrimExpr num_cols;
+  /* fixed number of non-zero columns of current sparse axis. */
+  PrimExpr nnz_cols;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
     v->Visit("length", &length);
     v->Visit("indptr", &indices);
-    v->Visit("num_cols", &num_cols);
+    v->Visit("nnz_cols", &nnz_cols);
   }
 
   bool SEqualReduce(const SparseFixedAxisNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(length, other->length) &&
-           equal(indices, other->indices) && equal(num_cols, other->num_cols);
+           equal(indices, other->indices) && equal(nnz_cols, other->nnz_cols);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(name);
     hash_reduce(length);
     hash_reduce(indices);
-    hash_reduce(num_cols);
+    hash_reduce(nnz_cols);
   }
 
   static constexpr const char* _type_key = "tir.sparse.SparseFixedAxis";
@@ -230,7 +230,7 @@ class SparseFixedAxisNode : public SparseAxisNode {
  */
 class SparseFixedAxis : public SparseAxis {
  public:
-  TVM_DLL explicit SparseFixedAxis(String name, PrimExpr length, Buffer indices, PrimExpr num_cols);
+  TVM_DLL explicit SparseFixedAxis(String name, PrimExpr length, Buffer indices, PrimExpr nnz_cols);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SparseFixedAxis, SparseAxis, SparseFixedAxisNode);
 };
