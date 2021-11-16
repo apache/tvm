@@ -174,7 +174,8 @@ def _build_function_memory_map(function_metadata):
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
     num_targets = len(main_func_metadata.workspace_sizes.items())
-    from tvm.driver import tvmc
+    from tvm.driver import tvmc  # pylint: disable=import-outside-toplevel
+
     external_codegens = tvmc.composite_target.get_codegen_names()
     func_entries = []
     target_local_entries = dict()

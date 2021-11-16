@@ -101,8 +101,13 @@ def test_cnn_small():
     params = {}
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
     compile_and_run(
-        AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params,
-                     output_tolerance=1),
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,

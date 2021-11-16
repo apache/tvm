@@ -50,9 +50,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
    *
    * \return string of code that offloads a subgraph to the Cortex-M
    */
-  void AddFunction(const PrimFunc& prim_func) {
-    CodeGenC::AddFunction(prim_func);
-  }
+  void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
 
  private:
   /*!  * \brief Emit the CMSIS-NN context buffer */
