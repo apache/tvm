@@ -24,7 +24,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int32_t TVMEthosULaunch(struct ethosu_driver* resource_handle, void* cms_data, size_t cms_data_size,
+typedef void tvm_device_ethos_u_t;
+
+int32_t TVMEthosULaunch(tvm_device_ethos_u_t* resource_handle, void* cms_data, size_t cms_data_size,
                         uint64_t* base_addrs, size_t* base_addrs_size, int num_tensors);
+
+int32_t TVMDeviceEthosUActivate(tvm_device_ethos_u_t* context);
+int32_t TVMDeviceEthosUOpen(tvm_device_ethos_u_t* context);
+int32_t TVMDeviceEthosUClose(tvm_device_ethos_u_t* context);
+int32_t TVMDeviceEthosUDeactivate(tvm_device_ethos_u_t* context);
 
 #endif  // TVM_RUNTIME_CONTRIB_ETHOSU_ETHOSU_RUNTIME_H_
