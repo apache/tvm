@@ -811,7 +811,7 @@ def requires_rpc(*args):
 
 
 def requires_ethosn(*args):
-    """Mark a test as requiring ethosn to run.
+    """Mark a test as requiring Arm(R) Ethos(TM)-N to run.
 
     Parameters
     ----------
@@ -823,7 +823,7 @@ def requires_ethosn(*args):
         pytest.mark.skipif(
             not ethosn_available(),
             reason=(
-                "Ethos-N support not enabled.  "
+                "Arm(R) Ethos(TM)-N support not enabled.  "
                 "Set USE_ETHOSN=ON in config.cmake to enable, "
                 "and ensure that hardware support is present."
             ),
