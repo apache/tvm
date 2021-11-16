@@ -180,6 +180,11 @@ def check_pool_shape(pool_shape: tvm.ir.container.Array) -> bool:
     return True
 
 
+def check_dimensions(tensor: TensorParams):
+    """This function checks that the tensor has no more than 4 dimensions"""
+    return len(tensor.shape) <= 4
+
+
 class QnnConv2DParams:
     """
     This class will parse a Call to a ethosu.qnn_conv2d composite function
@@ -768,6 +773,85 @@ def shl_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
+class ReshapeParams:
+    """
+    This class will parse a call to a ethosu.reshape composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.reshape"
+
+    def __init__(self, func_body: Call):
+        self.new_shape = func_body.attrs.newshape
+        self.ifm = TensorParams(func_body.args[0])
+        self.ofm = TensorParams(func_body)
+
+    def is_valid(self):
+        """
+        This function checks whether reshape has compatible attributes with the NPU
+        """
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def reshape_pattern():
+    """Create pattern for reshape"""
+    pattern = is_op("reshape")(wildcard())
+    return pattern
+
+
+class StridedSliceParams:
+    """
+    This class will parse a call to a ethosu.strided_slice composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.strided_slice"
+
+    def __init__(self, func_body: Call):
+        self.ifm = TensorParams(func_body.args[0])
+        self.ofm = TensorParams(func_body)
+
+        attrs = func_body.attrs
+        # The indices where we begin the slice
+        self.begin = attrs.begin
+        # The indices where we end the slice
+        self.end = attrs.end
+        self.strides = attrs.strides
+        self.axes = attrs.axes
+        self.slice_mode = attrs.slice_mode
+
+    def is_valid(self):
+        """
+        This function checks whether reshape has compatible attributes with the NPU
+        """
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        if len(self.begin) != len(self.end):
+            return False
+
+        for begin_idx, end_idx in zip(self.begin, self.end):
+            if begin_idx > end_idx:
+                return False
+
+        # Only strides of 1 are supported
+        if self.strides:
+            if not all([i == 1 for i in self.strides]):
+                return False
+        return True
+
+
+def strided_slice_pattern():
+    """Create pattern for strided_slice"""
+    pattern = is_op("strided_slice")(wildcard())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -820,6 +904,16 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             ShlParams.composite_name,
             shl_pattern(),
             lambda pat: ShlParams(pat).is_valid(),
+        ),
+        (
+            ReshapeParams.composite_name,
+            reshape_pattern(),
+            lambda pat: ReshapeParams(pat).is_valid(),
+        ),
+        (
+            StridedSliceParams.composite_name,
+            strided_slice_pattern(),
+            lambda pat: StridedSliceParams(pat).is_valid(),
         ),
     ]
 

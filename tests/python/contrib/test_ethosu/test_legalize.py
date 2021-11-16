@@ -746,5 +746,102 @@ def test_ethosu_left_shift_binary_elemwise_legalize(ifm_shape, ifm2_shape, rever
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize(
+    "ifm_shape, new_shape",
+    [
+        ((1, 4, 1, 2), (4, 2)),
+        ((1, 5, 1, 20), (100,)),
+        ((12, 20), (1, 6, 4, 10)),
+        ((30,), (10, 1, 3)),
+    ],
+)
+def test_relay_reshape_legalize(ifm_shape, new_shape):
+
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    reshape = relay.op.reshape(ifm, new_shape)
+    func = relay.Function([ifm], reshape)
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = relay.transform.InferType()(mod)
+
+    reshape_pattern_table = [
+        (
+            ethosu.ReshapeParams.composite_name,
+            ethosu.reshape_pattern(),
+            lambda pat: ethosu.ReshapeParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = partition_ethosu_by_table(mod, reshape_pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.ReshapeRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    ext_func = mod["tvmgen_default_ethos_u_main_0"]
+
+    identity = ext_func.body
+    assert identity.op.name == "contrib.ethosu.identity"
+
+    # check that the reshape is still there
+    reshape = identity.args[0]
+    assert reshape.op.name == "reshape"
+
+    # check that identity's output shape matches reshape's output shape
+    assert tuple(identity.checked_type.shape) == new_shape
+
+
+@pytest.mark.parametrize(
+    "ifm_shape, begin, end",
+    [
+        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 10, 22, 3]),
+        ([1, 101, 35, 27], [0, 5, 11, 2], [1, 10, 22, 3]),
+        ([15, 17, 3], [3, 0, 0], [11, 17, 1]),
+        ([1, 6043], [0, 704], [1, 800]),
+    ],
+)
+def test_relay_strided_slice_legalize(ifm_shape, begin, end):
+
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    strided_slice = relay.op.strided_slice(ifm, begin, end)
+    func = relay.Function([ifm], strided_slice)
+    mod = tvm.IRModule()
+    mod["main"] = func
+    mod = relay.transform.InferType()(mod)
+
+    strided_slice_pattern_table = [
+        (
+            ethosu.StridedSliceParams.composite_name,
+            ethosu.strided_slice_pattern(),
+            lambda pat: ethosu.StridedSliceParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = partition_ethosu_by_table(mod, strided_slice_pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.StridedSliceRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    ext_func = mod["tvmgen_default_ethos_u_main_0"]
+
+    identity = ext_func.body
+    assert identity.op.name == "contrib.ethosu.identity"
+
+    # check that the strided_slice is still there
+    strided_slice = identity.args[0]
+    assert strided_slice.op.name == "strided_slice"
+
+    # check that identity's output shape matches strided slice's output shape
+    slice_shape = [a - b for a, b in zip(end, begin)]
+    assert list(identity.checked_type.shape) == slice_shape
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
