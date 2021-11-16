@@ -1822,7 +1822,7 @@ class PyTorchOpConverter:
 
             def func(x):
                 return _op.image.resize2d(
-                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                    x, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
                 )
 
             if self.is_quantized_tensor(data):
@@ -1854,7 +1854,7 @@ class PyTorchOpConverter:
             else:
                 coord_trans = "half_pixel"
 
-            return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+            return _op.image.resize3d(data, out_size, None, "NCDHW", method, coord_trans)
 
         return upsample3d
 
@@ -2186,7 +2186,9 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
+        return _op.image.resize2d(
+            data, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
+        )
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])

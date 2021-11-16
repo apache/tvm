@@ -1563,7 +1563,7 @@ def verify_any_resize2d(data_shape, scale, layout, static_data_shape, ref_out_sh
         size = (data_shape[1] * scale, data_shape[2] * scale)
     else:
         size = (data_shape[2] * scale, data_shape[3] * scale)
-    y = relay.image.resize2d(data, size, layout)
+    y = relay.image.resize2d(data, size, None, layout)
     mod["main"] = relay.Function([data], y)
     data_np = np.random.uniform(size=static_data_shape).astype(dtype)
     check_result([data_np], mod, ref_out_shape, assert_shape=True)

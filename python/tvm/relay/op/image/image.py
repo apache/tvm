@@ -17,18 +17,20 @@
 """Image operations."""
 from . import _make
 from ..dyn.image import _make as _dyn_make
-from ...expr import Expr, Constant
+from ...expr import Expr, Constant, const
 
 
 def resize1d(
     data,
     size,
+    roi=None,
     layout="NCW",
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
     cubic_alpha=-0.5,
     cubic_exclude=0,
+    extrapolation_value=0.0,
     out_dtype=None,
 ):
     """Image resize1d operator.
@@ -49,6 +51,11 @@ def resize1d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 2, and format [start_w, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
+
     layout : str, optional
         Layout of the input.
 
@@ -57,9 +64,10 @@ def resize1d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -69,7 +77,10 @@ def resize1d(
         Spline Coefficient for cubic interpolation
 
     cubic_exclude: int
-            Flag to exclude exterior of the image during cubic interpolation
+        Flag to exclude exterior of the image during cubic interpolation
+
+    extrapolation_value: float
+        Fill value to use when roi is outside of the image
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
@@ -79,19 +90,27 @@ def resize1d(
     result: relay.Expr
         The resized result.
     """
+    if roi is None:
+        roi = [0.0] * 2
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
-    if isinstance(size, Expr):
-        raise NotImplementedError("dyn.resize1d is not yet implemented, got size", size)
+    if isinstance(roi, Constant):
+        roi = list(roi.data.numpy().astype("int32"))
+    if isinstance(size, Expr) or isinstance(roi, Expr):
+        raise NotImplementedError(
+            "dyn.resize1d is not yet implemented, got size", size, "and roi", roi
+        )
     return _make.resize1d(
         data,
         size,
+        roi,
         layout,
         method,
         coordinate_transformation_mode,
         rounding_method,
         cubic_alpha,
         cubic_exclude,
+        extrapolation_value,
         out_dtype,
     )
 
@@ -99,12 +118,14 @@ def resize1d(
 def resize2d(
     data,
     size,
+    roi=None,
     layout="NCHW",
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
     cubic_alpha=-0.5,
     cubic_exclude=0,
+    extrapolation_value=0.0,
     out_dtype=None,
 ):
     """Image resize2d operator.
@@ -125,6 +146,11 @@ def resize2d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 4, and format [start_h, start_w, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
+
     layout : str, optional
         Layout of the input.
 
@@ -133,9 +159,10 @@ def resize2d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -145,7 +172,10 @@ def resize2d(
         Spline Coefficient for bicubic interpolation
 
     cubic_exclude: int
-            Flag to exclude exterior of the image during bicubic interpolation
+        Flag to exclude exterior of the image during bicubic interpolation
+
+    extrapolation_value: float
+        Fill value to use when roi is outside of the image
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
@@ -155,29 +185,41 @@ def resize2d(
     result: relay.Expr
         The resized result.
     """
+    if roi is None:
+        roi = [0.0] * 4
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
-    if isinstance(size, Expr):
+    if isinstance(roi, Constant):
+        roi = list(roi.data.numpy().astype("float32"))
+    if isinstance(size, Expr) or isinstance(roi, Expr):
+        if not isinstance(size, Expr):
+            size = const(size, "int64")
+        if not isinstance(roi, Expr):
+            roi = const(roi, "float32")
         return _dyn_make.resize2d(
             data,
             size,
+            roi,
             layout,
             method,
             coordinate_transformation_mode,
             rounding_method,
             cubic_alpha,
             cubic_exclude,
+            extrapolation_value,
             out_dtype,
         )
     return _make.resize2d(
         data,
         size,
+        roi,
         layout,
         method,
         coordinate_transformation_mode,
         rounding_method,
         cubic_alpha,
         cubic_exclude,
+        extrapolation_value,
         out_dtype,
     )
 
@@ -185,12 +227,14 @@ def resize2d(
 def resize3d(
     data,
     size,
+    roi=None,
     layout="NCDHW",
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
     cubic_alpha=-0.5,
     cubic_exclude=0,
+    extrapolation_value=0.0,
     out_dtype=None,
 ):
     """Image resize3d operator.
@@ -211,6 +255,11 @@ def resize3d(
     size: Tuple of Int or Expr
         The out size to which the image will be resized.
 
+    roi: Tuple of Float or Expr, optional
+        The region of interest for cropping the input image. Expected to be of
+        size 6, and format [start_d, start_h, start_w, end_d, end_h, end_w].
+        Only used if coordinate_transformation_mode is tf_crop_and_resize.
+
     layout : str, optional
         Layout of the input.
 
@@ -219,9 +268,10 @@ def resize3d(
 
     coordinate_transformation_mode : string, optional
         Describes how to transform the coordinate in the resized tensor
-        to the coordinate in the original tensor.
-        Refer to the ONNX Resize operator specification for details.
-        [half_pixel, align_corners, asymmetric]
+        to the coordinate in the original tensor. Defintions can be found
+        in topi/image/resize.py.
+        [half_pixel, align_corners, asymmetric, pytorch_half_pixel,
+        tf_half_pixel_for_nn, and tf_crop_and_resize].
 
     rounding_method: string, optional
         indicates how to find the "nearest" pixel in nearest_neighbor method
@@ -231,7 +281,10 @@ def resize3d(
         Spline Coefficient for cubic interpolation
 
     cubic_exclude: int
-            Flag to exclude exterior of the image during cubic interpolation
+        Flag to exclude exterior of the image during cubic interpolation
+
+    extrapolation_value: float
+        Fill value to use when roi is outside of the image
 
     out_dtype : str, optional
         Type to return. If left None returns the same type as input.
@@ -241,19 +294,27 @@ def resize3d(
     result: relay.Expr
         The resized result.
     """
+    if roi is None:
+        roi = [0.0] * 6
     if isinstance(size, Constant):
         size = list(size.data.numpy().astype("int32"))
-    if isinstance(size, Expr):
-        raise NotImplementedError("dyn.resize3d is not yet implemented, got size", size)
+    if isinstance(roi, Constant):
+        roi = list(roi.data.numpy().astype("int32"))
+    if isinstance(size, Expr) or isinstance(roi, Expr):
+        raise NotImplementedError(
+            "dyn.resize3d is not yet implemented, got size", size, "and roi", roi
+        )
     return _make.resize3d(
         data,
         size,
+        roi,
         layout,
         method,
         coordinate_transformation_mode,
         rounding_method,
         cubic_alpha,
         cubic_exclude,
+        extrapolation_value,
         out_dtype,
     )
 
