@@ -102,6 +102,7 @@ class BuildModule(object):
         self._get_params_func = self.mod["get_params"]
         self._get_function_metadata = self.mod["get_function_metadata"]
         self._get_devices = self.mod["get_devices"]
+        self._get_irmodule = self.mod["get_irmodule"]
 
     def build(
         self, mod, target=None, target_host=None, params=None, executor="graph", mod_name=None
@@ -249,6 +250,10 @@ class BuildModule(object):
             ret[key] = value.data
         return ret
 
+    def get_irmodule(self):
+        """Returns the Target IRModule's post-lowering"""
+        return self._get_irmodule()
+
 
 @register_func("tvm.relay.module_export_library")
 def _module_export(module, file_name):  # fcompile, addons, kwargs?
@@ -376,10 +381,18 @@ def build(ir_mod, target=None, target_host=None, params=None, mod_name="default"
         )
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
+        lowered_ir_mods = bld_mod.get_irmodule()
 
         if executor == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
-                ir_mod, target, runtime_mod, mod_name, params, func_metadata, devices
+                ir_mod,
+                lowered_ir_mods,
+                target,
+                runtime_mod,
+                mod_name,
+                params,
+                func_metadata,
+                devices,
             )
         elif executor == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(

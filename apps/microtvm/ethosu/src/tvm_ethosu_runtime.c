@@ -21,8 +21,9 @@
 
 #include <ethosu_driver.h>
 
-int32_t TVMEthosULaunch(struct ethosu_driver* driver, void* cms_data, size_t cms_data_size,
+int32_t TVMEthosULaunch(tvm_device_ethos_u_t* context, void* cms_data, size_t cms_data_size,
                         uint64_t* base_addrs, size_t* base_addrs_size, int num_tensors) {
+  struct ethosu_driver* driver = (struct ethosu_driver*)context;
   int32_t result =
       ethosu_invoke(driver, cms_data, cms_data_size, base_addrs, base_addrs_size, num_tensors);
 
@@ -32,3 +33,8 @@ int32_t TVMEthosULaunch(struct ethosu_driver* driver, void* cms_data, size_t cms
   }
   return 0;
 }
+
+int32_t TVMDeviceEthosUActivate(tvm_device_ethos_u_t* context) {}
+int32_t TVMDeviceEthosUOpen(tvm_device_ethos_u_t* context) {}
+int32_t TVMDeviceEthosUClose(tvm_device_ethos_u_t* context) {}
+int32_t TVMDeviceEthosUDeactivate(tvm_device_ethos_u_t* context) {}
