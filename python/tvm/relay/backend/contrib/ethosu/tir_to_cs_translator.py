@@ -623,8 +623,8 @@ def _create_npu_resampling_mode(
 
 
 def _create_npu_rounding_mode(
-    mode,
-):
+    mode: str,
+) -> vapi.NpuRoundingMode:
     """This is a helper function to capture a list
     of arguments to create Vela NpuRoundingMode object."""
     mode_map = {
