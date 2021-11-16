@@ -30,7 +30,6 @@ from tvm.ir.type import TupleType
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
-from ..driver.tvmc.composite_target import get_codegen_names
 from ..runtime import ndarray as _nd
 from ..relay.backend import executor_factory
 from ..relay.backend.name_transforms import to_c_variable_style, prefix_generated_name
@@ -175,7 +174,8 @@ def _build_function_memory_map(function_metadata):
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
     num_targets = len(main_func_metadata.workspace_sizes.items())
-    external_codegens = get_codegen_names()
+    from tvm.driver import tvmc
+    external_codegens = tvmc.composite_target.get_codegen_names()
     func_entries = []
     target_local_entries = dict()
     for i in range(num_targets):
