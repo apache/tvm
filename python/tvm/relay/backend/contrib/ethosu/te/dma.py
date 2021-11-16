@@ -67,19 +67,21 @@ def _pad_tensor(
     return _pad
 
 
-def read_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float) -> te.Tensor:
+def read_compute(
+    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None
+) -> te.Tensor:
     """A tensor expression which represents a read.
 
     Parameters
     ----------
     tensor : te.Tensor
         The tensor to read.
-    layout : str
-        The layout of the tensor, either NHWC or NHCWB16.
     zero_point : int
         The zero point of the tensor.
     scale : float
         The scale of the tensor.
+    layout : Optional[str]
+        The layout of the tensor, either NHWC or NHCWB16.
 
     Returns
     -------
@@ -87,29 +89,34 @@ def read_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float) 
         The tensor having been read.
 
     """
-    assert layout in {"NHWC", "NHCWB16"}
     read_attrs = {
         "op": "ethosu_read",
-        "layout": layout,
         "zero_point": zero_point,
         "scale": scale,
     }
+
+    if layout:
+        assert layout in {"NHWC", "NHCWB16"}
+        read_attrs["layout"] = layout
+
     return te.compute(tensor.shape, lambda *i: tensor(*i), name="ethosu_read", attrs=read_attrs)
 
 
-def write_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float) -> te.Tensor:
+def write_compute(
+    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None
+) -> te.Tensor:
     """A tensor expression which represents a write.
 
     Parameters
     ----------
     tensor : te.Tensor
         The tensor to write.
-    layout : str
-        The layout of the tensor, either NHWC or NHCWB16.
     zero_point : int
         The zero point of the tensor.
     scale : float
         The scale of the tensor.
+    layout : Optional[str]
+        The layout of the tensor, either NHWC or NHCWB16.
 
     Returns
     -------
@@ -117,13 +124,17 @@ def write_compute(tensor: te.Tensor, layout: str, zero_point: int, scale: float)
         The tensor having been written.
 
     """
-    assert layout in {"NHWC", "NHCWB16"}
+
     write_attrs = {
         "op": "ethosu_write",
-        "layout": layout,
         "zero_point": zero_point,
         "scale": scale,
     }
+
+    if layout:
+        assert layout in {"NHWC", "NHCWB16"}
+        write_attrs["layout"] = layout
+
     return te.compute(
         tensor.shape,
         lambda *i: tensor(*i),
@@ -278,7 +289,7 @@ def dma_ifm_compute(
         The dma-ed IFM tensor.
 
     """
-    read_ifm = read_compute(ifm, layout, zero_point, scale)
+    read_ifm = read_compute(ifm, zero_point, scale, layout=layout)
     convert_to_nhwc_ifm = convert_to_nhwc_compute(read_ifm, layout, channels)
     return pad_compute(convert_to_nhwc_ifm, padding)
 
@@ -308,4 +319,4 @@ def dma_ofm_compute(
 
     """
     convert_to_nhcwb16_ofm = convert_to_nhcwb16_compute(ofm, layout, channels)
-    return write_compute(convert_to_nhcwb16_ofm, layout, zero_point, scale)
+    return write_compute(convert_to_nhcwb16_ofm, zero_point, scale, layout=layout)

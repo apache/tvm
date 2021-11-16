@@ -577,6 +577,130 @@ def test_ethosu_right_shift_binary_elemwise(
     ).astype(ofm_dtype)
 
     compiled_model = infra.build_source(mod, input_data, [output_data], accel_type)
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(3, 2), (1, 15, 11, 7), (3, 1, 12), (400,)])
+@pytest.mark.parametrize("ifm_scale, ifm_zp, ofm_scale, ofm_zp", [(1, 0, 1, 0), (0.015, 3, 0.2, 5)])
+def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp, accel_type):
+    # Create a "partitioned" Relay function
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    identity = infra.make_ethosu_identity(
+        ifm0, ifm_scale=ifm_scale, ifm_zero_point=ifm_zp, ofm_scale=ofm_scale, ofm_zero_point=ofm_zp
+    )
+    mod = infra.make_partitioned_function(identity)
+
+    in_data = np.random.randint(-120, high=120, size=ifm_shape, dtype="int8")
+    requant_data = (ifm_scale * (in_data - ifm_zp)) / ofm_scale + ofm_zp
+    out_data = np.round(np.clip(requant_data, -128, 127)).astype("int8")
+
+    compiled_model = infra.build_source(
+        mod, {"ifm": in_data}, [out_data], accel_type, output_tolerance=1
+    )
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, new_shape",
+    [
+        ((1, 4, 1, 2), (1, 1, 1, 8)),
+        ((12, 20), (1, 6, 4, 10)),
+        ((12, 20), (6, 4, 10)),
+        ((20,), (4, 5)),
+        ((12, 2, 10), (0, -3)),
+        ((11, 3, 25), (-1,)),
+        ((8, 7, 3), (-4, 1, 8, -2)),
+    ],
+)
+def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
+    # Create a "partitioned" Relay graph
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    reshape = relay.op.reshape(ifm0, newshape=new_shape)
+    mod = infra.make_partitioned_function(reshape)
+
+    data = np.random.randint(-128, high=127, size=ifm_shape, dtype="int8")
+
+    # Generate a reference output using Relay reshape that doesn't get offloaded
+    ref_mod = tvm.IRModule()
+    ref_mod["main"] = relay.Function([ifm0], reshape)
+    ref_mod = relay.transform.InferType()(ref_mod)
+
+    out_data = generate_ref_data(ref_mod, {"ifm0": data})
+
+    compiled_model = infra.build_source(
+        mod,
+        {"ifm": data},
+        out_data,
+        accel_type,
+    )
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, begin, end",
+    [
+        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 10, 22, 3]),
+        ([15, 17, 3], [3, 0, 1], [11, 17, 3]),
+        ([7, 6043], [0, 704], [1, 3564]),
+        ([5000], [123], [2274]),
+    ],
+)
+def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
+    # Create a "partitioned" Relay graph
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int8")
+    strided_slice = relay.op.strided_slice(ifm0, begin, end)
+    mod = infra.make_partitioned_function(strided_slice)
+
+    input_data = np.random.randint(-128, high=127, size=ifm_shape, dtype="int8")
+
+    # Generate a reference output using Relay strided slice that doesn't get offloaded
+    ref_mod = tvm.IRModule()
+    ref_mod["main"] = relay.Function([ifm0], strided_slice)
+    ref_mod = relay.transform.InferType()(ref_mod)
+
+    out_data = generate_ref_data(ref_mod, {"ifm0": input_data})
+
+    compiled_model = infra.build_source(
+        mod,
+        {"ifm": input_data},
+        out_data,
+        accel_type,
+    )
 
     imported_modules = compiled_model[0].executor_factory.lib.imported_modules
     assert len(imported_modules) == 2

@@ -24,6 +24,7 @@ from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params
 from .binary_elementwise import get_binary_elementwise_params
+from .identity import get_identity_params
 from .transform import get_copy_params
 from .utils import get_weights_pointer, get_scale_bias_pointer
 
@@ -58,6 +59,7 @@ def ReplaceOperators():
         "ethosu_depthwise_conv2d": get_depthwise_conv2d_params,
         "ethosu_pooling": get_pooling_params,
         "ethosu_binary_elementwise": get_binary_elementwise_params,
+        "ethosu_identity": get_identity_params,
     }
     pointer_to_producer = {}
     pointer_to_consumer = {}
