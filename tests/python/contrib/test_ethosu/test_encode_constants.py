@@ -302,8 +302,8 @@ def test_constant_as_input():
     # Check tile address for the scalar constant input hasn't been
     # overwritten.
     extern_calls = tir_mod["main"].body.body.body.body.body
-    binary_elmtwise = extern_calls[-1].value
-    args = binary_elmtwise.args
+    binary_elementwise = extern_calls[-1].value
+    args = binary_elementwise.args
 
     reason = "Tile address overwritten"
     assert args[26] == 0, reason

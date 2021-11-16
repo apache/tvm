@@ -734,10 +734,10 @@ def test_binary_add_from_constant_scalar():
     mod = create_graph()
     mod = partition_ethosu_by_table(mod, pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize(

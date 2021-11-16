@@ -477,7 +477,7 @@ def test_binary_add_from_constant_scalar(accel_type):
     ethosu_module = imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
     cmms = get_cs(ethosu_module)
     cmms = bytes.fromhex(cmms)
 
