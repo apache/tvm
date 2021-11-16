@@ -4958,7 +4958,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_resize_tf_crop_and_resize",
     "test_rnn_seq_length",
     "test_round",
     "test_scan9_sum",
