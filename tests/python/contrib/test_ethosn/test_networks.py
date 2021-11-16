@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration end-to-end network tests"""
+"""Arm(R) Ethos(TM)-N integration end-to-end network tests"""
 
 import pytest
 

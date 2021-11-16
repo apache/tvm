@@ -19,7 +19,7 @@
 
 /*!
  * \file ethosn_device.h
- * \brief Ethos-N NPU device integration.
+ * \brief Arm(R) Ethos(TM)-N NPU device integration.
  */
 #ifndef TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_
 #define TVM_RUNTIME_CONTRIB_ETHOSN_ETHOSN_DEVICE_H_

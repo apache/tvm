@@ -19,7 +19,7 @@
 
 /*!
  * \file ethosn_device.cc
- * \brief Ethos-N NPU device integration.
+ * \brief Arm(R) Ethos(TM)-N NPU device integration.
  */
 
 #include <dlpack/dlpack.h>
