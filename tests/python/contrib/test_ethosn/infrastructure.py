@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N test functions"""
+"""Arm(R) Ethos(TM)-N test functions"""
 
 from __future__ import absolute_import, print_function
 import tvm

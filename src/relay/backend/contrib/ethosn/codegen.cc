@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/backend/contrib/ethosn/codegen.cc
- * \brief The Relay -> Ethos-N command stream compiler.
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/module.h>
@@ -633,7 +633,7 @@ EthosnError EthosnCompiler::SupportedSetup() {
         sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(cfg.value()->variant.c_str()),
                                    std::stoul(cfg.value()->sram_size)));
     if (m_Queries == nullptr) {
-      return EthosnError("Could not initialise Ethos-N compiler isSupported");
+      return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }
   }
   return EthosnError();
