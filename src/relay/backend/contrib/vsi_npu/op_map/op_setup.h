@@ -69,7 +69,7 @@ class OpSetup {
 
   virtual void SetupOperand(const CallNode* cn, tim::vx::Quantization& quant_info,
                             std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
-    std::cout << "something wrong in OpSetup::SetupOperand!" << std::endl;
+    LOG(ERROR) <<  __FUNCTION__ <<"something wrong!";
   }
 
   virtual void SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> graph,
@@ -77,7 +77,7 @@ class OpSetup {
 
   virtual std::shared_ptr<tim::vx::Operation> CreateOperation(
       std::shared_ptr<tim::vx::Graph> graph) {
-    std::cout << "something wrong in OpSetup::CreateOperation!" << std::endl;
+    LOG(ERROR) << __FUNCTION__ <<"something wrong! ";
     return nullptr;
   }
 

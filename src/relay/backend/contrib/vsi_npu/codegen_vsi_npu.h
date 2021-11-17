@@ -42,35 +42,17 @@ class VsiError {
   // TODO
 };
 
-inline int32_t ConvertAxis(int32_t axisIn, uint32_t dimNum) {
-  return dimNum - (axisIn < 0 ? dimNum + axisIn : axisIn) - 1;
-}
-
 struct RawGraphDef {
   std::shared_ptr<char> compiled_graph;
   uint32_t compiled_graph_size;
   std::vector<tim::vx::TensorSpec> inputs_spec;
   std::vector<tim::vx::TensorSpec> outputs_spec;
 };
-class VsiErrorReporter {
+
+class TensorMakerImpl : private ExprVisitor {
  public:
-  VsiErrorReporter(const IRModule& module, const GlobalVar& var) : module_(module), var_(var) {}
-
-  void ReportFatalError(const ObjectRef& expr, const VsiError& error) {
-    // TODO
-  }
-
- protected:
-  tvm::ErrorReporter error_reporter_;
-  IRModule module_;
-  GlobalVar var_;
-};
-
-class TensorMakerImpl : private ExprVisitor, private VsiErrorReporter {
- public:
-  TensorMakerImpl(const IRModule& module, const GlobalVar& var) : VsiErrorReporter(module, var) {}
-
-  // std::map<Expr, std::vector<tim::vx::TensorSpec>> Create(const Expr &expr);
+  //TensorMakerImpl(const IRModule& module, const GlobalVar& var) : VsiErrorReporter(module, var) {}
+  TensorMakerImpl(const IRModule& module, const GlobalVar& var) : module_(module), var_(var) {}
   std::map<Expr, std::shared_ptr<OpSetup>> Create(const Expr& expr);
 
  private:
@@ -82,15 +64,18 @@ class TensorMakerImpl : private ExprVisitor, private VsiErrorReporter {
   // TODO:
   void VisitExpr_(const TupleNode* tn) final;
   void VisitExpr_(const TupleGetItemNode* tg) final {
-    std::cout << "TensorMakerImpl: TupleGetItemNode" << std::endl;
+    LOG(INFO) << __FUNCTION__<< "TupleGetItemNode";
   };
   void VisitExpr_(const FunctionNode* fn) final {
-    std::cout << "TensorMakerImpl: FunctionNode" << std::endl;
+    LOG(INFO) << __FUNCTION__<< "FunctionNode";
   }
 
   void InferDataQuantParam(Expr expr);
 
   VxOpTable vxOpmap_tbl_;
+  IRModule module_;
+  GlobalVar var_;
+
 };
 
 std::map<Expr, std::shared_ptr<OpSetup>> MakeTensor(const IRModule& module, const GlobalVar& var,
@@ -98,10 +83,9 @@ std::map<Expr, std::shared_ptr<OpSetup>> MakeTensor(const IRModule& module, cons
   return TensorMakerImpl(module, var).Create(expr);
 }
 
-// class GraphMakerImpl : public MixedModeVisitor, private VsiErrorReporter {
-class GraphMakerImpl : public ExprVisitor, private VsiErrorReporter {
+class GraphMakerImpl : public ExprVisitor{
  public:
-  GraphMakerImpl(const IRModule& module, const GlobalVar& var) : VsiErrorReporter(module, var) {}
+  GraphMakerImpl(const IRModule& module, const GlobalVar& var) : module_(module), var_(var) {}
 
   RawGraphDef Create(const Function& func);
 
@@ -111,14 +95,13 @@ class GraphMakerImpl : public ExprVisitor, private VsiErrorReporter {
   void VisitExpr_(const CallNode* cn) final;
   void VisitExpr_(const TupleNode* tn) final;
   void VisitExpr_(const TupleGetItemNode* tg) final {
-    std::cout << "GraphMakerImpl: TupleGetItemNode" << std::endl;
+    LOG(INFO) << __FUNCTION__ << "TupleGetItemNode";
   };
-  //   void VisitLeaf(const Expr& expr) final { std::cout << "GraphMakerImpl:
-  //   Expr" << std::endl;};
 
   VxOpTable vxOpmap_tbl_;
   std::shared_ptr<tim::vx::Graph> vx_graph_;
-
+  IRModule module_;
+  GlobalVar var_;
   static std::shared_ptr<tim::vx::Context> vx_global_ctx_;
 };
 

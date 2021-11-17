@@ -89,8 +89,7 @@ def get_ref_result(data, mod, params, out_shape, dtype):
     cpu_out = cpu_mod.get_output(0, tvm.nd.empty(out_shape, dtype))
     return cpu_out
 
-def verify_vsi_result(inputs, model, params, data_shape, out_shape, dtype="float32"):
-    wait=input("1. press any key and continue...")
+def verify_vsi_result(inputs, model, params, out_shape, dtype="float32"):
     mod = make_module(model, params)
 
     ref_out = get_ref_result(inputs, mod, params, out_shape, dtype)

@@ -4,8 +4,6 @@ if(NOT TIM_VX_INSTALL_DIR OR NOT EXISTS ${TIM_VX_INSTALL_DIR})
 message(FATAL_ERROR "TIM_VX_INSTALL_DIR should be set")
 endif()
 
-set(OVXLIB_API_ATTR "__attribute__\(\(visibility\(\"default\"\)\)\)")
-add_definitions(-DOVXLIB_API=${OVXLIB_API_ATTR})
 include_directories(${TIM_VX_INSTALL_DIR}/include)
 
 list(APPEND TVM_LINKER_LIBS ${TIM_VX_INSTALL_DIR}/lib/libtim-vx.so)

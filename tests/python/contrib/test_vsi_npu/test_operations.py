@@ -14,256 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 #from python.tvm.relay.qnn.op.qnn import dequantize
+import pytest
+import logging
 import tvm
 from tvm import relay
-from tvm.relay import testing
 import numpy as np
 from infrastructure import verify_vsi_result
 
-def _single_operation_test(relay_nn_func, dtype, data_shape, out_shape,
-        *args, **kargs):
-    op_name = relay_nn_func.__name__.upper()
-    print("Testing {0: <50}".format(op_name), end="")
-    data = relay.var("data", shape=data_shape, dtype=dtype)
-
-    out = relay_nn_func(data, *args, **kargs)
-
-    args = relay.analysis.free_vars(out)
-    net = relay.Function(args, out)
-
-    mod, params = relay.testing.init.create_workload(net)
-
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-def test_global_avg_pool2d():
-    func = relay.nn.global_avg_pool2d
-
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = (1, 20, 1, 1)
-    _single_operation_test(func, dtype, data_shape, out_shape)
-
-def test_global_max_pool2d():
-    func = relay.nn.global_max_pool2d
-
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = (1, 20, 1, 1)
-    _single_operation_test(func, dtype, data_shape, out_shape)
-
-def test_avg_pool2d():
-    func = relay.nn.avg_pool2d
-
-    dtype = "float32"
-    data_shape = (1, 1, 20, 20)
-    out_shape = (1, 1, 10, 10)
-    _single_operation_test(func, dtype, data_shape, out_shape, pool_size=(3, 3),
-            strides=(2, 2), padding=(1,1,1,1))
-
-def test_max_pool2d():
-    func = relay.nn.max_pool2d
-
-    dtype = "float32"
-    data_shape = (1, 1, 20, 20)
-    out_shape = (1, 1, 10, 10)
-    _single_operation_test(func, dtype, data_shape, out_shape, pool_size=(2, 2),
-            strides=(2, 2), padding=(0,0,0,0))
-
-def test_softmax():
-    func = relay.nn.softmax
-
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = data_shape
-    _single_operation_test(func, dtype, data_shape, out_shape)
-
-def test_relu():
-    func = relay.nn.relu
-
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = data_shape
-    _single_operation_test(func, dtype, data_shape, out_shape)
-
-def test_add():
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = data_shape
-
-    def get_workload(data_shape, dtype="float32"):
-        '''customized keywords(like data0,data1...) are not supported in \
-        relay.testing.init.create_workload
-        '''
-        data0 = relay.var("data", shape=data_shape, dtype=dtype)
-        data1 = relay.var("weight", shape=data_shape, dtype=dtype)
-
-        out = relay.add(data0, data1)
-
-        args = relay.analysis.free_vars(out)
-        net = relay.Function(args, out)
-
-        return relay.testing.init.create_workload(net)
-
-    print("Testing {0: <50}".format("ADD"), end="")
-    mod, params = get_workload(data_shape, dtype)
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-def test_batch_flatten():
-    func = relay.nn.batch_flatten
-
-    dtype = "float32"
-    data_shape = (1, 5, 10, 10)
-    out_shape = (1, 500)
-    _single_operation_test(func, dtype, data_shape, out_shape)
-
-def test_batch_norm():
-    data_shape = (1, 4)
-    c_shape = (4,)
-    out_shape = (1, 4)
-    dtype="float32"
-
-    def get_workload(data_shape, weight_shape, dtype="float32"):
-        data = relay.var("data", shape=data_shape, dtype=dtype)
-
-        w = tvm.nd.array(np.ones(weight_shape, dtype))
-        gamma = relay.const(w, dtype)
-        beta = relay.const(w, dtype)
-        moving_mean = relay.const(w, dtype)
-        moving_var = relay.const(w, dtype)
-
-        bn = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var)
-        out = bn[0]
-
-        args = relay.analysis.free_vars(out)
-        net = relay.Function(args, out)
-
-        return relay.testing.init.create_workload(net)
-
-    print("Testing {0: <50}".format("BATCH_NORM"), end="")
-    mod, params = get_workload(data_shape, c_shape, dtype)
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-def test_conv2d():
-    data_shape = (1, 256, 64, 64)
-    weight_shape = (256, 256, 3, 3)
-    out_shape = (1, 256, 64, 64)
-    dtype="float32"
-    Pad=(1,1,1,1)
-    Strides=(1,1)
-    Dilation=(1,1)
-    Ksize=(3,3)
-    Groups=1
-
-    def get_workload(data_shape, weight_shape, dtype="float32"):
-        """Function to construct a MobileNet"""
-        data = relay.var("data", shape=data_shape, dtype=dtype)
-        weight = relay.var("conv_weight")
-        conv = relay.nn.conv2d(
-            data,
-            weight,
-            channels=weight_shape[0],
-            kernel_size=Ksize,
-            strides=Strides,
-            padding=Pad,
-            groups=Groups,
-            data_layout="NCHW",
-            kernel_layout="OIHW"
-        )
-        args = relay.analysis.free_vars(conv)
-        net = relay.Function(args, conv)
-        return relay.testing.init.create_workload(net)
-
-    print("Testing {0: <50}".format("CONV2D"), end="")
-    mod, params = get_workload(data_shape, weight_shape, dtype)
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-
-def test_dense():
-    data_shape = (1, 784)
-    weight_shape = (128, 784)
-    out_shape = (1, 128)
-    dtype="float32"
-
-    def get_workload(data_shape, weight_shape, dtype="float32"):
-        data = relay.var("data", shape=data_shape, dtype=dtype)
-        fc1 = relay.nn.dense(data, relay.var("fc1_weight"), units=weight_shape[0])
-        fc = relay.nn.bias_add(fc1, relay.var("fc1_bias"), axis=1)
-        args = relay.analysis.free_vars(fc)
-        net = relay.Function(args, fc)
-
-        return relay.testing.init.create_workload(net)
-
-    print("Testing {0: <50}".format("DENSE_BIAS_ADD"), end="")
-    mod, params = get_workload(data_shape, weight_shape, dtype)
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-def test_concatenate():
-    dtype = "float32"
-    data_shape = (1, 20, 12)
-    out_shape = (1, 20, 24)
-
-    def get_workload(data_shape, dtype="float32"):
-        '''customized keywords(like data0,data1...) are not supported in \
-        relay.testing.init.create_workload
-        '''
-        data0 = relay.var("data", shape=data_shape, dtype=dtype)
-        data1 = relay.var("bias", shape=data_shape, dtype=dtype)
-
-        out = relay.concatenate([data0, data1], axis=-1)
-        args = relay.analysis.free_vars(out)
-        net = relay.Function(args, out)
-
-        return relay.testing.init.create_workload(net)
-
-    print("Testing {0: <50}".format("CONCATENATE"), end="")
-    mod, params = get_workload(data_shape, dtype)
-    verify_vsi_result(mod, params, data_shape, out_shape, dtype)
-
-def test_image_resize():
-    data_dtype = 'float32'
-    in_size = (33, 33)
-    out_size = (257, 257)
-    channel = (21,)
-
-    def run_test(layout, method, mode):
-        if (layout == "NHWC"):
-            data_shape = (1,) + in_size + channel
-            out_shape = (1,) + out_size + channel
-        else:
-            data_shape = (1,) + channel + in_size
-            out_shape = (1,) + channel + out_size
-        x = relay.var("data", shape=data_shape, dtype=data_dtype)
-        out = relay.image.resize(x, out_size, layout, method, mode)
-        args = relay.analysis.free_vars(out)
-        net = relay.Function(args, out)
-
-        mod, params = relay.testing.init.create_workload(net)
-        verify_vsi_result(mod, params, data_shape, out_shape, data_dtype)
-    print("Testing {0: <50}".format("RESIZE_1"), end="")
-    run_test("NHWC", "nearest_neighbor", "asymmetric")
-    print("Testing {0: <50}".format("RESIZE_2"), end="")
-    run_test("NHWC", "bilinear", "asymmetric")
-    print("Testing {0: <50}".format("RESIZE_3"), end="")
-    run_test("NHWC", "bilinear", "half_pixel")
-    print("Testing {0: <50}".format("RESIZE_4"), end="")
-    run_test("NHWC", "bilinear", "align_corners")
-    print("Testing {0: <50}".format("RESIZE_5"), end="")
-    run_test("NCHW", "nearest_neighbor", "asymmetric")
-    print("Testing {0: <50}".format("RESIZE_6"), end="")
-    run_test("NCHW", "bilinear", "asymmetric")
-    print("Testing {0: <50}".format("RESIZE_7"), end="")
-    run_test("NCHW", "bilinear", "half_pixel")
-    print("Testing {0: <50}".format("RESIZE_8"), end="")
-    run_test("NCHW", "bilinear", "align_corners")
-
-def test_dropout():
-    func = relay.nn.dropout
-
-    dtype = "float32"
-    data_shape = (1, 20, 12, 9)
-    out_shape = data_shape
-    _single_operation_test(func, dtype, data_shape, out_shape, rate=0.5)
+logging.basicConfig(level=logging.DEBUG)
 
 def test_qnn_add():
     data_dtype = "uint8"
@@ -284,14 +44,14 @@ def test_qnn_add():
         output_zero_point=relay.const(112, "int32"),
     )
 
-    print("Testing {0: <50}".format("QNN.ADD"), end="")
+    logging.info("Testing {0: <50}".format("QNN.ADD"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
     params = {
         "y": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
-    verify_vsi_result(inputs, out,params, data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out,params, out_shape, data_dtype)
 
 def test_float_add():
     dtype = "float32"
@@ -303,7 +63,7 @@ def test_float_add():
 
     out = relay.op.add(lhs=data0, rhs=data1)
 
-    print("Testing {0: <50}".format("ADD"), end="")
+    logging.info("Testing {0: <50}".format("ADD"))
     inputs = {
         "a": tvm.nd.array(np.random.uniform(size=data_0_shape).astype(dtype)),
         #"b": tvm.nd.array(np.random.uniform(size=data_1_shape).astype(dtype)),
@@ -312,7 +72,7 @@ def test_float_add():
         #"weight": tvm.nd.array(np.ones(weight_shape,dtype)),
         "b": tvm.nd.array(np.random.uniform(size=data_1_shape).astype(dtype)),
     }
-    verify_vsi_result(inputs, out, params, data_0_shape, out_shape, dtype)
+    verify_vsi_result(inputs, out, params, out_shape, dtype)
 
 def test_float_relu():
     dtype ="float32"
@@ -324,8 +84,9 @@ def test_float_relu():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(-1.0, 1.0, size=data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("RELU"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("RELU"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
+
 
 def test_uint8_relu():
     input_dtype = "float32"
@@ -360,8 +121,8 @@ def test_uint8_relu():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(-4, 4, size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("RELU"), end="")
-    verify_vsi_result(inputs, requantize, [], data_shape, data_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("RELU"))
+    verify_vsi_result(inputs, requantize, [], data_shape, output_dtype)
 
 def test_float_leaky_relu():
     dtype ="float32"
@@ -375,8 +136,8 @@ def test_float_leaky_relu():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(-1.0, 1.0, size=data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("LEAKY RELU"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("LEAKY RELU"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_uint8_leaky_relu():
     input_dtype = "uint8"
@@ -402,13 +163,11 @@ def test_uint8_leaky_relu():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(0, 255, size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("LEAKY RELU"), end="")
-    verify_vsi_result(inputs, quantize, [], data_shape, data_shape, output_dtype)
-
+    logging.info("Testing {0: <50}".format("LEAKY RELU"))
+    verify_vsi_result(inputs, quantize, [], data_shape, output_dtype)
 
 def test_float_softmax():
     #func = relay.nn.softmax
-
     dtype = "float32"
     data_shape = (1,100)
     out_shape = data_shape
@@ -419,8 +178,8 @@ def test_float_softmax():
         "data": tvm.nd.array(np.random.uniform(size=data_shape).astype(dtype)),
         #"data": tvm.nd.array(np.arange(1000).reshape(data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("SOFTMAX"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("SOFTMAX"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_float32_conv2d():
     data_shape = (1, 2, 5, 5)
@@ -453,8 +212,8 @@ def test_float32_conv2d():
     params = {
         "weight": tvm.nd.array(np.ones(weight_shape,dtype)),
     }
-    print("Testing {0: <50}".format("CONV2D"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("CONV2D"))
+    verify_vsi_result(inputs, out, params, out_shape, dtype)
 
 def test_float32_conv2d_permute():
     data_shape = (1, 4, 4, 4)
@@ -490,8 +249,8 @@ def test_float32_conv2d_permute():
         #"weight": tvm.nd.array(np.arange(3*4*3*5).reshape(weight_shape).astype(dtype)),
         "weight": tvm.nd.array(np.random.uniform(size=weight_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("CONV2D"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("CONV2D"))
+    verify_vsi_result(inputs, out, params, out_shape, dtype)
 
 def test_float32_depthwise_conv2d_permute():
     data_shape = (1, 28, 28, 192)
@@ -525,8 +284,8 @@ def test_float32_depthwise_conv2d_permute():
     params = {
         "conv_weight": tvm.nd.array(np.random.uniform(size=weight_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("CONV2D"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("CONV2D"))
+    verify_vsi_result(inputs, out, params, out_shape, dtype)
 
 def test_float_reshape():
     data_dtype = "float32"
@@ -537,8 +296,8 @@ def test_float_reshape():
     inputs = {
         "data": tvm.nd.array(np.ones(data_shape,data_dtype)),
     }
-    print("Testing {0: <50}".format("RESHAPE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    logging.info("Testing {0: <50}".format("RESHAPE"))
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_float_tranpose():
     data_dtype = "float32"
@@ -549,8 +308,8 @@ def test_float_tranpose():
     inputs = {
         "data": tvm.nd.array(np.arange(data_shape[0]*data_shape[1]*data_shape[2]*data_shape[3]).reshape(data_shape).astype(data_dtype)),
     }
-    print("Testing {0: <50}".format("TRANSPOSE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    logging.info("Testing {0: <50}".format("TRANSPOSE"))
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_uint8_tranpose():
     data_dtype = "uint8"
@@ -561,8 +320,8 @@ def test_uint8_tranpose():
     inputs = {
         "data": tvm.nd.array(np.arange(data_shape[0]*data_shape[1]*data_shape[2]*data_shape[3]).reshape(data_shape).astype(data_dtype)),
     }
-    print("Testing {0: <50}".format("TRANSPOSE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    logging.info("Testing {0: <50}".format("TRANSPOSE"))
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_float_relu6():
     dtype = "float32"
@@ -574,8 +333,9 @@ def test_float_relu6():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(-1, 1, size=data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("RELU6"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("RELU6"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
+
 
 def test_uint8_relu6():
     input_dtype = "float32"
@@ -609,8 +369,8 @@ def test_uint8_relu6():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(-4, 4, size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("RELU"), end="")
-    verify_vsi_result(inputs, requantize, [], data_shape, data_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("RELU"))
+    verify_vsi_result(inputs, requantize, [], data_shape, output_dtype)
 
 
 def test_sample_model():
@@ -649,7 +409,7 @@ def test_sample_model():
     params = {
         "weight": tvm.nd.array(np.random.uniform(size=weight_shape).astype(dtype)),
     }
-    verify_vsi_result(inputs, softmax, params, conv_data_shape, softmax_data_shape, dtype)
+    verify_vsi_result(inputs, softmax, params, softmax_data_shape, dtype)
 
 def test_quantize():
     input_dtype = "float32"
@@ -669,8 +429,8 @@ def test_quantize():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("QUANTIZE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("QUANTIZE"))
+    verify_vsi_result(inputs, out, [], out_shape, output_dtype)
 
 def test_dequantize():
     input_dtype = "uint8"
@@ -689,8 +449,8 @@ def test_dequantize():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(0,10,size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("QUANTIZE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("QUANTIZE"))
+    verify_vsi_result(inputs, out, [], out_shape, output_dtype)
 
 def test_float_avg_pool():
     dtype = "float32"
@@ -702,8 +462,8 @@ def test_float_avg_pool():
     inputs = {
         "data": tvm.nd.array(np.arange(7*7*768).reshape(data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("AVG_POOL_2D"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("AVG_POOL_2D"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_float32_pattern():
     data_shape = (1, 4, 4, 4)
@@ -741,8 +501,9 @@ def test_float32_pattern():
         "weight": tvm.nd.array(np.random.uniform(size=weight_shape).astype(dtype)),
         "add": tvm.nd.array(np.random.uniform(size=add_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("CONV2D"), end="")
-    verify_vsi_result(inputs, add_op, params, data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("CONV2D"))
+    verify_vsi_result(inputs, add_op, params, out_shape, dtype)
+
 
 
 def test_requantize():
@@ -764,8 +525,8 @@ def test_requantize():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(0,100,size=input_shape).astype(intput_dtype)),
     }
-    print("Testing {0: <50}".format("REQUANTIZE"), end="")
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("REQUANTIZE"))
+    verify_vsi_result(inputs, out, [], output_shape, output_dtype)
 
 
 def test_uint8_conv2d_pattern():
@@ -826,8 +587,8 @@ def test_uint8_conv2d_pattern():
         "weight": tvm.nd.array(np.arange(weight_shape[0]*weight_shape[1]*weight_shape[2]*weight_shape[3]).reshape(weight_shape).astype(intput_dtype)),
         "add": tvm.nd.array(np.arange(64).reshape(add_shape).astype(add_dtype)),
     }
-    print("Testing {0: <50}".format("QNN pattern"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("QNN pattern"))
+    verify_vsi_result(inputs, out, params, out_shape, output_dtype)
 
 def test_cast():
     input_dtype = "uint8"
@@ -841,7 +602,7 @@ def test_cast():
     inputs = {
       "data": tvm.nd.array(np.random.uniform(0,20,size=input_shape).astype(input_dtype)),
     }
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, output_dtype)
+    verify_vsi_result(inputs, out, [], output_shape, output_dtype)
 
 def test_uint8_avg_pool():
     input_dtype = "uint8"
@@ -857,8 +618,8 @@ def test_uint8_avg_pool():
     inputs = {
         "data": tvm.nd.array(np.arange(7*7*768).reshape(input_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("AVG_POOL_2D"), end="")
-    verify_vsi_result(inputs, cast_1, [], input_shape, output_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("AVG_POOL_2D"))
+    verify_vsi_result(inputs, cast_1, [], output_shape, input_dtype)
 
 def test_uint8_softmax():
     input_dtype = "uint8"
@@ -884,8 +645,8 @@ def test_uint8_softmax():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("SOFTMAX"), end="")
-    verify_vsi_result(inputs, quantize, [], data_shape, data_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("SOFTMAX"))
+    verify_vsi_result(inputs, quantize, [], data_shape, output_dtype)
 
 def test_uint8_reshape():
     data_dtype = "uint8"
@@ -896,8 +657,8 @@ def test_uint8_reshape():
     inputs = {
         "data": tvm.nd.array(np.ones(data_shape,data_dtype)),
     }
-    print("Testing {0: <50}".format("RESHAPE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    logging.info("Testing {0: <50}".format("RESHAPE"))
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_uint8_max_pool():
     input_dtype = "uint8"
@@ -910,8 +671,8 @@ def test_uint8_max_pool():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=input_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("MAX_POOL_2D"), end="")
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("MAX_POOL_2D"))
+    verify_vsi_result(inputs, out, [], output_shape, input_dtype)
 
 
 def test_uint8_concatenation():
@@ -949,8 +710,8 @@ def test_uint8_concatenation():
          "data1": tvm.nd.array(np.random.uniform(1,50,size=data_1_shape).astype(dtype)),
          "data2": tvm.nd.array(np.random.uniform(1,50,size=data_2_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("AVG_POOL_2D"), end="")
-    verify_vsi_result(inputs, out, [], data_0_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("AVG_POOL_2D"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_float_mean():
     input_dtype = "float32"
@@ -964,8 +725,8 @@ def test_float_mean():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=input_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("MEAN"), end="")
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("MEAN"))
+    verify_vsi_result(inputs, out, [], output_shape, input_dtype)
 
 def test_uint8_mean():
     input_dtype = "uint8"
@@ -993,8 +754,8 @@ def test_uint8_mean():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=input_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("MEAN"), end="")
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("MEAN"))
+    verify_vsi_result(inputs, out, [], output_shape, input_dtype)
 
 def test_uint8_resizeBilinear():
     input_dtype = "uint8"
@@ -1005,15 +766,15 @@ def test_uint8_resizeBilinear():
 
     data = relay.var("data", shape=input_shape, dtype=input_dtype)
     target_size = tuple(np.array([33,33],dtype=size_dtype))
-    method = "bilinear"
+    method = "linear"
     coord_trans = "align_corners"
-    out = relay.image.resize(
+    out = relay.image.resize2d(
             data, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=input_shape).astype(input_dtype)),
     }
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, input_dtype)
+    verify_vsi_result(inputs, out, [], output_shape, input_dtype)
 
 def test_uint8_argmax():
     input_dtype = "uint8"
@@ -1027,7 +788,7 @@ def test_uint8_argmax():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,100,size=input_shape).astype(input_dtype)),
     }
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, output_dtype)
+    verify_vsi_result(inputs, out, [], output_shape, output_dtype)
 
 def test_uint8_argmin():
     input_dtype = "uint8"
@@ -1041,7 +802,7 @@ def test_uint8_argmin():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,100,size=input_shape).astype(input_dtype)),
     }
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, output_dtype)
+    verify_vsi_result(inputs, out, [], output_shape, output_dtype)
 
 def test_float_sigmoid():
     dtype = "float32"
@@ -1052,8 +813,8 @@ def test_float_sigmoid():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(size=data_shape).astype(dtype)),
     }
-    print("Testing {0: <50}".format("SIGMOID"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    logging.info("Testing {0: <50}".format("SIGMOID"))
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_uint8_sigmoid():
     input_dtype = "uint8"
@@ -1078,9 +839,10 @@ def test_uint8_sigmoid():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("SIGMOID"), end="")
-    verify_vsi_result(inputs, quantize, [], data_shape, data_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("SIGMOID"))
+    verify_vsi_result(inputs, quantize, [], data_shape, output_dtype)
 
+@pytest.mark.skip(reason='todo')
 def test_float_batch_norm():
     data_shape = (1, 4)
     c_shape = (4,)
@@ -1104,7 +866,7 @@ def test_float_batch_norm():
         "data": tvm.nd.array(np.random.uniform(size=data_shape).astype(dtype)),
     }
 
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, dtype)
+    verify_vsi_result(inputs, out, [], out_shape, dtype)
 
 def test_uint8_avg_pool2():
     input_dtype = "uint8"
@@ -1121,8 +883,8 @@ def test_uint8_avg_pool2():
         #"data": tvm.nd.array(np.ones(input_shape,input_dtype)),
         "data": tvm.nd.array(np.arange(4*4*1).reshape(input_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("AVG_POOL_2D"), end="")
-    verify_vsi_result(inputs, cast_1, [], input_shape, output_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("AVG_POOL_2D"))
+    verify_vsi_result(inputs, cast_1, [], output_shape, input_dtype)
 
 def test_uint8_depthwiseconv2d_pattern():
     data_shape = (1, 12, 12, 3)
@@ -1183,9 +945,8 @@ def test_uint8_depthwiseconv2d_pattern():
         "weight": tvm.nd.array(np.arange(weight_shape[0]*weight_shape[1]*weight_shape[2]*weight_shape[3]).reshape(weight_shape).astype(intput_dtype)),
         "add": tvm.nd.array(np.arange(24).reshape(add_shape).astype(add_dtype)),
     }
-    print("Testing {0: <50}".format("QNN pattern"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, output_dtype)
-
+    logging.info("Testing {0: <50}".format("QNN pattern"))
+    verify_vsi_result(inputs, out, params, out_shape, output_dtype)
 
 def test_uint8_fullconnected():
     input_dtype = "uint8"
@@ -1229,9 +990,8 @@ def test_uint8_fullconnected():
         "weight": tvm.nd.array(np.random.randint(1, high=10, size=weight_shape, dtype=input_dtype)),
         "add": tvm.nd.array(np.random.randint(1, high=10, size=add_shape, dtype=temp_dtype)),
     }
-    print("Testing {0: <50}".format("AVG_POOL_2D"), end="")
-    verify_vsi_result(inputs, out, params, input_shape,
-                      output_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("AVG_POOL_2D"))
+    verify_vsi_result(inputs, out, params,output_shape, output_dtype)
 
 def test_uint8_squeeze():
     data_dtype = "uint8"
@@ -1245,9 +1005,8 @@ def test_uint8_squeeze():
     inputs = {
         "data": tvm.nd.array(np.ones(data_shape,data_dtype)),
     }
-    print("Testing {0: <50}".format("RESHAPE"), end="")
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
-
+    logging.info("Testing {0: <50}".format("RESHAPE"))
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_uint8_depthtospace():
     input_dtype = "uint8"
@@ -1259,8 +1018,8 @@ def test_uint8_depthtospace():
     inputs = {
         "data": tvm.nd.array(np.random.randint(1, high=10, size=input_shape, dtype=input_dtype)),
     }
-    print("Testing {0: <50}".format("RESHAPE"), end="")
-    verify_vsi_result(inputs, out, [], input_shape, out_shape, input_dtype)
+    logging.info("Testing {0: <50}".format("RESHAPE"))
+    verify_vsi_result(inputs, out, [], out_shape, input_dtype)
 
 def test_qnn_sub():
     data_dtype = "uint8"
@@ -1280,12 +1039,12 @@ def test_qnn_sub():
         output_zero_point=relay.const(127, "int32"),
     )
 
-    print("Testing {0: <50}".format("QNN.SUB"), end="")
+    logging.info("Testing {0: <50}".format("QNN.SUB"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
         "y": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_multiply():
     data_dtype = "uint8"
@@ -1305,12 +1064,12 @@ def test_qnn_multiply():
         output_zero_point=relay.const(127, "int32"),
     )
 
-    print("Testing {0: <50}".format("QNN.SUB"), end="")
+    logging.info("Testing {0: <50}".format("QNN.SUB"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
         "y": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_maximum():
     data_dtype = "uint8"
@@ -1324,12 +1083,12 @@ def test_qnn_maximum():
         rhs=y,
     )
 
-    print("Testing {0: <50}".format("MAXINUM"), end="")
+    logging.info("Testing {0: <50}".format("MAXINUM"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
         "y": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_minimum():
     data_dtype = "uint8"
@@ -1343,12 +1102,12 @@ def test_qnn_minimum():
         rhs=y,
     )
 
-    print("Testing {0: <50}".format("MININUM"), end="")
+    logging.info("Testing {0: <50}".format("MININUM"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
         "y": tvm.nd.array(np.random.randint(1, high=101, size=data_shape, dtype="uint8")),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_logical_and():
     data_dtype = "bool"
@@ -1359,12 +1118,12 @@ def test_qnn_logical_and():
     y = relay.var("y", shape=data_shape, dtype=data_dtype)
     out = relay.op.logical_and(lhs=x,rhs=y)
 
-    print("Testing {0: <50}".format("QNN.LOGICAL_AND"), end="")
+    logging.info("Testing {0: <50}".format("QNN.LOGICAL_AND"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(0, high=2, size=data_shape, dtype=data_dtype)),
         "y": tvm.nd.array(np.random.randint(0, high=2, size=data_shape, dtype=data_dtype)),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_logical_or():
     data_dtype = "bool"
@@ -1375,12 +1134,12 @@ def test_qnn_logical_or():
     y = relay.var("y", shape=data_shape, dtype=data_dtype)
     out = relay.op.logical_or(lhs=x,rhs=y)
 
-    print("Testing {0: <50}".format("QNN.LOGICAL_OR"), end="")
+    logging.info("Testing {0: <50}".format("QNN.LOGICAL_OR"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(0, high=2, size=data_shape, dtype=data_dtype)),
         "y": tvm.nd.array(np.random.randint(0, high=2, size=data_shape, dtype=data_dtype)),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_qnn_pad():
     data_dtype = "uint8"
@@ -1394,11 +1153,11 @@ def test_qnn_pad():
     pad_value = float(0)
     out = relay.op.nn.pad(x,paddings,pad_value)
 
-    print("Testing {0: <50}".format("QNN.LOGICAL_OR"), end="")
+    logging.info("Testing {0: <50}".format("QNN.LOGICAL_OR"))
     inputs = {
         "x": tvm.nd.array(np.random.randint(0, high=100, size=data_shape, dtype=data_dtype)),
     }
-    verify_vsi_result(inputs, out, [], data_shape, out_shape, data_dtype)
+    verify_vsi_result(inputs, out, [], out_shape, data_dtype)
 
 def test_uint8_resizeNear():
     input_dtype = "uint8"
@@ -1411,13 +1170,13 @@ def test_uint8_resizeNear():
     target_size = tuple(np.array([76,76],dtype=size_dtype))
     method = "nearest_neighbor"
     coord_trans = "asymmetric"
-    out = relay.image.resize(
+    out = relay.image.resize2d(
             data, target_size, "NHWC", method, coordinate_transformation_mode=coord_trans
         )
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,200,size=input_shape).astype(input_dtype)),
     }
-    verify_vsi_result(inputs, out, [], input_shape, output_shape, input_dtype)
+    verify_vsi_result(inputs, out, [], output_shape, input_dtype)
 
 def test_uint8_mean():
     input_dtype = "uint8"
@@ -1443,9 +1202,8 @@ def test_uint8_mean():
     inputs = {
         "data": tvm.nd.array(np.random.randint(1, high=10, size=input_shape, dtype=input_dtype)),
     }
-    print("Testing {0: <50}".format("UINT MEAN"), end="")
-    verify_vsi_result(inputs, out, [], input_shape,
-                      output_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("UINT MEAN"))
+    verify_vsi_result(inputs, out, [],output_shape, output_dtype)
 
 def test_transpose_conv2d_pattern():
     data_shape = (1, 24, 24, 256)
@@ -1454,6 +1212,12 @@ def test_transpose_conv2d_pattern():
 
     input_dtype = "uint8"
     out_dtype= input_dtype
+    # channels=128
+    # kernel_size=(2, 2)
+    # strides=(2, 2)
+    # padding=(0, 0, 0, 0)
+    # data_layout="NHWC"
+    # kernel_layout="OIHW"
 
     data = relay.var("data", shape=data_shape, dtype=input_dtype)
     weight = relay.var("weight",shape=weight_shape,dtype=input_dtype)
@@ -1477,11 +1241,12 @@ def test_transpose_conv2d_pattern():
     params = {
         "weight": tvm.nd.array(np.random.randint(1, high=200, size=weight_shape, dtype=input_dtype)),
     }
-    print("Testing {0: <50}".format("QNN pattern"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, out_dtype)
+    logging.info("Testing {0: <50}".format("QNN pattern"))
+    verify_vsi_result(inputs, out, params, out_shape, out_dtype)
 
 def test_uint8_transpose_conv2d_pattern():
     data_shape = (1, 24, 24, 256)
+    #weight_shape = (2, 2, 256,128)
     weight_shape = (256, 128, 2,2)
     out_shape = (1, 48, 48, 128)
 
@@ -1535,11 +1300,12 @@ def test_uint8_transpose_conv2d_pattern():
     params = {
         "weight": tvm.nd.array(np.random.randint(1, high=20, size=weight_shape, dtype=input_dtype)),
     }
-    print("Testing {0: <50}".format("QNN pattern"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("QNN pattern"))
+    verify_vsi_result(inputs, out, params, out_shape, output_dtype)
 
 def test_uint8_transpose_conv2d_pattern2():
     data_shape = (1, 24, 24, 128)
+    #weight_shape = (2, 2, 256,128)
     weight_shape = (128, 64, 3,3)
     out_shape = (1, 48, 48, 64)
 
@@ -1593,8 +1359,8 @@ def test_uint8_transpose_conv2d_pattern2():
     params = {
         "weight": tvm.nd.array(np.random.randint(1, high=20, size=weight_shape, dtype=input_dtype)),
     }
-    print("Testing {0: <50}".format("QNN pattern"), end="")
-    verify_vsi_result(inputs, out, params, data_shape, out_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("QNN pattern"))
+    verify_vsi_result(inputs, out, params, out_shape, output_dtype)
 
 def test_uint8_tanh():
     input_dtype = "uint8"
@@ -1619,55 +1385,9 @@ def test_uint8_tanh():
     inputs = {
         "data": tvm.nd.array(np.random.uniform(1,20,size=data_shape).astype(input_dtype)),
     }
-    print("Testing {0: <50}".format("SIGMOID"), end="")
-    verify_vsi_result(inputs, quantize, [], data_shape, data_shape, output_dtype)
+    logging.info("Testing {0: <50}".format("SIGMOID"))
+    verify_vsi_result(inputs, quantize, [], data_shape, output_dtype)
 
 if __name__ == "__main__":
-    #test_qnn_add()
-    # test_float_add()
-    #test_float_relu()
-    #test_uint8_relu()
-    #test_float_leaky_relu()
-    #test_uint8_leaky_relu()
-    #test_float_softmax()
-    # test_float32_conv2d_permute()
-    #test_float32_depthwise_conv2d_permute()
-    #test_float_reshape()
-    #test_float_tranpose()
-    #test_float_relu6()
-    #test_uint8_relu6()
-    #test_sample_model()
-    #test_dequantize()
-    #test_quantize()
-    #test_float_avg_pool()
-    #test_float32_pattern()
-    #test_uint8_depthwiseconv2d_pattern()
-    test_uint8_conv2d_pattern()
-    #test_uint8_avg_pool()
-    #test_uint8_softmax()
-    #test_uint8_reshape()
-    #test_uint8_concatenation()
-    #test_uint8_max_pool()
-    #test_float_mean()
-    #test_uint8_resizeBilinear()
-    #test_uint8_argmax()
-    #test_float_sigmoid()
-    # test_uint8_sigmoid()
-    #test_float_batch_norm()
-    #test_uint8_fullconnected()
-    #test_uint8_argmin()
-    #test_uint8_squeeze()
-    #test_uint8_depthtospace()
-    #test_qnn_sub()
-    #test_qnn_multiply()
-    #test_qnn_maximum()
-    #test_qnn_minimum()
-    #test_qnn_logical_and()
-    #test_qnn_logical_or()
-    #test_uint8_resizeNear()
-    #test_qnn_pad()
-    #test_uint8_mean()
-    #test_requantize()
-    #test_uint8_transpose_conv2d_pattern()
-    # test_uint8_transpose_conv2d_pattern2()
-    #test_uint8_tanh()
+    test_uint8_mean()
+    # pytest.main([__file__])

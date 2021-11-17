@@ -20,6 +20,8 @@ import math
 from PIL import Image
 from matplotlib import pyplot as plt
 import numpy as np
+import pytest
+import logging
 
 import tvm
 from tvm import relay, transform
@@ -28,13 +30,19 @@ from tvm import te
 from tvm.contrib import utils as util
 from tvm.relay.op.contrib import vsi_npu
 from tvm.contrib.download import download_testdata
+from tvm.testing import assert_allclose
 
 # TODO(Sven) : this is workaround for new version of TVM
 from tvm.contrib import graph_executor as graph_runtime
 from tvm.contrib import graph_executor as runtime
 
-from tflite_deeplab import *
+#from tflite_deeplab import *
 import tflite
+
+# import os
+# input("pid: " + str(os.getpid()) +", press enter after attached")
+
+logging.basicConfig(level=logging.INFO)
 
 np.set_printoptions(threshold=np.inf)
 RPC_HOST = os.environ["RPC_HOST"]
@@ -43,6 +51,9 @@ CROSS_CC = os.environ["CROSS_CC"]
 ROOTFS = os.environ["ROOTFS"]
 lib_name = os.environ["MOD_NAME"]
 lib_path = os.environ["MOD_PATH"]
+model_path = os.environ["TFLITE_MODEL_PATH"]
+
+remote = rpc.connect(RPC_HOST, RPC_PORT)
 
 def get_ref_result(shape, model_path,image_data,input_tensor_name,DTYPE):
     inputs = input_tensor_name
@@ -61,12 +72,12 @@ def get_ref_result(shape, model_path,image_data,input_tensor_name,DTYPE):
     cpu_mod.set_input(inputs, tvm.nd.array(image_data))
 
     # if True:
-    #     print("Evaluate graph runtime inference cost on CPU")
+    #     logging.info("Evaluate graph runtime inference cost on CPU")
     #     ftimer = cpu_mod.module.time_evaluator("run", ctx, number=1, repeat=1)
     #     # Measure in millisecond.
     #     prof_res = np.array(ftimer().results) * 1000
-    #     print("CPU runtime inference time (std dev): %.2f ms (%.2f ms)"
-    #           % (np.mean(prof_res), np.std(prof_res)))
+    #     logging.info("CPU runtime inference time (std dev): {} ms ({} ms)".format
+    #           (round(np.mean(prof_res), 2), round(np.std(prof_res), 2)))
 
     cpu_mod.run()
     ref_out = cpu_mod.get_output(0)
@@ -80,8 +91,7 @@ def compile_tflite_model(shape,model_path,input_data,input_tensor_name,DTYPE):
     mod, params = relay.frontend.from_tflite(
         model, shape_dict={inputs: shape}, dtype_dict={inputs: DTYPE}
     )
-    print(mod.astext())
-    remote = rpc.connect(RPC_HOST, RPC_PORT)
+    logging.info(mod.astext())
     tmp_path = util.tempdir()
     lib_name = "model.so"
     lib_path = tmp_path.relpath(lib_name)
@@ -121,7 +131,7 @@ def print_top5(input):
     n_arg1 = np.argsort(n)[::-1]
     n_arg0 = n_arg0[n_arg1]
     for i in range(k):
-        print("{} : {}".format(n_arg0[i], n[n_arg1[i]]))
+        logging.info("{} : {}".format(n_arg0[i], n[n_arg1[i]]))
 
 def get_model(model_list, model_name):
     for model in model_list:
@@ -199,53 +209,99 @@ model_list = [
      'dtype': "uint8"},
 ]
 
-model_full_name = os.environ["TFLITE_MODEL"]
-(_, model_name) = os.path.split(model_full_name)
+def process(model_name):
+    model = get_model(model_list, model_name)
+    logging.info(model)
+    shape = model['shape']
+    input_tensor_name = model['input_tensor_name']
+    DTYPE = model['dtype']
+    # wait=input("press any key and continue...")
 
-model = get_model(model_list, model_name)
-print (model)
-shape = model['shape']
-input_tensor_name = model['input_tensor_name']
-DTYPE = model['dtype']
-wait=input("press any key and continue...")
+    path = "./"
+    img = Image.open(path + "space_shuttle_224x224.jpg")
+    img = img.resize((shape[1], shape[2]))
+    n1 = np.array(img)
+    #n1 = n1[:, :, 0] # pick one channel
+    #n1 = np.broadcast_to(n1, (4, 224, 224, 3)) # batch the image
+    n1 = n1.reshape(shape)
+    input_data = n1.astype(np.uint8)
 
-path = "./"
-img = Image.open(path + "space_shuttle_224x224.jpg")
-img = img.resize((shape[1], shape[2]))
-n1 = np.array(img)
-#n1 = n1[:, :, 0] # pick one channel
-#n1 = np.broadcast_to(n1, (4, 224, 224, 3)) # batch the image
-n1 = n1.reshape(shape)
-input_data = n1.astype(np.uint8)
+    # input_data = np.ones(shape, DTYPE)
 
-# input_data = np.ones(shape, DTYPE)
+    vsi_input_data = {
+        input_tensor_name: tvm.nd.array(input_data),
+    }
+    model_file = model_path + "/" + model_name
+    print(model_file)
+    ref_output = get_ref_result(shape, model_file, input_data, input_tensor_name, DTYPE)
+    vsi_output = compile_tflite_model(shape, model_file, vsi_input_data, input_tensor_name, DTYPE)
 
-vsi_input_data = {
-    input_tensor_name: tvm.nd.array(input_data),
-}
-ref_output = get_ref_result(shape, model_full_name, input_data, input_tensor_name, DTYPE)
-vsi_output = compile_tflite_model(shape, model_full_name, vsi_input_data, input_tensor_name, DTYPE)
+    if DTYPE == "uint8":
+        tolerance = 5
+    else:
+        tolerance = 1e-3
 
-#print("ref_output:",ref_output)
-#print("vsi_output",vsi_output)
+    logging.info("top5 of ref:")
+    print_top5(ref_output)
 
-if DTYPE == "uint8":
-    tolerance = 5
-else:
-    tolerance = 1e-3
+    logging.info("top5 of vsi:")
+    print_top5(vsi_output)
 
-result = abs(vsi_output.astype("float32") - ref_output.astype("float32"))
-result0 = result < tolerance
+    result = abs(vsi_output.astype("float32") - ref_output.astype("float32"))
+    np.savetxt(path + model_name +"_ref_output.txt", ref_output.flatten(), fmt='%.3f')
+    np.savetxt(path + model_name + "_vsi_output.txt", vsi_output.flatten(), fmt='%.3f')
+    np.savetxt(path + model_name + "_diff.txt", result.flatten(), fmt='%.3f')
 
-print("number of false number:", np.sum(result0 != True), np.max(result), np.argmax(result))
-print("ratio of false number:", np.sum(result0 != True) / result0.size)
+    assert_allclose(vsi_output, ref_output, rtol=0, atol=tolerance)
 
-print("top5 of ref:")
-print_top5(ref_output)
 
-print("top5 of vsi:")
-print_top5(vsi_output)
+def test_mobilenet_v1_224_quant():
+    model = 'mobilenet_v1_1.0_224_quant.tflite'
+    process(model)
 
-# np.savetxt(path + "ref_output.txt", ref_output.flatten(), fmt='%.3f')
-# np.savetxt(path + "vsi_output.txt", vsi_output.flatten(), fmt='%.3f')
-# np.savetxt(path + "diff.txt", result.flatten(), fmt='%.3f')
+def test_mobilenet_v2_quant():
+    model = 'mobilenet_v2_quant.tflite'
+    process(model)
+
+def test_mobilenet_v3_quant():
+    model = 'mobilenet_v3_quant.tflite'
+    process(model)
+
+def test_inception_v1_224_quant():
+    model = 'inception_v1_224_quant.tflite'
+    process(model)
+
+def test_inception_v2_224_quant():
+    model = 'inception_v2_224_quant.tflite'
+    process(model)
+
+def test_inception_v3_299_quant():
+    model = 'inception_v3_299_quant.tflite'
+    process(model)
+
+def test_efficientnet_edgetpu_S_quant():
+    model = 'efficientnet-edgetpu-S_quant.tflite'
+    process(model)
+
+def test_deeplab_v3_plus_quant():
+    model = 'deeplab_v3_plus_quant.tflite'
+    process(model)
+
+def test_unet():
+    model = 'unet.M865SW-632.tflite'
+    process(model)
+
+def test_deeplab_v3_plus_quant():
+    model = 'deeplab_v3_plus_quant.tflite'
+    process(model)
+
+def test_srgan_quant():
+    model = 'srgan_quant.tflite'
+    process(model)
+
+def test_pynet_quant():
+    model = 'pynet_quant.tflite'
+    process(model)
+
+if __name__ == "__main__":
+    pytest.main([__file__])

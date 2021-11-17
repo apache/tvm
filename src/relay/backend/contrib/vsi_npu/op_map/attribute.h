@@ -193,6 +193,16 @@ struct TvxReduceMeanAttrs {
   }
 };
 
+struct TvxArgReduceMeanAttrs {
+  std::vector<int32_t> axis;
+  bool keepdims;
+  TvxArgReduceMeanAttrs(const Call call) {
+    auto tvm_attr_struct = call->attrs.as<ArgReduceAttrs>();
+    attrs_bool_transform(tvm_attr_struct->keepdims, keepdims);
+    attrs_int_vector_transform2(tvm_attr_struct->axis, axis);
+  }
+};
+
 struct TvxResizeAttrs {
   std::vector<int32_t> size;
   std::string method;

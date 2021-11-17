@@ -19,17 +19,18 @@
 #ifndef TVM_RUNTIME_CONTRIB_VSI_NPU_VSI_NPU_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_VSI_NPU_VSI_NPU_RUNTIME_H_
 
-#include <tim/vx/context.h>
-#include <tim/vx/graph.h>
-#include <tim/vx/tensor.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <map>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+
+#include <tim/vx/context.h>
+#include <tim/vx/graph.h>
+#include <tim/vx/tensor.h>
 
 namespace tvm {
 namespace runtime {
@@ -47,13 +48,11 @@ struct TensorSpecIR {
 
 class VsiNpuModule : public ModuleNode {
  public:
-  VsiNpuModule(const std::shared_ptr<char>& nbg_buffer, uint32_t nbg_size,
+  VsiNpuModule(const std::shared_ptr<char>& nbg_buffer,
+               uint32_t nbg_size,
                const std::vector<tim::vx::TensorSpec>& inputs_spec,
                const std::vector<tim::vx::TensorSpec>& outputs_spec)
-      : compiled_nbg_(nbg_buffer),
-        nbg_size_(nbg_size),
-        inputs_(inputs_spec),
-        outputs_(outputs_spec){};
+      : compiled_nbg_(nbg_buffer), nbg_size_(nbg_size), inputs_(inputs_spec), outputs_(outputs_spec){};
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
@@ -88,7 +87,7 @@ class VsiNpuModule : public ModuleNode {
  private:
   void SerializeTensorSpec(tim::vx::TensorSpec& t_spec, std::ostream& out);
   static tim::vx::TensorSpec DeSerializeTensorSpec(std::istream& in);
-  // TODO: we need handle multiply nbg in production
+  // todo: TODO we need handle multiply nbg in real life
   std::shared_ptr<char> compiled_nbg_;
   uint32_t nbg_size_;
   std::vector<tim::vx::TensorSpec> inputs_;

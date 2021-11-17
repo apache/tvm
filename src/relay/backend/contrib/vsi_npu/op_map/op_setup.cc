@@ -859,7 +859,7 @@ std::shared_ptr<tim::vx::Operation> DepthtoSpace::CreateOperation(
 
 void ArgMax::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> graph,
                             std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
-  TvxReduceMeanAttrs tvx_attrs(call_);
+  TvxArgReduceMeanAttrs tvx_attrs(call_);
   UpdateInputTableInfo(vxOpmap_tbl, input_key_, graph.get());
   UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
 
@@ -873,7 +873,7 @@ void ArgMax::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> 
 
 void ArgMin::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> graph,
                             std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
-  TvxReduceMeanAttrs tvx_attrs(call_);
+  TvxArgReduceMeanAttrs tvx_attrs(call_);
   UpdateInputTableInfo(vxOpmap_tbl, input_key_, graph.get());
   UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
 
