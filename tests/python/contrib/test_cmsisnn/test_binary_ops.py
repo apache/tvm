@@ -131,6 +131,7 @@ def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_z
     )
 
 
+@skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("op", [relay.qnn.op.mul, relay.qnn.op.add])
 @pytest.mark.parametrize(["input_dtype"], [["uint8"], ["int16"]])

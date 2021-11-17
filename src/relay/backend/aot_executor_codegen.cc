@@ -698,25 +698,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {}
 
   LoweredOutput Codegen(relay::Function func, String mod_name) {
-    AOTOnDemandAllocator initial_aot_allocator;
-    initial_aot_allocator.Run(func);
-
-    // Pre-lowering storage map and memory plan
-    // TODO(mbs): Why plan memory and update workspace sizes before lowering?
-    StorageMap initial_storage_map = initial_aot_allocator.GetStorageMap();
-    StaticMemoryPlan memory_plan(initial_storage_map);
-
     IRModule mod = IRModule::FromExpr(func);
-
-    backend::FunctionInfo func_info;
-
-    if (memory_plan.defined()) {
-      // TODO(@electriclilies, @jroesch): remove UpdateMainWorkspaceSize
-      func_info = tec::UpdateMainWorkspaceSize(mod, targets_, memory_plan->expr_to_storage_info);
-      mod = WithAttr(mod, "main_func_info", func_info);
-    }
-
-    IRModule lowered_mod = tec::LowerTEPass(mod_name, [this](Function func) {
+    IRModule lowered_mod = tec::LowerTEPass(mod_name, [this](BaseFunc func) {
       // We need to maintain the constant map for external
       // functions so we pass this processing function which
       // allows us to process each function as we lower it.
@@ -733,11 +716,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
 
-    // Post-lowering storage map for writing main func - this should be the same map as previously
-    // created, just referencing the new expressions created from lowering
+    // Post-lowering storage map for writing main func
     AOTOnDemandAllocator final_aot_allocator;
     final_aot_allocator.Run(lowered_main_func);
     storage_device_map_ = final_aot_allocator.GetStorageMap();
+
+    // TODO(@electriclilies, @jroesch, @Mousius): remove UpdateMainWorkspaceSize
+    StaticMemoryPlan memory_plan(storage_device_map_);
+    backend::FunctionInfo func_info =
+        tec::UpdateMainWorkspaceSize(lowered_mod, targets_, memory_plan->expr_to_storage_info);
+    lowered_mod = WithAttr(lowered_mod, "main_func_info", func_info);
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
