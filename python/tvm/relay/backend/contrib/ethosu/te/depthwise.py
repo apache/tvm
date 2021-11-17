@@ -38,6 +38,7 @@ def depthwise_conv2d_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
@@ -81,6 +82,11 @@ def depthwise_conv2d_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -120,9 +126,10 @@ def depthwise_conv2d_compute(
         "op": "ethosu_depthwise_conv2d",
         "weight_zero_point": weight_zero_point,
         "activation": activation,
-        "upscale": upscale,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
+        "upscale": upscale,
         "stride_h": stride_h,
         "stride_w": stride_w,
         "dilation_h": dilation_h,

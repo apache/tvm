@@ -45,6 +45,7 @@ struct EthosuPoolingAttrs : public tvm::AttrsNode<EthosuPoolingAttrs> {
   String activation;
   int clip_min;
   int clip_max;
+  String rounding_mode;
   String upscale;
   String ifm_layout;
   String ofm_layout;
@@ -85,6 +86,13 @@ struct EthosuPoolingAttrs : public tvm::AttrsNode<EthosuPoolingAttrs> {
     TVM_ATTR_FIELD(clip_max)
         .describe("The maximum clipping value if activation = 'CLIP'.")
         .set_default(0);
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
     TVM_ATTR_FIELD(upscale)
         .describe(
             "The 2x2 upscaling mode to apply to the Input Feature Map tensor. "
@@ -143,8 +151,8 @@ Expr MakeEthosuPooling(Expr ifm, Expr lut, String pooling_type, double ifm_scale
                        int ifm_zero_point, double ofm_scale, int ofm_zero_point,
                        Array<IndexExpr> pool_shape, IndexExpr ofm_channels,
                        Array<IndexExpr> strides, Array<IndexExpr> padding, String activation,
-                       int clip_min, int clip_max, String upscale, String ifm_layout,
-                       String ofm_layout) {
+                       int clip_min, int clip_max, String rounding_mode, String upscale,
+                       String ifm_layout, String ofm_layout) {
   auto attrs = make_object<EthosuPoolingAttrs>();
   attrs->pooling_type = std::move(pooling_type);
   attrs->ifm_scale = ifm_scale;
@@ -158,6 +166,7 @@ Expr MakeEthosuPooling(Expr ifm, Expr lut, String pooling_type, double ifm_scale
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
   attrs->clip_max = clip_max;
+  attrs->rounding_mode = std::move(rounding_mode);
   attrs->upscale = std::move(upscale);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);

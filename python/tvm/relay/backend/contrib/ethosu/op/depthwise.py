@@ -46,6 +46,7 @@ def _extract_ethosu_depthwise_conv2d_params(attrs, args):
     activation = attrs.activation
     clip_min = attrs.clip_min
     clip_max = attrs.clip_max
+    rounding_mode = attrs.rounding_mode
     upscale = attrs.upscale
     ifm_layout = attrs.ifm_layout
     ofm_layout = attrs.ofm_layout
@@ -66,6 +67,7 @@ def _extract_ethosu_depthwise_conv2d_params(attrs, args):
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         upscale,
         ifm_layout,
         ofm_layout,
@@ -109,6 +111,7 @@ def ethosu_depthwise_conv2d(
     activation: str = "NONE",
     clip_min: int = 0,
     clip_max: int = 0,
+    rounding_mode: str = "TFL",
     upscale: str = "NONE",
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
@@ -166,6 +169,11 @@ def ethosu_depthwise_conv2d(
         The minimum clipping value if activation = "CLIP"
     clip_max : int, optional,
         The maximum clipping value if activation = "CLIP"
+    rounding_mode : str, optional
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str, optional
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -200,6 +208,7 @@ def ethosu_depthwise_conv2d(
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         upscale,
         ifm_layout,
         ofm_layout,

@@ -148,6 +148,7 @@ def get_identity_params(
             padding=SerialPadding(0, 0, 0, 0),
             activation=serial_activation,
             upscale="NONE",
+            rounding_mode="TFL",
         ),
         output_pointer,
         replace_pointer,

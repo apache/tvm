@@ -405,6 +405,7 @@ def _create_npu_op_conv2d(
     ):
         _convert_clip_bounds(npu_conv2d_op)
 
+    npu_conv2d_op.rounding_mode = _create_npu_rounding_mode(serial_2d_convolution.rounding_mode)
     npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
     accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
@@ -465,6 +466,9 @@ def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
     ):
         _convert_clip_bounds(npu_depthwise_conv2d_op)
 
+    npu_depthwise_conv2d_op.rounding_mode = _create_npu_rounding_mode(
+        serial_2d_depthwise.rounding_mode
+    )
     npu_depthwise_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_config)
@@ -618,6 +622,21 @@ def _create_npu_resampling_mode(
     return mode_map[mode]
 
 
+def _create_npu_rounding_mode(
+    mode: str,
+) -> vapi.NpuRoundingMode:
+    """This is a helper function to capture a list
+    of arguments to create Vela NpuRoundingMode object."""
+    mode_map = {
+        "TFL": vapi.NpuRoundingMode.TFL,
+        "TRUNCATE": vapi.NpuRoundingMode.TRUNCATE,
+        "NATURAL": vapi.NpuRoundingMode.NATURAL,
+    }
+    mode = str(mode.value)
+    assert mode in mode_map.keys()
+    return mode_map[mode]
+
+
 def _create_npu_dma_op(serial_copy):
     """This is a helper function to capture the list of arguments
     to create a NpuDmaOperation object"""
@@ -676,6 +695,7 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
     ):
         _convert_clip_bounds(npu_pooling_op)
 
+    npu_pooling_op.rounding_mode = _create_npu_rounding_mode(serial_pooling.rounding_mode)
     npu_pooling_op.upscale = _create_npu_resampling_mode(serial_pooling.upscale)
 
     target_accel_config = vela_api.get_accelerator_config()
@@ -740,6 +760,10 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
         and npu_binary_elementwise_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
     ):
         _convert_clip_bounds(npu_binary_elementwise_op)
+
+    npu_binary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
+        serial_binary_elementwise.rounding_mode
+    )
 
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_binary_elementwise_op, target_accel_config)

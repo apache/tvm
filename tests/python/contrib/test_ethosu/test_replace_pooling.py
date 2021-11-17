@@ -27,12 +27,12 @@ from .infra import make_ethosu_pooling, get_pooling_args
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, ofm_channels, ifm_layout, ofm_layout",
+    "ifm_shape, ofm_channels, ifm_layout, ofm_layout, rounding_mode",
     [
-        ((1, 5, 9, 3), 3, "NHWC", "NHWC"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC"),
-        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16"),
+        ((1, 5, 9, 3), 3, "NHWC", "NHWC", "TFL"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16", "NATURAL"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC", "TRUNCATE"),
+        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16", "TFL"),
     ],
 )
 @pytest.mark.parametrize("pooling_type", ["AVG", "MAX"])
@@ -44,6 +44,7 @@ def test_pooling_single(
     ofm_layout,
     pooling_type,
     activation,
+    rounding_mode,
 ):
     pool_shape = (3, 2)
     strides = (1, 2)
@@ -59,6 +60,7 @@ def test_pooling_single(
         activation,
         ifm_layout,
         ofm_layout,
+        rounding_mode,
     )
     func = relay.Function(relay.analysis.free_vars(pooling), pooling)
     func = run_opt_pass(func, relay.transform.InferType())
@@ -148,6 +150,7 @@ def test_pooling_single(
             clip_min=10 if activation == "CLIP" else 0,
             clip_max=100 if activation == "CLIP" else 0,
         ),
+        rounding_mode=rounding_mode,
         upscale="NONE",
     )
 
