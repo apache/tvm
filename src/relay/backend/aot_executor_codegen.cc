@@ -352,6 +352,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
     bool use_cpacked_api = !use_unpacked_api_;
 
+    // The device context is passed to the operator in one of the following calling patterns:
+    //  * Unpacked / direct function call with context:
+    //      operator(arg0, arg1, device_context);
+    //  * Unpacked / direct function call without context:
+    //      operator(arg0, arg1);
+    //  * Type-erased packed function call with context:
+    //      operator(args, type_codes, int num_args, out_ret_value, out_ret_tcode,
+    //      device_context_my_device)
+    //  * Type-erased packed function call without context (we create an empty var for codegen):
+    //      operator(args, type_codes, int num_args, out_ret_value, out_ret_tcode,
+    //      no_device_context)
     if (has_c_device_api_context) {
       // call_extern calling convention with context
       tir::Var context = device_contexts_.Get(global_var).value();
