@@ -140,7 +140,7 @@ class BaseConv2d:
 class TestConv2dPackedFilter(BaseConv2d):
     @tvm.testing.parametrize_targets("llvm")
     @pytest.mark.skipif(
-        platform.processor() == "i386", reason="Test known to be flaky on i386 machines"
+        platform.processor() == "i686", reason="Test known to be flaky on i386 machines"
     )
     def test_conv2d(
         self,
@@ -156,10 +156,6 @@ class TestConv2dPackedFilter(BaseConv2d):
         dtype,
         target,
     ):
-        print()
-        print(platform.machine())
-        print(platform.processor())
-
         # TODO: no support for dilation
         dilation = 1
 
