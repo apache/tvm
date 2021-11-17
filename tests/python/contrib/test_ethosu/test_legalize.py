@@ -693,6 +693,53 @@ def test_tflite_binary_elemwise_legalize(
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+def test_binary_add_from_constant_scalar():
+    dtype = "uint8"
+    ifm_shape = (1, 4, 4, 8)
+
+    def create_graph():
+        inp = relay.var("input", shape=ifm_shape, dtype=dtype)
+        scalar = relay.const(np.ones((1, 1, 1, 1), dtype=dtype), dtype=dtype)
+        add = relay.qnn.op.add(
+            inp,
+            scalar,
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+        )
+        func = relay.Function(relay.analysis.free_vars(add), add)
+        return tvm.IRModule.from_expr(func)
+
+    def verify(ext_func):
+        op = ext_func.body
+        assert list(op.args[0].checked_type.shape) == [1, 4, 4, 8]
+        assert list(op.args[1].checked_type.shape) == [1, 1, 1, 1]
+        assert op.args[0].checked_type.dtype == "uint8"
+        assert list(op.checked_type.shape) == [1, 4, 4, 8]
+        assert op.checked_type.dtype == "uint8"
+        assert op.attrs.operator_type == "ADD"
+
+    rewriter = legalize.AddRewriter()
+    pattern_table = [
+        (
+            ethosu.AddParams.composite_name,
+            ethosu.qnn_add_pattern(),
+            lambda pat: ethosu.AddParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 @pytest.mark.parametrize(
     "ifm_shape, ifm2_shape, reversed_operands",
     [
