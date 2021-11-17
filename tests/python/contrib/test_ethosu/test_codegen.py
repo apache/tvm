@@ -436,6 +436,56 @@ def test_ethosu_binary_elementwise(
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+def test_binary_add_from_constant_scalar(accel_type):
+    dtype = "uint8"
+    ifm_shape = (1, 4, 4, 8)
+
+    def create_relay_graph():
+        inp = relay.var("input", shape=ifm_shape, dtype=dtype)
+        scalar = relay.const(np.ones((1, 1, 1, 1), dtype=dtype), dtype=dtype)
+        add = relay.qnn.op.add(
+            inp,
+            scalar,
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+        )
+        func = relay.Function(relay.analysis.free_vars(add), add)
+        return tvm.IRModule.from_expr(func)
+
+    mod = create_relay_graph()
+    partitioned_mod = partition_for_ethosu(mod)
+
+    # Generate reference data
+    input_data = {"input": np.random.randint(low=0, high=255, size=ifm_shape, dtype=dtype)}
+    output_data = generate_ref_data(mod, input_data)
+
+    compiled_models = infra.build_source(
+        partitioned_mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=0,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape, ifm2_shape",
     [
