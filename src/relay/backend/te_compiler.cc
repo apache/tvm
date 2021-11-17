@@ -615,6 +615,20 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     // Already lowered by other means so we don't need to mutate
     // the call but we do need to mutate the arguments
     if (prim_func->IsInstance<tir::PrimFuncNode>()) {
+      // Function should already be Target annotated by this point
+      // but the TE Compiler metadata is still needed for the callback
+      // TODO(Mousius) - Robustify this to not assume we're in the GlobalVar for Target Hooks
+      GlobalVar prim_func_var = Downcast<GlobalVar>(call_node->op);
+      tir::PrimFunc downcast_prim_func = Downcast<tir::PrimFunc>(prim_func);
+
+      Map<GlobalVar, tir::PrimFunc> prim_fns = {{prim_func_var, downcast_prim_func}};
+      tir::PrimFunc func_with_metadata =
+          WithAttrs(downcast_prim_func, {
+                                            {"prim_fn_var", prim_func_var},
+                                            {"prim_funcs", prim_fns},
+                                        });
+
+      this->process_fn_(func_with_metadata);
       return Call(call_node->op, visited_args, call_node->attrs);
     }
 
@@ -682,8 +696,7 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
   }
 }
 
-Pass LowerTensorExpr(const String& module_name, TECompiler compiler,
-                     std::function<void(Function)> process_fn) {
+Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
         LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler);
@@ -831,13 +844,13 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
- * \param relay_func The function to calculate function metadata for
+ * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
  */
-void UpdateFunctionMetadata(Function relay_func,
+void UpdateFunctionMetadata(BaseFunc func,
                             Map<String, backend::FunctionInfo>& function_metadata) {  // NOLINT(*)
   VLOG_CONTEXT << "UpdateFunctionMetadata";
-  VLOG(1) << "updating function metadata for:" << std::endl << PrettyPrint(relay_func);
+  VLOG(1) << "updating function metadata for:" << std::endl << PrettyPrint(func);
   // Originally UpdateFunctionMetadata took in CCachedFunc and looped through all the funcs stored
   // there Now the goal is to take only one func because process_fn should be controlling the
   // iteration However, to do the workspace calculations we need the primfuncs. So process_fn
@@ -852,13 +865,13 @@ void UpdateFunctionMetadata(Function relay_func,
   Map<Target, Function> relay_primfuncs;
 
   Optional<Map<GlobalVar, tir::PrimFunc>> prim_fns =
-      relay_func->GetAttr<Map<GlobalVar, tir::PrimFunc>>("prim_funcs");
+      func->GetAttr<Map<GlobalVar, tir::PrimFunc>>("prim_funcs");
   CHECK(prim_fns) << "primitive functions not set on Relay function by TECompiler.";
 
-  Optional<GlobalVar> prim_fn_var = relay_func->GetAttr<GlobalVar>("prim_fn_var");
+  Optional<GlobalVar> prim_fn_var = func->GetAttr<GlobalVar>("prim_fn_var");
   CHECK(prim_fn_var) << "prim_fn_var must be set on Relay functions by TECompiler.";
 
-  Optional<Target> relay_target = relay_func->GetAttr<Target>(tvm::attr::kTarget);
+  Optional<Target> relay_target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(relay_target) << "target must be set on Relay functions by the TECompiler.";
 
   for (const auto& kv : prim_fns.value()) {
@@ -883,6 +896,12 @@ void UpdateFunctionMetadata(Function relay_func,
     // Calculating size for I/O
     // TODO(mbs): See also the other three utils for calculating tensor bytesize.
     for (auto const& param : prim_fn->params) {
+      bool not_a_buffer = prim_fn->buffer_map.count(param) == 0;
+      if (not_a_buffer) {
+        io_sizes.Set(prim_fn_target, 0);
+        continue;
+      }
+
       auto p_shape = prim_fn->buffer_map[param]->shape;
       int num_of_elements = 1;
       for (const auto& dim_index_expr : p_shape) {
@@ -899,7 +918,9 @@ void UpdateFunctionMetadata(Function relay_func,
 
     constant_sizes.Set(prim_fn_target, 0);
     tir_primfuncs.Set(prim_fn_target, prim_fn);
-    relay_primfuncs.Set(prim_fn_target, relay_func);
+    if (func->IsInstance<FunctionNode>()) {
+      relay_primfuncs.Set(prim_fn_target, Downcast<Function>(func));
+    }
   }
 
   backend::FunctionInfo fi = backend::FunctionInfo(
@@ -913,8 +934,7 @@ void UpdateFunctionMetadata(Function relay_func,
   function_metadata.Set(prim_fn_var.value()->name_hint, fi);
 }
 
-IRModule LowerTE(const IRModule& module, const String& module_name,
-                 std::function<void(Function)> process_fn) {
+IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn) {
   TECompiler compiler;
 
   auto updated_module = LowerTensorExpr(module_name, compiler, process_fn)(module);
@@ -966,7 +986,7 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(const String& module_name, std::function<void(Function)> process_fn) {
+Pass LowerTEPass(const String& module_name, ProcessFn process_fn) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule module, PassContext ctx) { return LowerTE(module, module_name, process_fn); };
 

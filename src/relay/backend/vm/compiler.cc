@@ -1151,8 +1151,7 @@ void VMCompiler::Codegen() {
       // Collect metadata in functions that are handled by external codegen.
       auto name = cfunc->prim_fn_var->name_hint;
       ICHECK(mod->ContainGlobalVar(name));
-      Function func = Downcast<Function>(mod->Lookup(name));
-      backend::UpdateConstants(func, &params_);
+      backend::UpdateConstants(mod->Lookup(name), &params_);
     } else if (funcs.count(target) == 0) {
       funcs.Set(target, mod);
     } else {
