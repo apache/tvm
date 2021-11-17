@@ -45,6 +45,7 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
     activation = attrs.activation
     clip_min = attrs.clip_min
     clip_max = attrs.clip_max
+    rounding_mode = attrs.rounding_mode
     ifm_layout = attrs.ifm_layout
     ifm2_layout = attrs.ifm2_layout
     ofm_layout = attrs.ofm_layout
@@ -67,6 +68,7 @@ def _extract_ethosu_binary_elementwise_params(attrs, args):
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         ifm_layout,
         ifm2_layout,
         ofm_layout,
@@ -111,6 +113,7 @@ def ethosu_binary_elementwise(
     activation: Optional[str] = "NONE",
     clip_min: Optional[int] = 0,
     clip_max: Optional[int] = 0,
+    rounding_mode: Optional[str] = "TFL",
     ifm_layout: Optional[str] = "NHWC",
     ifm2_layout: Optional[str] = "NHWC",
     ofm_layout: Optional[str] = "NHWC",
@@ -179,6 +182,11 @@ def ethosu_binary_elementwise(
         The minimum clipping value if activation = "CLIP".
     clip_max : int, optional
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str, optional
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     ifm_layout : str, optional
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ifm2_layout : str, optional
@@ -208,6 +216,7 @@ def ethosu_binary_elementwise(
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         ifm_layout,
         ifm2_layout,
         ofm_layout,

@@ -415,6 +415,7 @@ def make_ethosu_conv2d(
     ofm_layout="NHWC",
     weight_dtype="int8",
     scale_bias_dtype="uint8",
+    rounding_mode="TFL",
 ):
     # conv params
     weight_shape = (ofm_channels, kernel_shape[0], kernel_shape[1], ifm_channels)
@@ -442,6 +443,7 @@ def make_ethosu_conv2d(
         activation=activation,
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
         upscale="NONE",
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
@@ -461,6 +463,7 @@ def make_ethosu_depthwise_conv2d(
     ofm_layout="NHWC",
     weight_dtype="int8",
     scale_bias_dtype="uint8",
+    rounding_mode="TFL",
 ):
     # params
     weight_shape = (channels, kernel_shape[0], kernel_shape[1], 1)
@@ -488,6 +491,7 @@ def make_ethosu_depthwise_conv2d(
         activation=activation,
         clip_min=15 if activation == "CLIP" else 0,
         clip_max=105 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
         upscale="NONE",
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
@@ -520,6 +524,7 @@ def make_ethosu_pooling(
     activation="NONE",
     ifm_layout="NHWC",
     ofm_layout="NHWC",
+    rounding_mode="TFL",
 ):
     pooling = ethosu_ops.ethosu_pooling(
         ifm,
@@ -536,6 +541,7 @@ def make_ethosu_pooling(
         activation=activation,
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
         upscale="NONE",
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
@@ -570,6 +576,7 @@ def make_ethosu_binary_elementwise(
     ifm_layout="NHWC",
     ifm2_layout="NHWC",
     ofm_layout="NHWC",
+    rounding_mode="TFL",
 ):
     ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
         ifm=ifm,
@@ -589,6 +596,7 @@ def make_ethosu_binary_elementwise(
         ofm_dtype=ofm_dtype,
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
         ifm_layout=ifm_layout,
         ifm2_layout=ifm2_layout,
         ofm_layout=ofm_layout,

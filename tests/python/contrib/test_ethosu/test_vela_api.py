@@ -117,6 +117,7 @@ class Module1:
                 "CLIP",
                 0,
                 0,
+                "TFL",
                 "NONE",
                 dtype="uint8",
             )
@@ -212,6 +213,7 @@ class Module2:
                 "CLIP",
                 0,
                 0,
+                "TFL",
                 "NONE",
                 dtype="uint8",
             )
