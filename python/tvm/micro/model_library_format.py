@@ -321,7 +321,7 @@ def _export_graph_model_library_format(
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
         devices = mod.get_devices()
-        workspace_size = str(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
+        workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
         generate_c_interface_header(
             mod.libmod_name, inputs, outputs, devices, workspace_size, include_path
         )
