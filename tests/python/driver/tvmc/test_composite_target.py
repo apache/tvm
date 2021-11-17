@@ -36,6 +36,7 @@ def test_get_codegen_names():
     assert "ethos-n77" in names
     assert "ethos-n78" in names
     assert "vitis-ai" in names
+    assert "tensorrt" in names
     assert len(names) > 0
 
 
