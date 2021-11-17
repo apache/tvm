@@ -937,7 +937,7 @@ IRModule Prepare(IRModule mod, CompilationConfig config) {
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
        transform::InferType(),
-       tec::LowerTEPass(/*module_name=*/"intrp", [](Function func) { /* no-op */ })});
+       tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ })});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

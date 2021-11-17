@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""CMSIS-NN integration tests: softmax"""
+"""CMSIS-NN integration tests: Softmax"""
 
 import sys
 import itertools
@@ -64,7 +64,7 @@ def make_model(
 @skip_if_no_reference_system
 @pytest.mark.parametrize(["zero_point", "scale"], [[33, 0.256], [-64, 0.0128]])
 @tvm.testing.requires_cmsisnn
-def test_softmax_int8(zero_point, scale):
+def test_op_int8(zero_point, scale):
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
@@ -135,7 +135,7 @@ def parameterize_for_invalid_model(test):
 
 @parameterize_for_invalid_model
 @tvm.testing.requires_cmsisnn
-def test_invalid_softmax(in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale):
+def test_invalid_parameters(in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale):
     model = make_model(
         [1, 16, 16, 3], in_dtype, out_dtype, zero_point, scale, out_zero_point, out_scale
     )
