@@ -205,11 +205,10 @@ def test_llvm_link_params():
 
             # Wrap in function to explicitly deallocate the runtime.
             def _run_linked(lib, mod):
-                graph_json, _, _ = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input)  # NOTE: params not required.
-                graph_rt.run()
-                return graph_rt.get_output(0)
+                graph_exec = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+                graph_exec.set_input("rand_input", rand_input)  # NOTE: params not required.
+                graph_exec.run()
+                return graph_exec.get_output(0)
 
             linked_output = _run_linked(lib, mod)
 
@@ -217,11 +216,10 @@ def test_llvm_link_params():
             lib = tvm.relay.build(ir_mod, "llvm --system-lib", params=param_init)
 
             def _run_unlinked(lib):
-                graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input, **lowered_params)
-                graph_rt.run()
-                return graph_rt.get_output(0)
+                graph_exec = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+                graph_exec.set_input("rand_input", rand_input)
+                graph_exec.run()
+                return graph_exec.get_output(0)
 
             unlinked_output = _run_unlinked(lib)
 
@@ -334,7 +332,7 @@ def test_c_link_params():
 
             def _run_unlinked(lib_mod):
                 graph_rt = tvm.contrib.graph_executor.GraphModule(lib_mod["default"](tvm.cpu(0)))
-                graph_rt.set_input("rand_input", rand_input, **params)
+                graph_rt.set_input("rand_input", rand_input)
                 graph_rt.run()
                 return graph_rt.get_output(0)
 
@@ -343,6 +341,7 @@ def test_c_link_params():
         if "int" in dtype:
             np.testing.assert_equal(unlinked_output.numpy(), linked_output.numpy())
         else:
+
             np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
@@ -382,9 +381,8 @@ def test_crt_link_params():
             lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
 
             def _run_unlinked(lib):
-                graph_json, mod, lowered_params = lib
-                graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-                graph_rt.set_input("rand_input", rand_input, **lowered_params)
+                graph_rt = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+                graph_rt.set_input("rand_input", rand_input)
                 graph_rt.run()
                 return graph_rt.get_output(0).numpy()
 

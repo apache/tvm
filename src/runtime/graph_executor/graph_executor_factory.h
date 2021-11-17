@@ -52,7 +52,7 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
    */
   GraphExecutorFactory(const std::string& graph_json,
                        const std::unordered_map<std::string, tvm::runtime::NDArray>& params,
-                       const std::string& module_name = "default");
+                       const std::string& target_str, const std::string& module_name = "default");
 
   /*!
    * \brief Get member function to front-end
@@ -125,10 +125,16 @@ class TVM_DLL GraphExecutorFactory : public runtime::ModuleNode {
   }
 
  protected:
+  inline bool is_link_params() const {
+    return target_str_.find("-link-params=1") != std::string::npos;
+  }
+
   /*! \brief The execution graph. */
   std::string graph_json_;
   /*! \brief The params. */
   std::unordered_map<std::string, tvm::runtime::NDArray> params_;
+  /*! \brief Target string used to build this artifact */
+  std::string target_str_;
   /*! \brief module name */
   std::string module_name_;
 };

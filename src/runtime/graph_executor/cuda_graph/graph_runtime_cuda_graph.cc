@@ -128,9 +128,12 @@ TVM_REGISTER_GLOBAL("tvm.graph_executor_cuda_graph.create")
         lookup_linked_param_func = args[2];
         dev_start_arg++;
       }
+      std::vector<DLDevice> devices;
+      for (int i = dev_start_arg; i < args.size(); ++i) {
+        devices.push_back(args[i].operator DLDevice());
+      }
 
-      *rv = GraphExecutorCudaGraphCreate(args[0], args[1], GetAllDevice(args, dev_start_arg),
-                                         lookup_linked_param_func);
+      *rv = GraphExecutorCudaGraphCreate(args[0], args[1], devices, lookup_linked_param_func);
     });
 }  // namespace runtime
 }  // namespace tvm
