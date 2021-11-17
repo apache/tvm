@@ -156,6 +156,10 @@ class TestConv2dPackedFilter(BaseConv2d):
         dtype,
         target,
     ):
+        print()
+        print(platform.machine())
+        print(platform.processor())
+
         # TODO: no support for dilation
         dilation = 1
 

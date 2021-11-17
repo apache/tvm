@@ -36,7 +36,7 @@ import numpy as np
 import pytest
 
 
-def conv2dconv2d(
+def conv2dconv2d_nhwc8h8w32c(
     shape_input,
     pad1,
     stride1,
@@ -182,6 +182,10 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         dtype,
         target,
     ):
+        print()
+        print(platform.machine())
+        print(platform.processor())
+
         # TODO: no support for padding in conv2d #2
         pad2 = 0
 
@@ -217,7 +221,7 @@ class TestConv2dConv2dPackedFilter(BaseConv2dConv2d):
         ref_output = testing.conv2d_nhwc_python(temp_output, np_filter2, stride2, pad2)
         output = build_and_run(
             inputs,
-            conv2dconv2d,
+            conv2dconv2d_nhwc8h8w32c,
             target,
             target,
             shape_input=shape_input,
