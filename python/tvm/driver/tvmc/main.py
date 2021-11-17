@@ -25,8 +25,7 @@ import sys
 
 import tvm
 
-from tvm.driver.tvmc.common import TVMCException
-from tvm.driver.tvmc.common import TVMCImportError
+from tvm.driver.tvmc import TVMCException, TVMCImportError
 
 
 REGISTERED_PARSER = []

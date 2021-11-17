@@ -33,17 +33,18 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
-from . import common
-from .common import (
-    TVMCException,
-    TVMCSuppressedArgumentParser,
+from . import TVMCException
+from .arguments import TVMCSuppressedArgumentParser
+from .project import (
     get_project_options,
     get_and_check_options,
     get_project_dir,
 )
+
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
+from .tracker import tracker_host_port_from_cli
 
 try:
     import tvm.micro.project as project
@@ -245,7 +246,7 @@ def drive_run(args):
     except ReadError:
         raise TVMCException(f"Could not read model from archive {path}!")
 
-    rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
+    rpc_hostname, rpc_port = tracker_host_port_from_cli(args.rpc_tracker)
 
     try:
         inputs = np.load(args.inputs) if args.inputs else {}
