@@ -111,26 +111,56 @@ class IRConvertSSA final : public StmtExprMutator {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Load(op->dtype, scope_[v].back(), op->index, op->predicate);
-    } else {
-      return expr;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    const VarNode* v = op->buffer_var.get();
-    if (scope_.count(v) && !scope_[v].empty()) {
-      return Store(scope_[v].back(), op->value, op->index, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+    if (!new_buf.same_as(node->buffer)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto key = buf.get();
+    auto buf_it = buf_remap_.find(key);
+    if (buf_it != buf_remap_.end()) {
+      return buf_it->second;
+    }
+
+    auto var_it = scope_.find(buf->data.get());
+    if (var_it != scope_.end() && !var_it->second.empty()) {
+      Var buffer_var = var_it->second.back();
+      auto writer = buf.CopyOnWrite();
+      writer->data = buffer_var;
+    }
+
+    buf_remap_[key] = buf;
+    return buf;
+  }
+
   Stmt VisitStmt_(const LetStmtNode* op) final {
     const Var& v = op->var;
     if (defined_.count(v.get())) {
@@ -191,6 +221,7 @@ class IRConvertSSA final : public StmtExprMutator {
  private:
   std::unordered_map<const VarNode*, std::vector<Var>> scope_;
   std::unordered_set<const VarNode*> defined_;
+  std::unordered_map<const BufferNode*, Buffer> buf_remap_;
 };
 
 Stmt ConvertSSA(Stmt stmt) { return IRConvertSSA()(std::move(stmt)); }

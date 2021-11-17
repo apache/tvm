@@ -610,6 +610,14 @@ class BufferLoadNode : public PrimExprNode {
   /*! \brief The indices location to be loaded. */
   Array<PrimExpr> indices;
 
+  /*! \brief Set the dtype based on the buffer/indices
+   *
+   * Usually, this will be the same dtype as the buffer.  This may
+   * have a different number of lanes than the buffer's dtype if index
+   * values have more than 1 lane.
+   */
+  void LegalizeDtype();
+
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->dtype));
     v->Visit("buffer", &buffer);

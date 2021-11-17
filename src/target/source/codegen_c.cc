@@ -585,15 +585,16 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       PrintExpr(op->args[2], os);
       os << ")";
     } else if (op->op.same_as(builtin::address_of())) {
-      const LoadNode* l = op->args[0].as<LoadNode>();
-      ICHECK(op->args.size() == 1 && l);
+      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+      ICHECK(op->args.size() == 1 && load);
+      ICHECK_EQ(load->indices.size(), 0) << "CodeGenC only supports flat memory allocations.";
       os << "((";
-      this->PrintType(l->dtype.element_of(), os);
-      os << " *)" << this->GetVarID(l->buffer_var.get()) << " + "
+      this->PrintType(load->dtype.element_of(), os);
+      os << " *)" << this->GetVarID(load->buffer->data.get()) << " + "
          << "(";
-      this->PrintExpr(l->index, os);
-      if (l->dtype.bits() == 4 || (l->dtype.bits() == 1 && l->dtype.is_int())) {
-        os << " / " << (32 / l->dtype.bits());
+      this->PrintExpr(load->indices[0], os);
+      if (load->dtype.bits() == 4 || (load->dtype.bits() == 1 && load->dtype.is_int())) {
+        os << " / " << (32 / load->dtype.bits());
       }
       os << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
@@ -649,18 +650,25 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
 }
 
 void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
+  LOG(FATAL) << "Unexpected deprecated LoadNode.  Use BufferLoadNode instead.";
+}
+
+void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
+  ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
+
+  PrimExpr index = op->indices[0];
+  Var buffer_var = op->buffer->data;
+
   int lanes = op->dtype.lanes();
   // delcare type.
   if (op->dtype.lanes() == 1) {
-    std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
+    std::string ref = GetBufferRef(op->dtype, buffer_var.get(), index);
     HandleVolatileLoads(ref, op, os);
   } else {
-    ICHECK(is_one(op->predicate)) << "predicated load is not supported";
-
     bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
-    if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
-      const RampNode* ramp = op->index.as<RampNode>();
+    if (arith::ramp(base, 1, op->dtype.lanes()).Match(index)) {
+      const RampNode* ramp = index.as<RampNode>();
       ICHECK(ramp);
       arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
@@ -670,19 +678,19 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
     }
 
     if (can_vector_load) {
-      std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
+      std::string ref = GetVecLoad(op->dtype, buffer_var.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;
-      std::string sindex = SSAGetID(PrintExpr(op->index), op->index.dtype());
-      std::string vid = GetVarID(op->buffer_var.get());
+      std::string sindex = SSAGetID(PrintExpr(index), index.dtype());
+      std::string vid = GetVarID(buffer_var.get());
       DataType elem_type = op->dtype.element_of();
       for (int i = 0; i < lanes; ++i) {
         std::ostringstream value_temp;
-        if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
+        if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           value_temp << "((";
-          if (op->buffer_var.get()->dtype.is_handle()) {
-            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+          if (buffer_var.get()->dtype.is_handle()) {
+            auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, value_temp);
             }
@@ -693,7 +701,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
           value_temp << vid;
         }
         value_temp << '[';
-        PrintVecElemLoad(sindex, op->index.dtype(), i, value_temp);
+        PrintVecElemLoad(sindex, index.dtype(), i, value_temp);
         value_temp << ']';
         PrintVecElemLoadExpr(op->dtype, i, value_temp.str(), svalue_expr);
       }
@@ -703,35 +711,43 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitStmt_(const StoreNode* op) {
+  LOG(FATAL) << "Unexpected deprecated StoreNode.  Use BufferStoreNode instead.";
+}
+
+void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
+  ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
+
   DataType t = op->value.dtype();
+  PrimExpr index_expr = op->indices[0];
+  Var buffer_var = op->buffer->data;
+
   if (t.lanes() == 1) {
     std::string value = this->PrintExpr(op->value);
-    std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
+    std::string ref = this->GetBufferRef(t, buffer_var.get(), index_expr);
     this->PrintIndent();
     stream << ref << " = " << value << ";\n";
   } else {
-    ICHECK(is_one(op->predicate)) << "Predicated store is not supported";
     arith::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
+    if (arith::ramp(base, 1, t.lanes()).Match(index_expr)) {
       std::string value = this->PrintExpr(op->value);
-      this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
+      this->PrintVecStore(buffer_var.get(), t, base.Eval(), value);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed
       int vec_scope = BeginScope();
 
       // store elements seperately
-      std::string index = SSAGetID(PrintExpr(op->index), op->index.dtype());
+      std::string index = SSAGetID(PrintExpr(index_expr), index_expr.dtype());
       std::string value = SSAGetID(PrintExpr(op->value), op->value.dtype());
-      std::string vid = GetVarID(op->buffer_var.get());
+      std::string vid = GetVarID(buffer_var.get());
       for (int i = 0; i < t.lanes(); ++i) {
         this->PrintIndent();
         DataType elem_type = t.element_of();
-        if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
+        if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           stream << "((";
-          if (op->buffer_var.get()->dtype.is_handle()) {
-            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+          if (buffer_var.get()->dtype.is_handle()) {
+            auto it = alloc_storage_scope_.find(buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, stream);
             }
@@ -742,7 +758,7 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
           stream << vid;
         }
         stream << '[';
-        PrintVecElemLoad(index, op->index.dtype(), i, stream);
+        PrintVecElemLoad(index, index_expr.dtype(), i, stream);
         stream << "] = ";
         PrintVecElemLoad(value, op->value.dtype(), i, stream);
         stream << ";\n";

@@ -62,30 +62,89 @@ class VecAllocAccess : public StmtExprMutator {
  public:
   VecAllocAccess(const VarNode* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
-  // Load
+
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-    op = expr.as<LoadNode>();
-    if (op->buffer_var.get() == buf_) {
-      return Load(op->dtype, op->buffer_var, op->index * var_lanes_ + var_, op->predicate);
-    } else {
-      return expr;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
-  // Store
+
   Stmt VisitStmt_(const StoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<StoreNode>();
-    if (op->buffer_var.get() == buf_) {
-      return Store(op->buffer_var, op->value, op->index * var_lanes_ + var_, op->predicate);
-    } else {
-      return stmt;
-    }
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return UpdateBufferAccess(load);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return UpdateBufferAccess(store);
   }
 
  private:
+  template <typename Node>
+  Node UpdateBufferAccess(Node node) {
+    // Only update the buffer that's being replaced.
+    if (node->buffer->data.get() != buf_) {
+      return node;
+    }
+
+    arith::Analyzer analyzer;
+
+    // Find/make a Buffer object with the correct updated shape.
+    Buffer buf;
+    auto it = buffer_map_.find(node->buffer.get());
+    if (it != buffer_map_.end()) {
+      buf = it->second;
+    } else {
+      // Extend the least significant dimension by a factor of
+      // var_lanes_.  Typically, this will be a 1-d index into a flat
+      // memory space.
+      Array<PrimExpr> shape = node->buffer->shape;
+      shape.Set(shape.size() - 1, analyzer.Simplify(shape[shape.size() - 1] * var_lanes_));
+
+      // TODO(Lunderberg): Move this pass to be prior to
+      // StorageFlatten/FlattenBuffer, implement by appending a
+      // dimension to the buffer.  Since it is currently after the
+      // flattening, the strides are not technically necessary, but
+      // are updated for consistency.
+
+      // Update strides if defined.
+      Array<PrimExpr> strides;
+      for (size_t i = 0; i < strides.size(); i++) {
+        PrimExpr stride = strides[i];
+        if (i != strides.size() - 1) {
+          stride *= var_lanes_;
+        }
+        strides.push_back(analyzer.Simplify(stride));
+      }
+
+      // Copy everything into the new buffer.
+      buf = node->buffer;
+      auto buf_writer = buf.CopyOnWrite();
+      buf_writer->shape = shape;
+      buf_writer->strides = strides;
+      buffer_map_[buf.get()] = buf;
+    }
+
+    // Extend the last index by the number of lanes in the vectorized
+    // variable.
+    Array<PrimExpr> indices = node->indices;
+    indices.Set(indices.size() - 1,
+                analyzer.Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
+
+    auto writer = node.CopyOnWrite();
+    writer->buffer = buf;
+    writer->indices = indices;
+    return node;
+  }
+
   // buffer var
   const VarNode* buf_;
+  // Updated buffer objects.
+  std::unordered_map<const BufferNode*, Buffer> buffer_map_;
   // variable to be replaced
   Var var_;
   // the lanes.
@@ -312,15 +371,24 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // Load
   PrimExpr VisitExpr_(const LoadNode* op) final {
-    PrimExpr index = this->VisitExpr(op->index);
-    PrimExpr pred = this->VisitExpr(op->predicate);
-    if (index.same_as(op->index) && pred.same_as(op->predicate)) {
-      return GetRef<PrimExpr>(op);
-    } else {
-      int lanes = std::max(index.dtype().lanes(), pred.dtype().lanes());
-      return Load(op->dtype.with_lanes(lanes), op->buffer_var, BroadcastTo(index, lanes),
-                  BroadcastTo(pred, lanes));
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
+  }
+  // BufferLoad
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto load = GetRef<BufferLoad>(op);
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    Array<PrimExpr> indices = op->indices;
+    indices.MutateByApply(fmutate);
+
+    if (!indices.same_as(op->indices)) {
+      auto writer = load.CopyOnWrite();
+      writer->indices = indices;
+      writer->LegalizeDtype();
     }
+
+    return std::move(load);
   }
   // Let
   PrimExpr VisitExpr_(const LetNode* op) final {
@@ -352,17 +420,43 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // Store
   Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return Stmt();
+  }
+  // BufferStore
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto store = GetRef<BufferStore>(op);
+
+    auto fmutate = [this](const PrimExpr& index) { return this->VisitExpr(index); };
+    Array<PrimExpr> indices = op->indices;
+    indices.MutateByApply(fmutate);
+
     PrimExpr value = this->VisitExpr(op->value);
-    PrimExpr index = this->VisitExpr(op->index);
-    PrimExpr pred = this->VisitExpr(op->predicate);
-    if (value.same_as(op->value) && index.same_as(op->index)) {
-      return GetRef<Stmt>(op);
-    } else {
-      int lanes = std::max(value.dtype().lanes(), index.dtype().lanes());
-      lanes = std::max(lanes, pred.dtype().lanes());
-      return Store(op->buffer_var, BroadcastTo(value, lanes), BroadcastTo(index, lanes),
-                   BroadcastTo(pred, lanes));
+
+    if (!indices.same_as(op->indices) || !value.same_as(op->value)) {
+      int index_lanes = 1;
+      for (const auto& index : indices) {
+        index_lanes *= index.dtype().lanes();
+      }
+
+      int lanes = std::max(index_lanes, value.dtype().lanes());
+
+      int last_index_lanes = indices[indices.size() - 1].dtype().lanes();
+      int earlier_index_lanes = index_lanes / last_index_lanes;
+
+      // Broadcast the last index such that the total number of index
+      // lanes matches the desired number.
+      ICHECK_EQ(lanes % last_index_lanes, 0)
+          << "Cannot produce location with " << value.dtype().lanes();
+      indices.Set(indices.size() - 1,
+                  BroadcastTo(indices[indices.size() - 1], lanes / earlier_index_lanes));
+
+      auto writer = store.CopyOnWrite();
+      writer->indices = indices;
+      writer->value = BroadcastTo(value, lanes);
     }
+
+    return std::move(store);
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
@@ -429,23 +523,35 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
+    // Mutate the condition
     PrimExpr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_vector()) {
-      LOG(WARNING) << "Cannot handle vector extent in alloc ";
+      LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
       return Scalarize(GetRef<Stmt>(op));
     }
+
+    // Mutate the extents
     Array<PrimExpr> extents;
-    for (size_t i = 0; i < op->extents.size(); i++) {
-      PrimExpr new_ext = this->VisitExpr(op->extents[i]);
+    for (const auto& extent : op->extents) {
+      PrimExpr new_ext = this->VisitExpr(extent);
       if (new_ext.dtype().is_vector()) {
-        LOG(WARNING) << "Cannot handle vector extent in alloc ";
+        LOG(WARNING) << "Cannot handle vector extent in alloc of " << op->buffer_var->name_hint;
         return Scalarize(GetRef<Stmt>(op));
       }
       extents.push_back(new_ext);
     }
-    // place the vector lanes in least significant dimension.
-    extents.push_back(var_lanes_);
-    // rewrite access to buffer internally.
+
+    // TODO(Lunderberg): Move this pass to be prior to
+    // StorageFlatten/FlattenBuffer.  That will allow this pass to be
+    // implemented as adding a new buffer dimension, which is later
+    // flattened.
+
+    // Extend the least significant dimension by a factor of
+    // var_lanes_.  Typically, this will be a 1-d index into a flat
+    // memory space.
+    extents.Set(extents.size() - 1, extents[extents.size() - 1] * var_lanes_);
+
+    // Rewrite access to the buffer in the body.
     Stmt body = VecAllocAccess(op->buffer_var.get(), var_, var_lanes_)(op->body);
     body = this->VisitStmt(body);
     return Allocate(op->buffer_var, op->dtype, extents, condition, body);

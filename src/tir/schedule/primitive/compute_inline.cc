@@ -200,14 +200,14 @@ class BaseInliner : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(var);
   }
 
-  PrimExpr VisitExpr_(const LoadNode* load) final {
-    CheckOpaqueAccess(load->buffer_var.get());
-    return StmtExprMutator::VisitExpr_(load);
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
+    return PrimExpr();
   }
 
-  Stmt VisitStmt_(const StoreNode* store) final {
-    CheckOpaqueAccess(store->buffer_var.get());
-    return StmtExprMutator::VisitStmt_(store);
+  Stmt VisitStmt_(const StoreNode* op) final {
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+    return Stmt();
   }
 
   Stmt VisitStmt_(const ForNode* loop) final {

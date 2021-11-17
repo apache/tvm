@@ -185,11 +185,18 @@ class MatchBufferLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      Load load = Downcast<Load>(source_buffer.vload(indices, source_buffer->dtype));
-      Bind(buffer->elem_offset, load->index, buffer->name + ".elem_offset");
-      CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-          << "The source elem_offset " << load->index << " does not satisfy the offset_factor "
-          << buffer->offset_factor << ".";
+      auto load = Downcast<BufferLoad>(source_buffer.vload(indices, source_buffer->dtype));
+      if (load->indices.size() == 1) {
+        Bind(buffer->elem_offset, load->indices[0], buffer->name + ".elem_offset");
+        CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
+            << "The source elem_offset " << load->indices[0]
+            << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
+      } else {
+        // Non-zero elem_offset is ill-defined for non-flat memory.
+        // If needed in the future, will require `Array<PrimExpr>
+        // elem_offsets`, with one offset for each flattened index.
+        Bind(buffer->elem_offset, 0);
+      }
     }
 
     // Step 2.3. Check and update strides

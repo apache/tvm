@@ -337,13 +337,17 @@ std::string CodeGenOpenCL::CastFromTo(std::string value, DataType from, DataType
 }
 
 void CodeGenOpenCL::VisitStmt_(const StoreNode* op) {
+  LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
+}
+
+void CodeGenOpenCL::VisitStmt_(const BufferStoreNode* op) {
   if (auto call = op->value.as<CallNode>()) {
     if (call->op.same_as(builtin::texture2d_load())) {
       need_texture_ssa_ = false;
       // If storing a texture load into a buffer, don't use an
       // intermediate local unless the buffer allocation is a
       // single element selected from the texture read.
-      auto it = allocation_size_.find(op->buffer_var.get());
+      auto it = allocation_size_.find(op->buffer->data.get());
       if (it != allocation_size_.end() && it->second == 1) {
         need_texture_ssa_ = true;
       }
@@ -372,16 +376,17 @@ void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
 void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
   if (op->op.same_as(builtin::address_of())) {
     // Overload tvm_address_of to add storage scope (e.g. __global).
-    const LoadNode* load = op->args[0].as<LoadNode>();
+    const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     ICHECK(op->args.size() == 1 && load);
+    ICHECK_EQ(load->indices.size(), 0) << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->buffer_var.get());
+    auto it = alloc_storage_scope_.find(load->buffer->data.get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->dtype.element_of(), os);
-    os << " *)" << this->GetVarID(load->buffer_var.get()) << " + ";
-    this->PrintExpr(load->index, os);
+    os << " *)" << this->GetVarID(load->buffer->data.get()) << " + ";
+    this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(builtin::texture2d_store())) {
     auto* ptr_type = op->args[0].as<VarNode>()->type_annotation.as<PointerTypeNode>();

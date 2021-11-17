@@ -105,10 +105,10 @@ TVM_DLL const Op& large_uint_imm();
 TVM_DLL const Op& q_multiply_shift();
 
 /*!
- * \brief See pesudo code
+ * \brief See pseudo code
  *
- *  Handle address_of(Load *op) {
- *     return &op->buffer_var[index];
+ *  Handle address_of(BufferLoad *op) {
+ *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
 TVM_DLL const Op& address_of();

@@ -120,13 +120,11 @@ class LCADetector : public StmtExprVisitor {
 
   // Explict to visit buffer data in Load and Store node.
   void VisitExpr_(const LoadNode* op) final {
-    ExprVisitor::VisitExpr_(op);
-    VisitBufferVar(op->buffer_var.get());
+    LOG(FATAL) << "Unexpected use of deprecated LoadNode.  Please use BufferLoadNode instead.";
   }
 
   void VisitStmt_(const StoreNode* op) final {
-    StmtVisitor::VisitStmt_(op);
-    VisitBufferVar(op->buffer_var.get());
+    LOG(FATAL) << "Unexpected use of deprecated StoreNode.  Please use BufferStoreNode instead.";
   }
 
   void VisitBufferVar(const VarNode* op) {
