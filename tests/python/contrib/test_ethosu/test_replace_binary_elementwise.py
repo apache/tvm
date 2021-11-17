@@ -27,15 +27,15 @@ from .infra import make_ethosu_binary_elementwise, get_binary_elementwise_args
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, ifm2_shape, ifm_channels, ifm2_channels, ifm_layout, ofm_layout",
+    "ifm_shape, ifm2_shape, ifm_channels, ifm2_channels, ifm_layout, ofm_layout, rounding_mode",
     [
-        ((1, 5, 9, 3), (1, 5, 9, 3), 3, 3, "NHWC", "NHWC"),
-        ((1, 8, 3, 9, 16), (1, 8, 3, 9, 16), 40, 40, "NHCWB16", "NHCWB16"),
-        ((1, 8, 3, 9, 16), (1, 8, 3, 9, 16), 40, 40, "NHCWB16", "NHWC"),
-        ((1, 8, 9, 40), (1, 8, 9, 40), 40, 40, "NHWC", "NHCWB16"),
+        ((1, 5, 9, 3), (1, 5, 9, 3), 3, 3, "NHWC", "NHWC", "TFL"),
+        ((1, 8, 3, 9, 16), (1, 8, 3, 9, 16), 40, 40, "NHCWB16", "NHCWB16", "NATURAL"),
+        ((1, 8, 3, 9, 16), (1, 8, 3, 9, 16), 40, 40, "NHCWB16", "NHWC", "TRUNCATE"),
+        ((1, 8, 9, 40), (1, 8, 9, 40), 40, 40, "NHWC", "NHCWB16", "TFL"),
         # Broadcast
-        ((1, 5, 9, 3), (1, 1, 9, 1), 3, 1, "NHWC", "NHWC"),
-        ((1, 8, 9, 40), (1, 1, 1, 1), 40, 1, "NHWC", "NHCWB16"),
+        ((1, 5, 9, 3), (1, 1, 9, 1), 3, 1, "NHWC", "NHWC", "NATURAL"),
+        ((1, 8, 9, 40), (1, 1, 1, 1), 40, 1, "NHWC", "NHCWB16", "TRUNCATE"),
     ],
 )
 @pytest.mark.parametrize("operator_type", ["ADD", "SUB", "MUL", "MIN", "MAX"])
@@ -47,6 +47,7 @@ def test_binary_elementwise_single(
     ifm2_channels,
     ifm_layout,
     ofm_layout,
+    rounding_mode,
     operator_type,
     activation,
 ):
@@ -66,6 +67,7 @@ def test_binary_elementwise_single(
         ifm_layout,
         ifm_layout,
         ofm_layout,
+        rounding_mode,
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
@@ -174,6 +176,7 @@ def test_binary_elementwise_single(
             clip_min=10 if activation == "CLIP" else 0,
             clip_max=100 if activation == "CLIP" else 0,
         ),
+        rounding_mode=rounding_mode,
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)
@@ -192,6 +195,7 @@ def test_binary_elementwise_single(
     ],
 )
 @pytest.mark.parametrize("operator_type", ["SHR", "SHL"])
+@pytest.mark.parametrize("rounding_mode", ["TFL", "NATURAL", "TRUNCATE"])
 def test_shift_binary_elementwise_single(
     ifm_shape,
     ifm2_shape,
@@ -200,6 +204,7 @@ def test_shift_binary_elementwise_single(
     ifm_layout,
     ofm_layout,
     operator_type,
+    rounding_mode,
 ):
     dtype = "int32"
     activation = "NONE"  # Only NONE is available if the activation type is int32
@@ -218,6 +223,7 @@ def test_shift_binary_elementwise_single(
         ifm_layout,
         ifm_layout,
         ofm_layout,
+        rounding_mode,
     )
     func = relay.Function(relay.analysis.free_vars(binary_elementwise), binary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
@@ -326,6 +332,7 @@ def test_shift_binary_elementwise_single(
             clip_min=0,
             clip_max=0,
         ),
+        rounding_mode=rounding_mode,
     )
 
     assert data[0] == ["ethosu_binary_elementwise"] + list(serial_binary_elementwise)

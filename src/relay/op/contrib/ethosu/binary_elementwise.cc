@@ -46,6 +46,7 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
   String activation;
   int clip_min;
   int clip_max;
+  String rounding_mode;
   String ifm_layout;
   String ifm2_layout;
   String ofm_layout;
@@ -95,6 +96,13 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
     TVM_ATTR_FIELD(clip_max)
         .describe("The maximum clipping value if activation = 'CLIP'.")
         .set_default(0);
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
     TVM_ATTR_FIELD(ifm_layout)
         .describe("The layout of the Input Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
         .set_default("NHWC");
@@ -241,8 +249,8 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
                                  int ifm2_zero_point, double ofm_scale, int ofm_zero_point,
                                  IndexExpr ifm_channels, IndexExpr ifm2_channels,
                                  bool reversed_operands, String activation, int clip_min,
-                                 int clip_max, String ifm_layout, String ifm2_layout,
-                                 String ofm_layout, String ofm_dtype) {
+                                 int clip_max, String rounding_mode, String ifm_layout,
+                                 String ifm2_layout, String ofm_layout, String ofm_dtype) {
   auto attrs = make_object<EthosuBinaryElementwiseAttrs>();
 
   attrs->operator_type = std::move(operator_type);
@@ -258,6 +266,7 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
   attrs->clip_max = clip_max;
+  attrs->rounding_mode = std::move(rounding_mode);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ifm2_layout = std::move(ifm2_layout);
   attrs->ofm_layout = std::move(ofm_layout);

@@ -96,6 +96,7 @@ def get_binary_elementwise_params(
             operator_type=attrs["operator_type"],
             reversed_operands=reversed_operands,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
         ),
         output_pointer,
         replace_pointer,
