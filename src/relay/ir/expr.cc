@@ -77,7 +77,7 @@ Tuple Tuple::WithFields(Optional<Array<Expr>> opt_fields, Optional<Span> opt_spa
 
   // TODO(@electriclilies): Turn into a helper, will need this for functions as well.
   bool all_fields_unchanged = true;
-  if (fields.size() == get()->fields.size()) {
+  if (fields.same_as(get()->fields) && (fields.size() == get()->fields.size())) {
     for (uint i = 0; i < fields.size(); i++) {
       all_fields_unchanged &= fields[i].same_as(get()->fields[i]);
     }
@@ -85,8 +85,7 @@ Tuple Tuple::WithFields(Optional<Array<Expr>> opt_fields, Optional<Span> opt_spa
     all_fields_unchanged = false;
   }
 
-  if (fields.same_as(get()->fields) /* do I need this check? */ && all_fields_unchanged &&
-      span.same_as(get()->span)) {
+  if (all_fields_unchanged && span.same_as(get()->span)) {
     return *this;
   }
   TupleNode* cow_tuple_node = CopyOnWrite();
