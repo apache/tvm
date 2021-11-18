@@ -1284,6 +1284,8 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
+/*! \brief Mark realization for rolling buffer optimization */
+constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
