@@ -179,25 +179,23 @@ class BF16LowerRewriter : public StmtExprMutator {
   using StmtExprMutator::operator();
 
   PrimExpr VisitExpr_(const CastNode* op) final {
-    auto op_val = StmtExprMutator::VisitExpr(op->value);
-    if (op->value->dtype.is_bfloat16()) {
-      // if is cast_from_bf16, check if is to fp32
-      ICHECK(op->dtype.is_float() && op->dtype.bits() == 32);
-      auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
-      auto uint32_v = Cast(uint32_dtype, op_val);
-      // to be endian invariant.
-      return Call(op->dtype, builtin::reinterpret(), {uint32_v << 16});
-    } else if (op->dtype.is_bfloat16()) {
-      // if is cast_to_bf16, check if op->value is fp32
-      ICHECK(op->value->dtype.is_float() && op->value->dtype.bits() == 32);
-      auto uint32_dtype = DataType(kDLUInt, 32, op_val->dtype.lanes());
-      auto uint32_v = Call(uint32_dtype, builtin::reinterpret(), {op_val});
-      auto uint16_dtype = DataType(kDLUInt, 16, op_val->dtype.lanes());
+    PrimExpr op_val = StmtExprMutator::VisitExpr(op->value);
+    DataType uint32_dtype(kDLUInt, 32, op_val->dtype.lanes());
+    DataType float32_dtype(kDLFloat, 32, op_val->dtype.lanes());
+    if (op->value->dtype.is_bfloat16()) {  // cast from bf16
+      PrimExpr uint32_v = Cast(uint32_dtype, op_val);
+      PrimExpr float32_v = Call(float32_dtype, builtin::reinterpret(), {uint32_v << 16});
+      bool is_to_float32 = op->dtype.is_float() && op->dtype.bits() == 32;
+      return is_to_float32 ? float32_v : Cast(op->dtype, float32_v);
+    } else if (op->dtype.is_bfloat16()) {  // cast to bf16
+      bool is_from_float32 = op->value->dtype.is_float() && op->value->dtype.bits() == 32;
+      PrimExpr float32_v = is_from_float32 ? op_val : Cast(float32_dtype, op_val);
+      PrimExpr uint32_v = Call(uint32_dtype, builtin::reinterpret(), {float32_v});
+      DataType uint16_dtype(kDLUInt, 16, op_val->dtype.lanes());
       /* the following TIR is equivalent to the C++ code below:
       uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
       return static_cast<uint16_t>((U32 + rounding_bias) >> 16);*/
-      auto rounding_bias = ((uint32_v >> 16) & 1) + make_const(uint16_dtype, 0x7FFF);
-      // to be endian invariant.
+      PrimExpr rounding_bias = ((uint32_v >> 16) & 1) + make_const(uint16_dtype, 0x7FFF);
       return Cast(uint16_dtype, {(uint32_v + rounding_bias) >> 16});
     }
     if (op->value.same_as(op_val)) return GetRef<PrimExpr>(op);
