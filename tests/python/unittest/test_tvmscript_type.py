@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement,line-too-long
+# pylint: disable=missing-function-docstring,missing-module-docstring,invalid-name,pointless-string-statement
 from tvm.script import tir as T
 
 """
@@ -165,8 +165,10 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                 T.writes(
                     [
                         B[
-                            T.min(vj, vi) : T.min(vj, vi) + (T.max(vj, vi) + 1 - T.min(vj, vi)),  # type: ignore[misc]
-                            T.min(vi, vj) : T.min(vi, vj) + (T.max(vi, vj) + 1 - T.min(vi, vj)),  # type: ignore[misc]
+                            T.min(vj, vi) : T.min(vj, vi)  # type: ignore[misc]
+                            + (T.max(vj, vi) + 1 - T.min(vj, vi)),  # type: ignore[misc]
+                            T.min(vi, vj) : T.min(vi, vj)  # type: ignore[misc]
+                            + (T.max(vi, vj) + 1 - T.min(vi, vj)),  # type: ignore[misc]
                         ]
                     ]
                 )
