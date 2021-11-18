@@ -141,7 +141,18 @@ class Tuple : public Expr {
    */
   TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
 
+  /*!
+   * \brief Returns this with given properties. A null property denotes 'no change'.
+   * Returns this if all properties are unchanged. Returns a modified this if this is the only
+   * reference to the underlying node.
+   *
+   * TODO(mbs): Extend to all node types.
+   */
+  Tuple WithFields(Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
+                   Optional<Span> opt_span = Optional<Span>(nullptr));
+
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
 /*!
