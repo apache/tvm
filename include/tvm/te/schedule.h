@@ -29,6 +29,7 @@
 #include <tvm/te/tensor.h>
 #include <tvm/te/tensor_intrin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/index_map.h>
 
 #include <string>
 #include <unordered_map>
@@ -256,6 +257,29 @@ class Stage : public ObjectRef {
    * \return reference to self.
    */
   TVM_DLL Stage& rolling_buffer();  // NOLINT(*)
+  /*!
+   * \brief Defines a layout transformation to be applied to the buffer.
+   *
+   * The map from initial_index to final_index must be an
+   * invertible affine transformation.
+   *
+   * \param initial_indices An array of variables to represent a
+   * value's location in the tensor, using the pre-transformation
+   * layout.  These variables are used as binding occurrences to
+   * represent the initial indices when applying the initial->final
+   * mapping, and should not occur elsewhere in the
+   * Schedule. (i.e. Pass in newly constructed variables, not the
+   * initial IterVar::var)
+   *
+   * \param final_indices An array of expressions, giving the
+   * value's location in the tensor, using the post-transformation layout.
+   * Expressions should be in terms of the variables given in
+   * initial_indices.
+   *
+   * \return reference to self
+   */
+  TVM_DLL Stage& transform_layout(const Array<Var>& initial_indices,
+                                  const Array<PrimExpr>& final_indices);
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
@@ -500,6 +524,8 @@ class StageNode : public Object {
   bool double_buffer{false};
   /*! \brief Whether apply rolling buffer optimization to this stage */
   bool rolling_buffer{false};
+  /*! \brief Layout transformations to be applied onto the stage's tensors. */
+  Array<IndexMap> layout_transforms;
   /*!
    * \brief The parent group of the current stage.
    *  The stage cannot be assigned to stages outside the group.
@@ -522,6 +548,7 @@ class StageNode : public Object {
     v->Visit("scope", &scope);
     v->Visit("is_output", &is_output);
     v->Visit("double_buffer", &double_buffer);
+    v->Visit("layout_transforms", &layout_transforms);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
   }

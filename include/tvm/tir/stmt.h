@@ -388,6 +388,7 @@ class BufferRealize : public Stmt {
                                  Span span = Span());
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
 };
 
 /*!
@@ -583,6 +584,7 @@ class Allocate : public Stmt {
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateNode);
 };
 
 /*!
@@ -1280,6 +1282,13 @@ constexpr const char* pragma_tensor_core = "pragma_tensor_core";
  *  run prefetch of Tensor on the current loop scope
  */
 constexpr const char* prefetch_scope = "prefetch_scope";
+/*!
+ * \brief Marks the layout transforms to be used for a tensor.
+ *
+ * Only applies to a DataProducer, as it should be made part of the
+ * PrimFunc attributes for TIR.
+ */
+constexpr const char* layout_transforms = "layout_transforms";
 /*!
  * \brief Marks production of double buffer data
  */

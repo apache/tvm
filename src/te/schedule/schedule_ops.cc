@@ -40,12 +40,26 @@ namespace te {
 
 using namespace tir;
 
+// Annotate the statement with the physical layout of the stage.  This
+// annotation is removed during SchedulePostProcToPrimFunc, where it
+// becomes part of the PrimFunc attrs.
+Stmt WrapLayoutTransformationAttrs(const Stage& stage, Stmt body) {
+  if (stage->layout_transforms.size()) {
+    for (int i = 0; i < stage->op->num_outputs(); i++) {
+      body = AttrStmt(Array<ObjectRef>{stage->op.output(i), stage->layout_transforms},
+                      tir::attr::layout_transforms, 1, body);
+    }
+  }
+  return body;
+}
+
 Stmt MakePipeline(const Stage& s, const std::unordered_map<IterVar, Range>& dom_map, Stmt consumer,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
   if (s->double_buffer) {
     producer = AttrStmt(s->op, tir::attr::double_buffer_scope, 1, producer);
   }
+  producer = WrapLayoutTransformationAttrs(s, producer);
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
@@ -343,12 +357,16 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
     Stage s = sch->stages[i - 1];
     ICHECK_NE(s->attach_type, kInline) << "call schedule.normalize before scheduleops";
     ICHECK(s->op.defined());
-    // no need to specify place holder op.
-    if (s->op.as<PlaceholderOpNode>()) continue;
     // Remove grouping sugar, get the real attach spec.
     Stage attach_spec = s.GetAttachSpec();
 
-    if (scan_init.count(s->op)) {
+    if (s->op.as<PlaceholderOpNode>()) {
+      // Placeholders don't need any realize/provide statements, but
+      // may be annotated with set_physical_layout to indicate the
+      // physical layout of an input, and must still have the
+      // attribute given.
+      body = WrapLayoutTransformationAttrs(s, std::move(body));
+    } else if (scan_init.count(s->op)) {
       ICHECK(body.defined());
       InjectScanStep mu(s, scan_init.at(s->op), dom_map, true, debug_keep_trivial_loop);
       body = mu(std::move(body));
@@ -375,6 +393,7 @@ Stmt ScheduleOps(Schedule sch, Map<IterVar, Range> dom_map_, bool debug_keep_tri
           << body;
     }
   }
+
   SchedulePostProc post_proc;
   post_proc.Init(sch);
   return post_proc(std::move(body));
