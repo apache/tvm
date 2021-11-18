@@ -219,19 +219,20 @@ def matmul_out_dtype(inputs, out_dtype):
     b_shape = shape_of(inputs[1])
     b_rank = infer_shape(b_shape)[0]
     if a_rank > 2 or b_rank > 2:
+
         def flatten_to_nd(x, x_shape, nd=3):
-           ndims = infer_shape(x_shape)[0]
-           if ndims == nd:
-               return x
-           newshape = _op.concatenate(
-               [
-                   _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                   _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-               ],
-               0,
-           )
-           out = _op.reshape(x, fold_constant(newshape))
-           return out
+            ndims = infer_shape(x_shape)[0]
+            if ndims == nd:
+                return x
+            newshape = _op.concatenate(
+                [
+                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+                ],
+                0,
+            )
+            out = _op.reshape(x, fold_constant(newshape))
+            return out
 
         b_type = infer_type(inputs[1])
         # Convert to dense if the second matrix is 2d and non-dynamic
@@ -280,7 +281,6 @@ def matmul_out_dtype(inputs, out_dtype):
     # Otherwise a simple dense op will get the job done.
     input_1_t = _op.transpose(inputs[1], axes=(1, 0))
     return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
-
 
 
 class OnnxOpConverter(object):
@@ -886,6 +886,7 @@ class MatMulInteger16(OnnxOpConverter):
         if a_dtype == "uint16" and b_dtype == "uint16":
             out_dtype = "uint32"
         return matmul_out_dtype(inputs, out_dtype)
+
 
 class Mod(OnnxOpConverter):
     """Operator converter for Mod."""
