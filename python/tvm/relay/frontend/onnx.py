@@ -213,73 +213,73 @@ def get_scalar(x, params, dtype="float32"):
 
 
 def matmul_out_dtype(inputs, out_dtype):
-   """Common function to handle MatMul and MatMulInteger16"""
-   a_shape = shape_of(inputs[0])
-   a_rank = infer_shape(a_shape)[0]
-   b_shape = shape_of(inputs[1])
-   b_rank = infer_shape(b_shape)[0]
-   if a_rank > 2 or b_rank > 2:
-       def flatten_to_nd(x, x_shape, nd=3):
-          ndims = infer_shape(x_shape)[0]
-          if ndims == nd:
-              return x
-          newshape = _op.concatenate(
-              [
-                  _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                  _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-              ],
-              0,
-          )
-          out = _op.reshape(x, fold_constant(newshape))
-          return out
-
-       b_type = infer_type(inputs[1])
-       # Convert to dense if the second matrix is 2d and non-dynamic
-       if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-           a = flatten_to_nd(inputs[0], a_shape, 2)
-           b = _op.transpose(inputs[1])
-           output = _op.nn.dense(a, b, out_dtype=out_dtype)
-       else:
-           # Convert a and b into 3 dimensional tensors.
-           a = flatten_to_nd(inputs[0], a_shape, 3)
-           b = flatten_to_nd(inputs[1], b_shape, 3)
-           # Perform a NN batch matmul.
-           output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
-       # Determine the output batch dimension.
-       if a_rank > b_rank:
-           out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-       elif a_rank < b_rank:
-           out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-       # If its unclear how broadcasting should be applied, the output
-       # shape is determined by choosing the maximum value from each input.
-       else:
-           out_batch = _op.concatenate(
+    """Common function to handle MatMul and MatMulInteger16"""
+    a_shape = shape_of(inputs[0])
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(inputs[1])
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+        def flatten_to_nd(x, x_shape, nd=3):
+           ndims = infer_shape(x_shape)[0]
+           if ndims == nd:
+               return x
+           newshape = _op.concatenate(
                [
-                   _op.maximum(
-                       _op.strided_slice(a_shape, [i], [i + 1]),
-                       _op.strided_slice(b_shape, [i], [i + 1]),
-                   )
-                   for i in range(a_rank - 2)
+                   _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                   _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
                ],
                0,
            )
-       # Reshape output to original dimensions.
-       final_shape = _op.concatenate(
-           [
-               out_batch,
-               _op.strided_slice(
-                   a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
-               ),
-               _op.strided_slice(
-                   b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
-               ),
-           ],
-           0,
-       )
-       return _op.reshape(output, fold_constant(final_shape))
-   # Otherwise a simple dense op will get the job done.
-   input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-   return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
+           out = _op.reshape(x, fold_constant(newshape))
+           return out
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(inputs[0], a_shape, 3)
+            b = flatten_to_nd(inputs[1], b_shape, 3)
+            # Perform a NN batch matmul.
+            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
+        # Determine the output batch dimension.
+        if a_rank > b_rank:
+            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
+        elif a_rank < b_rank:
+            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
+        # If its unclear how broadcasting should be applied, the output
+        # shape is determined by choosing the maximum value from each input.
+        else:
+            out_batch = _op.concatenate(
+                [
+                    _op.maximum(
+                        _op.strided_slice(a_shape, [i], [i + 1]),
+                        _op.strided_slice(b_shape, [i], [i + 1]),
+                    )
+                    for i in range(a_rank - 2)
+                ],
+                0,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(
+                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                ),
+                _op.strided_slice(
+                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                ),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+    # Otherwise a simple dense op will get the job done.
+    input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+    return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
 
 
 
