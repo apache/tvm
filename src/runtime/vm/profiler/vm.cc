@@ -107,7 +107,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
       prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
     } else if (instr.op == Opcode::ReshapeTensor) {
-      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[1], {});
+      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[exec_->host_device_index], {});
     } else if (instr.op == Opcode::AllocTensor) {
       auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
 
