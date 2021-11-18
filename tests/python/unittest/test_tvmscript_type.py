@@ -166,9 +166,9 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                     [
                         B[
                             T.min(vj, vi) : T.min(vj, vi)  # type: ignore[misc]
-                            + (T.max(vj, vi) + 1 - T.min(vj, vi)),  # type: ignore[misc]
+                            + (T.max(vj, vi) + 1 - T.min(vj, vi)),
                             T.min(vi, vj) : T.min(vi, vj)  # type: ignore[misc]
-                            + (T.max(vi, vj) + 1 - T.min(vi, vj)),  # type: ignore[misc]
+                            + (T.max(vi, vj) + 1 - T.min(vi, vj)),
                         ]
                     ]
                 )
