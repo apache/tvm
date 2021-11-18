@@ -116,14 +116,6 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.PropagatorPropagate")
       return propagator->propagate(stripe_config);
     });
 
-TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.PropagatorPropagateBenchmark")
-    .set_body_typed([](Propagator propagator, StripeConfig stripe_config, int repeats) {
-      for (int i = 0; i < repeats; i++) {
-        propagator->propagate(stripe_config);
-      }
-      return propagator->propagate(stripe_config);
-    });
-
 TVM_REGISTER_NODE_TYPE(PropagatorNode);
 
 }  // namespace cascader

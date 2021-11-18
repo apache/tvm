@@ -34,9 +34,6 @@ class Propagator(Object):
     def propagate(self, stripe_config):
         return _ffi_api.PropagatorPropagate(self, stripe_config)
 
-    def benchmark_propagate(self, stripe_config, repeats):
-        return _ffi_api.PropagatorPropagateBenchmark(self, stripe_config, repeats)
-
     @property
     def transform(self):
         """Get the transform matrix"""

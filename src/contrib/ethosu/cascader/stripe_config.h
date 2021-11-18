@@ -167,6 +167,22 @@ class StripeConfig : public ObjectRef {
  * \param enable_sliding_window Whether to assume the sliding window optimization.
  * \return A map between stripe shapes and the number of stripes of that shape that need
  * executing.
+ * \note If the StripeConfig were to split an (8, 8) tensor into (4, 4) stripes with
+ * (4, 4) striding, then this function will return {(4, 4): 4} indicating that 4 (4, 4)
+ * stripes will be executed. If instead an (8, 8) were striped using (5, 5) stripes
+ * with (5, 5) striding, this function would return:
+ *
+ * {
+ *   (5, 5): 1,
+ *   (3, 5): 1,
+ *   (5, 3): 1,
+ *   (3, 3): 1,
+ * }
+ *
+ * This is because some of the stripes will exceed the extent of the tensor and so only part
+ * of them will need executing. Therefore, CountStripes will return the exact number of each
+ * shape of stripe that is executed, accounting for edge and overlap behaviour which is not
+ * explicit in the StripeConfig alone.
  */
 std::map<std::vector<int>, int> CountStripes(const StripeConfig& stripe_config,
                                              bool enable_sliding_window);
