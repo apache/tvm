@@ -49,7 +49,13 @@ class CascaderOptions(Object):
         max_proposals: int,
         stripe_factors: int,
         max_plan_size: int,
+        max_open_plans: int,
+        max_closed_plans: int,
         always_copy_size: int,
+        disable_pareto_plans: bool = False,
+        disable_pareto_proposals: bool = False,
+        multi_dimensional_striping: bool = False,
+        disable_block_culling: bool = True,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.CascaderOptions,
@@ -57,5 +63,11 @@ class CascaderOptions(Object):
             max_proposals,
             stripe_factors,
             max_plan_size,
+            max_open_plans,
+            max_closed_plans,
             always_copy_size,
+            disable_pareto_plans,
+            disable_pareto_proposals,
+            multi_dimensional_striping,
+            disable_block_culling,
         )

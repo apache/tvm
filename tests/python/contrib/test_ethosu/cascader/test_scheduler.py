@@ -33,7 +33,11 @@ def test_cascade(SRAM, FLASH, TwoConv2DWithSliceTE, TwoConv2DTE, MobileNetv1Star
             max_proposals=64,
             stripe_factors=4,
             max_plan_size=10,
+            max_open_plans=8,
+            max_closed_plans=32,
             always_copy_size=1024,
+            disable_pareto_plans=False,
+            disable_pareto_proposals=False,
         )
         cs.cascade(sch, te_graph, const_dict, options, SRAM, FLASH, [SRAM], device_config)
 
