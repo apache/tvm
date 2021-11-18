@@ -465,8 +465,8 @@ IRModule FlattenTupleOutputs(IRModule module) {
 
           // Return a tuple of compiler_ends in the place of the tuple that was
           // annotated with a compiler_end.
-          auto out = Tuple(new_fields);
-          return std::move(out);
+          Tuple tuple = GetRef<Tuple>(tn);
+          return WithFields(tuple, new_fields);
         }
       }
       return post;

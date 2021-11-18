@@ -71,34 +71,31 @@ Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   data_ = std::move(n);
 }
 
-Tuple Tuple::WithFields(Optional<Array<Expr>> opt_fields, Optional<Span> opt_span) {
-  Array<Expr> fields = opt_fields.value_or(get()->fields);
-  Span span = opt_span.value_or(get()->span);
-
-  // TODO(@electriclilies): Turn into a helper, will need this for functions as well.
-  bool all_fields_unchanged = true;
-  if (fields.size() == get()->fields.size()) {
-    for (uint i = 0; i < fields.size(); i++) {
-      all_fields_unchanged &= fields[i].same_as(get()->fields[i]);
-    }
-  } else {
-    all_fields_unchanged = false;
-  }
-
-  if (all_fields_unchanged && span.same_as(get()->span)) {
-    return *this;
-  }
-  TupleNode* cow_tuple_node = CopyOnWrite();
-  cow_tuple_node->fields = fields;
-  cow_tuple_node->span = span;
-  return GetRef<Tuple>(cow_tuple_node);
-}
-
 TVM_REGISTER_NODE_TYPE(TupleNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
   return Tuple(fields, span);
 });
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> opt_span) {
+  Array<Expr> fields = opt_fields.value_or(tuple->fields);
+  Span span = opt_span.value_or(tuple->span);
+
+  bool all_fields_unchanged = true;
+  if (fields.size() == tuple->fields.size()) {
+    for (uint i = 0; i < fields.size(); i++) {
+      all_fields_unchanged &= fields[i] == (tuple->fields[i]);
+    }
+  } else {
+    all_fields_unchanged = false;
+  }
+
+  all_fields_unchanged = all_fields_unchanged && span == tuple->span;
+  if (all_fields_unchanged) {
+    return std::move(tuple);
+  } else {
+    return Tuple(std::move(fields), std::move(span));
+  }
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {
