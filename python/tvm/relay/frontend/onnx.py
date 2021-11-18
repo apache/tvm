@@ -1522,6 +1522,15 @@ class Slice(OnnxOpConverter):
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 
+        if axes is not None:
+            # Normalize for negative axes
+            axes_dtype = infer_type(axes).checked_type.dtype
+            axes = fold_constant(
+                _op.where(
+                    axes < _op.const(0, axes_dtype), axes + _op.const(data_rank, axes_dtype), axes
+                )
+            )
+
         def has_static_axes():
             return (
                 isinstance(axes, _expr.Constant)
@@ -1538,7 +1547,6 @@ class Slice(OnnxOpConverter):
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
                 strides_np = steps.data.numpy().astype("int64")
-
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
                     inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
