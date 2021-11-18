@@ -149,7 +149,7 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
 
 
 """
-This test case is added to test T.Buffer with slice as argument
+This test case is added to test T.Buffer with slice as argument and T.exp
 """
 
 
@@ -165,13 +165,13 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                 T.writes(
                     [
                         B[
-                            T.min(vj, vi) : T.min(vj, vi) + (T.max(vj, vi) + 1 - T.min(vj, vi)),
-                            T.min(vi, vj) : T.min(vi, vj) + (T.max(vi, vj) + 1 - T.min(vi, vj)),
+                            T.min(vj, vi) : T.min(vj, vi) + (T.max(vj, vi) + 1 - T.min(vj, vi)),  # type: ignore[misc]
+                            T.min(vi, vj) : T.min(vi, vj) + (T.max(vi, vj) + 1 - T.min(vi, vj)),  # type: ignore[misc]
                         ]
                     ]
                 )
                 with T.init():
-                    B[vj, vi] = T.float32(0)
+                    B[vj, vi] = T.exp(B[vi, vj])
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
