@@ -427,13 +427,15 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         self.pattern = pattern
 
     @staticmethod
-    def reshape_input(inputs: List[ethosu_patterns.TensorParams]) -> List[tvm.relay.Expr]:
+    def reshape_input(
+        inputs: List["TensorParams"],
+    ) -> List[tvm.relay.Expr]:
         """Reshape the inputs so that the following binary elementwise
         operator receives 4-dimensional inputs.
 
         Parameters
         ----------
-        inputs: List[ethosu_patterns.TensorParams]
+        inputs: List[TensorParams]
             The inputs to reshape.
 
         Returns
