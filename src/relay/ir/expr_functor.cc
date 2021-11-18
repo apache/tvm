@@ -183,7 +183,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
     auto new_field = this->Mutate(field);
     fields.push_back(new_field);
   }
-  return WithFields(GetRef<Tuple>(std::move(tuple_node)), std::move(fields));
+  return WithFields(GetRef<Tuple>(tuple_node), std::move(fields));
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
