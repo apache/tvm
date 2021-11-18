@@ -15,12 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# pylint: disable=too-many-nested-blocks
 """Device config class to hold information about the target hardware"""
 from typing import Tuple, List, Dict, Optional
 from functools import reduce
 
 import math
+import numpy as np
 
+import tvm
 from . import BlockConfig
 from . import StripeConfig
 from . import Propagator
@@ -64,13 +67,14 @@ class _Shape:
 class EthosuDeviceConfig:
     """Arm(R) Ethos(TM)-U NPU config class"""
 
-    def __init__(self, device: str):
+    def __init__(self, device: str, disable_block_bulling: bool = False):
         self._device = device
         self._subkernel_limits = (8, 8)
         self._output_cycles = (1, 2, 3, 4, 6)
         self._split_depth = 16
         self._max_block_shape = _Shape([1, 32, 64, 128])
         self._bank_size_bytes = 1024
+        self._disable_block_culling = disable_block_bulling
         if self._device == "ethos-u55-256":
             self._micro_block = _Shape([1, 2, 2, 8])
             self._input_micro_block = _Shape([1, 2, 2, 8])
@@ -508,6 +512,28 @@ class EthosuDeviceConfig:
         if activation == "LUT" and not self._lut_reserved:
             banks_available -= 2
 
+        # Handle user-forced block config
+        options = tvm.transform.PassContext.current().config.get("relay.ext.ethos-u.options", None)
+        if options and options.dev_force_block_config:
+            block_config = [int(v) for v in options.dev_force_block_config.split("x")]
+            assert len(block_config) == 3
+            if output_layout == "NHWC":
+                block_shape = [output_shape[0], block_config[0], block_config[1], block_config[2]]
+            else:
+                block_shape = [
+                    output_shape[0],
+                    block_config[0],
+                    1 + ((block_config[2] - 1) // 16),
+                    block_config[1],
+                    16,
+                ]
+            output_cycles = self._get_output_cycles(
+                op_type, op_str, ifm_dtype, ofm_dtype, activation
+            )
+            output_cycles *= reduce(lambda a, b: a * b, block_shape, 1)
+            output_cycles = int(math.ceil(output_cycles))
+            return [BlockConfig(block_shape, block_shape, 0, output_cycles)]
+
         # Split the block in half until it fits into SHRAM
         max_height, max_width, max_depth = self._max_block_shape.as_list()[1:]
         if output_layout == "NHCWB16":
@@ -666,6 +692,21 @@ class EthosuDeviceConfig:
         max_depth = min(ofm_channels, self._max_block_shape.depth)
         min_depth = max(self._micro_block.depth, upscaling_factor)
 
+        heights = range(min_height, max_height + min_height, min_height)
+        widths = range(min_width, max_width + min_width, min_width)
+        depths = range(min_depth, max_depth + min_depth, min_depth)
+
+        # Handle user-forced block config
+        options = tvm.transform.PassContext.current().config.get("relay.ext.ethos-u.options", None)
+        forced = False
+        if options and options.dev_force_block_config:
+            block_config = [int(v) for v in options.dev_force_block_config.split("x")]
+            assert len(block_config) == 3
+            heights = [block_config[0]]
+            widths = [block_config[1]]
+            depths = [block_config[2]]
+            forced = True
+
         input_bytewidth = 1 if ifm_dtype == "int8" else 2
         acc_bytewidth = self._get_accumulator_width(op_type, ifm_dtype)
         banks_available = self._total_banks - self._reserved_banks
@@ -681,8 +722,8 @@ class EthosuDeviceConfig:
             else:
                 input_block_depth = min(ifm_channels, 32)
 
-        for depth in range(min_depth, max_depth + min_depth, min_depth):
-            if (depth < output_shape.depth) and (depth % self._split_depth != 0):
+        for depth in reversed(depths):
+            if (depth < output_shape.depth) and (depth % self._split_depth != 0) and not forced:
                 # Block depth has to be less than full depth or a multiple of the split depth
                 continue
 
@@ -690,17 +731,15 @@ class EthosuDeviceConfig:
                 op_attrs, ifm_propagator, input_layout, output_layout, depth
             )
 
-            for width in range(min_width, max_width + min_width, min_width):
-                for height in range(min_height, max_height + min_height, min_height):
+            for width in reversed(widths):
+                for height in reversed(heights):
                     if output_layout == "NHCWB16":
                         output_block = (
                             1,
                             height,
                             1 + ((depth - 1) // 16),
                             width,
-                            _round_up(
-                                min(16, max(ofm_channels, min_depth)), self._micro_block.depth
-                            ),
+                            min(16, _round_up(ofm_channels, self._micro_block.depth)),
                         )
                         order = [1, 2, 4, 3, 0]
                     else:
@@ -740,7 +779,7 @@ class EthosuDeviceConfig:
                         output_cycles = self._get_output_cycles(
                             op_type, op_str, ifm_dtype, ofm_dtype, activation
                         )
-                        output_cycles *= reduce(lambda a, b: a * b, output_block, 1)
+                        output_cycles *= np.prod(output_block).tolist()
                         output_cycles = int(math.ceil(output_cycles))
                         compute_cycles = self._estimate_compute_cycles_per_block(
                             op_type,
@@ -755,11 +794,27 @@ class EthosuDeviceConfig:
                         block_config = BlockConfig(
                             input_block_shape.as_list(), output_block, compute_cycles, output_cycles
                         )
-                        valid_block_configs.append(block_config)
-                    else:
-                        # Block config does not fit into SHRAM
-                        # Any Block config that is strictly larger than this one will also fail
-                        break
+
+                        if self._disable_block_culling:
+                            # Block culling disabled - add all block configs that fit
+                            valid_block_configs.append(block_config)
+                        else:
+                            # Add block config only if it's not dominated by an existing block.
+                            # A block config is dominated by another if its output_shape is greater
+                            # or equal in every dimension and strictly greater in at least one
+                            # dimension.
+                            dominated = False
+                            for valid_block in valid_block_configs:
+                                if block_config < valid_block:
+                                    dominated = True
+                                    break
+
+                            if not dominated:
+                                valid_block_configs.append(block_config)
+
+                            # Every consecutive block in the innermost loop will be dominated by
+                            # this one so break
+                            break
 
         return valid_block_configs
 

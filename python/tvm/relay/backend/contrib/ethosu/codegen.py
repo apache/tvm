@@ -368,6 +368,8 @@ def _ethos_u55_cascader(sram, enable_striping) -> Callable:
         stripe_factors=5,
         max_plan_size=10,
         always_copy_size=1024,
+        max_open_plans=8,
+        max_closed_plans=32,
         enable_striping=enable_striping,
     )
     return _create_cascader(

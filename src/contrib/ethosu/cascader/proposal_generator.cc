@@ -177,7 +177,8 @@ std::vector<Proposal> GeneratePartialProposals(
       }
     }
     (*proposals_by_group)[partial_proposal_group] =
-        ParetoCullProposals(proposals_by_group->at(partial_proposal_group), options->max_proposals);
+        ParetoCullProposals(proposals_by_group->at(partial_proposal_group), options->max_proposals,
+                            options->disable_pareto_proposals);
   }
   return proposals_by_group->at(partial_proposal_group);
 }
