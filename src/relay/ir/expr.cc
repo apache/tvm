@@ -83,17 +83,20 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
   bool all_fields_unchanged = true;
   if (fields.size() == tuple->fields.size()) {
     for (uint i = 0; i < fields.size(); i++) {
-      all_fields_unchanged &= fields[i] == (tuple->fields[i]);
+      all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
     }
   } else {
     all_fields_unchanged = false;
   }
 
-  all_fields_unchanged = all_fields_unchanged && span == tuple->span;
+  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
   if (all_fields_unchanged) {
     return std::move(tuple);
   } else {
-    return Tuple(std::move(fields), std::move(span));
+    TupleNode* cow_tuple_node = tuple.CopyOnWrite();
+    cow_tuple_node->fields = fields;
+    cow_tuple_node->span = span;
+    return GetRef<Tuple>(cow_tuple_node);
   }
 }
 
