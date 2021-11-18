@@ -102,6 +102,15 @@ class BufferNode : public Object {
    */
   Optional<Array<PrimExpr>> pre_flattened_strides;
   /*!
+   * \brief Separators between input axes when generating flattened output axes
+   *
+   * For buffers representing flat 1-d memory (e.g. any buffer in
+   * RAM), this should be an empty array.  For buffers representing
+   * non-flat memory, each entry in axis_separators should be the
+   * first input axis that is part of a new flattened axis.
+   */
+  Array<IntImm> axis_separators;
+  /*!
    * \brief The strides of each dimension
    *  This can be an empty array, indicating array is contiguous
    */
@@ -136,6 +145,7 @@ class BufferNode : public Object {
     v->Visit("pre_flattened_shape", &pre_flattened_shape);
     v->Visit("pre_flattened_strides", &pre_flattened_strides);
     v->Visit("strides", &strides);
+    v->Visit("axis_separators", &axis_separators);
     v->Visit("elem_offset", &elem_offset);
     v->Visit("name", &name);
     v->Visit("data_alignment", &data_alignment);
@@ -153,6 +163,7 @@ class BufferNode : public Object {
            equal.DefEqual(pre_flattened_shape, other->pre_flattened_shape) &&
            equal.DefEqual(pre_flattened_strides, other->pre_flattened_strides) &&
            equal.DefEqual(strides, other->strides) &&
+           equal.DefEqual(axis_separators, other->axis_separators) &&
            equal.DefEqual(elem_offset, other->elem_offset) &&
            equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
   }
@@ -166,6 +177,7 @@ class BufferNode : public Object {
     hash_reduce.DefHash(pre_flattened_strides);
     hash_reduce.DefHash(strides);
     hash_reduce.DefHash(elem_offset);
+    hash_reduce.DefHash(axis_separators);
     hash_reduce(data_alignment);
     hash_reduce(buffer_type);
   }
@@ -200,7 +212,7 @@ class Buffer : public ObjectRef {
   // A default value will be picked.
   TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                  PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
-                 BufferType buffer_type, Span span = Span());
+                 BufferType buffer_type, Array<IntImm> axis_separators = {}, Span span = Span());
 
   /*!
    * \brief Return a new buffer that is equivalent with current one
@@ -260,12 +272,14 @@ class Buffer : public ObjectRef {
  * \param dtype The content data type.
  * \param name The name of the buffer
  * \param storage_scope The storage scope associated with this buffer
+ * \param axis_separators Divisions defining the groups of axes that will be flattened together.
  * \param span The location of this object in the source code.
  * \return The created buffer.
  * \sa Buffer for complete constructor.
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                           String name = "buffer", String storage_scope = "", Span span = Span());
+                           String name = "buffer", String storage_scope = "",
+                           Array<IntImm> axis_separators = {}, Span span = Span());
 
 /*!
  * \brief Base node for data producers.

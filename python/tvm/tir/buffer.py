@@ -155,6 +155,7 @@ def decl_buffer(
     data_alignment=-1,
     offset_factor=0,
     buffer_type="",
+    axis_separators=None,
     span=None,
 ):
     """Declare a new symbolic buffer.
@@ -203,6 +204,11 @@ def decl_buffer(
         auto_broadcast buffer allows one to implement broadcast computation
         without considering whether dimension size equals to one.
         TVM maps buffer[i][j][k] -> buffer[i][0][k] if dimension j's shape equals 1.
+
+    axis_separators : list of int, optional
+        If passed, a list of separators between groups of axes,
+        each of which is flattened to an output axis.  For flat
+        memory spaces, should either be None, or an empty list.
 
     span: Optional[Span]
         The location of the decl_buffer creation in the source.
@@ -254,6 +260,10 @@ def decl_buffer(
     shape = (shape,) if isinstance(shape, (PrimExpr, Integral)) else shape
     dtype = "float32" if dtype is None else dtype
     strides = () if strides is None else strides
+
+    if axis_separators is None:
+        axis_separators = []
+
     if offset_factor != 0 and elem_offset is None:
         shape_dtype = shape[0].dtype if shape and hasattr(shape[0], "dtype") else "int32"
         elem_offset = Var("%s_elem_offset" % name, shape_dtype)
@@ -272,6 +282,7 @@ def decl_buffer(
         data_alignment,
         offset_factor,
         buffer_type,
+        axis_separators,
         span,
     )
 

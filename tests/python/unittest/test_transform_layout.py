@@ -220,5 +220,64 @@ class TestCompareAgainstExplicitReshape:
         walk_buffer_interactions(body, check_shape(reordered_shape))
 
 
+class Test2DPhysicalLayout:
+    transform_A = tvm.testing.parameter(
+        by_dict={
+            "2d_A": True,
+            "1d_A": False,
+        }
+    )
+    transform_B = tvm.testing.parameter(
+        by_dict={
+            "2d_B": True,
+            "1d_B": False,
+        }
+    )
+
+    @staticmethod
+    def extract_loop_vars(stmt):
+        output = []
+
+        def callback(node):
+            if isinstance(node, tvm.tir.For):
+                output.append(node.loop_var)
+
+        post_order_visit(stmt, callback)
+        return output[::-1]
+
+    def test_2d_physical(self, dtype, transform_A, transform_B):
+        logical_shape = (2, 3, 4)
+        A = te.placeholder(shape=logical_shape, dtype=dtype, name="A")
+        B = te.compute(shape=A.shape, fcompute=lambda i, j, k: A[i, j, k], name="B")
+
+        s = te.create_schedule(B.op)
+
+        if transform_A:
+            s[A].transform_layout(lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k])
+
+        if transform_B:
+            s[B].transform_layout(lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k])
+
+        mod = tvm.lower(s, [A, B])
+
+        i, j, k = self.extract_loop_vars(mod["main"].body)
+        indices_1d = [i * (logical_shape[1] * logical_shape[2]) + j * logical_shape[2] + k]
+        indices_2d = [i * logical_shape[1] + j, k]
+
+        def callback(node):
+            if type(node) in [tvm.tir.BufferLoad, tvm.tir.BufferStore]:
+                name = node.buffer.name
+                if name == "A":
+                    expected_indices = indices_2d if transform_A else indices_1d
+                elif name == "B":
+                    expected_indices = indices_2d if transform_B else indices_1d
+                else:
+                    raise RuntimeError(f"Unexpected buffer: {name}")
+
+                tvm.ir.assert_structural_equal(expected_indices, node.indices)
+
+        post_order_visit(mod["main"].body, callback)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))

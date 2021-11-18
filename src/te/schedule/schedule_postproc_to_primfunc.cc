@@ -88,7 +88,8 @@ class TensorToBufferMapper : public StmtExprMutator {
       Tensor tensor = Downcast<Tensor>(op->node);
       Buffer buffer = GetOrAllocBuffer(tensor);
       return AttrStmt(buffer, op->attr_key, op->value, op->body);
-    } else if (op->attr_key == tir::attr::layout_transforms) {
+    } else if (op->attr_key == tir::attr::layout_transforms ||
+               op->attr_key == tir::attr::axis_separators) {
       auto arr = Downcast<Array<ObjectRef>>(op->node);
       ICHECK_EQ(arr.size(), 2);
 
@@ -210,13 +211,142 @@ class LayoutTransformAttrUnwrapper : StmtExprMutator {
       StmtExprVisitor::VisitStmt_(op);
     }
 
-   private:
     Map<Buffer, Array<IndexMap>> layout_map_;
   };
 
   std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
 
   Map<Buffer, Array<IndexMap>> layout_map_;
+};
+
+/*! Move axis_separators from an attribute to a buffer property. */
+class AxisSeparatorsAttrUnwrapper : StmtExprMutator {
+ public:
+  static tir::PrimFunc Apply(tir::PrimFunc func) {
+    // Collect the physical layout annotations in the body, which may
+    // refer to input arguments.
+    auto axis_separators_map = Collector::Collect(func->body);
+
+    if (axis_separators_map.size()) {
+      auto write_ptr = func.CopyOnWrite();
+      auto pass = AxisSeparatorsAttrUnwrapper(axis_separators_map);
+      write_ptr->buffer_map = pass.UpdateExternBufferMap(func->buffer_map);
+      write_ptr->body = pass(func->body);
+    }
+
+    return func;
+  }
+
+  explicit AxisSeparatorsAttrUnwrapper(Map<Buffer, Array<IntImm>> axis_separators_map)
+      : axis_separators_map_(axis_separators_map) {}
+
+  Map<Var, Buffer> UpdateExternBufferMap(const Map<Var, Buffer>& orig) {
+    Map<Var, Buffer> output;
+    for (const auto& kv : orig) {
+      output.Set(kv.first, GetRemappedBuffer(kv.second));
+    }
+    return output;
+  }
+
+  Stmt VisitStmt_(const AttrStmtNode* op) final {
+    auto ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<AttrStmtNode>();
+
+    if (op->attr_key == tir::attr::axis_separators) {
+      return op->body;
+    } else {
+      return ret;
+    }
+  }
+
+  Stmt VisitStmt_(const BufferRealizeNode* op) final {
+    auto node = Downcast<BufferRealize>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
+ private:
+  template <typename Node>
+  Node VisitBufferAccess(Node node) {
+    Buffer new_buf = GetRemappedBuffer(node->buffer);
+    if (!node->buffer.same_as(new_buf)) {
+      auto writer = node.CopyOnWrite();
+      writer->buffer = new_buf;
+    }
+    return node;
+  }
+
+  Buffer GetRemappedBuffer(Buffer buf) {
+    // If this buffer has already been remapped, then return the
+    // previous value.
+    auto key = buf.get();
+    {
+      auto it = buffer_remap_.find(key);
+      if (it != buffer_remap_.end()) {
+        return it->second;
+      }
+    }
+
+    // Otherwise, check if we need to add axis_separators to this
+    // buffer.
+    auto lookup = axis_separators_map_.Get(buf);
+    if (lookup) {
+      Array<IntImm> axis_separators = lookup.value();
+      if (axis_separators.size()) {
+        auto write_ptr = buf.CopyOnWrite();
+        write_ptr->axis_separators = axis_separators;
+      }
+    }
+
+    // And cache the result for next time.
+    buffer_remap_[key] = buf;
+
+    return buf;
+  }
+
+  /*! Collect the axis separator information of all tensors in the statement.
+   *
+   * Must be done before constructing the buffers, since the
+   * attributes could either apply to the external buffers or to
+   * internal allocations.
+   */
+  class Collector : StmtExprVisitor {
+   public:
+    static Map<Buffer, Array<IntImm>> Collect(Stmt stmt) {
+      Collector collector;
+      collector(std::move(stmt));
+      return std::move(collector.axis_separators_map_);
+    }
+
+    Collector() {}
+
+    void VisitStmt_(const AttrStmtNode* op) final {
+      if (op->attr_key == tir::attr::axis_separators) {
+        auto arr = Downcast<Array<ObjectRef>>(op->node);
+        ICHECK_EQ(arr.size(), 2);
+
+        auto buffer = Downcast<Buffer>(arr[0]);
+        auto axis_separators = Downcast<Array<IntImm>>(arr[1]);
+        axis_separators_map_.Set(buffer, axis_separators);
+      }
+      StmtExprVisitor::VisitStmt_(op);
+    }
+
+    Map<Buffer, Array<IntImm>> axis_separators_map_;
+  };
+
+  std::unordered_map<const BufferNode*, Buffer> buffer_remap_;
+
+  Map<Buffer, Array<IntImm>> axis_separators_map_;
 };
 
 PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
@@ -260,6 +390,7 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
   PrimFunc func = tir::PrimFunc(params, body, VoidType(), buffer_map);
 
   func = LayoutTransformAttrUnwrapper::Apply(std::move(func));
+  func = AxisSeparatorsAttrUnwrapper::Apply(std::move(func));
 
   // We mark this PrimFunc as coming from a TE schedule
   func = WithAttr(func, "from_legacy_te_schedule", Bool(true));

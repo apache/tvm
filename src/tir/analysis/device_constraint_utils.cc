@@ -425,9 +425,8 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     PointerType new_pointer_type(pointer_type_node->element_type, virtual_device->memory_scope);
     Var new_data(buffer->data->name_hint, new_pointer_type, buffer->data->span);
     var_subst_.emplace(buffer->data.get(), new_data);
-    Buffer new_buffer(new_data, buffer->dtype, buffer->shape, buffer->strides, buffer->elem_offset,
-                      buffer->name, buffer->data_alignment, buffer->offset_factor,
-                      buffer->buffer_type, buffer->span);
+    Buffer new_buffer = buffer;
+    new_buffer.CopyOnWrite()->data = new_data;
     buffer_subst_.emplace(buffer.get(), new_buffer);
     return new_buffer;
   }

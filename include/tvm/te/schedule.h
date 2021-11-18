@@ -280,6 +280,14 @@ class Stage : public ObjectRef {
    */
   TVM_DLL Stage& transform_layout(const Array<Var>& initial_indices,
                                   const Array<PrimExpr>& final_indices);
+  /*! \brief Defines separators between groups of axes.
+   *
+   * Used to define `BufferNode::axis_separators`, which has
+   * additional details.
+   *
+   * \param axis_separators A list of axis separators.
+   */
+  TVM_DLL Stage& set_axis_separators(const Array<IntImm>& axis_separators);
   /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
@@ -526,6 +534,12 @@ class StageNode : public Object {
   bool rolling_buffer{false};
   /*! \brief Layout transformations to be applied onto the stage's tensors. */
   Array<IndexMap> layout_transforms;
+  /*! \brief List of axes after which to divide physical axes.
+   *
+   * Used to populate `BufferNode::axis_separators`, which has
+   * additional details.
+   */
+  Array<IntImm> axis_separators;
   /*!
    * \brief The parent group of the current stage.
    *  The stage cannot be assigned to stages outside the group.
@@ -549,6 +563,7 @@ class StageNode : public Object {
     v->Visit("is_output", &is_output);
     v->Visit("double_buffer", &double_buffer);
     v->Visit("layout_transforms", &layout_transforms);
+    v->Visit("axis_separators", &axis_separators);
     v->Visit("group", &group);
     v->Visit("num_child_stages", &num_child_stages);
   }
