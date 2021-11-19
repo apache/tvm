@@ -46,7 +46,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers):
+def add_tune_parser(subparsers, _):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
