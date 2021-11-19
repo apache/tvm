@@ -266,8 +266,8 @@ class AnnotateTargetRewriter : public ExprRewriter {
 
   virtual std::unique_ptr<Call> RewriteVarCall(const Call& post_call) { return nullptr; }
 
-  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post_tuple_node) override {
-    auto tuple = Downcast<Tuple>(post_tuple_node);
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) override {
+    auto tuple = Downcast<Tuple>(post);
 
     auto target_n_args = AnnotateArgs(tuple->fields);
     auto new_expr = WithFields(std::move(tuple), std::move(std::get<1>(target_n_args)));
@@ -370,8 +370,8 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     return new_call;
   }
 
-  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post_tuple_node) override {
-    auto tuple = Downcast<Tuple>(post_tuple_node);
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) override {
+    auto tuple = Downcast<Tuple>(post);
     Array<Expr> new_fields;
     for (auto f : tuple->fields) {
       new_fields.push_back(InsertCompilerEndAndPropogateTarget(f));

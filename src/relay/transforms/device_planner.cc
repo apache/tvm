@@ -786,8 +786,7 @@ class DeviceCapturer : public ExprMutator {
     for (const auto& field : tuple_node->fields) {
       fields.push_back(VisitChild(tuple, field));
     }
-    // TODO(mbs): Avoid copy
-    return Tuple(std::move(fields), tuple_node->span);
+    return WithFields(std::move(tuple), std::move(fields));
   }
 
   Expr VisitExpr_(const FunctionNode* function_node) final {
