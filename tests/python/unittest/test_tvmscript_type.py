@@ -173,7 +173,7 @@ def different_access_indices(a: T.handle, b: T.handle) -> None:
                     ]
                 )
                 with T.init():
-                    B[vj, vi] = T.exp(B[vi, vj])
+                    B[vj, vi] = T.exp(B[vj, vi], dtype="float32")
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
