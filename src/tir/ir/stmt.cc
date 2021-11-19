@@ -974,7 +974,7 @@ SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<ObjectRef> sp_stru
   CHECK_EQ(sp_structs.size(), sp_struct_params.size())
       << "ValueError: The length of `sp_struct_params` is expected to be equal to the length "
          "`sp_structs`, which is the number of sparse data structures";
-  Map<ObjectRef, Array<Var>> sp_struct2param_map;
+  Map<ObjectRef, Array<Var>> sp_struct_param_map;
   for (int i = 0; i < static_cast<int>(sp_structs.size()); ++i) {
     ObjectRef obj = sp_structs[i];
     Array<Var> params = sp_struct_params[i];
@@ -998,13 +998,13 @@ SparseBlock::SparseBlock(Array<SpIterVar> sp_iter_vars, Array<ObjectRef> sp_stru
       LOG(FATAL) << "ValueError: " << obj->_type_key << " is not a sparse data structure";
     }
 
-    sp_struct2param_map.Set(obj, params);
+    sp_struct_param_map.Set(obj, params);
   }
 
   ObjectPtr<SparseBlockNode> node = make_object<SparseBlockNode>();
   node->sp_iter_vars = std::move(sp_iter_vars);
   node->sp_structs = std::move(sp_structs);
-  node->sp_struct2param_map = std::move(sp_struct2param_map);
+  node->sp_struct_param_map = std::move(sp_struct_param_map);
   node->name = std::move(name);
   node->body = std::move(body);
   node->init = std::move(init);

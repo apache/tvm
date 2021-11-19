@@ -1288,7 +1288,7 @@ class SparseBlockNode : public StmtNode {
   /*! \brief The sparse data structures */
   Array<ObjectRef> sp_structs;
   /*! \brief The mapping from sparse data structures to the PrimFunc parameters */
-  Map<ObjectRef, Array<Var>> sp_struct2param_map;
+  Map<ObjectRef, Array<Var>> sp_struct_param_map;
   /*! \brief The name of the block */
   String name;
   /*! \brief The body of the block */
@@ -1299,7 +1299,7 @@ class SparseBlockNode : public StmtNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("sp_iter_vars", &sp_iter_vars);
     v->Visit("sp_structs", &sp_structs);
-    v->Visit("sp_struct2param_map", &sp_struct2param_map);
+    v->Visit("sp_struct_param_map", &sp_struct_param_map);
     v->Visit("name", &name);
     v->Visit("body", &body);
     v->Visit("init", &init);

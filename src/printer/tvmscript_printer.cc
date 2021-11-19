@@ -1278,7 +1278,7 @@ Doc TVMScriptPrinter::PrintSparseStructDefinitions(const SparseBlockNode* sp_blo
   std::vector<Doc> sp_buf_docs;
 
   for (const ObjectRef& obj : sp_block->sp_structs) {
-    Array<Var> params = sp_block->sp_struct2param_map.Get(obj).value();
+    Array<Var> params = sp_block->sp_struct_param_map.Get(obj).value();
 
     Doc doc;
     doc << Print(obj) << " = " << tir_prefix_ << ".";
