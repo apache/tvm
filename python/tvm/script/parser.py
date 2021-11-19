@@ -154,10 +154,10 @@ class TVMScriptParser(Transformer):
         ast.BuiltinOp.Not: tvm.tir.Not,
     }
 
-    def __init__(self, base_lienno, tir_namespace):
+    def __init__(self, base_lineno, tir_namespace):
         self.context = None
 
-        self.base_lineno = base_lienno
+        self.base_lineno = base_lineno
         self.current_lineno = 0
         self.current_col_offset = 0
         self.tir_namespace = tir_namespace
