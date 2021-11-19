@@ -90,14 +90,12 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
   }
 
   all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
-  if (all_fields_unchanged) {
-    return std::move(tuple);
-  } else {
+  if (!all_fields_unchanged) {
     TupleNode* cow_tuple_node = tuple.CopyOnWrite();
     cow_tuple_node->fields = fields;
     cow_tuple_node->span = span;
-    return tuple;
   }
+  return std::move(tuple);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

@@ -607,17 +607,15 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     return HasStatic(MkSTensor(op->data.CopyTo(device_)), ll->Push(GetRef<Expr>(op)));
   }
 
-  PStatic VisitExpr_(const TupleNode* tuple_node, LetList* ll) final {
+  PStatic VisitExpr_(const TupleNode* op, LetList* ll) final {
     std::vector<PStatic> value;
-    tvm::Array<Expr> new_fields;
-    new_fields.reserve(tuple_node->fields.size());
-    for (const Expr& e : tuple_node->fields) {
+    tvm::Array<Expr> expr;
+    for (const Expr& e : op->fields) {
       PStatic ps = VisitExpr(e, ll);
       value.push_back(ps);
-      new_fields.push_back(ps->dynamic);
+      expr.push_back(ps->dynamic);
     }
-    return HasStatic(MkSTuple(value),
-                     ll->Push(WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields))));
+    return HasStatic(MkSTuple(value), ll->Push(Tuple(expr)));
   }
 
   PStatic VisitExpr_(const TupleGetItemNode* op, LetList* ll) final {
