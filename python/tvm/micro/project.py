@@ -83,6 +83,17 @@ class GeneratedProject:
     def transport(self):
         return ProjectTransport(self._api_client, self._options)
 
+    def info(self):
+        return self._info
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, options):
+        self._options = options
+
 
 class NotATemplateProjectError(Exception):
     """Raised when the API server given to TemplateProject reports is_template=false."""
