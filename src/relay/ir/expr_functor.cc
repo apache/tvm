@@ -179,6 +179,8 @@ Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
 Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
   tvm::Array<Expr> fields;
+  fields.reserve(tuple_node->fields.size());
+
   for (auto field : tuple_node->fields) {
     auto new_field = this->Mutate(field);
     fields.push_back(new_field);

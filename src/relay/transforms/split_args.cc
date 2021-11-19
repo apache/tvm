@@ -54,6 +54,8 @@ class ArgumentSplitter : public ExprRewriter {
         int startIdx = i * limit;
         int argsCount = std::min(limit, argsNum - startIdx);
         tvm::Array<Expr> args;
+        args.reserve(argsCount);
+
         for (int j = 0; j < argsCount; ++j) {
           args.push_back(tuple_node->fields[j + startIdx]);
         }

@@ -115,6 +115,7 @@ class ForwardRewriter : private MixedModeMutator {
 
   Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) final {
     tvm::Array<Expr> fields;
+    fields.reserve(tuple_node->fields.size());
 
     const auto* post_tuple_node = post.as<TupleNode>();
     for (size_t i = 0; i < tuple_node->fields.size(); ++i) {

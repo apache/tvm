@@ -457,6 +457,7 @@ IRModule FlattenTupleOutputs(IRModule module) {
         auto annotated_op = Downcast<Call>(post)->args[0];
         if (const auto* tuple_node = annotated_op.as<TupleNode>()) {
           Array<Expr> new_fields;
+          new_fields.reserve(tuple_node->fields.size());
 
           // Here each input of the tuple will be annotated with compiler_ends
           for (auto& tn_arg : tuple_node->fields) {

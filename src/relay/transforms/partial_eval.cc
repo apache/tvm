@@ -610,6 +610,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic VisitExpr_(const TupleNode* tuple_node, LetList* ll) final {
     std::vector<PStatic> value;
     tvm::Array<Expr> new_fields;
+    new_fields.reserve(tuple_node->fields.size());
     for (const Expr& e : tuple_node->fields) {
       PStatic ps = VisitExpr(e, ll);
       value.push_back(ps);

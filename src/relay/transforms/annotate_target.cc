@@ -373,6 +373,8 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
   Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) override {
     auto tuple = Downcast<Tuple>(post);
     Array<Expr> new_fields;
+    new_fields.reserve(tuple->fields.size());
+
     for (auto f : tuple->fields) {
       new_fields.push_back(InsertCompilerEndAndPropogateTarget(f));
     }

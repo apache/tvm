@@ -199,6 +199,8 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
     auto tt = Downcast<TupleType>(tuple_node->checked_type());
     std::vector<ADValue> ad_fields;
     Array<Expr> field_bindings;
+    field_bindings.reserve(tuple_node->fields.size());
+
     for (const auto& f : tuple_node->fields) {
       ADValue f_ad = VisitExpr(f);
       if (!dynamic_cast<ADTensor*>(f_ad.get())) {

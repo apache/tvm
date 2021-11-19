@@ -87,6 +87,8 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
   Expr VisitExpr_(const TupleNode* tuple_node) final {
     LetList& scope = scopes_.back();
     Array<Expr> new_fields;
+    new_fields.reserve(tuple_node->fields.size());
+
     for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
       if (new_field->IsInstance<ConstantNode>()) {
