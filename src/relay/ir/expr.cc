@@ -96,7 +96,7 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
     TupleNode* cow_tuple_node = tuple.CopyOnWrite();
     cow_tuple_node->fields = fields;
     cow_tuple_node->span = span;
-    return GetRef<Tuple>(cow_tuple_node);
+    return tuple;
   }
 }
 
