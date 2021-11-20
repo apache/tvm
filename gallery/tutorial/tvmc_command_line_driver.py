@@ -149,7 +149,7 @@ capabilities, and set the stage for understanding how TVM works.
 
 
 ################################################################################
-# .. note:: Defining the Correct Target
+# .. admonition:: Defining the Correct Target
 #
 #   Specifying the correct target (option ``--target``) can have a huge
 #   impact on the performance of the compiled module, as it can take
@@ -365,7 +365,7 @@ capabilities, and set the stage for understanding how TVM works.
 # ``resnet50-v2-7-autotuner_records.json`` file, which will later be used to
 # compile an optimized model.
 #
-# .. note:: Defining the Tuning Search Algorithm
+# .. admonition:: Defining the Tuning Search Algorithm
 #
 #   By default this search is guided using an ``XGBoost Grid`` algorithm.
 #   Depending on your model complexity and amount of time avilable, you might

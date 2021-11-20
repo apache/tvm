@@ -81,7 +81,7 @@ def matmul_add(N, L, M, dtype):
 # multiplication, in this case a multiplication of to square matricies of size
 # 1024x1024. We then create a search task with N=L=M=1024 and dtype="float32"
 #
-# .. note:: Improve performance with custom targets
+# .. admonition:: Improve performance with custom targets
 #   In order for TVM to take full advantage of specific hardware platforms,
 #   you will want to manuall specify your CPU capabilities. For example:
 #   - replace "llvm" below with "llvm -mcpu=core-avx2" to enable AVX2

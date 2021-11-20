@@ -79,7 +79,7 @@ from tvm.contrib import graph_executor
 # the model and save it to disk. For the instance of an ONNX model, you can
 # then load it into memory using the ONNX runtime.
 #
-# .. note:: Working with Other Model Formats
+# .. admonition:: Working with Other Model Formats
 #
 #   TVM supports many popular model formats. A list can be found in the
 #   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
@@ -145,7 +145,7 @@ img_data = np.expand_dims(norm_img_data, axis=0)
 target = "llvm"
 
 ######################################################################
-# .. note:: Defining the Correct Target
+# .. admonition:: Defining the Correct Target
 #
 #   Specifying the correct target can have a huge impact on the performance of
 #   the compiled module, as it can take advantage of hardware features
@@ -331,7 +331,7 @@ tuning_option = {
 }
 
 ################################################################################
-# .. note:: Defining the Tuning Search Algorithm
+# .. admonition:: Defining the Tuning Search Algorithm
 #
 #   By default this search is guided using an `XGBoost Grid` algorithm.
 #   Depending on your model complexity and amount of time available, you might
@@ -339,7 +339,7 @@ tuning_option = {
 
 
 ################################################################################
-# .. note:: Setting Tuning Parameters
+# .. admonition:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
 #   early stopping to 10. You will likely see more performance improvements if

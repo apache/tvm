@@ -84,7 +84,7 @@ B = te.placeholder((n,), name="B")
 C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 ################################################################################
-# .. note:: Lambda Functions
+# .. admonition:: Lambda Functions
 #
 #   The second argument to the ``te.compute`` method is the function that
 #   performs the computation. In this example, we're using an anonymous function,
@@ -273,7 +273,7 @@ for result in log:
 
 
 ################################################################################
-# .. note:: Code Specialization
+# .. admonition:: Code Specialization
 #
 #   As you may have noticed, the declarations of ``A``, ``B`` and ``C`` all
 #   take the same shape argument, ``n``. TVM will take advantage of this to
@@ -417,7 +417,7 @@ cc.create_shared(temp.relpath("myadd.so"), [temp.relpath("myadd.o")])
 print(temp.listdir())
 
 ################################################################################
-# .. note:: Module Storage Format
+# .. admonition:: Module Storage Format
 #
 #   The CPU (host) module is directly saved as a shared library (.so). There
 #   can be multiple customized formats of the device code. In our example, the
@@ -461,7 +461,7 @@ fadd2(a, b, c)
 tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
-# .. note:: Runtime API and Thread-Safety
+# .. admonition:: Runtime API and Thread-Safety
 #
 #   The compiled modules of TVM do not depend on the TVM compiler. Instead,
 #   they only depend on a minimum runtime library. The TVM runtime library
@@ -493,7 +493,7 @@ if tgt.kind.name.startswith("opencl"):
     tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
 ################################################################################
-# .. note:: TE Scheduling Primitives
+# .. admonition:: TE Scheduling Primitives
 #
 #   TVM includes a number of different scheduling primitives:
 #
