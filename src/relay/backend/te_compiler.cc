@@ -848,7 +848,8 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
  * \param function_metadata The map that stores all the function metadatas
  */
 void UpdateFunctionMetadata(BaseFunc func,
-                            Map<String, backend::FunctionInfo>& function_metadata) {  // NOLINT(*)
+                            Map<String, backend::FunctionInfo>& function_metadata,  // NOLINT(*)
+                            Integer workspace_byte_alignment) {
   VLOG_CONTEXT << "UpdateFunctionMetadata";
   VLOG(1) << "updating function metadata for:" << std::endl << PrettyPrint(func);
   // Originally UpdateFunctionMetadata took in CCachedFunc and looped through all the funcs stored
@@ -877,9 +878,6 @@ void UpdateFunctionMetadata(BaseFunc func,
   for (const auto& kv : prim_fns.value()) {
     auto prim_fn = Downcast<tir::PrimFunc>(kv.second);
     CHECK(prim_fn.defined()) << "the primitive function must be defined";
-
-    auto workspace_byte_alignment =
-        relay_target.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
 
     Integer workspace_size = CalculateWorkspaceBytes(prim_fn, workspace_byte_alignment);
 

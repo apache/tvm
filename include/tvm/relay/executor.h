@@ -60,6 +60,14 @@ class ExecutorNode : public Object {
   DictAttrs attrs;
 
   /*!
+   * \brief Should Link Parameters into the module
+   * \return Whether the Executor is configured to execute modules with linked parameters
+   */
+  Bool ShouldLinkParameters() const {
+    return name == "aot" || GetAttr<Bool>("link-params").value_or(Bool(false));
+  }
+
+  /*!
    * \brief Get an attribute.
    *
    * \param attr_key The attribute key.
@@ -114,6 +122,8 @@ class ExecutorNode : public Object {
  */
 class Executor : public ObjectRef {
  public:
+  Executor() = default;
+
   /*!
    * \brief Create a new Executor object using the registry
    * \throws Error if name is not registered
@@ -121,7 +131,7 @@ class Executor : public ObjectRef {
    * \param attrs Attributes for the executor.
    * \return the new Executor object.
    */
-  TVM_DLL static Executor Create(String name, Map<String, ObjectRef> attrs);
+  TVM_DLL static Executor Create(String name, Map<String, ObjectRef> attrs = {});
 
   /*!
    * \brief List all registered Executors

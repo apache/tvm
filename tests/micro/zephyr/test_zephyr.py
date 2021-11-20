@@ -17,7 +17,6 @@
 import logging
 import os
 import pathlib
-import subprocess
 import sys
 import logging
 
@@ -28,6 +27,7 @@ from PIL import Image
 
 import tvm
 import tvm.relay as relay
+from tvm.relay.backend import Executor, Runtime
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
 from tvm.micro.testing import check_tune_log
@@ -40,10 +40,11 @@ _LOG = logging.getLogger(__name__)
 def _make_sess_from_op(
     temp_dir, model, zephyr_board, west_cmd, op_name, sched, arg_bufs, build_config
 ):
+    runtime = Runtime("crt", {"system-lib": True})
     target = tvm.target.target.micro(model)
     target = tvm.target.Target(target=target, host=target)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.build(sched, arg_bufs, target=target, name=op_name)
+        mod = tvm.build(sched, arg_bufs, target=target, runtime=runtime, name=op_name)
 
     return _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config)
 
@@ -179,9 +180,10 @@ def test_relay(temp_dir, board, west_cmd, tvm_debug):
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
 
+    runtime = Runtime("crt", {"system-lib": True})
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, target=target)
+        mod = tvm.relay.build(ir_mod, target=target, runtime=runtime)
 
     with _make_session(temp_dir, board, west_cmd, mod, build_config) as session:
         graph_mod = tvm.micro.create_local_graph_executor(
@@ -217,13 +219,15 @@ def test_onnx(temp_dir, board, west_cmd, tvm_debug):
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
-    # We add the -link-params=1 option to ensure the model parameters are compiled in.
+    # We add the link-params=True option to ensure the model parameters are compiled in.
     # There is currently a bug preventing the host_driven environment from receiving
     # the model weights when set using graph_mod.set_input().
     # See: https://github.com/apache/tvm/issues/7567
-    target = tvm.target.target.micro(model, options=["-link-params=1"])
+    target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(relay_mod, target, params=params)
+        executor = Executor("graph", {"link-params": True})
+        runtime = Runtime("crt", {"system-lib": True})
+        lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
 
     with _make_session(temp_dir, board, west_cmd, lowered, build_config) as session:
@@ -249,9 +253,10 @@ def check_result(
 ):
     """Helper function to verify results"""
     TOL = 1e-5
+    runtime = Runtime("crt", {"system-lib": True})
     target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(relay_mod, target=target)
+        mod = tvm.relay.build(relay_mod, target=target, runtime=runtime)
 
     with _make_session(temp_dir, zephyr_board, west_cmd, mod, build_config) as session:
         rt_mod = tvm.micro.create_local_graph_executor(
@@ -377,6 +382,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     if board != "qemu_x86":
         pytest.xfail(f"Autotune fails on {board}.")
 
+    runtime = Runtime("crt", {"system-lib": True})
     model = test_utils.ZEPHYR_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
@@ -436,6 +442,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
         build_kwargs={"build_option": {"tir.disable_vectorize": True}},
         do_fork=True,
         build_func=tvm.micro.autotvm_build_func,
+        runtime=runtime,
     )
     runner = tvm.autotvm.LocalRunner(
         number=1, repeat=1, timeout=timeout, module_loader=module_loader
@@ -465,7 +472,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
 
     # Build without tuning
     with pass_context:
-        lowered = tvm.relay.build(mod, target=target, params=params)
+        lowered = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
 
     temp_dir = utils.tempdir()
     with _make_session(temp_dir, board, west_cmd, lowered, build_config) as session:
@@ -480,7 +487,7 @@ def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     # Build using autotune logs
     with tvm.autotvm.apply_history_best(str(log_path)):
         with pass_context:
-            lowered_tuned = tvm.relay.build(mod, target=target, params=params)
+            lowered_tuned = tvm.relay.build(mod, target=target, runtime=runtime, params=params)
 
     temp_dir = utils.tempdir()
     with _make_session(temp_dir, board, west_cmd, lowered_tuned, build_config) as session:

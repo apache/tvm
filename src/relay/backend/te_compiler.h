@@ -142,9 +142,11 @@ class TECompiler : public ObjectRef {
  * input/output sizes)
  * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
+ * \param workspace_byte_alignment Byte alignment for allocations
  */
-void UpdateFunctionMetadata(BaseFunc func,
-                            Map<String, backend::FunctionInfo>& function_metadata);  // NOLINT(*)
+void UpdateFunctionMetadata(BaseFunc relay_func,
+                            Map<String, backend::FunctionInfo>& function_metadata,  // NOLINT(*)
+                            Integer workspace_byte_alignment = 16);
 
 /*!
  * \brief Obtain the Target from the device type.
