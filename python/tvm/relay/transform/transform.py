@@ -209,20 +209,22 @@ def CanonicalizeOps():
     return _ffi_api.CanonicalizeOps()
 
 
-def DeadCodeElimination(inline_once=False):
+def DeadCodeElimination(inline_once=False, ignore_impurity=False):
     """Remove expressions that do not have any users (dead code).
 
     Parameters
     ----------
     inline_once: Optional[Bool]
-        Whether to inline binding that occurs only once.
+        Whether to inline a binding that is referenced exactly once.
+    ignore_impurity: Optional[Bool]
+        Whether to ignore possible side-effects in let-bound expressions.
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _ffi_api.DeadCodeElimination(inline_once)
+    return _ffi_api.DeadCodeElimination(inline_once, ignore_impurity)
 
 
 def LazyGradientInit():
