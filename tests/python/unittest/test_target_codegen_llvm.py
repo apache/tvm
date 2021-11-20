@@ -22,10 +22,10 @@ import sys
 import tvm
 import tvm.testing
 from tvm import te
-from tvm import topi
+from tvm.relay.backend import Runtime
 from tvm.contrib import utils, clang
 import numpy as np
-import ctypes
+
 import math
 import re
 import pytest
@@ -747,7 +747,12 @@ def test_llvm_crt_static_lib():
     B = te.placeholder((32,), dtype="bfloat16")
     d = te.compute((32,), lambda x: A[x] + B[x])
     sch = te.create_schedule(d.op)
-    module = tvm.build(sch, [A, B, d], target=tvm.target.Target("llvm --system-lib --runtime=c"))
+    module = tvm.build(
+        sch,
+        [A, B, d],
+        target=tvm.target.Target("llvm"),
+        runtime=Runtime("crt", {"system-lib": True}),
+    )
     print(module.get_source())
     module.save("test.o")
 

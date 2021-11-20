@@ -22,6 +22,7 @@
  */
 #include "codegen_c_host.h"
 
+#include <tvm/relay/executor.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
@@ -384,7 +385,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 
   Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
-  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+  bool could_have_linked_params = mod->ShouldLinkParameters();
   PrimFunc aot_executor_fn;
 
   for (auto kv : mod->functions) {

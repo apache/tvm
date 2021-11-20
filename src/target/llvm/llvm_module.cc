@@ -24,6 +24,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/ir/module.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
@@ -215,8 +216,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
-    bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
-    bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
 
@@ -224,7 +223,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     std::string entry_func;
     Map<String, LinkedParam> linked_params;
     bool found_linked_params = false;
-    bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+    bool could_have_linked_params = mod->ShouldLinkParameters();
+    relay::Runtime runtime =
+        mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
+    bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+    bool target_c_runtime = runtime->name == "crt";
+
     for (auto kv : mod->functions) {
       if (could_have_linked_params &&
           kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
@@ -508,7 +512,8 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       return runtime::Module(n);
     });
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target) {
+runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                            tvm::relay::Runtime runtime) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -522,8 +527,8 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 
   InitializeLLVM();
   auto tm = GetLLVMTargetMachine(target);
-  bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
-  bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
+  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+  bool target_c_runtime = runtime->name == "crt";
   ICHECK(system_lib && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
@@ -556,9 +561,7 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 }
 
 TVM_REGISTER_GLOBAL("runtime.CreateLLVMCrtMetadataModule")
-    .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
-      return CreateLLVMCrtMetadataModule(modules, target);
-    });
+    .set_body_typed(CreateLLVMCrtMetadataModule);
 
 }  // namespace codegen
 }  // namespace tvm

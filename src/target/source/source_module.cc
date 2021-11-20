@@ -130,8 +130,12 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, runtime::Metadata metadata)
-      : fmt_(fmt), func_names_(func_names), target_(target), metadata_(metadata) {
+                               Target target, relay::Runtime runtime, runtime::Metadata metadata)
+      : fmt_(fmt),
+        func_names_(func_names),
+        target_(target),
+        runtime_(runtime),
+        metadata_(metadata) {
     CreateSource();
   }
   const char* type_key() const { return "c"; }
@@ -159,6 +163,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   std::string fmt_;
   Array<String> func_names_;
   Target target_;
+  relay::Runtime runtime_;
   runtime::Metadata metadata_;
 
   void CreateFuncRegistry() {
@@ -298,22 +303,21 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     const std::string entrypoint_mangled =
         runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
     const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
-    auto unpacked_api = target_->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
-    auto interface_api = target_->GetAttr<String>("interface-api").value_or(String("packed"));
 
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
 
-    if (unpacked_api) {
-      if (interface_api == "c") {
+    if (metadata_->unpacked_api) {
+      if (metadata_->interface_api == "c") {
         GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
       } else {
         GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
       }
     } else {
-      ICHECK_EQ(interface_api, "packed") << "Packed interface required for packed operators";
+      ICHECK_EQ(metadata_->interface_api, "packed")
+          << "Packed interface required for packed operators";
       GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
     }
 
@@ -323,7 +327,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void CreateSource() {
-    if (target_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
+    if (runtime_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
@@ -335,7 +339,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               runtime::Metadata metadata) {
+                                               relay::Runtime runtime, runtime::Metadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -346,7 +350,7 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
       }
     }
   }
-  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, metadata);
+  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, runtime, metadata);
   auto csrc_metadata_module = runtime::Module(n);
   for (const auto& mod : modules) {
     csrc_metadata_module.Import(mod);
@@ -416,9 +420,10 @@ TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
     });
 
 TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
-    .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
+    .set_body_typed([](const Array<runtime::Module>& modules, Target target,
+                       relay::Runtime runtime) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime::Metadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::Metadata());
     });
 
 }  // namespace codegen
