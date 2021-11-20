@@ -20,7 +20,9 @@ This module provides typing class for TVM script type annotation usage, it can b
 a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
+from os import stat
 import tvm
+from tvm.script.tir.special_stmt import SpecialStmt
 
 
 class TypeGeneric:  # pylint: disable=too-few-public-methods
@@ -46,31 +48,6 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         return tvm.ir.PrimType(self.type)
 
 
-class ConcreteBufferType(TypeGeneric):  # pylint: disable=too-few-public-methods, abstract-method
-    """TVM script typing class for uniform Type objects"""
-
-    def __init__(self, vtype):
-        self.type = vtype
-
-    def evaluate(self):
-        return tvm.ir.PrimType(self.type)
-
-    def __call__(
-        self,
-        shape,
-        dtype="float32",
-        data=None,
-        strides=None,
-        elem_offset=None,
-        scope="global",
-        align=-1,
-        offset_factor=0,
-        buffer_type="default",
-        span=None,
-    ):
-        self.name = "match_buffer"
-
-
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """TVM script typing class generator for PtrType
 
@@ -92,6 +69,44 @@ class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
+class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods, abstract-method
+    """TVM script typing class for uniform Type objects"""
+
+    def __init__(self, vtype):
+        self.type = vtype
+
+    @staticmethod
+    def __call__(
+        shape,
+        dtype: str = "float32",
+        name: str = "Buffer",
+        data=None,
+        strides=None,
+        elem_offset=None,
+        scope="global",
+        align=-1,
+        offset_factor=0,
+        buffer_type="default",
+        span=None,
+    ):
+        return tvm.tir.decl_buffer(
+            shape=shape,
+            dtype=dtype,
+            name=name,
+            data=data,
+            strides=strides,
+            elem_offset=elem_offset,
+            scope=scope,
+            data_alignment=align,
+            offset_factor=offset_factor,
+            buffer_type=buffer_type,
+            span=span,
+        )
+
+    def __class_getitem__(shape, dtype: str):
+        return tvm.tir.decl_buffer(shape=shape, dtype=dtype)
+
+
 int8 = ConcreteType("int8")
 int16 = ConcreteType("int16")
 int32 = ConcreteType("int32")
@@ -103,4 +118,4 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
-Buffer = ConcreteBufferType("Buffer")
+Buffer = GenericBufferType("handle")

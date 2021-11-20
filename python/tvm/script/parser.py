@@ -439,10 +439,15 @@ class TVMScriptParser(Transformer):
 
         # add parameters of function
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
-            self.context.update_symbol(arg.name, arg_var, node)
-            self.context.func_params.append(arg_var)
-
+            # Note that this case is for T.match_buffer syntax sugar
+            if isinstance(arg.ty, ast.TypeCall):
+                arg_buffer = self.transform(arg.ty)
+                self.context.update_symbol(arg.name, arg_buffer, node)
+                self.context.func_buffer_map[arg.name] = arg_buffer
+            else:
+                arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
+                self.context.update_symbol(arg.name, arg_var, node)
+                self.context.func_params.append(arg_var)
         if not check_decorator(node.decorators):
             self.report_error(
                 "All functions should be decorated by `T.prim_func`",
@@ -1109,6 +1114,43 @@ class TVMScriptParser(Transformer):
         See `transform_Constant`.
         """
         return node.value
+
+    def transform_TypeTuple(self, node):
+        return node.values
+
+    def transform_TypeCall(self, node):
+        """Call value visitor for types.
+
+        See `transform_Call`.
+        """
+
+        def parse_typecall_params(func, params, keyword_params):
+            args = [self.transform(arg) for arg in params]
+            kw_args = {self.transform(k): self.transform(v) for k, v in keyword_params.items()}
+            print(args, kw_args)
+            # get the name and parameter list of func
+            func_name, param_list = func.signature()
+            # check arguments and parameter list and get a list of arguments
+            reader = CallArgumentReader(func_name, args, kw_args, self, node)
+            pos_only, kwargs, varargs = param_list
+            internal_args = list()
+            for i, arg_name in enumerate(pos_only):
+                internal_args.append(reader.get_pos_only_arg(i + 1, arg_name))
+            for i, arg_info in enumerate(kwargs):
+                arg_name, default = arg_info
+                internal_args.append(
+                    reader.get_kwarg(i + 1 + len(pos_only), arg_name, default=default)
+                )
+            return internal_args
+
+        func = self.transform(node.func_name)
+        if isinstance(func, SpecialStmt):
+            # Pattern 1
+            # arg_list = self.parse_arg_list(func, node)
+            arg_list = parse_typecall_params(func, node.params, node.keyword_params)
+            func.handle(node, self.context, arg_list, node.func_name.span)
+            return self.parse_body(node)
+        return func
 
     def transform_Return(self, node):
         self.report_error(
