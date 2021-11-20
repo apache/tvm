@@ -26,15 +26,15 @@
 
 static constexpr const char* _cuda_binary_search_def = R"(
 template <typename DType>
-__forceinline__ __device__ int32_t __lower_bound(
+__forceinline__ __device__ int __lower_bound(
     const DType* __restrict__ arr,
     DType val,
-    int32_t l,
-    int32_t r) {
-  int32_t low = l - 1, high = r;
+    int l,
+    int r) {
+  int low = l - 1, high = r;
   /* loop invariant: low < mid < high, arr[low] < val, arr[high] >= val */
   while (low + 1 < high) {
-    int32_t mid = (low + high) >> 1;
+    int mid = (low + high) >> 1;
     if (arr[mid] < val) {
       low = mid;
     } else {
@@ -46,15 +46,15 @@ __forceinline__ __device__ int32_t __lower_bound(
 }
 
 template <typename DType>
-__forceinline__ __device__ int32_t __upper_bound(
+__forceinline__ __device__ int __upper_bound(
     const DType* __restrict__ arr,
     DType val,
-    int32_t l,
-    int32_t r) {
-  int32_t low = l - 1, high = r;
+    int l,
+    int r) {
+  int low = l - 1, high = r;
   /* loop invariant: low < mid < high, arr[low] < val, arr[high] > val */
   while (low + 1 < high) {
-    int32_t mid = (low + high) >> 1;
+    int mid = (low + high) >> 1;
     if (arr[mid] > val) {
       high = mid;
     } else {

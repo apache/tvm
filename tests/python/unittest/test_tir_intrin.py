@@ -253,19 +253,21 @@ def test_fma():
     assert mod["test_tir_fma"].body.body.value.op.name == "tir.call_llvm_pure_intrin"
 
 
-@tvm.script.tir
-def binary_search(a: ty.handle, b: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    n = tir.var('int32')
-    m = tir.var('int32')
-    A = tir.match_buffer(a, (n,), dtype='int32')
-    B = tir.match_buffer(b, (m,), dtype='int32')
-    C = tir.match_buffer(c, (m,), dtype='int32')
-    D = tir.match_buffer(d, (m,), dtype='int32')
-    with tir.block([m], 'search') as [vi]:
-        tir.reads([A[0:n], B[vi]])
-        tir.writes([C[vi], D[vi]])
-        C[vi] = tir.lower_bound(A.data, B[vi], 0, n)
-        D[vi] = tir.upper_bound(A.data, B[vi], 0, n)
+@T.prim_func
+def binary_search(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+    n = T.var('int32')
+    m = T.var('int32')
+    A = T.match_buffer(a, (n,), dtype='int32')
+    B = T.match_buffer(b, (m,), dtype='int32')
+    C = T.match_buffer(c, (m,), dtype='int32')
+    D = T.match_buffer(d, (m,), dtype='int32')
+    for i in T.serial(0, m):
+        with T.block('search'):
+            vi = T.axis.S(m, i)
+            T.reads([A[0:n], B[vi]])
+            T.writes([C[vi], D[vi]])
+            C[vi] = T.lower_bound(A.data, B[vi], 0, n)
+            D[vi] = T.upper_bound(A.data, B[vi], 0, n)
 
 
 def test_binary_search():
