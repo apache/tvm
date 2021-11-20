@@ -25,7 +25,9 @@ from pathlib import Path
 import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
+from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
 from tvm.target import Target
+from tvm.relay.backend import Executor, Runtime
 
 from . import common, composite_target, frontends
 from .model import TVMCModel, TVMCPackage
@@ -92,6 +94,7 @@ def add_compile_parser(subparsers, _):
         "times, each one to set one configuration value, "
         "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
     )
+
     generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
@@ -100,6 +103,9 @@ def add_compile_parser(subparsers, _):
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
         "the fallback/tophub configs will be used.",
     )
+    generate_registry_args(parser, Executor, "graph")
+    generate_registry_args(parser, Runtime, "cpp")
+
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
@@ -141,6 +147,8 @@ def drive_compile(args):
     compile_model(
         tvmc_model,
         args.target,
+        executor=reconstruct_registry_entity(args, Executor),
+        runtime=reconstruct_registry_entity(args, Runtime),
         tuning_records=args.tuning_records,
         package_path=args.output,
         cross=args.cross_compiler,
@@ -160,6 +168,8 @@ def drive_compile(args):
 def compile_model(
     tvmc_model: TVMCModel,
     target: str,
+    executor: Optional[Executor] = Executor("graph"),
+    runtime: Optional[Runtime] = Runtime("cpp"),
     tuning_records: Optional[str] = None,
     package_path: Optional[str] = None,
     cross: Optional[Union[str, Callable]] = None,
@@ -257,18 +267,24 @@ def compile_model(
                     opt_level=3, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = relay.build(
+                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    )
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(
                     opt_level=3, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = relay.build(
+                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    )
     else:
         with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, target=tvm_target, params=params)
+            graph_module = relay.build(
+                mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+            )
 
     # Generate output dump files with sources
     if dump_code is None:

@@ -25,6 +25,7 @@
 #ifndef TVM_TARGET_SOURCE_SOURCE_MODULE_H_
 #define TVM_TARGET_SOURCE_SOURCE_MODULE_H_
 
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 
@@ -34,12 +35,15 @@ namespace tvm {
 namespace codegen {
 
 /*!
- * \brief Create C-runtime targeted metadata module for "c" backend.
- * \param modules Array of modules included in the compilation output.
- * \param target TVM target.
+ * \brief Wrap the submodules that are to be wrapped in a c-source metadata module for C runtime.
+ * \param modules The modules to be wrapped.
+ * \param target the target the modules are compiled for.
+ * \param runtime the runtime to code generate against
+ * \param metadata the metadata needed for code generation.
+ * \return The wrapped module.
  */
-runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules,
-                                               tvm::Target target, runtime::Metadata metadata);
+runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                               relay::Runtime runtime, runtime::Metadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

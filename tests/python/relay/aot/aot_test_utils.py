@@ -35,7 +35,7 @@ import tvm
 from tvm import relay
 from tvm import te
 from tvm.contrib import utils, graph_executor
-from tvm.relay.backend import te_compiler
+from tvm.relay.backend import te_compiler, Executor, Runtime
 from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
@@ -579,6 +579,8 @@ def compile_models(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
+    use_runtime_executor: bool = True,
+    target: str = "c",
     target_opts: Dict = None,
 ) -> List[AOTCompiledTestModel]:
     """
@@ -587,12 +589,18 @@ def compile_models(
     if not isinstance(models, list):
         models = [models]
 
-    base_target = "c -runtime=c --link-params --executor=aot"
-    extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+            "interface-api": interface_api,
+            "unpacked-api": use_unpacked_api,
+        },
+    )
     if target_opts:
         for key, val in target_opts.items():
-            extra_target += f" {key}={val}"
-    target = f"{base_target} {extra_target}"
+            target += f" {key}={val}"
 
     config = {"tir.disable_vectorize": True}
     if pass_config:
@@ -603,15 +611,29 @@ def compile_models(
     compiled_mods = list()
     for model in models:
         with tvm.transform.PassContext(opt_level=3, config=config):
-            executor_factory = tvm.relay.build(
-                model.module,
-                tvm.target.Target(target, host=target),
-                params=model.params,
-                mod_name=model.name,
-            )
-            compiled_mods.append(
-                AOTCompiledTestModel(model=model, executor_factory=executor_factory)
-            )
+            # TODO(Mousius) - Remove once executor/runtime are fully removed from Target
+            if use_runtime_executor:
+                executor_factory = tvm.relay.build(
+                    model.module,
+                    tvm.target.Target(target, host=target),
+                    executor=executor,
+                    runtime=runtime,
+                    params=model.params,
+                    mod_name=model.name,
+                )
+                compiled_mods.append(
+                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                )
+            else:
+                executor_factory = tvm.relay.build(
+                    model.module,
+                    tvm.target.Target(target, host=target),
+                    params=model.params,
+                    mod_name=model.name,
+                )
+                compiled_mods.append(
+                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                )
     return compiled_mods
 
 
@@ -733,6 +755,8 @@ def compile_and_run(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
+    use_runtime_executor: bool = True,
+    target: str = "c",
     target_opts: Dict = None,
 ):
     """This is a wrapper API to compile and run models as test for AoT"""
@@ -743,6 +767,8 @@ def compile_and_run(
         workspace_byte_alignment=workspace_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
+        use_runtime_executor=use_runtime_executor,
+        target=target,
         target_opts=target_opts,
     )
     run_and_check(
