@@ -34,6 +34,7 @@ from tvm import relay
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
 from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
+from tvm.relay.backend import Executor, Runtime
 
 import test_utils
 
@@ -182,27 +183,11 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
     # kernel layout "HWIO" is not supported by arm_cpu SIMD extension (see tvm\python\relay\op\strategy\arm_cpu.py)
     relay_mod_no_simd = _apply_desired_layout_no_simd(relay_mod)
 
-    target = tvm.target.target.micro(
-        model,
-        options=[
-            "-keys=cpu",
-            "-link-params=1",
-            "--executor=aot",
-            "--unpacked-api=1",
-            "--interface-api=c",
-        ],
-    )
+    target = tvm.target.target.micro(model, options=["-keys=cpu"])
+    target_simd = tvm.target.target.micro(model, options=["-keys=arm_cpu,cpu"])
 
-    target_simd = tvm.target.target.micro(
-        model,
-        options=[
-            "-keys=arm_cpu,cpu",
-            "-link-params=1",
-            "--executor=aot",
-            "--unpacked-api=1",
-            "--interface-api=c",
-        ],
-    )
+    executor = Executor("aot", {"unpacked-api": True, "interface-api": "c"})
+    runtime = Runtime("crt")
 
     temp_dir_simd = temp_dir / "simd"
     temp_dir_no_simd = temp_dir / "nosimd"
@@ -212,7 +197,9 @@ def test_armv7m_intrinsic(temp_dir, board, west_cmd, tvm_debug):
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered_simd = relay.build(relay_mod_simd, target_simd, params=params)
-        lowered_no_simd = relay.build(relay_mod_no_simd, target, params=params)
+        lowered_no_simd = relay.build(
+            relay_mod_no_simd, target, params=params, runtime=runtime, executor=executor
+        )
         result_simd, time_simd = _run_model(
             temp_dir_simd, board, west_cmd, lowered_simd, build_config, sample, output_shape
         )

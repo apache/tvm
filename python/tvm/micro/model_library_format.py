@@ -270,7 +270,7 @@ def _get_inputs_and_outputs_from_module(mod):
 
 
 def _should_generate_interface_header(mod):
-    return any(target.attrs.get("interface-api") == "c" for target in mod.target.values())
+    return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
 def _make_tar(source_dir, tar_file_path):

@@ -19,7 +19,6 @@ import ctypes
 import json
 import os
 import re
-import struct
 import sys
 import tempfile
 
@@ -29,6 +28,7 @@ import pytest
 import tvm
 import tvm.relay
 import tvm.testing
+from tvm.relay.backend import Executor, Runtime
 from tvm.contrib import utils
 
 
@@ -185,10 +185,13 @@ def test_llvm_link_params():
     for dtype in LINKABLE_DTYPES:
         ir_mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        main_func = ir_mod["main"]
-        target = "llvm --runtime=c --system-lib --link-params"
+        target = "llvm"
+        runtime = Runtime("crt", {"system-lib": True})
+        executor = Executor("graph", {"link-params": True})
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(ir_mod, target, params=param_init)
+            lib = tvm.relay.build(
+                ir_mod, target, runtime=runtime, executor=executor, params=param_init
+            )
 
             # NOTE: Need to export_library() and load_library() to link all the Module(llvm, ...)
             # against one another.
@@ -213,8 +216,9 @@ def test_llvm_link_params():
 
             linked_output = _run_linked(lib, mod)
 
+        runtime = Runtime("cpp", {"system-lib": True})
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(ir_mod, "llvm --system-lib", params=param_init)
+            lib = tvm.relay.build(ir_mod, "llvm", runtime=runtime, params=param_init)
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib
@@ -268,10 +272,10 @@ def test_c_link_params():
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        main_func = mod["main"]
-        target = "c --link-params"
+        target = "c"
+        executor = Executor("graph", {"link-params": True})
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            lib = tvm.relay.build(mod, target, params=param_init)
+            lib = tvm.relay.build(mod, target, executor=executor, params=param_init)
             assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
 
             src = lib.lib.get_source()
@@ -353,10 +357,13 @@ def test_crt_link_params():
     for dtype in LINKABLE_DTYPES:
         mod, param_init = _make_mod_and_params(dtype)
         rand_input = _make_random_tensor(dtype, INPUT_SHAPE)
-        main_func = mod["main"]
-        target = "c --system-lib --runtime=c --link-params"
+        target = "c"
+        runtime = Runtime("crt", {"system-lib": True})
+        executor = Executor("graph", {"link-params": True})
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            factory = tvm.relay.build(mod, target, params=param_init)
+            factory = tvm.relay.build(
+                mod, target, runtime=runtime, executor=executor, params=param_init
+            )
             assert set(factory.get_params().keys()) == {"p0", "p1"}  # NOTE: op folded
 
             temp_dir = tvm.contrib.utils.tempdir()
@@ -378,8 +385,9 @@ def test_crt_link_params():
                 graph_rt.run()
                 linked_output = graph_rt.get_output(0).numpy()
 
+        runtime = Runtime("cpp", {"system-lib": True})
         with tvm.transform.PassContext(opt_level=3):
-            lib = tvm.relay.build(mod, "llvm --system-lib", params=param_init)
+            lib = tvm.relay.build(mod, "llvm", runtime=runtime, params=param_init)
 
             def _run_unlinked(lib):
                 graph_json, mod, lowered_params = lib

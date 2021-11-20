@@ -25,6 +25,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/call.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -692,26 +693,29 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod),
-        targets_(targets),
-        target_host_(target_host),
-        use_unpacked_api_(target_host->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {}
+      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
 
-  LoweredOutput Codegen(relay::Function func, String mod_name) {
-    IRModule mod = IRModule::FromExpr(func);
-    IRModule lowered_mod = tec::LowerTEPass(mod_name, [this](BaseFunc func) {
-      // We need to maintain the constant map for external
-      // functions so we pass this processing function which
-      // allows us to process each function as we lower it.
-      if (func->GetAttr<String>(attr::kCompiler).defined()) {
-        UpdateConstants(func, &params_);
-      }
+  LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
+    Integer workspace_byte_alignment =
+        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
-      // TODO(@areusch, @jroesch): We should refactor this to
-      // execute as a further pass, instead writing data to the
-      // lowering process directly.
-      tec::UpdateFunctionMetadata(func, this->function_metadata_);
-    })(mod);
+    IRModule lowered_mod =
+        tec::LowerTEPass(mod_name, [this, workspace_byte_alignment](BaseFunc func) {
+          // We need to maintain the constant map for external
+          // functions so we pass this processing function which
+          // allows us to process each function as we lower it.
+          if (func->GetAttr<String>(attr::kCompiler).defined()) {
+            UpdateConstants(func, &params_);
+          }
+
+          // TODO(@areusch, @jroesch): We should refactor this to
+          // execute as a further pass, instead writing data to the
+          // lowering process directly.
+          tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
+        })(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -771,15 +775,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Build the TIR IRModule for the AOT function
     Map<GlobalVar, BaseFunc> symbol_map;
     symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
-    IRModule mod_run(symbol_map);
+    IRModule mod_run(symbol_map, {}, {}, {}, mod->attrs);
 
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
     mod_run = storage_rewrite(mod_run);
     // The workspace for main function should be calculated after performing storage_rewrite for
     // the top level TIR function.
-    auto workspace_byte_alignment =
-        target_host_->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     Integer main_workspace_size = CalculateWorkspaceBytes(
         Downcast<tir::PrimFunc>(mod_run->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix)),
         workspace_byte_alignment);
@@ -816,9 +818,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::vector<String> input_var_names(input_vars_.size());
     std::transform(input_vars_.begin(), input_vars_.end(), input_var_names.begin(),
                    [](Var input_var) -> String { return input_var->name_hint(); });
-
-    ret.metadata = runtime::Metadata(input_var_names, ListDevices(), return_sid_.size(),
-                                     runtime::kTvmExecutorAot, mod_name);
+    ret.metadata =
+        runtime::Metadata(input_var_names, ListDevices(), return_sid_.size(),
+                          runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_);
     return ret;
   }
 
@@ -848,9 +850,10 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Function func = args[0];
-        String mod_name = args[1];
-        this->output_ = codegen(func, mod_name);
+        IRModule mod = args[0];
+        Function func = args[1];
+        String mod_name = args[2];
+        this->output_ = this->codegen_->Codegen(mod, func, mod_name);
       });
     } else if (name == "list_params_name") {
       return PackedFunc(
@@ -903,10 +906,6 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
     }
     codegen_ = std::make_shared<AOTExecutorCodegen>(reinterpret_cast<runtime::Module*>(mod),
                                                     targets, target_host);
-  }
-
-  LoweredOutput codegen(Function func, String mod_name) {
-    return this->codegen_->Codegen(func, mod_name);
   }
 
   Array<runtime::String> list_params_name() {

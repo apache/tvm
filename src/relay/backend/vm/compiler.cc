@@ -32,6 +32,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/vm.h>
@@ -44,6 +45,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
 #include "../../op/op_common.h"
@@ -1170,7 +1172,7 @@ void VMCompiler::Codegen() {
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      runtime::Metadata());
+                                      Runtime::Create("cpp"), runtime::Metadata());
   exec_->SetLib(lib);
 }
 
