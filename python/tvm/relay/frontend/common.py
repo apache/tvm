@@ -39,9 +39,8 @@ class DuplicateFilter:
         self.msgs = set()
 
     def filter(self, record):
-        rv = record.msg not in self.msgs
         self.msgs.add(record.msg)
-        return rv
+        return record.msg not in self.msgs
 
 
 # pylint: disable=invalid-name
