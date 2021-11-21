@@ -21,7 +21,8 @@ from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object
-from tvm.tir import Block, For, IntImm, PrimFunc
+from tvm.tir import Block, For, IntImm, PrimFunc, SparseBlock
+from tvm.tir.sparse import SpIterVar
 
 from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -55,12 +56,23 @@ class BlockRV(Object):
         )
 
 
+@_register_object("tir.SparseBlockRV")
+class SparseBlockRV(Object):
+    """A random variable that refers to a sparse block"""
+
+    def __init__(self) -> None:
+        """Construct a new SparseBlockRV."""
+        self.__init_handle_by_constructor__(
+            _ffi_api.SparseBlockRV  # type: ignore # pylint: disable=no-member
+        )
+
+
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
 ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
-RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
+RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV, SparseBlockRV]  # pylint: disable=invalid-name
 
 # Update to `Literal["detail", "fast", "none"]` once upgraded to python3.8
 _ERROR_RENDER_LEVEL: Dict[str, int] = {
@@ -223,7 +235,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var : Union[ExprRV, BlockRV, LoopRV]
+        rand_var : Union[ExprRV, BlockRV, LoopRV, SparseBlockRV]
             The random variable to be evaluated
 
         Returns
@@ -238,22 +250,23 @@ class Schedule(Object):
     def get(
         self,
         rand_var_or_sref: Union[RAND_VAR_TYPE, StmtSRef],
-    ) -> Optional[Union[int, Block, For]]:
+    ) -> Optional[Union[int, Block, For, SparseBlock]]:
         """Returns:
         - the corresponding Block that a BlockRV evaluates to;
         - the corresponding For that a LoopRV evaluates to;
         - the corresponding integer that a ExprRV evaluates to;
+        - the corresponding SparseBlock that a SparseBlockRV evaluates to;
         - the corresponding Block that a block sref points to;
         - the corresponding For that a loop sref points to;
 
         Parameters
         ----------
-        rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, StmtSRef]
+        rand_var_or_sref : Union[ExprRV, BlockRV, LoopRV, SparseBlockRV, StmtSRef]
             The random variable / sref to be evaluated
 
         Returns
         -------
-        result : Optional[Union[int, Block, For]]
+        result : Optional[Union[int, Block, For, SparseBlock]]
             The corresponding result
         """
         if isinstance(rand_var_or_sref, StmtSRef):
@@ -289,7 +302,7 @@ class Schedule(Object):
 
         Parameters
         ----------
-        rand_var : Union[BlockRV, LoopRV, ExprRV]
+        rand_var : Union[BlockRV, LoopRV, ExprRV, SparseBlockRV]
             The random variable to be removed
         """
         return _ffi_api.ScheduleRemoveRV(self, rand_var)  # type: ignore # pylint: disable=no-member
@@ -1637,3 +1650,50 @@ class Schedule(Object):
     def enter_postproc(self) -> None:
         """A no-op that marks the start of postprocessing phase of scheduling"""
         _ffi_api.ScheduleEnterPostproc(self)  # type: ignore # pylint: disable=no-member
+
+    ########## Schedule: SparseTIR schedules ##########
+
+    def get_sparse_block(
+        self,
+        name: str,
+        func_name: str = "main",
+    ) -> SparseBlock:
+        """Retrieve a sparse block in a specific function with its name
+
+        Parameters
+        ----------
+        name : str
+            The name of the sparse block
+        func_name : str = "main"
+            The name of the function
+
+        Returns
+        -------
+        block : SparseBlockRV
+            The sparse block retrieved
+            IndexError is raised if 0 or multiple blocks exist with the specific name.
+        """
+        return _ffi_api.ScheduleGetSparseBlock(  # type: ignore # pylint: disable=no-member
+            self,
+            name,
+            func_name,
+        )
+
+    def sparse_reorder(self, block: SparseBlockRV, new_order: List[SpIterVar]) -> None:
+        """Reorder a list of sparse iterators. It requires the new order to not break the iterator
+        dependency.
+
+        Parameters
+        ----------
+        block : SparseBlockRV
+            The queried sparse block
+
+        new_order : List[SpIterVar]
+            The The new order of the sparse iterators, whose length should equal to the number
+            of the input block's sparse iterators
+        """
+        return _ffi_api.ScheduleSparseReorder(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            new_order,
+        )

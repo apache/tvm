@@ -565,5 +565,51 @@ BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
 /******** Schedule: Annotation ********/
 /******** Schedule: Misc ********/
 
+/******** Schedule: SparseTIR schedules ********/
+
+SparseBlockRV ConcreteScheduleNode::GetSparseBlock(const String& name, const String& func_name) {
+  class NotFoundResult : public ScheduleError {
+   public:
+    explicit NotFoundResult(String name, IRModule mod) : name_(name), mod_(mod) {}
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+    String DetailRenderTemplate() const final {
+      return "Cannot find a sparse block with the name: " + name_;
+    }
+
+    String FastErrorString() const final {
+      return "ScheduleError: Cannot find a sparse block with the specified name";
+    }
+
+    String name_;
+    IRModule mod_;
+  };
+
+  BaseFunc func = this->state_->mod->Lookup(func_name);
+  const auto* prim_func = TVM_TYPE_AS(prim_func, func, PrimFuncNode);
+
+  // Currently we only handle cases with single sparse block.
+  const auto* block = prim_func->body.as<SparseBlockNode>();
+  if (block == nullptr) {
+    TVM_TIR_SCHEDULE_BEGIN();
+    throw NotFoundResult(name, this->state_->mod);
+    TVM_TIR_SCHEDULE_END("get-sparse-block", this->error_render_level_);
+  }
+
+  return CreateRV(GetRef<SparseBlock>(block));
+}
+
+void ConcreteScheduleNode::SparseReorder(const SparseBlockRV& block_rv,
+                                         const Array<SpIterVar>& new_order) {
+  SparseBlock old_block = this->Get(block_rv);
+  SparseBlock new_block{nullptr};
+  TVM_TIR_SCHEDULE_BEGIN();
+  new_block = tir::SparseReorder(state_, old_block, new_order);
+  TVM_TIR_SCHEDULE_END("sparse-reorder", this->error_render_level_);
+  this->UpdateRV(block_rv, new_block);
+}
+
 }  // namespace tir
 }  // namespace tvm

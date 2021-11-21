@@ -638,7 +638,7 @@ TVM_REGISTER_NODE_TYPE(SparseBufferStoreNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SparseBufferStoreNode>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const BufferStoreNode*>(node.get());
+      auto* op = static_cast<const SparseBufferStoreNode*>(node.get());
       p->PrintIndent();
       p->stream << op->buffer->name << "[";
       for (size_t i = 0; i < op->indices.size(); ++i) {

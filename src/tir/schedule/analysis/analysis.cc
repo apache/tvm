@@ -45,6 +45,26 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
   throw;
 }
 
+const PrimFuncNode* GetPrimFuncFromSparseBlock(const IRModule& mod, const SparseBlockNode* sp_block,
+                                               GlobalVar* result_g_var) {
+  for (const auto& kv : mod->functions) {
+    const GlobalVar& g_var = kv.first;
+    const BaseFunc& base_func = kv.second;
+    if (const auto* func = base_func.as<PrimFuncNode>()) {
+      if (func->body.get() == sp_block) {
+        if (result_g_var != nullptr) {
+          *result_g_var = g_var;
+        }
+        return func;
+      }
+    }
+  }
+  LOG(FATAL) << "IndexError: Could not get the corresponding function in the schedule state of the "
+                "sparse block:\n"
+             << GetRef<SparseBlock>(sp_block);
+  throw;
+}
+
 /******** Scope ********/
 
 StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,  //
@@ -1341,6 +1361,69 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   for (; p->parent != nullptr; p = p->parent) {
   }
   return GetRef<StmtSRef>(p);
+}
+
+/******** SparseTIR Tools ********/
+
+bool BufferContainsAxis(const SparseBuffer& buffer, const Axis& axis) {
+  for (int i = 0; i < static_cast<int>(buffer->axes.size()); ++i) {
+    if (buffer->axes[i].same_as(axis)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void CheckDependency(const ScheduleState& self, const SparseBlock& block,
+                     const Array<SpIterVar>& new_order) {
+  class DependentIterNotAppearError : public ScheduleError {
+   public:
+    explicit DependentIterNotAppearError(IRModule mod, SpIterVar iter, SpIterVar dependent_iter)
+        : mod_(std::move(mod)),
+          iter_(std::move(iter)),
+          dependent_iter_(std::move(dependent_iter)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The new order violates some iterator dependency";
+    }
+
+    String DetailRenderTemplate() const final {
+      std::ostringstream os;
+      os << "ScheduleError: Iterator " << iter_ << " depends on " << dependent_iter_
+         << ", while the latter iterator does not appear before the former iterator in the new "
+            "order";
+      return os.str();
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+    IRModule mod_;
+    SpIterVar iter_;
+    SpIterVar dependent_iter_;
+  };
+
+  AccessAndDependencyCollector collector;
+  collector.Collect(block);
+
+  for (int i = 0; i < static_cast<int>(new_order.size()); ++i) {
+    const SpIterVar& sp_iter = new_order[i];
+    if (sp_iter->kind == SpIterKind::kDenseFixed) {
+      continue;
+    }
+
+    SparseBuffer iterated_buffer{nullptr};
+    Array<PrimExpr> iters{nullptr};
+    collector.GetIteratedBufferAndDependentIters(sp_iter, &iterated_buffer, &iters);
+
+    for (const PrimExpr& index : iters) {
+      const SpIterVar dependent_iter = collector.GetSpIterFromIndex(index);
+      if (std::find(new_order.begin(), new_order.begin() + i, dependent_iter) ==
+          new_order.begin() + i) {
+        throw DependentIterNotAppearError(self->mod, sp_iter, dependent_iter);
+      }
+    }
+  }
 }
 
 }  // namespace tir

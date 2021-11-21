@@ -22,6 +22,7 @@
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/state.h>
 #include <tvm/tir/schedule/trace.h>
+#include <tvm/tir/sparse.h>
 
 namespace tvm {
 namespace tir {
@@ -85,6 +86,27 @@ using ExprRV = PrimExpr;
 
 using ExprRVNode = PrimExprNode;
 
+/**************** Random variable: SparseBlockRV ****************/
+
+/*! \brief A random variable that evaluates to a TensorIR sparse block */
+class SparseBlockRVNode : public runtime::Object {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static constexpr const char* _type_key = "tir.SparseBlockRV";
+  TVM_DECLARE_FINAL_OBJECT_INFO(SparseBlockRVNode, runtime::Object);
+};
+
+/*!
+ * \brief Managed reference to SparseBlockRVNode
+ * \sa SparseBlockRVNode
+ */
+class SparseBlockRV : public runtime::ObjectRef {
+ public:
+  /*! \brief Constructor */
+  TVM_DLL SparseBlockRV();
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SparseBlockRV, runtime::ObjectRef, SparseBlockRVNode);
+};
+
 /**************** The Schedule class ****************/
 
 class Schedule;
@@ -144,6 +166,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual PrimExpr Get(const ExprRV& expr_rv) const = 0;
   /*!
+   * \brief Get the sparse block corresponding to the specific random variable
+   * \param sp_block_rv The random variable to be looked up
+   * \return SparseBlock The corresponding sparse block
+   */
+  virtual SparseBlock Get(const SparseBlockRV& sp_block_rv) const = 0;
+  /*!
    * \brief Get the block sref corresponding to the specific BlockRV
    * \param block_rv The BlockRV to be looked up
    * \return The corresponding block sref
@@ -182,6 +210,11 @@ class ScheduleNode : public runtime::Object {
    * \param expr_rv The random variable to be removed
    */
   virtual void RemoveRV(const ExprRV& expr_rv) = 0;
+  /*!
+   * \brief Remove an sparse block random variable from the symbol table
+   * \param sp_block_rv The random variable to be removed
+   */
+  virtual void RemoveRV(const SparseBlockRV& sp_block_rv) = 0;
 
  public:
   /******** Schedule: Sampling ********/
@@ -453,6 +486,23 @@ class ScheduleNode : public runtime::Object {
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;
+  /******** Schedule: SparseTIR schedules ********/
+  /*!
+   * \brief Retrieve a sparse block in a specific function with its name
+   * \param name The name of the sparse block to be retrieved
+   * \param func_name The name of the function
+   * \return The sparse block retrieved
+   * \note Indexing error is raised if 0 or multiple blocks exist with the specific name
+   */
+  virtual SparseBlockRV GetSparseBlock(const String& name, const String& func_name = "main") = 0;
+  /*!
+   * \brief Reorder a list of sparse iterators. It requires the new order to not break the iterator
+   * dependency.
+   * \param block The block to be transformed
+   * \param new_order The new order of the sparse iterators, whose length should equal to the number
+   * of the input block's sparse iterators
+   */
+  virtual void SparseReorder(const SparseBlockRV& block_rv, const Array<SpIterVar>& new_order) = 0;
 };
 
 /*!

@@ -27,6 +27,8 @@ BlockRV::BlockRV() { this->data_ = make_object<BlockRVNode>(); }
 
 LoopRV::LoopRV() { this->data_ = make_object<LoopRVNode>(); }
 
+SparseBlockRV::SparseBlockRV() { this->data_ = make_object<SparseBlockRVNode>(); }
+
 /**************** GetSRef ****************/
 
 StmtSRef ScheduleNode::GetSRef(const StmtNode* stmt) const {
@@ -42,6 +44,7 @@ StmtSRef ScheduleNode::GetSRef(const StmtNode* stmt) const {
 
 TVM_REGISTER_NODE_TYPE(BlockRVNode);
 TVM_REGISTER_NODE_TYPE(LoopRVNode);
+TVM_REGISTER_NODE_TYPE(SparseBlockRVNode);
 TVM_REGISTER_OBJECT_TYPE(ScheduleNode);
 
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetMod")  //
@@ -61,6 +64,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
 
 TVM_REGISTER_GLOBAL("tir.schedule.BlockRV").set_body_typed([]() { return BlockRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.LoopRV").set_body_typed([]() { return LoopRV(); });
+TVM_REGISTER_GLOBAL("tir.schedule.SparseBlockRV").set_body_typed([]() { return SparseBlockRV(); });
 TVM_REGISTER_GLOBAL("tir.schedule.ConcreteSchedule")
     .set_body_typed([](IRModule mod, support::LinearCongruentialEngine::TRandState seed,
                        int debug_mask, int error_render_level) -> Schedule {
@@ -86,6 +90,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGet")
       }
       if (const auto* expr_rv = obj.as<ExprRVNode>()) {
         return self->Get(GetRef<ExprRV>(expr_rv));
+      }
+      if (const auto* sp_block_rv = obj.as<SparseBlockRVNode>()) {
+        return self->Get(GetRef<SparseBlockRV>(sp_block_rv));
       }
       LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << obj->GetTypeKey()
                  << ". Its value is: " << obj;
@@ -115,6 +122,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
       }
       if (const auto* expr_rv = obj.as<ExprRVNode>()) {
         return self->RemoveRV(GetRef<ExprRV>(expr_rv));
+      }
+      if (const auto* sp_block_rv = obj.as<SparseBlockRVNode>()) {
+        return self->RemoveRV(GetRef<SparseBlockRV>(sp_block_rv));
       }
       LOG(FATAL) << "TypeError: Invalid type: " << obj->GetTypeKey();
       throw;
@@ -185,6 +195,11 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
+/******** (FFI) SparseTIR schedules ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetSparseBlock")
+    .set_body_method<Schedule>(&ScheduleNode::GetSparseBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSparseReorder")
+    .set_body_method<Schedule>(&ScheduleNode::SparseReorder);
 
 }  // namespace tir
 }  // namespace tvm

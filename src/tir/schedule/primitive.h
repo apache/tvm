@@ -341,6 +341,20 @@ TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int bu
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/
 /******** Schedule: Misc ********/
+/******** Schedule: SparseTIR schedules ********/
+
+/*!
+ * \brief Reorder a list of sparse iterators. It requires the new order to not break the iterator
+ * dependency.
+ * \param self The state of the schedule
+ * \param block The block to be transformed
+ * \param new_order The new order of the sparse iterators, whose length should equal to the number
+ * of the input block's sparse iterators
+ * \return The new sparse block, which is only used to update the corresponding random variable in
+ * concrete schedule.
+ */
+TVM_DLL SparseBlock SparseReorder(ScheduleState self, const SparseBlock& block,
+                                  const Array<SpIterVar>& new_order);
 
 }  // namespace tir
 }  // namespace tvm
