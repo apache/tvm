@@ -5009,6 +5009,7 @@ unsupported_onnx_tests = [
     "test_loop11",
     "test_loop13_seq",
     "test_lstm_batchwise",
+    "test_matmulinteger",
     "test_maxpool_2d_same_lower",
     "test_maxpool_2d_same_upper",
     "test_maxpool_with_argmax_2d_precomputed_pads",
