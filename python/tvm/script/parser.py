@@ -36,7 +36,7 @@ from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import tir
 
-from .context_maintainer import BlockInfo, ContextMaintainer
+from .context_maintainer import ContextMaintainer
 from .meta_unparser import MetaUnparser
 from .registry import Registry
 from .diagnostics import TVMDiagnosticCtx
@@ -377,12 +377,13 @@ class TVMScriptParser(Transformer):
         """
         if len(node.assignments) == 1:
             if not (
-                isinstance(node.assignments[0].lhs, ast.Var)
-                and node.assignments[0].lhs.id.name == "__tvm_meta__"
+                len(node.assignments[0].lhs) == 1
+                and isinstance(node.assignments[0].lhs[0], ast.Var)
+                and node.assignments[0].lhs[0].id.name == "__tvm_meta__"
             ):
                 self.report_error(
                     "The only top level assignments allowed are `__tvm_meta__ = ...`",
-                    node.assignments[0].lhs.span,
+                    node.assignments[0].span,
                 )
             self.init_meta(
                 MetaUnparser().do_transform(node.assignments[0].rhs, self._diagnostic_context)
@@ -448,19 +449,8 @@ class TVMScriptParser(Transformer):
                 node.span,
             )
 
-        # New Scope : Implicit root block
-        # Each function contains an implicit root block in TensorIR,
-        # so here we need a block scope for it. Please note that `enter_block_scope`
-        # will not create a block directly but just stores some information.
-        # If the PrimFunc is not a TensorIR func (e.g. TE scheduled func or low-level func),
-        # the root block will not be added. The logic to add root block is in `_ffi_api.Complete`
-        self.context.enter_block_scope(nodes=node.body.stmts)
-
         # fetch the body of root block
         body = self.parse_body(node.body)
-        # Emit Scope : Implicit root block
-        root_info: BlockInfo = self.context.current_block_scope()
-        self.context.exit_block_scope()
 
         # return a tir.PrimFunc
         dict_attr = self.context.func_dict_attr
@@ -474,6 +464,12 @@ class TVMScriptParser(Transformer):
             span=tvm_span_from_synr(node.span),
         )
 
+        # New Scope : Implicit root block
+        # Each function contains an implicit root block in TensorIR,
+        # so here we need a block scope for it.
+        # If the PrimFunc is not a TensorIR func (e.g. TE scheduled func or low-level func),
+        # the root block will not be added. The logic to add root block is in `_ffi_api.Complete`
+
         # Fix the PrimFunc
         # 1. generate root block if necessary
         # 2. generate surrounding loops for blocks if necessary
@@ -483,11 +479,36 @@ class TVMScriptParser(Transformer):
             node.span,
             _ffi_api.Complete,
             func,
-            root_info.alloc_buffers,
+            self.context.root_alloc_buffers,
         )
 
         self.context.exit_scope()
         return func
+
+    def transform_Lambda(self, node):
+        """Lambda visitor
+
+        Return an array of input parameters and the transformed lambda body.
+        """
+
+        self.context.enter_scope(nodes=[node.body])
+
+        # add parameters of the lambda
+        arg_vars = []
+        for arg in node.params:
+            arg_var = tvm.te.var(arg.name)
+            arg_vars.append(arg_var)
+            self.context.update_symbol(arg.name, arg_var, node)
+
+        # the body of a lambda must be an expr
+        if not isinstance(node.body, ast.Expr):
+            self.report_error("The body of a lambda must be an expression", node.span)
+
+        # transform the body of the lambda
+        body = self.transform(node.body)
+
+        self.context.exit_scope()
+        return arg_vars, body
 
     def transform_Assign(self, node):
         """Assign visitor
@@ -526,18 +547,19 @@ class TVMScriptParser(Transformer):
                 return self.parse_body(node)
             else:
                 value = self.transform(node.rhs)
-                if not isinstance(node.lhs, ast.Var):
+                if len(node.lhs) == 1 and not isinstance(node.lhs[0], ast.Var):
                     # This is a little confusing because it only is true when
                     # we have taken this branch. We might need to clarify what
                     # exectly is allowed in Assignments in tvmscript.
                     self.report_error(
                         "Left hand side of assignment must be an unqualified variable",
-                        node.lhs.span,
+                        node.span,
                     )
+                ast_var = node.lhs[0]
                 var = tvm.te.var(
-                    node.lhs.id.name,
-                    self.parse_type(node.ty, node.lhs),
-                    span=tvm_span_from_synr(node.lhs.span),
+                    ast_var.id.name,
+                    self.parse_type(node.ty, ast_var),
+                    span=tvm_span_from_synr(ast_var.span),
                 )
                 self.context.update_symbol(var.name, var, node)
                 body = self.parse_body(node)
@@ -596,7 +618,7 @@ class TVMScriptParser(Transformer):
             For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)
         By now 1 pattern of For is supported:
             1. for scope handler
-                for name in T.serial()/T.parallel()/T.vectorized()/T.unroll()/tir.range()/
+                for name in T.serial()/T.parallel()/T.vectorized()/T.unroll()/range()/
                             T.grid()/T.thread_binding()
         """
 
@@ -892,9 +914,20 @@ class TVMScriptParser(Transformer):
            namespace.
         """
 
-        if isinstance(node.object, ast.Var):
-            if self.match_tir_namespace(node.object.id.name):
-                func_name = "tir." + node.field.name
+        def get_full_attr_name(node: ast.Attr) -> str:
+            reverse_field_names = [node.field.name]
+            while isinstance(node.object, ast.Attr):
+                node = node.object
+                reverse_field_names.append(node.field.name)
+            if isinstance(node.object, ast.Var):
+                reverse_field_names.append(node.object.id.name)
+            return ".".join(reversed(reverse_field_names))
+
+        if isinstance(node.object, (ast.Var, ast.Attr)):
+            full_attr_name = get_full_attr_name(node)
+            attr_object, fields = full_attr_name.split(".", maxsplit=1)
+            if self.match_tir_namespace(attr_object):
+                func_name = "tir." + fields
                 res = Registry.lookup(func_name)
                 if res is not None:
                     return res
@@ -903,9 +936,7 @@ class TVMScriptParser(Transformer):
                 except TVMError as e:
                     # Check if we got an attribute error
                     if e.args[0].find("AttributeError"):
-                        self.report_error(
-                            f"Unregistered function `tir.{node.field.name}`.", node.field.span
-                        )
+                        self.report_error(f"Unregistered function `tir.{fields}`.", node.span)
                     else:
                         raise e
 

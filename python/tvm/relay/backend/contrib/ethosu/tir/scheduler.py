@@ -15,17 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Different schedulers for Arm(R) Ethos(TM)-U NPU"""
+"""Scheduling for Arm(R) Ethos(TM)-U NPU."""
 import tvm
 
 
-def schedule(te_graph, const_dict, cascader=None):
-    """Schedule a TE graph for NPU compilation.
+def schedule(cached_func, const_dict, cascader=None):
+    """Schedule a CachedFunc for NPU compilation.
 
     Parameters
     ----------
-    te_graph
-        The TE graph to schedule.
+    cached_func : CachedFunc
+        The CachedFunc to schedule.
     const_dict : dict of int to numpy.ndarray
         The constant dictionary.
     cascader : callable, optional
@@ -38,10 +38,10 @@ def schedule(te_graph, const_dict, cascader=None):
         The completed schedule for the graph.
 
     """
-    s = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+    s = tvm.te.create_schedule([t.op for t in cached_func.outputs])
     if cascader:
-        cascader(te_graph, const_dict, s)
-    inline_no_ops(te_graph, s)
+        cascader(cached_func, const_dict, s)
+    inline_no_ops(cached_func, s)
     schedule_pragmas(s)
     schedule_cache_reads(s)
     return s
@@ -96,7 +96,7 @@ def total_cascader(stripe_size):
 
     """
 
-    def _cascader(te_graph, const_dict, sch):
+    def _cascader(cached_func, const_dict, sch):
         scheduled = set()
 
         def _visit(tensor, stage, ax):
@@ -106,8 +106,8 @@ def total_cascader(stripe_size):
                 for input_tensor in tensor.op.input_tensors:
                     _visit(input_tensor, stage, ax)
 
-        assert len(te_graph.outputs) == 1
-        out = te_graph.outputs[0]
+        assert len(cached_func.outputs) == 1
+        out = cached_func.outputs[0]
         oi, _ = tile_nd(sch, out, stripe_size)
         for ax in oi:
             sch[out].unroll(ax)
@@ -126,14 +126,14 @@ def copy_constants():
         The planning function.
     """
 
-    def _planner(te_graph, const_dict, sch):
+    def _planner(cached_func, const_dict, sch):
         planned = set()  # type: ignore
 
         def _visit(tensor, reader):
             if tensor is not planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp):
-                    index = list(te_graph.inputs).index(tensor)
+                    index = list(cached_func.inputs).index(tensor)
                     if index in const_dict:
                         sch.cache_read(tensor, "global", [reader])
 
@@ -141,7 +141,7 @@ def copy_constants():
                     for input_tensor in tensor.op.input_tensors:
                         _visit(input_tensor, tensor)
 
-        for output_tensor in te_graph.outputs:
+        for output_tensor in cached_func.outputs:
             _visit(output_tensor, None)
 
     return _planner
@@ -216,7 +216,7 @@ def schedule_cache_reads(sch):
             stage.pragma(fax, "op", "ethosu_copy")
 
 
-def inline_no_ops(te_graph, sch):
+def inline_no_ops(cached_func, sch):
     """Inline 'no-ops' - operations that in principle do nothing.
 
     Modifies the schedule in-place. For now we inline reshape and
@@ -224,8 +224,8 @@ def inline_no_ops(te_graph, sch):
 
     Parameters
     ----------
-    te_graph
-        The TE graph.
+    cached_func : CachedFunc
+        The cached func.
     sch : tvm.te.Schedule
         The schedule.
 
@@ -241,7 +241,7 @@ def inline_no_ops(te_graph, sch):
             for input_tensor in tensor.op.input_tensors:
                 _visit(input_tensor)
 
-    for out in te_graph.outputs:
+    for out in cached_func.outputs:
         _visit(out)
 
 

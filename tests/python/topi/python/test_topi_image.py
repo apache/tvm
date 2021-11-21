@@ -49,6 +49,7 @@ def verify_resize2d(
         raise NotImplementedError("Layout not supported {} ".format(layout))
     B = topi.image.resize2d(
         A,
+        [0.0] * 4,
         (out_height, out_width),
         layout=layout,
         coordinate_transformation_mode=coord_trans,
@@ -127,6 +128,7 @@ def verify_resize3d(
 
     B = topi.image.resize3d(
         A,
+        [0.0] * 6,
         (out_depth, out_height, out_width),
         layout=layout,
         coordinate_transformation_mode=coordinate_transformation_mode,

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration fully connected tests"""
+"""Arm(R) Ethos(TM)-N integration fully connected tests"""
 
 import numpy as np
 import tvm

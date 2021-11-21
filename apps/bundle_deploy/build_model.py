@@ -20,15 +20,15 @@ import argparse
 import os
 from tvm import relay
 import tvm
-from tvm import te, runtime
+from tvm import runtime as tvm_runtime
 import logging
-import json
+from tvm.relay.backend import Runtime
 from tvm.contrib import cc as _cc
 
-RUNTIMES = {
-    "c": "{name}_c.{ext}",
-    "c++": "{name}_cpp.{ext}",
-}
+RUNTIMES = [
+    (Runtime("crt", {"system-lib": True}), "{name}_c.{ext}"),
+    (Runtime("cpp", {"system-lib": True}), "{name}_cpp.{ext}"),
+]
 
 
 def build_module(opts):
@@ -43,18 +43,16 @@ def build_module(opts):
         func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs
     )
 
-    for runtime_name, file_format_str in RUNTIMES.items():
+    for runtime, file_format_str in RUNTIMES:
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-            graph, lib, params = relay.build(
-                func, f"llvm --runtime={runtime_name} --system-lib", params=params
-            )
+            graph, lib, params = relay.build(func, "llvm", runtime=runtime, params=params)
 
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        ext = "tar" if runtime_name == "c" else "o"
+        ext = "tar" if str(runtime) == "crt" else "o"
         lib_file_name = os.path.join(build_dir, file_format_str.format(name="model", ext=ext))
-        if runtime_name == "c":
+        if str(runtime) == "crt":
             lib.export_library(lib_file_name)
         else:
             # NOTE: at present, export_libarary will always create _another_ shared object, and you
@@ -70,7 +68,7 @@ def build_module(opts):
         with open(
             os.path.join(build_dir, file_format_str.format(name="params", ext="bin")), "wb"
         ) as f_params:
-            f_params.write(runtime.save_param_dict(params))
+            f_params.write(tvm_runtime.save_param_dict(params))
 
 
 def build_test_module(opts):
@@ -84,20 +82,21 @@ def build_test_module(opts):
     y_data = np.random.rand(1, 5).astype("float32")
     params = {"y": y_data}
 
-    for runtime_name, file_format_str in RUNTIMES.items():
+    for runtime, file_format_str in RUNTIMES:
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
             graph, lib, lowered_params = relay.build(
                 tvm.IRModule.from_expr(func),
-                f"llvm --runtime={runtime_name} --system-lib",
+                "llvm",
+                runtime=runtime,
                 params=params,
             )
 
         build_dir = os.path.abspath(opts.out_dir)
         if not os.path.isdir(build_dir):
             os.makedirs(build_dir)
-        ext = "tar" if runtime_name == "c" else "o"
+        ext = "tar" if str(runtime) == "crt" else "o"
         lib_file_name = os.path.join(build_dir, file_format_str.format(name="test_model", ext=ext))
-        if runtime_name == "c":
+        if str(runtime) == "crt":
             lib.export_library(lib_file_name)
         else:
             # NOTE: at present, export_libarary will always create _another_ shared object, and you
@@ -113,7 +112,7 @@ def build_test_module(opts):
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_params", ext="bin")), "wb"
         ) as f_params:
-            f_params.write(runtime.save_param_dict(lowered_params))
+            f_params.write(tvm_runtime.save_param_dict(lowered_params))
         with open(
             os.path.join(build_dir, file_format_str.format(name="test_data", ext="bin")), "wb"
         ) as fp:

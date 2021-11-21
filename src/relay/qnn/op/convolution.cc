@@ -275,6 +275,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
     Array<IndexExpr> padding({0, 0});
     reduced_t2 = AvgPool2D(scaled_hw_t2, param->kernel_size, param->strides, param->dilation,
                            padding, param->data_layout,
+                           "",      // out_layout
                            false,   // ceil_mode
                            false);  // count_include_pad
   } else {
@@ -284,6 +285,7 @@ Expr DepthwiseConv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_
       Array<IndexExpr> padding({0, 0});
       reduced_t2 = AvgPool2D(reduced_t2, param->kernel_size, param->strides, param->dilation,
                              padding, param->data_layout,
+                             "",      // out_layout
                              false,   // ceil_mode
                              false);  // count_include_pad
     }
@@ -463,6 +465,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
         Multiply(reduced_c_t2, MakeConstantScalar(DataType::Int(32), kernel_h * kernel_w));
     reduced_t2 = AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, param->dilation,
                            padding, param->data_layout,
+                           "",      // out_layout
                            false,   // ceil_mode
                            false);  // count_include_pad
   } else {
@@ -471,6 +474,7 @@ Expr Conv2DSecondTerm(const Expr& padded_data, const Expr& kernel_zero_point,
     if (stride1 * stride2 != 1) {
       reduced_t2 = AvgPool2D(reduced_c_t2, param->kernel_size, param->strides, param->dilation,
                              padding, param->data_layout,
+                             "",      // out_layout
                              false,   // ceil_mode
                              false);  // count_include_pad
     }

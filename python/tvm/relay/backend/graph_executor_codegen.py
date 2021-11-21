@@ -64,11 +64,13 @@ class GraphExecutorCodegen(object):
             tgts[_expr.IntImm("int32", 0)] = Target(target)
         self._init(mod, tgts)
 
-    def codegen(self, func):
+    def codegen(self, ir_module, func):
         """Compile a single function into a graph.
 
         Parameters
         ----------
+        ir_module: tvm.ir.Module
+            The module to compile
         func: tvm.relay.Expr
             The function to compile.
 
@@ -82,7 +84,7 @@ class GraphExecutorCodegen(object):
             Additional constant parameters.
         """
         default_mod_name = mangle_module_name("default")
-        self._codegen(func, default_mod_name)
+        self._codegen(ir_module, func, default_mod_name)
         graph_json = self._get_graph_json()
         lowered_func = self._get_irmodule()
         param_names = self._list_params_name()

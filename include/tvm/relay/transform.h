@@ -30,6 +30,8 @@
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/target/compilation_config.h>
+#include <tvm/target/se_scope.h>
 #include <tvm/target/target.h>
 
 #include <string>
@@ -437,23 +439,27 @@ TVM_DLL Pass RelayToTIRTargetHook();
  * \brief A pass for manifesting explicit memory allocations and rewriting
  * specific dialects.
  *
- * \param target_host The target used by the host for compilation.
- * \param targets The device type and target pairs for compilation.
+ * \param cpu_se_scope SEScope for computations and data which must reside on a CPU, such as
+ * shapes and shape functions.
  *
  * \return The pass.
  */
-TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
+TVM_DLL Pass ManifestAlloc(SEScope cpu_se_scope);
 
 /*!
- * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
- * every Relay sub-expression should run (and the result stored). Captures the result of that
- * analysis using new "on_device" and "device_copy" CallNodes. See
- * tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p SEScope on which
+ * every Relay sub-expression should run and the result stored. Captures the result of that
+ * analysis using new "on_device" and "device_copy" CallNodes.
+ *
+ * See tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
  * for help recovering the device for an arbitrary sub-expression in downstream transformations.
  *
- * \param default_device_type DLDeviceType for default device.
+ * \param config Describes the targets and default \p SEScope for all primitive operators and
+ * host sub-expressions.
+ *
+ * \return The pass.
  */
-TVM_DLL Pass PlanDevices(DLDeviceType default_device_type);
+TVM_DLL Pass PlanDevices(CompilationConfig config);
 
 }  // namespace transform
 

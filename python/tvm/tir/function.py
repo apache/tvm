@@ -108,8 +108,10 @@ class PrimFunc(BaseFunc):
                 A = T.match_buffer(a, (m, n), "float32")
                 B = T.match_buffer(b, (m, n), "float32")
 
-                with T.block([m, n], "") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj]
+                for i, j in T.grid(m, n):
+                    with T.block():
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj]
 
         Then we can make it specialized with given shapes or buffers.
 
@@ -129,8 +131,10 @@ class PrimFunc(BaseFunc):
                 A = T.match_buffer(a, (16, 16), "float32")
                 B = T.match_buffer(b, (16, 16), "float32")
 
-                with T.block([16, 16], "") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj]
+                for i, j in T.grid(16, 16):
+                    with T.block():
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj]
 
         Returns
         -------
@@ -139,7 +143,7 @@ class PrimFunc(BaseFunc):
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
 
-    def script(self, tir_prefix: str = "tir", show_meta: bool = False) -> str:
+    def script(self, tir_prefix: str = "T", show_meta: bool = False) -> str:
         """Print IRModule into TVMScript
 
         Parameters

@@ -22,6 +22,7 @@ from os import path as osp
 import sys
 
 import tvm
+from tvm.relay.backend import Runtime
 from tvm import te
 
 
@@ -32,8 +33,9 @@ def main():
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
     s = tvm.te.create_schedule(C.op)
     s[C].parallel(s[C].op.axis[0])
+    runtime = Runtime("cpp", {"system-lib": True})
     print(tvm.lower(s, [A, B, C], simple_mode=True))
-    tvm.build(s, [A, B, C], "llvm --system-lib").save(osp.join(sys.argv[1], "test.o"))
+    tvm.build(s, [A, B, C], "llvm", runtime=runtime).save(osp.join(sys.argv[1], "test.o"))
 
 
 if __name__ == "__main__":

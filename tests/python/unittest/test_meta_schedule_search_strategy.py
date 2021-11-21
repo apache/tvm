@@ -45,10 +45,12 @@ class Matmul:
         A = T.match_buffer(a, (32, 32), "float32")
         B = T.match_buffer(b, (32, 32), "float32")
         C = T.match_buffer(c, (32, 32), "float32")
-        with T.block([32, 32, T.reduce_axis(0, 32)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(32, 32, 32):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

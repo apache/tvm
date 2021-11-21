@@ -17,16 +17,18 @@
 
 from collections import OrderedDict
 import sys
+import re
 
 import numpy as np
 import pytest
 
 import tvm
-from tvm import relay
+from tvm import relay, TVMError
 from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.backend import Executor, Runtime
 from aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
@@ -613,7 +615,7 @@ def test_name_sanitiser_name_clash():
     inputs = {"input::-1": x_data, "input::-2": y_data, "input:--2": t_data}
     output_list = generate_ref_data(func, inputs)
 
-    with pytest.raises(ValueError, match="Sanitized input tensor name clash"):
+    with pytest.raises(TVMError, match="Sanitized input tensor name clash"):
         compile_and_run(
             AOTTestModel(module=IRModule.from_expr(func), inputs=inputs, outputs=output_list),
             test_runner,
@@ -621,6 +623,39 @@ def test_name_sanitiser_name_clash():
             use_unpacked_api,
             enable_op_fusion=False,
         )
+
+
+# This tests for deprecated AOT executor arguments
+# TODO(Mousius) Remove deprecated arguments later
+def test_deprecated_target_arguments(capsys):
+    """Tests we can still use relay.build with -executor, -runtime and -link-params"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
+
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    x_in = np.ones((1, 10)).astype("float32")
+    y_in = np.random.uniform(size=(1, 10)).astype("float32")
+
+    params = {"x": x_in}
+    inputs = {"y": y_in}
+    output_list = generate_ref_data(func, inputs, params)
+
+    compile_and_run(
+        AOTTestModel(
+            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        use_runtime_executor=False,
+        target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
+    )
 
 
 @pytest.mark.parametrize(
@@ -633,10 +668,16 @@ def test_name_sanitiser_name_clash():
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
     mod, params = tvm.relay.testing.synthetic.get_workload()
-
-    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+        },
+    )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, params=params)
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
 
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
@@ -691,6 +732,109 @@ def test_aot_codegen_backend_alloc_workspace_calls():
     # There should be three allocates created for three primitive relay function
     # calls in the main for the above relay snippet.
     assert source.count("TVMBackendAllocWorkspace") == 3
+
+
+def test_device_api_hooks():
+    """Check for Device API hooks"""
+
+    # Ideally we should have a sample Target registered here
+    # but we're going to re-use this for now
+    pytest.importorskip("ethosu.vela")
+    import tensorflow as tf
+    import tflite.Model
+
+    from tests.python.contrib.test_ethosu import infra
+    from tvm.relay.op.contrib.ethosu import partition_for_ethosu
+
+    def create_tflite_graph():
+        tf.config.run_functions_eagerly(True)
+
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                return tf.nn.max_pool(x, [1, 2], [1, 2], "SAME")
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple([1, 3, 4, 3]))
+                yield [data.astype(np.float32)]
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec([1, 3, 4, 3], dtype=tf.float32)
+        )
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"x": [1, 3, 4, 3]},
+        dtype_dict={"x": "int8"},
+    )
+    mod = partition_for_ethosu(relay_module, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+    )
+    main_ir_module = list(compiled_models[0].executor_factory.lowered_ir_mods.values())[0]
+    main_func = main_ir_module["run_model"]
+
+    # Activate Device
+    assert (
+        str(main_func.body[0][0].value)
+        == "@tir.call_extern("
+        + '"TVMDeviceEthosUActivate",'
+        + " device_context_ethos_u: handle,"
+        + " dtype=int32)"
+    )
+    # Open Device
+    assert (
+        str(main_func.body[1].body.body[0][0][0].value)
+        == "@tir.call_extern("
+        + '"TVMDeviceEthosUOpen",'
+        + " device_context_ethos_u: handle,"
+        + " dtype=int32)"
+    )
+    # Device Call
+    assert (
+        str(main_func.body[1].body.body[0][0][1].value)
+        == "@tir.call_extern("
+        + '"tvmgen_default_ethos_u_main_0",'
+        + " input: handle, output: handle,"
+        + " device_context_ethos_u: handle,"
+        + " dtype=int32)"
+    )
+    # Close Device
+    assert (
+        str(main_func.body[1].body.body[0][0][2].value)
+        == "@tir.call_extern("
+        + '"TVMDeviceEthosUClose",'
+        + " device_context_ethos_u: handle,"
+        + " dtype=int32)"
+    )
+    # Deactivate Device
+    assert (
+        str(main_func.body[2][0].value)
+        == "@tir.call_extern("
+        + '"TVMDeviceEthosUDeactivate",'
+        + " device_context_ethos_u: handle,"
+        + " dtype=int32)"
+    )
 
 
 if __name__ == "__main__":

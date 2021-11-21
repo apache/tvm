@@ -35,7 +35,7 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenCHost final : public CodeGenC {
+class CodeGenCHost : public CodeGenC {
  public:
   CodeGenCHost();
   void Init(bool output_ssa, bool emit_asserts, std::string target_str);
@@ -54,7 +54,7 @@ class CodeGenCHost final : public CodeGenC {
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os);             // NOLINT(*)
   // overload min and max to use the ternary operator, so we don't rely on the
   // standard library implementations
   void VisitExpr_(const MinNode* op, std::ostream& os) final;  // NOLINT(*)

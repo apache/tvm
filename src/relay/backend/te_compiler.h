@@ -63,7 +63,7 @@ namespace tec {
 using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
-using ProcessFn = std::function<void(Function)>;
+using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
  * \brief A compiler which lowers primitive Relay functions to tensor expressions
@@ -109,6 +109,13 @@ class TECompilerNode : public Object {
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
+  /*!
+   * \brief Get C Device API context mapping
+   * \return Map of GlobalVar to associated C Device API context name (either Target or kCompiler
+   * annotated)
+   */
+  virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+
   virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
 
   /*! \brief clear the cache. */
@@ -127,16 +134,19 @@ class TECompiler : public ObjectRef {
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;
+  TVM_DLL static TECompiler& Global();
 };
 
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
- * \param relay_func The function to calculate function metadata for
+ * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
+ * \param workspace_byte_alignment Byte alignment for allocations
  */
-void UpdateFunctionMetadata(Function relay_func,
-                            Map<String, backend::FunctionInfo>& function_metadata);  // NOLINT(*)
+void UpdateFunctionMetadata(BaseFunc relay_func,
+                            Map<String, backend::FunctionInfo>& function_metadata,  // NOLINT(*)
+                            Integer workspace_byte_alignment = 16);
 
 /*!
  * \brief Obtain the Target from the device type.
@@ -147,7 +157,7 @@ void UpdateFunctionMetadata(Function relay_func,
  * \param dev_type
  * \return Target
  */
-Target GetTargetFromInteger(DLDeviceType dev_type, TargetMap targets);
+Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
 
 /*!
  * \brief Update the "main" control function's metadata
@@ -172,8 +182,6 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * to TE expressions, schedules them, and then to TIR.
  *
  * \param module The IRModule.
- * \param targets The mapping for devices to targets.
- * \param device_map An analysis result mapping each sub-expression to a device.
  * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
@@ -181,9 +189,8 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * \return The lowered module, see above.
  */
 IRModule LowerTE(
-    const IRModule& module, TargetMap targets, DeviceMap device_map,
-    backend::StaticMemoryPlan memory_plan, const String& module_name,
-    ProcessFn process_fn = [](Function f) {});
+    const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
+    ProcessFn process_fn = [](BaseFunc f) {});
 
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
@@ -191,15 +198,12 @@ IRModule LowerTE(
  * to TE expressions, schedules them, and then to TIR. It annotates all functions
  * with their target.
  *
- * \param targets The mapping for devices to targets.
- * \param device_context_map An analysis result mapping each sub-expression to a device.
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \returns The pass which lowers primative functions to TIR
+ * \returns The pass which lowers primitive functions to TIR
  */
-transform::Pass LowerTEPass(TargetMap targets, DeviceMap device_context_map,
-                            const String& module_name, std::function<void(Function)> process_fn);
+transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

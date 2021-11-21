@@ -32,6 +32,7 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/parser/parser.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -170,7 +171,7 @@ Constructor IRModuleNode::GetConstructor(const String& adt, const String& cons) 
   }
 
   LOG(FATAL) << adt << " does not contain constructor " << cons;
-  throw std::runtime_error("Constructor Not Found.");
+  return {};
 }
 
 tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
@@ -187,9 +188,12 @@ void WarnIfMalformed(const IRModule& mod, relay::Function func) {
   auto fv = relay::FreeVars(func);
   auto ftv = relay::FreeTypeVars(func, mod);
   // TODO(@jroesch): refactor to use diagnostic context
-  ICHECK_EQ(fv.size(), 0) << "There are free variables: " << fv << std::endl;
-  ICHECK_EQ(ftv.size(), 0) << "There are free type variables: " << fv
-                           << " in function: " << AsText(func, false);
+  ICHECK_EQ(fv.size(), 0) << "Function:" << std::endl
+                          << PrettyPrint(func) << std::endl
+                          << "contains free variables: " << fv;
+  ICHECK_EQ(ftv.size(), 0) << "Function:" << std::endl
+                           << PrettyPrint(func) << std::endl
+                           << "contains free type variables: " << fv;
 }
 
 void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
@@ -423,6 +427,14 @@ void IRModuleNode::ImportFromStd(const String& path) {
   this->Import(std_path + "/" + path);
 }
 
+Bool IRModuleNode::ShouldLinkParameters() const {
+  Optional<relay::Executor> executor = GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+  if (!executor.defined()) {
+    return Bool(false);
+  }
+  return executor.value()->ShouldLinkParameters();
+}
+
 std::unordered_set<String> IRModuleNode::Imports() const { return this->import_set_; }
 
 IRModule IRModule::FromText(const String& text, const String& source_path) {
@@ -516,6 +528,15 @@ TVM_REGISTER_GLOBAL("ir.Module_Import").set_body_typed([](IRModule mod, String p
 
 TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd").set_body_typed([](IRModule mod, String path) {
   mod->ImportFromStd(path);
+});
+
+TVM_REGISTER_GLOBAL("ir.Module_WithAttr")
+    .set_body_typed([](IRModule mod, String key, ObjectRef value) -> IRModule {
+      return WithAttr(mod, key, value);
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String key) -> ObjectRef {
+  return mod->GetAttr<ObjectRef>(key);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

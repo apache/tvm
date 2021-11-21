@@ -262,7 +262,34 @@ class PyTorchFrontend(Frontend):
         input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
-        return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)
+        return relay.frontend.from_pytorch(
+            traced_model, input_shapes, keep_quantized_weight=True, **kwargs
+        )
+
+
+class PaddleFrontend(Frontend):
+    """PaddlePaddle frontend for TVMC"""
+
+    @staticmethod
+    def name():
+        return "paddle"
+
+    @staticmethod
+    def suffixes():
+        return ["pdmodel", "pdiparams"]
+
+    def load(self, path, shape_dict=None, **kwargs):
+        # pylint: disable=C0415
+        import paddle
+
+        paddle.enable_static()
+        paddle.disable_signal_handler()
+
+        # pylint: disable=E1101
+        exe = paddle.static.Executor(paddle.CPUPlace())
+        prog, _, _ = paddle.static.load_inference_model(path, exe)
+
+        return relay.frontend.from_paddle(prog, shape_dict=shape_dict, **kwargs)
 
 
 ALL_FRONTENDS = [
@@ -271,6 +298,7 @@ ALL_FRONTENDS = [
     TensorflowFrontend,
     TFLiteFrontend,
     PyTorchFrontend,
+    PaddleFrontend,
 ]
 
 

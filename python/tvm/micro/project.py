@@ -83,6 +83,17 @@ class GeneratedProject:
     def transport(self):
         return ProjectTransport(self._api_client, self._options)
 
+    def info(self):
+        return self._info
+
+    @property
+    def options(self):
+        return self._options
+
+    @options.setter
+    def options(self, options):
+        self._options = options
+
 
 class NotATemplateProjectError(Exception):
     """Raised when the API server given to TemplateProject reports is_template=false."""
@@ -184,7 +195,7 @@ def generate_project_from_mlf(
 
     mlf_path : pathlib.Path or str
         Path to the Model Library Format archive that will be used when creating
-        the new project.
+        the new project. The archive file will be copied to project_dir.
 
     options : dict
         Project API options given to the microTVM API server for the specified platform.

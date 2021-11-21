@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import os
 import numpy as np
 import tvm
 import tvm.testing
@@ -76,11 +77,11 @@ def get_manual_conf(mods, target):
     # The third output is the final output, the second output is for mod3, the first output
     # is for mod2 input.
     pipe_config1 = {
-        "mod_idx": 1,
+        "mod_idx": 0,
         "output": [
-            {"output_idx": 0, "dependent": [{"mod_idx": 2, "input_name": "data_0"}]},
-            {"output_idx": 1, "dependent": [{"mod_idx": 3, "input_name": "data_0"}]},
-            {"output_idx": 2, "dependent": [{"mod_idx": 0, "input_name": "0"}]},
+            {"output_idx": 0, "dependencies": [{"mod_idx": 1, "input_name": "data_0"}]},
+            {"output_idx": 1, "dependencies": [{"mod_idx": 2, "input_name": "data_0"}]},
+            {"output_idx": 2, "dependencies": [{"global_output_index": 0}]},
         ],
     }
     mod_config[mods[0]] = {
@@ -94,9 +95,9 @@ def get_manual_conf(mods, target):
     }
 
     pipe_config2 = {
-        "mod_idx": 2,
+        "mod_idx": 1,
         "output": [
-            {"output_idx": 0, "dependent": [{"mod_idx": 3, "input_name": "data_1"}]},
+            {"output_idx": 0, "dependencies": [{"mod_idx": 2, "input_name": "data_1"}]},
         ],
     }
     mod_config[mods[1]] = {
@@ -110,8 +111,8 @@ def get_manual_conf(mods, target):
     }
 
     pipe_config3 = {
-        "mod_idx": 3,
-        "output": [{"output_idx": 0, "dependent": [{"mod_idx": 0, "input_name": "1"}]}],
+        "mod_idx": 2,
+        "output": [{"output_idx": 0, "dependencies": [{"global_output_index": 1}]}],
     }
     mod_config[mods[2]] = {
         "pipeline": pipe_config3,
@@ -128,7 +129,7 @@ def get_manual_conf(mods, target):
 def test_pipe_config_check():
     # This function is used to trigger runtime error by applying wrong logic connection.
 
-    # Get the three pipeline modules here.
+    # Get three pipeline modules here.
     (mod1, mod2, mod3), dshape = get_mannual_mod()
 
     # The input or output name is illegal and expects a runtime error.
@@ -179,10 +180,12 @@ def test_pipeline():
 
             pipe_config = pipeline_executor.PipelineConfig()
 
-            # The global input named "data_0" will be connected to a input named "data_0" of mod1.
+            # The pipeline input named "data_0" will be connected to a input named "data_0"
+            # of mod1.
             pipe_config["input"]["data_0"].connect(pipe_config[mod1]["input"]["data_0"])
 
-            # The global Input named "data_1" will be connected to a input named "data_1" of mod2.
+            # The pipeline Input named "data_1" will be connected to a input named "data_1"
+            # of mod2.
             pipe_config["input"]["data_1"].connect(pipe_config[mod2]["input"]["data_1"])
 
             # The mod1 output[0] will be connected to a input named "data_0" of mod2.
@@ -194,10 +197,10 @@ def test_pipeline():
             # The mod2 output[2] will be connected to a input named "data_1" of mod3.
             pipe_config[mod2]["output"][0].connect(pipe_config[mod3]["input"]["data_1"])
 
-            # The mod1 output[2] will be connected to global output[1].
+            # The mod1 output[2] will be connected to pipeline output[0].
             pipe_config[mod1]["output"][2].connect(pipe_config["output"]["0"])
 
-            # The mod3 output[0] will be connected to global output[2].
+            # The mod3 output[0] will be connected to pipeline output[1].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
             # Print configueration (print(pipe_config)), the result looks like following.
             #
@@ -231,8 +234,20 @@ def test_pipeline():
             with tvm.transform.PassContext(opt_level=3):
                 pipeline_mod_factory = pipeline_executor.build(pipe_config)
 
+            # Export the parameter configuration to a file.
+            directory_path = tvm.contrib.utils.tempdir().temp_dir
+            # If the directory does not exist, create it.
+            if not os.path.exists(directory_path):
+                os.makedirs(directory_path)
+            config_file_name = pipeline_mod_factory.export_library(directory_path)
+
+            # Use the output of build to create and initialize PipelineModule.
             pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
             assert pipeline_module
+
+            # Use the import function to create and initialize PipelineModule.
+            pipeline_module_test = pipeline_executor.PipelineModule.load_library(config_file_name)
+            assert pipeline_module_test.num_outputs == 2
 
 
 if __name__ == "__main__":

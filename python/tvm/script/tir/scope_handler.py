@@ -104,14 +104,20 @@ class WithScopeHandler(ScopeHandler):
 
 @register
 class Allocate(WithScopeHandler):
-    """With scope handler T.allocate(extents, dtype, scope, condition)"""
+    """With scope handler T.allocate(extents, dtype, scope, condition, annotations)"""
 
     def __init__(self):
-        def allocate(extents, dtype, scope, condition=True, span=None):
+        def allocate(extents, dtype, scope, condition=True, annotations=None, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
             return tvm.tir.Allocate(
-                self.buffer_var, dtype, extents, condition, self.body, span=span
+                self.buffer_var,
+                dtype,
+                extents,
+                condition,
+                self.body,
+                annotations=annotations,
+                span=span,
             )
 
         super().__init__(allocate, concise_scope=True, def_symbol=True)
@@ -128,16 +134,20 @@ class Allocate(WithScopeHandler):
         if isinstance(node, synr.ast.With):
             vars = WithScopeHandler.get_optional_vars(node, context)
             if len(vars) != 1:
-                context.report_error("Unexpected number of vars", node.span)
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
             name = vars[0].id.name
             var_span = vars[0].id.span
         elif isinstance(node, synr.ast.Assign):
-            name = node.lhs.id.name
-            var_span = node.lhs.id.span
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
         else:
             raise Exception("Internal Bug")
 
-        def setup_buffer_var(extents, dtype, scope, condition=True, span: Span = None):
+        def setup_buffer_var(
+            extents, dtype, scope, condition=True, annotations=None, span: Span = None
+        ):
             """Setup buffer var for a given type."""
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
@@ -239,42 +249,16 @@ class Let(WithScopeHandler):
 
 @register
 class Block(WithScopeHandler):
-    """With scope handler T.block(extents, name) as iter_vars"""
+    """With scope handler T.block(name)"""
 
     def __init__(self):
-        def block(axes=None, name_hint: str = "", span: Optional[Span] = None):
+        def block(name_hint: str = "", span: Optional[Span] = None):
             assert (
                 self.node and self.context and self.body
             ), "call 'exit_scope' before 'enter_scope'"
             block_info = self.context.block_info_stack[-1]
-            if axes is None:
-                axes = []
-            if len(axes) != len(self.block_vars):
-                self.context.report_error(
-                    "Inconsistent number of block vars, "
-                    + f"there are {len(axes)} axes but {len(self.block_vars)} block vars. "
-                    + "The number of block vars should match the number of axes.",
-                    self.node.span,
-                )
-            block_iters: List[IterVar] = []
-            for i, axis in enumerate(axes):
-                axis = tvm.runtime.convert(axis)
-                if isinstance(axis, tvm.tir.PrimExpr):
-                    block_var_dom = Range.from_min_extent(0, axis)
-                    block_iters.append(IterVar(block_var_dom, self.block_vars[i], 0))
-                elif isinstance(axis, Range):
-                    block_iters.append(IterVar(axis, self.block_vars[i], 0))
-                elif isinstance(axis, IterVar):
-                    block_iters.append(IterVar(axis.dom, self.block_vars[i], axis.iter_type))
-                else:
-                    self.context.report_error(
-                        "Invalid argument of T.block(), "
-                        + f"expected PrimExpr, Range or IterVar, but got {type(axis)}",
-                        self.node.span,
-                    )
 
             # create block read/write regions
-
             reads: List[BufferRegion] = (
                 [buffer_slice_to_region(read) for read in block_info.reads]
                 if block_info.reads
@@ -293,7 +277,7 @@ class Block(WithScopeHandler):
             if region_detect_mask != 0:
                 annotations["tir.script_parsing_detect_access"] = region_detect_mask
             inner = tvm.tir.Block(
-                block_iters,
+                block_info.iter_vars,
                 reads,
                 writes,
                 name_hint,
@@ -304,35 +288,13 @@ class Block(WithScopeHandler):
                 annotations,
                 span,
             )
-            # create block var iter binding
-            values: List[PrimExpr]
-            if not block_info.iter_bindings:
-                values = self.context.loop_stack[-2].copy()
-                if len(block_iters) == 0:
-                    # It is an opaque block without any bindings
-                    values = []
-                elif len(values) == 0:
-                    values = [tvm.tir.const(float("nan"), dtype="float32")] * len(block_iters)
-                elif len(values) != len(block_iters):
-                    self.context.report_error(
-                        "Number of block iter var and outer loop nesting mismatch, "
-                        + f"{len(block_iters)} block iter vars but {len(values)} loops",
-                        self.node.span,
-                    )
-            else:
-                for block_var in self.block_vars:
-                    if block_var not in block_info.iter_bindings:
-                        self.context.report_error(
-                            "Missing block iter var binding for " + block_var.name,
-                            self.node.span,
-                        )
-                values = [block_info.iter_bindings[block_var] for block_var in self.block_vars]
+            assert len(block_info.iter_vars) == len(block_info.iter_values)
             predicate = (
                 tvm.tir.const(True, "bool")
                 if block_info.predicate is None
                 else block_info.predicate
             )
-            body = tvm.tir.BlockRealize(values, predicate, inner, span)
+            body = tvm.tir.BlockRealize(block_info.iter_values, predicate, inner, span)
             return body
 
         super().__init__(func=block, concise_scope=False, def_symbol=True)
@@ -350,10 +312,13 @@ class Block(WithScopeHandler):
             node, synr.ast.With
         ), f"BlockScopeHandler expected to work on synr.ast.With but got {type(node)}"
 
-        vars = WithScopeHandler.get_optional_vars(node, context)
-        self.block_vars = [tvm.te.var(var.id.name) for var in vars]
-        for block_var in self.block_vars:
-            context.update_symbol(block_var.name, block_var, node)
+        optional_vars = [var.id.name for var in WithScopeHandler.get_optional_vars(node, context)]
+        if optional_vars:
+            context.report_error(
+                f"Block expected no optional_vars (e.g., `x` in `with block() as x`), "
+                f"but got {optional_vars}",
+                node.span,
+            )
 
 
 @register
@@ -370,12 +335,38 @@ class InitBlock(WithScopeHandler):
         super().__init__(func=init, concise_scope=False, def_symbol=True)
 
 
+class LoopInfo:
+    """Helper class for loop information"""
+
+    loop_var: Var
+    begin: PrimExpr
+    extent: PrimExpr
+    kind: ForKind
+    thread_binding: Optional[str]
+    annotations: Optional[Mapping[str, Object]]
+
+    def __init__(
+        self,
+        begin: PrimExpr,
+        extent: PrimExpr,
+        kind: ForKind,
+        thread_binding: Optional[str] = None,
+        annotations: Optional[Mapping[str, Object]] = None,
+    ) -> None:
+        self.begin = begin
+        self.extent = extent
+        self.kind = kind
+        self.thread_binding = thread_binding
+        self.annotations = annotations
+
+
 class ForScopeHandler(ScopeHandler):
     """Base class for all for scope handlers"""
 
     def __init__(self, func):
         super().__init__(func)
-        self.loop_vars: Optional[List[Var]] = None
+        self.loop_vars: List[Var] = []
+        self.loop_info: List[LoopInfo] = []
 
     def enter_scope(
         self,
@@ -407,12 +398,23 @@ class ForScopeHandler(ScopeHandler):
                 span,
             )
 
+        self.node = node
+        self.context = context
+        # generate loop vars
         self.loop_vars = [
             tvm.te.var(name, dtype="int32", span=span) for name, span in zip(loop_var_names, spans)
         ]
-        for loop_var in self.loop_vars:
+        # collect loop infos by calling self.func
+        call_with_error_reporting(context.report_error, span, self.func, *arg_list)
+        if len(self.loop_vars) != len(self.loop_info):
+            self.context.report_error(
+                f"Inconsistent number of vars and loops, got {len(self.loop_vars)} "
+                + f"vs {len(self.loop_info)}",
+                self.node.span,
+            )
+        for loop_var, loop_info in zip(self.loop_vars, self.loop_info):
             context.update_symbol(loop_var.name, loop_var, node)
-            context.loop_stack[-1].append(loop_var)
+            context.loop_stack[loop_var] = Range.from_min_extent(loop_info.begin, loop_info.extent)
 
     def exit_scope(
         self,
@@ -422,19 +424,34 @@ class ForScopeHandler(ScopeHandler):
         span: synr.ast.Span,
     ):
         assert self.loop_vars, "call 'exit_scope' before 'enter_scope'"
-        for _ in self.loop_vars:
-            context.loop_stack[-1].pop()
-        return super().exit_scope(node, context, arg_list, span)
+        for loop_var in self.loop_vars:
+            context.loop_stack.pop(loop_var)
+        # Use assert here since we have check it in `enter_scope`
+        assert len(self.loop_vars) == len(self.loop_info)
 
-    def create_loop(
+        body = self.body
+        for var, info in zip(reversed(self.loop_vars), reversed(self.loop_info)):
+            body = tvm.tir.For(
+                var,
+                info.begin,
+                info.extent,
+                info.kind,
+                body,
+                info.thread_binding,
+                info.annotations,
+                span=tvm_span_from_synr(span),
+            )
+
+        return body
+
+    def create_loop_info(
         self,
         begin: PrimExpr,
         end: PrimExpr,
         kind: ForKind,
         thread_binding: Optional[str] = None,
         annotations: Optional[Mapping[str, Object]] = None,
-        span: Optional[Span] = None,
-    ) -> tvm.tir.For:
+    ) -> None:
         """
         Helper function for creating For in TVM Script parser.
 
@@ -463,30 +480,16 @@ class ForScopeHandler(ScopeHandler):
         for : For
             The constructed For.
         """
-        assert (
-            self.loop_vars and self.context and self.node
-        ), "call 'exit_scope' before 'enter_scope'"
-        if len(self.loop_vars) != 1:
-            self.context.report_error(
-                f"Expected exactly one loop var, but got {self.loop_vars}", self.node.span
-            )
+        assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
-        annos: Mapping[str, Object] = {}
+        self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
-            annos = {
+            self.annotations = {
                 key: tvm.tir.StringImm(val) if isinstance(val, str) else val
                 for key, val in annotations.items()
             }
-        return tvm.tir.For(
-            self.loop_vars[0],
-            begin,
-            extent,
-            kind,
-            self.body,
-            thread_binding=thread_binding,
-            annotations=annos,
-            span=span,
-        )
+
+        self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, annotations))
 
 
 @register
@@ -498,9 +501,8 @@ class Serial(ForScopeHandler):
             begin: PrimExpr,
             end: PrimExpr,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
-            return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
+            self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(serial)
 
@@ -514,11 +516,8 @@ class Parallel(ForScopeHandler):
             begin: PrimExpr,
             end: PrimExpr,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
-            return self.create_loop(
-                begin, end, ForKind.PARALLEL, annotations=annotations, span=span
-            )
+            self.create_loop_info(begin, end, ForKind.PARALLEL, annotations=annotations)
 
         super().__init__(parallel)
 
@@ -532,11 +531,8 @@ class Vectorized(ForScopeHandler):
             begin: PrimExpr,
             end: PrimExpr,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
-            return self.create_loop(
-                begin, end, ForKind.VECTORIZED, annotations=annotations, span=span
-            )
+            self.create_loop_info(begin, end, ForKind.VECTORIZED, annotations=annotations)
 
         super().__init__(vectorized)
 
@@ -550,11 +546,8 @@ class Unroll(ForScopeHandler):
             begin: PrimExpr,
             end: PrimExpr,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
-            return self.create_loop(
-                begin, end, ForKind.UNROLLED, annotations=annotations, span=span
-            )
+            self.create_loop_info(begin, end, ForKind.UNROLLED, annotations=annotations)
 
         super().__init__(unroll)
 
@@ -569,16 +562,14 @@ class ThreadBinding(ForScopeHandler):
             end: PrimExpr,
             thread: str,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
-            thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread, span=span)
-            return self.create_loop(
+            thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread)
+            self.create_loop_info(
                 begin,
                 end,
                 ForKind.THREAD_BINDING,
                 thread_binding=thread_iter_var,
                 annotations=annotations,
-                span=span,
             )
 
         super().__init__(thread_binding)
@@ -595,12 +586,11 @@ class RangeHandler(ForScopeHandler):
             begin: PrimExpr,
             end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
-            span: Optional[Span] = None,
         ):
             if end is None:
                 end = begin
                 begin = 0
-            return self.create_loop(begin, end, ForKind.SERIAL, annotations=annotations, span=span)
+            self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(for_range)
 
@@ -613,19 +603,8 @@ class Grid(ForScopeHandler):
     """For scope handler T.grid(extents)"""
 
     def __init__(self):
-        def grid(*extents: List[PrimExpr], span: Span):
-            assert (
-                self.node and self.context and self.loop_vars
-            ), "call 'exit_scope' before 'enter_scope'"
-            if len(self.loop_vars) != len(extents):
-                self.context.report_error(
-                    "Inconsistent number of loop vars and extents, "
-                    + f"got {len(self.loop_vars)} vs {len(extents)}",
-                    self.node.span,
-                )
-            body = self.body
-            for loop_var, extent in zip(reversed(self.loop_vars), reversed(extents)):
-                body = tvm.tir.For(loop_var, 0, extent, ForKind.SERIAL, body, span=span)
-            return body
+        def grid(*extents: List[PrimExpr]):
+            for extent in extents:
+                self.create_loop_info(0, extent, ForKind.SERIAL)
 
         super().__init__(grid)

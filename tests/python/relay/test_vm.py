@@ -32,6 +32,8 @@ from tvm import rpc
 import tvm.testing
 from tvm.relay.transform import InferType
 from tvm.relay.testing import mlp
+from tvm.relay.dataflow_pattern import wildcard, is_op
+from tvm.relay.backend.vm import VMCompiler
 
 
 def check_result(target, dev, args, expected_result, mod=None):
@@ -766,6 +768,19 @@ def test_vm_reshape_tensor(target, dev):
     check_result(target, dev, [x_np, y_np], x_np.reshape([8, 2, 8]), mod)
 
 
+def test_vm_reshape_and_copy(target, dev):
+    """Make sure the compiler notices the reshape result shape is a literal and can use
+    the immediate-mode alloc_tensor instruction instead of alloc_tensor_reg."""
+    x_np = np.random.uniform(size=(1, 1)).astype("float32")
+    x = relay.var("x", shape=(1, 1), dtype="float32")
+    mod = tvm.IRModule.from_expr(relay.Function([x], relay.copy(relay.reshape(x, [0, 1]))))
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "alloc_tensor" in exec.bytecode
+    assert not "alloc_tensor_reg" in exec.bytecode
+    check_result(target, dev, [x_np], x_np.reshape([1, 1]), mod)
+
+
 def test_vm_reshape_tuple(target, dev, x_shape=(1, 4, 2), y_shape=(1, 2, 10)):
     tup = relay.var(
         "tup",
@@ -838,11 +853,11 @@ def test_vm_rpc():
         # Get a handle to remote Executable.
         rexec = remote.load_module("vm_library.so")
 
-        ctx = remote.cpu()
+        device = remote.cpu()
         # Build a VM out of the executable and context.
-        vm_factory = runtime.vm.VirtualMachine(rexec, ctx)
+        vm_factory = runtime.vm.VirtualMachine(rexec, device)
         np_input = np.random.uniform(size=(10, 1)).astype("float32")
-        input_tensor = tvm.nd.array(np_input, ctx)
+        input_tensor = tvm.nd.array(np_input, device)
         # Invoke its "main" function.
         out = vm_factory.invoke("main", input_tensor)
         # Check the result.
@@ -936,13 +951,13 @@ def test_benchmark_end_to_end(target, dev):
     assert result.mean > 0
 
 
-@tvm.testing.requires_llvm
+@tvm.testing.requires_cuda
 def test_benchmark_end_to_end_rpc():
     server = rpc.Server("127.0.0.1")
     remote = rpc.connect(server.host, server.port)
 
     mod, params = mlp.get_workload(1)
-    lib = vm.compile(mod, target="llvm", params=params)
+    lib = vm.compile(mod, target="cuda", params=params)
 
     temp = utils.tempdir()
     path = temp.relpath("vm_library.so")
@@ -950,13 +965,145 @@ def test_benchmark_end_to_end_rpc():
     remote.upload(path)
     rlib = remote.load_module("vm_library.so")
 
-    exe = runtime.vm.VirtualMachine(rlib, remote.cpu())
-    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.cpu())
+    exe = runtime.vm.VirtualMachine(rlib, remote.device("cuda"))
+    data = tvm.nd.array(
+        np.random.rand(1, 1, 28, 28).astype("float32"), device=remote.device("cuda")
+    )
     result = exe.benchmark(
-        remote.cpu(), data=data, func_name="main", repeat=2, number=1, end_to_end=True
+        remote.device("cuda"), data=data, func_name="main", repeat=2, number=1, end_to_end=True
     )
     assert result.mean > 0
 
 
+def test_shape_func_nested_function():
+    data_shape = (relay.Any(), 16)
+    weight_shape = (relay.Any(), 16)
+
+    dense = relay.nn.dense(
+        relay.var("data", shape=data_shape), relay.var("weight", shape=weight_shape)
+    )
+    mod = tvm.IRModule.from_expr(dense)
+
+    patterns = [("test.dense", is_op("nn.dense")(wildcard(), wildcard()))]
+    passes = tvm.transform.Sequential(
+        [
+            relay.transform.MergeComposite(patterns),
+            relay.transform.AnnotateTarget(["test"]),
+            relay.transform.PartitionGraph(),
+        ]
+    )
+
+    mod = passes(mod)
+
+    compiler = VMCompiler()
+    compiler.lower(mod, "llvm")
+
+
+@tvm.testing.requires_cuda
+def test_storage_size_and_offset_on_cpu():
+    """Tests allocations place sizes and offsets on the CPU host even if the rest
+    of the computation is on a different device type."""
+
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+    # And/or move this to C++ and test the VM executable in it's C++ instead of
+    # pretty-printed form.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32],
+                      param_device_types=[2], result_device_type=2) {
+              add(%a, %a)
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # This program needs two constants:
+    # - The size of the tensor's storage (first arg) to alloc_storage
+    # - The offset of the tensor within the storage (second arg) to alloc_tensor
+    # Both should be on the CPU
+    assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
+    assert "Constant[0]: has shape int64[] on device index 0" in exe.constants
+    assert "Constant[1]: has shape int64[] on device index 0" in exe.constants
+
+
+@tvm.testing.requires_cuda
+def test_reshape_shape_on_cpu():
+    """Tests the argument to a reshape places the shape on the CPU host even if the rest
+    of the computation is on a different device type."""
+
+    # TODO(mbs): Better would be to test ManifestAlloc independently.
+    # And/or move this to C++ and test the VM executable in it's C++ instead of
+    # pretty-printed form.
+
+    # CPU = device type 1
+    # GPU = device type 2
+    def input():
+        return tvm.parser.fromtext(
+            """
+            #[version = "0.0.5"]
+            def @main(%x: Tensor[(2, 8), float32],
+                      param_device_types=[2], result_device_type=2) {
+              reshape(%x, newshape=[2, 4, 2])
+            }
+        """
+        )
+
+    exe = relay.vm.compile(
+        input(),
+        tvm.target.Target("cuda"),
+    )
+
+    # The newshape annotation should have been turned into a constant on the CPU.
+    assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
+    assert "Constant[0]: has shape int64[3] on device index 0" in exe.constants
+
+
+@tvm.testing.requires_cuda
+def test_multi_targets():
+    # Build an IRModule.
+    n = 10
+    x = relay.var("x", shape=(n,))
+    y = relay.var("y", shape=(n,))
+    z = relay.var("z", shape=(n,))
+    f = relay.Function([x, y, z], x + relay.op.annotation.on_device(y + z, tvm.cpu()))
+    mod = IRModule.from_expr(f)
+
+    # Compile to VMExecutable.
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.fallback_device_type": tvm.cuda().device_type}
+    ):
+        exe = relay.vm.compile(
+            mod, target={"cpu": tvm.target.Target("llvm"), "cuda": tvm.target.Target("cuda")}
+        )
+
+    # Run
+    vm = runtime.vm.VirtualMachine(exe, [tvm.cuda(), tvm.cpu()])
+    x_data = np.random.rand(
+        n,
+    ).astype("float32")
+    y_data = np.random.rand(
+        n,
+    ).astype("float32")
+    z_data = np.random.rand(
+        n,
+    ).astype("float32")
+    actual_result = vm.invoke("main", x_data, y_data, z_data)
+
+    # Test
+    expected_result = x_data + y_data + z_data
+    tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
+
+
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

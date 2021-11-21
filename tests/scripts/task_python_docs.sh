@@ -34,19 +34,18 @@ trap cleanup 0
 
 # cleanup old states
 rm -rf docs/_build
+rm -rf docs/_staging
 mkdir -p docs/_build/html
+mkdir -p docs/_staging/html
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
 
 # prepare auto scheduler tutorials
-rm -rf tutorials/auto_scheduler/*.json
-rm -rf tutorials/get_started/*.json
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/get_started
+rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
+rm -rf gallery/tutorial/*.json
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
 
-# remove stale tutorials and always build from scratch.
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
@@ -84,11 +83,11 @@ cd ..
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
-mkdir -p _docs/api
-mv docs/doxygen/html _docs/api/doxygen
-mv jvm/core/target/site/apidocs _docs/api/javadoc
+mkdir -p _docs/reference/api
+mv docs/doxygen/html _docs/reference/api/doxygen
+mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
-mv web/dist/docs _docs/api/typedoc
+mv web/dist/docs _docs/reference/api/typedoc
 
 echo "Start creating the docs tarball.."
 # make the tarball

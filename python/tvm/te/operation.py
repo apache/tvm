@@ -17,14 +17,14 @@
 """ Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List
+from typing import List, Union
 
 import tvm._ffi
-import tvm.tir
-import tvm.tir._ffi_api
 from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
+import tvm.tir
+import tvm.tir._ffi_api
 
 from . import _ffi_api
 from . import tag as _tag
@@ -467,10 +467,12 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
             B = T.match_buffer(b, (128, 128))
             C = T.match_buffer(c, (128, 128))
 
-            with T.block([128, 128, T.reduce_axis(0, 128)]) as [i, j, k]:
-                with T.init():
-                    C[i, j] = 0.0
-                C[i, j] += A[i, k] * B[j, k]
+            for i, j, k in T.grip(128, 128, 128):
+                with T.block():
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] += A[vi, vk] * B[vj, vk]
 
     Returns
     -------
@@ -480,3 +482,23 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops)
+
+
+def create_prim_func_from_outputs(
+    outputs: Union[_tensor.Tensor, List[_tensor.Tensor]],
+) -> tvm.tir.PrimFunc:
+    """Create a TensorIR PrimFunc from output tensor(s) in TE
+
+    Parameters
+    ----------
+    outputs : Union[Tensor, List[Tensor]]
+        The source expression.
+
+    Returns
+    -------
+    func : tir.PrimFunc
+        The created function.
+    """
+    if not isinstance(outputs, (list, tuple, Array)):
+        outputs = [outputs]
+    return _ffi_api.CreatePrimFuncFromOutputs(outputs)

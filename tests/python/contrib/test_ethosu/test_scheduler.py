@@ -81,10 +81,10 @@ def test_inline_no_ops():
     func = relay.Function(relay.analysis.free_vars(relu2), relu2)
     func = run_opt_pass(func, relay.transform.InferType())
 
-    te_graph = lower_to_te(func)
-    sch = te.create_schedule([te_graph.outputs[0].op])
-    inline_no_ops(te_graph, sch)
-    reshape_tensor = te_graph.outputs[0].op.input_tensors[0]
+    cached_func = lower_to_te(func)
+    sch = te.create_schedule([cached_func.outputs[0].op])
+    inline_no_ops(cached_func, sch)
+    reshape_tensor = cached_func.outputs[0].op.input_tensors[0]
     slice_tensor = reshape_tensor.op.input_tensors[0].op.input_tensors[0]
     assert sch[reshape_tensor].attach_type == AttachType.kInline
     assert sch[slice_tensor].attach_type == AttachType.kInline
@@ -114,11 +114,11 @@ def test_copy_constants():
     func = run_opt_pass(func, relay.transform.InferType())
 
     func, const_dict = extract_constants(func)
-    te_graph = lower_to_te(func)
+    cached_func = lower_to_te(func)
 
-    sch = te.create_schedule([te_graph.outputs[0].op])
+    sch = te.create_schedule([cached_func.outputs[0].op])
     planner = copy_constants()
-    planner(te_graph, const_dict, sch)
+    planner(cached_func, const_dict, sch)
     assert len(sch.stages) == 21
     assert ".global" in sch.stages[5].op.name
     assert ".global" in sch.stages[7].op.name

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the transform operators in TIR."""
+"""Extract parameters from the transform operators in TIR."""
 import tvm
 from .spec import SerialCopy
 from .utils import get_base_address, get_op_attrs

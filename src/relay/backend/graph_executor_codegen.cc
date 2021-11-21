@@ -26,6 +26,7 @@
 #include <dmlc/json.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/attrs/annotation.h>
+#include <tvm/relay/attrs/call.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -36,13 +37,18 @@
 #include <string>
 #include <vector>
 
+#include "../op/annotation/annotation.h"
+#include "../op/call/call.h"
+#include "../transforms/device_aware_visitors.h"
 #include "./te_compiler.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace relay {
+
 // TODO(@jroesch, @csullivan): declare directly elsewhere
 backend::StaticMemoryPlan GraphPlanMemory(const Function& func);
+
 namespace backend {
 
 class GraphNode;
@@ -194,32 +200,16 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return storage_info;
   }
 
-  LoweredOutput Codegen(relay::Function func, String mod_name) {
+  LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     mod_name_ = mod_name;
-
-    // TODO(@jroesch): we need to split device planning and memory planning
-    // first we run device assignment, then we perform lowering, and then
-    // storage planning in ideal world.
-
-    memory_plan_ = GraphPlanMemory(func);
-
-    // This first phase moves from implicit use of compile engine,
-    // to instead explicitly lowering the incoming IRModule, and then
-    // performing the preexisting graph executor code generation phase.
-    IRModule mod = IRModule::FromExpr(func);
-
-    // Build a map from each operation to device.
-    tec::DeviceMap device_context_map;
-    for (const auto& it : memory_plan_->expr_to_storage_info) {
-      auto expr = it.first;
-      auto storage_info = it.second;
-      auto device_types = storage_info->device_types;
-      // CHECK_EQ(device_types.size(), 1);
-      tvm::Device dev;
-      dev.device_id = 0;
-      dev.device_type = device_types[0];
-      device_context_map.insert({expr, dev});
+    VLOG_CONTEXT << "GraphExecutorCodegen";
+    VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
+    for (const auto& pair : targets_) {
+      VLOG(1) << "target: " << pair.first << " = " << pair.second->ToDebugString();
     }
+
+    // TODO(mbs): Why plan memory and update workspace sizes before lowering?
+    memory_plan_ = GraphPlanMemory(func);
 
     backend::FunctionInfo func_info;
 
@@ -230,20 +220,19 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       mod = WithAttr(mod, "main_func_info", func_info);
     }
 
-    IRModule lowered_mod =
-        tec::LowerTEPass(targets_, device_context_map, mod_name_, [this](Function func) {
-          // We need to maintain the constant map for external
-          // functions so we pass this processing function which
-          // allows us to process each function as we lower it.
-          if (func->GetAttr<String>(attr::kCompiler).defined()) {
-            UpdateConstants(func, &params_);
-          }
+    IRModule lowered_mod = tec::LowerTEPass(mod_name_, [this](BaseFunc func) {
+      // We need to maintain the constant map for external
+      // functions so we pass this processing function which
+      // allows us to process each function as we lower it.
+      if (func->GetAttr<String>(attr::kCompiler).defined()) {
+        UpdateConstants(func, &params_);
+      }
 
-          // TODO(@areusch, @jroesch): We should refactor this to
-          // execute as a further pass, instead writing data to the
-          // lowering process directly.
-          tec::UpdateFunctionMetadata(func, this->function_metadata_);
-        })(mod);
+      // TODO(@areusch, @jroesch): We should refactor this to
+      // execute as a further pass, instead writing data to the
+      // lowering process directly.
+      tec::UpdateFunctionMetadata(func, this->function_metadata_);
+    })(mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");
@@ -326,8 +315,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     node->attrs_["storage_id"] = std::move(storage_ids);
     // type
     std::vector<int64_t> device_types;
-    for (auto v : storage_info->device_types) {
-      device_types.push_back(static_cast<int64_t>(v));
+    for (const auto& se_scope : storage_info->se_scopes) {
+      // TODO(mbs): Keeping only the device type.
+      ICHECK_GT(se_scope->device_type(), 0);
+      device_types.push_back(se_scope->device_type());
     }
     size_t num_unknown_devices = std::count(device_types.begin(), device_types.end(), 0);
     if (num_unknown_devices != 0 && num_unknown_devices != device_types.size()) {
@@ -411,61 +402,76 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return lhs_storage_id == rhs_storage_id;
   }
 
-  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* op, const std::string& func_name,
-                                             GraphAttrs attrs) {
+  std::vector<GraphNodeRef> GraphAddCallNode(const CallNode* call_node, GraphAttrs attrs) {
+    Call call = GetRef<Call>(call_node);
     std::vector<GraphNodeRef> inputs;
-    for (auto arg : op->args) {
-      auto res = VisitExpr(arg);
-      for (auto nr : res) {
-        inputs.push_back(nr);
-      }
-    }
+    std::string func_name;
 
-    /// An adapted version of the storage optimization for the time being.
-    bool reshape_only = false;
-    if (op->attrs.defined()) {
-      if (auto tir_call_attrs = op->attrs.as<TIRCallAttrs>()) {
-        Map<String, ObjectRef> metadata = tir_call_attrs->metadata;
-        if (metadata.count(attr::kReshapeOnly) &&
-            Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1) {
-          reshape_only = true;
+    if (call->op == CallLoweredOp()) {
+      // Extract function and arguments from the call_lowered op
+      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+
+      func_name = call_lowered_props.lowered_func->name_hint;
+
+      for (const Expr& arg : call_lowered_props.arguments) {
+        for (auto n : VisitExpr(arg)) {
+          inputs.push_back(n);
         }
-
-        auto relay_attrs = Downcast<DictAttrs>(tir_call_attrs->metadata["relay_attrs"]);
-
-        for (auto p : relay_attrs->dict) {
-          if (p.second.as<StringObj>()) {
-            attrs[p.first] = std::string(Downcast<String>(p.second));
+      }
+      if (call_lowered_props.attrs.metadata.count("relay_attrs")) {
+        if (auto relay_attrs =
+                call_lowered_props.attrs.metadata["relay_attrs"].as<DictAttrsNode>()) {
+          for (auto p : relay_attrs->dict) {
+            if (p.second.as<StringObj>()) {
+              attrs[p.first] = std::string(Downcast<String>(p.second));
+            }
           }
         }
       }
-    }
+      bool reshape_only = false;
+      if (call_lowered_props.attrs.metadata.count(attr::kReshapeOnly) &&
+          Downcast<tvm::Integer>(call_lowered_props.attrs.metadata[attr::kReshapeOnly])->value ==
+              1) {
+        reshape_only = true;
+      }
+      if (reshape_only &&
+          ShareSameStorage(GetRef<Expr>(call_node), call_lowered_props.arguments[0])) {
+        auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
+        return AddNode(node, call);
+      }
+    } else if (!call_node->attrs.defined()) {  // Call is an extern function
+      std::cout << "call_node: \n" << PrettyPrint(call) << std::endl;
+      const auto* func = call_node->op.as<GlobalVarNode>();
+      ICHECK(func) << "Expected the operator to be a global var, but got "
+                   << call_node->op->GetTypeKey();  // getting a relay fn here, not sure why.
+      func_name = func->name_hint;
 
-    if (reshape_only && ShareSameStorage(GetRef<Expr>(op), op->args[0])) {
-      auto node = GraphOpNode::make_node_ptr("reshape_nop", GraphAttrs(), "__nop", inputs, attrs);
-      return AddNode(node, GetRef<Expr>(op));
+      for (const Expr& arg : call_node->args) {
+        for (auto n : VisitExpr(arg)) {
+          inputs.push_back(n);
+        }
+      }
+    } else {
+      LOG(FATAL) << "Non-primitive-call nodes should have been transformed away.\n"
+                 << "The graph executor code generator expects all calls to be call_lowered, "
+                 << "but found: " << std::endl
+                 << PrettyPrint(call);
     }
 
     // Compute the operator name, because we used the get unique name when generating the kernel.
     auto op_name = _GetUniqueName(func_name);
     auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
-    return AddNode(node, GetRef<Expr>(op));
+    return AddNode(node, call);
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const CallNode* call_node) override {
     relay::Call call = GetRef<Call>(call_node);
-    if (auto global_node = call->op.as<GlobalVarNode>()) {
-      auto prim_fn_name = global_node->name_hint;
-
-      return GraphAddCallNode(call_node, prim_fn_name, GraphAttrs());
-    } else {
-      ICHECK(false) << "Non-primitive-call nodes should have been transformed away.\n"
-                    << "The graph executor code generator expects all calls to have their callee "
-                       "normalized to a GlobalVar but found a "
-                    << call->GetTypeKey() << "."
-                    << "AST: " << PrettyPrint(call) << PrettyPrint(call) << std::endl;
-      return {};
+    OnDeviceProps props = GetOnDeviceProps(call_node);
+    if (props.body.defined()) {
+      // See through "on_device" calls.
+      return VisitExpr(props.body);
     }
+    return GraphAddCallNode(call_node, GraphAttrs());
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const LetNode* op) override {
@@ -477,16 +483,17 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto vtuple = VisitExpr(op->tuple);
     return {vtuple[op->index]};
   }
+
   std::vector<GraphNodeRef> VisitExpr_(const OpNode* op) override {
-    throw std::runtime_error("can not compile op in non-eta expanded form");
+    LOG(FATAL) << "All OpNodes should have been expanded";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const GlobalVarNode* op) override {
-    throw std::runtime_error("");
+    LOG(FATAL) << "All GlobalVarNodes should be removed before graph executor's Codegen is called";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const IfNode* op) override {
-    throw std::invalid_argument("if not supported");
+    LOG(FATAL) << "Graph executor does not support control flow (found IfNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
@@ -495,23 +502,23 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefCreateNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefReadNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefReadNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefWriteNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "Graph executor does not support references (found RefWriteNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const ConstructorNode* op) override {
-    throw std::invalid_argument("ADT constructor case not yet implemented");
+    LOG(FATAL) << "Graph executor does not support ADTs (found ConstructorNode)";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const MatchNode* op) override {
-    throw std::invalid_argument("match case not yet implemented");
+    LOG(FATAL) << "Graph executor does not support matching (found MatchNode)";
     return {};
   }
   /*!
@@ -624,7 +631,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         ICHECK_EQ(args.num_args, 2) << "The expected of arguments are: "
                                     << "runtime::Module mod and Map<int, Target> targets";
         void* mod = args[0];
-        Map<Integer, tvm::Target> tmp = args[1];
+        TargetMap tmp = args[1];
         tec::TargetMap targets;
         for (const auto& it : tmp) {
           auto dev_type = it.first.as<tir::IntImmNode>();
@@ -636,9 +643,10 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "codegen") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Function func = args[0];
-        String mod_name = args[1];
-        this->output_ = this->codegen_->Codegen(func, mod_name);
+        IRModule mod = args[0];
+        Function func = args[1];
+        String mod_name = args[2];
+        this->output_ = this->codegen_->Codegen(mod, func, mod_name);
       });
     } else if (name == "get_graph_json") {
       return PackedFunc(
@@ -673,6 +681,9 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.external_mods;
       });
+    } else if (name == "get_devices") {
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
     } else if (name == "get_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });

@@ -22,10 +22,10 @@ import sys
 import tvm
 import tvm.testing
 from tvm import te
-from tvm import topi
+from tvm.relay.backend import Runtime
 from tvm.contrib import utils, clang
 import numpy as np
-import ctypes
+
 import math
 import re
 import pytest
@@ -747,7 +747,12 @@ def test_llvm_crt_static_lib():
     B = te.placeholder((32,), dtype="bfloat16")
     d = te.compute((32,), lambda x: A[x] + B[x])
     sch = te.create_schedule(d.op)
-    module = tvm.build(sch, [A, B, d], target=tvm.target.Target("llvm --system-lib --runtime=c"))
+    module = tvm.build(
+        sch,
+        [A, B, d],
+        target=tvm.target.Target("llvm"),
+        runtime=Runtime("crt", {"system-lib": True}),
+    )
     print(module.get_source())
     module.save("test.o")
 
@@ -883,6 +888,22 @@ def test_llvm_import():
 
     check_llvm(use_file=True)
     check_llvm(use_file=False)
+
+
+@tvm.testing.requires_llvm
+def test_llvm_scalar_concat():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.decl_buffer((1,), "int32x2")
+    s = tvm.tir.Shuffle([x, y], [0, 1])
+    f = tvm.tir.PrimFunc([x, y, z], z.vstore(0, s))
+
+    mod = tvm.ir.IRModule.from_expr(f.with_attr("global_symbol", "codegen_scalar_concat"))
+
+    # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
+    # scalars to single-lane LLVM vectors.
+    with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+        m = tvm.build(mod, [x, y, z], target="llvm")
 
 
 if __name__ == "__main__":

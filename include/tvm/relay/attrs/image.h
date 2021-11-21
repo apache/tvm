@@ -35,16 +35,21 @@ namespace relay {
 /*! \brief Attributes used in image resize1d operator */
 struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
   Array<IndexExpr> size;
+  Array<FloatImm> roi;
   std::string layout;
   std::string method;
   std::string coordinate_transformation_mode;
   std::string rounding_method;
   double cubic_alpha;
   int cubic_exclude;
+  double extrapolation_value;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize1DAttrs, "relay.attrs.Resize1DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(roi)
+        .set_default(NullValue<Array<FloatImm> >())
+        .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCW").describe(
         "Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
         "'N', 'C', 'W' stands for batch, channel and width"
@@ -73,6 +78,9 @@ struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
     TVM_ATTR_FIELD(cubic_exclude)
         .set_default(0)
         .describe("Flag to exclude exterior of the image during cubic interpolation");
+    TVM_ATTR_FIELD(extrapolation_value)
+        .set_default(0.0)
+        .describe("Value to return when roi is outside of the image");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };
@@ -80,16 +88,21 @@ struct Resize1DAttrs : public tvm::AttrsNode<Resize1DAttrs> {
 /*! \brief Attributes used in image resize2d operator */
 struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
   Array<IndexExpr> size;
+  Array<FloatImm> roi;
   std::string layout;
   std::string method;
   std::string coordinate_transformation_mode;
   std::string rounding_method;
   double cubic_alpha;
   int cubic_exclude;
+  double extrapolation_value;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize2DAttrs, "relay.attrs.Resize2DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(roi)
+        .set_default(NullValue<Array<FloatImm> >())
+        .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCHW").describe(
         "Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -118,6 +131,9 @@ struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
     TVM_ATTR_FIELD(cubic_exclude)
         .set_default(0)
         .describe("Flag to exclude exterior of the image during bicubic interpolation");
+    TVM_ATTR_FIELD(extrapolation_value)
+        .set_default(0.0)
+        .describe("Value to return when roi is outside of the image");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };
@@ -125,16 +141,21 @@ struct Resize2DAttrs : public tvm::AttrsNode<Resize2DAttrs> {
 /*! \brief Attributes used in image resize3d operator */
 struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
   Array<IndexExpr> size;
+  Array<FloatImm> roi;
   std::string layout;
   std::string method;
   std::string coordinate_transformation_mode;
   std::string rounding_method;
   double cubic_alpha;
   int cubic_exclude;
+  double extrapolation_value;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Resize3DAttrs, "relay.attrs.Resize3DAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >()).describe("Output Size.");
+    TVM_ATTR_FIELD(roi)
+        .set_default(NullValue<Array<FloatImm> >())
+        .describe("Region of Interest for coordinate transformation mode 'tf_crop_and_resize'");
     TVM_ATTR_FIELD(layout).set_default("NCDHW").describe(
         "Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
         "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
@@ -163,6 +184,9 @@ struct Resize3DAttrs : public tvm::AttrsNode<Resize3DAttrs> {
     TVM_ATTR_FIELD(cubic_exclude)
         .set_default(0)
         .describe("Flag to exclude exterior of the image during tricubic interpolation");
+    TVM_ATTR_FIELD(extrapolation_value)
+        .set_default(0.0)
+        .describe("Value to return when roi is outside of the image");
     TVM_ATTR_FIELD(out_dtype).set_default(NullValue<DataType>()).describe("Output data type.");
   }
 };

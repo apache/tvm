@@ -544,27 +544,6 @@ def MergeCompilerRegions():
     return _ffi_api.MergeCompilerRegions()
 
 
-def RewriteAnnotatedOps(fallback_device):
-    """Rewrite the annotated program where annotation operators, e.g.
-    `on_device`, mark which device an expression should be scheduled to.
-    This pass helps heterogeneous execution where different operators may need
-    to be allocated on various devices.
-
-    Parameters
-    ----------
-    fallback_device : int
-        The fallback device type. It is also used as the default device for
-        operators with no annotated device.
-
-    Returns
-    -------
-    ret: tvm.transform.Pass
-        The registered pass that rewrites an expression with annotated
-        `on_device` operators.
-    """
-    return _ffi_api.RewriteDeviceAnnotation(fallback_device)
-
-
 def ToANormalForm():
     """Turn Graph Normal Form expression into A Normal Form Expression.
     The scope of the root expression is the global scope.
@@ -912,6 +891,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(func, mod, ctx):
@@ -1167,14 +1147,26 @@ def SimplifyExpr():
     return _ffi_api.SimplifyExpr()
 
 
-def PlanDevices(default_device):
+def PlanDevices(config):
     """
-    Uses existing "on_device" and "device_copy" CallNodes to infer the device on which
-    every Relay sub-expression should run (and the result stored). Captures the result of that
-    analysis using new "on_device" and "device_copy" CallNodes. Note that the device_id of
-    the default_device is ignored.
+    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    every Relay sub-expression should run and the result stored. Captures the result of that
+    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
+    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
+    computations which must be hosted on a CPU (such as shapes and shape functions) use the
+    cpu_se_scope.
+
+    Parameters
+    ----------
+    config : tvm.CompilationConfig
+        The compilation configuration, specifying available targets and default devices.
+
+    Returns
+    -------
+    ret : tvm.transforms.Pass
+        The pass.
     """
-    return _ffi_api.PlanDevices(default_device)
+    return _ffi_api.PlanDevices(config)
 
 
 def FoldExplicitPadding():

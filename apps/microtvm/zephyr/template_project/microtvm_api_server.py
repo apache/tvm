@@ -61,6 +61,11 @@ IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+# Used to check Zephyr version installed on the host.
+# We only check two levels of the version.
+ZEPHYR_VERSION = 2.5
+
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -229,41 +234,82 @@ if IS_TEMPLATE:
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "extra_files_tar",
+        optional=["generate_project"],
+        type="str",
         help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
     ),
     server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the local gdbserver.")
+        "gdbserver_port",
+        help=("If given, port number to use when running the local gdbserver."),
+        optional=["open_transport"],
+        type="int",
     ),
     server.ProjectOption(
         "nrfjprog_snr",
+        optional=["open_transport"],
+        type="int",
         help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
+        optional=["open_transport"],
+        type="int",
         help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "project_type",
-        help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
+        required=["generate_project"],
+        type="str",
+        help="Type of project to generate.",
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output.", choices=(True, False)),
+    server.ProjectOption(
+        "verbose",
+        optional=["build"],
+        type="bool",
+        help="Run build with verbose output.",
+    ),
     server.ProjectOption(
         "west_cmd",
+        optional=["generate_project"],
+        default=sys.executable + " -m west" if sys.executable else None,
+        type="str",
         help=(
             "Path to the west tool. If given, supersedes both the zephyr_base "
             "option and ZEPHYR_BASE environment variable."
         ),
     ),
-    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
+    server.ProjectOption(
+        "zephyr_base",
+        optional=["build", "open_transport"],
+        default=os.getenv("ZEPHYR_BASE"),
+        type="str",
+        help="Path to the zephyr base directory.",
+    ),
     server.ProjectOption(
         "zephyr_board",
+        required=["generate_project", "build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
+        type="str",
         help="Name of the Zephyr board to build for.",
     ),
     server.ProjectOption(
         "config_main_stack_size",
+        optional=["generate_project"],
+        type="int",
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
+    ),
+    server.ProjectOption(
+        "warning_as_error",
+        optional=["generate_project"],
+        type="bool",
+        help="Treat warnings as errors and raise an Exception.",
+    ),
+    server.ProjectOption(
+        "compile_definitions",
+        optional=["generate_project"],
+        type="str",
+        help="Extra definitions added project compile.",
     ),
 ]
 
@@ -342,7 +388,27 @@ class Handler(server.ProjectAPIHandler):
         "aot_demo": "memory microtvm_rpc_common common",
     }
 
+    def _get_platform_version(self) -> float:
+        with open(pathlib.Path(os.getenv("ZEPHYR_BASE")) / "VERSION", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                line = line.replace(" ", "").replace("\n", "").replace("\r", "")
+                if "VERSION_MAJOR" in line:
+                    version_major = line.split("=")[1]
+                if "VERSION_MINOR" in line:
+                    version_minor = line.split("=")[1]
+
+        return float(f"{version_major}.{version_minor}")
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # Check Zephyr version
+        version = self._get_platform_version()
+        if version != ZEPHYR_VERSION:
+            message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
         project_dir = pathlib.Path(project_dir)
         # Make project directory.
         project_dir.mkdir()
@@ -388,6 +454,11 @@ class Handler(server.ProjectAPIHandler):
                         line = line.replace("<API_SERVER_CRT_LIBS>", crt_libs)
 
                     cmake_f.write(line)
+
+                if options.get("compile_definitions"):
+                    flags = options.get("compile_definitions")
+                    for item in flags:
+                        cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
 
         self._create_prj_conf(project_dir, options)
 

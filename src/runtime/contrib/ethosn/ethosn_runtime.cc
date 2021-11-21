@@ -19,7 +19,7 @@
 
 /*!
  * \file ethosn_runtime.cc
- * \brief Execution handling of Ethos-N command streams.
+ * \brief Execution handling of Arm(R) Ethos(TM)-N command streams.
  */
 
 #include "ethosn_runtime.h"

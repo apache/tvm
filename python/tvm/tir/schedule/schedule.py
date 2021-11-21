@@ -325,6 +325,39 @@ class Schedule(Object):
             decision,
         )
 
+    def sample_perfect_tile(
+        self,
+        loop: LoopRV,
+        n: int,
+        max_innermost_factor: int = 16,
+        decision: Optional[List[int]] = None,
+    ) -> List[ExprRV]:
+        """Sample the factors to perfect tile a specific loop
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The loop to be tiled
+        n : int
+            The number of tiles to be sampled
+        max_innermost_factor : int
+            The maximum tile size allowed to be sampled in the innermost loop
+        decision: Optional[List[int]]
+            The sampling decision, if any
+
+        Returns
+        -------
+        result : List[ExprRV]
+            A list of length `n`, the random perfect tile sizes sampled
+        """
+        return _ffi_api.ScheduleSamplePerfectTile(  # type: ignore  # pylint: disable=no-member
+            self,
+            loop,
+            n,
+            max_innermost_factor,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     def get_block(
         self,
@@ -367,6 +400,51 @@ class Schedule(Object):
         """
         return _ffi_api.ScheduleGetLoops(self, block)  # type: ignore # pylint: disable=no-member
 
+    def get_child_blocks(self, block_or_loop: Union[BlockRV, LoopRV]) -> List[BlockRV]:
+        """Get the leaf blocks of a specific block/loop
+
+        Parameters
+        ----------
+        block_or_loop : Union[BlockRV, LoopRV]
+            The query block/loop
+
+        Returns
+        -------
+        blocks : List[LoopRV]
+            A list of leaf blocks inside a specific block/loop
+        """
+        return _ffi_api.ScheduleGetChildBlocks(self, block_or_loop)  # type: ignore # pylint: disable=no-member
+
+    def get_producers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the producers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        producers : List[BlockRV]
+            A list of producers of the given block
+        """
+        return _ffi_api.ScheduleGetProducers(self, block)  # type: ignore # pylint: disable=no-member
+
+    def get_consumers(self, block: BlockRV) -> List[BlockRV]:
+        """Get the consumers of a specific block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block in the query
+
+        Returns
+        -------
+        consumers : List[BlockRV]
+            A list of consumers of the given block
+        """
+        return _ffi_api.ScheduleGetConsumers(self, block)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Transform loops ##########
     def fuse(self, *loops: List[LoopRV]) -> LoopRV:
         """Fuse a list of consecutive loops into one. It requires:
@@ -397,7 +475,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -419,9 +498,9 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # the 2 loops are fused into 1
                 for i_j_fused in T.serial(0, 16384):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, tir.floordiv(i_j_fused, 128))
-                        T.bind(vj, T.floormod(i_j_fused, 128))
+                    with T.block("B"):
+                        vi = T.axis.S(128, T.floordiv(i_j_fused, 128))
+                        vj = T.axis.S(128, T.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -468,7 +547,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B") as [vi, vj]:
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do split:
@@ -490,9 +570,9 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # the original loop is split into 2 loops
                 for i0, i1, j in T.grid(2, 64, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, ((i0*64) + i1))
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi = T.axis.S(128, i0 * 64 + i1)
+                        vj = T.axis.S(128, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -529,7 +609,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do reorder:
@@ -551,9 +632,8 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 # Here j and i are reordered
                 for j, i in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, i)
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -586,9 +666,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, i)
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do parallel:
@@ -609,9 +688,8 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.parallel(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -642,9 +720,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, i)
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do vectorize:
@@ -665,9 +742,8 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.serial(0, 128):
                     for j in T.vectorized(0, 128):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -706,9 +782,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, i)
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do bind:
@@ -730,9 +805,8 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
                     for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -758,9 +832,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
-                        T.bind(vi, i)
-                        T.bind(vj, j)
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do unroll:
@@ -781,9 +854,8 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 for i in T.unroll(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -825,7 +897,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_read:
@@ -847,10 +920,12 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 A_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "A_local") as [vi, vj]:
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         A_local[vi, vj] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
@@ -893,7 +968,8 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.match_buffer(b, (128, 128))
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_write:
@@ -915,10 +991,12 @@ class Schedule(Object):
                 B = T.match_buffer(b, (128, 128))
                 B_local = T.alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "A_local") as [vi, vj]:
+                    with T.block("A_local"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B_local[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.block([128, 128], "B") as [vi, vj]:
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi, vj]
 
         """
@@ -974,10 +1052,14 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.alloc_buffer((128, 128), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
-                with T.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-at:
 
@@ -1000,14 +1082,12 @@ class Schedule(Object):
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "C") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("C"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -1061,10 +1141,14 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128), "float32")
                 B = T.alloc_buffer((128, 128), "float32")
                 C = T.match_buffer(c, (128, 128), "float32")
-                with T.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-at:
 
@@ -1087,14 +1171,12 @@ class Schedule(Object):
                 C = T.match_buffer(c, (128, 128), "float32")
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "B") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("B"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.block([128, 128], "C") as [vi, vj]:
-                            T.bind(vi, i)
-                            T.bind(vj, j)
+                        with T.block("C"):
+                            vi, vj = T.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -1135,10 +1217,14 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-inline:
 
@@ -1156,8 +1242,10 @@ class Schedule(Object):
             def after_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
         _ffi_api.ScheduleComputeInline(self, block)  # type: ignore # pylint: disable=no-member
@@ -1195,10 +1283,14 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-inline:
 
@@ -1216,8 +1308,10 @@ class Schedule(Object):
             def after_inline(a: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
         _ffi_api.ScheduleReverseComputeInline(self, block)  # type: ignore # pylint: disable=no-member
@@ -1384,8 +1478,9 @@ class Schedule(Object):
             def before_rfactor(a: T.handle, b: T.handle) -> None:
                 A = T.match_buffer(a, (128, 128, 128))
                 B = T.match_buffer(b, (128,))
-                with T.block([128, T.reduce_axis(0, 128),
-                                T.reduce_axis(0, 128)], "B") as [vii, vi, vj]:
+                for ii, i, j in T.grid(128, 128, 128):
+                with T.block("B"):
+                    vii, vi, vj = T.axis.remap("SRR", [ii, i, j])
                     with T.init():
                         B[vii] = 0.0
                     B[vii] = B[vii] + A[vii, vi, vj]
@@ -1408,14 +1503,18 @@ class Schedule(Object):
                 A = T.match_buffer(a, [128, 128, 128])
                 B = T.match_buffer(b, [128])
                 B_rf = T.alloc_buffer([128, 128])
-                with T.block([128, 128, T.reduce_axis(0, 128)], "B_rf") as [vi2, vii, vi]:
-                    with T.init():
-                        B_rf[vi2, vii] = 0.0
-                    B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
-                with T.block([128, T.reduce_axis(0, 128)], "B") as [vii_1, vi2_1]:
-                    with T.init():
-                        B[vii_1] = 0.0
-                    B[vii_1] = (B[vii_1] + B_rf[vi2_1, vii_1])
+                for i2, ii, i in T.grid(128, 128, 128):
+                    with T.block("B_rf"):
+                        vi2, vii, vi = T.axis.remap("SSR", [i2, ii, i])
+                        with T.init():
+                            B_rf[vi2, vii] = 0.0
+                        B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
+                for ii, i2 in T.grid(128, 128):
+                    with T.block("B"):
+                        vii, vi2 = T.axis.remap("SR", [ii, i2])
+                        with T.init():
+                            B[vii] = 0.0
+                        B[vii] = B[vii] + B_rf[vi2, vii]
 
 
         Note
@@ -1483,10 +1582,14 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "B") as [vi, vj]:
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do storage_align:
 
@@ -1505,11 +1608,15 @@ class Schedule(Object):
                 A = T.match_buffer(a, (128, 128))
                 B = T.alloc_buffer((128, 128))
                 C = T.match_buffer(c, (128, 128))
-                with T.block([128, 128], "B") as [vi, vj]:
-                    T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
-                    B[vi, vj] = A[vi, vj] * 2.0
-                with T.block([128, 128], "C") as [vi, vj]:
-                    C[vi, vj] = B[vi, vj] + 1.0
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         After lowering passes, buffer B will have strides as [129, 1].
 

@@ -234,7 +234,8 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
          to->device.device_type == kDLCUDAHost)
-      << "Can not copy across different device types directly";
+      << "Can not copy across different device types directly. From device type: "
+      << from->device.device_type << " to device type: " << to->device.device_type;
 
   // Use the device that is *not* a cpu device to get the correct device
   // api manager.

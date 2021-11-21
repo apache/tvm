@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/transforms/device_aware_visitors.cc
- * \brief Visitors which track the device for the current Relay expression and Relay Vars.
+ * \brief Visitors which track the device for the current Relay expression.
  */
 
 #include "./device_aware_visitors.h"
@@ -28,30 +28,61 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-// TODO(mbs): We'd probably have less tendious code duplication if we redefined the memoizing
-// mutator on top of the generic Functor.
+// TODO(mbs): This machinery can be used a) on expressions/modules which have not had
+// device planning run, and b) on expressions for which we've not kept track of their
+// containing module. For now we'll handle b) by being forgiving as possible when recovering
+// the device for an expression, and we'll support a) the same way. But better would be
+// to ICHECK fail when, eg, a variable is not in scope or the lexical device stack is empty.
 
-DLDeviceType LexicalOnDeviceMixin::GetInScopeDeviceType(const Expr& expr) const {
-  auto props = GetOnDeviceProps(expr);
-  if (props.body.defined() && props.is_fixed) {
-    // Look through any fixed "on_device" annotations.
-    return props.device_type;
-  }
-  if (expr->IsInstance<VarNode>()) {
-    // Lookup variable binding.
-    auto itr = var_device_types_.find(Downcast<Var>(expr));
-    if (itr == var_device_types_.end()) {
-      return kInvalidDeviceType;
-    } else {
-      return itr->second;
+LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) {
+  if (maybe_mod) {
+    for (const auto& pair : maybe_mod.value()->functions) {
+      if (const auto* function_node = pair.second.as<FunctionNode>()) {
+        SEScope se_scope = GetFunctionResultSEScope(function_node);
+        if (!se_scope->IsFullyUnconstrained()) {
+          global_var_se_scopes_.emplace(pair.first, se_scope);
+        }
+      }
     }
   }
-  // Otherwise use the currently in-scope device type.
-  if (expr_device_types_.empty()) {
-    return kInvalidDeviceType;
+}
+
+SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  if (props.body.defined() && props.is_fixed) {
+    return props.se_scope;
+  } else if (const auto* var_node = expr.as<VarNode>()) {
+    // Lookup variable binding.
+    auto itr = var_se_scopes_.find(GetRef<Var>(var_node));
+    if (itr != var_se_scopes_.end()) {
+      return itr->second;
+    }
+    // else: fallthrough to unconstrained
+  } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+    // Lookup global variable.
+    auto itr = global_var_se_scopes_.find(GetRef<GlobalVar>(global_var_node));
+    if (itr != global_var_se_scopes_.end()) {
+      return itr->second;
+    }
+    // else: fallthrough to unconstrained
+  } else if (const auto* function_node = expr.as<FunctionNode>()) {
+    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      if (!expr_se_scopes_.empty()) {
+        // Use the currently in-scope device type.
+        return expr_se_scopes_.back();
+      }
+      // else: fallthrough to unconstrained
+    } else {
+      return GetFunctionResultSEScope(function_node);
+    }
   } else {
-    return expr_device_types_.back();
+    if (!expr_se_scopes_.empty()) {
+      // Use the currently in-scope device type.
+      return expr_se_scopes_.back();
+    }
+    // else: fallthrough to unconstrained
   }
+  return SEScope::FullyUnconstrained();
 }
 
 void LexicalOnDeviceMixin::EnterFunctionBody() { ++function_nesting_; }
@@ -61,35 +92,38 @@ void LexicalOnDeviceMixin::ExitFunctionBody() {
   --function_nesting_;
 }
 
-void LexicalOnDeviceMixin::PushDeviceType(DLDeviceType device_type) {
-  if (device_type == kInvalidDeviceType) {
+void LexicalOnDeviceMixin::PushSEScope(const SEScope& se_scope) {
+  if (se_scope->IsFullyUnconstrained()) {
     return;
   }
-  expr_device_types_.emplace_back(device_type);
+  expr_se_scopes_.emplace_back(se_scope);
 }
 
-void LexicalOnDeviceMixin::PopDeviceType() {
-  if (expr_device_types_.empty()) {
+void LexicalOnDeviceMixin::PopSEScope() {
+  if (expr_se_scopes_.empty()) {
     return;
   }
-  expr_device_types_.pop_back();
+  expr_se_scopes_.pop_back();
 }
 
-void LexicalOnDeviceMixin::PushBoundVar(Var var, DLDeviceType device_type) {
-  if (device_type == kInvalidDeviceType) {
+void LexicalOnDeviceMixin::PushBoundVar(Var var, const SEScope& se_scope) {
+  if (se_scope->IsFullyUnconstrained()) {
     return;
   }
-  ICHECK(var_device_types_.find(var) == var_device_types_.end());
-  var_device_types_.emplace(std::move(var), device_type);
+  ICHECK(var_se_scopes_.find(var) == var_se_scopes_.end());
+  var_se_scopes_.emplace(std::move(var), se_scope);
 }
 
 void LexicalOnDeviceMixin::PopBoundVar(const Var& var) {
-  auto itr = var_device_types_.find(var);
-  if (itr == var_device_types_.end()) {
+  auto itr = var_se_scopes_.find(var);
+  if (itr == var_se_scopes_.end()) {
     return;
   }
-  var_device_types_.erase(itr);
+  var_se_scopes_.erase(itr);
 }
+
+// TODO(mbs): We'd probably have less tedious code duplication if we redefined the memoizing
+// mutator on top of the generic Functor.
 
 void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
   if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
@@ -98,17 +132,17 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
   } else {
     // Function parameters come into scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamDeviceType(function_node, i));
+      PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
     }
     // Entering scope of function body.
-    PushDeviceType(GetFunctionResultDeviceType(function_node));
+    PushSEScope(GetFunctionResultSEScope(function_node));
     EnterFunctionBody();
 
     DeviceAwareVisitExpr_(function_node);
 
     // Leaving scope of function body.
     ExitFunctionBody();
-    PopDeviceType();
+    PopSEScope();
     // Function parameters go out of scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       PopBoundVar(function_node->params[i]);
@@ -123,7 +157,7 @@ void DeviceAwareExprVisitor::VisitExpr_(const LetNode* let_node) {
   while (const auto* inner_let_node = expr.as<LetNode>()) {
     // Let-bound var (in pre visited version) goes into scope.
     // (We'll just assume this is a letrec).
-    PushBoundVar(inner_let_node->var, GetInScopeDeviceType(inner_let_node->value));
+    PushBoundVar(inner_let_node->var, GetSEScope(inner_let_node->value));
     PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
     bindings.emplace_back(inner_let_node);
     expr = inner_let_node->body;
@@ -140,13 +174,13 @@ void DeviceAwareExprVisitor::VisitExpr_(const LetNode* let_node) {
 }
 
 void DeviceAwareExprVisitor::VisitExpr_(const CallNode* call_node) {
-  auto props = GetOnDeviceProps(call_node);
+  OnDeviceProps props = GetOnDeviceProps(call_node);
   if (props.body.defined() && props.is_fixed) {
     // Entering lexical scope of fixed "on_device" call.
-    PushDeviceType(props.device_type);
+    PushSEScope(props.se_scope);
     VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
-    PopDeviceType();
+    PopSEScope();
   } else {
     DeviceAwareVisitExpr_(call_node);
   }
@@ -184,17 +218,17 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
   } else {
     // Function parameters come into scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamDeviceType(function_node, i));
+      PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
     }
     // Entering scope of function body.
-    PushDeviceType(GetFunctionResultDeviceType(function_node));
+    PushSEScope(GetFunctionResultSEScope(function_node));
     EnterFunctionBody();
 
     Expr result = DeviceAwareVisitExpr_(function_node);
 
     // Leaving scope of function body.
     ExitFunctionBody();
-    PopDeviceType();
+    PopSEScope();
     // Function parameters go out of scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       PopBoundVar(function_node->params[i]);
@@ -211,7 +245,7 @@ Expr DeviceAwareExprMutator::VisitExpr_(const LetNode* let_node) {
   while (const auto* inner_let_node = expr.as<LetNode>()) {
     // Let-bound var (in pre visited version) goes into scope.
     // (We'll just assume this is a letrec.)
-    PushBoundVar(inner_let_node->var, GetInScopeDeviceType(inner_let_node->value));
+    PushBoundVar(inner_let_node->var, GetSEScope(inner_let_node->value));
     std::pair<Var, Expr> pair = PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
     bindings.emplace_back(pair.first, pair.second, inner_let_node->span, inner_let_node);
     expr = inner_let_node->body;
@@ -231,14 +265,14 @@ Expr DeviceAwareExprMutator::VisitExpr_(const LetNode* let_node) {
 }
 
 Expr DeviceAwareExprMutator::VisitExpr_(const CallNode* call_node) {
-  auto props = GetOnDeviceProps(call_node);
+  OnDeviceProps props = GetOnDeviceProps(call_node);
   if (props.body.defined() && props.is_fixed) {
     // Entering lexical scope of fixed "on_device" call.
-    PushDeviceType(props.device_type);
+    PushSEScope(props.se_scope);
     Expr expr = VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
-    PopDeviceType();
-    return OnDevice(expr, props.device_type, props.is_fixed);
+    PopSEScope();
+    return MaybeOnDevice(expr, props.se_scope, props.is_fixed);
   } else {
     return DeviceAwareVisitExpr_(call_node);
   }

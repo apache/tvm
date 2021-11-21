@@ -34,15 +34,15 @@ tensorization in the core) to massage the compute graph for the hardware target.
 #
 # .. code-block:: bash
 #
-# pip3 install "Pillow<7"
+#   pip3 install "Pillow<7"
 #
 # YOLO-V3-tiny Model with Darknet parsing have dependancy with CFFI and CV2 library,
 # we need to install CFFI and CV2 before executing this script.
 #
-# pip3 install "Pillow<7"
+# .. code-block:: bash
 #
-# pip3 install cffi
-# pip3 install opencv-python
+#   pip3 install cffi
+#   pip3 install opencv-python
 #
 # Now return to the python code. Import packages.
 
@@ -233,7 +233,9 @@ with autotvm.tophub.context(target):
 
     # Compile Relay program with AlterOpLayout disabled
     with vta.build_config(disabled_pass={"AlterOpLayout"}):
-        lib = relay.build(mod, target=target, params=params, target_host=env.target_host)
+        lib = relay.build(
+            mod, target=tvm.target.Target(target, host=env.target_host), params=params
+        )
 
     # Measure Relay build time
     build_time = time.time() - build_start

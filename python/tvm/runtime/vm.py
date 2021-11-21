@@ -71,6 +71,8 @@ class Executable(object):
         self._save = self.mod["save"]
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
+        self._get_constants = self.mod["get_constants"]
+        self._get_virtual_devices = self.mod["get_virtual_devices"]
         self._get_stats = self.mod["get_stats"]
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
@@ -245,6 +247,17 @@ class Executable(object):
         return self._get_bytecode()
 
     @property
+    def constants(self):
+        """Returns a human-readable description of all the constants in the executable.
+        Useful for debugging and diffing generated executables in unit tests."""
+        return self._get_constants()
+
+    @property
+    def virtual_devices(self):
+        """Returns a human-readable description of all the (virtual) devices in the executable."""
+        return self._get_virtual_devices()
+
+    @property
     def globals(self):
         """Get the globals used by the Relay VM executable.
 
@@ -288,7 +301,8 @@ class VirtualMachine(object):
         The VM executable.
 
     device : tvm.runtime.Device or List[tvm.runtime.Device]
-        The device to deploy the module
+        The device(s) on which the model will run.
+        Currently at most one device per device type is supported.
 
     memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
@@ -356,10 +370,7 @@ class VirtualMachine(object):
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
-                raise TypeError(
-                    "dev is expected to be Device or \
-                                List[Device]"
-                )
+                raise TypeError("dev is expected to be Device or List[Device]")
             devs = [dev]
 
         # CPU is required for executing shape functions
@@ -598,7 +609,7 @@ class VirtualMachine(object):
                 repeat=repeat,
                 number=number,
                 min_repeat_ms=min_repeat_ms,
-            )(func_name, device.device_type, device.device_id, *packed_args)
+            )(func_name, device.device_type % RPC_SESS_MASK, device.device_id, *packed_args)
         if args or kwargs:
             self.set_input(func_name, *args, **kwargs)
         return self.module.time_evaluator(
