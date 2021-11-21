@@ -408,35 +408,43 @@ def test_get_sparse_block():
     assert block.same_as(csrmm.body)
 
 
+def test_get_sp_iters():
+    sch = tir.Schedule(csrmm, debug_mask="all")
+    block = sch.get_sparse_block("csrmm")
+    vi, vj, vk = sch.get_sp_iters(block)
+    assert vi.same_as(csrmm.body.sp_iter_vars[0])
+    assert vj.same_as(csrmm.body.sp_iter_vars[1])
+    assert vk.same_as(csrmm.body.sp_iter_vars[2])
+
+
 def test_reorder():
     sch = tir.Schedule(bsrmm, debug_mask="all")
-    block_rv = sch.get_sparse_block("bsrmm")
-    block = sch.get(block_rv)
-    i, j, bi, bj, f = block.sp_iter_vars
-    sch.sparse_reorder(block_rv, [bi, bj, i, j, f])
+    block = sch.get_sparse_block("bsrmm")
+    i, j, bi, bj, f = sch.get_sp_iters(block)
+    sch.sparse_reorder(block, [bi, bj, i, j, f])
     tvm.ir.assert_structural_equal(sch.mod["main"], reordered_bsrmm, True)
+    assert sch.get(block).name == "bsrmm"
 
 
 def test_reorder_fail_on_dependency():
     sch = tir.Schedule(bsrmm, debug_mask="all")
-    block_rv = sch.get_sparse_block("bsrmm")
-    block = sch.get(block_rv)
-    i, j, bi, bj, f = block.sp_iter_vars
+    block = sch.get_sparse_block("bsrmm")
+    i, j, bi, bj, f = sch.get_sp_iters(block)
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.sparse_reorder(block_rv, [bi, bj, j, i, f])
+        sch.sparse_reorder(block, [bi, bj, j, i, f])
 
 
 def test_reorder_fail_on_new_order_length():
     sch = tir.Schedule(bsrmm, debug_mask="all")
-    block_rv = sch.get_sparse_block("bsrmm")
-    block = sch.get(block_rv)
-    i, j, bi, bj, f = block.sp_iter_vars
+    block = sch.get_sparse_block("bsrmm")
+    i, j, bi, bj, f = sch.get_sp_iters(block)
     with pytest.raises(tvm.tir.ScheduleError):
-        sch.sparse_reorder(block_rv, [bi, bj, i, j])
+        sch.sparse_reorder(block, [bi, bj, i, j])
 
 
 if __name__ == "__main__":
     test_get_sparse_block()
+    test_get_sp_iters()
     test_reorder()
     test_reorder_fail_on_dependency()
     test_reorder_fail_on_new_order_length()

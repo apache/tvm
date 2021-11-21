@@ -198,6 +198,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
 /******** (FFI) SparseTIR schedules ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetSparseBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetSparseBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetSpIters")
+    .set_body_method<Schedule>(&ScheduleNode::GetSpIters);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSparseReorder")
     .set_body_method<Schedule>(&ScheduleNode::SparseReorder);
 

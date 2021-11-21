@@ -496,6 +496,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual SparseBlockRV GetSparseBlock(const String& name, const String& func_name = "main") = 0;
   /*!
+   * \brief Retrieve the sparse iterators of a given sparse block
+   * \param block_rv The block to be queried
+   * \return The sparse iterators of the input sparse block
+   */
+  virtual Array<SpIterVar> GetSpIters(const SparseBlockRV& block_rv) = 0;
+  /*!
    * \brief Reorder a list of sparse iterators. It requires the new order to not break the iterator
    * dependency.
    * \param block The block to be transformed

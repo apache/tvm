@@ -1679,6 +1679,24 @@ class Schedule(Object):
             func_name,
         )
 
+    def get_sp_iters(self, block: SparseBlockRV) -> List[SpIterVar]:
+        """Retrieve the sparse iterators of a given sparse block
+
+        Parameters
+        ----------
+        block : SparseBlockRV
+            The block to be queried
+
+        Returns
+        -------
+        sp_iters : List[SpIterVar]
+            The sparse iterators of the input sparse block
+        """
+        return _ffi_api.ScheduleGetSpIters(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+        )
+
     def sparse_reorder(self, block: SparseBlockRV, new_order: List[SpIterVar]) -> None:
         """Reorder a list of sparse iterators. It requires the new order to not break the iterator
         dependency.

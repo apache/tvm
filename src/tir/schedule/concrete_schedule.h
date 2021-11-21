@@ -126,6 +126,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   void EnterPostproc() override {}
   /******** Schedule: SparseTIR schedules ********/
   SparseBlockRV GetSparseBlock(const String& name, const String& func_name = "main") override;
+  Array<SpIterVar> GetSpIters(const SparseBlockRV& block_rv) override;
   void SparseReorder(const SparseBlockRV& block_rv, const Array<SpIterVar>& new_order) override;
 
  protected:

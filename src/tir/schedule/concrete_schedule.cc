@@ -601,6 +601,10 @@ SparseBlockRV ConcreteScheduleNode::GetSparseBlock(const String& name, const Str
   return CreateRV(GetRef<SparseBlock>(block));
 }
 
+Array<SpIterVar> ConcreteScheduleNode::GetSpIters(const SparseBlockRV& block_rv) {
+  return this->Get(block_rv)->sp_iter_vars;
+}
+
 void ConcreteScheduleNode::SparseReorder(const SparseBlockRV& block_rv,
                                          const Array<SpIterVar>& new_order) {
   SparseBlock old_block = this->Get(block_rv);
