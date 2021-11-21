@@ -538,8 +538,8 @@ class BinaryElementwiseParams:
         """
         if np.dtype(self.ofm) == np.int32 and self.activation is not None:
             return False
-        # Due to identity operator requiring ifm != int32 for now
-        if np.dtype(self.ifm) == np.int32 and len(self.ifm.shape) < 4 or len(self.ifm2.shape) < 4:
+        # Due to identity operator requiring ofm != int32 for now
+        if np.dtype(self.ofm) == np.int32 and len(self.ofm.shape) < 4:
             return False
         if len(self.ifm.shape) > 4 or len(self.ifm2.shape) > 4:
             return False
