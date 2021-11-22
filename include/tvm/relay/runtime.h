@@ -161,9 +161,6 @@ class Runtime : public ObjectRef {
  */
 class RuntimeRegEntry {
  public:
-  /*! \brief Set name of the Runtime to be the same as registry if it is empty */
-  inline RuntimeRegEntry& set_name();
-
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -220,13 +217,6 @@ class RuntimeRegEntry {
   friend class Runtime;
 };
 
-inline RuntimeRegEntry& RuntimeRegEntry::set_name() {
-  if (name.empty()) {
-    name = name;
-  }
-  return *this;
-}
-
 template <typename ValueType>
 inline RuntimeRegEntry& RuntimeRegEntry::add_attr_option(const String& key) {
   ICHECK(!key2vtype_.count(key)) << "AttributeError: add_attr_option failed because '" << key
@@ -271,7 +261,7 @@ inline RuntimeRegEntry& RuntimeRegEntry::add_attr_option(const String& key,
  */
 #define TVM_REGISTER_RUNTIME(RuntimeName)                     \
   TVM_STR_CONCAT(TVM_RUNTIME_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::relay::RuntimeRegEntry::RegisterOrGet(RuntimeName).set_name()
+      ::tvm::relay::RuntimeRegEntry::RegisterOrGet(RuntimeName)
 }  // namespace relay
 }  // namespace tvm
 
