@@ -161,18 +161,33 @@ stage('Sanity Check') {
 def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}", label: "Run cmake build")
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}",
+        label: "Run cmake build",
+      )
       // always run cpp test when build
-      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh", label: "Build and run C++ tests")
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
+        label: "Build and run C++ tests",
+      )
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
         throw ae
       }
       echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}", label: "Clear old cmake workspace")
-      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}", label: "Run cmake build")
-      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh", label: "Build and run C++ tests")
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
+        label: "Clear old cmake workspace",
+      )
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}",
+        label: "Run cmake build",
+      )
+      sh (
+        script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
+        label: "Build and run C++ tests",
+      )
     }
   }
 }
@@ -196,7 +211,24 @@ def unpack_lib(name, libs) {
 }
 
 def ci_setup(image) {
-  sh (script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh", label: "Setup CI environment")
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh",
+    label: "Set up CI environment",
+  )
+}
+
+def unittest(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
+    label: "Run Python unittests",
+  )
+}
+
+def fsim_test(image) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
+    label: "Run VTA tests in FSIM ",
+  )
 }
 
 stage('Build') {
@@ -218,18 +250,24 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
-          sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh", label: "Create CPU build cmake config")
+          sh (
+            script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh",
+            label: "Create CPU cmake config",
+          )
           make(ci_cpu, 'build', '-j2')
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
             ci_setup(ci_cpu)
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
+            unittest(ci_cpu)
+            fsim_test(ci_cpu)
+            sh (
+              script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+              label: "Run VTA tests in TSIM",
+            )
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
+            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
             junit "build/pytest-results/*.xml"
           }
         }
@@ -243,11 +281,17 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-wasm')) {
           init_git()
-          sh "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh"
+          sh (
+            script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh",
+            label: "Create WASM cmake config",
+          )
           make(ci_wasm, 'build', '-j2')
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_wasm} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh"
+            ci_setup(ci_wasm)
+            sh (
+              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+              label: "Run WASM lint and tests",
+            )
           }
         }
       }
@@ -255,32 +299,38 @@ stage('Build') {
       Utils.markStageSkippedForConditional('BUILD: WASM')
     }
   },
-  'BUILD : i386': {
+  'BUILD: i386': {
     if ( is_docs_only_build != 1) {
       node('CPU') {
         ws(per_exec_ws('tvm/build-i386')) {
           init_git()
-          sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
+          sh (
+            script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh",
+            label: "Create i386 cmake config",
+          )
           make(ci_i386, 'build', '-j2')
           pack_lib('i386', tvm_multilib_tsim)
         }
       }
     } else {
-      Utils.markStageSkippedForConditional('BUILD : i386')
+      Utils.markStageSkippedForConditional('BUILD: i386')
     }
   },
-  'BUILD : arm': {
+  'BUILD: arm': {
     if (is_docs_only_build != 1) {
       node('ARM') {
         ws(per_exec_ws('tvm/build-arm')) {
           init_git()
-          sh "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh"
+          sh (
+            script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh",
+            label: "Create ARM cmake config",
+          )
           make(ci_arm, 'build', '-j4')
           pack_lib('arm', tvm_multilib)
         }
       }
      } else {
-      Utils.markStageSkippedForConditional('BUILD : arm')
+      Utils.markStageSkippedForConditional('BUILD: arm')
     }
   },
   'BUILD: QEMU': {
@@ -288,11 +338,17 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-qemu')) {
           init_git()
-          sh "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh"
+          sh (
+            script: "${docker_run} ${ci_qemu} ./tests/scripts/task_config_build_qemu.sh",
+            label: "Create QEMU cmake config",
+          )
           make(ci_qemu, 'build', '-j2')
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh"
+            ci_setup(ci_qemu)
+            sh (
+              script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
+              label: "Run microTVM tests",
+            )
             junit "build/pytest-results/*.xml"
           }
         }
@@ -311,10 +367,19 @@ stage('Unit Test') {
             init_git()
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
-              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
-              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh"
-              sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh"
+              ci_setup(ci_gpu)
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh",
+                label: "Check Sphinx warnings in docs",
+              )
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
+                label: "Run GPU unit tests",
+              )
+              sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
+                label: "Run GPU integration tests",
+              )
               junit "build/pytest-results/*.xml"
             }
           }
@@ -330,8 +395,11 @@ stage('Unit Test') {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
             timeout(time: max_time, unit: 'MINUTES') {
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-              sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
+              ci_setup(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
+                label: "Run CPU integration tests",
+              )
               junit "build/pytest-results/*.xml"
             }
           }
@@ -347,10 +415,13 @@ stage('Unit Test') {
             init_git()
             unpack_lib('i386', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
-              sh "${docker_run} ${ci_i386} ./tests/scripts/task_ci_setup.sh"
-              sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
-              sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh"
-              sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
+              ci_setup(ci_i386)
+              unittest(ci_i386)
+              sh (
+                script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
+                label: "Run i386 integration tests",
+              )
+              fsim_test(ci_i386)
               junit "build/pytest-results/*.xml"
             }
           }
@@ -366,9 +437,12 @@ stage('Unit Test') {
             init_git()
             unpack_lib('arm', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
-              sh "${docker_run} ${ci_arm} ./tests/scripts/task_ci_setup.sh"
-              sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_unittest.sh"
-              sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh"
+              ci_setup(ci_arm)
+              unittest(ci_arm)
+              sh (
+                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
+                label: "Run test_arm_compute_lib test",
+              )
               junit "build/pytest-results/*.xml"
             // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
             }
@@ -385,8 +459,11 @@ stage('Unit Test') {
             init_git()
               unpack_lib('gpu', tvm_multilib)
               timeout(time: max_time, unit: 'MINUTES') {
-                sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-                sh "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh"
+                ci_setup(ci_gpu)
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                  label: "Run Java unit tests",
+                )
               }
           }
         }
@@ -404,8 +481,11 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh"
+          ci_setup(ci_gpu)
+          sh (
+            script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
+            label: "Run TOPI tests",
+          )
           junit "build/pytest-results/*.xml"
         }
       }
@@ -421,8 +501,11 @@ stage('Integration Test') {
           init_git()
           unpack_lib('gpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
+            ci_setup(ci_gpu)
+            sh (
+              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+              label: "Run Python frontend tests",
+            )
             junit "build/pytest-results/*.xml"
           }
         }
@@ -438,8 +521,11 @@ stage('Integration Test') {
           init_git()
           unpack_lib('cpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh"
+            ci_setup(ci_cpu)
+            sh (
+              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+              label: "Run Python frontend tests",
+            )
             junit "build/pytest-results/*.xml"
           }
         }
@@ -454,8 +540,8 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_ci_setup.sh"
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
+          ci_setup(ci_gpu)
+          sh (script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh", label: "Build docs")
         }
         pack_lib('mydocs', 'docs.tgz')
       }
