@@ -439,11 +439,10 @@ class TVMScriptParser(Transformer):
 
         # add parameters of function
         for arg in node.params:
+            print(arg.name)
             # Note that this case is for T.match_buffer syntax sugar
             if isinstance(arg.ty, ast.TypeCall):
-                arg_buffer = self.transform(arg.ty)
-                self.context.update_symbol(arg.name, arg_buffer, node)
-                self.context.func_buffer_map[arg.name] = arg_buffer
+                self.transform(arg.ty)
             else:
                 arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
                 self.context.update_symbol(arg.name, arg_var, node)
@@ -1126,8 +1125,15 @@ class TVMScriptParser(Transformer):
 
         def parse_typecall_params(func, params, keyword_params):
             args = [self.transform(arg) for arg in params]
-            kw_args = {self.transform(k): self.transform(v) for k, v in keyword_params.items()}
-            print(args, kw_args)
+            kw_args = {}
+            for k, v in keyword_params.items():
+                if isinstance(v, ast.TypeTuple):
+                    values = []
+                    for value in self.transform(v):
+                        values.append(self.transform(value))
+                else:
+                    values = self.transform(v)
+                kw_args[self.transform(k)] = values
             # get the name and parameter list of func
             func_name, param_list = func.signature()
             # check arguments and parameter list and get a list of arguments
@@ -1145,12 +1151,8 @@ class TVMScriptParser(Transformer):
 
         func = self.transform(node.func_name)
         if isinstance(func, SpecialStmt):
-            # Pattern 1
-            # arg_list = self.parse_arg_list(func, node)
             arg_list = parse_typecall_params(func, node.params, node.keyword_params)
             func.handle(node, self.context, arg_list, node.func_name.span)
-            return self.parse_body(node)
-        return func
 
     def transform_Return(self, node):
         self.report_error(

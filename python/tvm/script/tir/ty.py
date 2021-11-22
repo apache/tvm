@@ -22,6 +22,7 @@ a wrapper for uniform Type system in IR
 # pylint: disable=invalid-name
 from os import stat
 import tvm
+from tvm import script
 from tvm.script.tir.special_stmt import SpecialStmt
 
 
@@ -72,8 +73,46 @@ class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
 class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods, abstract-method
     """TVM script typing class for uniform Type objects"""
 
-    def __init__(self, vtype):
-        self.type = vtype
+    def __init__(self):
+        from .special_stmt import convert_to_int
+        from synr import ast
+
+        def match_buffer_syntax_sugar(
+            shape,
+            dtype="float32",
+            name: str = "Buffer",
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            span=None,
+        ):
+            if strides is None:
+                strides = []
+            align = convert_to_int(align, "align", self.context.report_error, self.node.span)
+            offset_factor = convert_to_int(
+                offset_factor, "offset_factor", self.context.report_error, self.node.span
+            )
+            buffer = tvm.tir.decl_buffer(
+                shape,
+                dtype,
+                name,
+                data,
+                strides,
+                elem_offset,
+                scope,
+                align,
+                offset_factor,
+                buffer_type,
+                span=span,
+            )
+            # self.context.func_buffer_map[name] = buffer
+            self.context.update_symbol(name, buffer, self.node)
+
+        super().__init__(match_buffer_syntax_sugar, def_symbol=True)
 
     @staticmethod
     def __call__(
@@ -118,4 +157,4 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
-Buffer = GenericBufferType("handle")
+Buffer = GenericBufferType()
