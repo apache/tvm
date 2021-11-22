@@ -318,6 +318,7 @@ def convert_conv2d_transpose(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
+        # Conv2d_Transpose is paded differently from Conv2d
         dilations = [1, 1]
         input_shape = shape_of(input_x)
         h_w = _op.strided_slice(input_shape, [2], [4])
@@ -352,7 +353,7 @@ def convert_conv2d_transpose(g, op, block):
         padding=paddings,
         dilation=dilations,
         groups=groups,
-        channels=out_channels,
+        channels=out_channels * groups,
         kernel_size=k_size,
         output_padding=output_padding,
     )

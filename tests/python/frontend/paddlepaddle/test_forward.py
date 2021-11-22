@@ -488,7 +488,7 @@ def test_forward_conv_transpose():
         verify_model(Conv2DTranspose(stride=2, padding="VALID"), input_data=input_data)
         verify_model(Conv2DTranspose(stride=2, padding="SAME", dilation=1), input_data=input_data)
         verify_model(Conv2DTranspose(stride=2, padding=3), input_data=input_data)
-        verify_model(Conv2DTranspose(stride=2, padding="SAME", groups=1), input_data=input_data)
+        verify_model(Conv2DTranspose(stride=3, padding="SAME", groups=1), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1315,6 +1315,34 @@ def test_forward_math_api():
             verify_model(MathAPI(api_name), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_rnn():
+    class RNN(nn.Layer):
+        def __init__(self, api_name, input_size, hidden_size, num_layers, direction="forward"):
+            super(RNN, self).__init__()
+            rnn_func = getattr(paddle.nn, api_name, None)
+            self.rnn = rnn_func(input_size, hidden_size, num_layers, direction=direction)
+
+        @paddle.jit.to_static
+        def forward(self, inputs, prev_h):
+            y, h = self.rnn(inputs, prev_h)
+            return y
+
+    input_size, hidden_size, num_layers = 8, 16, 2
+    input_shape = [4, 5, 8]
+    input_data = paddle.rand(input_shape, dtype="float32")
+
+    for api_name in ("SimpleRNN", "GRU"):
+        prev_h = paddle.rand([4, 4, 16], dtype="float32")
+        verify_model(
+            RNN(api_name, input_size, hidden_size, num_layers, direction="bidirectional"),
+            input_data=[input_data, prev_h],
+        )
+        prev_h = paddle.rand([2, 4, 16], dtype="float32")
+        verify_model(
+            RNN(api_name, input_size, hidden_size, num_layers), input_data=[input_data, prev_h]
+        )
+
+
 if __name__ == "__main__":
-    test_forward_conv_transpose()
-#    pytest.main([__file__])
+    pytest.main([__file__])
