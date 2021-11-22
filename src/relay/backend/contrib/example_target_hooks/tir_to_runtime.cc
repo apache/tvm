@@ -30,6 +30,8 @@ using namespace tir;
 
 class CodeGenExampleTargetHook : public codegen::CodeGenCHost {
  public:
+  using codegen::CodeGenCHost::VisitExpr_;
+
   /*!
    * \brief Emit code that changes adds to multiplies for testing
    */
