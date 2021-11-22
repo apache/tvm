@@ -277,11 +277,17 @@ def emit_data_linkage(output_file, data_linkage):
         )
 
 
-def emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage):
+def emit_main_prologue(
+    main_file, custom_prologue, workspace_bytes, data_linkage, compiled_models, interface_api
+):
     # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
-    main_file.write(
-        f"#define WORKSPACE_SIZE ({workspace_bytes} + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
-    )
+    workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
+    if interface_api == "c":
+        for compiled_model in compiled_models:
+            model = compiled_model.model
+            workspace_define += f" + TVMGEN_{model.name.upper()}_WORKSPACE_SIZE"
+    workspace_define += " + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
+    main_file.write(workspace_define)
     emit_data_linkage(main_file, data_linkage)
     main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
     main_file.write("tvm_workspace_t app_workspace;\n")
@@ -516,7 +522,14 @@ def create_main(
             model = compiled_model.model
             emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
-        emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage)
+        emit_main_prologue(
+            main_file,
+            custom_prologue,
+            workspace_bytes,
+            data_linkage,
+            compiled_models,
+            interface_api,
+        )
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
@@ -679,7 +692,8 @@ def run_and_check(
         t.extractall(base_path)
 
         workspace_bytes += model.extra_memory_in_bytes
-        workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
+        if interface_api == "packed":
+            workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
