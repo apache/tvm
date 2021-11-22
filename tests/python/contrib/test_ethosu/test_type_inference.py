@@ -365,7 +365,7 @@ def test_ethosu_identity_invalid_shape():
         run_opt_pass(func, relay.transform.InferType())
 
 
-def test_ethosu_invalid_dtype():
+def test_ethosu_identity_invalid_dtype():
     invalid_dtype = "int32"
     ifm = relay.var("ifm", shape=[6000], dtype=invalid_dtype)
 
@@ -400,6 +400,33 @@ def test_ethosu_unary_elementwise_type_inference(
     f = relay.Function([ifm], unary_elementwise)
     f = run_opt_pass(f, relay.transform.InferType())
     assert tuple(f.body.checked_type.shape) == ofm_shape
+
+
+def test_ethosu_unary_elementwise_invalid_operator_type():
+    ifm = relay.var("ifm", shape=(1, 3, 7, 12), dtype="int8")
+    invalid_op_type = "ABBBS"
+    unary_elementwise = make_ethosu_unary_elementwise(
+        ifm,
+        12,
+        invalid_op_type,
+    )
+    func = relay.Function([ifm], unary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_unary_elementwise_invalid_dtype():
+    invalid_dtype = "int32"
+    ifm = relay.var("ifm", shape=(1, 5, 15, 25), dtype=invalid_dtype)
+
+    unary_elementwise = make_ethosu_unary_elementwise(
+        ifm,
+        25,
+        "ABS",
+    )
+    func = relay.Function([ifm], unary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
 
 
 if __name__ == "__main__":

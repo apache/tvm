@@ -747,7 +747,7 @@ class UnaryElementwiseRewriter(DFPatternCallback):
     ethosu_unary_elementwise operators
     """
 
-    def __init__(self, params_class, pattern):
+    def __init__(self, params_class: Type, pattern: CallPattern):
         super().__init__(require_type=True)
         self.params_class = params_class
         self.pattern = pattern
@@ -779,8 +779,8 @@ class UnaryElementwiseRewriter(DFPatternCallback):
         if len(params.ifm.shape) == 4:
             unary_input = params.ifm.tensor
         else:
-            while len(unary_input_shape) < 4:
-                unary_input_shape = [1] + unary_input_shape
+            pad_size = 4 - len(unary_input_shape)
+            unary_input_shape = ([1] * pad_size) + unary_input_shape
             unary_input = relay.op.reshape(params.ifm.tensor, newshape=unary_input_shape)
 
         ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(

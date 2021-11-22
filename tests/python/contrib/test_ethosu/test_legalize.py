@@ -983,7 +983,7 @@ def test_tflite_unary_elemwise_legalize(
     mod, _ = relay.frontend.from_tflite(
         tflite_model,
         shape_dict={"input": ifm_shape},
-        dtype_dict={"x": dtype},
+        dtype_dict={"input": dtype},
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(

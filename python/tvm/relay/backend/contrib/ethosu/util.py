@@ -80,14 +80,14 @@ class BinaryElementwiseArgs(Enum):
     of binary elementwise arguments
     """
 
-    ifm = 0
-    ifm2 = 1
-    ifm_scale = 2
-    ifm_zero_point = 3
-    ifm2_scale = 4
-    ifm2_zero_point = 5
-    ofm_scale = 6
-    ofm_zero_point = 7
+    IFM = 0
+    IFM2 = 1
+    IFM_SCALE = 2
+    IFM_ZERO_POINT = 3
+    IFM2_SCALE = 4
+    IFM2_ZERO_POINT = 5
+    OFM_SCALE = 6
+    OFM_ZERO_POINT = 7
 
 
 class QuantizeArgs(Enum):
@@ -96,9 +96,9 @@ class QuantizeArgs(Enum):
     quantize arguments
     """
 
-    ifm = 0
-    ofm_scale = 1
-    ofm_zero_point = 2
+    IFM = 0
+    OFM_SCALE = 1
+    OFM_ZERO_POINT = 2
 
 
 class DequantizeArgs(Enum):
@@ -107,9 +107,9 @@ class DequantizeArgs(Enum):
     dequantize arguments
     """
 
-    ifm = 0
-    ifm_scale = 1
-    ifm_zero_point = 2
+    IFM = 0
+    IFM_SCALE = 1
+    IFM_ZERO_POINT = 2
 
 
 def is_composite_func(func: relay.Function, name: str) -> bool:

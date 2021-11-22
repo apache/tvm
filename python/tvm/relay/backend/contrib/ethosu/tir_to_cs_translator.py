@@ -776,6 +776,7 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
 def translate_ethosu_unary_elementwise(
     tir_extern_call: tvm.tir.Call,
 ) -> vapi.NpuElementWiseOperation:
+
     """This function will translate a tir extern_call
     as produced by Relay to TIR compilation.
     Parameters
@@ -812,6 +813,9 @@ def _create_npu_op_unary_elementwise(serial_unary_elementwise):
     ):
         _convert_clip_bounds(npu_unary_elementwise_op)
 
+    npu_unary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
+        serial_unary_elementwise.rounding_mode
+    )
     target_accel_type = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_unary_elementwise_op, target_accel_type)
     npu_unary_elementwise_op.block_config = block_config

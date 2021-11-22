@@ -483,30 +483,30 @@ class BinaryElementwiseParams:
 
         if has_quantization_parameters:
             self.ifm = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ifm_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ifm_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.IFM_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.IFM_ZERO_POINT.value],
             )
             self.ifm2 = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2.value],
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ifm2_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ifm2_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2_ZERO_POINT.value],
             )
             self.ofm = TensorParams(
                 binary_op,
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ofm_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ofm_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.OFM_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.OFM_ZERO_POINT.value],
             )
         else:
             self.ifm = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
             )
             self.ifm2 = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2.value],
                 layout,
             )
             self.ofm = TensorParams(
@@ -856,7 +856,8 @@ def strided_slice_pattern():
 
 class AbsParams:
     """
-    A class to extract and store parameters of Abs in an NPU friendly way
+    This class will parse a call to a ethosu.unary_elementwise Abs composite function
+    and extract the parameter information.
     """
 
     composite_name = "ethos-u.abs"
@@ -869,16 +870,16 @@ class AbsParams:
         layout = "NHWC"
 
         self.ifm = TensorParams(
-            dequantize.args[DequantizeArgs.ifm.value],
+            dequantize.args[DequantizeArgs.IFM.value],
             layout,
-            dequantize.args[DequantizeArgs.ifm_scale.value],
-            dequantize.args[DequantizeArgs.ifm_zero_point.value],
+            dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             quantize,
             layout,
-            quantize.args[QuantizeArgs.ofm_scale.value],
-            quantize.args[QuantizeArgs.ofm_zero_point.value],
+            quantize.args[QuantizeArgs.OFM_SCALE.value],
+            quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
         )
 
         self.operator_type = "ABS"

@@ -67,6 +67,7 @@ def get_unary_elementwise_params(stmt, producers, consumers):
             ofm=serial_ofm,
             operator_type=attrs["operator_type"],
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
         ),
         output_pointer,
         replace_pointer,

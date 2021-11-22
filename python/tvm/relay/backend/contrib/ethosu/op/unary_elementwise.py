@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-argument
 """Relay operator for unary elementwise operations for Arm(R) Ethos(TM)-U NPU"""
+from typing import Optional
 import tvm
 from tvm.relay.op import _make
 from tvm.topi.generic import schedule_injective
@@ -39,6 +40,7 @@ def _extract_ethosu_unary_elementwise_params(attrs, args):
     activation = attrs.activation
     clip_min = attrs.clip_min
     clip_max = attrs.clip_max
+    rounding_mode = attrs.rounding_mode
     ifm_layout = attrs.ifm_layout
     ofm_layout = attrs.ofm_layout
 
@@ -54,6 +56,7 @@ def _extract_ethosu_unary_elementwise_params(attrs, args):
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         ifm_layout,
         ofm_layout,
     )
@@ -87,11 +90,12 @@ def ethosu_unary_elementwise(
     ofm_scale: float,
     ofm_zero_point: int,
     ofm_channels: int,
-    activation: str = "NONE",
-    clip_min: int = 0,
-    clip_max: int = 0,
-    ifm_layout: str = "NHWC",
-    ofm_layout: str = "NHWC",
+    activation: Optional[str] = "NONE",
+    clip_min: Optional[int] = 0,
+    clip_max: Optional[int] = 0,
+    rounding_mode: Optional[str] = "TFL",
+    ifm_layout: Optional[str] = "NHWC",
+    ofm_layout: Optional[str] = "NHWC",
 ) -> tvm.relay.Call:
     """This is a quantized unary elementwise operation as supported by the
     NPU. It accepts either NHWC or NHCWB16 format for the input data.
@@ -126,6 +130,11 @@ def ethosu_unary_elementwise(
         The minimum clipping value if activation = "CLIP".
     clip_max : int, optional
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str, optional
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     ifm_layout : str, optional
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
@@ -148,6 +157,7 @@ def ethosu_unary_elementwise(
         activation,
         clip_min,
         clip_max,
+        rounding_mode,
         ifm_layout,
         ofm_layout,
     )

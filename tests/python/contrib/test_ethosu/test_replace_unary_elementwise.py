@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 
+pytest.importorskip("ethosu.vela")
 import tvm
 import tvm.script
 from tvm import relay
@@ -22,8 +24,6 @@ from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir import spec
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from .infra import make_ethosu_unary_elementwise
-
-import pytest
 
 
 def _get_unary_elementwise_args(call, include_buffers=False, remove_constants=False):
@@ -42,12 +42,12 @@ def _get_unary_elementwise_args(call, include_buffers=False, remove_constants=Fa
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, ifm_channels, ifm_layout, ofm_layout",
+    "ifm_shape, ifm_channels, ifm_layout, ofm_layout, rounding_mode",
     [
-        ((1, 5, 9, 3), 3, "NHWC", "NHWC"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16"),
-        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC"),
-        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16"),
+        ((1, 5, 9, 3), 3, "NHWC", "NHWC", "TFL"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHCWB16", "NATURAL"),
+        ((1, 8, 3, 9, 16), 40, "NHCWB16", "NHWC", "TRUNCATE"),
+        ((1, 8, 9, 40), 40, "NHWC", "NHCWB16", "TFL"),
     ],
 )
 @pytest.mark.parametrize("operator_type", ["ABS"])
@@ -57,18 +57,14 @@ def test_unary_elementwise_single(
     ifm_channels,
     ifm_layout,
     ofm_layout,
+    rounding_mode,
     operator_type,
     activation,
 ):
     ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
 
     unary_elementwise = make_ethosu_unary_elementwise(
-        ifm,
-        ifm_channels,
-        operator_type,
-        activation,
-        ifm_layout,
-        ofm_layout,
+        ifm, ifm_channels, operator_type, activation, ifm_layout, ofm_layout, rounding_mode
     )
     func = relay.Function(relay.analysis.free_vars(unary_elementwise), unary_elementwise)
     func = run_opt_pass(func, relay.transform.InferType())
@@ -149,6 +145,7 @@ def test_unary_elementwise_single(
             clip_min=10 if activation == "CLIP" else 0,
             clip_max=100 if activation == "CLIP" else 0,
         ),
+        rounding_mode=rounding_mode,
     )
 
     assert data[0] == ["ethosu_unary_elementwise"] + list(serial_unary_elementwise)

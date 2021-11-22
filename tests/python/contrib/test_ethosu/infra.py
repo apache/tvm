@@ -632,6 +632,7 @@ def make_ethosu_unary_elementwise(
     activation="NONE",
     ifm_layout="NHWC",
     ofm_layout="NHWC",
+    rounding_mode="TFL",
 ):
     ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(
         ifm=ifm,
@@ -645,6 +646,7 @@ def make_ethosu_unary_elementwise(
         activation=activation,
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )

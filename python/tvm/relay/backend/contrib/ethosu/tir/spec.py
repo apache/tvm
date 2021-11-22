@@ -302,8 +302,10 @@ class SerialUnaryElementwise(SerializableFormat):
         ofm: SerialFeatureMap,
         operator_type: str,
         activation: SerialActivation,
+        rounding_mode: str,
     ):
         self.ifm = ifm
         self.ofm = ofm
         self.operator_type = operator_type
         self.activation = activation
+        self.rounding_mode = rounding_mode

@@ -33,6 +33,7 @@ def unary_elementwise_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     ifm_layout: str,
     ofm_layout: str,
 ) -> te.Tensor:
@@ -68,6 +69,11 @@ def unary_elementwise_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     ifm_layout : str, optional
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
@@ -102,6 +108,7 @@ def unary_elementwise_compute(
         "activation": activation,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
     }
 
     operators = {"ABS": te.abs}

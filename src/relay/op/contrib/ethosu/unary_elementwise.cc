@@ -42,6 +42,7 @@ struct EthosuUnaryElementwiseAttrs : public tvm::AttrsNode<EthosuUnaryElementwis
   String activation;
   int clip_min;
   int clip_max;
+  String rounding_mode;
   String ifm_layout;
   String ofm_layout;
 
@@ -72,6 +73,13 @@ struct EthosuUnaryElementwiseAttrs : public tvm::AttrsNode<EthosuUnaryElementwis
     TVM_ATTR_FIELD(clip_max)
         .describe("The maximum clipping value if activation = 'CLIP'.")
         .set_default(0);
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
     TVM_ATTR_FIELD(ifm_layout)
         .describe("The layout of the Input Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
         .set_default("NHWC");
@@ -85,29 +93,37 @@ TVM_REGISTER_NODE_TYPE(EthosuUnaryElementwiseAttrs);
 
 bool EthosuUnaryElementwiseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                const TypeReporter& reporter) {
-  int ifm_index = 0;
-  int result_index = 2;
+  const int ifm_index = 0;
+  const int result_index = 2;
   ICHECK_EQ(types.size(), result_index + 1);
 
   const auto* ifm = types[ifm_index].as<TensorTypeNode>();
   if (ifm == nullptr) return false;
 
   const auto* param = attrs.as<EthosuUnaryElementwiseAttrs>();
-  ICHECK(param != nullptr) << "EthosuUnaryElementwiseAttrs cannot be nullptr.";
+  CHECK(param != nullptr) << "EthosuUnaryElementwiseAttrs cannot be nullptr.";
 
   String operator_type = param->operator_type;
-  bool valid_operator_type = operator_type == "ABS";
-  ICHECK(valid_operator_type) << "Expected ethosu_unary_elementwise 'ABS' for operator_type but was"
-                              << operator_type;
+  if (operator_type != "ABS") {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_unary_elementwise 'ABS' for operator_type but was"
+        << operator_type);
+    return false;
+  }
 
   auto ifm_dtype = ifm->dtype;
-  ICHECK(ifm_dtype == DataType::UInt(8) || ifm_dtype == DataType::Int(8))
-      << "Expected ethosu_unary_elementwise type(uint8) or type(int8) for ifm but was "
-      << ifm_dtype;
+  if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_unary_elementwise input data type "
+        << "of type(uint8) or type(int8) but was " << ifm_dtype);
+    return false;
+  }
 
   // Assign ofm type
-  auto ofm_shape = EthosuInferBinaryElementwiseOutputShape(ifm->shape, param->ifm_layout,
-                                                           param->ofm_layout, param->ofm_channels);
+  auto ofm_shape = EthosuInferElementwiseOutputShape(ifm->shape, param->ifm_layout,
+                                                     param->ofm_layout, param->ofm_channels);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ifm_dtype));
   return true;
 }
@@ -115,18 +131,20 @@ bool EthosuUnaryElementwiseRel(const Array<Type>& types, int num_inputs, const A
 Expr MakeEthosuUnaryElementwise(Expr ifm, Expr lut, String operator_type, double ifm_scale,
                                 int ifm_zero_point, double ofm_scale, int ofm_zero_point,
                                 IndexExpr ofm_channels, String activation, int clip_min,
-                                int clip_max, String ifm_layout, String ofm_layout) {
+                                int clip_max, String rounding_mode, String ifm_layout,
+                                String ofm_layout) {
   auto attrs = make_object<EthosuUnaryElementwiseAttrs>();
 
-  attrs->operator_type = operator_type;
+  attrs->operator_type = std::move(operator_type);
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
   attrs->ofm_scale = ofm_scale;
   attrs->ofm_zero_point = ofm_zero_point;
-  attrs->ofm_channels = ofm_channels;
+  attrs->ofm_channels = std::move(ofm_channels);
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
   attrs->clip_max = clip_max;
+  attrs->rounding_mode = std::move(rounding_mode);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);
 
