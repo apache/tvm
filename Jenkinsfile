@@ -92,9 +92,12 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   // Add more info about job node
-  sh (script: """
+  sh (
+    script: """
      echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
-     """, label: "Show executor node info")
+     """,
+     label: "Show executor node info",
+  )
   checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
@@ -127,7 +130,7 @@ stage('Prepare') {
     ci_qemu = params.ci_qemu_param ?: ci_qemu
     ci_arm = params.ci_arm_param ?: ci_arm
 
-    sh script: """
+    sh (script: """
       echo "Docker images being used in this build:"
       echo " ci_lint = ${ci_lint}"
       echo " ci_cpu  = ${ci_cpu}"
@@ -136,7 +139,7 @@ stage('Prepare') {
       echo " ci_i386 = ${ci_i386}"
       echo " ci_qemu = ${ci_qemu}"
       echo " ci_arm  = ${ci_arm}"
-    """, label: "Docker image names"
+    """, label: "Docker image names")
   }
 }
 
@@ -145,11 +148,15 @@ stage('Sanity Check') {
     node('CPU') {
       ws(per_exec_ws('tvm/sanity')) {
         init_git()
-        is_docs_only_build = sh (returnStatus: true, script: '''
-        ./tests/scripts/git_change_docs.sh
-        ''', label: "Check for docs only changes"
+        is_docs_only_build = sh (
+          returnStatus: true,
+          script: './tests/scripts/git_change_docs.sh',
+          label: "Check for docs only changes",
         )
-        sh (script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh", label: "Run lint")
+        sh (
+          script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
+          label: "Run lint",
+        )
       }
     }
   }
@@ -220,7 +227,7 @@ def ci_setup(image) {
 def unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
-    label: "Run Python unittests",
+    label: "Run Python unit tests",
   )
 }
 
@@ -257,7 +264,6 @@ stage('Build') {
           make(ci_cpu, 'build', '-j2')
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
-            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
             ci_setup(ci_cpu)
             unittest(ci_cpu)
             fsim_test(ci_cpu)
@@ -541,7 +547,10 @@ stage('Integration Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           ci_setup(ci_gpu)
-          sh (script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh", label: "Build docs")
+          sh (
+            script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
+            label: "Build docs",
+          )
         }
         pack_lib('mydocs', 'docs.tgz')
       }
