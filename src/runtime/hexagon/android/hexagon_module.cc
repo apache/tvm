@@ -196,7 +196,8 @@ class HexagonModuleNode final : public runtime::HexagonHostModuleNode {
                     std::string obj_str, std::string ir_str, std::string bc_str,
                     const std::set<std::string>& packed_c_abi)
       : HexagonHostModuleNode(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str, packed_c_abi),
-        hexagon_device_(), dl_handle_(nullptr) {}
+        hexagon_device_(),
+        dl_handle_(nullptr) {}
 
   virtual ~HexagonModuleNode() {
     if (dl_handle_) {

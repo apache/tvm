@@ -77,7 +77,7 @@ AEEResult set_remote_stack_size(int size) {
 }
 
 class FastRPCChannel {
-public:
+ public:
   explicit FastRPCChannel(const std::string& uri) {
     enable_unsigned_pd(true);
     set_remote_stack_size(128 * 1024);
@@ -98,7 +98,8 @@ public:
   }
 
   FastRPCHandle GetHandle() { return handle_; }
-private:
+
+ private:
   FastRPCHandle handle_ = std::numeric_limits<uint64_t>::max();
 };
 
@@ -139,13 +140,12 @@ class HexagonModuleNode : public ModuleNode {
         int32_t thandle = (*f)(tensor->data);
         handles.push_back(thandle);
       }
-      auto* packet = reinterpret_cast<HandlePacket*>(
-        rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, HandlePacket::size(args.size())));
+      auto* packet = reinterpret_cast<HandlePacket*>(rpcmem_alloc(
+          RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, HandlePacket::size(args.size())));
       packet->ndim = args.size();
       std::copy(handles.begin(), handles.end(), packet->handles);
-      AEEResult rc =
-        hexagon_proxy_rpc_invoke(handle, func, reinterpret_cast<const unsigned char*>(packet),
-                           packet->size());
+      AEEResult rc = hexagon_proxy_rpc_invoke(
+          handle, func, reinterpret_cast<const unsigned char*>(packet), packet->size());
       if (rc != AEE_SUCCESS) {
         LOG(FATAL) << "Error invoking function: " << name;
       }
@@ -153,12 +153,13 @@ class HexagonModuleNode : public ModuleNode {
     });
   }
   const char* type_key() const { return "HexagonModule"; }
-private:
+
+ private:
   FastRPCHandle handle_;
   Handle mod_;
   std::vector<Handle> packed_func_handles_;
 };
-} // namespace hexagon
+}  // namespace hexagon
 
 RPCEnv::RPCEnv(const std::string& wd) {
   if (wd != "") {
@@ -191,33 +192,37 @@ RPCEnv::RPCEnv(const std::string& wd) {
     *rv = this->GetPath(args[0]);
   });
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([this, handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
-    std::string file_name = this->GetPath(args[0]);
-    auto n = make_object<hexagon::HexagonModuleNode>(handle, file_name);
-    *rv = Module(n);
-    LOG(INFO) << "Load module from " << file_name << " ...";
-  });
+  TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
+      .set_body([this, handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
+        std::string file_name = this->GetPath(args[0]);
+        auto n = make_object<hexagon::HexagonModuleNode>(handle, file_name);
+        *rv = Module(n);
+        LOG(INFO) << "Load module from " << file_name << " ...";
+      });
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.hexagon.allocate").set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
-    DLTensor* ext_tensor = args[0];
-    Optional<String> mem_scope = args[1];
+  TVM_REGISTER_GLOBAL("tvm.rpc.hexagon.allocate")
+      .set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
+        DLTensor* ext_tensor = args[0];
+        Optional<String> mem_scope = args[1];
 
-    auto* input_meta = reinterpret_cast<tensor_meta*>(rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, tensor_meta::meta_size(ext_tensor->ndim)));
-    input_meta->ndim = ext_tensor->ndim;
-    input_meta->dtype = ext_tensor->dtype;
-    std::copy(ext_tensor->shape, ext_tensor->shape + ext_tensor->ndim, input_meta->shape);
+        auto* input_meta = reinterpret_cast<tensor_meta*>(rpcmem_alloc(
+            RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, tensor_meta::meta_size(ext_tensor->ndim)));
+        input_meta->ndim = ext_tensor->ndim;
+        input_meta->dtype = ext_tensor->dtype;
+        std::copy(ext_tensor->shape, ext_tensor->shape + ext_tensor->ndim, input_meta->shape);
 
-    hexagon::Handle hexagon_buffer;
-    const char* scope = mem_scope.defined() ? mem_scope.value().c_str() : "";
-    AEEResult rc = hexagon_proxy_rpc_allocate(handle, reinterpret_cast<const unsigned char*>(input_meta),
-                                        input_meta->meta_size(), scope, &hexagon_buffer);
-    if (rc != AEE_SUCCESS) {
-      LOG(FATAL) << "Error allocating hexagon ndrray\n";
-    }
-    rpcmem_free(input_meta);
-    *rv = static_cast<int32_t>(hexagon_buffer);
-    return rc == AEE_SUCCESS;
-  });
+        hexagon::Handle hexagon_buffer;
+        const char* scope = mem_scope.defined() ? mem_scope.value().c_str() : "";
+        AEEResult rc =
+            hexagon_proxy_rpc_allocate(handle, reinterpret_cast<const unsigned char*>(input_meta),
+                                       input_meta->meta_size(), scope, &hexagon_buffer);
+        if (rc != AEE_SUCCESS) {
+          LOG(FATAL) << "Error allocating hexagon ndrray\n";
+        }
+        rpcmem_free(input_meta);
+        *rv = static_cast<int32_t>(hexagon_buffer);
+        return rc == AEE_SUCCESS;
+      });
 
   TVM_REGISTER_GLOBAL("tvm.rpc.hexagon.read_to_host")
       .set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
@@ -225,23 +230,23 @@ RPCEnv::RPCEnv(const std::string& wd) {
         size_t nbytes = args[1];
         hexagon::Handle hexagon_buffer = static_cast<int32_t>(args[2]);
         AEEResult rc = hexagon_proxy_rpc_read(handle, static_cast<uint8_t*>(host_ptr),
-                                        static_cast<int32_t>(nbytes), hexagon_buffer);
+                                              static_cast<int32_t>(nbytes), hexagon_buffer);
         if (rc != AEE_SUCCESS) {
           LOG(FATAL) << "Error reading from hexagon buffer\n";
         }
       });
 
   TVM_REGISTER_GLOBAL("tvm.rpc.hexagon.write_from_host")
-    .set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
-      hexagon::Handle hexagon_buffer = static_cast<int32_t>(args[0]);
-      void* host_ptr = static_cast<void*>(args[1]);
-      size_t nbytes = args[2];
-      AEEResult rc = hexagon_proxy_rpc_write(handle, hexagon_buffer, static_cast<uint8_t*>(host_ptr),
-                                       static_cast<int32_t>(nbytes));
-      if (rc != AEE_SUCCESS) {
-        LOG(FATAL) << "Error writing to hexagon buffer\n";
-      }
-    });
+      .set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
+        hexagon::Handle hexagon_buffer = static_cast<int32_t>(args[0]);
+        void* host_ptr = static_cast<void*>(args[1]);
+        size_t nbytes = args[2];
+        AEEResult rc = hexagon_proxy_rpc_write(
+            handle, hexagon_buffer, static_cast<uint8_t*>(host_ptr), static_cast<int32_t>(nbytes));
+        if (rc != AEE_SUCCESS) {
+          LOG(FATAL) << "Error writing to hexagon buffer\n";
+        }
+      });
 
   TVM_REGISTER_GLOBAL("tvm.rpc.hexagon.release")
       .set_body([handle = hexagon_proxy_rpc.GetHandle()](TVMArgs args, TVMRetValue* rv) {
@@ -317,5 +322,5 @@ void CleanDir(const std::string& dirname) {
     }
   }
 }
-} // namespace runtime
-} // namespace tvm
+}  // namespace runtime
+}  // namespace tvm

@@ -68,7 +68,8 @@ class HexagonHostModuleNode : public runtime::ModuleNode {
   const char* type_key() const final { return "hexagon"; }
   void SaveToFile(const std::string& file_name, const std::string& format) override;
   void SaveToBinary(dmlc::Stream* stream) override;
-protected:
+
+ protected:
   std::string data_;
   std::string fmt_;
   std::unordered_map<std::string, FunctionInfo> fmap_;

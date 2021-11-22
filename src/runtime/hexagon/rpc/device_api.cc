@@ -30,14 +30,16 @@
 #include <rpcmem.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+
 #include "../hexagon/hexagon_common.h"
 
 namespace tvm {
 namespace runtime {
 
 class MirroredBuffer {
-public:
-  MirroredBuffer(Device dev, int ndim, const int64_t* shape, DLDataType dtype, Optional<String> scope) {
+ public:
+  MirroredBuffer(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
+                 Optional<String> scope) {
     DLTensor t;
     t.shape = const_cast<int64_t*>(shape);
     t.ndim = ndim;
@@ -45,7 +47,7 @@ public:
     t.device = dev;
     rpc_mem_size_ = GetDataSize(t);
     rpc_mem_ = reinterpret_cast<uint8_t*>(
-      rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, rpc_mem_size_));
+        rpcmem_alloc(RPCMEM_HEAP_ID_SYSTEM, RPCMEM_DEFAULT_FLAGS, rpc_mem_size_));
 
     TVMValue value;
     value.v_handle = &t;
@@ -91,21 +93,20 @@ class HexagonRPCDeviceAPI final : public DeviceAPI {
     return new MirroredBuffer(dev, ndim, shape, dtype, mem_scope);
   }
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final {
-    ICHECK((IsHexagonDevice(from->device) && IsHexagonDevice(to->device)) == false) << "Unimplimented";
+    ICHECK((IsHexagonDevice(from->device) && IsHexagonDevice(to->device)) == false)
+        << "Unimplimented";
     if (IsHexagonDevice(from->device) && to->device.device_type == kDLCPU) {
       MirroredBuffer* mirror = static_cast<MirroredBuffer*>(from->data);
       mirror->Read();
       memcpy(static_cast<char*>(to->data) + to->byte_offset,
-             static_cast<const char*>(mirror->GetRPCMem()) + from->byte_offset,
-             GetDataSize(*from));
+             static_cast<const char*>(mirror->GetRPCMem()) + from->byte_offset, GetDataSize(*from));
     } else if (from->device.device_type == kDLCPU && IsHexagonDevice(to->device)) {
       MirroredBuffer* mirror = static_cast<MirroredBuffer*>(to->data);
       memcpy(static_cast<char*>(mirror->GetRPCMem()) + to->byte_offset,
              static_cast<const char*>(from->data) + from->byte_offset, GetDataSize(*from));
       mirror->Write();
     } else {
-      CHECK(false)
-        << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU only.";
+      CHECK(false) << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU only.";
     }
   }
   void FreeDataSpace(Device dev, void* ptr) final {
@@ -120,7 +121,7 @@ class HexagonRPCDeviceAPI final : public DeviceAPI {
     }
   }
   void StreamSync(Device dev, TVMStreamHandle stream) final {}
-  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final{
+  void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     throw tvm::runtime::Error("HexagonRPCDeviceAPI::AllocWorkspace is unimplemented");
   };
   void FreeWorkspace(Device dev, void* data) final {
@@ -132,9 +133,9 @@ class HexagonRPCDeviceAPI final : public DeviceAPI {
     return inst;
   }
 
-protected:
-  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset,
-                      size_t size, Device dev_from, Device dev_to, DLDataType type_hint,
+ protected:
+  void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,
+                      Device dev_from, Device dev_to, DLDataType type_hint,
                       TVMStreamHandle stream) final {
     throw tvm::runtime::Error("HexagonRPCDeviceAPI::CopyDataFromTo is unimplemented");
   }

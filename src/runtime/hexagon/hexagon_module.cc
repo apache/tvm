@@ -37,17 +37,18 @@ namespace tvm {
 namespace runtime {
 
 HexagonHostModuleNode::HexagonHostModuleNode(std::string data, std::string fmt,
-                                             std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
-                                             std::string obj_str, std::string ir_str, std::string bc_str,
+                                             std::unordered_map<std::string, FunctionInfo> fmap,
+                                             std::string asm_str, std::string obj_str,
+                                             std::string ir_str, std::string bc_str,
                                              const std::set<std::string>& packed_c_abi)
-  : data_(data),
-    fmt_(fmt),
-    fmap_(fmap),
-    asm_(asm_str),
-    obj_(obj_str),
-    ir_(ir_str),
-    bc_(bc_str),
-    packed_c_abi_funcs_(packed_c_abi) {}
+    : data_(data),
+      fmt_(fmt),
+      fmap_(fmap),
+      asm_(asm_str),
+      obj_(obj_str),
+      ir_(ir_str),
+      bc_(bc_str),
+      packed_c_abi_funcs_(packed_c_abi) {}
 
 PackedFunc HexagonHostModuleNode::GetFunction(const std::string& name,
                                               const ObjectPtr<Object>& sptr_to_self) {
@@ -56,44 +57,44 @@ PackedFunc HexagonHostModuleNode::GetFunction(const std::string& name,
 }
 
 std::string HexagonHostModuleNode::GetSource(const std::string& format) {
-    if (format == "s" || format == "asm") {
-      return asm_;
-    }
-    if (format == "ll") {
-      return ir_;
-    }
-    return "";
+  if (format == "s" || format == "asm") {
+    return asm_;
   }
+  if (format == "ll") {
+    return ir_;
+  }
+  return "";
+}
 
-  void HexagonHostModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
-    std::string fmt = runtime::GetFileFormat(file_name, format);
-    if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
-      std::string meta_file = GetMetaFilePath(file_name);
-      SaveMetaDataToFile(meta_file, fmap_);
-      std::string c = "cp " + data_ + " " + file_name;
-      ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
-    } else if (fmt == "s" || fmt == "asm") {
-      ICHECK(!asm_.empty()) << "Assembler source not available";
-      SaveBinaryToFile(file_name, asm_);
-    } else if (fmt == "o" || fmt == "obj") {
-      ICHECK(!obj_.empty()) << "Object data not available";
-      SaveBinaryToFile(file_name, obj_);
-    } else if (fmt == "ll") {
-      ICHECK(!ir_.empty()) << "LLVM IR source not available";
-      SaveBinaryToFile(file_name, ir_);
-    } else if (fmt == "bc") {
-      ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
-      SaveBinaryToFile(file_name, bc_);
-    } else {
-      LOG(FATAL) << "HexagonHostModuleNode::SaveToFile: unhandled format `" << fmt << "'";
-    }
+void HexagonHostModuleNode::SaveToFile(const std::string& file_name, const std::string& format) {
+  std::string fmt = runtime::GetFileFormat(file_name, format);
+  if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
+    std::string meta_file = GetMetaFilePath(file_name);
+    SaveMetaDataToFile(meta_file, fmap_);
+    std::string c = "cp " + data_ + " " + file_name;
+    ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
+  } else if (fmt == "s" || fmt == "asm") {
+    ICHECK(!asm_.empty()) << "Assembler source not available";
+    SaveBinaryToFile(file_name, asm_);
+  } else if (fmt == "o" || fmt == "obj") {
+    ICHECK(!obj_.empty()) << "Object data not available";
+    SaveBinaryToFile(file_name, obj_);
+  } else if (fmt == "ll") {
+    ICHECK(!ir_.empty()) << "LLVM IR source not available";
+    SaveBinaryToFile(file_name, ir_);
+  } else if (fmt == "bc") {
+    ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
+    SaveBinaryToFile(file_name, bc_);
+  } else {
+    LOG(FATAL) << "HexagonHostModuleNode::SaveToFile: unhandled format `" << fmt << "'";
   }
+}
 
-  void HexagonHostModuleNode::SaveToBinary(dmlc::Stream * stream) {
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-  }
+void HexagonHostModuleNode::SaveToBinary(dmlc::Stream* stream) {
+  stream->Write(fmt_);
+  stream->Write(fmap_);
+  stream->Write(data_);
+}
 
 }  // namespace runtime
 }  // namespace tvm

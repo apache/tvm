@@ -48,7 +48,7 @@ unsigned int SerializeFromPointerType(T* pointer) {
 
 tvm::runtime::Module load_module(const std::string& file_name) {
   static const tvm::runtime::PackedFunc loader =
-    *tvm::runtime::Registry::Get("runtime.module.loadfile_hexagon");
+      *tvm::runtime::Registry::Get("runtime.module.loadfile_hexagon");
   tvm::runtime::TVMRetValue rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     return rv.operator tvm::runtime::Module();
@@ -70,7 +70,7 @@ int __QAIC_HEADER(hexagon_proxy_rpc_close)(remote_handle64 handle) {
 }
 
 AEEResult __QAIC_HEADER(hexagon_proxy_rpc_load)(remote_handle64 handle, const char* module_path,
-                                          unsigned int* module) {
+                                                unsigned int* module) {
   auto* mod_ptr = new tvm::runtime::Module(load_module(module_path));
   *module = SerializeFromPointerType<tvm::runtime::Module>(mod_ptr);
   return AEE_SUCCESS;
@@ -83,7 +83,7 @@ AEEResult __QAIC_HEADER(hexagon_proxy_rpc_unload)(remote_handle64 handle, unsign
 }
 
 AEEResult __QAIC_HEADER(hexagon_proxy_rpc_get_function)(remote_handle64 handle, const char* name,
-                                                  unsigned int module, unsigned int* func) {
+                                                        unsigned int module, unsigned int* func) {
   tvm::runtime::Module* mod_ptr = DeserializeToPointerType<tvm::runtime::Module>(module);
   std::string fname(name);
   tvm::runtime::PackedFunc f = (*mod_ptr)->GetFunction(fname);
@@ -92,19 +92,22 @@ AEEResult __QAIC_HEADER(hexagon_proxy_rpc_get_function)(remote_handle64 handle, 
   return AEE_SUCCESS;
 }
 
-AEEResult __QAIC_HEADER(hexagon_proxy_rpc_release_function)(remote_handle64 handle, unsigned int func) {
+AEEResult __QAIC_HEADER(hexagon_proxy_rpc_release_function)(remote_handle64 handle,
+                                                            unsigned int func) {
   tvm::runtime::PackedFunc* f_ptr = DeserializeToPointerType<tvm::runtime::PackedFunc>(func);
   delete f_ptr;
   return AEE_SUCCESS;
 }
 
-AEEResult __QAIC_HEADER(hexagon_proxy_rpc_invoke)(remote_handle64 handle, unsigned int func, const unsigned char* handles, int nhandles) {
+AEEResult __QAIC_HEADER(hexagon_proxy_rpc_invoke)(remote_handle64 handle, unsigned int func,
+                                                  const unsigned char* handles, int nhandles) {
   tvm::runtime::PackedFunc* f_ptr = DeserializeToPointerType<tvm::runtime::PackedFunc>(func);
   const auto* meta = reinterpret_cast<const HandlePacket*>(handles);
   std::vector<TVMValue> values;
   std::vector<int> type_codes;
   for (size_t i = 0; i < meta->ndim; i++) {
-    tvm::runtime::NDArray* array = DeserializeToPointerType<tvm::runtime::NDArray>(meta->handles[i]);
+    tvm::runtime::NDArray* array =
+        DeserializeToPointerType<tvm::runtime::NDArray>(meta->handles[i]);
     type_codes.push_back(kTVMDLTensorHandle);
     values.emplace_back();
     const DLTensor* dltensor = array->operator->();
@@ -147,35 +150,42 @@ AEEResult __QAIC_HEADER(hexagon_proxy_rpc_invoke)(remote_handle64 handle, unsign
   return AEE_SUCCESS;
 }
 
-AEEResult __QAIC_HEADER(hexagon_proxy_rpc_allocate)(remote_handle64 handle, const unsigned char* input_meta, int input_meta_size, const char* mem_scope, unsigned int* tensor) {
+AEEResult __QAIC_HEADER(hexagon_proxy_rpc_allocate)(remote_handle64 handle,
+                                                    const unsigned char* input_meta,
+                                                    int input_meta_size, const char* mem_scope,
+                                                    unsigned int* tensor) {
   const auto* meta = reinterpret_cast<const tensor_meta*>(input_meta);
   auto device = tvm::Device{static_cast<DLDeviceType>(kDLHexagon), 0};
   tvm::runtime::Optional<tvm::runtime::String> scope;
   if (*mem_scope) {
     scope = mem_scope;
   }
-  auto* array = new tvm::runtime::NDArray(std::move(tvm::runtime::NDArray::Empty(tvm::ShapeTuple(meta->shape, meta->shape + meta->ndim), meta->dtype, device, scope)));
+  auto* array = new tvm::runtime::NDArray(std::move(tvm::runtime::NDArray::Empty(
+      tvm::ShapeTuple(meta->shape, meta->shape + meta->ndim), meta->dtype, device, scope)));
   *tensor = SerializeFromPointerType(array);
   return AEE_SUCCESS;
 }
 
-AEEResult __QAIC_HEADER(hexagon_proxy_rpc_read)(remote_handle64 handle, unsigned char* dst_ptr, int nbytes, unsigned int src) {
+AEEResult __QAIC_HEADER(hexagon_proxy_rpc_read)(remote_handle64 handle, unsigned char* dst_ptr,
+                                                int nbytes, unsigned int src) {
   tvm::runtime::NDArray* src_ptr = DeserializeToPointerType<tvm::runtime::NDArray>(src);
   const DLTensor* t = src_ptr->operator->();
   tvm::ShapeTuple shape(t->shape, t->shape + t->ndim);
   auto* container = new tvm::runtime::NDArray::Container(
-    static_cast<void*>(dst_ptr), shape, src_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
+      static_cast<void*>(dst_ptr), shape, src_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
   tvm::runtime::NDArray dst(GetObjectPtr<tvm::Object>(container));
   dst.CopyFrom(*src_ptr);
   return AEE_SUCCESS;
 }
 
-AEEResult __QAIC_HEADER(hexagon_proxy_rpc_write)(remote_handle64 handle, unsigned int dst, const unsigned char* src_ptr, int nbytes) {
+AEEResult __QAIC_HEADER(hexagon_proxy_rpc_write)(remote_handle64 handle, unsigned int dst,
+                                                 const unsigned char* src_ptr, int nbytes) {
   tvm::runtime::NDArray* dst_ptr = DeserializeToPointerType<tvm::runtime::NDArray>(dst);
   const DLTensor* t = dst_ptr->operator->();
   tvm::ShapeTuple shape(t->shape, t->shape + t->ndim);
-  auto* container = new tvm::runtime::NDArray::Container(
-    const_cast<unsigned char*>(src_ptr), shape, dst_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
+  auto* container =
+      new tvm::runtime::NDArray::Container(const_cast<unsigned char*>(src_ptr), shape,
+                                           dst_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
   tvm::runtime::NDArray src(GetObjectPtr<tvm::Object>(container));
   dst_ptr->CopyFrom(src);
   return AEE_SUCCESS;
