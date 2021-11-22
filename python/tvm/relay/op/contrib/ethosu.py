@@ -41,6 +41,8 @@ try:
     from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
     from tvm.relay.backend.contrib.ethosu.util import RequantArgs
     from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
+    from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+    from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
     from tvm.relay.backend.contrib.ethosu.util import get_dim_value
 except ImportError:
     vapi = None
@@ -481,30 +483,30 @@ class BinaryElementwiseParams:
 
         if has_quantization_parameters:
             self.ifm = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ifm_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ifm_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.IFM_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.IFM_ZERO_POINT.value],
             )
             self.ifm2 = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2.value],
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ifm2_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ifm2_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2_ZERO_POINT.value],
             )
             self.ofm = TensorParams(
                 binary_op,
                 layout,
-                binary_op.args[BinaryElementwiseArgs.ofm_scale.value],
-                binary_op.args[BinaryElementwiseArgs.ofm_zero_point.value],
+                binary_op.args[BinaryElementwiseArgs.OFM_SCALE.value],
+                binary_op.args[BinaryElementwiseArgs.OFM_ZERO_POINT.value],
             )
         else:
             self.ifm = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm.value],
+                binary_op.args[BinaryElementwiseArgs.IFM.value],
                 layout,
             )
             self.ifm2 = TensorParams(
-                binary_op.args[BinaryElementwiseArgs.ifm2.value],
+                binary_op.args[BinaryElementwiseArgs.IFM2.value],
                 layout,
             )
             self.ofm = TensorParams(
@@ -852,6 +854,61 @@ def strided_slice_pattern():
     return pattern
 
 
+class AbsParams:
+    """
+    This class will parse a call to a ethosu.unary_elementwise Abs composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.abs"
+
+    def __init__(self, func_body: Call):
+        quantize = func_body
+        abs_op = quantize.args[0]
+        dequantize = abs_op.args[0]
+
+        layout = "NHWC"
+
+        self.ifm = TensorParams(
+            dequantize.args[DequantizeArgs.IFM.value],
+            layout,
+            dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout,
+            quantize.args[QuantizeArgs.OFM_SCALE.value],
+            quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.operator_type = "ABS"
+        self.activation = None
+
+    def is_valid(self):
+        """Checks whether Abs has compatible attributes with HW"""
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8, np.uint8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not check_dimensions(self.ifm):
+            return False
+        if len(self.ifm.shape) == 4 and self.ifm.shape[0] != 1:
+            return False
+        if self.ifm.shape != self.ofm.shape:
+            return False
+        return True
+
+
+def abs_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """Create pattern for abs"""
+    pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    pattern = is_op("abs")(pattern)
+    pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -914,6 +971,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             StridedSliceParams.composite_name,
             strided_slice_pattern(),
             lambda pat: StridedSliceParams(pat).is_valid(),
+        ),
+        (
+            AbsParams.composite_name,
+            abs_pattern(),
+            lambda pat: AbsParams(pat).is_valid(),
         ),
     ]
 

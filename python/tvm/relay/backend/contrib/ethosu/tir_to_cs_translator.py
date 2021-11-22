@@ -309,6 +309,7 @@ def translate_ethosu_tir_call_extern(tir_call_extern):
         "ethosu_pooling": translate_ethosu_pooling,
         "ethosu_binary_elementwise": translate_ethosu_binary_elementwise,
         "ethosu_identity": translate_ethosu_pooling,
+        "ethosu_unary_elementwise": translate_ethosu_unary_elementwise,
     }
     ext_call_type = tir_call_extern.args[0].value
     assert ext_call_type in supported_call_extern.keys(), f"{ext_call_type} is not yet supported"
@@ -770,3 +771,53 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
     npu_binary_elementwise_op.block_config = block_config
 
     return npu_binary_elementwise_op
+
+
+def translate_ethosu_unary_elementwise(
+    tir_extern_call: tvm.tir.Call,
+) -> vapi.NpuElementWiseOperation:
+
+    """This function will translate a tir extern_call
+    as produced by Relay to TIR compilation.
+    Parameters
+    ----------
+    tir_extern_call : tvm.tir.Call
+        This should be a tir external call that has a agreed upon ordering
+        for the NPU TIR Compiler. See SerialUnaryElementwise in
+        tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
+
+    Returns
+    -------
+    ethosu.vela.api.NpuElementWiseOperation
+        The vela object containing the params of ethosu_unary_elementwise
+    """
+    serial_object = spec.create_serial_object(spec.SerialUnaryElementwise, tir_extern_call.args[1:])
+    return _create_npu_op_unary_elementwise(serial_object)
+
+
+def _create_npu_op_unary_elementwise(serial_unary_elementwise):
+    operator_type = serial_unary_elementwise.operator_type
+    if operator_type == "ABS":
+        op = vapi.NpuElementWiseOp.ABS
+
+    npu_unary_elementwise_op = vapi.NpuElementWiseOperation(op)
+    npu_unary_elementwise_op.ifm = _create_npu_feature_map(serial_unary_elementwise.ifm)
+    npu_unary_elementwise_op.ofm = _create_npu_feature_map(serial_unary_elementwise.ofm)
+
+    npu_unary_elementwise_op.activation = _create_npu_activation(
+        serial_unary_elementwise.activation
+    )
+    if (
+        npu_unary_elementwise_op.activation
+        and npu_unary_elementwise_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    ):
+        _convert_clip_bounds(npu_unary_elementwise_op)
+
+    npu_unary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
+        serial_unary_elementwise.rounding_mode
+    )
+    target_accel_type = vela_api.get_accelerator_config()
+    block_config = vela_api.get_optimal_block_config(npu_unary_elementwise_op, target_accel_type)
+    npu_unary_elementwise_op.block_config = block_config
+
+    return npu_unary_elementwise_op

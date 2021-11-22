@@ -765,5 +765,81 @@ def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
     infra.verify_source(compiled_model, accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("operator_type", ["ABS"])
+@pytest.mark.parametrize(
+    "ifm_shape",
+    [[1, 5, 12, 4], [1, 1, 2], [4, 3, 2], [10, 20], [345]],
+)
+def test_ethosu_unary_elementwise(
+    accel_type,
+    operator_type,
+    ifm_shape,
+):
+    dtype = "int8"
+
+    def get_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def abs_func(self, x):
+                if operator_type == "ABS":
+                    op = tf.math.abs(x)
+                return op
+
+        model = Model()
+
+        concrete_func = model.abs_func.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32) * 2 - 1]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = get_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = partition_for_ethosu(relay_module, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
