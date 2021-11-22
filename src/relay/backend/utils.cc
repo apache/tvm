@@ -24,6 +24,7 @@
 
 #include "utils.h"
 
+#include <tvm/parser/parser.h>
 #include <tvm/relay/qnn/transform.h>
 
 #include "te_compiler.h"
@@ -177,6 +178,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
   Array<Pass> pass_seqs;
+  // TODO(mbs): Would be nice to get spans on all diagnostics, but since they arg forgotton
+  // by most passes there's little utility in including this now. Plus we'd need to only do
+  // this if there's no existing spans to work from.
+  // pass_seqs.push_back(parser::AnnotateSpans());
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   pass_seqs.push_back(transform::ToBasicBlockNormalForm());

@@ -67,7 +67,8 @@ Expr CallLowered(Expr func, Array<Expr> inputs, Attrs attrs, Array<Type> type_ar
   // Right now, call_lowered only supports func being a global var pointing to the lowered
   // function.
   ICHECK(func.as<GlobalVarNode>())
-      << "Function to call should be GlobalVarNode, but got " << func->GetTypeKey();
+      << "Function to call should be GlobalVarNode, but got:" << std::endl
+      << PrettyPrint(func);
   ICHECK(attrs.as<CallLoweredAttrs>())
       << "Expected attributes to be CallLoweredAttrs, but got " << attrs->GetTypeKey();
   return Call(CallLoweredOp(), {std::move(func), Tuple(std::move(inputs))}, std::move(attrs),
@@ -95,20 +96,29 @@ RELAY_REGISTER_OP("call_lowered")
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 CallLoweredProps GetCallLoweredProps(const CallNode* call_node) {
-  ICHECK(call_node->op == CallLoweredOp())
-      << "GetCallLoweredProps expects the op to be call_lowered. ";
-  ICHECK(call_node->args.size() == 2) << "Expected call_lowered to have 2 arguments. ";
-  const auto* function = call_node->args[0].as<GlobalVarNode>();
-  ICHECK(function) << "Expected first arg to call_lowered to be a GlobalVar. ";
+  if (call_node->op == CallLoweredOp()) {
+    ICHECK(call_node->args.size() == 2) << "Expected call_lowered to have 2 arguments.";
+    const auto* function_node = call_node->args[0].as<GlobalVarNode>();
+    ICHECK(function_node) << "Expected first arg to call_lowered to be a GlobalVar. ";
 
-  const auto* tuple_args = call_node->args[1].as<TupleNode>();
-  ICHECK(tuple_args) << "Expected second arg to call_lowered to be a Tuple. ";
+    const auto* tuple_args = call_node->args[1].as<TupleNode>();
+    ICHECK(tuple_args) << "Expected second arg to call_lowered to be a Tuple of input arguments.";
 
-  ICHECK(call_node->attrs.defined()) << "Attributes for call_lowered should be defined!";
-  const auto* attrs = call_node->attrs.as<CallLoweredAttrs>();
-  ICHECK(attrs) << "Expected call_lowered op to have CallLoweredAttrs, but found "
-                << call_node->attrs->GetTypeKey();
-  return CallLoweredProps{GetRef<GlobalVar>(function), tuple_args->fields, *attrs};
+    ICHECK(call_node->attrs.defined()) << "Expecting call_lowered to have attributes.";
+    const auto* attrs = call_node->attrs.as<CallLoweredAttrs>();
+    ICHECK(attrs) << "Expected call_lowered op to have CallLoweredAttrs, but found "
+                  << call_node->attrs->GetTypeKey();
+    return CallLoweredProps{GetRef<GlobalVar>(function_node), tuple_args->fields, *attrs};
+  }
+  return {};
+}
+
+bool IsReshapeOnly(const CallLoweredProps& props) {
+  if (props.attrs.metadata.count("relay_attrs")) {
+    auto dict_attrs = Downcast<DictAttrs>(props.attrs.metadata["relay_attrs"]);
+    return dict_attrs.HasNonzeroAttr(attr::kReshapeOnly);
+  }
+  return false;
 }
 
 }  // namespace relay

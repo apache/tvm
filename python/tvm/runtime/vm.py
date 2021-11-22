@@ -73,6 +73,7 @@ class Executable(object):
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_constants = self.mod["get_constants"]
         self._get_virtual_devices = self.mod["get_virtual_devices"]
+        self._get_primitives = self.mod["get_primitives"]
         self._get_stats = self.mod["get_stats"]
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
@@ -256,6 +257,12 @@ class Executable(object):
     def virtual_devices(self):
         """Returns a human-readable description of all the (virtual) devices in the executable."""
         return self._get_virtual_devices()
+
+    @property
+    def primitive(self):
+        """Returns a human-readable dencription of all the primitives (ie PackedFuncs) in the
+        executable"""
+        return self._get_primitives()
 
     @property
     def globals(self):

@@ -684,8 +684,9 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef VisitExpr_(const CallNode* call_node) final {
-    if (call_node->op == CallLoweredOp()) {  // Special case: Call a lowered TIR function.
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.lowered_func.defined()) {
+      // Special case: Call a lowered TIR function.
 
       // Evaluate only function args
       std::vector<ObjectRef> args;

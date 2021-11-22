@@ -145,6 +145,13 @@ class Executable : public ModuleNode {
   std::string GetVirtualDevices() const;
 
   /*!
+   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable.
+   * These correspond to eithed PrimFuncs we've compiled locally, or functions compiled by
+   * a BYOC external codegen.
+   */
+  std::string GetPrimitives() const;
+
+  /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
    * globls and constants, etc.
    */
@@ -201,9 +208,9 @@ class Executable : public ModuleNode {
   int host_device_index = -1;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
-  /*! \brief A map from globals (as strings) to their index in the function map. */
+  /*! \brief A map from globals (as strings) to their index in the Relay function map. */
   std::unordered_map<std::string, Index> global_map;
-  /*! \brief A mapping from the packed function (as string) to the index that
+  /*! \brief A mapping from the packed function's global name (as string) to the index that
    * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
    */
   std::unordered_map<std::string, Index> primitive_map;
