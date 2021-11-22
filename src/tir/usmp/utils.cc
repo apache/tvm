@@ -122,6 +122,20 @@ Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info
   return ret;
 }
 
+Integer CalculateExtentsSize(const AllocateNode* op) {
+  size_t element_size_bytes = op->dtype.bytes();
+  size_t num_elements = 1;
+  for (const auto& ext : op->extents) {
+    if (ext->IsInstance<IntImmNode>()) {
+      num_elements *= Downcast<IntImm>(ext)->value;
+    } else {
+      // We can't statically calculate workspace for dynamic shapes
+      return Integer();
+    }
+  }
+  return Integer(num_elements * element_size_bytes);
+}
+
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
     .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
       return (CreateArrayBufferInfo(buffer_info_map));

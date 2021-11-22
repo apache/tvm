@@ -31,7 +31,7 @@ def _replace_stmt_with_buf_var_names(buffer_info_map):
     """helper to replace tir.allocates with buffer names"""
     new_buffer_info_map = dict()
     for k, v in buffer_info_map.items():
-        new_buffer_info_map[v.buffer_var.name] = k
+        new_buffer_info_map[k.name_hint] = k
     return new_buffer_info_map
 
 
@@ -72,11 +72,20 @@ def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
 
 
 def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
-    """helper to assing poolinfos to allocate nodes in a IRModule"""
+    """helper to assign poolinfos to allocate nodes in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
             ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
+    return ret
+
+
+def _assign_targets_to_primfuncs_irmodule(mod, target):
+    """helper to assign target for PrimFunc in a IRModule"""
+    ret = tvm.IRModule()
+    for global_var, basefunc in mod.functions.items():
+        if isinstance(basefunc, tvm.tir.PrimFunc):
+            ret[global_var] = basefunc.with_attr("target", target)
     return ret
 
 
@@ -139,7 +148,7 @@ class LinearStructure:
                 T.store(T_cast_7.data, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3), T.cast(T.load("uint8", tensor_2, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)), "int16"), True)
 
     @T.prim_func
-    def tvmgen_default_run_model(input: T.handle, output: T.handle) -> None:
+    def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
         # body
@@ -155,27 +164,27 @@ class LinearStructure:
 
 
 def test_linear():
+    target = Target("c")
     fast_memory_pool = usmp_utils.PoolInfo(
-        pool_name="fast_memory", target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS}
+        pool_name="fast_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     )
     slow_memory_pool = usmp_utils.PoolInfo(
-        pool_name="slow_memory", target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS}
+        pool_name="slow_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     )
     tir_mod = LinearStructure
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(
-        tir_mod["tvmgen_default_run_model"], tir_mod
-    )
+    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(tir_mod["run_model"], tir_mod)
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
 
     # check conflicts
-    _verify_conflicts("sid_8", ["Conv2dOutput_7", "tensor_2"], buffer_info_map)
-    _verify_conflicts("Conv2dOutput_7", ["PaddedInput_7", "sid_8"], buffer_info_map)
-    _verify_conflicts("PaddedInput_7", ["sid_9", "Conv2dOutput_7"], buffer_info_map)
+    _verify_conflicts("PaddedInput_7", ["sid_9", "sid_8", "Conv2dOutput_7"], buffer_info_map)
     _verify_conflicts("tensor_2", ["sid_8"], buffer_info_map)
     _verify_conflicts("sid_9", ["PaddedInput_7"], buffer_info_map)
+    _verify_conflicts("sid_8", ["PaddedInput_7", "Conv2dOutput_7", "tensor_2"], buffer_info_map)
+    _verify_conflicts("Conv2dOutput_7", ["sid_8", "PaddedInput_7"], buffer_info_map)
 
     # check sizes
     assert buffer_info_map["sid_8"].size_bytes == 802816
@@ -218,7 +227,7 @@ class ParallelSerialMixedForLoops:
                     T.store(T_cast_23.data, (((ax0_ax1_fused_ax2_fused_8*192) + (ax3_outer_4*64)) + ax3_inner_8), T.cast(T.max(T.min(T.q_multiply_shift((T.load("int32", Conv2dOutput_8, ax3_inner_8) + T.load("int32", placeholder_73.data, ((ax3_outer_4*64) + ax3_inner_8))), 1139793473, 31, -6, dtype="int32"), 255), 0), "uint8"), True)
 
     @T.prim_func
-    def tvmgen_default_run_model(input: T.handle, output: T.handle) -> None:
+    def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
         # body
@@ -259,7 +268,7 @@ class AllSerialForLoops:
                     T.store(T_cast_23.data, (((ax0_ax1_fused_ax2_fused_8*192) + (ax3_outer_4*64)) + ax3_inner_8), T.cast(T.max(T.min(T.q_multiply_shift((T.load("int32", Conv2dOutput_8, ax3_inner_8) + T.load("int32", placeholder_73.data, ((ax3_outer_4*64) + ax3_inner_8))), 1139793473, 31, -6, dtype="int32"), 255), 0), "uint8"), True)
 
     @T.prim_func
-    def tvmgen_default_run_model(input: T.handle, output: T.handle) -> None:
+    def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
         # body
@@ -273,15 +282,17 @@ __tvm_meta__ = None
 
 
 def test_parallel_serial_mixed_for_loops():
+    target = Target("c")
     global_ws_pool = usmp_utils.PoolInfo(
         pool_name="global_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
     all_serial_tir_mod = AllSerialForLoops
+    all_serial_tir_mod = _assign_targets_to_primfuncs_irmodule(all_serial_tir_mod, target)
     all_serial_tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         all_serial_tir_mod, [global_ws_pool]
     )
-    main_func = all_serial_tir_mod["tvmgen_default_run_model"]
+    main_func = all_serial_tir_mod["run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, all_serial_tir_mod)
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
 
@@ -291,10 +302,13 @@ def test_parallel_serial_mixed_for_loops():
         assert name in ["dummy_allocate", "Conv2dOutput_8", "PaddedInput_8"]
 
     parallel_serial_mixed_tir_mod = ParallelSerialMixedForLoops
+    parallel_serial_mixed_tir_mod = _assign_targets_to_primfuncs_irmodule(
+        parallel_serial_mixed_tir_mod, target
+    )
     parallel_serial_mixed_tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         parallel_serial_mixed_tir_mod, [global_ws_pool]
     )
-    main_func = parallel_serial_mixed_tir_mod["tvmgen_default_run_model"]
+    main_func = parallel_serial_mixed_tir_mod["run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(
         main_func, parallel_serial_mixed_tir_mod
     )
@@ -593,7 +607,7 @@ class InceptionStructure:
                     T.store(T_cast_23.data, (((ax0_ax1_fused_ax2_fused_8*192) + (ax3_outer_4*64)) + ax3_inner_8), T.cast(T.max(T.min(T.q_multiply_shift((T.load("int32", Conv2dOutput_8, ax3_inner_8) + T.load("int32", placeholder_73.data, ((ax3_outer_4*64) + ax3_inner_8))), 1139793473, 31, -6, dtype="int32"), 255), 0), "uint8"), True)
 
     @T.prim_func
-    def tvmgen_default_run_model(input: T.handle, output: T.handle) -> None:
+    def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
         # body
@@ -633,106 +647,137 @@ class InceptionStructure:
 
 
 def test_inception_structure():
+    target = Target("c")
     global_ws_pool = usmp_utils.PoolInfo(
         pool_name="global_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
     tir_mod = InceptionStructure
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
-    main_func = tir_mod["tvmgen_default_run_model"]
+    main_func = tir_mod["run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
     buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
 
     # check conflicts
-    _verify_conflicts("sid_5", ["Conv2dOutput_8", "sid_4"], buffer_info_map)
     _verify_conflicts(
-        "Conv2dOutput_2", ["PaddedInput_2", "sid_4", "sid_3", "sid_2"], buffer_info_map
-    )
-    _verify_conflicts("sid_9", ["PaddedInput_7"], buffer_info_map)
-    _verify_conflicts("PaddedInput_7", ["sid_9", "Conv2dOutput_7"], buffer_info_map)
-    _verify_conflicts(
-        "sid_26", ["sid_19", "Conv2dOutput_4", "sid_2", "sid_4", "PaddedInput_5"], buffer_info_map
-    )
-    _verify_conflicts("Conv2dOutput", ["PaddedInput", "sid_6"], buffer_info_map)
-    _verify_conflicts(
-        "PaddedInput_4", ["sid_19", "sid_2", "sid_4", "sid_3", "Conv2dOutput_4"], buffer_info_map
-    )
-    _verify_conflicts("sid_8", ["Conv2dOutput_7", "tensor_2"], buffer_info_map)
-    _verify_conflicts("tensor_3", ["sid_25", "sid_19", "sid_2", "sid_4", "sid_32"], buffer_info_map)
-    _verify_conflicts(
-        "sid_3",
+        "PaddedInput_8",
         [
-            "sid_4",
-            "PaddedInput_2",
-            "Conv2dOutput_2",
-            "sid_2",
-            "PaddedInput_1",
-            "Conv2dOutput_1",
-            "sid_20",
-            "PaddedInput_6",
-            "Conv2dOutput_6",
-            "sid_19",
-            "PaddedInput_4",
+            "sid_6",
+            "Conv2dOutput_8",
+            "sid_5",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_32", ["tensor_3", "sid_25", "sid_19", "sid_2", "PaddedInput_3"], buffer_info_map
+        "sid_26",
+        [
+            "PaddedInput_4",
+            "Conv2dOutput_4",
+            "PaddedInput_5",
+        ],
+        buffer_info_map,
     )
-    _verify_conflicts("PaddedInput_8", ["sid_6", "Conv2dOutput_8"], buffer_info_map)
     _verify_conflicts(
-        "Conv2dOutput_6", ["PaddedInput_6", "sid_2", "sid_4", "sid_3", "sid_19"], buffer_info_map
+        "Conv2dOutput",
+        [
+            "sid_6",
+            "PaddedInput",
+        ],
+        buffer_info_map,
     )
     _verify_conflicts(
         "sid_4",
         [
             "sid_5",
             "sid_3",
-            "PaddedInput_2",
-            "Conv2dOutput_2",
-            "sid_2",
-            "PaddedInput_1",
-            "Conv2dOutput_1",
-            "sid_20",
-            "PaddedInput_6",
-            "Conv2dOutput_6",
-            "sid_19",
-            "PaddedInput_4",
-            "Conv2dOutput_4",
-            "sid_26",
-            "PaddedInput_5",
-            "Conv2dOutput_5",
-            "sid_25",
             "tensor_3",
         ],
         buffer_info_map,
     )
-    _verify_conflicts("PaddedInput_2", ["sid_3", "sid_4", "Conv2dOutput_2"], buffer_info_map)
     _verify_conflicts(
-        "Conv2dOutput_4", ["sid_19", "sid_2", "sid_4", "PaddedInput_4", "sid_26"], buffer_info_map
-    )
-    _verify_conflicts(
-        "PaddedInput_1", ["sid_2", "sid_4", "sid_3", "Conv2dOutput_1"], buffer_info_map
-    )
-    _verify_conflicts("sid_6", ["Conv2dOutput", "PaddedInput_8"], buffer_info_map)
-    _verify_conflicts("Conv2dOutput_8", ["PaddedInput_8", "sid_5"], buffer_info_map)
-    _verify_conflicts(
-        "sid_25",
+        "tensor_2",
         [
-            "Conv2dOutput_5",
-            "sid_19",
-            "sid_2",
-            "sid_4",
-            "tensor_3",
-            "sid_32",
-            "PaddedInput_3",
-            "Conv2dOutput_3",
-            "sid_31",
+            "sid_8",
+            "sid_7",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "PaddedInput_6", ["sid_20", "sid_2", "sid_4", "sid_3", "Conv2dOutput_6"], buffer_info_map
+        "Conv2dOutput_7",
+        [
+            "sid_8",
+            "PaddedInput_7",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_1",
+        [
+            "sid_20",
+            "PaddedInput_1",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_4",
+        [
+            "sid_26",
+            "PaddedInput_4",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_2",
+        [
+            "PaddedInput_2",
+            "sid_2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_3",
+        [
+            "sid_32",
+            "sid_31",
+            "Conv2dOutput_3",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_3",
+        [
+            "sid_4",
+            "PaddedInput_2",
+            "PaddedInput_1",
+            "PaddedInput_4",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_6",
+        [
+            "PaddedInput_6",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_5",
+        [
+            "PaddedInput_5",
+            "sid_25",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_7",
+        [
+            "sid_9",
+            "sid_8",
+            "Conv2dOutput_7",
+        ],
+        buffer_info_map,
     )
     _verify_conflicts(
         "sid_7",
@@ -742,74 +787,178 @@ def test_inception_structure():
         ],
         buffer_info_map,
     )
-    _verify_conflicts("sid_31", ["Conv2dOutput_3", "sid_25", "sid_19", "sid_2"], buffer_info_map)
-    _verify_conflicts("tensor_2", ["sid_8", "sid_7"], buffer_info_map)
     _verify_conflicts(
-        "sid_2",
+        "sid_31",
         [
-            "Conv2dOutput_2",
-            "sid_4",
-            "sid_3",
-            "PaddedInput_1",
-            "Conv2dOutput_1",
-            "sid_20",
-            "PaddedInput_6",
-            "Conv2dOutput_6",
-            "sid_19",
-            "PaddedInput_4",
-            "Conv2dOutput_4",
-            "sid_26",
-            "PaddedInput_5",
-            "Conv2dOutput_5",
-            "sid_25",
-            "tensor_3",
-            "sid_32",
             "PaddedInput_3",
             "Conv2dOutput_3",
-            "sid_31",
+            "sid_25",
+            "sid_2",
+            "sid_19",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "Conv2dOutput_3", ["sid_25", "PaddedInput_3", "sid_19", "sid_2", "sid_31"], buffer_info_map
+        "sid_5",
+        [
+            "Conv2dOutput_8",
+            "PaddedInput_8",
+            "sid_4",
+        ],
+        buffer_info_map,
     )
-    _verify_conflicts("PaddedInput", ["sid_7", "Conv2dOutput"], buffer_info_map)
     _verify_conflicts(
-        "Conv2dOutput_1", ["PaddedInput_1", "sid_2", "sid_4", "sid_3", "sid_20"], buffer_info_map
+        "sid_6",
+        [
+            "PaddedInput",
+            "Conv2dOutput",
+            "PaddedInput_8",
+        ],
+        buffer_info_map,
     )
     _verify_conflicts(
-        "PaddedInput_5", ["sid_26", "sid_19", "sid_2", "sid_4", "Conv2dOutput_5"], buffer_info_map
+        "sid_20",
+        [
+            "PaddedInput_1",
+            "Conv2dOutput_1",
+            "PaddedInput_6",
+        ],
+        buffer_info_map,
     )
     _verify_conflicts(
-        "PaddedInput_3", ["sid_32", "sid_25", "sid_19", "sid_2", "Conv2dOutput_3"], buffer_info_map
+        "Conv2dOutput_8",
+        [
+            "PaddedInput_8",
+            "sid_5",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_1",
+        [
+            "sid_3",
+            "sid_20",
+            "Conv2dOutput_1",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_3",
+        [
+            "sid_31",
+            "PaddedInput_3",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput",
+        [
+            "sid_7",
+            "sid_6",
+            "Conv2dOutput",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_2",
+        [
+            "sid_3",
+            "Conv2dOutput_2",
+            "sid_2",
+        ],
+        buffer_info_map,
     )
     _verify_conflicts(
         "sid_19",
         [
             "Conv2dOutput_6",
-            "sid_2",
-            "sid_4",
-            "sid_3",
-            "PaddedInput_4",
-            "Conv2dOutput_4",
-            "sid_26",
-            "PaddedInput_5",
-            "Conv2dOutput_5",
-            "sid_25",
-            "tensor_3",
-            "sid_32",
-            "PaddedInput_3",
-            "Conv2dOutput_3",
+            "PaddedInput_6",
             "sid_31",
+            "sid_2",
+            "sid_25",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "Conv2dOutput_5", ["PaddedInput_5", "sid_19", "sid_2", "sid_4", "sid_25"], buffer_info_map
+        "PaddedInput_4",
+        [
+            "sid_3",
+            "sid_26",
+            "Conv2dOutput_4",
+        ],
+        buffer_info_map,
     )
-    _verify_conflicts("Conv2dOutput_7", ["PaddedInput_7", "sid_8"], buffer_info_map)
     _verify_conflicts(
-        "sid_20", ["sid_2", "Conv2dOutput_1", "sid_4", "sid_3", "PaddedInput_6"], buffer_info_map
+        "PaddedInput_5",
+        [
+            "sid_26",
+            "Conv2dOutput_5",
+            "sid_25",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_6",
+        [
+            "sid_20",
+            "Conv2dOutput_6",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_25",
+        [
+            "Conv2dOutput_5",
+            "PaddedInput_5",
+            "sid_31",
+            "sid_2",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "tensor_3",
+        [
+            "sid_4",
+            "sid_32",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_32",
+        [
+            "tensor_3",
+            "PaddedInput_3",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_9",
+        [
+            "PaddedInput_7",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_2",
+        [
+            "Conv2dOutput_2",
+            "PaddedInput_2",
+            "sid_31",
+            "sid_25",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_8",
+        [
+            "PaddedInput_7",
+            "Conv2dOutput_7",
+            "tensor_2",
+        ],
+        buffer_info_map,
     )
 
     # check sizes
@@ -847,6 +996,559 @@ def test_inception_structure():
     assert buffer_info_map["Conv2dOutput_7"].size_bytes == 256
     assert buffer_info_map["sid_19"].size_bytes == 100352
     assert buffer_info_map["PaddedInput_6"].size_bytes == 172800
+
+
+# fmt: off
+@tvm.script.ir_module
+class MultipleCallsToSamePrimFuncModule:
+    @T.prim_func
+    def tvmgen_default_fused_layout_transform_1(placeholder: T.handle, T_layout_trans: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_layout_transform_1", "tir.noalias": True})
+        placeholder_1 = T.match_buffer(placeholder, [1, 3, 24, 12], dtype="float32")
+        T_layout_trans_1 = T.match_buffer(T_layout_trans, [1, 1, 24, 12, 3], dtype="float32")
+        # body
+        for ax0_ax1_fused_ax2_fused, ax3, ax4_inner in T.grid(24, 12, 3):
+            T.store(T_layout_trans_1.data, ax0_ax1_fused_ax2_fused * 36 + ax3 * 3 + ax4_inner, T.load("float32", placeholder_1.data, ax4_inner * 288 + ax0_ax1_fused_ax2_fused * 12 + ax3), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_nn_contrib_conv2d_NCHWc(placeholder_2: T.handle, placeholder_3: T.handle, conv2d_NCHWc: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_contrib_conv2d_NCHWc", "tir.noalias": True})
+        placeholder_4 = T.match_buffer(placeholder_2, [1, 1, 24, 12, 3], dtype="float32")
+        placeholder_5 = T.match_buffer(placeholder_3, [1, 1, 3, 3, 3, 3], dtype="float32")
+        conv2d_NCHWc_1 = T.match_buffer(conv2d_NCHWc, [1, 1, 24, 12, 3], dtype="float32")
+        # body
+        data_pad = T.allocate([1, 1, 26, 14, 3], "float32", "global")
+        for i0_i1_fused_i2_fused, i3, i4 in T.grid(26, 14, 3):
+            T.store(data_pad, i0_i1_fused_i2_fused * 42 + i3 * 3 + i4, T.if_then_else(1 <= i0_i1_fused_i2_fused and i0_i1_fused_i2_fused < 25 and 1 <= i3 and i3 < 13, T.load("float32", placeholder_4.data, i0_i1_fused_i2_fused * 36 + i3 * 3 + i4 - 39), T.float32(0), dtype="float32"), True)
+        for n_oc_chunk_fused_oh_fused in T.serial(0, 24):
+            conv2d_NCHWc_global = T.allocate([1, 1, 1, 12, 3], "float32", "global")
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 3, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 6, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 9, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 12, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 15, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 18, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 21, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 24, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 27, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 30, T.float32(0), True)
+            for oc_block_c_init in T.serial(0, 3):
+                T.store(conv2d_NCHWc_global, oc_block_c_init + 33, T.float32(0), True)
+            for kh, kw, ic_inner in T.grid(3, 3, 3):
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c, T.load("float32", conv2d_NCHWc_global, oc_block_c) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 3, T.load("float32", conv2d_NCHWc_global, oc_block_c + 3) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 3) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 6, T.load("float32", conv2d_NCHWc_global, oc_block_c + 6) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 6) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 9, T.load("float32", conv2d_NCHWc_global, oc_block_c + 9) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 9) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 12, T.load("float32", conv2d_NCHWc_global, oc_block_c + 12) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 12) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 15, T.load("float32", conv2d_NCHWc_global, oc_block_c + 15) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 15) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 18, T.load("float32", conv2d_NCHWc_global, oc_block_c + 18) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 18) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 21, T.load("float32", conv2d_NCHWc_global, oc_block_c + 21) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 21) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 24, T.load("float32", conv2d_NCHWc_global, oc_block_c + 24) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 24) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 27, T.load("float32", conv2d_NCHWc_global, oc_block_c + 27) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 27) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 30, T.load("float32", conv2d_NCHWc_global, oc_block_c + 30) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 30) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+                for oc_block_c in T.serial(0, 3):
+                    T.store(conv2d_NCHWc_global, oc_block_c + 33, T.load("float32", conv2d_NCHWc_global, oc_block_c + 33) + T.load("float32", data_pad, kh * 42 + n_oc_chunk_fused_oh_fused * 42 + kw * 3 + ic_inner + 33) * T.load("float32", placeholder_5.data, kh * 27 + kw * 9 + ic_inner * 3 + oc_block_c), True)
+            for ow_inner, oc_block in T.grid(12, 3):
+                T.store(conv2d_NCHWc_1.data, n_oc_chunk_fused_oh_fused * 36 + ow_inner * 3 + oc_block, T.load("float32", conv2d_NCHWc_global, ow_inner * 3 + oc_block), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_nn_softmax_add_add_multiply_add(placeholder_6: T.handle, placeholder_7: T.handle, placeholder_8: T.handle, placeholder_9: T.handle, placeholder_10: T.handle, T_add: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_softmax_add_add_multiply_add", "tir.noalias": True})
+        placeholder_11 = T.match_buffer(placeholder_6, [1, 3, 24, 12], dtype="float32")
+        placeholder_12 = T.match_buffer(placeholder_7, [1, 3, 24, 12], dtype="float32")
+        placeholder_13 = T.match_buffer(placeholder_8, [3, 1, 1], dtype="float32")
+        placeholder_14 = T.match_buffer(placeholder_9, [3, 1, 1], dtype="float32")
+        placeholder_15 = T.match_buffer(placeholder_10, [3, 1, 1], dtype="float32")
+        T_add_1 = T.match_buffer(T_add, [1, 3, 24, 12], dtype="float32")
+        # body
+        for ax0_ax1_fused_ax2_fused in T.serial(0, 72):
+            T_softmax_norm = T.allocate([1, 1, 1, 12], "float32", "global")
+            with T.allocate([1, 1, 1], "float32", "global") as T_softmax_maxelem:
+                T.store(T_softmax_maxelem, 0, T.float32(-3.4028234663852886e+38), True)
+                for k in T.serial(0, 12):
+                    T.store(T_softmax_maxelem, 0, T.max(T.load("float32", T_softmax_maxelem, 0), T.load("float32", placeholder_11.data, ax0_ax1_fused_ax2_fused * 12 + k)), True)
+                T_softmax_exp = T.allocate([1, 1, 1, 12], "float32", "global")
+                for i3 in T.serial(0, 12):
+                    T.store(T_softmax_exp, i3, T.exp(T.load("float32", placeholder_11.data, ax0_ax1_fused_ax2_fused * 12 + i3) - T.load("float32", T_softmax_maxelem, 0), dtype="float32"), True)
+                T_softmax_expsum = T.allocate([1, 1, 1], "float32", "global")
+                T.store(T_softmax_expsum, 0, T.float32(0), True)
+                for k in T.serial(0, 12):
+                    T.store(T_softmax_expsum, 0, T.load("float32", T_softmax_expsum, 0) + T.load("float32", T_softmax_exp, k), True)
+                for i3 in T.serial(0, 12):
+                    T.store(T_softmax_norm, i3, T.load("float32", T_softmax_exp, i3) / T.load("float32", T_softmax_expsum, 0), True)
+            for ax3 in T.serial(0, 12):
+                T.store(T_add_1.data, ax0_ax1_fused_ax2_fused * 12 + ax3, (T.load("float32", placeholder_12.data, ax0_ax1_fused_ax2_fused * 12 + ax3) + T.load("float32", T_softmax_norm, ax3) + T.load("float32", placeholder_13.data, T.floordiv(ax0_ax1_fused_ax2_fused, 24))) * T.load("float32", placeholder_14.data, T.floordiv(ax0_ax1_fused_ax2_fused, 24)) + T.load("float32", placeholder_15.data, T.floordiv(ax0_ax1_fused_ax2_fused, 24)), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_nn_contrib_dense_pack_nn_relu(placeholder_16: T.handle, placeholder_17: T.handle, T_relu: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_contrib_dense_pack_nn_relu", "tir.noalias": True})
+        placeholder_18 = T.match_buffer(placeholder_16, [72, 12], dtype="float32")
+        placeholder_19 = T.match_buffer(placeholder_17, [2, 12, 6], dtype="float32")
+        T_relu_1 = T.match_buffer(T_relu, [72, 12], dtype="float32")
+        # body
+        for ax1_outer_ax0_outer_fused in T.serial(0, 18):
+            compute = T.allocate([8, 6], "float32", "global")
+            with T.allocate([8, 6], "float32", "global") as compute_global:
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 6, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 12, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 18, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 24, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 30, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 36, T.float32(0), True)
+                for x_c_init in T.serial(0, 6):
+                    T.store(compute_global, x_c_init + 42, T.float32(0), True)
+                for k_outer in T.serial(0, 12):
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c, T.load("float32", compute_global, x_c) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 6, T.load("float32", compute_global, x_c + 6) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 12) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 12, T.load("float32", compute_global, x_c + 12) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 24) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 18, T.load("float32", compute_global, x_c + 18) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 36) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 24, T.load("float32", compute_global, x_c + 24) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 48) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 30, T.load("float32", compute_global, x_c + 30) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 60) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 36, T.load("float32", compute_global, x_c + 36) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 72) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                    for x_c in T.serial(0, 6):
+                        T.store(compute_global, x_c + 42, T.load("float32", compute_global, x_c + 42) + T.load("float32", placeholder_18.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + k_outer + 84) * T.load("float32", placeholder_19.data, T.floordiv(ax1_outer_ax0_outer_fused, 9) * 72 + k_outer * 6 + x_c), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner, T.load("float32", compute_global, x_inner_inner), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 6, T.load("float32", compute_global, x_inner_inner + 6), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 12, T.load("float32", compute_global, x_inner_inner + 12), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 18, T.load("float32", compute_global, x_inner_inner + 18), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 24, T.load("float32", compute_global, x_inner_inner + 24), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 30, T.load("float32", compute_global, x_inner_inner + 30), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 36, T.load("float32", compute_global, x_inner_inner + 36), True)
+                for x_inner_inner in T.serial(0, 6):
+                    T.store(compute, x_inner_inner + 42, T.load("float32", compute_global, x_inner_inner + 42), True)
+            for ax0_inner_inner, ax1_inner_inner in T.grid(8, 6):
+                T.store(T_relu_1.data, T.floormod(ax1_outer_ax0_outer_fused, 9) * 96 + ax0_inner_inner * 12 + T.floordiv(ax1_outer_ax0_outer_fused, 9) * 6 + ax1_inner_inner, T.max(T.load("float32", compute, ax0_inner_inner * 6 + ax1_inner_inner), T.float32(0)), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_reshape_1(placeholder_20: T.handle, T_reshape: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_reshape_1", "tir.noalias": True})
+        placeholder_21 = T.match_buffer(placeholder_20, [1, 3, 24, 12], dtype="float32")
+        T_reshape_1 = T.match_buffer(T_reshape, [72, 12], dtype="float32")
+        # body
+        for ax0, ax1_inner in T.grid(72, 12):
+            T.store(T_reshape_1.data, ax0 * 12 + ax1_inner, T.load("float32", placeholder_21.data, ax0 * 12 + ax1_inner), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_layout_transform(placeholder_22: T.handle, T_layout_trans_2: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_layout_transform", "tir.noalias": True})
+        placeholder_23 = T.match_buffer(placeholder_22, [1, 1, 24, 12, 3], dtype="float32")
+        T_layout_trans_3 = T.match_buffer(T_layout_trans_2, [1, 3, 24, 12], dtype="float32")
+        # body
+        for ax0_ax1_fused, ax2, ax3_inner in T.grid(3, 24, 12):
+            T.store(T_layout_trans_3.data, ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner, T.load("float32", placeholder_23.data, ax2 * 36 + ax3_inner * 3 + ax0_ax1_fused), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_reshape(placeholder_24: T.handle, T_reshape_2: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_reshape", "tir.noalias": True})
+        placeholder_25 = T.match_buffer(placeholder_24, [72, 12], dtype="float32")
+        T_reshape_3 = T.match_buffer(T_reshape_2, [1, 3, 24, 12], dtype="float32")
+        # body
+        for ax0_ax1_fused, ax2, ax3_inner in T.grid(3, 24, 12):
+            T.store(T_reshape_3.data, ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner, T.load("float32", placeholder_25.data, ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner), True)
+
+    @T.prim_func
+    def tvmgen_default_fused_nn_softmax_add(placeholder_26: T.handle, placeholder_27: T.handle, T_add_2: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_softmax_add", "tir.noalias": True})
+        placeholder_28 = T.match_buffer(placeholder_26, [1, 3, 24, 12], dtype="float32")
+        placeholder_29 = T.match_buffer(placeholder_27, [1, 3, 24, 12], dtype="float32")
+        T_add_3 = T.match_buffer(T_add_2, [1, 3, 24, 12], dtype="float32")
+        # body
+        for ax0_ax1_fused_ax2_fused in T.serial(0, 72):
+            T_softmax_norm = T.allocate([1, 1, 1, 12], "float32", "global")
+            with T.allocate([1, 1, 1], "float32", "global") as T_softmax_maxelem:
+                T.store(T_softmax_maxelem, 0, T.float32(-3.4028234663852886e+38), True)
+                for k in T.serial(0, 12):
+                    T.store(T_softmax_maxelem, 0, T.max(T.load("float32", T_softmax_maxelem, 0), T.load("float32", placeholder_28.data, ax0_ax1_fused_ax2_fused * 12 + k)), True)
+                T_softmax_exp = T.allocate([1, 1, 1, 12], "float32", "global")
+                for i3 in T.serial(0, 12):
+                    T.store(T_softmax_exp, i3, T.exp(T.load("float32", placeholder_28.data, ax0_ax1_fused_ax2_fused * 12 + i3) - T.load("float32", T_softmax_maxelem, 0), dtype="float32"), True)
+                T_softmax_expsum = T.allocate([1, 1, 1], "float32", "global")
+                T.store(T_softmax_expsum, 0, T.float32(0), True)
+                for k in T.serial(0, 12):
+                    T.store(T_softmax_expsum, 0, T.load("float32", T_softmax_expsum, 0) + T.load("float32", T_softmax_exp, k), True)
+                for i3 in T.serial(0, 12):
+                    T.store(T_softmax_norm, i3, T.load("float32", T_softmax_exp, i3) / T.load("float32", T_softmax_expsum, 0), True)
+            for ax3 in T.serial(0, 12):
+                T.store(T_add_3.data, ax0_ax1_fused_ax2_fused * 12 + ax3, T.load("float32", placeholder_29.data, ax0_ax1_fused_ax2_fused * 12 + ax3) + T.load("float32", T_softmax_norm, ax3), True)
+
+    @T.prim_func
+    def run_model(data: T.handle, output: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        data_buffer = T.match_buffer(data, [1, 3, 24, 12], dtype="float32", align=16)
+        output_buffer = T.match_buffer(output, [1, 3, 24, 12], dtype="float32", align=16)
+        # body
+        sid_11 = T.allocate([3456], "int8", "global.workspace")
+        sid_5 = T.allocate([3456], "int8", "global.workspace")
+        sid_10 = T.allocate([3456], "int8", "global.workspace")
+        sid_6 = T.allocate([3456], "int8", "global.workspace")
+        sid_8 = T.allocate([3456], "int8", "global.workspace")
+        sid_2 = T.allocate([3456], "int8", "global.workspace")
+        sid_7 = T.allocate([3456], "int8", "global.workspace")
+        sid_3 = T.allocate([3456], "int8", "global.workspace")
+        sid_12 = T.allocate([3456], "int8", "global.workspace")
+        sid_4 = T.allocate([3456], "int8", "global.workspace")
+        sid_18 = T.allocate([3456], "int8", "global.workspace")
+        sid_19 = T.allocate([3456], "int8", "global.workspace")
+        sid_20 = T.allocate([3456], "int8", "global.workspace")
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform_1", data_buffer.data, sid_8, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_contrib_conv2d_NCHWc", sid_8, T.cast(T.lookup_param("p0", dtype="handle"), "handle"), sid_7, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform", sid_7, sid_6, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_reshape_1", data_buffer.data, sid_12, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_contrib_dense_pack_nn_relu", sid_12, T.cast(T.lookup_param("p1", dtype="handle"), "handle"), sid_11, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_reshape", sid_11, sid_10, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_softmax_add_add_multiply_add", sid_6, sid_10, T.cast(T.lookup_param("p2", dtype="handle"), "handle"), T.cast(T.lookup_param("p3", dtype="handle"), "handle"), T.cast(T.lookup_param("p4", dtype="handle"), "handle"), sid_5, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform_1", sid_5, sid_4, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_contrib_conv2d_NCHWc", sid_4, T.cast(T.lookup_param("p5", dtype="handle"), "handle"), sid_3, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_layout_transform", sid_3, sid_2, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_reshape_1", sid_5, sid_20, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_contrib_dense_pack_nn_relu", sid_20, T.cast(T.lookup_param("p6", dtype="handle"), "handle"), sid_19, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_reshape", sid_19, sid_18, dtype="int32"))
+        T.evaluate(T.tvm_call_cpacked("tvmgen_default_fused_nn_softmax_add", sid_2, sid_18, output_buffer.data, dtype="int32"))
+# fmt: on
+
+
+def test_multiple_calls_to_same_primfunc():
+    target = Target("c")
+    global_ws_pool = usmp_utils.PoolInfo(
+        pool_name="global_workspace",
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    )
+    tir_mod = MultipleCallsToSamePrimFuncModule
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
+    main_func = tir_mod["run_model"]
+    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+
+    # check conflicts
+    _verify_conflicts(
+        "sid_18",
+        [
+            "sid_19",
+            "sid_2",
+            "T_softmax_exp2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
+            "T_softmax_norm2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_3",
+        [
+            "data_pad",
+            "conv2d_NCHWc_global",
+            "sid_2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_norm",
+        [
+            "T_softmax_expsum",
+            "T_softmax_exp",
+            "sid_5",
+            "sid_6",
+            "T_softmax_maxelem",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_norm2",
+        [
+            "T_softmax_expsum2",
+            "T_softmax_maxelem2",
+            "T_softmax_exp2",
+            "sid_18",
+            "sid_2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_11",
+        [
+            "compute",
+            "sid_12",
+            "compute_global",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_10",
+        [
+            "sid_11",
+            "sid_6",
+            "sid_5",
+            "T_softmax_norm",
+            "T_softmax_expsum",
+            "T_softmax_maxelem",
+            "T_softmax_exp",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_5",
+        [
+            "T_softmax_norm",
+            "T_softmax_expsum",
+            "T_softmax_exp",
+            "sid_6",
+            "T_softmax_maxelem",
+            "sid_10",
+            "sid_4",
+            "sid_20",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_expsum",
+        [
+            "T_softmax_exp",
+            "T_softmax_norm",
+            "sid_5",
+            "sid_6",
+            "T_softmax_maxelem",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_8",
+        [
+            "data_pad",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_expsum2",
+        [
+            "T_softmax_maxelem2",
+            "T_softmax_exp2",
+            "sid_18",
+            "sid_2",
+            "T_softmax_norm2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_maxelem2",
+        [
+            "T_softmax_exp2",
+            "sid_18",
+            "sid_2",
+            "T_softmax_expsum2",
+            "T_softmax_norm2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_12",
+        [
+            "sid_11",
+            "compute",
+            "compute_global",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_19",
+        [
+            "sid_20",
+            "compute",
+            "compute_global",
+            "sid_18",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "conv2d_NCHWc_global",
+        [
+            "data_pad",
+            "sid_7",
+            "sid_3",
+            "data_pad",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_exp2",
+        [
+            "sid_18",
+            "sid_2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
+            "T_softmax_norm2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_7",
+        [
+            "conv2d_NCHWc_global",
+            "data_pad",
+            "sid_6",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "data_pad",
+        [
+            "sid_8",
+            "conv2d_NCHWc_global",
+            "sid_7",
+            "sid_4",
+            "sid_3",
+            "conv2d_NCHWc_global",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_20",
+        [
+            "sid_5",
+            "sid_19",
+            "compute",
+            "compute_global",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_4",
+        [
+            "sid_5",
+            "data_pad",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_exp",
+        [
+            "T_softmax_expsum",
+            "T_softmax_norm",
+            "sid_5",
+            "sid_6",
+            "T_softmax_maxelem",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "compute_global",
+        [
+            "sid_12",
+            "sid_11",
+            "compute",
+            "compute",
+            "sid_20",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "compute",
+        [
+            "sid_11",
+            "sid_12",
+            "compute_global",
+            "sid_20",
+            "sid_19",
+            "compute_global",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_6",
+        [
+            "sid_7",
+            "sid_5",
+            "T_softmax_norm",
+            "T_softmax_expsum",
+            "T_softmax_exp",
+            "T_softmax_maxelem",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_maxelem",
+        [
+            "sid_6",
+            "sid_5",
+            "T_softmax_norm",
+            "T_softmax_expsum",
+            "T_softmax_exp",
+            "sid_10",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_2",
+        [
+            "sid_3",
+            "sid_18",
+            "T_softmax_exp2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
+            "T_softmax_norm2",
+        ],
+        buffer_info_map,
+    )
 
 
 if __name__ == "__main__":

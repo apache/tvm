@@ -47,7 +47,7 @@ static constexpr const char* kTargetPoolReadWriteAccess = "rw";
 static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
 
 /*!
- * \brief The pool information to be used by USMP
+ * \brief Describes a pool of memory accessible by one or more targets.
  */
 struct PoolInfoNode : public Object {
   /*! \brief The name of the memory pool */
@@ -94,7 +94,13 @@ class PoolInfo : public ObjectRef {
 };
 
 /*!
- * \brief The buffer information to be used by USMP
+ * \brief Describes an abstract memory buffer that will get allocated inside a pool.
+ * The actual memory buffer in represented by PoolAllocationNode after static memory planning.
+ *
+ * See also for relay-level counterparts:
+ * relay::StorageToken (graph_plan_memory.cc)
+ * relay::backend::StorageInfoNode (relay/backend/utils.h)
+ * Region (python/tvm/relay/transform/memory_plan.py)
  */
 struct BufferInfoNode : public Object {
   /*! \brief The name of the buffer var */
@@ -103,7 +109,7 @@ struct BufferInfoNode : public Object {
   Integer size_bytes;
   /*! \brief The pool candidates that this buffer can get pooled to*/
   Array<PoolInfo> pool_candidates;
-  /*! \brief The byte alignment required within the pool */
+  /*! \brief The byte alignment required for buffers that will placed within the pool */
   Integer alignment;
   /*! \brief The liveness conflicting other buffer info objects */
   Array<ObjectRef> conflicts;
@@ -193,6 +199,13 @@ Array<BufferInfo> CreateArrayBufferInfo(const Map<Stmt, BufferInfo>& buffer_info
  * python/tvm/tir/usmp/utils.py.
  */
 static constexpr const char* kPoolCandidatesAllocateAttr = "candidate_memory_pools";
+
+/*!
+ * \brief Calculate the size of the extents in bytes
+ *
+ * \param op the allocate node
+ */
+Integer CalculateExtentsSize(const AllocateNode* op);
 
 }  // namespace usmp
 }  // namespace tir
