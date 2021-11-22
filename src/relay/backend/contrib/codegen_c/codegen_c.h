@@ -363,6 +363,8 @@ class CodegenCBase {
       dtype = "float";
     } else if (runtime::TypeMatch(ttype->dtype, kDLFloat, 16)) {
       dtype = "half";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLBfloat, 16)) {
+      dtype = "bfloat";
     } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 32)) {
       dtype = "int";
     } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 64)) {

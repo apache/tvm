@@ -73,7 +73,7 @@ class ReturnRewriter : public StmtMutator {
     DataType dtype = val.dtype();
     if (dtype.is_int() || dtype.is_uint()) {
       return {kTVMArgInt, Cast(DataType::Int(64), val)};
-    } else if (dtype.is_float()) {
+    } else if (dtype.is_float() || dtype.is_bfloat16()) {
       return {kTVMArgFloat, Cast(DataType::Float(64), val)};
     } else if (dtype.is_void()) {
       return {kTVMNullptr, val};

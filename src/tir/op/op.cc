@@ -186,6 +186,8 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 16) {
       return FloatImm(dtype, 65504.0, span);
     }
+  } else if (dtype.is_bfloat16()) {
+    return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
   return PrimExpr();
@@ -219,6 +221,8 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     } else if (dtype.bits() == 16) {
       return FloatImm(dtype, -65504.0, span);
     }
+  } else if (dtype.is_bfloat16()) {
+    return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
   return PrimExpr();

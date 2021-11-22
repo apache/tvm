@@ -437,6 +437,12 @@ static inline dmlc::optional<long double> TryToScalar(const runtime::NDArray& ar
     } else if (array->dtype.bits == 64) {
       return dmlc::optional<long double>(reinterpret_cast<double*>(array->data)[i]);
     }
+  } else if (array->dtype.code == kDLBfloat) {
+    if (array->dtype.bits == 16) {
+      return dmlc::optional<long double>(
+          __extendXfYf2__<uint16_t, uint16_t, 7, float, uint32_t, 23>(
+              reinterpret_cast<uint16_t*>(array->data)[i]));
+    }
   }
   return dmlc::optional<long double>();
 }

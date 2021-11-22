@@ -69,6 +69,9 @@ void CodeGenHybrid::PrintType(DataType t, std::ostream& os) {
   } else if (t.is_int()) {
     os << "int";
     ICHECK(t.bits() == 8 || t.bits() == 16 || t.bits() == 32 || t.bits() == 64);
+  } else if (t.is_bfloat16()) {
+    os << "bfloat";
+    ICHECK(t.bits() == 16);
   } else {
     ICHECK(t.is_uint()) << "Unsupported type " << t;
     os << "uint";
