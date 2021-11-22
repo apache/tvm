@@ -173,13 +173,24 @@ def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
     return ret
 
 
+def _assign_targets_to_primfuncs_irmodule(mod, target):
+    """helper to assign target for PrimFunc in a IRModule"""
+    ret = tvm.IRModule()
+    for global_var, basefunc in mod.functions.items():
+        if isinstance(basefunc, tvm.tir.PrimFunc):
+            ret[global_var] = basefunc.with_attr("target", target)
+    return ret
+
+
 def test_create_array_buffer_info():
+    target = Target("c")
     global_ws_pool = usmp_utils.PoolInfo(
         pool_name="global_workspace",
-        target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     tir_mod = LinearStructure
+    tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["tvmgen_default_run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
