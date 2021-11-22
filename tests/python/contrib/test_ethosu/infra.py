@@ -623,3 +623,31 @@ def make_ethosu_identity(
         activation=activation,
     )
     return identity
+
+
+def make_ethosu_unary_elementwise(
+    ifm,
+    ofm_channels,
+    operator_type,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ofm_layout="NHWC",
+    rounding_mode="TFL",
+):
+    ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(
+        ifm=ifm,
+        lut=relay.const([], dtype="int8"),
+        operator_type=operator_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        ofm_channels=ofm_channels,
+        activation=activation,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    return ethosu_unary_elementwise

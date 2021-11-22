@@ -238,8 +238,8 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
   }
 
   // Assign ofm type
-  auto ofm_shape = EthosuInferBinaryElementwiseOutputShape(ifm->shape, param->ifm_layout,
-                                                           param->ofm_layout, param->ifm_channels);
+  auto ofm_shape = EthosuInferElementwiseOutputShape(ifm->shape, param->ifm_layout,
+                                                     param->ofm_layout, param->ifm_channels);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ofm_dtype));
   return true;
 }

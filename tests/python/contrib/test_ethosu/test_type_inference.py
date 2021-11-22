@@ -25,6 +25,7 @@ from .infra import make_ethosu_depthwise_conv2d
 from .infra import make_ethosu_pooling
 from .infra import make_ethosu_binary_elementwise
 from .infra import make_ethosu_identity
+from .infra import make_ethosu_unary_elementwise
 
 
 @pytest.mark.parametrize(
@@ -364,12 +365,66 @@ def test_ethosu_identity_invalid_shape():
         run_opt_pass(func, relay.transform.InferType())
 
 
-def test_ethosu_invalid_dtype():
+def test_ethosu_identity_invalid_dtype():
     invalid_dtype = "int32"
     ifm = relay.var("ifm", shape=[6000], dtype=invalid_dtype)
 
     identity = make_ethosu_identity(ifm)
     func = relay.Function([ifm], identity)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+@pytest.mark.parametrize(
+    "ifm_shape, ifm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
+)
+@pytest.mark.parametrize(
+    "ofm_shape, ofm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
+)
+def test_ethosu_unary_elementwise_type_inference(
+    ifm_shape,
+    ifm_layout,
+    ofm_shape,
+    ofm_layout,
+):
+    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    operator_type = "ABS"
+    ofm_channels = 33
+    unary_elementwise = make_ethosu_unary_elementwise(
+        ifm,
+        ofm_channels,
+        operator_type,
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    f = relay.Function([ifm], unary_elementwise)
+    f = run_opt_pass(f, relay.transform.InferType())
+    assert tuple(f.body.checked_type.shape) == ofm_shape
+
+
+def test_ethosu_unary_elementwise_invalid_operator_type():
+    ifm = relay.var("ifm", shape=(1, 3, 7, 12), dtype="int8")
+    invalid_op_type = "ABBBS"
+    unary_elementwise = make_ethosu_unary_elementwise(
+        ifm,
+        12,
+        invalid_op_type,
+    )
+    func = relay.Function([ifm], unary_elementwise)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
+def test_ethosu_unary_elementwise_invalid_dtype():
+    invalid_dtype = "int32"
+    ifm = relay.var("ifm", shape=(1, 5, 15, 25), dtype=invalid_dtype)
+
+    unary_elementwise = make_ethosu_unary_elementwise(
+        ifm,
+        25,
+        "ABS",
+    )
+    func = relay.Function([ifm], unary_elementwise)
     with pytest.raises(TVMError):
         run_opt_pass(func, relay.transform.InferType())
 

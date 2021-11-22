@@ -741,6 +741,96 @@ class LegalizeNoOps:
         pass
 
 
+class UnaryElementwiseRewriter(DFPatternCallback):
+    """
+    Convert ethosu unary elementwise composite function to
+    ethosu_unary_elementwise operators
+    """
+
+    def __init__(self, params_class: Type, pattern: CallPattern):
+        super().__init__(require_type=True)
+        self.params_class = params_class
+        self.pattern = pattern
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        if str(params.ofm.layout) != "NHWC":
+            raise UnsupportedLayout(str(params.ofm.layout))
+
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        # We don't yet support activation functions that use LUT.
+        lut = relay.const([], dtype="int8")
+
+        unary_input_shape = params.ifm.shape
+        # If the input tensor is not 4D, enter reshapes before and after the unary operator
+        if len(params.ifm.shape) == 4:
+            unary_input = params.ifm.tensor
+        else:
+            pad_size = 4 - len(unary_input_shape)
+            unary_input_shape = ([1] * pad_size) + unary_input_shape
+            unary_input = relay.op.reshape(params.ifm.tensor, newshape=unary_input_shape)
+
+        ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(
+            ifm=unary_input,
+            lut=lut,
+            operator_type=params.operator_type,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            ofm_channels=unary_input_shape[3],
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+        )
+        if len(params.ifm.shape) == 4:
+            op = ethosu_unary_elementwise
+        else:
+            op = relay.op.reshape(ethosu_unary_elementwise, newshape=params.ifm.shape)
+        return op
+
+
+class AbsRewriter(UnaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.AbsParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.AbsParams.composite_name}))(
+                wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeAbs:
+    """This is the pass that wraps the AbsRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(AbsRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -765,6 +855,7 @@ class LegalizeEthosU:
         mod = LegalizeMin()(mod)
         mod = LegalizeMax()(mod)
         mod = LegalizeShl()(mod)
+        mod = LegalizeAbs()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

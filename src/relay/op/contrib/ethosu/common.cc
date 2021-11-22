@@ -32,9 +32,8 @@ namespace op {
 namespace contrib {
 namespace ethosu {
 
-Array<IndexExpr> EthosuInferBinaryElementwiseOutputShape(Array<IndexExpr> ifm_shape,
-                                                         String ifm_layout, String ofm_layout,
-                                                         IndexExpr ofm_channels) {
+Array<IndexExpr> EthosuInferElementwiseOutputShape(Array<IndexExpr> ifm_shape, String ifm_layout,
+                                                   String ofm_layout, IndexExpr ofm_channels) {
   // In the case of NHCWB16, convert the ifm shape to NHW (C not required for this function)
   if (ifm_layout == "NHCWB16") {
     ifm_shape = {ifm_shape[0], ifm_shape[1], ifm_shape[3]};
