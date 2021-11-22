@@ -82,7 +82,7 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> o
 
   bool all_fields_unchanged = true;
   if (fields.size() == tuple->fields.size()) {
-    for (uint i = 0; i < fields.size(); i++) {
+    for (size_t i = 0; i < fields.size(); i++) {
       all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
     }
   } else {
