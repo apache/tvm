@@ -629,9 +629,8 @@ EthosnError EthosnCompiler::SupportedSetup() {
     auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
                    ? ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
                    : AttrsWithDefaultValues<EthosnCompilerConfig>();
-    m_Queries = std::make_unique<sl::SupportQueries>(
-        sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(cfg.value()->variant.c_str()),
-                                   std::stoul(cfg.value()->sram_size)));
+    m_Queries = std::make_unique<sl::SupportQueries>(sl::GetFwAndHwCapabilities(
+        sl::EthosNVariantFromString(MakeVariant(cfg).c_str()), std::stoul(cfg.value()->sram_size)));
     if (m_Queries == nullptr) {
       return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }
