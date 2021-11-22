@@ -92,23 +92,14 @@ def per_exec_ws(folder) {
 // initialize source codes
 def init_git() {
   // Add more info about job node
-  sh """
+  sh (script: """
      echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
-     """
+     """, label: "Show executor node info")
   checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh 'git submodule update --init -f'
+      sh (script: 'git submodule update --init -f', label: "Update git submodules")
     }
-  }
-}
-
-def init_git_win() {
-  checkout scm
-  retry(5) {
-      timeout(time: 2, unit: 'MINUTES') {
-        bat 'git submodule update --init -f'
-      }
   }
 }
 
@@ -136,7 +127,7 @@ stage('Prepare') {
     ci_qemu = params.ci_qemu_param ?: ci_qemu
     ci_arm = params.ci_arm_param ?: ci_arm
 
-    sh """
+    sh script: """
       echo "Docker images being used in this build:"
       echo " ci_lint = ${ci_lint}"
       echo " ci_cpu  = ${ci_cpu}"
@@ -145,7 +136,7 @@ stage('Prepare') {
       echo " ci_i386 = ${ci_i386}"
       echo " ci_qemu = ${ci_qemu}"
       echo " ci_arm  = ${ci_arm}"
-    """
+    """, label: "Docker image names"
   }
 }
 
@@ -156,52 +147,56 @@ stage('Sanity Check') {
         init_git()
         is_docs_only_build = sh (returnStatus: true, script: '''
         ./tests/scripts/git_change_docs.sh
-        '''
+        ''', label: "Check for docs only changes"
         )
-        sh "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh"
+        sh (script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh", label: "Run lint")
       }
     }
   }
 }
 
 // Run make. First try to do an incremental make from a previous workspace in hope to
-// accelerate the compilation. If something wrong, clean the workspace and then
+// accelerate the compilation. If something is wrong, clean the workspace and then
 // build from scratch.
 def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
+      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}", label: "Run cmake build")
       // always run cpp test when build
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
+      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh", label: "Build and run C++ tests")
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
         throw ae
       }
       echo 'Incremental compilation failed. Fall back to build from scratch'
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
-      sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
+      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}", label: "Clear old cmake workspace")
+      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}", label: "Run cmake build")
+      sh (script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh", label: "Build and run C++ tests")
     }
   }
 }
 
 // pack libraries for later use
 def pack_lib(name, libs) {
-  sh """
+  sh (script: """
      echo "Packing ${libs} into ${name}"
      echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """
+     """, label: "Stash libraries and show md5")
   stash includes: libs, name: name
 }
 
 // unpack libraries saved before
 def unpack_lib(name, libs) {
   unstash name
-  sh """
+  sh (script: """
      echo "Unpacked ${libs} from ${name}"
      echo ${libs} | sed -e 's/,/ /g' | xargs md5sum
-     """
+     """, label: "Unstash libraries and show md5")
+}
+
+def ci_setup(image) {
+  sh (script: "${docker_run} ${image} ./tests/scripts/task_ci_setup.sh", label: "Setup CI environment")
 }
 
 stage('Build') {
@@ -223,11 +218,12 @@ stage('Build') {
       node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
+          sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh", label: "Create CPU build cmake config")
           make(ci_cpu, 'build', '-j2')
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
-            sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_ci_setup.sh"
+            ci_setup(ci_cpu)
             sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
             sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
             sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
