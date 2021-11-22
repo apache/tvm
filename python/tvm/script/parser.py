@@ -594,10 +594,10 @@ class TVMScriptParser(Transformer):
                 span=tvm_span_from_synr(node.span),
             )
         else:
-            if symbol.dtype == "handle":
+            if symbol.dtype == "handle" and len(indexes) != 1:
                 self.report_error(
-                    "You cannot store to a handle, use `T.match_buffer` to construct a buffer "
-                    "to store to.",
+                    "Handles only support one-dimensional indexing. Use `T.match_buffer` to " \
+                    "construct a multidimensional buffer from a handle.",
                     node.params[0].span,
                 )
             if len(indexes) != 1:
