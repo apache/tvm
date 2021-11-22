@@ -131,6 +131,11 @@ def upper_bound(arr, val, l, r, span):
 
 
 @register
+def atomic_add(ptr, val, span):
+    return tvm.tir.upper_bound(ptr, val, span)
+
+
+@register
 def floordiv(x, y, span):
     return tvm.tir.floordiv(x, y, span)
 

@@ -814,6 +814,11 @@ PrimExpr upper_bound(tir::Var arr, PrimExpr val, PrimExpr l, PrimExpr r, Span sp
   return tir::Call({kDLInt, 32, 1}, builtin::tvm_upper_bound(), {arr, val, l, r}, span);
 }
 
+// atomic_add
+PrimExpr atomic_add(tir::Var ptr, PrimExpr val, Span span) {
+  return tir::Call(val->dtype, builtin::tvm_atomic_add(), {ptr, val}, span);
+}
+
 // trunc
 PrimExpr trunc(PrimExpr x, Span span) {
   if (x.dtype().is_int() || x.dtype().is_uint()) {
@@ -931,6 +936,8 @@ TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
 TVM_REGISTER_GLOBAL("tir.lower_bound").set_body_typed(tvm::lower_bound);
 
 TVM_REGISTER_GLOBAL("tir.upper_bound").set_body_typed(tvm::upper_bound);
+
+TVM_REGISTER_GLOBAL("tir.atomic_add").set_body_typed(tvm::atomic_add);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \

@@ -505,6 +505,11 @@ TVM_DLL const Op& tvm_lower_bound();
 TVM_DLL const Op& tvm_upper_bound();
 
 /*!
+ * \brief Atomic add function.
+ */
+TVM_DLL const Op& tvm_atomic_add();
+
+/*!
  * \brief Initialize the global barrier.
  *  Call this at beginning of kernel that need global barrier.
  */

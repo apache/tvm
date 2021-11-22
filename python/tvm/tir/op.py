@@ -1027,6 +1027,26 @@ def upper_bound(arr, val, l, r, span=None):
     return _ffi_api.upper_bound(arr, val, l, r, span)  # type: ignore
 
 
+def atomic_add(ptr, val, span=None):
+    """Perform an atomic add operation to ptr by the given val.
+
+    Parameters
+    ----------
+    ptr : Var
+        The pointer to the address we perform atomic add.
+    val : PrimExpr
+        The value to add.
+    span : Optional[Span]
+        The location of this expression in the source code.
+
+    Returns
+    -------
+    PrimExpr
+        The value on pointer before we perform the atomic add.
+    """
+    return _ffi_api.atomic_add(ptr, val, span)  # type: ignore
+
+
 def isnan(x, span=None):
     """Check if input value is Nan.
 

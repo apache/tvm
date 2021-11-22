@@ -270,6 +270,15 @@ def binary_search(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
             D[vi] = T.upper_bound(A.data, B[vi], 0, n)
 
 
+@T.prim_func
+def global_add(a: T.handle) -> None:
+    A = T.match_buffer((1,), dtype='int32')
+    for i in T.serial(0, 1024):
+        with T.block('global_add'):
+            vi = T.axis.S(1024, i)
+            A[0] = A[0] + vi
+
+
 def test_binary_search():
     sch = tir.Schedule(binary_search)
     b = sch.get_block('search')
@@ -304,12 +313,22 @@ def test_binary_search():
     tvm.testing.assert_allclose(np_b, tvm_b)
 
 
+def test_global_add():
+    sch = tir.Schedule(global_add)
+    b = sch.get_block('global_add')
+    i, = sch.get_loops(b)
+    sch.bind(i, 'blockIdx.x')
+    f = tvm.build(sch.mod['main'], target='cuda')
+    print(f.imported_modules[0].get_source())
+
+
 if __name__ == "__main__":
-    test_nearbyint()
-    test_unary_intrin()
-    test_round_intrinsics_on_int()
-    test_binary_intrin()
-    test_ldexp()
-    test_clz()
-    test_fma()
-    test_binary_search()
+    # test_nearbyint()
+    # test_unary_intrin()
+    # test_round_intrinsics_on_int()
+    # test_binary_intrin()
+    # test_ldexp()
+    # test_clz()
+    # test_fma()
+    # test_binary_search()
+    test_global_add()
