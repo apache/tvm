@@ -34,13 +34,13 @@ namespace tir {
 namespace usmp {
 namespace algo {
 
-size_t round_up_to_byte_alignment(const size_t& non_aligned_byte_offset,
-                                  const int& byte_alignment) {
+static size_t round_up_to_byte_alignment(const size_t& non_aligned_byte_offset,
+                                         const int& byte_alignment) {
   return ((non_aligned_byte_offset + byte_alignment - 1) / byte_alignment) * byte_alignment;
 }
 
-bool IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
-                      const size_t& size_bytes) {
+static bool IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
+                             const size_t& size_bytes) {
   if (candidate_pool->size_hint_bytes == -1) {
     // this means pool is not bounded
     return true;
@@ -53,7 +53,7 @@ bool IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
   return false;
 }
 
-PoolInfo SelectPlacementPool(
+static PoolInfo SelectPlacementPool(
     const Array<PoolInfo>& pool_candidates,
     const std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual>& pool_offsets) {
   for (const auto& pool_info : pool_candidates) {
