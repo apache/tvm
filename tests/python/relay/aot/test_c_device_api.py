@@ -245,9 +245,8 @@ def test_without_device_api_packed_api(non_device_api_main_func):
 
     assert (
         str(main_func.body[1].body.body[0][0])
-        == "let no_device_context = tir.reinterpret((uint64)0)\n"
-        + 'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
-        + "tir.tvm_struct_set(tvm_value_0, 0, 1, no_device_context)\n"
+        == 'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
+        + "tir.tvm_struct_set(tvm_value_0, 0, 1, tir.reinterpret((uint64)0))\n"
         + 'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", input, input, output, tvm_value_0)\n'
     )
 

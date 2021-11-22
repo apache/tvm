@@ -376,11 +376,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }));
     } else if (use_cpacked_api) {
       // call_cpacked calling convention needs a blank context
-      args.push_back(empty_var);
-
+      args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
-      tir::LetStmt set_zero(empty_var, tir::make_zero(DataType::Handle()), func_call);
-      create_func_call_stmts.push_back(set_zero);
+      create_func_call_stmts.push_back(func_call);
     } else {
       // call_extern calling convention without context
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
