@@ -290,3 +290,22 @@ class SerialBinaryElementwise(SerializableFormat):
         self.reversed_operands = reversed_operands
         self.activation = activation
         self.rounding_mode = rounding_mode
+
+
+class SerialUnaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.unary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        activation: SerialActivation,
+        rounding_mode: str,
+    ):
+        self.ifm = ifm
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.activation = activation
+        self.rounding_mode = rounding_mode
