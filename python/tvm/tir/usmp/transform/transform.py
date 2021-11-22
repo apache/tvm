@@ -24,17 +24,22 @@ from ....tir import Stmt
 from ..utils import PoolAllocation
 
 
-def convert_pool_allocations_to_offsets(pool_allocations: Dict[Stmt, PoolAllocation]):
+def convert_pool_allocations_to_offsets(
+    pool_allocations: Dict[Stmt, PoolAllocation], emit_tvmscript_printable: bool = False
+):
     """Convert pool allocations to Load nodes with offsets from pools.
 
     Parameters
     ----------
     pool_allocations : Dict[Stmt, PoolAllocation]
         Allocate or AllocateConst node to pool allocation mapping
+    emit_tvmscript_printable : bool
+        A toggle to emit TVMScript printable IRModule for unit tests
+        removing all attributes that should be attached for integration
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that converts the allocations to offsets.
     """
-    return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations)
+    return _ffi_api.ConvertPoolAllocationsToOffsets(pool_allocations, emit_tvmscript_printable)

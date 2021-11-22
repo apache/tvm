@@ -135,6 +135,30 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+  auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
+  allocated_poolinfo_node->pool_info = pool_info;
+  allocated_poolinfo_node->allocated_size = allocated_size;
+  if (pool_var.defined()) {
+    allocated_poolinfo_node->pool_var = pool_var;
+  }
+  data_ = std::move(allocated_poolinfo_node);
+}
+
+TVM_REGISTER_NODE_TYPE(AllocatedPoolInfoNode);
+TVM_REGISTER_GLOBAL("tir.usmp.AllocatedPoolInfo")
+    .set_body_typed([](PoolInfo pool_info, Integer allocated_size) {
+      return AllocatedPoolInfo(pool_info, allocated_size);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AllocatedPoolInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AllocatedPoolInfoNode*>(ref.get());
+      p->stream << "AllocatedPoolInfoNode(\n"
+                << "pool_info=" << node->pool_info << ",\n  allocated_size=" << node->allocated_size
+                << ")";
+    });
+
 Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
