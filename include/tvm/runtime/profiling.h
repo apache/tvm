@@ -500,7 +500,7 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  *                    metrics specific to this device type.
  * \param device_id Id of device to run on.
  * \param collectors List of different
- *                   ways to collect metrics. See @MetricCollector.
+ *                   ways to collect metrics. See MetricCollector.
  * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
  *          and returns performance metrics as a `Map<String, ObjectRef>` where
  *          values can be `CountNode`, `DurationNode`, `PercentNode`.
