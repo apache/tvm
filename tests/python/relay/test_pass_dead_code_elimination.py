@@ -15,31 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-from tvm import relay
 from tvm.relay import Function, transform
-from tvm.relay.analysis import free_vars
-from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.testing import inception_v3
-
 import pytest
 
+cpu_scope = tvm.target.make_se_scope(tvm.cpu(), tvm.target.Target("llvm"))
+metatable = {"SEScope": [cpu_scope]}
+core = tvm.IRModule()
+core.import_from_std("core.rly")
 
-def optimize_source(source, passes):
+
+def optimize_and_check(before_program, after_program, passes):
+    if isinstance(before_program, str):
+        before_program = tvm.parser.parse(before_program)
+    if isinstance(after_program, str):
+        after_program = tvm.parser.parse(after_program)
     if not isinstance(passes, list):
         passes = [passes]
-
     optimize = tvm.transform.Sequential(passes)
-    module = tvm.parser.parse(source)
-    return optimize(module)
-
-
-def optimize_and_check(before_source, after_source, passes):
-    optimize_module = optimize_source(before_source, passes)
-    after_module = tvm.parser.parse(after_source)
-    print(optimize_module)
-    print(after_module)
-    assert tvm.ir.structural_equal(after_module, optimize_module)
+    optimized_program = optimize(before_program)
+    print("Actual:")
+    print(optimized_program)
+    print("Expected:")
+    print(after_program)
+    assert tvm.ir.structural_equal(optimized_program, after_program, map_free_vars=True)
 
 
 def test_dead_let():
@@ -197,7 +196,153 @@ def test_tuple_get_item():
     optimize_and_check(before_program, after_program, transform.DeadCodeElimination())
 
 
+def test_inline_into_function():
+    """Don't inline across function boundaries."""
+    before_program = """
+    #[version = "0.0.5"]
+    def @main() {
+        let %x = 1 + 1;
+        let %f = fn (%y: int) -> int {
+          let %z = %y + %y;
+          %x + %z
+        };
+        (%f(2), %f(3))
+    }
+    """
+
+    after_program = """
+    #[version = "0.0.5"]
+    def @main() {
+        let %x = 1 + 1;
+        let %f = fn (%y: int) -> int {
+          %x + (%y + %y)
+        };
+        (%f(2), %f(3))
+    }
+    """
+
+    optimize_and_check(
+        before_program, after_program, transform.DeadCodeElimination(inline_once=True)
+    )
+
+
+def test_impure_op():
+    """Don't elide calls to side-effecting operators."""
+    before_program = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main() {
+           let %size: int64 = cast(1024, dtype="int64");
+           let %alignment: int64 = cast(64, dtype="int64");
+           let %x = memory.alloc_storage(%size, %alignment, se_scope=meta[SEScope][0]);
+           0
+        }
+        """,
+        "from_string",
+        core,
+        metatable,
+    )
+
+    after_program = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @main() {
+           let %x = memory.alloc_storage(cast(1024, dtype="int64"),
+                                         cast(64, dtype="int64"),
+                                         se_scope=meta[SEScope][0]);
+           0
+        }
+        """,
+        "from_string",
+        core,
+        metatable,
+    )
+
+    optimize_and_check(
+        before_program, after_program, transform.DeadCodeElimination(inline_once=True)
+    )
+
+
+def test_impure_func():
+    """Don't elide calls to side-effecting functions."""
+    before_program = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @f() -> int {
+           let %size: int64 = cast(1024, dtype="int64");
+           let %alignment: int64 = cast(64, dtype="int64");
+           let %x = memory.alloc_storage(%size, %alignment, se_scope=meta[SEScope][0]);
+           0
+        }
+        def @main() -> int {
+           let %y = @f();
+           0
+        }
+        """,
+        "from_string",
+        core,
+        metatable,
+    )
+
+    after_program = tvm.parser.parse(
+        """
+        #[version = "0.0.5"]
+        def @f() -> int {
+           let %x = memory.alloc_storage(cast(1024, dtype="int64"),
+                                         cast(64, dtype="int64"),
+                                         se_scope=meta[SEScope][0]);
+           0
+        }
+        def @main() -> int {
+            let %y = @f();
+            0
+        }
+        """,
+        "from_string",
+        core,
+        metatable,
+    )
+
+    optimize_and_check(
+        before_program, after_program, transform.DeadCodeElimination(inline_once=True)
+    )
+
+
+def test_refs():
+    """Don't elide expressions with reference create/read/write side effects"""
+    before_program = """
+    #[version = "0.0.5"]
+    def @f(%r) -> int {
+        let %v = ref_read(%r);
+        let %u = ref_write(%r, %v + 1);
+        %v
+    }    
+    def @main() -> int {
+        let %r = ref(0);
+        let %y = @f(%r);
+        let %z = @f(%r);
+        %z
+    }
+    """
+
+    after_program = before_program
+
+    optimize_and_check(
+        before_program,
+        after_program,
+        [transform.InferType(), transform.DeadCodeElimination(inline_once=True)],
+    )
+
+
+def test_complexity():
+    mod = transform.InferType()(
+        tvm.IRModule.from_expr(inception_v3.get_net(1, 1000, (3, 299, 299), "float32"))
+    )
+
+    optimize_and_check(mod, mod, transform.DeadCodeElimination(inline_once=True))
+
+
 if __name__ == "__main__":
     import sys
 
-    pytest.main(sys.argv)
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
