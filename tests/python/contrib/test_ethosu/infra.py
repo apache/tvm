@@ -189,7 +189,7 @@ def deserialize_command_stream(blob):
     return cmms
 
 
-def _create_test_runner(accel):
+def create_test_runner(accel="ethos-u55-256"):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
     ethosu_macs = accel[accel.rfind("-") + 1 :]
@@ -215,7 +215,7 @@ def _create_test_runner(accel):
 
 
 def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
-    test_runner = _create_test_runner(accel)
+    test_runner = create_test_runner(accel)
     return compile_models(
         models=AOTTestModel(
             module=module,
@@ -239,7 +239,7 @@ def verify_source(
     This method verifies the generated source from an NPU module by building it and running on an FVP.
     """
     interface_api = "c"
-    test_runner = _create_test_runner(accel)
+    test_runner = create_test_runner(accel)
     run_and_check(
         models,
         test_runner,
