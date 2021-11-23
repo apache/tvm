@@ -140,11 +140,18 @@ class Target(Object):
         return _ffi_api.TargetCurrent(allow_none)
 
     @property
+    def arch(self):
+        """Returns the cuda arch from the target if it exists."""
+        return str(self.attrs.get("arch", ""))
+
+    @property
     def max_num_threads(self):
+        """Returns the max_num_threads from the target if it exists."""
         return int(self.attrs["max_num_threads"])
 
     @property
     def thread_warp_size(self):
+        """Returns the thread_warp_size from the target if it exists."""
         return int(self.attrs["thread_warp_size"])
 
     @property

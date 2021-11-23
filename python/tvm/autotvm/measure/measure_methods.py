@@ -322,9 +322,6 @@ class RPCRunner(Runner):
                 "max_thread_z": max_dims[2],
             }
 
-            if "cuda" in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(dev.compute_version.split("."))
-
         return kwargs
 
     def run(self, measure_inputs, build_results):
@@ -464,7 +461,7 @@ class LocalRunner(RPCRunner):
 
 
 def _build_func_common(
-    measure_input, runtime=None, check_gpu=None, cuda_arch=None, build_option=None
+    measure_input, runtime=None, check_gpu=None, build_option=None
 ):
     """Common part for building a configuration"""
     target, task, config = measure_input
@@ -480,8 +477,6 @@ def _build_func_common(
         opts = build_option or {}
         if check_gpu:  # Add verify pass to filter out invalid configs in advance.
             opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
-        if cuda_arch:
-            set_cuda_target_arch(cuda_arch)
 
         # if target is vta, we need to use vta build
         if (
@@ -789,21 +784,10 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     return not t.is_alive()
 
 
-@tvm._ffi.register_func
-def tvm_callback_cuda_compile(code):
-    """use nvcc to generate ptx code for better optimization"""
-    curr_cuda_target_arch = AutotvmGlobalScope.current.cuda_target_arch
-    # e.g., target arch could be [
-    #   "-gencode", "arch=compute_52,code=sm_52",
-    #   "-gencode", "arch=compute_70,code=sm_70"
-    # ]
-    target = "fatbin" if isinstance(curr_cuda_target_arch, list) else "ptx"
-    ptx = nvcc.compile_cuda(code, target=target, arch=AutotvmGlobalScope.current.cuda_target_arch)
-    return ptx
-
-
 def set_cuda_target_arch(arch):
-    """set target architecture of nvcc compiler
+    """THIS API IS DEPRECATED.
+
+    set target architecture of nvcc compiler
 
     Parameters
     ----------
@@ -812,7 +796,11 @@ def set_cuda_target_arch(arch):
         it can also be a count of gencode arguments pass to nvcc command line,
         e.g., ["-gencode", "arch=compute_52,code=sm_52", "-gencode", "arch=compute_70,code=sm_70"]
     """
-    AutotvmGlobalScope.current.cuda_target_arch = arch
+    raise ValueError(
+        "The API 'autotvm.measure.set_cuda_target_arch' is deprecated."
+        "Try specifying it by adding '-arch=sm_xx' to your target, such as 'cuda -arch=sm_86'."
+        "See https://github.com/apache/tvm/pull/9544 for the upgrade guide."
+    )
 
 
 def gpu_verify_pass(**kwargs):

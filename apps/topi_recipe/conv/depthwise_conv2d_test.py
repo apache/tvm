@@ -34,7 +34,7 @@ USE_MANUAL_CODE = False
 
 @tvm.register_func
 def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx")
+    ptx = nvcc.compile_cuda(code, target_format="ptx")
     return ptx
 
 
