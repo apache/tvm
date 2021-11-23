@@ -23,7 +23,6 @@ import os
 import warnings
 
 import tvm._ffi
-from tvm.runtime import ndarray as nd
 from tvm.target import Target
 
 from . import utils

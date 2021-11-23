@@ -39,7 +39,7 @@ import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import ndk, nvcc, stackvm, tar
+from tvm.contrib import ndk, stackvm, tar
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
@@ -460,9 +460,7 @@ class LocalRunner(RPCRunner):
         return server, tracker
 
 
-def _build_func_common(
-    measure_input, runtime=None, check_gpu=None, build_option=None
-):
+def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
     target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
