@@ -16,8 +16,6 @@
 # under the License.
 """Codegen for Arm(R) Ethos(TM)-U NPU"""
 
-from typing import List, Dict, Any
-
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
@@ -141,6 +139,15 @@ class LayoutOptimization(ExprMutator):
     """A pass to optimize the layout of NPU operations. If both the
     producer and consumer of a tensor are NPU operators, then the
     layout is converted from NHWC to NHCWB16.
+
+    Attributes
+    ----------
+    children : Dict[tvm.relay.expr.Call, List[tvm.relay.expr.Call]]
+        A map from current call to a list of calls that rely on the current
+        call. This allows the graph to be traversed backwards, which is useful
+        for checking whether the output layouts can be rewritten.
+    optimize_op : Dict[str, Callable]
+        A map from NPU op name to function that creates NPU op.
     """
 
     def __init__(self):
@@ -150,6 +157,7 @@ class LayoutOptimization(ExprMutator):
             "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
             "contrib.ethosu.pooling": op.ethosu_pooling,
             "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
+            "contrib.ethosu.unary_elementwise": op.ethosu_unary_elementwise,
         }
 
         super().__init__()
@@ -181,13 +189,13 @@ class LayoutOptimization(ExprMutator):
         parents = []
 
         # Check if we can rewrite the input layouts
-        layout_count = 0
+        input_count = 0
         for arg in call.args:
-            layout_count += 1
+            input_count += 1
             if not isinstance(arg, tvm.relay.expr.Call):
                 continue
             if is_ethosu_op(arg):
-                layout_string = "ifm_layout" if layout_count <= 1 else f"ifm{layout_count}_layout"
+                layout_string = "ifm_layout" if input_count <= 1 else f"ifm{input_count}_layout"
                 new_attrs[layout_string] = "NHCWB16"
             parents.append(arg)
 
@@ -206,7 +214,7 @@ class LayoutOptimization(ExprMutator):
         )
         new_call = self.optimize_op[name](*call.args, **new_attrs)
 
-        # Rewriting output layout requires maintaining map of current call to children
+        # Update map of children
         for input_arg in parents:
             if input_arg in self.children:
                 self.children[input_arg].append(new_call)
@@ -238,6 +246,8 @@ class LayoutOptimization(ExprMutator):
 
 @relay.transform.function_pass(opt_level=1, name="LayoutOptimizer")
 class LayoutOptimizer(Pass):
+    """Register LayoutOptimizer as a Relay pass."""
+
     def transform_function(
         self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
     ) -> tvm.IRModule:
@@ -283,7 +293,6 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     mod = LegalizeEthosU()(mod)
     mod = LUTsOptimizer()(mod)
     mod = relay.transform.InferType()(mod)
-
     # We are currently using copy_constants scheduler In the long run,
     # this should be a single intelligent and a composite scheduler
     # that can perform scheduling based on user inputs such as

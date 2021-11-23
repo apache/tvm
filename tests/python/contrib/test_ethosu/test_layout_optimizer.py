@@ -16,17 +16,18 @@
 # under the License.
 
 """Test the layout optimization pass. This pass is used to
-convert subgraphs to the preferred layout of NCHWB16.
+convert subgraphs to the preferred layout of NHCWB16.
 """
+
+import pytest
+
+pytest.importorskip("ethosu.vela")
 
 import sys
 
-import pytest
 import numpy as np
 import tensorflow as tf
 import tflite.Model
-
-pytest.importorskip("ethosu.vela")
 
 import tvm
 from tvm import relay
@@ -137,6 +138,38 @@ def test_multiple_convolution():
                 ifm=x,
                 ifm_channels=8,
                 ofm_channels=8,
+                kernel_shape=(1, 1),
+                padding=(0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+                ifm_layout=ifm_layout,
+                ofm_layout=ofm_layout,
+            )
+        return relay.Function(relay.analysis.free_vars(x), x)
+
+    a = _run_pass(get_graph(), LayoutOptimizer())
+    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    _assert_structural_equal(a, b)
+
+
+def test_multiple_depthwise_convolution():
+    """Test layout optimization pass on multiple depthwise convolutions.
+
+    depthwise_conv_1
+           |
+    depthwise_conv_2
+           |
+    depthwise_conv_3
+    """
+
+    def get_graph(get_expected=False):
+        x = relay.var("x", shape=(1, 8, 8, 4), dtype="int8")
+        for i in range(3):
+            ifm_layout = "NHCWB16" if get_expected and i != 0 else "NHWC"
+            ofm_layout = "NHCWB16" if get_expected and i != 2 else "NHWC"
+            x = infra.make_ethosu_depthwise_conv2d(
+                ifm=x,
+                channels=4,
                 kernel_shape=(1, 1),
                 padding=(0, 0),
                 strides=(1, 1),
@@ -465,6 +498,36 @@ def test_multiple_pooling():
                 ofm_channels=4,
                 strides=(1, 1),
                 padding=(0, 0),
+                ifm_layout=ifm_layout,
+                ofm_layout=ofm_layout,
+            )
+        return relay.Function(relay.analysis.free_vars(x), x)
+
+    a = _run_pass(get_graph(), LayoutOptimizer())
+    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    _assert_structural_equal(a, b)
+
+
+def test_multiple_unary_elementwise():
+    """Test the layout optimization pass works as expected for multiple
+    unary elementwise operations.
+
+    abs_1
+      |
+    abs_2
+      |
+    abs_3
+    """
+
+    def get_graph(get_expected=False):
+        x = relay.var("x", shape=(1, 8, 8, 4), dtype="int8")
+        for i in range(3):
+            ifm_layout = "NHCWB16" if get_expected and i != 0 else "NHWC"
+            ofm_layout = "NHCWB16" if get_expected and i != 2 else "NHWC"
+            x = infra.make_ethosu_unary_elementwise(
+                x,
+                ofm_channels=4,
+                operator_type="ABS",
                 ifm_layout=ifm_layout,
                 ofm_layout=ofm_layout,
             )
