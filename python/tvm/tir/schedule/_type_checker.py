@@ -65,7 +65,7 @@ elif hasattr(typing, "_Union"):
         def list_(type_: Any) -> Optional[List[type]]:
             if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
                 if type_.__name__ == "List":
-                    (subtype,) = type_.__args__
+                    (subtype,) = type_.__args__  # type: ignore # pylint: disable=no-member
                     return [subtype]
             return None
 
