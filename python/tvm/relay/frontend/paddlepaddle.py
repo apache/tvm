@@ -318,14 +318,15 @@ def convert_conv2d_transpose(g, op, block):
     if padding_algorithm == "VALID":
         paddings = [0, 0]
     elif padding_algorithm == "SAME":
-        # Conv2d_Transpose is paded differently from Conv2d
+        # SAME padding of conv2d_transpose is not same with conv2d
+        # We cannot use auto_pad here, only static shape is supported now
         dilations = [1, 1]
         input_shape = shape_of(input_x)
         h_w = _op.strided_slice(input_shape, [2], [4])
         try:
             h_w = infer_value(h_w, g.get_params()).numpy().tolist()
         except Exception as e:
-            msg = "The SAME padding algorithm of Conv_Transpose not support dynamic shape"
+            msg = "The SAME padding algorithm of conv2d_transpose not support dynamic shape"
             raise tvm.error.OpAttributeInvalid(msg) from e
         paddings = []
         for i in range(2):
