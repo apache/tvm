@@ -235,7 +235,7 @@ def _merge_opts(opts, new_opts):
     return opts
 
 
-def cuda(model="unknown", options=None):
+def cuda(model="unknown", arch=None, options=None):
     """Returns a cuda target.
 
     Parameters
@@ -246,6 +246,10 @@ def cuda(model="unknown", options=None):
         Additional options
     """
     opts = _merge_opts(["-model=%s" % model], options)
+    if arch:
+        opts = _merge_opts(["-arch=%s" % arch], opts)
+    if not any(["-arch" in opts]):
+        warnings.warn("Try specifying cuda arch by adding '-arch=sm_xx' to your target.")
     return Target(" ".join(["cuda"] + opts))
 
 

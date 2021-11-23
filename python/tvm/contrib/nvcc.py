@@ -38,19 +38,13 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         The cuda code.
 
     target_format : str
-        The target format of nvcc compiler
+        The target format of nvcc compiler.
 
     arch : str
         The cuda architecture.
-        If None, then it will use `tvm.target.Target.current().arch`.
-        Target arch could be a str as "sm_xx",
-        or a list, such as [
-          "-gencode", "arch=compute_52,code=sm_52",
-          "-gencode", "arch=compute_70,code=sm_70"
-        ]
 
     options : str or list of str
-        The additional options
+        The additional options.
 
     path_target : str, optional
         Output file.
@@ -61,6 +55,12 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         The bytearray of the cubin
     """
     if arch is None:
+        # If None, then it will use `tvm.target.Target.current().arch`.
+        # Target arch could be a str like "sm_xx", or a list, such as
+        # [
+        #   "-gencode", "arch=compute_52,code=sm_52",
+        #   "-gencode", "arch=compute_70,code=sm_70"
+        # ]
         compute_version = "".join(
             get_target_compute_version(Target.current(allow_none=True)).split(".")
         )
