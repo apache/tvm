@@ -38,8 +38,8 @@ if [[ "$#" -lt 1 ]]; then
 fi
 
 # required to make black's dep click to work
-export LC_ALL=en_US.UTF-8
-export LANG=en_US.UTF-8
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 
 if [ ! -x "$(command -v black)" ]; then
     echo "Cannot find black"
