@@ -127,8 +127,8 @@ class PurityVisitor : ExprFunctor<Purity(const Expr&)> {
   Purity VisitExpr_(const OpNode* op_node) final {
     // Primitive operators are pure unless marked as 'stateful'.
     static OpAttrMap<bool> attr_map = Op::GetAttrMap<TOpIsStateful>("TOpIsStateful");
-    bool is_statefull = attr_map.count(GetRef<Op>(op_node)) && attr_map[GetRef<Op>(op_node)];
-    return {/*pure_eval=*/true, /*pure_call=*/!is_statefull};
+    bool is_stateful = attr_map.count(GetRef<Op>(op_node)) && attr_map[GetRef<Op>(op_node)];
+    return {/*pure_eval=*/true, /*pure_call=*/!is_stateful};
   }
 
   Purity VisitExpr_(const GlobalVarNode* global_var_node) final {
@@ -263,6 +263,7 @@ class PurityVisitor : ExprFunctor<Purity(const Expr&)> {
     Purity ref_purity = VisitExpr(ref_write_node->ref);
     ICHECK(ref_purity.pure_call);  // reference is first-order
     // The call purity of the written value is lost [RULE D].
+    // (But we must still visit to accumulate purity for any let-bindings within in.)
     (void)VisitExpr(ref_write_node->value);
     return {/*pure_eval=*/false, /*pure_call=*/true};
   }

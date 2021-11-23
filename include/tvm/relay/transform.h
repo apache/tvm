@@ -550,7 +550,7 @@ TVM_DLL Function ToCPS(const Function& f, const IRModule& mod);
 /*!
  * \brief Remove the continuation argument of a CPS function.
  *
- * Note that this only transform the type back into un-CPS formA
+ * Note that this only transform the type back into un-CPS form
  * when there is no higher order input/output.
  *
  * \param f the function.
