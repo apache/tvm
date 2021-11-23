@@ -53,7 +53,13 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
 
-if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
+
+if (NOT USE_HEXAGON_SDK STREQUAL "" AND
+    NOT USE_HEXAGON_SDK STREQUAL "/path/to/sdk")
+  set(HEXAGON_SDK_PATH_DEFINED ${USE_HEXAGON_SDK})
+endif()
+
+if (BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
   find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   include_directories(SYSTEM
     ${HEXAGON_SDK_INCLUDES}
@@ -65,7 +71,7 @@ endif()
 
 # Don't run these checks when compiling Hexagon device code,
 # e.g. when compiling the TVM runtime for Hexagon.
-if (NOT BUILD_FOR_HEXAGON)
+if (NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
   if(USE_HEXAGON_LAUNCHER STREQUAL "OFF" AND
       USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "OFF")
     if(USE_HEXAGON_DEVICE STREQUAL "OFF")
@@ -149,7 +155,9 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
 
   set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${LAUNCHER_BINARY_DIR}")
 
-elseif(USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "ON")
+endif()
+
+if(USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "ON")
   set(RPC_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/apps_hexagon_proxy_rpc")
   ExternalProject_Add(proxy_rpc_android
     SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_proxy_rpc/cmake/android"
@@ -230,7 +238,7 @@ set(RUNTIME_HEXAGON_COMMON_SRCS src/runtime/hexagon/hexagon_module.cc)
 if (USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
   if(BUILD_FOR_HEXAGON)
     file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/hexagon/*.cc)
-  elseif(BUILD_FOR_ANDROID)
+  elseif(BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
     list(APPEND RUNTIME_HEXAGON_SRCS src/runtime/hexagon/rpc/device_api.cc)
   else()
     file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
