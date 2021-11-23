@@ -1639,6 +1639,18 @@ def uniform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+@override_native_generic_func("normal_strategy")
+def normal_strategy(attrs, inputs, out_type, target):
+    """normal generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_uniform(topi.random.normal),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="normal.generic",
+    )
+    return strategy
+
+
 def wrap_compute_scanop(topi_compute):
     """Wrap scanop style topi compute"""
 
