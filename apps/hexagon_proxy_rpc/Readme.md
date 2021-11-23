@@ -25,7 +25,7 @@ for host driven execution on Hexagon.
 
 Project inventory: 
 * Android
-  * libtvm_runtime.so (containing HexagonHostDeviceAPI src/runtime/Hexagon/rpc/device_api.cc)
+  * libtvm_runtime.so (containing HexagonHostDeviceAPI src/runtime/Hexagon/proxy_rpc/device_api.cc)
   * tvm_rpc (C++ RPC server)
   * librpc_env (Hexagon specific RPC proxy environment)
     
