@@ -132,7 +132,7 @@ def upper_bound(arr, val, l, r, span):
 
 @register
 def atomic_add(ptr, val, span):
-    return tvm.tir.upper_bound(ptr, val, span)
+    return tvm.tir.atomic_add(ptr, val, span)
 
 
 @register
