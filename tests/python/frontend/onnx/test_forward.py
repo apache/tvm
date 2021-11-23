@@ -5657,7 +5657,7 @@ def test_random_uniform(target, dev):
     assert list(vals.shape) == [1, 3, 100, 100]
 
     # Check that bounds aren't exceeded.
-    vals = get_random_uniform(shape=[100], high=100, low=-100)
+    vals = get_random_uniform(shape=[100], high=100.0, low=-100.0)
     assert list(vals.shape) == [100]
     assert all(vals >= -100) and all(vals <= 100)
 
@@ -5667,7 +5667,7 @@ def test_random_uniform(target, dev):
     assert all(vals_1 == vals_2)
 
     # Test against an expected output with a fixed seed.
-    real = get_random_uniform(shape=[10], seed=5)
+    real = get_random_uniform(shape=[10], seed=5.0)
     expected = np.asarray(
         [
             0.043976,
@@ -5683,6 +5683,149 @@ def test_random_uniform(target, dev):
         ]
     )
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
+
+@tvm.testing.parametrize_targets
+def test_random_uniform_like(target, dev):
+    def get_random_uniform_like(input, shape, dtype=None, high=1.0, low=0.0, seed=None):
+        node = helper.make_node("RandomUniformLike", ["in"], ["out"], high=high, low=low)
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        ONNX_DTYPE = None
+        if dtype is not None:
+            ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+            dtype_attr = helper.make_attribute("dtype", ONNX_DTYPE)
+            node.attribute.append(dtype_attr)
+        else:
+            dtype = input.dtype
+            ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+
+        graph = helper.make_graph(
+            [node],
+            "random_uniform_test",
+            inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, shape)],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_uniform_like_test")
+        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+
+    # Check that function runs and produces proper shape and dtype.
+    shape = [10]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_uniform_like(input, shape, dtype="float32")
+    assert list(vals.shape) == [10]
+    assert vals.dtype == "float32"
+
+    # Test N-D tensor generation.
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_uniform_like(input, shape, dtype="float64")
+    assert list(vals.shape) == shape
+    assert vals.dtype == "float64"
+
+    # Check that bounds aren't exceeded.
+    shape = [100]
+    input = np.random.random(shape).astype("float64")
+    vals = get_random_uniform_like(input, shape, high=100.0, low=-100.0)
+    assert list(vals.shape) == shape
+    assert all(vals >= -100) and all(vals <= 100)
+
+    # Test against an expected output with a fixed seed.
+    shape = [10]
+    input = np.random.random(shape).astype("float32")
+    real = get_random_uniform_like(input, shape=[10], seed=5.0)
+    expected = np.asarray(
+        [
+            0.043976,
+            0.96656,
+            0.292199,
+            0.904297,
+            0.25167,
+            0.521778,
+            0.778985,
+            0.085463,
+            0.939846,
+            0.194201,
+        ]
+    )
+    tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
+
+@tvm.testing.parametrize_targets
+def test_random_normal(target, dev):
+    def get_random_normal(shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+        node = helper.make_node(
+            "RandomNormal", [], ["out"], shape=shape, dtype=ONNX_DTYPE, scale=scale, mean=mean
+        )
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "random_normal_test",
+            inputs=[],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_normal_test")
+        return get_tvm_output_with_vm(model, [], target=target, dev=dev)
+
+    # Test N-D tensor generation.
+    vals = get_random_normal([1, 3, 100, 100], dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 0.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 1.0, rtol=0.1, atol=0.1)
+
+    # Test mean=2.0 scale=10.0
+    vals = get_random_normal([1, 3, 100, 100], mean=2.0, scale=10.0, dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 2.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 10.0, rtol=0.1, atol=0.1)
+
+    # Check that a fixed seed produces the same values when run twice.
+    vals_1 = get_random_normal(shape=[10], seed=1.0)
+    vals_2 = get_random_normal(shape=[10], seed=1.0)
+    assert all(vals_1 == vals_2)
+
+
+@tvm.testing.parametrize_targets
+def test_random_normal_like(target, dev):
+    def get_random_normal_like(input, shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+        node = helper.make_node(
+            "RandomNormalLike", ["in"], ["out"], dtype=ONNX_DTYPE, scale=scale, mean=mean
+        )
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "random_normal_like_test",
+            inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, shape)],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_normal_like_test")
+        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+
+    # Test N-D tensor generation.
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_normal_like(input, [1, 3, 100, 100], dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 0.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 1.0, rtol=0.1, atol=0.1)
+
+    # Test mean=2.0 scale=10.0
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_normal_like(input, [1, 3, 100, 100], mean=2.0, scale=10.0, dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 2.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 10.0, rtol=0.1, atol=0.1)
 
 
 @tvm.testing.parametrize_targets
@@ -5927,3 +6070,6 @@ if __name__ == "__main__":
     test_convinteger()
     test_batch_matmul()
     test_global_lppool()
+    test_random_uniform_like()
+    test_random_normal()
+    test_random_normal_like()

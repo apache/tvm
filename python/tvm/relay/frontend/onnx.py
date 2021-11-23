@@ -3888,6 +3888,62 @@ class Einsum(OnnxOpConverter):
         return _op.einsum(inputs, equation)
 
 
+class RandomNormal(OnnxOpConverter):
+    """Operator converter for random_normal"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = get_type(attr.get("dtype", 1))
+        mean = attr.get("mean", 0.0)
+        scale = attr.get("scale", 1.0)
+        seed = attr.get("seed", None)
+        shape = attr["shape"]
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomNormalLike(OnnxOpConverter):
+    """Operator converter for random_normal_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        scale = attr.get("scale", 1.0)
+        mean = attr.get("mean", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
 class RandomUniform(OnnxOpConverter):
     """Operator converter for random_uniform"""
 
@@ -3906,6 +3962,38 @@ class RandomUniform(OnnxOpConverter):
 
         if seed is None:
             seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomUniformLike(OnnxOpConverter):
+    """Operator converter for random_uniform_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        high = attr.get("high", 1.0)
+        low = attr.get("low", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
         key = _random.threefry_key(seed)
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
@@ -4396,7 +4484,10 @@ def _get_convert_map(opset):
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
+        "RandomNormal": RandomNormal.get_converter(opset),
+        "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
+        "RandomUniformLike": RandomUniformLike.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
