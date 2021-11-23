@@ -73,9 +73,8 @@ class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
 class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods, abstract-method
     """TVM script typing class for uniform Type objects"""
 
-    def __init__(self):
+    def __init__(self, vtype):
         from .special_stmt import convert_to_int
-        from synr import ast
 
         def match_buffer_syntax_sugar(
             shape,
@@ -109,9 +108,9 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
                 buffer_type,
                 span=span,
             )
-            # self.context.func_buffer_map[name] = buffer
-            self.context.update_symbol(name, buffer, self.node)
+            return buffer
 
+        self.type = vtype
         super().__init__(match_buffer_syntax_sugar, def_symbol=True)
 
     @staticmethod
@@ -145,6 +144,9 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
     def __class_getitem__(shape, dtype: str):
         return tvm.tir.decl_buffer(shape=shape, dtype=dtype)
 
+    def evaluate(self):
+        return tvm.ir.PrimType(self.type)
+
 
 int8 = ConcreteType("int8")
 int16 = ConcreteType("int16")
@@ -157,4 +159,4 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
-Buffer = GenericBufferType()
+Buffer = GenericBufferType("handle")

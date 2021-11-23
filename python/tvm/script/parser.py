@@ -300,6 +300,9 @@ class TVMScriptParser(Transformer):
         """
         if type_node is None:
             self.report_error("A type annotation is required", parent.span)
+        if isinstance(type_node, ast.TypeCall):
+            func = self.transform(type_node.func_name)
+            return func.evaluate()
         res_type = self.transform(type_node)
         return tvm.ir.TupleType([]) if res_type is None else res_type.evaluate()
 
@@ -439,14 +442,16 @@ class TVMScriptParser(Transformer):
 
         # add parameters of function
         for arg in node.params:
-            print(arg.name)
+            arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
             # Note that this case is for T.match_buffer syntax sugar
             if isinstance(arg.ty, ast.TypeCall):
-                self.transform(arg.ty)
+                buf = self.transform(arg.ty)
+                self.context.func_buffer_map[arg_var] = buf
+                self.context.update_symbol(arg.name, buf, node)
             else:
-                arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
                 self.context.update_symbol(arg.name, arg_var, node)
-                self.context.func_params.append(arg_var)
+            self.context.func_params.append(arg_var)
+
         if not check_decorator(node.decorators):
             self.report_error(
                 "All functions should be decorated by `T.prim_func`",
@@ -1150,9 +1155,12 @@ class TVMScriptParser(Transformer):
             return internal_args
 
         func = self.transform(node.func_name)
+
         if isinstance(func, SpecialStmt):
+            # parse args and kwargs for TypeCall
             arg_list = parse_typecall_params(func, node.params, node.keyword_params)
-            func.handle(node, self.context, arg_list, node.func_name.span)
+            buf = func.handle(node, self.context, arg_list, node.func_name.span)
+            return buf
 
     def transform_Return(self, node):
         self.report_error(
