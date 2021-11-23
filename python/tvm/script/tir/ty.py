@@ -141,7 +141,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
             span=span,
         )
 
-    def __class_getitem__(shape, dtype: str):
+    def __getitem__(shape, dtype: str):
         return tvm.tir.decl_buffer(shape=shape, dtype=dtype)
 
     def evaluate(self):
@@ -159,4 +159,6 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
+# we don't have 'buffer' type on the cpp side
+# thus 'handle' is used here for convenience's sake
 Buffer = GenericBufferType("handle")

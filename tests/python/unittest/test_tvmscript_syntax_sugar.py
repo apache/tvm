@@ -128,10 +128,11 @@ def elementwise_buffer_kwargs(
 
 
 # match buffer - use buffer without kwargs
+# This function is commented out as it is supported yet
 # @T.prim_func
 # def elementwise_buffer_no_kwargs(
-#     a: T.Buffer[(128, 128, 128, 128), "float32"],
-#     b: T.Buffer[(128, 128, 128, 128), "float32"],
+#     a: T.Buffer((128, 128, 128, 128), "float32", "a"),
+#     b: T.Buffer((128, 128, 128, 128), "float32", "b"),
 # ) -> None:
 #     for i, j, k, l in T.grid(128, 128, 128, 128):
 #         with T.block("B"):
@@ -144,7 +145,6 @@ def test_match_buffer_syntax_sugar():
     assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
     # without kwargs
     assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
-    # without kwargs
 
 
 if __name__ == "__main__":
