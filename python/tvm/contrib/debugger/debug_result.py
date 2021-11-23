@@ -121,7 +121,8 @@ class DebugResult(object):
             for j in range(num_outputs):
                 order += time[0]
 
-                # the node name is not unique, so we need a consistent indexing based on the list in the nodes
+                # the node name is not unique, so we need a consistent
+                # indexing based on the list ordering in the nodes
                 key = f"{node['name']}____topo-index:{i}____output-num:{j}"
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
