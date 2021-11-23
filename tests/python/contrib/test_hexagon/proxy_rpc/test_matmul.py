@@ -28,9 +28,10 @@ import numpy as np
 
 import pytest
 
+HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
 TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
-HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
+ANDROID_TRACKER_KEY = "ANDROID_TRACKER_KEY"
 
 
 def _compose(args, decs):
@@ -61,8 +62,16 @@ def requires_rpc_tracker(*args):
     _requires_rpc_tracker = [
         *tvm.testing.requires_rpc(),
         pytest.mark.skipif(
-            os.environ.get(TVM_TRACKER_HOST) == None or os.environ.get(TVM_TRACKER_PORT) == None,
-            reason="TVM_TRACKER_HOST and TVM_TRACKER_PORT environment variables are required to run Hexagon proxy rpc tests",
+            os.environ.get(TVM_TRACKER_HOST) == None,
+            reason="Missing environment variable, TVM_TRACKER_HOST",
+        ),
+        pytest.mark.skipif(
+            os.environ.get(TVM_TRACKER_PORT) == None,
+            reason="Missing environment variable, TVM_TRACKER_PORT",
+        ),
+        pytest.mark.skipif(
+            os.environ.get(ANDROID_TRACKER_KEY) == None,
+            reason="Missing environment variable, ANDROID_TRACKER_KEY",
         ),
     ]
 
@@ -70,13 +79,32 @@ def requires_rpc_tracker(*args):
 
 
 @tvm.testing.fixture
-def rpc_sess():
+def android_tracker_key():
+    return os.environ["ANDROID_TRACKER_KEY"]
+
+
+@tvm.testing.fixture
+def tvm_tracker_host():
+    return os.environ["TVM_TRACKER_HOST"]
+
+
+@tvm.testing.fixture
+def tvm_tracker_port():
+    return int(os.environ["TVM_TRACKER_PORT"])
+
+
+@tvm.testing.fixture
+def remote_path():
+    dso_binary = "test_binary.so"
+    return os.path.join(os.environ["ANDROID_REMOTE_DIR"], dso_binary)
+
+
+@tvm.testing.fixture
+def rpc_sess(android_tracker_key, tvm_tracker_host, tvm_tracker_port):
     from tvm import rpc
 
-    host = os.environ.get(TVM_TRACKER_HOST)
-    port = os.environ.get(TVM_TRACKER_PORT)
-    tracker = rpc.connect_tracker(host, int(port))
-    remote = tracker.request("android", priority=0, session_timeout=600)
+    tracker = rpc.connect_tracker(tvm_tracker_host, tvm_tracker_port)
+    remote = tracker.request(android_tracker_key, priority=0, session_timeout=600)
     return remote
 
 
@@ -89,7 +117,7 @@ class MatMul:
 @requires_rpc_tracker
 @requires_hexagon_toolchain
 class TestMatMul(MatMul):
-    def test_matmul(self, M, N, K, rpc_sess):
+    def test_matmul(self, M, N, K, rpc_sess, remote_path):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
         k1 = te.reduce_axis((0, K), name="k1")
@@ -100,11 +128,9 @@ class TestMatMul(MatMul):
         mod = tvm.build(schedule, [X, Y, Z], target=target_hexagon, target_host=target_hexagon)
 
         temp = utils.tempdir()
-        dso_binary = "test_binary.so"
-        dso_binary_path = temp.relpath(dso_binary)
+        dso_binary_path = temp.relpath(os.path.basename(remote_path))
         mod.save(dso_binary_path)
 
-        remote_path = "/data/local/tmp/csullivan/" + dso_binary
         rpc_sess.upload(dso_binary_path, target=remote_path)
 
         mod = rpc_sess.load_module(remote_path)
