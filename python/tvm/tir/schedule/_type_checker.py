@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Type checking functionality"""
+import functools
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import typing
@@ -24,42 +25,80 @@ def _is_none_type(type_: Any) -> bool:
     return type_ is None or type_ is type(None)
 
 
-def _list_subtype(type_: Any) -> Optional[List[type]]:
-    if isinstance(type_, typing._GenericAlias) and type_.__origin__ is list:  # type: ignore # pylint: disable=protected-access
-        (subtype,) = type_.__args__
-        return [subtype]
-    return None
+if hasattr(typing, "_GenericAlias"):
+
+    class _Subtype:
+        @staticmethod
+        def _origin(type_: Any) -> Any:
+            if isinstance(type_, typing._GenericAlias):  # type: ignore # pylint: disable=protected-access
+                return type_.__origin__
+            return None
+
+        @staticmethod
+        def list_(type_: Any) -> Any:
+            if _Subtype._origin(type_) is list:
+                (subtype,) = type_.__args__
+                return [subtype]
+            return None
+
+        @staticmethod
+        def optional(type_: Any) -> Optional[List[type]]:
+            if _Subtype._origin(type_) is Union:
+                subtypes = type_.__args__
+                if len(subtypes) == 2 and _is_none_type(subtypes[1]):
+                    return [subtypes[0]]
+            return None
+
+        @staticmethod
+        def union(type_: Any) -> Optional[List[type]]:
+            if _Subtype._origin(type_) is Union:
+                subtypes = type_.__args__
+                if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
+                    return list(subtypes)
+            return None
 
 
-def _optional_subtype(type_: Any) -> Optional[List[type]]:
-    if isinstance(type_, typing._GenericAlias) and type_.__origin__ is Union:  # type: ignore # pylint: disable=protected-access
-        subtypes = type_.__args__
-        if len(subtypes) == 2 and _is_none_type(subtypes[1]):
-            return [subtypes[0]]
-    return None
+elif hasattr(typing, "_Union"):
 
+    class _Subtype:  # type: ignore
+        @staticmethod
+        def list_(type_: Any) -> Optional[List[type]]:
+            if isinstance(type_, typing.GenericMeta):  # type: ignore # pylint: disable=no-member
+                if type_.__name__ == "List":
+                    (subtype,) = type_.__args__
+                    return [subtype]
+            return None
 
-def _union_subtype(type_: Any) -> Optional[List[type]]:
-    if isinstance(type_, typing._GenericAlias) and type_.__origin__ is Union:  # type: ignore # pylint: disable=protected-access
-        subtypes = type_.__args__
-        if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
-            return list(subtypes)
-    return None
+        @staticmethod
+        def optional(type_: Any) -> Optional[List[type]]:
+            if isinstance(type_, typing._Union):  # type: ignore # pylint: disable=no-member,protected-access
+                subtypes = type_.__args__
+                if len(subtypes) == 2 and _is_none_type(subtypes[1]):
+                    return [subtypes[0]]
+            return None
+
+        @staticmethod
+        def union(type_: Any) -> Optional[List[type]]:
+            if isinstance(type_, typing._Union):  # type: ignore # pylint: disable=no-member,protected-access
+                subtypes = type_.__args__
+                if len(subtypes) != 2 or not _is_none_type(subtypes[1]):
+                    return list(subtypes)
+            return None
 
 
 def _dispatcher(type_: Any) -> Tuple[str, List[type]]:
     if _is_none_type(type_):
         return "none", []
 
-    subtype = _list_subtype(type_)
+    subtype = _Subtype.list_(type_)
     if subtype is not None:
         return "list", subtype
 
-    subtype = _optional_subtype(type_)
+    subtype = _Subtype.optional(type_)
     if subtype is not None:
         return "optional", subtype
 
-    subtype = _union_subtype(type_)
+    subtype = _Subtype.union(type_)
     if subtype is not None:
         return "union", subtype
 
@@ -135,6 +174,7 @@ def type_checked(func: Callable) -> Callable:
     """Type check the input arguments of a function."""
     sig = inspect.signature(func)
 
+    @functools.wraps(func)
     def wrap(*args, **kwargs):
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
@@ -146,6 +186,7 @@ def type_checked(func: Callable) -> Callable:
                     param.annotation,
                 )
                 if error_msg is not None:
+                    error_msg = f'In "{func.__qualname__}", {error_msg}'
                     raise TypeError(error_msg)
         return func(*args, **kwargs)
 
