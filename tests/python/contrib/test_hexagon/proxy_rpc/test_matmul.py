@@ -32,6 +32,7 @@ HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
 TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_TRACKER_KEY = "ANDROID_TRACKER_KEY"
+ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 
 
 def _compose(args, decs):
@@ -73,6 +74,10 @@ def requires_rpc_tracker(*args):
             os.environ.get(ANDROID_TRACKER_KEY) == None,
             reason="Missing environment variable, ANDROID_TRACKER_KEY",
         ),
+        pytest.mark.skipif(
+            os.environ.get(ANDROID_REMOTE_DIR) == None,
+            reason="Missing environment variable, ANDROID_REMOTE_DIR",
+        ),
     ]
 
     return _compose(args, _requires_rpc_tracker)
@@ -108,15 +113,13 @@ def rpc_sess(android_tracker_key, tvm_tracker_host, tvm_tracker_port):
     return remote
 
 
-class MatMul:
+@requires_rpc_tracker
+@requires_hexagon_toolchain
+class TestMatMul:
     M = tvm.testing.parameter(32)
     N = tvm.testing.parameter(32)
     K = tvm.testing.parameter(32)
 
-
-@requires_rpc_tracker
-@requires_hexagon_toolchain
-class TestMatMul(MatMul):
     def test_matmul(self, M, N, K, rpc_sess, remote_path):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
