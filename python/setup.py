@@ -236,3 +236,5 @@ if wheel_include_libs:
 
         if os.path.isdir(path_to_be_removed):
             shutil.rmtree(path_to_be_removed)
+
+# test
