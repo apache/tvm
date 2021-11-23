@@ -40,6 +40,8 @@
 namespace tvm {
 namespace tir {
 
+static constexpr const char* kDeviceContextVar = "device_api_context";
+
 class ReturnRewriter : public StmtMutator {
  public:
   explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
@@ -161,15 +163,11 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   };
   // ---------------------------
   // start of logics
-  // add signiture for packed arguments.
+  // add signature for packed arguments.
   if (pack_args) {
     args.push_back(v_packed_args);
     args.push_back(v_packed_arg_type_ids);
     args.push_back(v_num_packed_args);
-    std::ostringstream os;
-
-    os << name_hint << ": num_args should be " << num_packed_args;
-    seq_init.emplace_back(MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
   // Need to re-declare vars, in case some arguments also appears in the buffer.
@@ -179,6 +177,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
     Var v_arg = Var("arg" + std::to_string(i), param->dtype);
+
+    // Pluck the device API context out based on name
+    if (param->name_hint == kDeviceContextVar) {
+      num_packed_args--;
+      v_resource_handle = param;
+      continue;
+    }
 
     auto it = func_ptr->buffer_map.find(param);
     if (it != func_ptr->buffer_map.end()) {
@@ -262,7 +267,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
       body = SeqStmt({set_device, body});
     }
   }
-  func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+
+  if (pack_args) {
+    std::ostringstream num_args_error;
+    num_args_error << name_hint << ": num_args should be " << num_packed_args;
+    std::vector<Stmt> arg_assert = {
+        MakeAssertEQ(v_num_packed_args, num_packed_args, num_args_error.str())};
+    func_ptr->body =
+        MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  } else {
+    func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  }
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
