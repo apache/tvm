@@ -280,11 +280,18 @@ class BuiltinLower : public StmtExprMutator {
     size_t restore_array_stack = scope.run_array_stack;
     size_t arg_stack_begin = scope.run_arg_stack;
 
-    scope.run_arg_stack += op->args.size();
+    size_t arg_count = op->args.size();
+
+    // cpacked expects a resource_handle parameter
+    if (!use_string_lookup) {
+      arg_count--;
+    }
+
+    scope.run_arg_stack += arg_count;
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
-    for (size_t i = 1; i < op->args.size(); ++i) {
+    for (size_t i = 1; i < arg_count; ++i) {
       PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
       PrimExpr arg = op->args[i];
       DataType t = arg.dtype();
@@ -313,6 +320,12 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
+
+    // cpacked call resource_handle
+    if (!use_string_lookup) {
+      tir::Var resource_handle = Downcast<Var>(op->args[arg_count]);
+      packed_args.push_back(StringImm(resource_handle->name_hint));
+    }
 
     auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
                                           : builtin::tvm_call_cpacked_lowered();
