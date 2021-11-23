@@ -90,9 +90,14 @@ RELAY_REGISTER_OP("memory.alloc_storage")
     .set_attrs_type_key("relay.attrs.AllocStorageAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
+
+const Op& MemoryAllocTensorOp() {
+  static const Op& op = Op::Get("memory.alloc_tensor");
+  return op;
+}
 
 Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape) {
@@ -106,8 +111,7 @@ Expr AllocTensor(Expr storage, Expr offset, Expr shape, DataType dtype,
     ICHECK(constant_node);
     attrs->const_shape = GetRef<Constant>(constant_node);
   }
-  static const Op& op = Op::Get("memory.alloc_tensor");
-  return Call(op, {storage, offset, shape}, Attrs(attrs), {});
+  return Call(MemoryAllocTensorOp(), {storage, offset, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor").set_body_typed(AllocTensor);
@@ -196,7 +200,7 @@ RELAY_REGISTER_OP("memory.alloc_tensor")
     .set_attrs_type_key("relay.attrs.AllocTensorAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
