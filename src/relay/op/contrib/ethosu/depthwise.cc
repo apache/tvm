@@ -56,6 +56,7 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
   String upscale;
   String ifm_layout;
   String ofm_layout;
+  String ofm_dtype;
 
   TVM_DECLARE_ATTRS(EthosuDepthwiseConv2DAttrs, "relay.attrs.EthosuDepthwiseConv2DAttrs") {
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
@@ -116,6 +117,9 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
     TVM_ATTR_FIELD(ofm_layout)
         .set_default("NHWC")
         .describe("The layout of the Output Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.");
+    TVM_ATTR_FIELD(ofm_dtype)
+        .describe("The Output Feature Map tensor data type. Can be 'int8', 'uint8' or 'int16'.")
+        .set_default("int8");
   }
 };
 
@@ -180,7 +184,8 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
                                IndexExpr ofm_channels, Array<IndexExpr> strides,
                                Array<IndexExpr> padding, Array<IndexExpr> dilation,
                                String activation, int clip_min, int clip_max, String rounding_mode,
-                               String upscale, String ifm_layout, String ofm_layout) {
+                               String upscale, String ifm_layout, String ofm_layout,
+                               String ofm_dtype) {
   auto attrs = make_object<EthosuDepthwiseConv2DAttrs>();
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
@@ -199,6 +204,7 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
   attrs->upscale = std::move(upscale);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);
+  attrs->ofm_dtype = std::move(ofm_dtype);
   static const Op& op = Op::Get("contrib.ethosu.depthwise_conv2d");
   return Call(op, {ifm, weight, scale_bias, lut}, Attrs(attrs), {});
 }
