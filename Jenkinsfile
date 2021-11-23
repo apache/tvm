@@ -320,7 +320,7 @@ stage('Unit Test') {
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: i386')
+        Utils.markStageSkippedForConditional('python3: GPU')
       }
     },
     'python3: CPU': {
@@ -337,7 +337,7 @@ stage('Unit Test') {
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: i386')
+        Utils.markStageSkippedForConditional('python3: CPU')
       }
     },
     'python3: i386': {
