@@ -106,10 +106,10 @@ print(task.compute_dag)
 #   during the search.  We only make 10 trials in this tutorial for a fast
 #   demonstration. In practice, 1000 is a good value for the search to converge.
 #   You can do more trials according to your time budget.
-# * In addition, we use :any:`RecordToFile` to log measurement records into a
+# * In addition, we use :any:`RecordToFile <auto_scheduler.RecordToFile>` to log measurement records into a
 #   file ``matmul.json``.  The measurement records can be used to query the history
 #   best, resume the search, and do more analyses later.
-# * see :any:`auto_scheduler.TuningOptions` for more parameters
+# * see :any:`TuningOptions <auto_scheduler.TuningOptions>` for more parameters
 
 log_file = "matmul.json"
 tune_option = auto_scheduler.TuningOptions(
