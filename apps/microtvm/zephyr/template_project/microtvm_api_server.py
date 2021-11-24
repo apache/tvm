@@ -388,8 +388,8 @@ class Handler(server.ProjectAPIHandler):
         "aot_demo": "memory microtvm_rpc_common common",
     }
 
-    def _get_platform_version(self) -> float:
-        with open(pathlib.Path(os.getenv("ZEPHYR_BASE")) / "VERSION", "r") as f:
+    def _get_platform_version(self, zephyr_base: str) -> float:
+        with open(pathlib.Path(zephyr_base) / "VERSION", "r") as f:
             lines = f.readlines()
             for line in lines:
                 line = line.replace(" ", "").replace("\n", "").replace("\r", "")
@@ -402,7 +402,7 @@ class Handler(server.ProjectAPIHandler):
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Zephyr version
-        version = self._get_platform_version()
+        version = self._get_platform_version(options["zephyr_base"])
         if version != ZEPHYR_VERSION:
             message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:

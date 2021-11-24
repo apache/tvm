@@ -71,14 +71,15 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "arduino_board",
-        required=["build", "flash", "open_transport"],
+        required=["generate_project", "build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
         type="str",
         help="Name of the Arduino board to build for.",
     ),
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=["build", "flash", "open_transport"],
+        optional=["build", "flash", "open_transport"],
+        default="arduino-cli",
         type="str",
         help="Path to the arduino-cli tool.",
     ),
@@ -248,7 +249,10 @@ class Handler(server.ProjectAPIHandler):
         for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
                 with filename.open() as file:
-                    lines = file.readlines()
+                    try:
+                        lines = file.readlines()
+                    except:
+                        pass
 
                 for i in range(len(lines)):
                     # Check if line has an include
