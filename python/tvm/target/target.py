@@ -250,8 +250,8 @@ def cuda(model="unknown", arch=None, options=None):
     opts = _merge_opts(["-model=%s" % model], options)
     if arch:
         opts = _merge_opts(["-arch=%s" % arch], opts)
-    if not any(["-arch" in opts]):
-        warnings.warn("Try specifying cuda arch by adding '-arch=sm_xx' to your target.")
+    if not any(["-arch" in opt for opt in opts]):
+        warnings.warn("Try specifying cuda arch by adding 'arch=sm_xx' to your target.")
     return Target(" ".join(["cuda"] + opts))
 
 
