@@ -208,7 +208,7 @@ inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
   for (size_t i = 0; i < dst_layout.ndim(); ++i) {
     const auto& store_axis = dst_layout[i];
     const IterVar& store_axis_impl = dst_layout->axes[i];
-    PrimExpr store(0);
+    PrimExpr store(IntImm(DataType::Int(64), 0));
 
     for (size_t j = 0; j < src_layout.ndim(); ++j) {
       const auto& orig_axis = src_layout[j];
@@ -218,7 +218,7 @@ inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
           PrimExpr orig_var = orig_axis_impl->var;
           const int32_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
-            orig_var = orig_var * PrimExpr(factor);
+            orig_var = orig_var * PrimExpr(IntImm(DataType::Int(64), factor));
           }
           store = store + orig_var;
         } else {
@@ -304,7 +304,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
               << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = PrimExpr(0);
+      bind_map[orig_axis->var.get()] = PrimExpr(IntImm(DataType::Int(64), 0));
     } else {
       bind_map[orig_axis->var.get()] = orig_shape;
     }
