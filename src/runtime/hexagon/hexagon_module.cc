@@ -71,8 +71,10 @@ void HexagonHostModuleNode::SaveToFile(const std::string& file_name, const std::
   if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
     std::string meta_file = GetMetaFilePath(file_name);
     SaveMetaDataToFile(meta_file, fmap_);
+#if !defined(__APPLE__)
     std::string c = "cp " + data_ + " " + file_name;
     ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
+#endif
   } else if (fmt == "s" || fmt == "asm") {
     ICHECK(!asm_.empty()) << "Assembler source not available";
     SaveBinaryToFile(file_name, asm_);
