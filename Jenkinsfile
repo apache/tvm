@@ -168,15 +168,9 @@ stage('Sanity Check') {
 def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}",
-        label: "Run cmake build",
-      )
+      cmake_build(docker_type, path, make_flag)
       // always run cpp test when build
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
-        label: "Build and run C++ tests",
-      )
+      cpp_unittest(docker_type)
     } catch (hudson.AbortException ae) {
       // script exited due to user abort, directly throw instead of retry
       if (ae.getMessage().contains('script returned exit code 143')) {
@@ -187,14 +181,8 @@ def make(docker_type, path, make_flag) {
         script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
         label: "Clear old cmake workspace",
       )
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}",
-        label: "Run cmake build",
-      )
-      sh (
-        script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
-        label: "Build and run C++ tests",
-      )
+      cmake_build(docker_type, path, make_flag)
+      cpp_unittest(docker_type)
     }
   }
 }
@@ -224,7 +212,7 @@ def ci_setup(image) {
   )
 }
 
-def unittest(image) {
+def python_unittest(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_unittest.sh",
     label: "Run Python unit tests",
@@ -235,6 +223,20 @@ def fsim_test(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
     label: "Run VTA tests in FSIM ",
+  )
+}
+
+def cmake_build(image, path, make_flag) {
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag}",
+    label: "Run cmake build",
+  )
+}
+
+def cpp_unittest(image) {
+  sh (
+    script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
+    label: "Build and run C++ tests",
   )
 }
 
@@ -265,7 +267,7 @@ stage('Build') {
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
-            unittest(ci_cpu)
+            python_unittest(ci_cpu)
             fsim_test(ci_cpu)
             sh (
               script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
@@ -380,11 +382,11 @@ stage('Unit Test') {
               )
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: "Run GPU unit tests",
+                label: "Run Python GPU unit tests",
               )
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: "Run GPU integration tests",
+                label: "Run Python GPU integration tests",
               )
               junit "build/pytest-results/*.xml"
             }
@@ -422,7 +424,7 @@ stage('Unit Test') {
             unpack_lib('i386', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_i386)
-              unittest(ci_i386)
+              python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: "Run i386 integration tests",
@@ -444,7 +446,7 @@ stage('Unit Test') {
             unpack_lib('arm', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_arm)
-              unittest(ci_arm)
+              python_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: "Run test_arm_compute_lib test",
