@@ -56,7 +56,7 @@ def make_batch_matmul_pattern():
 
 
 def make_conv2d_pattern():
-    # TODO: Check layout
+    # TODO(masahi): Check layout and alignment
     return is_op("nn.conv2d")(wildcard(), wildcard())
 
 
@@ -77,6 +77,7 @@ def partition_for_cutlass(mod):
         dense_bias_pat,
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern()),
+        # TODO(masahi): Add more conv2d patterns
         ("cutlass.conv2d", make_conv2d_pattern())
     ]
     mod = transform.MergeComposite(cutlass_patterns)(mod)

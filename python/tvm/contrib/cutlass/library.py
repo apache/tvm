@@ -202,6 +202,7 @@ StrideSupportTag = {
   StrideSupport.Unity: 'cutlass::conv::StrideSupport::kUnity',
 }
 
+
 StrideSupportNames = {
   StrideSupport.Strided: '',
   StrideSupport.Unity: 'unity_stride',
@@ -217,6 +218,7 @@ IteratorAlgorithmTag = {
   IteratorAlgorithm.Analytic: 'cutlass::conv::IteratorAlgorithm::kAnalytic',
   IteratorAlgorithm.Optimized: 'cutlass::conv::IteratorAlgorithm::kOptimized',
 }
+
 
 IteratorAlgorithmNames = {
   IteratorAlgorithm.Analytic: 'analytic',

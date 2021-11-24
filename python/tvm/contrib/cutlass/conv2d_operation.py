@@ -56,7 +56,6 @@ class Conv2dOperation:
 
     def core_name(self):
         """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
-
         intermediate_type = ""
 
         if self.tile_description.math_instruction.opcode_class == OpcodeClass.TensorOp:
@@ -108,7 +107,6 @@ class Conv2dOperation:
 
     def configuration_name(self):
         """ The full procedural name indicates architecture, extended name, tile size, and layout. """
-
         opcode_class_name = OpcodeClassNames[self.tile_description.math_instruction.opcode_class]
 
         threadblock = "%dx%d_%dx%d" % (
@@ -174,7 +172,6 @@ class EmitConv2dInstance:
 """
 
     def emit(self, operation):
-
         warp_shape = [
             int(
                 operation.tile_description.threadblock_shape[idx]
