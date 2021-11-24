@@ -100,7 +100,7 @@ class CutlassConv2DProfiler:
         self.gemm_profiler = CutlassGemmProfiler(sm, cutlass_path, binary_path)
         self.sm = sm
 
-    def get_default(out_dtype):
+    def get_default(self, out_dtype):
         gemm_profile_result = self.gemm_profiler.get_default(out_dtype)
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]

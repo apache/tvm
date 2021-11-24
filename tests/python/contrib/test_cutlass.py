@@ -115,13 +115,19 @@ def get_conv2d_nchw(d_shape, w_shape):
     weight = relay.var("weight", shape=w_shape, dtype="float16")
     out_channel = w_shape[0]
     return relay.nn.conv2d(
-        data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1), out_dtype="float16")
+        data=data,
+        weight=weight,
+        kernel_size=(3, 3),
+        channels=out_channel,
+        padding=(1, 1),
+        out_dtype="float16",
+    )
 
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -297,73 +303,53 @@ def test_batch_matmul():
         )
 
 
-def test_conv2d():
-    d_shape = (16, 16, 16, 16)
-    w_shape = (16, 16, 3, 3)
-    conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
-    mod = tvm.IRModule.from_expr(conv2d_nchw)
+def convert_conv2d_layout(mod, desired_layouts):
+    with tvm.transform.PassContext(opt_level=3):
+        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+        return seq(mod)
 
+
+def verify_conv2d(
+    mod_nchw, d_shape, w_shape, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+):
     np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
     np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
 
     params = {"weight": np_weight}
 
-    with tvm.transform.PassContext(opt_level=3):
-        desired_layouts = {'nn.conv2d': ['NHWC', "OHWI"]}
-        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
-        mod_weight_ohwi = seq(mod)
-        # print(mod_weight_ohwi)
-
-        desired_layouts = {'nn.conv2d': ['NHWC', "HWIO"]}
-        seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
-        mod_weight_hwio = seq(mod)
-
-        # mod = mod_weight_hwio
-        mod = mod_weight_ohwi
-
-    mod = partition_for_cutlass(mod)
-
-    tmp_dir = "tmp"
-    lib_path = "compile.so"
-    sm = 80
-
-    mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=True, tmp_dir=tmp_dir
+    rt_mod, _, num_cutlass_partition = profile_and_build(
+        convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}),
+        params,
+        80,
+        tmp_dir="./tmp",
+        lib_path="compile.so",
     )
 
-    with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target="cuda", params=params)
+    assert num_cutlass_partition > 0
 
-    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, threads=1)
+    out = get_output(rt_mod, ["data"], [np_data])
 
-    target = "cuda"
-    dev = tvm.device(target, 0)
-    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    rt_mod_ref, _ = get_ref_rt_mod(
+        convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "HWIO"]}), params, target=ref_target
+    )
 
-    rt_mod.set_input("data", np_data)
-    rt_mod.run()
+    out_ref = get_output(rt_mod_ref, ["data"], [np_data])
 
-    out = rt_mod.get_output(0).asnumpy()
-
-    mod = mod_weight_hwio
-
-    with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target=target, params=params)
-
-    dev = tvm.device(target, 0)
-    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-
-    rt_mod.set_input("data", np_data)
-    rt_mod.run()
-
-    out_ref = rt_mod.get_output(0).asnumpy()
-
-    atol = 1e-5
-    rtol = 1e-5
     np.testing.assert_allclose(out, out_ref, atol=atol, rtol=rtol)
     print("ok")
 
 
-# if __name__ == "__main__":
-#     pytest.main([__file__])
-test_conv2d()
+def test_conv2d():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
+    mod = tvm.IRModule.from_expr(conv2d_nchw)
+
+    verify_conv2d(
+        mod, d_shape, w_shape, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+
+if __name__ == "__main__":
+    # pytest.main([__file__])
+    test_conv2d()
