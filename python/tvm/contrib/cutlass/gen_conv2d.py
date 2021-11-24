@@ -42,7 +42,7 @@ def create_conv2d_operator(
     kernel_emitter = EmitConv2dInstance()
 
     element_a, element_b, element_c, element_epilogue = data_type
-    iterator_algorithms = [IteratorAlgorithm.Optimized, IteratorAlgorithm.Analytic]
+    iterator_algorithms = [IteratorAlgorithm.Optimized]
 
     layout = (LayoutType.TensorNHWC, LayoutType.TensorNHWC, LayoutType.TensorNHWC)
     for tile in tile_descriptions:
