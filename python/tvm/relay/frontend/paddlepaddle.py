@@ -745,7 +745,7 @@ def convert_interpolate(g, op, block):
         out_size, infered = try_infer_value(out_size, parameters=g.get_params())
         if infered:
             out_size = out_size.tolist()
-    elif scale[0] > 0 and scale[1] > 0:
+    elif scale and scale[0] > 0 and scale[1] > 0:
         # use attribute scale
         input_shape = shape_of(x).astype("float32")
         input_scale = _expr.const(np.array([scale[0], scale[1]]).astype("float32"))
