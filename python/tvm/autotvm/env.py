@@ -24,7 +24,6 @@ class AutotvmGlobalScope(object):
         self._old = AutotvmGlobalScope.current
         AutotvmGlobalScope.current = self
 
-        self.cuda_target_arch = None
         self.in_tuning = False
         self.silent = False
 
