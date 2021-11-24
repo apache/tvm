@@ -177,20 +177,15 @@ Expr ExprMutator::VisitExpr_(const GlobalVarNode* op) { return GetRef<Expr>(op);
 
 Expr ExprMutator::VisitExpr_(const OpNode* op) { return GetRef<Expr>(op); }
 
-Expr ExprMutator::VisitExpr_(const TupleNode* op) {
+Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
   tvm::Array<Expr> fields;
-  bool all_fields_unchanged = true;
-  for (auto field : op->fields) {
+  fields.reserve(tuple_node->fields.size());
+
+  for (auto field : tuple_node->fields) {
     auto new_field = this->Mutate(field);
     fields.push_back(new_field);
-    all_fields_unchanged &= new_field.same_as(field);
   }
-
-  if (all_fields_unchanged) {
-    return GetRef<Expr>(op);
-  } else {
-    return Tuple(fields, op->span);
-  }
+  return WithFields(GetRef<Tuple>(tuple_node), std::move(fields));
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
