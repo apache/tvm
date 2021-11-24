@@ -107,7 +107,14 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Lower the functions in a Module
+   * \brief Lower the functions in a Module.
+   *
+   * ----------------------------------------------------------------------------------
+   * | This is the main entry point for the VM compilation flow.                      |
+   * |  - Preceded by \p SetParam for the global params.                             |
+   * |  - Followed by \p Codegen() to finalize the executable.                        |
+   * |  - Then the result runtime::Module can be constructed from the internal exec_. |
+   * ----------------------------------------------------------------------------------
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating device type

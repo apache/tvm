@@ -36,30 +36,6 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-namespace {
-
-/*!
- * \brief As for GetDeviceCopyProps, but for the call to the lowered TIR primitives rather
- * than the original "device_copy" operator.
- *
- * See te_compiler.cc for where this rewriting occurs.
- */
-DeviceCopyProps GetPrimitiveDeviceCopyProps(const CallNode* call_node) {
-  if (call_node->op == CallLoweredOp()) {
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
-        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
-      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
-      return {call_lowered_props.arguments[0],
-              Downcast<SEScope>(call_lowered_props.attrs.metadata["src_se_scope"]),
-              Downcast<SEScope>(call_lowered_props.attrs.metadata["dst_se_scope"])};
-    }
-  }
-  return {};
-}
-
-}  // namespace
-
 DeviceDomains::DeviceDomains(CompilationConfig config) : config_(std::move(config)) {
   host_domain_ = MakeFirstOrderDomain(config_->host_se_scope);
 }
@@ -221,9 +197,10 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
 
   OnDeviceProps on_device_props = GetOnDeviceProps(call.get());
   DeviceCopyProps device_copy_props = GetDeviceCopyProps(call.get());
-  if (!device_copy_props.body.defined()) {
+  CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
+  if (!device_copy_props.body.defined() && call_lowered_props.lowered_func.defined()) {
     // Special case for the TIR-ified version of "device_copy".
-    device_copy_props = GetPrimitiveDeviceCopyProps(call.get());
+    device_copy_props = GetLoweredDeviceCopyProps(call_lowered_props);
   }
 
   if (on_device_props.body.defined()) {
@@ -324,8 +301,7 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
       args_and_result.emplace_back(param_domain);
     }
     args_and_result.emplace_back(result_domain);
-  } else if (call->op == CallLoweredOp()) {
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
+  } else if (call_lowered_props.lowered_func.defined()) {
     return DomainFor(call_lowered_props.lowered_func);
   } else {
     // We still need to handle the case where the function / op is not lowered

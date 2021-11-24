@@ -1909,7 +1909,8 @@ Parser InitParser(const std::string& file_name, const std::string& file_content,
 
 IRModule ParseModule(const std::string& file_name, const std::string& file_content,
                      const Optional<IRModule>& init_module, const MetaTable& init_meta_table) {
-  VLOG(9) << "ParseModule";
+  VLOG_CONTEXT << "ParseModule";
+  VLOG(9) << "parsing and type-checking " << file_name;
   auto parser = InitParser(file_name, file_content, init_module, init_meta_table);
   auto mod = parser.ParseModule();
   ICHECK(mod.defined()) << "The parser must return a non-null module.";
@@ -1952,15 +1953,21 @@ TVM_REGISTER_GLOBAL("parser.ParseExpr")
       return ParseExpr(file_name, file_content);
     });
 
-TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed([]() {
-  return CreateModulePass(
-      [](const IRModule& mod, const PassContext& ctx) {
-        String text = AsText(mod, /*show_meta_data=*/true);
-        VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
-        return ParseModule("GeneratedSource", text);
-      },
-      0, "AnnotateSpans", {});
-});
+/*!
+ * \brief This pass pretty-prints mod then parses it back so as to establish spans and sources
+ * for all Relay sub-expressions. This improves error and debugging diagnostics downstream for
+ * modules constructed programaticaly rather than textually.
+ */
+Pass AnnotateSpans() {
+  auto pass_func = [](const IRModule& mod, const PassContext& ctx) {
+    String text = AsText(mod, /*show_meta_data=*/true);
+    VLOG(1) << "AnnotateSpans intermediate text:" << std::endl << text;
+    return ParseModule("GeneratedSource", text);
+  };
+  return CreateModulePass(pass_func, 0, "AnnotateSpans", {});
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateSpans").set_body_typed(AnnotateSpans);
 
 }  // namespace parser
 }  // namespace tvm
