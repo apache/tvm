@@ -152,6 +152,39 @@ def matmul_decompose4(a: T.handle, b: T.handle, c: T.handle) -> None:
                     C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
+@T.prim_func
+def matmul_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = 0.0
+
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            T.block_attr({"test_annotation": 1})
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -199,6 +232,15 @@ def test_reduction_decompose4():
     s.decompose_reduction(C, ii)
     tvm.ir.assert_structural_equal(matmul_decompose4, s.mod["main"])
     verify_trace_roundtrip(s, mod=matmul)
+
+
+def test_reduction_decompose_with_annotation():
+    s = tir.Schedule(matmul_with_annotation, debug_mask="all")
+    C = s.get_block("update")
+    i, j, k = s.get_loops(C)
+    s.decompose_reduction(C, i)
+    tvm.ir.assert_structural_equal(matmul_decompose_with_annotation, s.mod["main"])
+    verify_trace_roundtrip(s, mod=matmul_with_annotation)
 
 
 if __name__ == "__main__":
