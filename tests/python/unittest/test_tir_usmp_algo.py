@@ -167,7 +167,22 @@ class LinearStructure:
 # fmt: on
 
 
-def test_linear():
+def print_conflicts(buffer_info_map):
+    """_verify_conflicts("sid_8", ["Conv2dOutput_7", "tensor_2"], buffer_info_map)"""
+
+    for buffer_info_name, buf_info in buffer_info_map.items():
+        conflict_str = "["
+        for conflict in buf_info.conflicts:
+            conflict_str += f'"{conflict.name_hint}", '
+        conflict_str += "]"
+        print(f'_verify_conflicts("{buffer_info_name}", {conflict_str}, buffer_info_map_names)')
+
+
+@pytest.mark.parametrize(
+    ["algorithm", "fast_memory_size", "slow_memory_size"],
+    [("greedy_by_size", 200704, 1418528), ("greedy_by_conflicts", 200704, 1418528)],
+)
+def test_linear(algorithm, fast_memory_size, slow_memory_size):
     target = Target("c")
     fast_memory_pool = usmp_utils.PoolInfo(
         pool_name="fast_memory",
@@ -187,7 +202,7 @@ def test_linear():
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
-    fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
+    fusmp_algo_greedy_by_size = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
     buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
 
     buffer_info_map_names = dict()
@@ -203,8 +218,8 @@ def test_linear():
     )
     _verify_conflicts("Conv2dOutput_7", ["sid_8", "PaddedInput_7"], buffer_info_map_names)
 
-    _check_max_workspace_size(buffer_pool_allocations, slow_memory_pool, 1418528)
-    _check_max_workspace_size(buffer_pool_allocations, fast_memory_pool, 200704)
+    _check_max_workspace_size(buffer_pool_allocations, slow_memory_pool, slow_memory_size)
+    _check_max_workspace_size(buffer_pool_allocations, fast_memory_pool, fast_memory_size)
 
 
 # fmt: off
@@ -328,7 +343,10 @@ class ResnetStructure:
 # fmt: on
 
 
-def test_fanout():
+@pytest.mark.parametrize(
+    ["algorithm", "workspace_size"], [("greedy_by_size", 7920256), ("greedy_by_conflicts", 7200256)]
+)
+def test_fanout(algorithm, workspace_size):
     target = Target("c")
     global_workspace_pool = usmp_utils.PoolInfo(
         pool_name="global_workspace",
@@ -342,7 +360,7 @@ def test_fanout():
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
-    fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
+    fusmp_algo_greedy_by_size = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
     buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
 
     buffer_info_map_names = dict()
@@ -351,72 +369,12 @@ def test_fanout():
 
     # check conflicts
     _verify_conflicts(
-        "Conv2dOutput_1",
-        [
-            "PaddedInput_1",
-            "sid_7",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "sid_8",
-        [
-            "PaddedInput",
-            "Conv2dOutput",
-            "PaddedInput_1",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "PaddedInput_2",
-        [
-            "sid_7",
-            "sid_6",
-            "Conv2dOutput_2",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "sid_2",
-        [
-            "PaddedInput",
-            "PaddedInput_3",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "Conv2dOutput",
-        [
-            "sid_8",
-            "PaddedInput",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
         "sid_7",
         [
-            "Conv2dOutput_1",
             "PaddedInput_1",
-            "PaddedInput_2",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "sid_6",
-        [
-            "PaddedInput_2",
-            "Conv2dOutput_2",
-            "Conv2dOutput_3",
-            "PaddedInput_3",
-        ],
-        buffer_info_map_names,
-    )
-    _verify_conflicts(
-        "PaddedInput_3",
-        [
             "sid_2",
-            "Conv2dOutput_3",
-            "sid_6",
+            "Conv2dOutput_1",
+            "PaddedInput_2",
         ],
         buffer_info_map_names,
     )
@@ -425,6 +383,63 @@ def test_fanout():
         [
             "PaddedInput_3",
             "sid_6",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "sid_6",
+        [
+            "Conv2dOutput_2",
+            "PaddedInput_2",
+            "sid_2",
+            "PaddedInput_3",
+            "Conv2dOutput_3",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "Conv2dOutput",
+        [
+            "sid_8",
+            "sid_2",
+            "PaddedInput",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "PaddedInput_3",
+        [
+            "sid_6",
+            "sid_2",
+            "Conv2dOutput_3",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_2",
+        [
+            "PaddedInput_2",
+            "sid_2",
+            "sid_6",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "PaddedInput_1",
+        [
+            "sid_8",
+            "sid_2",
+            "sid_7",
+            "Conv2dOutput_1",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_1",
+        [
+            "sid_7",
+            "PaddedInput_1",
+            "sid_2",
         ],
         buffer_info_map_names,
     )
@@ -438,21 +453,40 @@ def test_fanout():
         buffer_info_map_names,
     )
     _verify_conflicts(
-        "Conv2dOutput_2",
+        "sid_8",
         [
-            "sid_6",
-            "PaddedInput_2",
+            "PaddedInput",
+            "sid_2",
+            "Conv2dOutput",
+            "PaddedInput_1",
         ],
         buffer_info_map_names,
     )
     _verify_conflicts(
-        "PaddedInput_1",
+        "sid_2",
         [
+            "PaddedInput",
             "sid_8",
-            "Conv2dOutput_1",
+            "Conv2dOutput",
+            "PaddedInput_1",
             "sid_7",
+            "Conv2dOutput_1",
+            "PaddedInput_2",
+            "Conv2dOutput_2",
+            "sid_6",
+            "PaddedInput_3",
+        ],
+        buffer_info_map_names,
+    )
+    _verify_conflicts(
+        "PaddedInput_2",
+        [
+            "sid_7",
+            "sid_2",
+            "Conv2dOutput_2",
+            "sid_6",
         ],
         buffer_info_map_names,
     )
 
-    _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, 7200000)
+    _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
