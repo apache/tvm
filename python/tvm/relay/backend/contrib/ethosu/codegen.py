@@ -194,7 +194,7 @@ class LayoutOptimization(ExprMutator):
             input_count += 1
             if not isinstance(arg, tvm.relay.expr.Call):
                 continue
-            if is_ethosu_op(arg):
+            if isinstance(arg.op, tvm.ir.op.Op) and arg.op.name in self.optimize_op:
                 layout_string = "ifm_layout" if input_count <= 1 else f"ifm{input_count}_layout"
                 new_attrs[layout_string] = "NHCWB16"
             parents.append(arg)
@@ -203,7 +203,11 @@ class LayoutOptimization(ExprMutator):
         if call in self.children:
             children = self.children[call]
             if all(
-                is_ethosu_op(child) and child.attrs["ifm_layout"] == "NHCWB16" for child in children
+                isinstance(child, tvm.relay.expr.Call)
+                and isinstance(child.op, tvm.ir.op.Op)
+                and child.op.name in self.optimize_op
+                and child.attrs["ifm_layout"] == "NHCWB16"
+                for child in children
             ):
                 new_attrs["ofm_layout"] = "NHCWB16"
 
@@ -220,6 +224,8 @@ class LayoutOptimization(ExprMutator):
                 self.children[input_arg].append(new_call)
             else:
                 self.children[input_arg] = [new_call]
+
+        print(new_call)
 
         return super().visit_call(new_call)
 
