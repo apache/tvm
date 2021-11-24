@@ -215,6 +215,43 @@ def square_sum_square_root_rfactor(a: T.handle, d: T.handle) -> None:
 
 
 @T.prim_func
+def square_sum_with_annotation(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    C = T.match_buffer(c, [16])
+
+    for b0, i0, j0 in T.grid(16, 256, 256):
+        with T.block("C"):
+            T.block_attr({"test_annotation": 1})
+            b, i, j = T.axis.remap("SRR", [b0, i0, j0])
+            with T.init():
+                C[b] = 0.0
+            C[b] = C[b] + A[b, i, j] * A[b, i, j]
+
+
+@T.prim_func
+def square_sum_with_annotation_rfactor(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [16, 256, 256])
+    C = T.match_buffer(c, [16])
+    C_rf = T.alloc_buffer([16, 256])
+
+    for i0, i1, i2 in T.grid(16, 256, 256):
+        with T.block("C_rf"):
+            T.block_attr({"test_annotation": 1})
+            vi2, b, i = T.axis.remap("SSR", [i2, i0, i1])
+            with T.init():
+                C_rf[b, vi2] = 0.0
+            C_rf[b, vi2] = C_rf[b, vi2] + (A[b, i, vi2] * A[b, i, vi2])
+
+    for i0_1, i2_1 in T.grid(16, 256):
+        with T.block("C"):
+            T.block_attr({"test_annotation": 1})
+            vi2_1, b_1 = T.axis.remap("RS", [i2_1, i0_1])
+            with T.init():
+                C[b_1] = 0.0
+            C[b_1] = C[b_1] + C_rf[b_1, vi2_1]
+
+
+@T.prim_func
 def element_wise(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
@@ -658,6 +695,17 @@ def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
     assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
     assert s.get(B).same_as(s.get(s.get_block("B")))
     verify_trace_roundtrip(s, mod=rowsum_predicate)
+
+
+def test_reduction_rfactor_with_annotation():
+    s = tir.Schedule(square_sum_with_annotation, debug_mask="all")
+    C = s.get_block("C")
+    _, _, j = s.get_loops(C)
+    rf_block = s.rfactor(j, 1)
+    tvm.ir.assert_structural_equal(s.mod["main"], square_sum_with_annotation_rfactor)
+    assert s.get(rf_block).same_as(s.get(s.get_block("C_rf")))
+    assert s.get(C).same_as(s.get(s.get_block("C")))
+    verify_trace_roundtrip(s, mod=square_sum_with_annotation)
 
 
 if __name__ == "__main__":

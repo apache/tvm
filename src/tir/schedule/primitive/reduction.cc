@@ -212,6 +212,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   ObjectPtr<BlockNode> init_block = make_object<BlockNode>();
   ObjectPtr<BlockRealizeNode> init_realize = make_object<BlockRealizeNode>();
   init_block->name_hint = block->name_hint + "_init";
+  init_block->annotations = block->annotations;
   init_realize->iter_values = {};
   init_realize->block = Block(init_block);
   // Step 1. Create new block vars and their bindings
@@ -580,7 +581,10 @@ class BaseBlockCreator {
         /*body=*/new_reduction_update_,
         /*init=*/
         BufferStore(new_reduction_update_->buffer, reducer_->identity_element[0],
-                    new_reduction_update_->indices));
+                    new_reduction_update_->indices),
+        /*alloc_buffers=*/{},
+        /*match_buffers=*/{},
+        /*annotations=*/old_block_realize_->block->annotations);
     new_block_realize_ = BlockRealize(iter_values_, predicate, new_block_);
   }
 
