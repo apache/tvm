@@ -17,11 +17,7 @@
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
 from functools import partial
-import os
 import re
-import tempfile
-import subprocess
-import multiprocessing
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import (

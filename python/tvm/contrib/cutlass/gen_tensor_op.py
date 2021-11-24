@@ -22,7 +22,6 @@ import tempfile
 import subprocess
 import multiprocessing
 from .library import (
-    TensorDescription,
     MathInstruction,
     DataType,
     OpcodeClass,
