@@ -81,9 +81,11 @@ TEST(CompilationConfig, Constructor_Homegenoous_InnerHost) {
 
 TEST(CompilationConfig, Constructor_Homogenous_CPUHost) {
   transform::PassContext pass_ctx = transform::PassContext::Create();
+  Target host_target = TestCpuTarget();
   Target cpu_target = TestCpuTarget();
   TargetMap legacy_target_map;
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)),
+                        Target::WithHost(cpu_target, host_target));
   CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
   EXPECT_TRUE(StructuralEqual()(config->host_target, cpu_target));
@@ -99,8 +101,10 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_FallbackCPUHost) {
   Target cuda_target = TestCudaTarget();
   Target cpu_target = TestCpuTarget();
   TargetMap legacy_target_map;
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)),
+                        Target::WithHost(cpu_target, host_target));
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)),
+                        Target::WithHost(cuda_target, host_target));
   CompilationConfig config(pass_ctx, legacy_target_map, /*optional_host_target_arg=*/{});
 
   SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
@@ -108,6 +112,13 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_FallbackCPUHost) {
   SEScope expected_host_se_scope(kDLCPU, 0, host_target);
 
   ASSERT_EQ(config->legacy_target_map.size(), 2);
+  for (const auto& pair : config->legacy_target_map) {
+    if (pair.first->value == kDLCPU) {
+      EXPECT_TRUE(StructuralEqual()(pair.second, Target::WithHost(cpu_target, host_target)));
+    } else if (pair.first->value == kDLCUDA) {
+      EXPECT_TRUE(StructuralEqual()(pair.second, Target::WithHost(cuda_target, host_target)));
+    }
+  }
   EXPECT_TRUE(config->host_target.defined());
   EXPECT_TRUE(StructuralEqual()(config->host_target, host_target));
   EXPECT_TRUE(
@@ -123,8 +134,10 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
   Target cuda_target = TestCudaTarget();
   Target cpu_target = TestCpuTarget();
   TargetMap legacy_target_map;
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)), cpu_target);
-  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)), cuda_target);
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCPU)),
+                        Target::WithHost(cpu_target, host_target));
+  legacy_target_map.Set(Integer(static_cast<int>(kDLCUDA)),
+                        Target::WithHost(cuda_target, host_target));
   CompilationConfig config(pass_ctx, legacy_target_map, host_target);
 
   SEScope expected_default_primitive_se_scope(kDLCUDA, 0,
@@ -132,6 +145,13 @@ TEST(CompilationConfig, Constructor_Hetrogeneous_ExplicitHost) {
   SEScope expected_host_se_scope(kDLCPU, 0, host_target);
 
   ASSERT_EQ(config->legacy_target_map.size(), 2);
+  for (const auto& pair : config->legacy_target_map) {
+    if (pair.first->value == kDLCPU) {
+      EXPECT_TRUE(StructuralEqual()(pair.second, Target::WithHost(cpu_target, host_target)));
+    } else if (pair.first->value == kDLCUDA) {
+      EXPECT_TRUE(StructuralEqual()(pair.second, Target::WithHost(cuda_target, host_target)));
+    }
+  }
   EXPECT_TRUE(config->host_target.defined());
   EXPECT_TRUE(StructuralEqual()(config->host_target, host_target));
   ASSERT_EQ(config->primitive_targets.size(), 2);

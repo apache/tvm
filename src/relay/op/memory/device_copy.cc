@@ -24,6 +24,7 @@
 
 #include "./device_copy.h"
 
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/attrs/call.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
@@ -112,6 +113,16 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
 DeviceCopyProps GetDeviceCopyProps(const Expr& expr) {
   if (const auto* call_node = expr.as<CallNode>()) {
     return GetDeviceCopyProps(call_node);
+  }
+  return {};
+}
+
+DeviceCopyProps GetLoweredDeviceCopyProps(const CallLoweredProps& props) {
+  if (props.attrs.metadata.count("src_se_scope") == 1 &&
+      props.attrs.metadata.count("dst_se_scope") == 1) {
+    ICHECK_EQ(props.arguments.size(), 1) << "device_copy is of arity 1";
+    return {props.arguments[0], Downcast<SEScope>(props.attrs.metadata["src_se_scope"]),
+            Downcast<SEScope>(props.attrs.metadata["dst_se_scope"])};
   }
   return {};
 }

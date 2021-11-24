@@ -499,7 +499,17 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
+  Doc doc;
+  doc << "@" << op->name_hint;
+#if TVM_LOG_DEBUG
+  if (op->checked_type_.defined()) {
+    doc << " /* type=" << PrintType(op->checked_type_, /*meta=*/false) << " */";
+  }
+  doc << " /* id=" << reinterpret_cast<uint64_t>(op) << " */";
+#endif
+  return doc;
+}
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 

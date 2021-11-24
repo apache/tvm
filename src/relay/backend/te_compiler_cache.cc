@@ -215,7 +215,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
-    LOG(FATAL) << "Unexpected free variable " << op->name_hint();
+    LOG(FATAL) << "Unexpected free variable " << PrettyPrint(GetRef<Var>(op));
     return {};
   }
 
@@ -384,7 +384,6 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   CachedFunc Create(const Function& prim_func, const Target& target,
                     std::function<std::string(std::string)> renamer) {
-    Array<te::Tensor> inputs;
     TShapeDataDependent shape_func_param_states;
 
     for (auto param : prim_func->params) {
@@ -429,6 +428,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     }
 
     // Set all the inputs correctly.
+    Array<te::Tensor> inputs;
     for (auto param : prim_func->params) {
       int state = param_states_[param];
       shape_func_param_states.push_back(IntImm(DataType::Int(32), state));
@@ -496,7 +496,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       return VisitExpr(it->second);
     }
     if (param_states_.find(var) == param_states_.end()) {
-      LOG(FATAL) << "Unexpected free variable " << var->name_hint();
+      LOG(FATAL) << "Unexpected free variable " << PrettyPrint(var);
       return {};
     } else {
       ICHECK(data_dependents_per_input_.size());

@@ -100,7 +100,7 @@ class TECompilerImpl : public TECompilerNode {
       IRModule lowered_mod = lowered_func->cached_func->funcs;
 
       // Annotate functions with their target and put them in the return module
-      for (auto kv : lowered_mod->functions) {
+      for (const auto& kv : lowered_mod->functions) {
         const GlobalVar& var = kv.first;
         const BaseFunc& func = kv.second;
 
@@ -114,6 +114,7 @@ class TECompilerImpl : public TECompilerNode {
         }
       }
     }
+
     // Extract lowered dynamic shape functions from the shape cache
     for (const auto& it : shape_func_cache_) {
       auto source_func = it.first;
@@ -129,6 +130,7 @@ class TECompilerImpl : public TECompilerNode {
         mod->Update(var, WithAttr(prim_func, tvm::attr::kTarget, source_func->target));
       }
     }
+
     return mod;
   }
 
@@ -202,10 +204,16 @@ class TECompilerImpl : public TECompilerNode {
  private:
   // implement lowered func
   CCacheValue LowerInternal(const CCacheKey& key, std::function<String(String)> mangle_fn) {
+    VLOG(1) << "lowering:" << std::endl
+            << PrettyPrint(key->source_func) << std::endl
+            << "for target:" << std::endl
+            << key->target->ToDebugString();
     std::lock_guard<std::mutex> lock(mutex_);
     CCacheValue value;
     auto it = cache_.find(key);
     if (it != cache_.end()) {
+      VLOG(1) << "already lowered to:" << std::endl
+              << PrettyPrint(it->second->cached_func->prim_fn_var);
       it->second->use_count += 1;
       if (it->second->cached_func.defined()) return it->second;
       value = it->second;
@@ -232,6 +240,11 @@ class TECompilerImpl : public TECompilerNode {
       // Collect these here as it's removed in LowerExternalFunctions()
       std::string codegen_name = key->source_func->GetAttr<String>(attr::kCompiler).value();
       device_contexts_.Set(global_var, codegen_name);
+      VLOG(1) << "preparing to use external codegen '" << codegen_name
+              << "' with name:" << std::endl
+              << PrettyPrint(value->cached_func->prim_fn_var) << std::endl
+              << "and definitions:" << std::endl
+              << PrettyPrint(value->cached_func->funcs);
       return value;
     }
 
@@ -266,11 +279,19 @@ class TECompilerImpl : public TECompilerNode {
       cfunc->funcs->Update(tvm::LowerSchedule(cfunc->schedule, all_args, func_name, binds));
     }
     value->cached_func = cfunc;
+    VLOG(1) << "lowered to name:" << std::endl
+            << PrettyPrint(value->cached_func->prim_fn_var) << std::endl
+            << "with definitions:" << std::endl
+            << PrettyPrint(value->cached_func->funcs);
     return value;
   }
 
   // implement lowered shape func
   CCacheValue LowerShapeFuncInternal(const CCacheKey& key) {
+    VLOG(1) << "lowering dynamic shape function:" << std::endl
+            << PrettyPrint(key->source_func) << std::endl
+            << "for target:" << std::endl
+            << key->target->ToDebugString();
     std::lock_guard<std::mutex> lock(mutex_);
     CCacheValue value;
     auto it = shape_func_cache_.find(key);
@@ -295,6 +316,10 @@ class TECompilerImpl : public TECompilerNode {
     });
 
     value->cached_func = cached_func;
+    VLOG(1) << "lowered to name:" << std::endl
+            << PrettyPrint(value->cached_func->prim_fn_var) << std::endl
+            << "with definitions:" << std::endl
+            << PrettyPrint(value->cached_func->funcs);
     return value;
   }
 
@@ -480,11 +505,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     } else {
       // Non-External Relay Function
-      VLOG(1) << "lowering to target " << target->ToDebugString() << " for primitive:\n"
-              << PrettyPrint(func);
       CCacheKey key = CCacheKey(func, target);
       CachedFunc lowered_func = compiler_->Lower(key, module_name_);
-      VLOG(1) << "lowered primitive bound to '" << PrettyPrint(lowered_func->prim_fn_var) << "'";
 
       // Collect all the lowered functions produced for this primitive function.
       Map<GlobalVar, tir::PrimFunc> prim_fns;
@@ -493,7 +515,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         CHECK(prim_fn.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
         prim_fns.Set(prim_fn.first, Downcast<tir::PrimFunc>(prim_fn.second));
         all_prim_fn_vars.push_back(prim_fn.first);
-        VLOG(1) << "lowered primitive includes bindings for '" << PrettyPrint(prim_fn.first) << "'";
       }
 
       // TODO(@areusch, @jroesch): this metadata is for AOT, this should be our interface for AOT
@@ -529,8 +550,6 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         // on the host cpu irrespective of where the primitive runs.
         // TODO(mbs): Cleanup target handling.
         Target shape_target("llvm");
-        VLOG(1) << "lowering to target " << shape_target->ToDebugString()
-                << " for dynamic shape function for primitive";
         CCacheKey shape_key(func, shape_target);
         CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
         // Capture the shape function's global var and parameters 'states' in call
@@ -925,7 +944,7 @@ void UpdateFunctionMetadata(BaseFunc func,
       std::move(workspace_sizes), std::move(io_sizes), std::move(constant_sizes),
       std::move(tir_primfuncs), std::move(relay_primfuncs));
 
-  VLOG(1) << "FunctionInfo: " << prim_fn_var.value()->name_hint << " = " << PrettyPrint(fi);
+  VLOG(1) << "FunctionInfo: " << PrettyPrint(prim_fn_var.value()) << " = " << PrettyPrint(fi);
 
   // The primitive function name here corresponds to the string we will use to generate
   // this Relay function at the low level.

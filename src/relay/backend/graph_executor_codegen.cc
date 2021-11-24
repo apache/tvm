@@ -407,9 +407,9 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     std::vector<GraphNodeRef> inputs;
     std::string func_name;
 
-    if (call->op == CallLoweredOp()) {
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.lowered_func.defined()) {
       // Extract function and arguments from the call_lowered op
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
 
       func_name = call_lowered_props.lowered_func->name_hint;
 
