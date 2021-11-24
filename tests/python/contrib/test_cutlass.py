@@ -298,7 +298,7 @@ def test_batch_matmul():
 
 
 def test_conv2d():
-    d_shape = (1, 16, 16, 16)
+    d_shape = (16, 16, 16, 16)
     w_shape = (16, 16, 3, 3)
     conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
     mod = tvm.IRModule.from_expr(conv2d_nchw)
@@ -332,8 +332,6 @@ def test_conv2d():
     )
 
     with tvm.transform.PassContext(opt_level=3):
-        opt_mod, _ = relay.optimize(mod, target="cuda", params=params)
-        print(opt_mod)
         lib = relay.build(mod, target="cuda", params=params)
 
     lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, threads=1)
