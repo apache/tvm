@@ -300,7 +300,7 @@ class TVMScriptParser(Transformer):
         """
         if type_node is None:
             self.report_error("A type annotation is required", parent.span)
-        if isinstance(type_node, ast.TypeCall):
+        if isinstance(type_node, (ast.TypeCall, ast.TypeApply)):
             func = self.transform(type_node.func_name)
             return func.evaluate()
         res_type = self.transform(type_node)
@@ -444,7 +444,7 @@ class TVMScriptParser(Transformer):
         for arg in node.params:
             arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
             # Note that this case is for T.match_buffer syntax sugar
-            if isinstance(arg.ty, ast.TypeCall):
+            if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)):
                 buf = self.transform(arg.ty)
                 self.context.func_buffer_map[arg_var] = buf
                 self.context.update_symbol(arg.name, buf, node)
@@ -1129,7 +1129,15 @@ class TVMScriptParser(Transformer):
         """
 
         def parse_typecall_params(func, params, keyword_params):
-            args = [self.transform(arg) for arg in params]
+            args = []
+            for arg in params:
+                if isinstance(arg, ast.TypeTuple):
+                    values = []
+                    for value in self.transform(arg):
+                        values.append(self.transform(value))
+                else:
+                    values = self.transform(arg)
+                args.append(values)
             kw_args = {}
             for k, v in keyword_params.items():
                 if isinstance(v, ast.TypeTuple):
@@ -1161,6 +1169,40 @@ class TVMScriptParser(Transformer):
             arg_list = parse_typecall_params(func, node.params, node.keyword_params)
             buf = func.handle(node, self.context, arg_list, node.func_name.span)
             return buf
+        self.report_error(
+            "Syntax sugar for T.match_buffer needs to be a SpecialStmt.",
+            node.span,
+        )
+
+    def transform_TypeApply(self, node):
+        """Call value visitor for types.
+
+        See `transform_Call`.
+        """
+
+        def parse_typecall_params(params):
+            args = []
+            for arg in params:
+                if isinstance(arg, ast.TypeTuple):
+                    values = []
+                    for value in self.transform(arg):
+                        values.append(self.transform(value))
+                else:
+                    values = self.transform(arg)
+                args.append(values)
+            return args
+
+        func = self.transform(node.func_name)
+
+        if isinstance(func, SpecialStmt):
+            # parse args and kwargs for TypeCall
+            arg_list = parse_typecall_params(node.params)
+            buf = func.handle(node, self.context, arg_list, node.func_name.span)
+            return buf
+        self.report_error(
+            "Syntax sugar for T.match_buffer needs to be a SpecialStmt.",
+            node.span,
+        )
 
     def transform_Return(self, node):
         self.report_error(
