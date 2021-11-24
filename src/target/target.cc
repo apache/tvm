@@ -558,7 +558,7 @@ String TargetNode::ToDebugString() const {
       if (!first) {
         os << ", ";
       }
-      os << '"' << pair.first << "': " << pair.second;
+      os << "'" << pair.first << "': " << pair.second;
       first = false;
     }
     os << "}";
