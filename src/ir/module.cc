@@ -213,7 +213,7 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
     ICHECK_EQ((*it).second, var);
   } else {
     ICHECK(global_var_map_.count(var->name_hint) == 0)
-        << "Duplicate global function name " << var->name_hint;
+        << "Duplicate global function name " << PrettyPrint(var);
   }
 
   global_var_map_.Set(var->name_hint, var);
@@ -243,7 +243,7 @@ void IRModuleNode::AddTypeDefUnchecked(const GlobalTypeVar& var, const TypeData&
   if (!update) {
     // set global type var map
     ICHECK(global_type_var_map_.count(var->name_hint) == 0)
-        << "Duplicate global type definition name " << var->name_hint;
+        << "Duplicate global type definition name " << PrettyPrint(var);
   }
   global_type_var_map_.Set(var->name_hint, var);
   RegisterConstructors(var, type);
@@ -266,7 +266,7 @@ void IRModuleNode::Remove(const GlobalVar& var) {
 
 BaseFunc IRModuleNode::Lookup(const GlobalVar& var) const {
   auto it = functions.find(var);
-  ICHECK(it != functions.end()) << "There is no definition of " << var->name_hint;
+  ICHECK(it != functions.end()) << "There is no definition of " << PrettyPrint(var);
   return (*it).second;
 }
 
@@ -277,7 +277,7 @@ BaseFunc IRModuleNode::Lookup(const String& name) const {
 
 TypeData IRModuleNode::LookupTypeDef(const GlobalTypeVar& var) const {
   auto it = type_definitions.find(var);
-  ICHECK(it != type_definitions.end()) << "There is no definition of " << var->name_hint;
+  ICHECK(it != type_definitions.end()) << "There is no definition of " << PrettyPrint(var);
   return (*it).second;
 }
 
@@ -306,6 +306,10 @@ String IRModuleNode::GetUniqueName(const String& name) {
   }
 }
 
+/*!
+ * \brief Renames global type/term variables to prefer the GlobalTypeVar/GlobalVar in the lhs
+ * ('one') side above the rhs ('two').
+ */
 struct Renamer : relay::ExprMutator, TypeMutator {
   Map<String, GlobalVar> defs;
   Map<String, GlobalTypeVar> types;
@@ -411,7 +415,6 @@ IRModule IRModule::FromExpr(const RelayExpr& expr, const Map<GlobalVar, BaseFunc
 void IRModuleNode::Import(const String& path) {
   if (this->import_set_.count(path) == 0) {
     this->import_set_.insert(path);
-    DLOG(INFO) << "Importing: " << path;
     std::fstream src_file(path, std::fstream::in);
     std::string file_contents{std::istreambuf_iterator<char>(src_file),
                               std::istreambuf_iterator<char>()};
