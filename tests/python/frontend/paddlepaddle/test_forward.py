@@ -870,13 +870,13 @@ def test_forward_interpolate():
     input_data = paddle.rand([1, 2, 8, 12]).astype("float32")
     verify_model(Interpolate(), input_data)
     verify_model(Interpolate(use_list=True), input_data)
-    verify_model(Interpolate(use_scale=True), input_data)
+    verify_model(Interpolate(use_scale=True, use_const=True), input_data)
     verify_model(Interpolate("bilinear", use_scale=True), input_data)
     verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
     verify_model(
         Interpolate(
             "bilinear", use_scale=True, align_corners=True, align_mode=1, data_format="NHWC"
-        ),
+        ,use_const=True),
         input_data,
     )
     verify_model(
