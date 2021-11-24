@@ -1123,9 +1123,9 @@ class TVMScriptParser(Transformer):
         return node.values
 
     def transform_TypeCall(self, node):
-        """Call value visitor for types.
+        """Call value visitor for TypeCall.
 
-        See `transform_Call`.
+        This method is for syntax sugar of T.match_buffer()
         """
 
         def parse_typecall_params(func, params, keyword_params):
@@ -1170,17 +1170,17 @@ class TVMScriptParser(Transformer):
             buf = func.handle(node, self.context, arg_list, node.func_name.span)
             return buf
         self.report_error(
-            "Syntax sugar for T.match_buffer needs to be a SpecialStmt.",
+            "Syntax sugar for T.match_buffer needs to be evaluated into a SpecialStmt.",
             node.span,
         )
 
     def transform_TypeApply(self, node):
-        """Call value visitor for types.
+        """Call value visitor for TypeApply.
 
-        See `transform_Call`.
+        This method is for syntax sugar of T.match_buffer()
         """
 
-        def parse_typecall_params(params):
+        def parse_typeapply_params(params):
             args = []
             for arg in params:
                 if isinstance(arg, ast.TypeTuple):
@@ -1195,12 +1195,12 @@ class TVMScriptParser(Transformer):
         func = self.transform(node.func_name)
 
         if isinstance(func, SpecialStmt):
-            # parse args and kwargs for TypeCall
-            arg_list = parse_typecall_params(node.params)
+            # parse args for TypeApply
+            arg_list = parse_typeapply_params(node.params)
             buf = func.handle(node, self.context, arg_list, node.func_name.span)
             return buf
         self.report_error(
-            "Syntax sugar for T.match_buffer needs to be a SpecialStmt.",
+            "Syntax sugar for T.match_buffer needs to be evaluated into a SpecialStmt.",
             node.span,
         )
 
