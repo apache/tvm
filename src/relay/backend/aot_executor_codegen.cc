@@ -83,8 +83,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     Expr func;
     Array<Expr> args;
 
-    if (call_node->op == CallLoweredOp()) {
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.lowered_func.defined()) {
       func = call_lowered_props.lowered_func;
       args = call_lowered_props.arguments;
     } else {  // Relay functions that have not been lowered and lowered extern functions
@@ -516,10 +516,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
       call_lowered_props = CallLoweredProps{GetRef<GlobalVar>(gvn), call_node->args, {}};
     } else {
-      ICHECK(call_node->op == CallLoweredOp()) << "Operators should be transformed away; Try "
-                                                  "applying the fuse_ops transformation to the "
-                                                  "expression.";
       call_lowered_props = GetCallLoweredProps(call_node);
+      ICHECK(call_lowered_props.lowered_func.defined())
+          << "Operators should be transformed away; Try "
+             "applying the fuse_ops transformation to the "
+             "expression.";
       for (const auto& arg : call_lowered_props.arguments) {
         VisitExpr(arg);
       }
@@ -717,6 +718,14 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
+    VLOG_CONTEXT << "AOT";
+    for (const auto& kv : targets_) {
+      VLOG(1) << "target: " << kv.second->ToDebugString();
+    }
+    if (target_host_.defined()) {
+      VLOG(1) << "target host: " << target_host_->ToDebugString();
+    }
+
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
     Integer workspace_byte_alignment =
@@ -793,10 +802,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           std::make_pair(static_cast<int>(param_storage_ids_[param.first]), param.second)));
     }
 
-    // Build the TIR IRModule for the AOT function
+    // Build the TIR IRModule for the main AOT function
     Map<GlobalVar, BaseFunc> symbol_map;
     symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
     IRModule mod_run(symbol_map, {}, {}, {}, mod->attrs);
+    VLOG(1) << "main module:" << std::endl << PrettyPrint(mod_run);
 
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
@@ -827,12 +837,23 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
 
     // This is the point where we separate the functions in the module by target
+    VLOG(1) << "lowered module:" << std::endl << PrettyPrint(lowered_mod);
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    VLOG(1) << "per-target modules:";
+    for (const auto& kv : ret.lowered_funcs) {
+      VLOG(1) << "target:" << std::endl
+              << kv.first->ToDebugString() << std::endl
+              << "maps to:" << std::endl
+              << PrettyPrint(kv.second);
+    }
+
     ret.external_mods = external_modules.value();
 
     if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      VLOG(1) << "merging main into existing module for host target";
       ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
+      VLOG(1) << "adding main into new module for host target";
       ret.lowered_funcs.Set(target_host_, mod_run);
     }
 

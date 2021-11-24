@@ -56,13 +56,29 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
     if (kv.second.as<relay::FunctionNode>()) {
       std::ostringstream os;
       os << "def @" << kv.first->name_hint;
+#if TVM_LOG_DEBUG
+      os << " /* id=" << reinterpret_cast<uint64_t>(kv.first.get()) << " */";
+#endif
       doc << relay_text_printer_.PrintFunc(Doc::Text(os.str()), kv.second);
     } else if (kv.second.as<tir::PrimFuncNode>()) {
-      doc << "@" << kv.first->name_hint << " = ";
-      doc << tir_text_printer_.PrintPrimFunc(Downcast<tir::PrimFunc>(kv.second));
+      doc << "@" << kv.first->name_hint;
+#if TVM_LOG_DEBUG
+      doc << " /* id=" << reinterpret_cast<uint64_t>(kv.first.get()) << " */";
+#endif
+      doc << " = " << tir_text_printer_.PrintPrimFunc(Downcast<tir::PrimFunc>(kv.second));
     }
     doc << Doc::NewLine();
   }
+#if TVM_LOG_DEBUG
+  // attributes
+  if (mod->attrs.defined() && !mod->attrs->dict.empty()) {
+    doc << "attributes {" << Doc::NewLine();
+    for (const auto& kv : mod->attrs->dict) {
+      doc << "  '" << kv.first << "' = " << PrettyPrint(kv.second) << Doc::NewLine();
+    }
+    doc << "}" << Doc::NewLine();
+  }
+#endif
   return doc;
 }
 

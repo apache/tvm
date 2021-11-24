@@ -67,7 +67,9 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
 inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev) {
   if (src->IsInstance<NDArray::ContainerType>()) {
     auto nd_array = Downcast<NDArray>(src);
+    // TODO(mbs): Should respect device id also.
     if (nd_array->device.device_type != dev.device_type) {
+      VLOG(2) << "copying from " << nd_array->device.device_type << " to " << dev.device_type;
       return nd_array.CopyTo(dev);
     }
     return src;
@@ -712,6 +714,17 @@ void VirtualMachine::RunLoop() {
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);
         // Reshape the input tensor
+#if TVM_LOG_DEBUG
+        std::ostringstream os;
+        os << "ReshapeTensor: ";
+        os << "shape=[";
+        for (auto i : shape) {
+          os << i << ",";
+        }
+        os << "]";
+        os << ", dtype=" << DLDataType2String(tensor_arr->dtype);
+        VLOG(2) << os.str();
+#endif
         auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
         WriteRegister(instr.dst, out_tensor);
         OpStopHook();
