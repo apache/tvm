@@ -242,6 +242,8 @@ def cuda(model="unknown", arch=None, options=None):
     ----------
     model: str
         The model of cuda device (e.g. 1080ti)
+    arch: str
+        The cuda architecture (e.g. sm_61)
     options : str or list of str
         Additional options
     """
