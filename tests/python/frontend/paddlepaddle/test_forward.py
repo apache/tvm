@@ -875,8 +875,13 @@ def test_forward_interpolate():
     verify_model(Interpolate("bilinear", use_scale=True, align_corners=True), input_data)
     verify_model(
         Interpolate(
-            "bilinear", use_scale=True, align_corners=True, align_mode=1, data_format="NHWC"
-        ,use_const=True),
+            "bilinear",
+            use_scale=True,
+            align_corners=True,
+            align_mode=1,
+            data_format="NHWC",
+            use_const=True,
+        ),
         input_data,
     )
     verify_model(
