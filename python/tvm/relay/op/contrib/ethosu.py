@@ -989,8 +989,7 @@ class MeanParams:
         def check_axis(num_dims, axis):
             if num_dims in (2, 3):
                 return axis in ([0], [1], [0, 1])
-            else:
-                return axis in ([1], [2], [1, 2])
+            return axis in ([1], [2], [1, 2])
 
         tensor_params = [self.ifm, self.ofm]
         if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
