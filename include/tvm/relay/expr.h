@@ -142,7 +142,19 @@ class Tuple : public Expr {
   TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
+
+/*!
+ * \brief Returns the tuple with given properties. A null property denotes 'no change'.
+ * Returns this if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param tuple The tuple to copy
+ * \param opt_fields The (optional) fields for the copied tuple. If none, ret_tuple->fields =
+ * tuple->fields.
+ * \param opt_span The (optional) span for the copied tuple. If none, ret_tuple->span = tuple->span.
+ */
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
+                 Optional<Span> opt_span = Optional<Span>(nullptr));
 
 /*!
  * \brief Local variables used in the let expression.

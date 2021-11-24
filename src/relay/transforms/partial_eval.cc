@@ -615,6 +615,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       value.push_back(ps);
       expr.push_back(ps->dynamic);
     }
+    // Note(@electriclilies): The partial evaluator seems to do some weird stuff with sharing.
+    // Changing Tuple(expr) to WithFields(op, expr) causes some strange failures.
     return HasStatic(MkSTuple(value), ll->Push(Tuple(expr)));
   }
 

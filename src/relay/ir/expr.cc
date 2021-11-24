@@ -76,6 +76,27 @@ TVM_REGISTER_NODE_TYPE(TupleNode);
 TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
   return Tuple(fields, span);
 });
+Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields, Optional<Span> opt_span) {
+  Array<Expr> fields = opt_fields.value_or(tuple->fields);
+  Span span = opt_span.value_or(tuple->span);
+
+  bool all_fields_unchanged = true;
+  if (fields.size() == tuple->fields.size()) {
+    for (size_t i = 0; i < fields.size(); i++) {
+      all_fields_unchanged &= fields[i].same_as(tuple->fields[i]);
+    }
+  } else {
+    all_fields_unchanged = false;
+  }
+
+  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
+  if (!all_fields_unchanged) {
+    TupleNode* cow_tuple_node = tuple.CopyOnWrite();
+    cow_tuple_node->fields = fields;
+    cow_tuple_node->span = span;
+  }
+  return std::move(tuple);
+}
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TupleNode>([](const ObjectRef& ref, ReprPrinter* p) {

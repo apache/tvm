@@ -210,13 +210,14 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
       });
     }
 
-    Expr VisitExpr_(const TupleNode* op, const MCont& k) final {
+    Expr VisitExpr_(const TupleNode* tuple_node, const MCont& k) final {
       tvm::Array<Expr> fields;
+      fields.reserve(tuple_node->fields.size());
       std::function<Expr()> next;
       next = [&]() {
-        return (fields.size() == op->fields.size())
-                   ? k(Tuple(fields))
-                   : VisitExpr(op->fields[fields.size()], [&](const Expr& v) {
+        return (fields.size() == tuple_node->fields.size())
+                   ? k(WithFields(GetRef<Tuple>(tuple_node), std::move(fields)))
+                   : VisitExpr(tuple_node->fields[fields.size()], [&](const Expr& v) {
                        fields.push_back(v);
                        return next();
                      });
