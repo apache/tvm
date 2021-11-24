@@ -18,7 +18,13 @@ import os
 
 import tvm
 from tvm import te
-from tvm.contrib import cc, utils
+from tvm.contrib import cc, utils, nvcc
+
+
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
+def tvm_callback_cuda_compile(code):
+    ptx = nvcc.compile_cuda(code, target_format="ptx")
+    return ptx
 
 
 def test_add(target_dir):
