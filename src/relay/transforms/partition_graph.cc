@@ -455,18 +455,18 @@ IRModule FlattenTupleOutputs(IRModule module) {
         // Arguments of annotation ops should be 1
         ICHECK_EQ(call->args.size(), 1U);
         auto annotated_op = Downcast<Call>(post)->args[0];
-        if (const auto* tn = annotated_op.as<TupleNode>()) {
+        if (const auto* tuple_node = annotated_op.as<TupleNode>()) {
           Array<Expr> new_fields;
+          new_fields.reserve(tuple_node->fields.size());
 
           // Here each input of the tuple will be annotated with compiler_ends
-          for (auto& tn_arg : tn->fields) {
+          for (auto& tn_arg : tuple_node->fields) {
             new_fields.push_back((*make_end_op)(tn_arg, target));
           }
 
           // Return a tuple of compiler_ends in the place of the tuple that was
           // annotated with a compiler_end.
-          auto out = Tuple(new_fields);
-          return std::move(out);
+          return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
         }
       }
       return post;
