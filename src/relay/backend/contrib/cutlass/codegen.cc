@@ -303,13 +303,19 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
 
-  CutlassPrint(conv2d_decl, "cutlass::layout::TensorNHWC layout;\n");
+  CutlassPrint(conv2d_decl, "using cutlass::layout::TensorNHWC;\n");
+  CutlassPrint(conv2d_decl,
+               "TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(N, H, W, C)));\n");
+  CutlassPrint(conv2d_decl,
+               "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
+  CutlassPrint(conv2d_decl,
+               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n");
   CutlassPrint(conv2d_decl, "typename Conv2d::Arguments arguments{\n");
   CutlassPrint(conv2d_decl, " problem_size,\n");
-  CutlassPrint(conv2d_decl, " {static_cast<ElementInputA*>(ptr_a), layout},\n");
-  CutlassPrint(conv2d_decl, " {static_cast<ElementInputB*>(ptr_b), layout},\n");
-  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout},\n");
-  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout},\n");
+  CutlassPrint(conv2d_decl, " {static_cast<ElementInputA*>(ptr_a), layout_A},\n");
+  CutlassPrint(conv2d_decl, " {static_cast<ElementInputB*>(ptr_b), layout_B},\n");
+  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_C},\n");
+  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_C},\n");
   CutlassPrint(conv2d_decl, "{alpha, beta}\n};\n");
   CutlassPrint(conv2d_decl, "Conv2d conv2d_op;\n");
 
@@ -545,6 +551,7 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     // cutlass header
     code_stream_ << "#include <cuda_fp16.h>\n";
     code_stream_ << "#include <cutlass/cutlass.h>\n";
+    code_stream_ << "#include <cutlass/coord.h>\n";
     code_stream_ << "#include <cutlass/util/host_tensor.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm_batched.h>\n";

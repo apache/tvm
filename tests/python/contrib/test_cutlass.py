@@ -298,8 +298,8 @@ def test_batch_matmul():
 
 
 def test_conv2d():
-    d_shape = (1, 64, 64, 64)
-    w_shape = (64, 64, 3, 3)
+    d_shape = (1, 16, 16, 16)
+    w_shape = (16, 16, 3, 3)
     conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
     mod = tvm.IRModule.from_expr(conv2d_nchw)
 
@@ -331,25 +331,39 @@ def test_conv2d():
         mod, sm, profile_all=False, use_multiprocessing=True, tmp_dir=tmp_dir
     )
 
-    print(mod)
-
     with tvm.transform.PassContext(opt_level=3):
+        opt_mod, _ = relay.optimize(mod, target="cuda", params=params)
+        print(opt_mod)
         lib = relay.build(mod, target="cuda", params=params)
 
     lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, threads=1)
 
+    target = "cuda"
+    dev = tvm.device(target, 0)
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
 
-    # target = "vulkan -from_device=0"
-    # with tvm.transform.PassContext(opt_level=3):
-    #     lib = relay.build(mod, target=target, params=params)
+    rt_mod.set_input("data", np_data)
+    rt_mod.run()
 
-    # dev = tvm.device(target, 0)
-    # rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    out = rt_mod.get_output(0).asnumpy()
 
-    # rt_mod.set_input("data", np_data)
-    # rt_mod.run()
+    mod = mod_weight_hwio
 
-    # out = rt_mod.get_output(0).asnumpy()
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params=params)
+
+    dev = tvm.device(target, 0)
+    rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    rt_mod.set_input("data", np_data)
+    rt_mod.run()
+
+    out_ref = rt_mod.get_output(0).asnumpy()
+
+    atol = 1e-5
+    rtol = 1e-5
+    np.testing.assert_allclose(out, out_ref, atol=atol, rtol=rtol)
+    print("ok")
 
 
 # if __name__ == "__main__":
