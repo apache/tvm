@@ -468,10 +468,12 @@ class BlockAxis(SpecialStmt):
         block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
-            dom = tvm.ir.Range.from_min_extent(0, dom)
+            dom = tvm.ir.Range(dom)
+        elif isinstance(dom, tvm.ir.container.Array) and len(dom) == 2:
+            dom = tvm.ir.Range(dom[0], dom[1])
         elif not isinstance(dom, tvm.ir.Range):
             self.context.report_error(
-                f"Block axis domain expected PrimExpr or Range, but got {type(value)}",
+                f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
         value = tvm.runtime.convert(value)
