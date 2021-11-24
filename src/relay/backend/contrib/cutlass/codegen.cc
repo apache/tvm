@@ -115,7 +115,7 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
   CutlassPrint(gemm_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
   CutlassPrint(gemm_decl, attrs.at("op_def"));
-  CutlassPrint(gemm_decl, "using Gemm = Operation_" + attrs.at("op_name") + ";\n");
+  CutlassPrint(gemm_decl, "using " + kernel + " = Operation_" + attrs.at("op_name") + ";\n");
 
   auto get_dim = [&attrs, &func_args](const std::string& axis, int arg_idx, int axis_idx) {
     if (attrs.at(axis) == kAnyDim) {
@@ -144,7 +144,7 @@ void AppendPrologue(std::ostringstream& gemm_decl, const Str2StrMap& attrs,
     CutlassPrint(gemm_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
   }
 
-  CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0);\n");
+  CutlassPrint(gemm_decl, "void* ptr_out = (void*)(out0->data);\n");
 
   CutlassPrint(gemm_decl, "typename " + kernel + "::Arguments arguments{\n");
   CutlassPrint(gemm_decl, " problem_size,\n");
@@ -299,7 +299,7 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   ICHECK(func_args.size() >= 2);
   CutlassPrint(conv2d_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
   CutlassPrint(conv2d_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
-  CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0);\n");
+  CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0->data);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
 
@@ -370,9 +370,9 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       code_stream_ << "DLTensor* " << arg->name_hint() << ", ";
     }
     for (size_t i = 0; i < out.size() - 1; ++i) {
-      code_stream_ << out[i].dtype << "* out" << i << ", ";
+      code_stream_ << "DLTensor* out" << i << ", ";
     }
-    code_stream_ << out.back().dtype << "* out" << out.size() - 1 << ") {\n";
+    code_stream_ << "DLTensor* out" << out.size() - 1 << ") {\n";
     this->EnterScope();
 
     // Function body
