@@ -203,7 +203,8 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* func_node) {
   auto ret_type = this->VisitType(func_node->ret_type);
   auto body = this->Mutate(func_node->body);
 
-  return WithFields(GetRef<Function>(func_node), std::move(params), std::move(body), std::move(ret_type), std::move(ty_params));
+  return WithFields(GetRef<Function>(func_node), std::move(params), std::move(body),
+                    std::move(ret_type), std::move(ty_params));
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
