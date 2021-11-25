@@ -248,7 +248,6 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
                                                                 GetRef<Block>(block_ptr));
 
   // Step 2: Update the annotation value
-  // Array<Array<Integer>> buffer_storage_align = storage_align_annotation[buffer_index];
   bool found = false;
   StorageAlignTuple new_storage_align_tuple{Integer(buffer_index), Integer(axis), Integer(factor),
                                             Integer(offset)};

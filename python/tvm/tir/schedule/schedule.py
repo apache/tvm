@@ -1631,7 +1631,7 @@ class Schedule(Object):
             sch.storage_align(sch.get_block("B"), buffer_index=0, axis=0, factor=128, offset=1)
             print(sch.mod["main"].script())
 
-        After applying rfactor, the IR becomes:
+        After applying storage_align, the IR becomes:
 
         .. code-block:: python
 
