@@ -426,6 +426,60 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         self.params_class = params_class
         self.pattern = pattern
 
+    @staticmethod
+    def reshape_input(
+        inputs: List["TensorParams"],
+    ) -> List[tvm.relay.Expr]:
+        """Reshape the inputs so that the following binary elementwise
+        operator receives 4-dimensional inputs.
+
+        Parameters
+        ----------
+        inputs: List[TensorParams]
+            The inputs to reshape.
+
+        Returns
+        -------
+        reshaped_inputs: List[tvm.relay.Expr]
+            The new reshaped inputs.
+        """
+        reshaped_inputs = []
+        for i in inputs:
+            in_shape = i.shape
+            if len(in_shape) < 4:
+                pad_size = 4 - len(in_shape)
+                new_shape = ([1] * pad_size) + in_shape
+                new_call = relay.reshape(i.tensor, new_shape)
+                reshaped_inputs.append(new_call)
+            else:
+                reshaped_inputs.append(i.tensor)
+        return reshaped_inputs
+
+    @staticmethod
+    def reshape_output(output: tvm.relay.Expr, ifm_input_shape: List[int]) -> tvm.relay.Expr:
+        """Reshape the output back to the original dimensionality.
+        Since the NPU must have the brodcastable tensor as the
+        second operand, the original shape of the first ifm must
+        be the output shape.
+
+        Parameters
+        ----------
+        output: tvm.relay.Expr
+            The output to reshape.
+
+        ifm_input_shape: List[int]
+            The shape of the non-reshaped ifm tensor.
+
+        Returns
+        -------
+        reshaped_output: tvm.relay.Expr
+            The reshaped output expression.
+        """
+        if len(ifm_input_shape) == 4:
+            return output
+        reshaped_output = relay.reshape(output, ifm_input_shape)
+        return reshaped_output
+
     def callback(
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
     ) -> tvm.relay.Expr:
@@ -451,9 +505,12 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         # We don't yet support activation functions that need to get legalized to LUTs.
         lut = relay.const([], dtype="int8")
 
-        return ethosu_ops.ethosu_binary_elementwise(
-            ifm=params.ifm.tensor,
-            ifm2=params.ifm2.tensor,
+        inputs = [params.ifm, params.ifm2]
+        inputs = self.reshape_input(inputs)
+
+        ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
+            ifm=inputs[0],
+            ifm2=inputs[1],
             lut=lut,
             operator_type=params.operator_type,
             ifm_scale=float(params.ifm.q_params.scale_f32),
@@ -462,8 +519,8 @@ class BinaryElementwiseRewriter(DFPatternCallback):
             ifm2_zero_point=int(params.ifm2.q_params.zero_point),
             ofm_scale=float(params.ofm.q_params.scale_f32),
             ofm_zero_point=int(params.ofm.q_params.zero_point),
-            ifm_channels=params.ifm.shape[3],
-            ifm2_channels=params.ifm2.shape[3],
+            ifm_channels=params.ifm.shape[-1],
+            ifm2_channels=params.ifm2.shape[-1],
             reversed_operands=params.reversed_operands,
             ofm_dtype=params.ofm.dtype,
             activation=activation,
@@ -473,6 +530,8 @@ class BinaryElementwiseRewriter(DFPatternCallback):
             ifm2_layout=str(params.ifm2.layout),
             ofm_layout=str(params.ofm.layout),
         )
+        output = self.reshape_output(ethosu_binary_elementwise, params.ifm.shape)
+        return output
 
 
 class AddRewriter(BinaryElementwiseRewriter):
