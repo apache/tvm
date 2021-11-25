@@ -63,11 +63,22 @@ class StripeConfigNode : public Object {
    * \return The strides of the stripe config.
    * \note The strides refer to the stride between stripes in each axis.
    * The strides are represented as a float rather than an int to account for
-   * cases of 'fractional striding'. This may happen, for instance, with an
-   * upscaling operation where elements of the affine transformation matrix
-   * are not integers. In this case we can't simply round the strides as the
-   * error will compound when we need to multiply the strides by the number of
-   * stripes along a given axis.
+   * cases of 'fractional striding'. The stride should therefore be interpreted
+   * as the average striding in each axis.
+   *
+   * The starting offset of the i-th stripe in axis 'ax' is given by:
+   *
+   * stripe_offset_i[ax] = offset[ax] + floor(strides[ax]*i)
+   *
+   * As a concrete example, consider a 2x2 upscaling operation. If an output
+   * stripe config with a stride of (3, 3) is chosen, then when this is
+   * propagated to the input it will be reduced by a factor of two to become
+   * (1.5, 1.5).
+   *
+   * This means the first stripe in axis 0 should begin at (floor(1.5*0), 0) = (0, 0),
+   * the second at (floor(1.5*1), 0) = (1, 0), and the third at (floor(1.5*2), 0) =
+   * (3, 0). This results in irregular striding where 'strides' is the average
+   * striding value.
    */
   inline std::vector<float> GetStrides() const { return strides_; }
   /*!
@@ -91,8 +102,9 @@ class StripeConfigNode : public Object {
    * \brief Get the offset of the stripe config.
    * \return The offset of the stripe config.
    * \note The offset refers to the offset of the first stripe
-   * from the first element of the tensor. For example, in a 2D padding operation
-   * that is padding by 1 in every dimension, the offset would be [-1, -1].
+   * from the first element of the tensor. For example, in a slice operation
+   * which only returns the second (4, 8) half of a (8, 8) tensor, the offset
+   * would need to be [4, 0].
    */
   inline std::vector<int> GetOffset() const { return offset_; }
   /*! \return The hash of the StripeConfigNode */
@@ -135,15 +147,20 @@ class StripeConfigNode : public Object {
  * The size of that stripe in each axis is the 'shape'. The strides is how far
  * you should move between stripes, so also (4, 4) for a simple non-overlappping
  * tiling. However, we explore some overlapping scheduling options so shape != strides
- * in general. The 'extent' is simply (12, 12), the region over which we're conducting
- * our tiling.
+ * in general. Note that the striding may be fractional, for instance (1.5, 1.5).
+ * This means the first stripe should begin at (floor(1.5*0), 0) = (0, 0), the second
+ * at (floor(1.5*1), 0) = (1, 0), and the third at (floor(1.5*2), 0) = (3, 0). This results
+ * in slightly irregular striding where 'strides' should be interpreted as the average
+ * striding value.
+ *
+ * The 'extent' is simply (12, 12), the region over which we're conducting our tiling.
  *
  * The 'order' tells us which axis to iterate over first and which second and the
  * 'stripes' tells us how many stripes we need to compute in each of those axes.
  *
  * Finally, the 'offset' tells us where to start the first stripe. In this simple
- * case the offset is just (0, 0), but in something like a padding operation we
- * may want to start from a negative index, which is captured by the offset.
+ * case the offset is just (0, 0), but in something like a slice operation we
+ * may want to start part way through a tensor.
  */
 class StripeConfig : public ObjectRef {
  public:
