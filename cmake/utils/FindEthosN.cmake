@@ -16,7 +16,7 @@
 # under the License.
 
 #######################################################
-# Find Arm Ethos-N libraries
+# Find Arm(R) Ethos(TM)-N libraries
 #
 # Usage:
 #   find_ethosn(${USE_ETHOSN})
@@ -38,10 +38,10 @@ macro(find_ethosn use_ethosn)
   set(__use_ethosn ${use_ethosn})
   if(IS_DIRECTORY ${__use_ethosn})
     set(__ethosn_stack ${__use_ethosn})
-    message(STATUS "Arm Ethos-N driver stack PATH=" ${__use_ethosn})
+    message(STATUS "Arm(R) Ethos(TM)-N driver stack PATH=" ${__use_ethosn})
   elseif(IS_DIRECTORY $ENV{ETHOSN_STACK})
      set(__ethosn_stack $ENV{ETHOSN_STACK})
-    message(STATUS "Arm Ethos-N driver stack from env=" ${__use_ethosn})
+    message(STATUS "Arm(R) Ethos(TM)-N driver stack from env=" ${__use_ethosn})
   else()
      set(__ethosn_stack "")
   endif()
@@ -81,7 +81,7 @@ macro(find_ethosn use_ethosn)
 
   if(NOT ETHOSN_FOUND)
     if(${__use_ethosn} MATCHES ${IS_TRUE_PATTERN})
-      message(WARNING "No cmake find_package available for Arm Ethos-N")
+      message(WARNING "No cmake find_package available for Arm(R) Ethos(TM)-N")
     endif()
 
   # additional libraries

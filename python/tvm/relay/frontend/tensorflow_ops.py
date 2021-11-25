@@ -461,8 +461,11 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr["padding"]))
 
         if "kernel_layout" not in attr:
-            if opname in ["conv", "conv_transpose"]:
+            if opname == "conv":
                 attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "OIHW"
+            elif opname == "conv_transpose":
+                # conv_transpose in TVM has weights be IOHW for NCHW
+                attr["kernel_layout"] = "HWIO" if attr["data_format"] == "NHWC" else "IOHW"
             else:
                 attr["kernel_layout"] = "HWOI" if attr["data_format"] == "NHWC" else "OIHW"
 
@@ -1087,7 +1090,9 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d",
+            ignores=["Tdim", "half_pixel_centers"],
+            extras={"method": method, "roi": None},
         )(inputs, attr)
 
     return _impl

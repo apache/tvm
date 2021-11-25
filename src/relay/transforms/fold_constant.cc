@@ -31,8 +31,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
-#include "../op/annotation/annotation.h"
-#include "./device_aware_visitors.h"
+#include "../op/memory/on_device.h"
 #include "./pattern_utils.h"
 
 namespace tvm {
@@ -42,7 +41,7 @@ namespace transform {
 namespace {
 /*!
  * \brief Returns whether \p expr is a literal \p Constant, optionally wrapped by an "on_device"
- * annotation CallNode (which serves only to associate a device to the constant and has no
+ * annotation CallNode (which serves only to associate an \p SEScope to the constant and has no
  * operational effect).
  */
 bool IsSimpleConstant(const Expr& expr) {
@@ -87,19 +86,19 @@ class ConstantFolder : public MixedModeMutator {
         // the variable.
         //
         // We need to retain any "on_device" annotation so that downstream 'device aware'
-        // passes can still retrieve the device for the constant in its new position(s). Eg:
-        //   def @f(..., result_device_type=D) {
-        //     let %x = on_device(... something we eval to a constant..., device_type=E)
+        // passes can still retrieve the \p SEScope for the constant in its new position(s). Eg:
+        //   def @f(..., result_se_scope=D) {
+        //     let %x = on_device(... something we eval to a constant..., se_scope=E)
         //     @f(..., %x, ...)
         //   }
-        // Here the default device is D, whereas the argument %x to @f is on E (and @f expects
+        // Here the default scope is D, whereas the argument %x to @f is on E (and @f expects
         // that). No on_device annotation is required in the call according to the convention used
         // by the device-aware visitors.
         //
         // However once we've inlined the constant we need to insert an on_device, again to
         // respect the convention used by the device-aware visitors.
-        //   def @f(..., result_device_type=D) {
-        //     @f(..., on_device(...the constant..., device_type=E), ...)
+        //   def @f(..., result_se_scope=D) {
+        //     @f(..., on_device(...the constant..., se_scope=E), ...)
         //   }
         VLOG(1) << "Replacing let-binding for " << op->var->name_hint()
                 << " with constant:" << std::endl
@@ -215,8 +214,8 @@ class ConstantFolder : public MixedModeMutator {
       Expr result = tuple_node->fields[tuple_get_item_node->index];
       OnDeviceProps props = GetOnDeviceProps(post_tuple_get_item_node->tuple);
       if (props.body.defined()) {
-        // (on_device((x, y, z), device_type=D).1 ==> on_device(y, device_type=D)
-        return MaybeOnDevice(result, props.device_type, props.is_fixed);
+        // (on_device((x, y, z), se_scope=D).1 ==> on_device(y, se_scope=D)
+        return MaybeOnDevice(result, props.se_scope, props.is_fixed);
       } else {
         return result;
       }
@@ -248,19 +247,15 @@ class ConstantFolder : public MixedModeMutator {
     VLOG(1) << "Evaluating :" << std::endl << PrettyPrint(expr);
 
     // We'll invoke the interpreter using the generic CPU device and target. Technically there's
-    // no guarantee the results we bitwise equal what we'd get on the true device, however to
+    // no guarantee the results will be bitwise equal what we'd get on the true device, however to
     // support cross-compilation we don't want to assume the true device is available.
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
-    Target target = Target("llvm");
 
     // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
 
-    Expr result =
-        ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(), dev, target));
+    Expr result = ObjectToExpr(
+        Eval(expr, module_->type_definitions, module_->Imports(), eval_cpu_dev_, eval_cpu_target_));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }
@@ -288,17 +283,14 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant shape
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
     if (ishape.empty()) {
-      value = runtime::NDArray::Empty({}, cdtype, dev);
+      value = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
     } else {
       ICHECK_NE(ishape.size(), 0);
       std::vector<int64_t> cshape = {static_cast<int64_t>(ishape.size())};
-      value = runtime::NDArray::Empty(cshape, cdtype, dev);
+      value = runtime::NDArray::Empty(cshape, cdtype, eval_cpu_dev_);
       auto* dims = static_cast<int32_t*>(value->data);
       using ::tvm::tir::IntImmNode;
       for (size_t i = 0; i < ishape.size(); ++i) {
@@ -313,7 +305,7 @@ class ConstantFolder : public MixedModeMutator {
     Constant shape = Downcast<Constant>(ObjectToExpr(value));
 
     if (shape->data.Shape().empty() && GetScalarFromConstant<int32_t>(shape) == 0) {
-      auto ndarray = runtime::NDArray::Empty({}, cdtype, dev);
+      auto ndarray = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
       shape = Constant(ndarray);
     }
 
@@ -342,12 +334,9 @@ class ConstantFolder : public MixedModeMutator {
     }
 
     // Get the constant size
-    Device dev;
-    dev.device_type = kDLCPU;
-    dev.device_id = 0;
     runtime::NDArray value;
     DLDataType cdtype = DataType::Int(32);
-    value = runtime::NDArray::Empty({}, cdtype, dev);
+    value = runtime::NDArray::Empty({}, cdtype, eval_cpu_dev_);
     auto* data = static_cast<int32_t*>(value->data);
     if (ishape.empty()) {
       *data = 0;
@@ -389,6 +378,13 @@ class ConstantFolder : public MixedModeMutator {
 
   // Module
   IRModule module_;
+
+  // The kDLCPU device assumed to be available to the compiler. Used only when evaluating
+  // sub-expressions.
+  Device eval_cpu_dev_{kDLCPU, /*device_id=*/0};
+  // The target for the above device assumed to be available to the compiler. Used only when
+  // evaluating sub-expressions.
+  Target eval_cpu_target_{"llvm"};
 
   // Cache the following ops for equivalence checking in this pass.
   const Op& device_copy_op_;

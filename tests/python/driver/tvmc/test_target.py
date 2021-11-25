@@ -103,19 +103,32 @@ def test_tokenize_target_with_dashes():
 
 
 def test_parse_single_target_with_opts():
-    targets = tvmc.common.parse_target("llvm -device=arm_cpu --system-lib")
+    targets = tvmc.common.parse_target("llvm -device=arm_cpu -mattr=+fp")
 
     assert len(targets) == 1
     assert "device" in targets[0]["opts"]
-    assert "system-lib" in targets[0]["opts"]
+    assert "mattr" in targets[0]["opts"]
 
 
 def test_parse_multiple_target():
-    targets = tvmc.common.parse_target("compute-library, llvm -device=arm_cpu --system-lib")
+    targets = tvmc.common.parse_target("compute-library, llvm -device=arm_cpu")
 
     assert len(targets) == 2
     assert "compute-library" == targets[0]["name"]
     assert "llvm" == targets[1]["name"]
+
+
+def test_parse_hybrid_target():
+    """Hybrid Target and external codegen"""
+    targets = tvmc.common.parse_target(
+        "cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu --system-lib"
+    )
+
+    assert len(targets) == 2
+    assert "cmsis-nn" == targets[0]["name"]
+    assert not targets[0]["is_tvm_target"]
+    assert "llvm" == targets[1]["name"]
+    assert targets[1]["is_tvm_target"]
 
 
 def test_parse_quotes_and_separators_on_options():

@@ -272,6 +272,9 @@ set(USE_THRUST OFF)
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
+# Whether to build the PyTorch custom class module
+set(USE_PT_TVMDSOOP OFF)
+
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 

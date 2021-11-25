@@ -30,6 +30,7 @@ import tvm
 import tvm.testing
 from tvm.micro.project_api import server
 import tvm.relay as relay
+from tvm.relay.backend import Executor, Runtime
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
@@ -65,20 +66,14 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
         tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
     )
 
-    target = tvm.target.target.micro(
-        model,
-        options=[
-            "-link-params=1",
-            "--executor=aot",
-            "--unpacked-api=1",
-            "--interface-api=c",
-            "--workspace-byte-alignment=4",
-        ],
+    target = tvm.target.target.micro(model)
+    executor = Executor(
+        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
     )
+    runtime = Runtime("crt")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(relay_mod, target, params=params)
+        lowered = relay.build(relay_mod, target, params=params, runtime=runtime, executor=executor)
 
-    # Load sample and generate input/output header files
     sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
     sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
@@ -89,7 +84,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                    lowered.libmod_name, ["input_1"], ["output"], [], 0, model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 
@@ -139,9 +134,11 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     func = relay.Function([x], z)
     ir_mod = tvm.IRModule.from_expr(func)
 
-    target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
+    target = tvm.target.target.micro(model)
+    executor = Executor("aot")
+    runtime = Runtime("crt")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(ir_mod, target)
+        lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
 
     # Generate input/output header files
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -150,7 +147,7 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
                 model_files_path = os.path.join(tar_temp_dir, "include")
                 os.mkdir(model_files_path)
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], model_files_path
+                    lowered.libmod_name, ["input_1"], ["output"], [], 0, model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
             test_utils.create_header_file(

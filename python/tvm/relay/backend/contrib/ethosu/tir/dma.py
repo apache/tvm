@@ -94,10 +94,18 @@ def get_convert_to_nhwc_params(stmt):
         The pointer produced by the operation.
 
     """
-    _, body = get_op_attrs(stmt)
+    attrs, body = get_op_attrs(stmt)
     _, _, _, c, _, inner = get_outer_loops(body, "NHWC")
+
+    # Ignore the reduce sum operation inserted to ensure
+    # compute that is deemed uneccesary isn't removed by TVM.
+    if attrs["layout"] == "NHCWB16":
+        inner = inner.body
+        input_pointer = inner.value.b.buffer_var
+    else:
+        input_pointer = inner.value.buffer_var
+
     output_pointer = inner.buffer_var
-    input_pointer = inner.value.buffer_var
     return c.extent, input_pointer, output_pointer
 
 

@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Kernel generator and profiler for CUTLASS."""
+import logging
 import os
 import re
 import tempfile
@@ -36,6 +37,8 @@ from .library import (
     TileDescription,
 )
 
+logger = logging.getLogger("cutlass")
+
 
 def create_gemm_operator(
     layouts,
@@ -44,6 +47,7 @@ def create_gemm_operator(
     alignment_constraints,
     epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
+    batched=False,
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
@@ -51,6 +55,9 @@ def create_gemm_operator(
     profiler_emitter = GemmProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
+
+    if batched:
+        swizzling_functor = SwizzlingFunctor.Batched
 
     for layout in layouts:
         for tile_description in tile_descriptions:
@@ -106,15 +113,17 @@ def create_gemm_operator(
                 kernel_emitter = EmitGemmInstance()
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
-                op_entry["opdef"] = kernel_emitter.emit(op)
-                op_entry["opdef_bias"] = kernel_emitter.emit(op_bias, no_beta_scaling=True)
-                op_entry["opdef_bias_relu"] = kernel_emitter.emit(
-                    op_bias_relu, no_beta_scaling=True
+                op_entry["opdef"] = kernel_emitter.emit(op, batched=batched)
+                op_entry["opdef_bias"] = kernel_emitter.emit(
+                    op_bias, no_beta_scaling=True, batched=batched
                 )
-                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu)
+                op_entry["opdef_bias_relu"] = kernel_emitter.emit(
+                    op_bias_relu, no_beta_scaling=True, batched=batched
+                )
+                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu, batched=batched)
                 op_entry["src"] = profiler_emitter.emit(
                     op.procedural_name(),
-                    op_entry["opdef"],
+                    kernel_emitter.emit(op, batched=False),
                     DataTypeTag[element_a],
                     DataTypeTag[element_b],
                     DataTypeTag[element_c],
@@ -125,7 +134,9 @@ def create_gemm_operator(
     return ret
 
 
-def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile_descriptions):
+def generate_tensor_op_common(
+    math_instructions, alignment_constraints, get_tile_descriptions, batched=False
+):
     """Common kernel generator to be used by archtecture specific generators."""
     ops = []
     layouts = [
@@ -140,14 +151,16 @@ def generate_tensor_op_common(math_instructions, alignment_constraints, get_tile
             math_inst.element_accumulator,
         ]
 
-        out = create_gemm_operator(layouts, tile_descriptions, data_type, alignment_constraints)
+        out = create_gemm_operator(
+            layouts, tile_descriptions, data_type, alignment_constraints, batched=batched
+        )
 
         ops.extend(out)
 
     return ops
 
 
-def generate_sm75_tensor_op_1688(out_dtype):
+def generate_sm75_tensor_op_1688(out_dtype, batched=False):
     """Generate GEMM kernels for Turing."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
@@ -189,11 +202,11 @@ def generate_sm75_tensor_op_1688(out_dtype):
         ]
 
     return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions
+        math_instructions, alignment_constraints, get_tile_descriptions, batched
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype):
+def generate_sm80_tensor_op_16816(out_dtype, batched=False):
     """Generate GEMM kernels for Ampere."""
     assert out_dtype in ["float32", "float16"]
     math_instructions = {
@@ -247,7 +260,7 @@ def generate_sm80_tensor_op_16816(out_dtype):
         ]
 
     return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions
+        math_instructions, alignment_constraints, get_tile_descriptions, batched
     )
 
 
@@ -256,8 +269,20 @@ GENERATOR_FUNC_TABLE = {
     80: generate_sm80_tensor_op_16816,
 }
 
+# TODO(masahi): A sensible way to pick reasonable default kernels
+DEFAULT_KERNELS = {
+    75: {
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
+    },
+    80: {
+        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
+        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
+    },
+}
 
-class ProfilerEngine(object):
+
+class ProfilerEngine:
     """Compile and run a given profiler executable."""
 
     def __init__(self, cuda_arch, cutlass_path, binary_prefix):
@@ -311,7 +336,7 @@ class ProfilerEngine(object):
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
-            print(op_name, rt)
+            logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
             rt = -1
         return rt
@@ -321,7 +346,7 @@ class CutlassGemmProfiler(object):
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
-        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        assert sm in GENERATOR_FUNC_TABLE and sm in DEFAULT_KERNELS, "sm%d not supported yet." % sm
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.sm = sm
         self.cache = {}
@@ -335,7 +360,19 @@ class CutlassGemmProfiler(object):
             return False
         return True
 
-    def profile(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+    def get_default(self, out_dtype, batched=False):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
+        default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
+        filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
+        assert len(filtered) == 1
+        return filtered[0]
+
+    def profile(
+        self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False, batched=False
+    ):
         """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
@@ -343,7 +380,7 @@ class CutlassGemmProfiler(object):
         if (M, N, K) in self.cache:
             return self.cache[(M, N, K)]
 
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype)
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
         ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
 
         for op in ops:

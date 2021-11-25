@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Test that constants aren't duplicated for Ethos-N"""
+"""Test that constants aren't duplicated for Arm(R) Ethos(TM)-N"""
 
 import numpy as np
 import tvm

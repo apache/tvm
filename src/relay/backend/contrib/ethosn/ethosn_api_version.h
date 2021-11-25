@@ -17,6 +17,10 @@
  * under the License.
  */
 
+/*!
+ * \file src/relay/backend/contrib/ethosn/ethosn_api_version.h
+ * \brief Arm(R) Ethos(TM)-N versioning
+ */
 #include "ethosn_support_library/Support.hpp"
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_VERSION_H_

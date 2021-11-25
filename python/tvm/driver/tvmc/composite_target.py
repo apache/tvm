@@ -65,7 +65,7 @@ REGISTERED_CODEGEN = {
         "pass_pipeline": partition_for_ethosn78,
     },
     "ethos-u": {
-        "config_key": "relay.ext.ethosu.options",
+        "config_key": "relay.ext.ethos-u.options",
         "pass_pipeline": partition_for_ethosu,
     },
     "bnns": {

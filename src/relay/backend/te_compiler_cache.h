@@ -129,16 +129,18 @@ class CCacheKey : public ObjectRef {
 
 /*! \brief Node container to represent a cached function. */
 struct CachedFuncNode : public Object {
-  /* \brief compiled target */
+  /*! \brief compiled target */
   tvm::Target target;
   /*! \brief Primitive Function Name */
   GlobalVar prim_fn_var;
-  /* \brief The inputs to the function */
+  /*! \brief The inputs to the function */
   tvm::Array<te::Tensor> inputs;
-  /* \brief The outputs to the function */
+  /*! \brief The outputs to the function */
   tvm::Array<te::Tensor> outputs;
   /*! \brief The schedule to the function */
   te::Schedule schedule;
+  /*! \brief The TIR function if lowering in the meta schedule path */
+  Optional<tir::PrimFunc> prim_func;
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
   /*! \brief The lowered functions to support the function. */
@@ -150,6 +152,7 @@ struct CachedFuncNode : public Object {
     v->Visit("inputs", &inputs);
     v->Visit("outputs", &outputs);
     v->Visit("schedule", &schedule);
+    v->Visit("prim_func", &prim_func);
     v->Visit("funcs", &funcs);
     v->Visit("shape_func_param_states", &shape_func_param_states);
   }
@@ -161,7 +164,7 @@ struct CachedFuncNode : public Object {
 class CachedFunc : public ObjectRef {
  public:
   CachedFunc(tvm::Target target, GlobalVar prim_fn_name, tvm::Array<te::Tensor> inputs,
-             tvm::Array<te::Tensor> outputs, te::Schedule schedule,
+             tvm::Array<te::Tensor> outputs, te::Schedule schedule, tir::PrimFunc prim_func,
              tvm::Array<Integer> shape_func_param_states,
              IRModule funcs = IRModule(Map<GlobalVar, BaseFunc>({})));
 

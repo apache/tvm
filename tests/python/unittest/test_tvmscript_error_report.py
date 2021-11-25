@@ -487,6 +487,39 @@ def test_block_has_option_vars():
     check_error(block_has_option_vars, 2)
 
 
+def implicit_root_has_read():
+    T.reads([])  # error: implicit root does not support reads
+    T.evaluate(0.0)
+
+
+def implicit_root_has_write():
+    T.writes([])  # error: implicit root does not support writes
+    T.evaluate(0.0)
+
+
+def implicit_root_has_attrs():
+    T.block_attr({})  # error: implicit root does not support block_attr
+    T.evaluate(0.0)
+
+
+def implicit_root_has_predicate():
+    T.where(True)  # error: implicit root does not support predicate
+    T.evaluate(0.0)
+
+
+def implicit_root_has_axes():
+    v = T.axis.S(0, 0)  # error: implicit root does not support axis define
+    T.evaluate(0.0)
+
+
+def test_implicit_root_has_attrs():
+    check_error(implicit_root_has_read, 2)
+    check_error(implicit_root_has_write, 2)
+    check_error(implicit_root_has_attrs, 2)
+    check_error(implicit_root_has_predicate, 2)
+    check_error(implicit_root_has_axes, 2)
+
+
 def check_error(func, rel_lineno):
     # Override the default renderer to accumulate errors
     errors = []
@@ -508,9 +541,6 @@ def check_error(func, rel_lineno):
         assert (
             d.span.line - 1 == rel_lineno
         ), f"Expected error to be on line {rel_lineno}, but it was on {d.span.line - 1}"
-
-
-# TODO(Siyuan): block iter errors.
 
 
 @T.prim_func
@@ -548,8 +578,8 @@ def test_reorder_fail_block():
         sch.reorder(l, i)
     expected_sub_error_message = (
         "            # tir.Block#0\n"
-        '            with tir.block("B"):\n'
-        "            ^^^^^^^^^^^^^^^^^^^^\n"
+        '            with T.block("B"):\n'
+        "            ^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -561,10 +591,10 @@ def test_reorder_fail_nested_loop_inner():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(k, i)
     expected_sub_error_message = (
-        "        for i in tir.serial(0, 128):\n"
+        "        for i in T.serial(0, 128):\n"
         "            # tir.For#0\n"
-        "            for j in tir.serial(0, 128):\n"
-        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(0, 128):\n"
+        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -577,9 +607,9 @@ def test_fuse_fail_nested_loop_outer():
         sch.fuse(k, i)
     expected_sub_error_message = (
         "        # tir.For#1\n"
-        "        for i in tir.serial(0, 128):\n"
-        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
-        "            for j in tir.serial(0, 128):\n"
+        "        for i in T.serial(0, 128):\n"
+        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(0, 128):\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 

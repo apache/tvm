@@ -381,7 +381,7 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
     }
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     accel_config_str = compiler_attrs.accelerator_config
     assert accel_config_str in npu_accel_str_map.keys(), f"{accel_config_str} is not supported"
     return npu_accel_str_map[accel_config_str]

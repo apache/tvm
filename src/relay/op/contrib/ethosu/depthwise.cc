@@ -52,6 +52,7 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
   String activation;
   int clip_min;
   int clip_max;
+  String rounding_mode;
   String upscale;
   String ifm_layout;
   String ofm_layout;
@@ -95,6 +96,13 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
     TVM_ATTR_FIELD(clip_max)
         .describe("The maximum clipping value if activation = CLIP.")
         .set_default(0);
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
     TVM_ATTR_FIELD(upscale)
         .describe(
             "The 2x2 upscaling mode to apply to the Input Feature Map tensor. "
@@ -123,15 +131,30 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
 
   const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
   ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
-  ICHECK(ifm->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for ifm but was "
-      << ifm->dtype;
-  ICHECK(weight->dtype == DataType::UInt(8) || ifm->dtype == DataType::Int(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) or type(int8) for weight but was "
-      << weight->dtype;
-  ICHECK(scale_bias->dtype == DataType::UInt(8))
-      << "Expected ethosu_depthwise_conv2d type(uint8) for scale_bias but was "
-      << scale_bias->dtype;
+
+  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d input data type "
+        << "of type(uint8) or type(int8) but was " << ifm->dtype);
+    return false;
+  }
+
+  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d weight data type "
+        << "of type(uint8) or type(int8) but was " << weight->dtype);
+    return false;
+  }
+
+  if (scale_bias->dtype != DataType::UInt(8)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d scale bias data type "
+        << "of type(uint8) but was " << scale_bias->dtype);
+    return false;
+  }
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};
@@ -156,8 +179,8 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
                                int ofm_zero_point, Array<IndexExpr> kernel_shape,
                                IndexExpr ofm_channels, Array<IndexExpr> strides,
                                Array<IndexExpr> padding, Array<IndexExpr> dilation,
-                               String activation, int clip_min, int clip_max, String upscale,
-                               String ifm_layout, String ofm_layout) {
+                               String activation, int clip_min, int clip_max, String rounding_mode,
+                               String upscale, String ifm_layout, String ofm_layout) {
   auto attrs = make_object<EthosuDepthwiseConv2DAttrs>();
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
@@ -172,6 +195,7 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
   attrs->clip_max = clip_max;
+  attrs->rounding_mode = std::move(rounding_mode);
   attrs->upscale = std::move(upscale);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);
@@ -186,7 +210,7 @@ RELAY_REGISTER_OP("contrib.ethosu.depthwise_conv2d")
     .describe(R"code(Arm(R) Ethos(TM)-U NPU 2D quantized depthwise operator.
 
 This Relay operator corresponds to the hardware-implemented quantized
-depthwise operation found on Ethos(TM)-U NPUs. It accepts either NHWC or NHCWB16 format
+depthwise operation found on Ethos(TM)-U NPU. It accepts either NHWC or NHCWB16 format
 for the input data (input feature map, or IFM) and OHWI format for the kernel weights.
 
 - **ifm**: NHWC - (1, ifm_height, ifm_width, ifm_channels)
@@ -201,7 +225,7 @@ for the input data (input feature map, or IFM) and OHWI format for the kernel we
     .add_argument("ifm", "Tensor", "The Input Feature Map tensor (IFM).")
     .add_argument("weight", "Tensor", "The weight tensor.")
     .add_argument("scale_bias", "Tensor", "The packed per-channel weight scale and bias tensor.")
-    .add_argument("lut", "Tensor", "The look-up table values to use if activation = 'LUT'")
+    .add_argument("lut", "Tensor", "The look-up table of values to use if activation = 'LUT'")
     .set_support_level(11)
     .add_type_rel("EthosuDepthwiseConv2D", EthosuDepthwiseConv2DRel);
 

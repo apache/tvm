@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration relu tests"""
+"""Arm(R) Ethos(TM)-N integration relu tests"""
 
 import tvm
 from tvm import relay

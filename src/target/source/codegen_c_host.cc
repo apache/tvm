@@ -22,6 +22,7 @@
  */
 #include "codegen_c_host.h"
 
+#include <tvm/relay/executor.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
@@ -250,7 +251,8 @@ void CodeGenCHost::PrintFuncCall(const std::string& packed_func_name, int num_ar
   this->stream << "}\n";
 }
 
-void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_args) {
+void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_args,
+                                  const std::string& resource_handle_name) {
   this->PrintIndent();
   std::string ret_val = GetUniqueName("ret_val");
   std::string ret_type_code = GetUniqueName("ret_type_code");
@@ -265,7 +267,7 @@ void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_a
                << "(int*) stack_tcode"
                << ", " << num_args << ", "
                << "&" << ret_val << ", "
-               << "&" << ret_type_code << ", NULL) != 0){\n";
+               << "&" << ret_type_code << ", " << resource_handle_name << ") != 0){\n";
 
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
@@ -275,7 +277,8 @@ void CodeGenCHost::PrintFuncCallC(const std::string& packed_func_name, int num_a
   this->stream << "}\n";
 }
 
-CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op) {
+CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op,
+                                                         bool has_resource_handle) {
   const StringImmNode* s = op->args[0].as<StringImmNode>();
   ICHECK(s != nullptr) << "tvm_call_packed_lowered expects first argument as function name";
   int64_t begin = op->args[3].as<IntImmNode>()->value;
@@ -294,6 +297,10 @@ CodeGenCHost::FunctionInfo CodeGenCHost::GetFunctionInfo(const CallNode* op) {
     unique_name = GetUniqueName(packed_func_name);
     declared_globals_[packed_func_name] = unique_name;
     decl_stream << "static void* " << unique_name << " = NULL;\n";
+  }
+  if (has_resource_handle) {
+    std::string resource_handle_name = op->args[5].as<StringImmNode>()->value;
+    return {func_name, unique_name, num_args - 1, resource_handle_name};
   }
   return {func_name, unique_name, num_args};
 }
@@ -326,8 +333,9 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintGetFuncFromBackend(function_info.func_name, function_info.func_name_packed);
     this->PrintFuncCall(function_info.func_name_packed, function_info.num_args);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
-    auto function_info = GetFunctionInfo(op);
-    this->PrintFuncCallC(function_info.func_name, function_info.num_args);
+    auto function_info = GetFunctionInfo(op, true);
+    this->PrintFuncCallC(function_info.func_name, function_info.num_args,
+                         function_info.resource_handle_name);
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
     this->PrintIndent();
     this->stream << "return -1;\n";
@@ -384,7 +392,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
 
   Map<String, LinkedParam> linked_params;
   bool found_linked_params = false;
-  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+  bool could_have_linked_params = mod->ShouldLinkParameters();
   PrimFunc aot_executor_fn;
 
   for (auto kv : mod->functions) {

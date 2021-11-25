@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List
+from typing import List, Type
+
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -26,6 +27,7 @@ from tvm.relay.dataflow_pattern import DFPatternCallback  # type: ignore
 from tvm.relay.dataflow_pattern import wildcard
 from tvm.relay.dataflow_pattern import is_op
 from tvm.relay.dataflow_pattern import rewrite
+from tvm.relay.dataflow_pattern import CallPattern
 from tvm.relay.backend.contrib.ethosu import op as ethosu_ops  # type: ignore
 from tvm.relay.backend.contrib.ethosu.errors import UnsupportedLayout  # type: ignore
 from tvm.relay.backend.contrib.ethosu import vela_api
@@ -121,12 +123,12 @@ class LegalizeSplit:
         pass
 
 
-class EthosUConv2DRewriter(DFPatternCallback):
+class Conv2DRewriter(DFPatternCallback):
     """Convert conv2d related composite functions into ethosu_conv2d operators"""
 
     def __init__(self):
         super().__init__(require_type=True)
-        self.pattern = (wildcard().has_attr({"Composite": "ethosu.qnn_conv2d"}))(wildcard())
+        self.pattern = (wildcard().has_attr({"Composite": "ethos-u.qnn_conv2d"}))(wildcard())
 
     def callback(
         self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
@@ -193,14 +195,14 @@ class EthosUConv2DRewriter(DFPatternCallback):
 
 
 @ir.transform.module_pass(opt_level=1)
-class LegalizeEthosUConv2D:
-    """This is the pass that wraps the EthosUConv2DRewriter"""
+class LegalizeConv2D:
+    """This is the pass that wraps the Conv2DRewriter"""
 
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
-            func = rewrite(EthosUConv2DRewriter(), func)
+            func = rewrite(Conv2DRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -208,7 +210,7 @@ class LegalizeEthosUConv2D:
         pass
 
 
-class EthosuDepthwiseConv2DRewriter(DFPatternCallback):
+class DepthwiseConv2DRewriter(DFPatternCallback):
     """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d
     operators"""
 
@@ -286,14 +288,601 @@ class EthosuDepthwiseConv2DRewriter(DFPatternCallback):
 
 
 @ir.transform.module_pass(opt_level=1)
-class LegalizeEthosUDepthwiseConv2D:
-    """This is the pass that wraps the EthosUDepthwiseConv2DRewriter"""
+class LegalizeDepthwiseConv2D:
+    """This is the pass that wraps the DepthwiseConv2DRewriter"""
 
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
-            func = rewrite(EthosuDepthwiseConv2DRewriter(), func)
+            func = rewrite(DepthwiseConv2DRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class PoolingRewriter(DFPatternCallback):
+    """Convert ethosu.avgpool2d and ethosu.maxpool2d composite functions to
+    ethosu_pooling operators"""
+
+    def __init__(
+        self,
+        params_class: Type,
+        pattern: CallPattern,
+    ):
+        super().__init__(require_type=True)
+        self.params_class = params_class
+        self.pattern = pattern
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
+        channels_map = {
+            "NHWC": 3,
+        }
+        if str(params.ofm.layout) not in channels_map.keys():
+            raise UnsupportedLayout(str(params.ofm.layout))
+
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        # Activations requiring LUT is currently not supported, so setting it to an empty list
+        lut = relay.const([], dtype="int8")
+
+        return ethosu_ops.ethosu_pooling(
+            ifm=post.args[0],
+            lut=lut,
+            pooling_type=params.pooling_type,
+            ifm_scale=params.ifm.q_params.scale_f32,
+            ifm_zero_point=params.ifm.q_params.zero_point,
+            ofm_scale=params.ofm.q_params.scale_f32,
+            ofm_zero_point=params.ofm.q_params.zero_point,
+            pool_shape=params.pool_shape,
+            ofm_channels=params.ofm.shape[channels_map[str(params.ofm.layout)]],
+            strides=params.strides,
+            padding=params.padding,
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            upscale="NONE",
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+        )
+
+
+class MaxPoolingRewriter(PoolingRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MaxPool2DParams,
+            pattern=(
+                wildcard().has_attr({"Composite": ethosu_patterns.MaxPool2DParams.composite_name})
+            )(wildcard()),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeMaxPooling:
+    """This is the pass that wraps the MaxPoolingRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(MaxPoolingRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class AvgPoolingRewriter(PoolingRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.AvgPool2DParams,
+            pattern=(
+                wildcard().has_attr({"Composite": ethosu_patterns.AvgPool2DParams.composite_name})
+            )(wildcard()),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeAvgPooling:
+    """This is the pass that wraps the AvgPoolingRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(AvgPoolingRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class BinaryElementwiseRewriter(DFPatternCallback):
+    """Convert ethosu binary elementwise composite functions to
+    ethosu_binary_elementwise operators"""
+
+    def __init__(
+        self,
+        params_class: Type,
+        pattern: CallPattern,
+    ):
+        super().__init__(require_type=True)
+        self.params_class = params_class
+        self.pattern = pattern
+
+    @staticmethod
+    def reshape_input(
+        inputs: List["TensorParams"],
+    ) -> List[tvm.relay.Expr]:
+        """Reshape the inputs so that the following binary elementwise
+        operator receives 4-dimensional inputs.
+
+        Parameters
+        ----------
+        inputs: List[TensorParams]
+            The inputs to reshape.
+
+        Returns
+        -------
+        reshaped_inputs: List[tvm.relay.Expr]
+            The new reshaped inputs.
+        """
+        reshaped_inputs = []
+        for i in inputs:
+            in_shape = i.shape
+            if len(in_shape) < 4:
+                pad_size = 4 - len(in_shape)
+                new_shape = ([1] * pad_size) + in_shape
+                new_call = relay.reshape(i.tensor, new_shape)
+                reshaped_inputs.append(new_call)
+            else:
+                reshaped_inputs.append(i.tensor)
+        return reshaped_inputs
+
+    @staticmethod
+    def reshape_output(output: tvm.relay.Expr, ifm_input_shape: List[int]) -> tvm.relay.Expr:
+        """Reshape the output back to the original dimensionality.
+        Since the NPU must have the brodcastable tensor as the
+        second operand, the original shape of the first ifm must
+        be the output shape.
+
+        Parameters
+        ----------
+        output: tvm.relay.Expr
+            The output to reshape.
+
+        ifm_input_shape: List[int]
+            The shape of the non-reshaped ifm tensor.
+
+        Returns
+        -------
+        reshaped_output: tvm.relay.Expr
+            The reshaped output expression.
+        """
+        if len(ifm_input_shape) == 4:
+            return output
+        reshaped_output = relay.reshape(output, ifm_input_shape)
+        return reshaped_output
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[1] if params.reversed_operands else post.args[0]
+        params.ifm2.tensor = post.args[0] if params.reversed_operands else post.args[1]
+        channels_map = {
+            "NHWC": 3,
+        }
+        if str(params.ofm.layout) not in channels_map.keys():
+            raise UnsupportedLayout(str(params.ofm.layout))
+
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        # We don't yet support activation functions that need to get legalized to LUTs.
+        lut = relay.const([], dtype="int8")
+
+        inputs = [params.ifm, params.ifm2]
+        inputs = self.reshape_input(inputs)
+
+        ethosu_binary_elementwise = ethosu_ops.ethosu_binary_elementwise(
+            ifm=inputs[0],
+            ifm2=inputs[1],
+            lut=lut,
+            operator_type=params.operator_type,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ifm2_scale=float(params.ifm2.q_params.scale_f32),
+            ifm2_zero_point=int(params.ifm2.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            ifm_channels=params.ifm.shape[-1],
+            ifm2_channels=params.ifm2.shape[-1],
+            reversed_operands=params.reversed_operands,
+            ofm_dtype=params.ofm.dtype,
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            ifm_layout=str(params.ifm.layout),
+            ifm2_layout=str(params.ifm2.layout),
+            ofm_layout=str(params.ofm.layout),
+        )
+        output = self.reshape_output(ethosu_binary_elementwise, params.ifm.shape)
+        return output
+
+
+class AddRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.AddParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.AddParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeAdd:
+    """This is the pass that wraps the AddRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(AddRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class SubRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.SubParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.SubParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeSub:
+    """This is the pass that wraps the SubRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(SubRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class MulRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MulParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.MulParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeMul:
+    """This is the pass that wraps the MulRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(MulRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class MinRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MinParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.MinParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeMin:
+    """This is the pass that wraps the MinRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(MinRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class MaxRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.MaxParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.MaxParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeMax:
+    """This is the pass that wraps the MaxRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(MaxRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class ShlRewriter(BinaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.ShlParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.ShlParams.composite_name}))(
+                wildcard(), wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeShl:
+    """This is the pass that wraps the ShlRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ShlRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class StridedSliceRewriter(DFPatternCallback):
+    """This pass brings the strided slice out of the partitioned function"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.StridedSliceParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+
+        slice_input = post.args[0]
+        params = ethosu_patterns.StridedSliceParams(post.op.body)
+        strided_slice = relay.op.strided_slice(
+            slice_input,
+            params.begin,
+            params.end,
+            strides=params.strides,
+            axes=params.axes,
+            slice_mode=params.slice_mode,
+        )
+        return strided_slice
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeStridedSlice:
+    """This is the pass that wraps StridedSliceRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(StridedSliceRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class ReshapeRewriter(DFPatternCallback):
+    """This pass brings the reshape out of the partitioned function"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.ReshapeParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        reshape_input = post.args[0]
+        reshape_params = ethosu_patterns.ReshapeParams(post.op.body)
+        new_shape = reshape_params.new_shape
+        return relay.op.reshape(reshape_input, newshape=new_shape)
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeReshape:
+    """This is the pass that wraps ReshapeRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ReshapeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class NoOpRewriter(DFPatternCallback):
+    """This pass adds an idenity operator to reshape and strided slice to avoid a no op
+    without a consumer"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.reshape = is_op("reshape")(wildcard())
+        self.strided_slice = is_op("strided_slice")(wildcard())
+        self.pattern = self.reshape | self.strided_slice
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        if pre.checked_type.dtype == "int32":
+            return post
+        return ethosu_ops.ethosu_identity(ifm=post, lut=relay.const([], dtype="int8"))
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeNoOps:
+    """This is the pass that wraps RewriteNoOps"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(NoOpRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class UnaryElementwiseRewriter(DFPatternCallback):
+    """
+    Convert ethosu unary elementwise composite function to
+    ethosu_unary_elementwise operators
+    """
+
+    def __init__(self, params_class: Type, pattern: CallPattern):
+        super().__init__(require_type=True)
+        self.params_class = params_class
+        self.pattern = pattern
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        if str(params.ofm.layout) != "NHWC":
+            raise UnsupportedLayout(str(params.ofm.layout))
+
+        activation_map = {"clip": "CLIP"}
+        if params.activation:
+            activation = activation_map[params.activation.op.name]
+            clip_min = int(params.activation.attrs.a_min)
+            clip_max = int(params.activation.attrs.a_max)
+        else:
+            activation = "NONE"
+            clip_min = 0
+            clip_max = 0
+
+        # We don't yet support activation functions that use LUT.
+        lut = relay.const([], dtype="int8")
+
+        unary_input_shape = params.ifm.shape
+        # If the input tensor is not 4D, enter reshapes before and after the unary operator
+        if len(params.ifm.shape) == 4:
+            unary_input = params.ifm.tensor
+        else:
+            pad_size = 4 - len(unary_input_shape)
+            unary_input_shape = ([1] * pad_size) + unary_input_shape
+            unary_input = relay.op.reshape(params.ifm.tensor, newshape=unary_input_shape)
+
+        ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(
+            ifm=unary_input,
+            lut=lut,
+            operator_type=params.operator_type,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            ofm_channels=unary_input_shape[3],
+            activation=activation,
+            clip_min=clip_min,
+            clip_max=clip_max,
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+        )
+        if len(params.ifm.shape) == 4:
+            op = ethosu_unary_elementwise
+        else:
+            op = relay.op.reshape(ethosu_unary_elementwise, newshape=params.ifm.shape)
+        return op
+
+
+class AbsRewriter(UnaryElementwiseRewriter):
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.AbsParams,
+            pattern=(wildcard().has_attr({"Composite": ethosu_patterns.AbsParams.composite_name}))(
+                wildcard()
+            ),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeAbs:
+    """This is the pass that wraps the AbsRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(AbsRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -311,9 +900,24 @@ class LegalizeEthosU:
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
+        """This is the method that replaces the operations with hardware/codegen supported
+        operations.
+        """
         mod = LegalizeSplit()(mod)
-        mod = LegalizeEthosUConv2D()(mod)
-        mod = LegalizeEthosUDepthwiseConv2D()(mod)
+        mod = LegalizeConv2D()(mod)
+        mod = LegalizeDepthwiseConv2D()(mod)
+        mod = LegalizeMaxPooling()(mod)
+        mod = LegalizeAvgPooling()(mod)
+        mod = LegalizeAdd()(mod)
+        mod = LegalizeSub()(mod)
+        mod = LegalizeMul()(mod)
+        mod = LegalizeMin()(mod)
+        mod = LegalizeMax()(mod)
+        mod = LegalizeShl()(mod)
+        mod = LegalizeAbs()(mod)
+        mod = LegalizeReshape()(mod)
+        mod = LegalizeStridedSlice()(mod)
+        mod = LegalizeNoOps()(mod)
         return mod
 
     def __call__(self, *args, **kwargs):

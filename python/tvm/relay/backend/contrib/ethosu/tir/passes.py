@@ -22,6 +22,10 @@ import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
+from .pooling import get_pooling_params
+from .binary_elementwise import get_binary_elementwise_params
+from .identity import get_identity_params
+from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
 from .utils import get_weights_pointer, get_scale_bias_pointer
 
@@ -54,6 +58,10 @@ def ReplaceOperators():
         "ethosu_conv2d": get_conv2d_params,
         "ethosu_copy": get_copy_params,
         "ethosu_depthwise_conv2d": get_depthwise_conv2d_params,
+        "ethosu_pooling": get_pooling_params,
+        "ethosu_binary_elementwise": get_binary_elementwise_params,
+        "ethosu_identity": get_identity_params,
+        "ethosu_unary_elementwise": get_unary_elementwise_params,
     }
     pointer_to_producer = {}
     pointer_to_consumer = {}
@@ -386,14 +394,19 @@ def EncodeConstants(const_dict):
             # For extern calls, we need to rewrite pairs of arguments corresponding to
             # base address load and the length of the load.
             new_args = [stmt.args[0]]
+            new_buffers = rewrite_buffer.values()
             for i in range(1, len(stmt.args)):
                 # If the previous argument was a load, the current should be a length
                 if isinstance(stmt.args[i - 1], tvm.tir.Load):
                     load = stmt.args[i - 1]
                     pointer = load.buffer_var
                     if pointer in pointer_to_buffer:
-                        new_args.append(np.prod(list(pointer_to_buffer[pointer].shape)))
-                        continue
+                        buffer = pointer_to_buffer[pointer]
+                        # Only rewrite the arguments of buffers that have been encoded
+                        if buffer in new_buffers:
+                            new_arg = np.prod(list(pointer_to_buffer[pointer].shape))
+                            new_args.append(new_arg)
+                            continue
                 new_args.append(stmt.args[i])
 
             return tvm.tir.Call(stmt.dtype, stmt.op, new_args, stmt.span)

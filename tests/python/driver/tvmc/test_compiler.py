@@ -24,7 +24,9 @@ from unittest import mock
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.testing.utils import ethosn_available
+from tvm.relay.backend import Runtime, Executor
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
 
@@ -398,9 +400,11 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 
     output_file_name = f"{output_dir}/file.tar"
 
-    tvmc_package = tvmc.compiler.compile_model(
+    tvmc.compiler.compile_model(
         tvmc_model,
-        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
+        target=f"cmsis-nn, c -mcpu=cortex-m55",
+        runtime=Runtime("crt", {"system-lib": True}),
+        executor=Executor("aot"),
         output_format="mlf",
         package_path=output_file_name,
         pass_context_configs=["tir.disable_vectorize=true"],
@@ -476,9 +480,11 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
     for accel_type in ACCEL_TYPES:
         output_file_name = f"{output_dir}/file_{accel_type}.tar"
 
-        tvmc_package = tvmc.compiler.compile_model(
+        tvmc.compiler.compile_model(
             tvmc_model,
-            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
+            target=f"ethos-u -accelerator_config={accel_type}, c -mcpu=cortex-m55",
+            runtime=Runtime("crt", {"system-lib": True}),
+            executor=Executor("aot"),
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
@@ -497,8 +503,8 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
             # The number of c_source_files depends on the number of fused subgraphs that
             # get offloaded to the NPU, e.g. conv2d->depthwise_conv2d->conv2d gets offloaded
             # as a single subgraph if both of these operators are supported by the NPU.
-            # Currently there are two source files for CPU execution and two offload graphs
-            assert len(c_source_files) == 4
+            # Currently there are two source files for CPU execution and one offload graph
+            assert len(c_source_files) == 3
 
 
 @mock.patch("tvm.relay.build")

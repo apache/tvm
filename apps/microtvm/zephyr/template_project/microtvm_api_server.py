@@ -234,49 +234,81 @@ if IS_TEMPLATE:
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "extra_files_tar",
+        optional=["generate_project"],
+        type="str",
         help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
     ),
     server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the local gdbserver.")
+        "gdbserver_port",
+        help=("If given, port number to use when running the local gdbserver."),
+        optional=["open_transport"],
+        type="int",
     ),
     server.ProjectOption(
         "nrfjprog_snr",
+        optional=["open_transport"],
+        type="int",
         help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
+        optional=["open_transport"],
+        type="int",
         help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "project_type",
-        help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
+        required=["generate_project"],
+        type="str",
+        help="Type of project to generate.",
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output.", choices=(True, False)),
+    server.ProjectOption(
+        "verbose",
+        optional=["build"],
+        type="bool",
+        help="Run build with verbose output.",
+    ),
     server.ProjectOption(
         "west_cmd",
+        optional=["generate_project"],
+        default=sys.executable + " -m west" if sys.executable else None,
+        type="str",
         help=(
             "Path to the west tool. If given, supersedes both the zephyr_base "
             "option and ZEPHYR_BASE environment variable."
         ),
     ),
-    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
+    server.ProjectOption(
+        "zephyr_base",
+        optional=["build", "open_transport"],
+        default=os.getenv("ZEPHYR_BASE"),
+        type="str",
+        help="Path to the zephyr base directory.",
+    ),
     server.ProjectOption(
         "zephyr_board",
+        required=["generate_project", "build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
+        type="str",
         help="Name of the Zephyr board to build for.",
     ),
     server.ProjectOption(
         "config_main_stack_size",
+        optional=["generate_project"],
+        type="int",
         help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
     ),
     server.ProjectOption(
         "warning_as_error",
-        choices=(True, False),
+        optional=["generate_project"],
+        type="bool",
         help="Treat warnings as errors and raise an Exception.",
     ),
     server.ProjectOption(
         "compile_definitions",
+        optional=["generate_project"],
+        type="str",
         help="Extra definitions added project compile.",
     ),
 ]

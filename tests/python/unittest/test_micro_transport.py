@@ -26,11 +26,15 @@ import pytest
 import tvm.testing
 
 
-@tvm.testing.requires_micro
-class TransportLoggerTests(unittest.TestCase):
+# Implementing as a fixture so that the tvm.micro import doesn't occur
+# until fixture setup time.  This is necessary for pytest's collection
+# phase to work when USE_MICRO=OFF, while still explicitly listing the
+# tests as skipped.
+@tvm.testing.fixture
+def transport():
     import tvm.micro
 
-    class TestTransport(tvm.micro.transport.Transport):
+    class MockTransport_Impl(tvm.micro.transport.Transport):
         def __init__(self):
             self.exc = None
             self.to_return = None
@@ -62,125 +66,159 @@ class TransportLoggerTests(unittest.TestCase):
         def write(self, data, timeout_sec):
             return self._raise_or_return()
 
-    def test_transport_logger(self):
-        """Tests the TransportLogger class."""
+    return MockTransport_Impl()
 
-        logger = logging.getLogger("transport_logger_test")
-        with self.assertLogs(logger) as test_log:
-            transport = self.TestTransport()
-            transport_logger = tvm.micro.transport.TransportLogger("foo", transport, logger=logger)
 
-            transport_logger.open()
-            assert test_log.records[-1].getMessage() == "foo: opening transport"
+@tvm.testing.fixture
+def transport_logger(transport):
+    logger = logging.getLogger("transport_logger_test")
+    return tvm.micro.transport.TransportLogger("foo", transport, logger=logger)
 
-            ########### read() tests ##########
 
-            # Normal log, single-line data returned.
-            transport.to_return = b"data"
-            transport_logger.read(23, 3.0)
-            assert test_log.records[-1].getMessage() == (
-                "foo: read { 3.00s}   23 B -> [  4 B]: 64 61 74 61"
-                "                                      data"
-            )
+@tvm.testing.fixture
+def get_latest_log(caplog):
+    def inner():
+        return caplog.records[-1].getMessage()
 
-            # Normal log, multi-line data returned.
-            transport.to_return = b"data" * 6
-            transport_logger.read(23, 3.0)
-            assert test_log.records[-1].getMessage() == (
-                "foo: read { 3.00s}   23 B -> [ 24 B]:\n"
-                "0000  64 61 74 61 64 61 74 61 64 61 74 61 64 61 74 61  datadatadatadata\n"
-                "0010  64 61 74 61 64 61 74 61                          datadata"
-            )
+    with caplog.at_level(logging.INFO, "transport_logger_test"):
+        yield inner
 
-            # Lack of timeout prints.
-            transport.to_return = b"data"
-            transport_logger.read(15, None)
-            assert test_log.records[-1].getMessage() == (
-                "foo: read { None }   15 B -> [  4 B]: 64 61 74 61"
-                "                                      data"
-            )
 
-            # IoTimeoutError includes the timeout value.
-            transport.exc = tvm.micro.transport.IoTimeoutError()
-            with self.assertRaises(tvm.micro.transport.IoTimeoutError):
-                transport_logger.read(23, 0.0)
+@tvm.testing.requires_micro
+def test_open(transport_logger, get_latest_log):
+    transport_logger.open()
+    assert get_latest_log() == "foo: opening transport"
 
-            assert test_log.records[-1].getMessage() == (
-                "foo: read { 0.00s}   23 B -> [IoTimeoutError  0.00s]"
-            )
 
-            # Other exceptions are logged by name.
-            transport.exc = tvm.micro.transport.TransportClosedError()
-            with self.assertRaises(tvm.micro.transport.TransportClosedError):
-                transport_logger.read(8, 0.0)
+@tvm.testing.requires_micro
+def test_close(transport_logger, get_latest_log):
+    transport_logger.close()
+    assert get_latest_log() == "foo: closing transport"
 
-            assert test_log.records[-1].getMessage() == (
-                "foo: read { 0.00s}    8 B -> [err: TransportClosedError]"
-            )
 
-            # KeyboardInterrupt produces no log record.
-            before_len = len(test_log.records)
-            transport.exc = KeyboardInterrupt()
-            with self.assertRaises(KeyboardInterrupt):
-                transport_logger.read(8, 0.0)
+@tvm.testing.requires_micro
+def test_read_normal(transport, transport_logger, get_latest_log):
+    transport.to_return = b"data"
+    transport_logger.read(23, 3.0)
+    assert get_latest_log() == (
+        "foo: read { 3.00s}   23 B -> [  4 B]: 64 61 74 61"
+        "                                      data"
+    )
 
-            assert len(test_log.records) == before_len
 
-            ########### write() tests ##########
+@tvm.testing.requires_micro
+def test_read_multiline(transport, transport_logger, get_latest_log):
+    transport.to_return = b"data" * 6
+    transport_logger.read(23, 3.0)
+    assert get_latest_log() == (
+        "foo: read { 3.00s}   23 B -> [ 24 B]:\n"
+        "0000  64 61 74 61 64 61 74 61 64 61 74 61 64 61 74 61  datadatadatadata\n"
+        "0010  64 61 74 61 64 61 74 61                          datadata"
+    )
 
-            # Normal log, single-line data written.
-            transport.to_return = 3
-            transport_logger.write(b"data", 3.0)
-            assert test_log.records[-1].getMessage() == (
-                "foo: write { 3.00s}        <- [  4 B]: 64 61 74 61"
-                "                                      data"
-            )
 
-            # Normal log, multi-line data written.
-            transport.to_return = 20
-            transport_logger.write(b"data" * 6, 3.0)
-            assert test_log.records[-1].getMessage() == (
-                "foo: write { 3.00s}        <- [ 24 B]:\n"
-                "0000  64 61 74 61 64 61 74 61 64 61 74 61 64 61 74 61  datadatadatadata\n"
-                "0010  64 61 74 61 64 61 74 61                          datadata"
-            )
+@tvm.testing.requires_micro
+def test_read_no_timeout_prints(transport, transport_logger, get_latest_log):
+    transport.to_return = b"data"
+    transport_logger.read(15, None)
+    assert get_latest_log() == (
+        "foo: read { None }   15 B -> [  4 B]: 64 61 74 61"
+        "                                      data"
+    )
 
-            # Lack of timeout prints.
-            transport.to_return = 3
-            transport_logger.write(b"data", None)
-            assert test_log.records[-1].getMessage() == (
-                "foo: write { None }        <- [  4 B]: 64 61 74 61"
-                "                                      data"
-            )
 
-            # IoTimeoutError includes the timeout value.
-            transport.exc = tvm.micro.transport.IoTimeoutError()
-            with self.assertRaises(tvm.micro.transport.IoTimeoutError):
-                transport_logger.write(b"data", 0.0)
+@tvm.testing.requires_micro
+def test_read_io_timeout(transport, transport_logger, get_latest_log):
+    # IoTimeoutError includes the timeout value.
+    transport.exc = tvm.micro.transport.IoTimeoutError()
+    with pytest.raises(tvm.micro.transport.IoTimeoutError):
+        transport_logger.read(23, 0.0)
 
-            assert test_log.records[-1].getMessage() == (
-                "foo: write { 0.00s}       <- [  4 B]: [IoTimeoutError  0.00s]"
-            )
+    assert get_latest_log() == ("foo: read { 0.00s}   23 B -> [IoTimeoutError  0.00s]")
 
-            # Other exceptions are logged by name.
-            transport.exc = tvm.micro.transport.TransportClosedError()
-            with self.assertRaises(tvm.micro.transport.TransportClosedError):
-                transport_logger.write(b"data", 0.0)
 
-            assert test_log.records[-1].getMessage() == (
-                "foo: write { 0.00s}       <- [  4 B]: [err: TransportClosedError]"
-            )
+@tvm.testing.requires_micro
+def test_read_other_exception(transport, transport_logger, get_latest_log):
+    # Other exceptions are logged by name.
+    transport.exc = tvm.micro.transport.TransportClosedError()
+    with pytest.raises(tvm.micro.transport.TransportClosedError):
+        transport_logger.read(8, 0.0)
 
-            # KeyboardInterrupt produces no log record.
-            before_len = len(test_log.records)
-            transport.exc = KeyboardInterrupt()
-            with self.assertRaises(KeyboardInterrupt):
-                transport_logger.write(b"data", 0.0)
+    assert get_latest_log() == ("foo: read { 0.00s}    8 B -> [err: TransportClosedError]")
 
-            assert len(test_log.records) == before_len
 
-            transport_logger.close()
-            assert test_log.records[-1].getMessage() == "foo: closing transport"
+@tvm.testing.requires_micro
+def test_read_keyboard_interrupt(transport, transport_logger, get_latest_log):
+    # KeyboardInterrupt produces no log record.
+    transport.exc = KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):
+        transport_logger.read(8, 0.0)
+
+    with pytest.raises(IndexError):
+        get_latest_log()
+
+
+@tvm.testing.requires_micro
+def test_write_normal(transport, transport_logger, get_latest_log):
+    transport.to_return = 3
+    transport_logger.write(b"data", 3.0)
+    assert get_latest_log() == (
+        "foo: write { 3.00s}        <- [  4 B]: 64 61 74 61"
+        "                                      data"
+    )
+
+
+@tvm.testing.requires_micro
+def test_write_multiline(transport, transport_logger, get_latest_log):
+    # Normal log, multi-line data written.
+    transport.to_return = 20
+    transport_logger.write(b"data" * 6, 3.0)
+    assert get_latest_log() == (
+        "foo: write { 3.00s}        <- [ 24 B]:\n"
+        "0000  64 61 74 61 64 61 74 61 64 61 74 61 64 61 74 61  datadatadatadata\n"
+        "0010  64 61 74 61 64 61 74 61                          datadata"
+    )
+
+
+@tvm.testing.requires_micro
+def test_write_no_timeout_prints(transport, transport_logger, get_latest_log):
+    transport.to_return = 3
+    transport_logger.write(b"data", None)
+    assert get_latest_log() == (
+        "foo: write { None }        <- [  4 B]: 64 61 74 61"
+        "                                      data"
+    )
+
+
+@tvm.testing.requires_micro
+def test_write_io_timeout(transport, transport_logger, get_latest_log):
+    # IoTimeoutError includes the timeout value.
+    transport.exc = tvm.micro.transport.IoTimeoutError()
+    with pytest.raises(tvm.micro.transport.IoTimeoutError):
+        transport_logger.write(b"data", 0.0)
+
+    assert get_latest_log() == ("foo: write { 0.00s}       <- [  4 B]: [IoTimeoutError  0.00s]")
+
+
+@tvm.testing.requires_micro
+def test_write_other_exception(transport, transport_logger, get_latest_log):
+    # Other exceptions are logged by name.
+    transport.exc = tvm.micro.transport.TransportClosedError()
+    with pytest.raises(tvm.micro.transport.TransportClosedError):
+        transport_logger.write(b"data", 0.0)
+
+    assert get_latest_log() == ("foo: write { 0.00s}       <- [  4 B]: [err: TransportClosedError]")
+
+
+@tvm.testing.requires_micro
+def test_write_keyboard_interrupt(transport, transport_logger, get_latest_log):
+    # KeyboardInterrupt produces no log record.
+    transport.exc = KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):
+        transport_logger.write(b"data", 0.0)
+
+    with pytest.raises(IndexError):
+        get_latest_log()
 
 
 if __name__ == "__main__":

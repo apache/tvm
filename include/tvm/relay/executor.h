@@ -60,6 +60,14 @@ class ExecutorNode : public Object {
   DictAttrs attrs;
 
   /*!
+   * \brief Should Link Parameters into the module
+   * \return Whether the Executor is configured to execute modules with linked parameters
+   */
+  Bool ShouldLinkParameters() const {
+    return name == "aot" || GetAttr<Bool>("link-params").value_or(Bool(false));
+  }
+
+  /*!
    * \brief Get an attribute.
    *
    * \param attr_key The attribute key.
@@ -114,6 +122,8 @@ class ExecutorNode : public Object {
  */
 class Executor : public ObjectRef {
  public:
+  Executor() = default;
+
   /*!
    * \brief Create a new Executor object using the registry
    * \throws Error if name is not registered
@@ -121,7 +131,7 @@ class Executor : public ObjectRef {
    * \param attrs Attributes for the executor.
    * \return the new Executor object.
    */
-  TVM_DLL static Executor Create(String name, Map<String, ObjectRef> attrs);
+  TVM_DLL static Executor Create(String name, Map<String, ObjectRef> attrs = {});
 
   /*!
    * \brief List all registered Executors
@@ -159,9 +169,6 @@ class Executor : public ObjectRef {
  */
 class ExecutorRegEntry {
  public:
-  /*! \brief Set name of the Executor to be the same as registry if it is empty */
-  inline ExecutorRegEntry& set_name();
-
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -218,13 +225,6 @@ class ExecutorRegEntry {
   friend class Executor;
 };
 
-inline ExecutorRegEntry& ExecutorRegEntry::set_name() {
-  if (name.empty()) {
-    name = name;
-  }
-  return *this;
-}
-
 template <typename ValueType>
 inline ExecutorRegEntry& ExecutorRegEntry::add_attr_option(const String& key) {
   ICHECK(!key2vtype_.count(key)) << "AttributeError: add_attr_option failed because '" << key
@@ -269,7 +269,7 @@ inline ExecutorRegEntry& ExecutorRegEntry::add_attr_option(const String& key,
  */
 #define TVM_REGISTER_EXECUTOR(ExecutorName)                    \
   TVM_STR_CONCAT(TVM_EXECUTOR_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::relay::ExecutorRegEntry::RegisterOrGet(ExecutorName).set_name()
+      ::tvm::relay::ExecutorRegEntry::RegisterOrGet(ExecutorName)
 }  // namespace relay
 }  // namespace tvm
 
