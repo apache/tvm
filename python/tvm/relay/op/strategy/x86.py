@@ -50,7 +50,7 @@ def schedule_reduce_cpu(attrs, outs, target):
 def schedule_concatenate_cpu(attrs, outs, target):
     """schedule concatenate op for x86"""
     with target:
-        return topi.x86.schedule_concatenate(outs)
+        return topi.transform.schedule_concat(outs)
 
 
 @schedule_pool.register("cpu")

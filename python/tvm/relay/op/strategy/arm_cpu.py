@@ -42,11 +42,11 @@ def schedule_injective_arm_cpu(_, outs, target):
         return topi.arm_cpu.schedule_injective(outs)
 
 
-@schedule_concatenate.register(["arm_cpu", "micro_dev"])
-def schedule_concatenate_arm_cpu(_, outs, target):
-    """schedule concatenate for arm cpu"""
-    with target:
-        return topi.arm_cpu.schedule_concatenate(outs)
+# @schedule_concatenate.register(["arm_cpu", "micro_dev"])
+# def schedule_concatenate_arm_cpu(_, outs, target):
+#     """schedule concatenate for arm cpu"""
+#     with target:
+#         return topi.arm_cpu.schedule_concatenate(outs)
 
 
 @conv2d_strategy.register(["arm_cpu", "micro_dev"])
