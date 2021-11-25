@@ -28,6 +28,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
+from .. import ty as _ty
 from .. import analysis
 
 # pylint: disable=invalid-name
@@ -594,6 +595,16 @@ def try_infer_value(val, on_success=None, on_failure=None):
         return val, False
 
 
+def shape_of(x, dtype="int64"):
+    """Get shape of a tensor."""
+
+    ttype = infer_type(x).checked_type
+    if not _ty.is_dynamic(ttype):
+        shape = list(ttype.shape)
+        return _expr.const(shape, dtype)
+    return _op.shape_of(x, dtype)
+
+
 def new_var(name_hint, type_annotation=None, shape=None, dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
 
@@ -835,3 +846,97 @@ def lstm_cell(
         outputs_list.append(hidden_state)  # [seq_num, (batch, hidden_size)]
 
     return outputs_list, hidden_state, cell_state
+
+
+def autopad(
+    data,
+    strides,
+    kernel_shape,
+    dilations=(1, 1),
+    pad_type="constant",
+    deconv=False,
+    mode="SAME_UPPER",
+    pad_value=0.0,
+):
+    """
+    Perform autopadding with dynamic input shapes
+    """
+    # get attributes as constants
+    strides = _op.const(np.array(strides), dtype="int64")
+    dilated_kernel_shape = _op.const(
+        np.array(
+            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+        ),
+        dtype="int64",
+    )
+    # get input shape
+    ndim = len(infer_shape(data))
+    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
+
+    # set up integer constants
+    zero = _op.const(0, dtype="int64")
+    one = _op.const(1, dtype="int64")
+    two = _op.const(2, dtype="int64")
+
+    # Calculate total padding
+    mod = _op.mod(shape, strides)
+
+    left = _op.maximum(dilated_kernel_shape - strides, zero)
+    right = _op.maximum(dilated_kernel_shape - mod, zero)
+
+    total_pad = _op.where(_op.equal(mod, zero), left, right)
+    if deconv:
+        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
+
+    # split total padding into before and after
+    pad_before = _op.floor_divide(total_pad, two)
+    pad_after = total_pad - pad_before
+
+    # combine
+    if "LOWER" in mode:
+        pad = _op.concatenate(
+            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
+        )
+    else:
+        pad = _op.concatenate(
+            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
+        )
+
+    # pad N and C with zeros
+    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
+
+    if isinstance(pad_value, (float, int)):
+        pad_value = _op.const(pad_value)
+
+    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
+
+
+def ensure_scalar_shape(x):
+    """
+    Assume that `x` is a tensor with one element (regardless of tensor rank).
+    Return a version of that tensor with rank 0.
+    """
+    x_shape = infer_shape(x)
+    x_rank = len(x_shape)
+
+    if x_rank == 0:
+        return x
+
+    num_elem = np.prod(x_shape)
+    assert num_elem == 1, "Cannot squeeze tensor shape {} to scalar form.".format(x_shape)
+
+    return _op.squeeze(x)
+
+
+def try_resolve_var_to_const(x, graph_params):
+    """
+    Try to resolve the value of tensor `x` to a specific value.
+    If successful, return a Const op with that value.
+    If unsuccessful, simply return `x`.
+    """
+    if isinstance(x, _expr.Var) and x.name_hint in graph_params:
+        value = graph_params[x.name_hint].numpy()
+        dtype = infer_type(x).checked_type.dtype
+        return _op.const(value, dtype)
+
+    return x

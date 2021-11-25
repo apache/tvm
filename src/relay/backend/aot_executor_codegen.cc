@@ -182,9 +182,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   StorageInfo GetStorage(const Expr& expr) {
-    auto props = GetOnDeviceProps(expr);
     // See through "on_device" calls.
-    Expr true_expr = props.body.defined() ? props.body : expr;
+    Expr true_expr = IgnoreOnDevice(expr);
     VisitExpr(true_expr);
     auto it = storage_device_map_.find(true_expr);
     ICHECK(it != storage_device_map_.end());
@@ -440,31 +439,33 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
   void VisitExpr_(const LetNode* op) override {
     // TODO(giuseros): support Let nodes in AOT
-    CHECK(false) << "Let not yet implemented in AOT";
+    LOG(FATAL) << "Let not yet implemented in AOT";
   }
   void VisitExpr_(const TupleGetItemNode* op) override { VisitExpr(op->tuple); }
   void VisitExpr_(const OpNode* op) override {
-    throw std::runtime_error("can not compile op in non-eta expanded form");
+    LOG(FATAL) << "All OpNodes should have been expanded";
   }
-  void VisitExpr_(const IfNode* op) override { throw std::invalid_argument("if not supported"); }
+  void VisitExpr_(const IfNode* op) override {
+    LOG(FATAL) << "All GlobalVarNodes should be removed before AOT executor's Codegen is called";
+  }
   void VisitExpr_(const FunctionNode* op) override {
     ICHECK(op->GetAttr<String>(attr::kCompiler).defined())
         << "FunctionNode only supported by custom codegen";
   }
   void VisitExpr_(const RefCreateNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "AOT executor does not support references (found RefCreateNode)";
   }
   void VisitExpr_(const RefReadNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "AOT executor does not support references (found RefReadNode)";
   }
   void VisitExpr_(const RefWriteNode* op) override {
-    throw std::invalid_argument("reference not supported");
+    LOG(FATAL) << "AOT executor does not support references (found RefWriteNode)";
   }
   void VisitExpr_(const ConstructorNode* op) override {
-    throw std::invalid_argument("ADT constructor case not yet implemented");
+    LOG(FATAL) << "AOT executor does not support ADTs (found ConstructorNode)";
   }
   void VisitExpr_(const MatchNode* op) override {
-    throw std::invalid_argument("match case not yet implemented");
+    LOG(FATAL) << "AOT executor does not support matching (found MatchNode)";
   }
 
   // Create the main PrimFunc to execute the graph. Please note that

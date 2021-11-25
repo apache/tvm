@@ -276,6 +276,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
+  /*! \brief Map from Buffer to Doc */
+  std::unordered_map<DataProducer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_producer_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
 
@@ -321,7 +323,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const AssertStmtNode* op) override;
   Doc VisitStmt_(const StoreNode* op) override;
   Doc VisitStmt_(const BufferStoreNode* op) override;
+  Doc VisitStmt_(const ProducerStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
+  Doc VisitStmt_(const ProducerRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
@@ -342,7 +346,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc PrintProducer(const DataProducerNode* op);
   Doc BufferNode2Doc(const BufferNode* op, Doc doc);
+  Doc DataProducerNode2Doc(const DataProducerNode* op, Doc doc);
   Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
   Doc PrintBufferRegion(const BufferRegionNode* op);
 
@@ -361,6 +367,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
   Doc AllocBuf(const Buffer& buffer);
+  Doc AllocProducer(const DataProducer& buffer);
   /*!
    * \brief special method to render vectors of docs with a separator
    * \param vec vector of docs
@@ -371,6 +378,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 };
 
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "tir", bool show_meta = false);
+
+String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
+                                 runtime::TypedPackedFunc<std::string(Stmt)> annotate);
 
 }  // namespace tir
 }  // namespace tvm

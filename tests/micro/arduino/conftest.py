@@ -17,36 +17,28 @@
 
 import datetime
 import pathlib
-
+import json
 import pytest
+
 import tvm.target.target
 from tvm.micro import project
 from tvm import micro, relay
 
-TEMPLATE_PROJECT_DIR = (
-    pathlib.Path(__file__).parent
-    / ".."
-    / ".."
-    / ".."
-    / "apps"
-    / "microtvm"
-    / "arduino"
-    / "template_project"
-).resolve()
+TEMPLATE_PROJECT_DIR = pathlib.Path(tvm.micro.get_microtvm_template_projects("arduino"))
+
+
+BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
+
+BOARDS = TEMPLATE_PROJECT_DIR / "boards.json"
 
 
 def arduino_boards() -> dict:
     """Returns a dict mapping board to target model"""
-    template = project.TemplateProject.from_directory(TEMPLATE_PROJECT_DIR)
-    project_options = template.info()["project_options"]
-    for option in project_options:
-        if option["name"] == "arduino_board":
-            boards = option["choices"]
-        if option["name"] == "arduino_model":
-            models = option["choices"]
+    with open(BOARDS) as f:
+        board_properties = json.load(f)
 
-    arduino_boards = {boards[i]: models[i] for i in range(len(boards))}
-    return arduino_boards
+    boards_model = {board: info["model"] for board, info in board_properties.items()}
+    return boards_model
 
 
 ARDUINO_BOARDS = arduino_boards()

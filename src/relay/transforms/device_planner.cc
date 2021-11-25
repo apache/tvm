@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/analysis/device_planner.cc
+ * \file src/relay/transforms/device_planner.cc
  * \brief Determines a unique device to hold the result of every Relay sub-expression.
  *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.

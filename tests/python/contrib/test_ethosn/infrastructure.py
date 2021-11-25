@@ -149,7 +149,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
     """
-    relay.backend.compile_engine.get().clear()
+    relay.backend.te_compiler.get().clear()
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
     ):
@@ -254,7 +254,9 @@ def inference_result(outputs):
 
 def test_error(mod, params, err_msg):
     caught = None
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
+    ):
         with tvm.target.Target("llvm"):
             try:
                 mod = relay.transform.InferType()(mod)
@@ -262,7 +264,7 @@ def test_error(mod, params, err_msg):
             except tvm.error.TVMError as e:
                 caught = e.args[0]
             finally:
-                relay.backend.compile_engine.get().clear()
+                relay.backend.te_compiler.get().clear()
 
     assert caught is not None
     assert err_msg in caught, caught
@@ -324,7 +326,4 @@ def get_ethosn_api_version():
 
 
 def get_ethosn_variant():
-    ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
-    if ethosn_variant_config is not None:
-        return "Ethos-N78_1TOPS_2PLE_RATIO"
-    return "Ethos-N77"
+    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N77")

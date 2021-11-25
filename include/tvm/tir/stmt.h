@@ -1078,9 +1078,9 @@ class MatchBufferRegion : public ObjectRef {
  * \note Block's body is parameterized by iter vars.
  * \code
  *
- *  with T.block([extent0, extent1, ...], name) as [v0, v1, ...]:
- *      T.bind(v0, value0)
- *      T.bind(v1, value1)
+ *  with T.block(name):
+ *      v0 = T.axis.S(domain, value0)
+ *      v1 = T.axis.R(domain, value1)
  *      ...
  *      T.reads([buffer0[start:end, ...], ...])
  *      T.writes([buffer1[start:end, ...], ...])

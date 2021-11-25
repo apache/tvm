@@ -22,6 +22,7 @@ import logging
 import os
 import pathlib
 import contextlib
+import enum
 
 from typing import Union
 from .._ffi import libinfo
@@ -34,8 +35,22 @@ _LOG = logging.getLogger(__name__)
 STANDALONE_CRT_DIR = None
 
 
+class MicroTVMTemplateProject(enum.Enum):
+    ZEPHYR = "zephyr"
+    ARDUINO = "arduino"
+    CRT = "crt"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
 class CrtNotFoundError(Exception):
     """Raised when the standalone CRT dirtree cannot be found."""
+
+
+class MicroTVMTemplateProjectNotFoundError(Exception):
+    """Raised when the microTVM template project dirtree cannot be found."""
 
 
 def get_standalone_crt_dir() -> str:
@@ -62,6 +77,37 @@ def get_standalone_crt_dir() -> str:
             raise CrtNotFoundError()
 
     return STANDALONE_CRT_DIR
+
+
+def get_microtvm_template_projects(platform: str) -> str:
+    """Find microTVM template project directory for specific platform.
+
+    Parameters
+    ----------
+    platform : str
+        Platform type which should be defined in MicroTVMTemplateProject.
+
+    Returns
+    -------
+    str :
+        Path to template project directory for platform.
+    """
+    if platform not in MicroTVMTemplateProject.list():
+        raise ValueError(f"platform {platform} is not supported.")
+
+    if platform == MicroTVMTemplateProject.CRT.value:
+        return os.path.join(get_standalone_crt_dir(), "template", "host")
+
+    microtvm_template_projects = None
+    for path in libinfo.find_lib_path():
+        template_path = os.path.join(os.path.dirname(path), "microtvm_template_projects")
+        if os.path.isdir(template_path):
+            microtvm_template_projects = template_path
+            break
+    else:
+        raise MicroTVMTemplateProjectNotFoundError()
+
+    return os.path.join(microtvm_template_projects, platform)
 
 
 class AutoTvmModuleLoader:

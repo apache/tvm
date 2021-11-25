@@ -33,6 +33,7 @@ import tvm.relay as relay
 
 from tvm.contrib.download import download_testdata
 from tvm.micro.model_library_format import generate_c_interface_header
+from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
 import test_utils
 
@@ -40,23 +41,13 @@ import test_utils
 @tvm.testing.requires_micro
 def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
-
-    if board not in [
-        "qemu_x86",
-        "mps2_an521",
-        "nrf5340dk_nrf5340_cpuapp",
-        "nucleo_l4r5zi",
-        "qemu_cortex_r5",
-    ]:
-        pytest.skip(msg="Model does not fit.")
-
     model = test_utils.ZEPHYR_BOARDS[board]
-    input_shape = (1, 32, 32, 3)
-    output_shape = (1, 10)
+    input_shape = (1, 49, 10, 1)
+    output_shape = (1, 12)
     build_config = {"debug": tvm_debug}
 
-    model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
-    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
+    model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
+    model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -71,20 +62,25 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     # Load TFLite model and convert to Relay
     relay_mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "float32"}
+        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
     )
 
     target = tvm.target.target.micro(
-        model, options=["-link-params=1", "--executor=aot", "--unpacked-api=1", "--interface-api=c"]
+        model,
+        options=[
+            "-link-params=1",
+            "--executor=aot",
+            "--unpacked-api=1",
+            "--interface-api=c",
+            "--workspace-byte-alignment=4",
+        ],
     )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(relay_mod, target, params=params)
 
     # Load sample and generate input/output header files
-    sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/testdata_image_classification_fp32_8.npy"
-    sample_path = download_testdata(
-        sample_url, "testdata_image_classification_fp32_8.npy", module="data"
-    )
+    sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
+    sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
 
     with tempfile.NamedTemporaryFile() as tar_temp_file:
@@ -99,7 +95,7 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
             test_utils.create_header_file("input_data", sample, "include", tf)
             test_utils.create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype="float32"), "include", tf
+                "output_data", np.zeros(shape=output_shape, dtype="int8"), "include", tf
             )
 
         project, _ = test_utils.build_project(
@@ -113,17 +109,16 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
 
     project.flash()
     with project.transport() as transport:
-        timeout_read = 60
-        test_utils.get_message(transport, "#wakeup", timeout_sec=timeout_read)
-        transport.write(b"start\n", timeout_sec=5)
-        result_line = test_utils.get_message(transport, "#result", timeout_sec=timeout_read)
+        aot_transport_init_wait(transport)
+        transport.write(b"infer%", timeout_sec=5)
+        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
 
     result_line = result_line.strip("\n")
     result_line = result_line.split(":")
     result = int(result_line[1])
     time = int(result_line[2])
     logging.info(f"Result: {result}\ttime: {time} ms")
-    assert result == 8
+    assert result == 6
 
 
 @tvm.testing.requires_micro

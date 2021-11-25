@@ -26,10 +26,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = T.float32(0)
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -39,12 +41,14 @@ def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j in T.grid(32, 32):
-        with T.block([32, 32], "init") as [vi, vj]:
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
             for ii, jj in T.grid(4, 4):
                 C[vi * 4 + ii, vj * 4 + jj] = T.float32(0)
 
         for k in range(0, 32):
-            with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 for ii, jj, kk in T.grid(4, 4, 4):
                     C[vi * 4 + ii, vj * 4 + jj] = (
                         C[vi * 4 + ii, vj * 4 + jj]
@@ -58,12 +62,15 @@ def elementwise_with_root(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([]) as []:
-        with T.block([128, 128]) as [vi, vj]:
-            B[vi, vj] = A[vi, vj] + T.float32(1)
-
-        with T.block([128, 128]) as [vi, vj]:
-            C[vi, vj] = B[vi, vj] + T.float32(1)
+    with T.block() as []:
+        for i, j in T.grid(128, 128):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] + T.float32(1)
+        for i, j in T.grid(128, 128):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
 def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
@@ -71,12 +78,13 @@ def func_with_opaque_block(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([]) as []:
-        with T.block([]) as []:
+    with T.block() as []:
+        with T.block() as []:
             B[0, 0] = A[0, 0] + T.float32(1)
-
-        with T.block([128, 128]) as [vi, vj]:
-            C[vi, vj] = B[vi, vj] + T.float32(1)
+        for i, j in T.grid(128, 128):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
 @T.prim_func
@@ -85,14 +93,18 @@ def func_with_part_access_region(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([]) as []:
-        with T.block([128, 128]) as [vi, vj]:
-            T.reads(A[vi, vj])
-            B[vi, vj] = A[vi, vj] + T.float32(1)
+    with T.block() as []:
+        for i, j in T.grid(128, 128):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.reads(A[vi, vj])
+                B[vi, vj] = A[vi, vj] + T.float32(1)
 
-        with T.block([128, 128]) as [vi, vj]:
-            T.writes(C[vi, vj])
-            C[vi, vj] = B[vi, vj] + T.float32(1)
+        for i, j in T.grid(128, 128):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.writes(C[vi, vj])
+                C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
 def test_complete_matmul():
@@ -181,22 +193,23 @@ def func_with_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     index_buf = T.match_buffer(index, (1,), "int32")
     out_buf = T.alloc_buffer((16, 16), "float32")
 
-    with T.block([16, 16]) as [vi, vj]:
-        out_buf[vi, vj] = data_buf[vi, index_buf[0]]
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
 
 @T.prim_func
 def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1)
     data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
-            with T.block([16, 16], "") as [vi, vj]:
-                T.bind(vi, i0)
-                T.bind(vj, i1)
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i0, i1])
                 T.reads([data_buf[vi, 0:16], index_buf[0]])
                 T.writes([out_buf[vi, vj]])
                 out_buf[vi, vj] = data_buf[vi, index_buf[0]]
@@ -208,22 +221,23 @@ def func_with_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> 
     index_buf = T.match_buffer(index, (1,), "int32")
     out_buf = T.alloc_buffer((16, 16), "float32")
 
-    with T.block([16, 16]) as [vi, vj]:
-        out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
+    for i, j in T.grid(16, 16):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
 
 
 @T.prim_func
 def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> None:
     index_buf = T.match_buffer(index, [1], dtype="int32", elem_offset=0, align=128, offset_factor=1)
     data_buf = T.match_buffer(data, [16, 16], elem_offset=0, align=128, offset_factor=1)
-    with T.block([], "root"):
+    with T.block("root"):
         T.reads([])
         T.writes([])
         out_buf = T.alloc_buffer([16, 16], elem_offset=0, align=128, offset_factor=1)
         for i0, i1 in T.grid(16, 16):
-            with T.block([16, 16], "") as [vi, vj]:
-                T.bind(vi, i0)
-                T.bind(vj, i1)
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i0, i1])
                 T.reads([data_buf[0:16, 0:16], index_buf[0]])
                 T.writes([out_buf[vi, vj]])
                 out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
@@ -240,11 +254,11 @@ def test_complete_buffer_indices():
 def match_buffer_func(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     for i in range(0, 16):
-        with T.block([]):
+        with T.block():
             A0 = T.match_buffer(A[i, 0:16], (16))
-            with T.block([]):
+            with T.block():
                 for j in range(0, 16):
-                    with T.block([]) as []:
+                    with T.block() as []:
                         A1 = T.match_buffer(A0[j], ())
                         A1[()] = 1.0
 
@@ -253,15 +267,15 @@ def match_buffer_func(a: T.handle) -> None:
 def expected_match_buffer_func(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16))
     for i in range(0, 16):
-        with T.block([]):
+        with T.block():
             T.reads([])
             T.writes(A[i, 0:16])
             A0 = T.match_buffer(A[i, 0:16], (16))
-            with T.block([]):
+            with T.block():
                 T.reads([])
                 T.writes(A0[0:16])
                 for j in range(0, 16):
-                    with T.block([]) as []:
+                    with T.block() as []:
                         T.reads([])
                         T.writes(A0[j])
                         A1 = T.match_buffer(A0[j], ())
@@ -272,6 +286,34 @@ def test_complete_match_buffer():
     tvm.ir.assert_structural_equal(match_buffer_func, expected_match_buffer_func)
 
 
+@T.prim_func
+def alloc_buffer_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2], dtype="float32")
+    B = T.match_buffer(b, [2, 2], dtype="float32")
+    C = T.alloc_buffer([2, 2], dtype="float32")
+    A[(0, 0)] = T.float32(2)
+    C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
+    B[(0, 0)] = C[(0, 0)]
+
+
+@T.prim_func
+def expect_alloc_buffer_func(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
+    B = T.match_buffer(b, [2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
+    with T.block("root"):
+        T.reads([])
+        T.writes([])
+        C = T.alloc_buffer([2, 2], dtype="float32", elem_offset=0, align=128, offset_factor=1)
+        A[(0, 0)] = T.float32(2)
+        C[(0, 0)] = A[(0, 0)] + B[(0, 0)]
+        B[(0, 0)] = C[(0, 0)]
+
+
+def test_complete_alloc_buffer():
+    rt_func = tvm.script.from_source(alloc_buffer_func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(alloc_buffer_func, expect_alloc_buffer_func)
+
+
 if __name__ == "__main__":
     test_complete_matmul()
     test_complete_matmul_original()
@@ -279,3 +321,4 @@ if __name__ == "__main__":
     test_complete_part_region()
     test_complete_buffer_indices()
     test_complete_match_buffer()
+    test_complete_alloc_buffer()

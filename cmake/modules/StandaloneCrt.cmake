@@ -16,19 +16,8 @@
 # under the License.
 
 if(USE_MICRO)
-  message(STATUS "Build standalone CRT for micro TVM")
+  message(STATUS "Build standalone CRT for microTVM")
   file(GLOB crt_srcs src/runtime/crt/**)
-
-  function(tvm_crt_add_copy_file var src dest)
-    get_filename_component(basename "${src}" NAME)
-    get_filename_component(dest_parent_dir "${dest}" DIRECTORY)
-    add_custom_command(
-        OUTPUT "${dest}"
-        COMMAND "${CMAKE_COMMAND}" -E copy "${src}" "${dest}"
-        DEPENDS "${src}")
-    list(APPEND "${var}" "${dest}")
-    set("${var}" "${${var}}" PARENT_SCOPE)
-  endfunction(tvm_crt_add_copy_file)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
@@ -83,7 +72,7 @@ if(USE_MICRO)
         endif()
         foreach(copy_src IN LISTS copy_files)
           get_filename_component(dest_path "${standalone_crt_base}/${copy_dest}/${copy_src}" ABSOLUTE)
-          tvm_crt_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
+          tvm_micro_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
         endforeach()
       endforeach()
     endforeach()

@@ -23,6 +23,7 @@ import tvm.topi.testing
 from tvm import relay, te
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
+from tvm.topi.testing import searchsorted_ref
 
 from utils import ref_funcs
 from utils.assert_diagnostic import DiagnosticTesting
@@ -2062,6 +2063,58 @@ def test_scatter_nd():
     updates = np.array([2, 3, 0])
     out = np.array([[0, 0], [2, 3]])
     verify_scatter_nd(data, indices, updates, out)
+
+
+@tvm.testing.uses_gpu
+def test_gather():
+    def verify_gather(data_shape, indices_shape, data_shape_np, indices_shape_np, axis):
+        x = relay.var("x", relay.TensorType(data_shape, "float32"))
+        y = relay.var("y", relay.TensorType(indices_shape, "int32"))
+        z = relay.gather(x, axis, y)
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        data_np = np.random.uniform(size=data_shape_np).astype("float32")
+        indices_np = np.random.randint(low=0, high=2, size=indices_shape_np, dtype="int32")
+
+        ref_res = tvm.topi.testing.gather_python(data_np, axis, indices_np)
+        check_result([data_np, indices_np], mod, [ref_res])
+
+    verify_gather((relay.Any(),), (relay.Any(),), (10,), (10,), 0)
+    verify_gather((2, 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), 2), (2, relay.Any()), (2, 2), (2, 3), 1)
+    verify_gather((relay.Any(), relay.Any()), (relay.Any(), relay.Any()), (2, 3), (1, 3), 0)
+
+
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def verify_searchsorted(
+        sorted_sequence_shape, values_shape, sorted_sequence_shape_np, values_shape_np
+    ):
+        x = relay.var("x", relay.TensorType(sorted_sequence_shape, "float32"))
+        y = relay.var("y", relay.TensorType(values_shape, "float32"))
+        z = relay.searchsorted(x, y)
+
+        mod = tvm.IRModule()
+        mod["main"] = relay.Function([x, y], z)
+
+        x_np = np.sort(np.random.uniform(size=sorted_sequence_shape_np).astype("float32"), axis=-1)
+        y_np = np.random.uniform(size=values_shape_np).astype("float32")
+
+        ref_res = searchsorted_ref(x_np, y_np, False, "int32")
+        check_result([x_np, y_np], mod, [ref_res])
+
+    for shape_np, values_shape_np in zip([(8, 9, 10), (10,), (11,)], [(8, 9, 20), (5,), (8, 9, 7)]):
+        sorted_sequence_shape = (relay.Any(),) * len(shape_np)
+        values_shape = (relay.Any(),) * len(values_shape_np)
+
+        verify_searchsorted(
+            sorted_sequence_shape,
+            values_shape,
+            shape_np,
+            values_shape_np,
+        )
 
 
 if __name__ == "__main__":

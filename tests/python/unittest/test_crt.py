@@ -35,6 +35,7 @@ from tvm.target import Target
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.testing import conv2d_nchw_python
 
+pytest.importorskip("tvm.micro.testing")
 from tvm.micro.testing import check_tune_log
 
 BUILD = True

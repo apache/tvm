@@ -146,10 +146,9 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    * \return The corresponding token.
    */
   const std::vector<StorageToken*>& GetToken(const Expr& expr) {
-    this->VisitExpr(expr);
     // See through on_device calls.
-    auto props = GetOnDeviceProps(expr);
-    Expr real_expr = props.body.defined() ? props.body : expr;
+    Expr real_expr = IgnoreOnDevice(expr);
+    this->VisitExpr(real_expr);
     auto it = token_map_.find(real_expr.get());
     ICHECK(it != token_map_.end()) << "Expression not found in storage map:" << std::endl
                                    << PrettyPrint(real_expr);

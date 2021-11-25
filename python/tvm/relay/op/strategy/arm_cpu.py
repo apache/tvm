@@ -130,9 +130,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             if "SMLAD" in isa and kernel_layout == "HWOI":
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.arm_cpu.conv2d_direct_simd),
-                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_direct_simd),
-                    name="conv2d_direct_simd.micro_dev",
+                    wrap_compute_conv2d(topi.arm_cpu.conv2d_nhwc_direct_simd),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nhwc_direct_simd),
+                    name="conv2d_nhwc_direct_simd.micro_dev",
                 )
             elif kernel_layout == "HWIO":
                 is_aarch64 = topi.arm_cpu.arm_utils.is_aarch64_arm()

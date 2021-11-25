@@ -22,6 +22,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm.relay.backend import te_compiler
 import tvm.relay.testing
 import tvm.relay.op as reg
 from tvm import relay
@@ -29,7 +30,6 @@ from tvm import runtime
 from tvm.relay import transform
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
-from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.op.contrib.register import get_pattern_table
@@ -143,7 +143,7 @@ def check_result(
         return lib
 
     def check_vm_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
@@ -157,7 +157,7 @@ def check_result(
             tvm.testing.assert_allclose(out.numpy(), ref, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
@@ -508,7 +508,7 @@ def test_extern_dnnl_mobilenet():
     ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
         i_data, **params
     )
-    compile_engine.get().clear()
+    te_compiler.get().clear()
 
     check_result(mod, {"data": i_data}, (1, 1000), ref_res.numpy(), tol=1e-5, params=params)
 
@@ -950,7 +950,7 @@ def test_dnnl_fuse():
         ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
             i_data, **ref_params
         )
-        compile_engine.get().clear()
+        te_compiler.get().clear()
 
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
 

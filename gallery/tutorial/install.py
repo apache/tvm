@@ -35,8 +35,8 @@ methods for installing TVM. These include:
 # allow you to enable specific features such as GPU support, microcontroller
 # support (microTVM), and a debugging runtime, and other features. You will also
 # want to install from source if you want to actively contribute to the TVM
-# project. The full instructions are on the `Install TVM From Source
-# <https://tvm.apache.org/docs/install/from_source.html>`_ page.
+# project. The full instructions are on the :ref:`Install TVM From Source
+# <install-from-source>` page.
 
 ################################################################################
 # Installing From Binary Packages

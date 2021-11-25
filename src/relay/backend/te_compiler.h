@@ -127,6 +127,7 @@ class TECompiler : public ObjectRef {
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;
+  TVM_DLL static TECompiler& Global();
 };
 
 /*!
@@ -193,7 +194,7 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \returns The pass which lowers primative functions to TIR
+ * \returns The pass which lowers primitive functions to TIR
  */
 transform::Pass LowerTEPass(TargetMap targets, const String& module_name,
                             std::function<void(Function)> process_fn);

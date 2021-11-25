@@ -279,6 +279,9 @@ set(USE_FALLBACK_STL_MAP OFF)
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
 
+# Whether to build the hexagon launcher
+set(USE_HEXAGON_LAUNCHER OFF)
+
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
@@ -344,3 +347,7 @@ set(USE_PAPI OFF)
 # Note that cmake will use `find_package` to find GTest. Please use cmake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
+
+# Enable using CUTLASS as a BYOC backend
+# Need to have USE_CUDA=ON
+set(USE_CUTLASS OFF)

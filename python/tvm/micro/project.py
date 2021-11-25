@@ -184,7 +184,7 @@ def generate_project_from_mlf(
 
     mlf_path : pathlib.Path or str
         Path to the Model Library Format archive that will be used when creating
-        the new project.
+        the new project. The archive file will be copied to project_dir.
 
     options : dict
         Project API options given to the microTVM API server for the specified platform.

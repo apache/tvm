@@ -19,7 +19,7 @@ Provides support to compile networks both AOT and JIT.
 """
 import logging
 import os.path
-from typing import Optional, Dict, List, Union, Callable
+from typing import Any, Optional, Dict, List, Union, Callable
 from pathlib import Path
 
 import tvm
@@ -30,6 +30,7 @@ from tvm.target import Target
 from . import common, composite_target, frontends
 from .model import TVMCModel, TVMCPackage
 from .main import register_parser
+from .target import generate_target_args, reconstruct_target_args
 
 
 # pylint: disable=invalid-name
@@ -91,11 +92,7 @@ def add_compile_parser(subparsers):
         "times, each one to set one configuration value, "
         "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
     )
-    parser.add_argument(
-        "--target",
-        help="compilation targets as comma separated string, inline JSON or path to a JSON file.",
-        required=True,
-    )
+    generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
         metavar="PATH",
@@ -154,6 +151,7 @@ def drive_compile(args):
         desired_layout=args.desired_layout,
         disabled_pass=args.disabled_pass,
         pass_context_configs=args.pass_config,
+        additional_target_options=reconstruct_target_args(args),
     )
 
     return 0
@@ -172,6 +170,7 @@ def compile_model(
     desired_layout: Optional[str] = None,
     disabled_pass: Optional[str] = None,
     pass_context_configs: Optional[List[str]] = None,
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
 ):
     """Compile a model from a supported framework into a TVM module.
 
@@ -215,6 +214,8 @@ def compile_model(
     pass_context_configs: list[str], optional
         List of strings containing a set of configurations to be passed to the
         PassContext.
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]]
+        Additional target options in a dictionary to combine with initial Target arguments
 
 
     Returns
@@ -230,7 +231,7 @@ def compile_model(
     if desired_layout:
         mod = common.convert_graph_layout(mod, desired_layout)
 
-    tvm_target, extra_targets = common.target_from_cli(target)
+    tvm_target, extra_targets = common.target_from_cli(target, additional_target_options)
     tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:

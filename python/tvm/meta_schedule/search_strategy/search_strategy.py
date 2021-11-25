@@ -56,7 +56,7 @@ class MeasureCandidate(Object):
             The argument information.
         """
         self.__init_handle_by_constructor__(
-            _ffi_api.MeasureCandidate,  # pylint: disable=no-member
+            _ffi_api.MeasureCandidate,  # type: ignore # pylint: disable=no-member
             sch,
             args_info,
         )
@@ -80,7 +80,7 @@ class SearchStrategy(Object):
         tune_context : TuneContext
             The tuning context for initialization.
         """
-        _ffi_api.SearchStrategyInitializeWithTuneContext(  # pylint: disable=no-member
+        _ffi_api.SearchStrategyInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
             self, tune_context
         )
 
@@ -92,11 +92,11 @@ class SearchStrategy(Object):
         design_spaces : List[Schedule]
             The design spaces for pre-tuning.
         """
-        _ffi_api.SearchStrategyPreTuning(self, design_spaces)  # pylint: disable=no-member
+        _ffi_api.SearchStrategyPreTuning(self, design_spaces)  # type: ignore # pylint: disable=no-member
 
     def post_tuning(self) -> None:
         """Post-tuning for the search strategy."""
-        _ffi_api.SearchStrategyPostTuning(self)  # pylint: disable=no-member
+        _ffi_api.SearchStrategyPostTuning(self)  # type: ignore # pylint: disable=no-member
 
     def generate_measure_candidates(self) -> Optional[List[MeasureCandidate]]:
         """Generate measure candidates from design spaces for measurement.
@@ -106,7 +106,7 @@ class SearchStrategy(Object):
         measure_candidates : Optional[List[IRModule]]
             The measure candidates generated, None if finished.
         """
-        return _ffi_api.SearchStrategyGenerateMeasureCandidates(self)  # pylint: disable=no-member
+        return _ffi_api.SearchStrategyGenerateMeasureCandidates(self)  # type: ignore # pylint: disable=no-member
 
     def notify_runner_results(self, results: List[RunnerResult]) -> None:
         """Update the search strategy with profiling results.
@@ -116,7 +116,7 @@ class SearchStrategy(Object):
         results : List[RunnerResult]
             The profiling results from the runner.
         """
-        _ffi_api.SearchStrategyNotifyRunnerResults(self, results)  # pylint: disable=no-member
+        _ffi_api.SearchStrategyNotifyRunnerResults(self, results)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("meta_schedule.PySearchStrategy")
@@ -142,7 +142,7 @@ class PySearchStrategy(SearchStrategy):
             self.notify_runner_results(results)
 
         self.__init_handle_by_constructor__(
-            _ffi_api.SearchStrategyPySearchStrategy,  # pylint: disable=no-member
+            _ffi_api.SearchStrategyPySearchStrategy,  # type: ignore # pylint: disable=no-member
             f_initialize_with_tune_context,
             f_pre_tuning,
             f_post_tuning,

@@ -44,6 +44,12 @@ struct Output {
   bool need_copy;
 };
 
+struct GenerateBodyOutput {
+  std::string decl;
+  std::vector<std::string> buffers;
+  std::vector<Output> outputs;
+};
+
 class CSourceModuleCodegenBase {
  public:
   CSourceModuleCodegenBase() = default;

@@ -49,6 +49,14 @@ Array<String> TargetKindRegEntry::ListTargetKinds() {
   return TargetKindRegistry::Global()->ListAllNames();
 }
 
+Map<String, String> TargetKindRegEntry::ListTargetKindOptions(const TargetKind& target_kind) {
+  Map<String, String> options;
+  for (const auto& kv : target_kind->key2vtype_) {
+    options.Set(kv.first, kv.second.type_key);
+  }
+  return options;
+}
+
 TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
@@ -222,6 +230,15 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
+    // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
+    .add_attr_option<Bool>("fast-math")  // implies all the below
+    .add_attr_option<Bool>("fast-math-nnan")
+    .add_attr_option<Bool>("fast-math-ninf")
+    .add_attr_option<Bool>("fast-math-nsz")
+    .add_attr_option<Bool>("fast-math-arcp")
+    .add_attr_option<Bool>("fast-math-contract")
+    .add_attr_option<Bool>("fast-math-reassoc")
+    .add_attr_option<Integer>("opt-level")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
@@ -359,5 +376,7 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("de
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
+    .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
 
 }  // namespace tvm

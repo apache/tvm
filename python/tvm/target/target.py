@@ -31,6 +31,11 @@ from . import _ffi_api
 class TargetKind(Object):
     """Kind of a compilation target"""
 
+    @property
+    def options(self):
+        """Returns the dict of available option names and types"""
+        return dict(_ffi_api.ListTargetKindOptions(self))
+
 
 @tvm._ffi.register_object
 class Target(Object):

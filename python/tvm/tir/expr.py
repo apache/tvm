@@ -442,7 +442,7 @@ class IterVar(Object, ExprOp):
 
 @tvm._ffi.register_object("tir.CommReducer")
 class CommReducer(Object):
-    """Communicative reduce operator
+    """Commutative reduce operator
 
     Parameters
     ----------

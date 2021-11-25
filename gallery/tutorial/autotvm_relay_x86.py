@@ -81,10 +81,9 @@ from tvm.contrib import graph_executor
 #
 # .. note:: Working with Other Model Formats
 #
-#   TVM supports many popular model formats. A list can be found in the `Compile
-#   Deep Learning Models
-#   <https://tvm.apache.org/docs/tutorials/index.html#compile-deep-learning-models>`_
-#   section of the TVM Documentation.
+#   TVM supports many popular model formats. A list can be found in the
+#   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
+#   Documentation.
 
 model_url = "".join(
     [
@@ -107,7 +106,7 @@ onnx_model = onnx.load(model_path)
 # TVMC has adopted NumPy's ``.npz`` format for both input and output data.
 #
 # As input for this tutorial, we will use the image of a cat, but you can feel
-# free to substitute image for any of your choosing.
+# free to substitute this image for any of your choosing.
 #
 # .. image:: https://s3.amazonaws.com/model-server/inputs/kitten.jpg
 #    :height: 224px
@@ -150,9 +149,8 @@ target = "llvm"
 #
 #   Specifying the correct target can have a huge impact on the performance of
 #   the compiled module, as it can take advantage of hardware features
-#   available on the target. For more information, please refer to `Auto-tuning
-#   a convolutional network for x86 CPU
-#   <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-network>`_.
+#   available on the target. For more information, please refer to
+#   :ref:`Auto-tuning a convolutional network for x86 CPU <tune_relay_x86>`.
 #   We recommend identifying which CPU you are running, along with optional
 #   features, and set the target appropriately. For example, for some
 #   processors ``target = "llvm -mcpu=skylake"``, or ``target = "llvm
@@ -280,6 +278,7 @@ import tvm.auto_scheduler as auto_scheduler
 from tvm.autotvm.tuner import XGBTuner
 from tvm import autotvm
 
+################################################################################
 # Set up some basic parameters for the runner. The runner takes compiled code
 # that is generated with a specific set of parameters and measures the
 # performance of it. ``number`` specifies the number of different
@@ -305,6 +304,7 @@ runner = autotvm.LocalRunner(
     enable_cpu_cache_flush=True,
 )
 
+################################################################################
 # Create a simple structure for holding tuning options. We use an XGBoost
 # algorithim for guiding the search. For a production job, you will want to set
 # the number of trials to be larger than the value of 10 used here. For CPU we
@@ -428,6 +428,7 @@ ranks = np.argsort(scores)[::-1]
 for rank in ranks[0:5]:
     print("class='%s' with probability=%f" % (labels[rank], scores[rank]))
 
+################################################################################
 # Verifying that the predictions are the same:
 #
 # .. code-block:: bash

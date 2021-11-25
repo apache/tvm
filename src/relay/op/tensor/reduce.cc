@@ -149,23 +149,41 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
     tvm::Array<tvm::Integer> new_r_axes;
     std::string inferred_in_string = "";
     std::string inferred_out_string = "";
-    int axis_index = 0;
-    for (auto iter_var : layout->axes) {
-      const auto& layout_axis = LayoutAxis::Get(iter_var);
+    auto push_new_axis = [&](const std::string& layout_dim, int axis) {
+      if ((old_r_dims.count(layout_dim) && !params->exclude) ||
+          (!old_r_dims.count(layout_dim) && params->exclude)) {
+        new_r_axes.push_back(tvm::Integer(axis));
+        return true;
+      }
+      return false;
+    };
+    for (size_t axis_index = 0; axis_index < layout->axes.size(); ++axis_index) {
+      const auto& layout_axis = LayoutAxis::Get(layout->axes[axis_index]);
       const std::string& layout_dim = layout_axis.name();
-      // Collect only the primal axis.
       if (layout_axis.IsPrimal()) {
-        if (old_r_dims.count(layout_dim) && !params->exclude) {
-          new_r_axes.push_back(tvm::Integer(axis_index));
-        }
-        if (!old_r_dims.count(layout_dim) && params->exclude) {
-          new_r_axes.push_back(tvm::Integer(axis_index));
-        }
+        push_new_axis(layout_dim, axis_index);
+        inferred_in_string += layout_dim;
         if (!old_r_dims.count(layout_dim) || params->keepdims) {
           inferred_out_string += layout_dim;
         }
-        inferred_in_string += layout_dim;
-        axis_index++;
+      } else {
+        // For example, if the original layout is NCHW, the new layout is NCHW8c, and the original
+        // reduce axes is [1], the new reduce axes become [1, 4].
+        auto primal_dim = layout_axis.ToPrimal().name();
+        auto packed_dim = std::to_string(layout.FactorOf(layout_axis)) + layout_dim;
+        inferred_in_string += packed_dim;
+        if (push_new_axis(primal_dim, axis_index)) {
+          if (params->exclude) {
+            // The primal axis is not reduced, so keep the input packed dim.
+            inferred_out_string += packed_dim;
+          } else {
+            // If the primal axis is part of reduce axes in the original layout, the inner dim
+            // becomes 1 after reduction.
+            inferred_out_string += "1" + layout_dim;
+          }
+        } else {
+          inferred_out_string += packed_dim;
+        }
       }
     }
 

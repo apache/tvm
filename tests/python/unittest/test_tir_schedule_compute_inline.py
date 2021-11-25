@@ -31,10 +31,14 @@ def elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -43,12 +47,18 @@ def elementwise_multi_producer_consumer(a: T.handle, c: T.handle, d: T.handle) -
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0  # B has two consumers
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-    with T.block([128, 128], "D") as [vi, vj]:
-        D[vi, vj] = B[vi, vj] + 2.0 + C[vi, vj]  # D has two producers
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0  # B has two consumers
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = B[vi, vj] + 2.0 + C[vi, vj]  # D has two producers
 
 
 @T.prim_func
@@ -56,10 +66,14 @@ def elementwise_multi_consumer_inlined(a: T.handle, c: T.handle, d: T.handle) ->
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     D = T.match_buffer(d, (128, 128))
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
-    with T.block([128, 128], "D") as [vi, vj]:
-        D[vi, vj] = A[vi, vj] * 2.0 + 2.0 + C[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = A[vi, vj] * 2.0 + 2.0 + C[vi, vj]
 
 
 @T.prim_func
@@ -67,18 +81,24 @@ def elementwise_standalone(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] + 1.0
 
 
 @T.prim_func
 def elementwise_standalone_dce(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] + 1.0
 
 
 @T.prim_func
@@ -88,14 +108,12 @@ def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
     B = T.alloc_buffer((128, 128))
     for i in T.serial(0, 128):
         for j in T.serial(0, 128):
-            with T.block([128, 128], "B") as [vi, vj]:
-                T.bind(vi, i)
-                T.bind(vj, j)
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
         for j in T.serial(0, 128):
-            with T.block([128, 128], "C") as [vi, vj]:
-                T.bind(vi, i)
-                T.bind(vj, j)
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
                 C[vi, vj] = B[vi, vj] + 1.0
 
 
@@ -103,8 +121,10 @@ def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
 def elementwise_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -113,11 +133,15 @@ def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
     B = T.alloc_buffer((128, 128))
     C = T.alloc_buffer((128, 128))
     D = T.match_buffer(d, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-        C[vi, vj] = A[vi, vj] + 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        D[vi, vj] = B[vi, vj] + C[vi, vj]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+            C[vi, vj] = A[vi, vj] + 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = B[vi, vj] + C[vi, vj]
 
 
 @T.prim_func
@@ -125,18 +149,24 @@ def elementwise_multi_reverse_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = (B[vi, vj] + 1.0) * (B[vi, vj] * 2.0) + 3.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = (B[vi, vj] + 1.0) * (B[vi, vj] * 2.0) + 3.0
 
 
 @T.prim_func
 def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        C[vi, vj] = (A[vi, vj] * 2.0 + 1.0) * (A[vi, vj] * 2.0 * 2.0) + 3.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = (A[vi, vj] * 2.0 + 1.0) * (A[vi, vj] * 2.0 * 2.0) + 3.0
 
 
 @T.prim_func
@@ -144,12 +174,16 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        T.reads(B[0:128, 0:128])
-        T.writes(C[0:128, 0:128])
-        C[vi, vj] = T.load("float32", B.data, vi * 128 + vj) + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[0:128, 0:128])
+            T.writes(C[0:128, 0:128])
+            C[vi, vj] = T.load("float32", B.data, vi * 128 + vj) + 1.0
 
 
 @T.prim_func
@@ -157,13 +191,17 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        T.reads(B[0:128, 0:128])
-        T.writes(C[0:128, 0:128])
-        T.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
-        C[vi, vj] = T.load("float32", B.data, vi * 16 + vj) + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[0:128, 0:128])
+            T.writes(C[0:128, 0:128])
+            T.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
+            C[vi, vj] = T.load("float32", B.data, vi * 16 + vj) + 1.0
 
 
 @T.prim_func
@@ -171,11 +209,15 @@ def buffer_matched(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 128], "C") as [vi, vj]:
-        Bb = T.match_buffer(B[vi : vi + 1, vj], (1, 1))
-        C[vi, vj] = Bb[0, 0] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            Bb = T.match_buffer(B[vi : vi + 1, vj], (1, 1))
+            C[vi, vj] = Bb[0, 0] + 1.0
 
 
 @T.prim_func
@@ -183,10 +225,13 @@ def elementwise_predicate(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.block([128, 128], "C") as [vi, vj]:
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
             T.where(B[i, j] < 10.0)
             C[vi, vj] = B[vi, vj] + 1.0
 
@@ -196,7 +241,8 @@ def elementwise_predicate_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     for i, j in T.grid(128, 128):
-        with T.block([128, 128], "C") as [vi, vj]:
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
             T.where(A[i, j] * 2.0 < 10.0)
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
@@ -206,18 +252,24 @@ def elementwise_multi_loads(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     B = T.alloc_buffer((128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with T.block([128, 126], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + B[vi, vj + 1] + B[vi, vj + 2]
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + B[vi, vj + 1] + B[vi, vj + 2]
 
 
 @T.prim_func
 def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
-    with T.block([128, 126], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
 
 
 # pylint: enable=no-member,invalid-name,unused-variable

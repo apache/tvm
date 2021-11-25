@@ -33,9 +33,8 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
     # body
     for blockIdx_x in T.thread_binding(0, 16, "blockIdx.x"):
         for blockIdx_y in T.thread_binding(0, 8, "blockIdx.y"):
-            with T.block([16, 8]) as [bx, by]:
-                T.bind(bx, blockIdx_x)
-                T.bind(by, blockIdx_y)
+            with T.block():
+                bx, by = T.axis.remap("SS", [blockIdx_x, blockIdx_y])
                 shared_A = T.alloc_buffer([1024, 1024], "float16", scope="shared")
                 shared_B = T.alloc_buffer([1024, 1024], "float16", scope="shared")
                 wmma_A = T.alloc_buffer([1024, 1024], "float16", scope="wmma.matrix_a")
@@ -44,9 +43,9 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
                 for ty in T.thread_binding(0, 2, "threadIdx.y"):
                     for tz in T.thread_binding(0, 2, "threadIdx.z"):
                         for i, j in T.grid(2, 4):
-                            with T.block([64, 64]) as [vi, vj]:
-                                T.bind(vi, bx * 4 + ty * 2 + i)
-                                T.bind(vj, by * 8 + tz * 4 + j)
+                            with T.block():
+                                vi = T.axis.S(64, bx * 4 + ty * 2 + i)
+                                vj = T.axis.S(64, by * 8 + tz * 4 + j)
                                 T.reads([])
                                 T.writes(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                                 C0 = T.match_buffer(
@@ -74,23 +73,23 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
                             for tx in T.thread_binding(0, 32, "threadIdx.x"):
                                 for i0, j0 in T.grid(1, 4):
                                     for j1 in T.vectorized(0, 4):
-                                        with T.block([1024, 1024]) as [vi, vj]:
-                                            T.bind(vi, bx * 64 + ty * 32 + tx + i0)
-                                            T.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
+                                        with T.block():
+                                            vi = T.axis.S(1024, bx * 64 + ty * 32 + tx + i0)
+                                            vj = T.axis.S(1024, ko * 32 + tz * 16 + j0 * 4 + j1)
                                             shared_A[vi, vj + 8] = A[vi, vj]
 
                                 for i0, j0 in T.grid(2, 4):
                                     for j1 in T.vectorized(0, 4):
-                                        with T.block([1024, 1024]) as [vi, vj]:
-                                            T.bind(vi, by * 128 + ty * 64 + tx * 2 + i0)
-                                            T.bind(vj, ko * 32 + tz * 16 + j0 * 4 + j1)
+                                        with T.block():
+                                            vi = T.axis.S(1024, by * 128 + ty * 64 + tx * 2 + i0)
+                                            vj = T.axis.S(1024, ko * 32 + tz * 16 + j0 * 4 + j1)
                                             shared_B[vi, vj + 8] = B[vi, vj]
 
                             for ki in range(0, 2):
                                 for i in range(0, 2):
-                                    with T.block([64, 64]) as [vi, vk]:
-                                        T.bind(vi, bx * 4 + ty * 2 + i)
-                                        T.bind(vk, ko * 2 + ki)
+                                    with T.block():
+                                        vi = T.axis.S(64, bx * 4 + ty * 2 + i)
+                                        vk = T.axis.S(64, ko * 2 + ki)
                                         T.reads(
                                             shared_A[
                                                 vi * 16 : vi * 16 + 16,
@@ -142,9 +141,9 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
                                             )
                                         )
                                 for j in range(0, 4):
-                                    with T.block([64, 64]) as [vj, vk]:
-                                        T.bind(vj, by * 8 + tz * 4 + j)
-                                        T.bind(vk, ko * 2 + ki)
+                                    with T.block():
+                                        vj = T.axis.S(64, by * 8 + tz * 4 + j)
+                                        vk = T.axis.S(64, ko * 2 + ki)
                                         T.reads(
                                             shared_B[
                                                 vj * 16 : vj * 16 + 16,
@@ -196,14 +195,10 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
                                             )
                                         )
                                 for i, j in T.grid(2, 4):
-                                    with T.block([64, 64, T.reduce_axis(0, 64)]) as [
-                                        vi,
-                                        vj,
-                                        vk,
-                                    ]:
-                                        T.bind(vi, bx * 4 + ty * 2 + i)
-                                        T.bind(vj, by * 8 + tz * 4 + j)
-                                        T.bind(vk, ko * 2 + ki)
+                                    with T.block():
+                                        vi = T.axis.S(64, bx * 4 + ty * 2 + i)
+                                        vj = T.axis.S(64, by * 8 + tz * 4 + j)
+                                        vk = T.axis.R(64, ko * 2 + ki)
                                         T.reads(
                                             [
                                                 wmma_A[
@@ -258,9 +253,9 @@ def tensorcore_gemm(a: T.handle, b: T.handle, c: T.handle) -> None:
                                             )
                                         )
                         for i, j in T.grid(2, 4):
-                            with T.block([64, 64]) as [vi, vj]:
-                                T.bind(vi, bx * 4 + ty * 2 + i)
-                                T.bind(vj, by * 8 + tz * 4 + j)
+                            with T.block():
+                                vi = T.axis.S(64, bx * 4 + ty * 2 + i)
+                                vj = T.axis.S(64, by * 8 + tz * 4 + j)
                                 T.reads(wmma_C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                                 T.writes(C[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
                                 s0 = T.var("int32")

@@ -52,15 +52,20 @@ def read_csv(report):
 @pytest.mark.skipif(not profiler_vm.enabled(), reason="VM Profiler not enabled")
 @tvm.testing.parametrize_targets
 def test_vm(target, dev):
-    mod, params = mlp.get_workload(1)
-
-    exe = relay.vm.compile(mod, target, params=params)
+    dtype = "float32"
+    x = relay.var("x", shape=(relay.Any(), relay.Any()), dtype=dtype)
+    y = relay.var("y", shape=(relay.Any(), relay.Any()), dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x, y], relay.add(x, y))
+    exe = relay.vm.compile(mod, target)
     vm = profiler_vm.VirtualMachineProfiler(exe, dev)
 
-    data = np.random.rand(1, 1, 28, 28).astype("float32")
-    report = vm.profile(data, func_name="main")
-    assert "fused_nn_softmax" in str(report)
+    data = np.random.rand(28, 28).astype("float32")
+    report = vm.profile(data, data, func_name="main")
+    assert "fused_add" in str(report)
     assert "Total" in str(report)
+    assert "AllocTensorReg" in str(report)
+    assert "AllocStorage" in str(report)
 
     csv = read_csv(report)
     assert "Hash" in csv.keys()
@@ -179,8 +184,15 @@ def test_report_serialization():
     report = vm.profile(data, func_name="main")
 
     report2 = Report.from_json(report.json())
-    # equality on reports compares pointers, so we compare the printed results instead.
-    assert str(report) == str(report2)
+    # Equality on reports compares pointers, so we compare the printed
+    # results instead.
+
+    # Use .table() instead of str(), because str() includes aggregate
+    # and column summations whose values may be impacted by otherwise
+    # negligible conversion errors. (2 occurrences / 3000 trials)
+    assert report.table(aggregate=False, col_sums=False) == report2.table(
+        aggregate=False, col_sums=False
+    )
 
 
 if __name__ == "__main__":
