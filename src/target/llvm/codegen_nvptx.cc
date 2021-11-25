@@ -138,7 +138,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     if (sync == "warp") {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;
-    } else if (sync == "shared") {
+    } else if (sync == "shared" || sync == "shared.dyn") {
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), ::llvm::Intrinsic::nvvm_barrier0);
       return builder_->CreateCall(f, {});
