@@ -15,37 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Kernel generator and profiler for CUTLASS."""
-import logging
-import os
+"""GEMM kernel generator and profiler for CUTLASS."""
+from functools import partial
 import re
-import tempfile
-import subprocess
-import multiprocessing
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
+from .gen_tensor_op import (
+    ProfilerEngine,
+    generate_sm75_tensor_op_1688,
+    generate_sm80_tensor_op_16816,
+)
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
     DataTypeTag,
     LayoutType,
-    MathInstruction,
-    DataType,
-    OpcodeClass,
-    MathOperation,
-    TileDescription,
 )
-
-logger = logging.getLogger("cutlass")
 
 
 def create_gemm_operator(
-    layouts,
     tile_descriptions,
     data_type,
     alignment_constraints,
-    epilogue_functor=EpilogueFunctor.LinearCombination,
     swizzling_functor=SwizzlingFunctor.Identity8,
     batched=False,
 ):
@@ -58,6 +50,10 @@ def create_gemm_operator(
 
     if batched:
         swizzling_functor = SwizzlingFunctor.Batched
+
+    layouts = [
+        (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
+    ]
 
     for layout in layouts:
         for tile_description in tile_descriptions:
@@ -76,7 +72,7 @@ def create_gemm_operator(
                     B,
                     C,
                     element_epilogue,
-                    epilogue_functor,
+                    EpilogueFunctor.LinearCombination,
                     swizzling_functor,
                 )
                 op_bias = GemmOperation(
@@ -110,7 +106,6 @@ def create_gemm_operator(
                     swizzling_functor,
                 )
 
-                kernel_emitter = EmitGemmInstance()
                 op_entry["op"] = op
                 op_entry["name"] = op.procedural_name()
                 op_entry["opdef"] = kernel_emitter.emit(op, batched=batched)
@@ -134,140 +129,11 @@ def create_gemm_operator(
     return ret
 
 
-def generate_tensor_op_common(
-    math_instructions, alignment_constraints, get_tile_descriptions, batched=False
-):
-    """Common kernel generator to be used by archtecture specific generators."""
-    ops = []
-    layouts = [
-        (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
-    ]
-    for math_inst in math_instructions:
-        tile_descriptions = get_tile_descriptions(math_inst)
-        data_type = [
-            math_inst.element_a,
-            math_inst.element_b,
-            math_inst.element_accumulator,
-            math_inst.element_accumulator,
-        ]
-
-        out = create_gemm_operator(
-            layouts, tile_descriptions, data_type, alignment_constraints, batched=batched
-        )
-
-        ops.extend(out)
-
-    return ops
-
-
-def generate_sm75_tensor_op_1688(out_dtype, batched=False):
-    """Generate GEMM kernels for Turing."""
-    assert out_dtype in ["float32", "float16"]
-    math_instructions = {
-        "float32": [
-            MathInstruction(
-                [16, 8, 8],
-                DataType.f16,
-                DataType.f16,
-                DataType.f32,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-        "float16": [
-            MathInstruction(
-                [16, 8, 8],
-                DataType.f16,
-                DataType.f16,
-                DataType.f16,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-    }[out_dtype]
-
-    alignment_constraints = [8, 4, 2, 1]
-
-    def get_tile_descriptions(math_inst):
-        min_cc = 75
-        max_cc = 1024
-        return [
-            TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 64], 2, [1, 2, 2], math_inst, min_cc, max_cc),
-        ]
-
-    return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions, batched
-    )
-
-
-def generate_sm80_tensor_op_16816(out_dtype, batched=False):
-    """Generate GEMM kernels for Ampere."""
-    assert out_dtype in ["float32", "float16"]
-    math_instructions = {
-        "float32": [
-            MathInstruction(
-                [16, 8, 16],
-                DataType.f16,
-                DataType.f16,
-                DataType.f32,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-        "float16": [
-            MathInstruction(
-                [16, 8, 16],
-                DataType.f16,
-                DataType.f16,
-                DataType.f16,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-    }[out_dtype]
-
-    alignment_constraints = [8, 4, 2]
-
-    def get_tile_descriptions(math_inst):
-        min_cc = 80
-        max_cc = 1024
-        max_cc_smem_limited = 80
-        return [
-            TileDescription([256, 128, 32], 3, [4, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 256, 32], 3, [2, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([256, 64, 32], 4, [4, 1, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 256, 32], 4, [1, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 4, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 5, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 32], 10, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([256, 128, 64], 3, [4, 2, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([128, 256, 64], 3, [2, 4, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([256, 64, 64], 4, [4, 1, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([64, 256, 64], 4, [1, 4, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([128, 128, 64], 4, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
-        ]
-
-    return generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions, batched
-    )
-
-
 GENERATOR_FUNC_TABLE = {
     75: generate_sm75_tensor_op_1688,
     80: generate_sm80_tensor_op_16816,
 }
+
 
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
@@ -282,67 +148,7 @@ DEFAULT_KERNELS = {
 }
 
 
-class ProfilerEngine:
-    """Compile and run a given profiler executable."""
-
-    def __init__(self, cuda_arch, cutlass_path, binary_prefix):
-        self.cuda_arch = cuda_arch
-        self.binary_prefix = binary_prefix
-        self.cutlass = cutlass_path
-        self.cflags = "-I{cutlass}/include -I{cutlass}/tools/util/include -O3 -std=c++11".format(
-            cutlass=cutlass_path
-        )
-        self.cflags += " -DCUTLASS_ENABLE_TENSOR_CORE_MMA=1"
-        self.cflags += " -gencode=arch=compute_{arch},code=[sm_{arch},compute_{arch}]".format(
-            arch=cuda_arch
-        )
-        self.cflags += " -Xcompiler=-Wconversion -Xcompiler=-fno-strict-aliasing"
-        self.cmd = "nvcc {cflags} {src} -o {output}"
-
-    def _compile(self, op):
-        os.makedirs(self.binary_prefix, exist_ok=True)
-        opath = os.path.join(self.binary_prefix, op["name"])
-        if os.path.exists(opath):
-            return
-        fi = tempfile.NamedTemporaryFile("w", delete=False, suffix=".cu")
-        fi.write(op["src"])
-        fi.close()
-        cmd = self.cmd.format(cflags=self.cflags, src=fi.name, output=opath)
-        os.system(cmd)
-        os.unlink(fi.name)
-
-    def compile_all(self, ops, use_multiprocessing=False):
-        """Compile all profiler executables."""
-        if use_multiprocessing:
-            pool = multiprocessing.Pool(multiprocessing.cpu_count())
-            pool.map(self._compile, ops)
-        else:
-            for op in ops:
-                self._compile(op)
-
-    def evaluate(self, op, args):
-        """Run the profiler executable corresponding to op_name with args."""
-        op_name = op["name"]
-        opath = os.path.join(self.binary_prefix, op_name)
-        if not os.path.exists(opath):
-            self._compile(op)
-        cmd = [opath]
-        if args is not None:
-            cmd.append(str(args[0]))
-            cmd.append(str(args[1]))
-            cmd.append(str(args[2]))
-            if len(args) > 3:
-                cmd.append(str(args[3]))
-        try:
-            sp = subprocess.run(cmd, capture_output=True, check=True)
-            rt = float(sp.stdout)
-            logger.info("%s, %f", op_name, rt)
-        except subprocess.CalledProcessError:
-            rt = -1
-        return rt
-
-
-class CutlassGemmProfiler(object):
+class CutlassGemmProfiler:
     """Profile all candidate kernels and select the best one."""
 
     def __init__(self, sm, cutlass_path, binary_path):
@@ -364,7 +170,9 @@ class CutlassGemmProfiler(object):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
+        ops = GENERATOR_FUNC_TABLE[self.sm](
+            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
+        )
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
@@ -380,7 +188,9 @@ class CutlassGemmProfiler(object):
         if (M, N, K) in self.cache:
             return self.cache[(M, N, K)]
 
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, batched)
+        ops = GENERATOR_FUNC_TABLE[self.sm](
+            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
+        )
         ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
 
         for op in ops:

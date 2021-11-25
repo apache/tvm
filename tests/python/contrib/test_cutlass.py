@@ -213,7 +213,7 @@ def verify_batch_matmul(
 
     np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
 
-    if True:
+    if run_benchmark:
         print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
         print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
