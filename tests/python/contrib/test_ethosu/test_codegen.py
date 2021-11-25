@@ -841,5 +841,54 @@ def test_ethosu_unary_elementwise(
     infra.verify_source(compiled_models, accel_type)
 
 
+def test_ethosu_section_name():
+    def create_graph_single(input_tensor_name, input_tensor_shape, input_tensor_dtype):
+        c1_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
+        c1_params.ifm.shape = input_tensor_shape
+        c1_params.kernel.shape = (3, 3, c1_params.ifm.shape[3], 32)
+        c1_params.kernel.sc = relay.const(np.random.rand(32) * 2, "float32")
+        c1_params.strides = (1, 1)
+        c1_params.pad = "VALID"
+        c1_params.update_output_qnn_params(
+            input_tensor_dtype, input_tensor_dtype, input_tensor_dtype
+        )
+        input0 = relay.var(input_tensor_name, shape=c1_params.ifm.shape, dtype=c1_params.ifm.dtype)
+        c1, new_params = relay_ir_builder.create_qnn_conv2d(c1_params, input0)
+        c1_params.ofm.shape = get_shape_expr(input0, c1)
+
+        f = relay.Function([input0], c1)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        return mod, [c1_params]
+
+    accel_type = "ethos-u55-256"
+    relay_module, _ = create_graph_single("input", (1, 300, 300, 3), "int8")
+    input_dtype = "int8"
+    mod = partition_for_ethosu(relay_module)
+
+    # Generate reference data
+    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
+    input_data = {
+        "input": np.random.randint(in_min, high=in_max, size=(1, 300, 300, 3), dtype=input_dtype)
+    }
+    output_data = generate_ref_data(relay_module, input_data)
+
+    compiled_models = infra.build_source(
+        mod, input_data, output_data, accel_type, output_tolerance=1
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    source = ethosu_module.get_source()
+    assert (
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t cms_data_data' in source
+    )
+    assert '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t weights' in source
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

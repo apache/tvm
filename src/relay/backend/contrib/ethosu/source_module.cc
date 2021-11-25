@@ -224,17 +224,17 @@ class EthosUModuleNode : public ModuleNode {
     size_t weights_size = (weights_bias_hex.size() / 2);
     ss << "static const size_t weights_size = " << std::to_string(weights_size) << ";\n";
     ss << "static const size_t scratch_size = " << std::to_string(scratch_size) << ";\n";
-    ss << "// Update linker script to place ethosu_scratch in memory that can be accessed by the "
+    ss << "// Update linker script to place .rodata.tvm in memory that can be accessed by the "
           "NPU\n";
     if (weights_size > 0) {
-      ss << "__attribute__((section(\"ethosu_scratch\"), aligned(16))) static int8_t weights["
+      ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t weights["
          << weights_size << "] = \"";
       ss << GetHexString(weights_bias_hex);
       ss << "\";\n";
     } else {
       ss << "static int8_t* weights = NULL;\n";
     }
-    ss << "__attribute__((section(\"ethosu_scratch\"), aligned(16))) static int8_t cms_data_data["
+    ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t cms_data_data["
        << cmms_hex.size() / 2 << "] = \"";
     ss << GetHexString(cmms_hex);
     ss << "\";\n";
