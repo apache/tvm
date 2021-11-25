@@ -565,6 +565,10 @@ def test_tflite_pool2d_legalize(
         ([1, 2, 3, 4], [1, 2, 3, 4], False),
         ([1, 2, 3, 4], [1, 1, 3, 1], False),
         ([1, 1, 3, 1], [1, 2, 3, 4], True),
+        ([1, 4, 4], [4, 1], False),
+        ([4], [4], False),
+        ([4], [1, 2, 3, 4], True),
+        ([1, 4, 4], [4, 1], False),
     ],
 )
 @pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
@@ -621,15 +625,26 @@ def test_tflite_binary_elemwise_legalize(
         shapes = [ifm_shape, ifm2_shape]
         ifm_index, ifm2_index = (1, 0) if reversed_operands else (0, 1)
         op = ext_func.body
-        assert list(op.args[0].checked_type.shape) == shapes[ifm_index]
-        assert list(op.args[1].checked_type.shape) == shapes[ifm2_index]
+
+        has_reshaped_output = False
+        shapes_padded = [[1] * (4 - len(s)) + s for s in shapes]
+        out_padded = [1] * (4 - len(out_shape)) + out_shape
+        if op.op.name != "contrib.ethosu.binary_elementwise":
+            has_reshaped_output = True
+            op = op.args[0]
+
+        assert list(op.args[0].checked_type.shape) == shapes_padded[ifm_index]
+        assert list(op.args[1].checked_type.shape) == shapes_padded[ifm2_index]
         assert op.args[0].checked_type.dtype == dtype
-        assert list(op.checked_type.shape) == out_shape
+        assert list(op.checked_type.shape) == out_padded
         assert op.checked_type.dtype == dtype
         assert op.attrs.operator_type == operator_type
         assert op.attrs.reversed_operands == reversed_operands
         if activation_function == "RELU":
             assert str(op.attrs.activation) == "CLIP"
+
+        if has_reshaped_output:
+            assert list(ext_func.body.checked_type.shape) == out_shape
 
     if operator_type == "ADD":
         rewriter = legalize.AddRewriter()
