@@ -645,61 +645,40 @@ def hexagon(cpu_ver="v66", **kwargs):
 #
 # STM32 Targets
 #
-
-# F412: Flash: 1024KB, RAM: 256KB
-F412_G_OPTIONS = ["-device=arm_cpu", "-mcpu=cortex-m4"]
-# F412: Flash: 512KB, RAM: 256KB
-F412_E_OPTIONS = ["-device=arm_cpu", "-mcpu=cortex-m4"]
-
-# H747: Flash: 1MB, RAM: 1MB
-H747_G_OPTIONS = ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-# H747: Flash: 2MB, RAM: 1MB
-H747_I_OPTIONS = ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
-
-
-STM32_SUPPORTED_MODELS = {
-
-    # F4 Series:
-
-    "STM32F412CG": F412_G_OPTIONS,
-    "STM32F412RG": F412_G_OPTIONS,
-    "STM32F412VG": F412_G_OPTIONS,
-    "STM32F412ZG": F412_G_OPTIONS,
-
-    "STM32F412CE": F412_E_OPTIONS,
-    "STM32F412RE": F412_E_OPTIONS,
-    "STM32F412VE": F412_E_OPTIONS,
-    "STM32F412ZE": F412_E_OPTIONS,
-
-    # H7 Series:
-
-    "STM32H747AG": H747_G_OPTIONS,
-    "STM32H747BG": H747_G_OPTIONS,
-    "STM32H747IG": H747_G_OPTIONS,
-    "STM32H747XG": H747_G_OPTIONS,
-
-    "STM32H747AI": H747_I_OPTIONS,
-    "STM32H747BI": H747_I_OPTIONS,
-    "STM32H747II": H747_I_OPTIONS,
-    "STM32H747XI": H747_I_OPTIONS,
-    "STM32H747ZI": H747_I_OPTIONS,
-    
+STM32_SUPPORTED_SERIES = {
+    # High-Performance
+    "stm32H7xx": ["-device=arm_cpu", "-mcpu=cortex-m7", "-march=armv7e-m"],
+    "stm32F7xx": ["-device=arm_cpu", "-mcpu=cortex-m7"],
+    "stm32F4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F2xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    # Mainstream
+    "stm32G0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
+    "stm32F0xx": ["-device=arm_cpu", "-mcpu=cortex-m0"],
+    "stm32F1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32G4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32F3xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    # Low-power
+    "stm32U5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L5xx": ["-device=arm_cpu", "-mcpu=cortex-m33"],
+    "stm32L4xx": ["-device=arm_cpu", "-mcpu=cortex-m4"],
+    "stm32L1xx": ["-device=arm_cpu", "-mcpu=cortex-m3"],
+    "stm32L0xx": ["-device=arm_cpu", "-mcpu=cortex-m0+"],
 }
 
-def stm32(model="unknown", options=None):
+def stm32(series="unknown", options=None):
     """Returns a STM32 target.
 
     Parameters
     ----------
-    model: str
+    series: str
         Series name of a STM32 board series, eg. stm32H7xx or stm32F4xx
     options : str or list of str
         Additional options
     """
     
-    if model not in STM32_SUPPORTED_MODELS:
-        raise ValueError(f"Series {model} is not supported by tvm.target.stm32.")
-    opts = _merge_opts(STM32_SUPPORTED_MODELS[model], options)
+    if series not in STM32_SUPPORTED_SERIES:
+        raise ValueError(f"Series {series} is not supported by tvm.target.stm32.")
+    opts = _merge_opts(STM32_SUPPORTED_SERIES[series], options)
     return Target(" ".join(["c"] + opts))
 
 def create(target):
