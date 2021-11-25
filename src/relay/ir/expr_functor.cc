@@ -25,6 +25,7 @@
  * the cost of using functional updates.
  */
 #include <tvm/ir/type_functor.h>
+#include <tvm/relay/adt.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
@@ -160,15 +161,12 @@ Expr ExprMutator::VisitExpr(const Expr& expr) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const VarNode* op) {
-  if (op->type_annotation.defined()) {
-    auto type = this->VisitType(op->type_annotation);
-    if (!op->type_annotation.same_as(type)) {
-      return Var(op->vid, type, op->span);
-    }
+Expr ExprMutator::VisitExpr_(const VarNode* var_node) {
+  Type type_annotation = var_node->type_annotation;
+  if (var_node->type_annotation.defined()) {
+    type_annotation = this->VisitType(var_node->type_annotation);
   }
-  // default case return self.
-  return GetRef<Expr>(op);
+  return WithFields(GetRef<Var>(var_node), std::move(var_node->vid), std::move(type_annotation));
 }
 
 Expr ExprMutator::VisitExpr_(const ConstantNode* op) { return GetRef<Expr>(op); }
@@ -188,147 +186,102 @@ Expr ExprMutator::VisitExpr_(const TupleNode* tuple_node) {
   return WithFields(GetRef<Tuple>(tuple_node), std::move(fields));
 }
 
-Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
+Expr ExprMutator::VisitExpr_(const FunctionNode* func_node) {
   tvm::Array<TypeVar> ty_params;
-  bool all_ty_params_unchanged = true;
 
-  for (auto ty_param : op->type_params) {
+  for (auto ty_param : func_node->type_params) {
     TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
     ty_params.push_back(new_ty_param);
-    all_ty_params_unchanged &= new_ty_param.same_as(ty_param);
   }
 
   tvm::Array<Var> params;
-  bool all_params_unchanged = true;
-  for (auto param : op->params) {
+  for (auto param : func_node->params) {
     Var new_param = Downcast<Var>(this->Mutate(param));
     params.push_back(new_param);
-    all_params_unchanged &= param.same_as(new_param);
   }
 
-  auto ret_type = this->VisitType(op->ret_type);
-  auto body = this->Mutate(op->body);
+  auto ret_type = this->VisitType(func_node->ret_type);
+  auto body = this->Mutate(func_node->body);
 
-  if (all_ty_params_unchanged && all_params_unchanged && ret_type.same_as(op->ret_type) &&
-      body.same_as(op->body)) {
-    return GetRef<Expr>(op);
-  } else {
-    return Function(params, body, ret_type, ty_params, op->attrs, op->span);
-  }
+  return WithFields(GetRef<Function>(func_node), std::move(params), std::move(body),
+                    std::move(ret_type), std::move(ty_params));
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
   auto new_op = this->Mutate(call_node->op);
-  bool unchanged = call_node->op.same_as(new_op);
 
   tvm::Array<Type> ty_args;
+  ty_args.reserve(call_node->type_args.size());
+
   for (auto ty_arg : call_node->type_args) {
     auto new_ty_arg = this->VisitType(ty_arg);
     ty_args.push_back(new_ty_arg);
-    unchanged &= new_ty_arg.same_as(ty_arg);
   }
 
   tvm::Array<Expr> call_args;
+  call_args.reserve(call_node->args.size());
   for (auto arg : call_node->args) {
     auto new_arg = this->Mutate(arg);
     call_args.push_back(new_arg);
-    unchanged &= new_arg.same_as(arg);
   }
 
-  if (unchanged) {
-    return GetRef<Expr>(call_node);
-  } else {
-    return Call(new_op, call_args, call_node->attrs, ty_args, call_node->span);
-  }
+  return WithFields(GetRef<Call>(call_node), std::move(new_op), std::move(call_args), {},
+                    std::move(ty_args));
 }
 
-Expr ExprMutator::VisitExpr_(const LetNode* op) {
-  Var var = Downcast<Var>(this->Mutate(op->var));
-  auto value = this->Mutate(op->value);
-  auto body = this->Mutate(op->body);
+Expr ExprMutator::VisitExpr_(const LetNode* let_node) {
+  Var var = Downcast<Var>(this->Mutate(let_node->var));
+  auto value = this->Mutate(let_node->value);
+  auto body = this->Mutate(let_node->body);
 
-  if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body)) {
-    return GetRef<Expr>(op);
-  } else {
-    return Let(var, value, body, op->span);
-  }
+  return WithFields(GetRef<Let>(let_node), std::move(var), std::move(value), std::move(body));
 }
 
-Expr ExprMutator::VisitExpr_(const IfNode* op) {
-  auto guard = this->Mutate(op->cond);
-  auto true_b = this->Mutate(op->true_branch);
-  auto false_b = this->Mutate(op->false_branch);
-  if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
-      op->false_branch.same_as(false_b)) {
-    return GetRef<Expr>(op);
-  } else {
-    return If(guard, true_b, false_b, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const IfNode* if_node) {
+  auto cond = this->Mutate(if_node->cond);
+  auto true_b = this->Mutate(if_node->true_branch);
+  auto false_b = this->Mutate(if_node->false_branch);
+
+  return WithFields(GetRef<If>(if_node), std::move(cond), std::move(true_b), std::move(false_b));
 }
 
 Expr ExprMutator::VisitExpr_(const TupleGetItemNode* get_item) {
-  auto t = this->Mutate(get_item->tuple);
-  if (get_item->tuple == t) {
-    return GetRef<Expr>(get_item);
-  } else {
-    return TupleGetItem(t, get_item->index, get_item->span);
-  }
+  Expr tuple = this->Mutate(get_item->tuple);
+  return WithFields(GetRef<TupleGetItem>(get_item), std::move(tuple));
 }
 
-Expr ExprMutator::VisitExpr_(const RefCreateNode* op) {
-  Expr value = this->Mutate(op->value);
-  if (value.same_as(op->value)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefCreate(value, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefCreateNode* ref_create) {
+  Expr value = this->Mutate(ref_create->value);
+  return WithFields(GetRef<RefCreate>(ref_create), std::move(value));
 }
 
-Expr ExprMutator::VisitExpr_(const RefReadNode* op) {
-  Expr ref = this->Mutate(op->ref);
-  if (ref.same_as(op->ref)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefRead(ref, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefReadNode* ref_read) {
+  Expr ref = this->Mutate(ref_read->ref);
+  return WithFields(GetRef<RefRead>(ref_read), std::move(ref));
 }
 
-Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
-  Expr ref = this->Mutate(op->ref);
-  Expr value = this->Mutate(op->value);
-  if (ref.same_as(op->ref) && value.same_as(op->value)) {
-    return GetRef<Expr>(op);
-  } else {
-    return RefWrite(ref, value, op->span);
-  }
+Expr ExprMutator::VisitExpr_(const RefWriteNode* ref_write) {
+  Expr ref = this->Mutate(ref_write->ref);
+  Expr value = this->Mutate(ref_write->value);
+  return WithFields(GetRef<RefWrite>(ref_write), std::move(ref), std::move(value));
 }
 
 Expr ExprMutator::VisitExpr_(const ConstructorNode* c) { return GetRef<Expr>(c); }
 
-Expr ExprMutator::VisitExpr_(const MatchNode* m) {
-  bool unchanged = true;
-  std::vector<Clause> clauses;
-  for (const Clause& p : m->clauses) {
-    Clause c = VisitClause(p);
-    clauses.push_back(c);
-    unchanged &= c.same_as(p);
+Expr ExprMutator::VisitExpr_(const MatchNode* match_node) {
+  Array<Clause> clauses;
+  for (const Clause& p : match_node->clauses) {
+    clauses.push_back(VisitClause(p));
   }
-  Expr data = Mutate(m->data);
-  unchanged &= data.same_as(m->data);
+  Expr data = Mutate(match_node->data);
 
-  if (unchanged) {
-    return GetRef<Expr>(m);
-  }
-  return Match(data, clauses, m->complete, m->span);
+  return WithFields(GetRef<Match>(match_node), std::move(data), std::move(clauses));
 }
 
-Clause ExprMutator::VisitClause(const Clause& c) {
-  Pattern p = VisitPattern(c->lhs);
-  Expr rhs = Mutate(c->rhs);
-  if (p.same_as(c->lhs) && rhs.same_as(c->rhs)) {
-    return c;
-  }
-  return Clause(p, rhs);
+Clause ExprMutator::VisitClause(const Clause& clause) {
+  Pattern lhs = VisitPattern(clause->lhs);
+  Expr rhs = Mutate(clause->rhs);
+  return WithFields(std::move(clause), std::move(lhs), std::move(rhs));
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
@@ -507,9 +460,9 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
 
   Pattern VisitPattern(const Pattern& p) final { return PatternMutator::VisitPattern(p); }
 
-  Clause VisitClause(const Clause& c) final {
-    Pattern pat = VisitPattern(c->lhs);
-    return Clause(pat, VisitExpr(c->rhs));
+  Clause VisitClause(const Clause& clause) final {
+    Pattern lhs = VisitPattern(clause->lhs);
+    return WithFields(std::move(clause), std::move(lhs), VisitExpr(clause->rhs));
   }
 
   Var VisitVar(const Var& v) final {

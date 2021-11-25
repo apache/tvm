@@ -112,6 +112,24 @@ Var::Var(Id vid, Type type_annotation, Span span) {
   data_ = std::move(n);
 }
 
+Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation,
+               Optional<Span> opt_span) {
+  Id vid = opt_vid.value_or(var->vid);
+  Type type_annotation = opt_type_annotation.value_or(var->type_annotation);
+  Span span = opt_span.value_or(var->span);
+
+  bool unchanged = vid.same_as(var->vid) && type_annotation.same_as(var->type_annotation) &&
+                   span.same_as(var->span);
+
+  if (!unchanged) {
+    VarNode* cow_var_node = var.CopyOnWrite();
+    cow_var_node->vid = vid;
+    cow_var_node->type_annotation = type_annotation;
+    cow_var_node->span = span;
+  }
+  return std::move(var);
+}
+
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Var").set_body_typed([](String str, Type type_annotation) {
@@ -139,6 +157,55 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   data_ = std::move(n);
 }
 
+Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
+                Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
+                Optional<Span> opt_span) {
+  Expr op = opt_op.value_or(call->op);
+  Array<Expr> args = opt_args.value_or(call->args);
+  Attrs attrs = opt_attrs.value_or(call->attrs);
+  Array<Type> type_args = opt_type_args.value_or(call->type_args);
+  Span span = opt_span.value_or(call->span);
+
+  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
+
+  // Check that the args are unchanged
+  if (unchanged) {
+    bool all_args_unchanged = true;
+    if (args.size() == call->args.size()) {
+      for (size_t i = 0; i < args.size(); i++) {
+        all_args_unchanged &= args[i].same_as(call->args[i]);
+      }
+    } else {
+      all_args_unchanged = false;
+    }
+    unchanged &= all_args_unchanged;
+  }
+
+  // Check that the type_args are unchanged
+  if (unchanged) {
+    bool all_type_args_unchanged = true;
+    if (type_args.size() == call->type_args.size()) {
+      for (size_t i = 0; i < type_args.size(); i++) {
+        all_type_args_unchanged &= type_args[i].same_as(call->type_args[i]);
+      }
+    } else {
+      all_type_args_unchanged = false;
+    }
+
+    unchanged &= all_type_args_unchanged;
+  }
+
+  if (!unchanged) {
+    CallNode* cow_call_node = call.CopyOnWrite();
+    cow_call_node->op = op;
+    cow_call_node->args = args;
+    cow_call_node->attrs = attrs;
+    cow_call_node->type_args = type_args;
+    cow_call_node->span = span;
+  }
+  return std::move(call);
+}
+
 TVM_REGISTER_NODE_TYPE(CallNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Call")
@@ -162,6 +229,26 @@ Let::Let(Var var, Expr value, Expr body, Span span) {
   data_ = std::move(n);
 }
 
+Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optional<Expr> opt_body,
+               Optional<Span> opt_span) {
+  Var var = opt_var.value_or(let->var);
+  Expr value = opt_value.value_or(let->value);
+  Expr body = opt_body.value_or(let->body);
+  Span span = opt_span.value_or(let->span);
+
+  bool unchanged = var.same_as(let->var) && value.same_as(let->value) && body.same_as(let->body) &&
+                   span.same_as(let->span);
+
+  if (!unchanged) {
+    LetNode* cow_let_node = let.CopyOnWrite();
+    cow_let_node->var = var;
+    cow_let_node->value = value;
+    cow_let_node->body = body;
+    cow_let_node->span = span;
+  }
+  return std::move(let);
+}
+
 TVM_REGISTER_NODE_TYPE(LetNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Let").set_body_typed([](Var var, Expr value, Expr body) {
@@ -181,6 +268,25 @@ If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   n->false_branch = std::move(false_branch);
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
+              Optional<Expr> opt_false_branch, Optional<Span> opt_span) {
+  Expr cond = opt_cond.value_or(if_expr->cond);
+  Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
+  Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
+  Span span = opt_span.value_or(if_expr->span);
+
+  bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
+                   false_branch.same_as(if_expr->false_branch) && span.same_as(if_expr->span);
+
+  if (!unchanged) {
+    IfNode* cow_if_node = if_expr.CopyOnWrite();
+    cow_if_node->cond = cond;
+    cow_if_node->true_branch = true_branch;
+    cow_if_node->false_branch = false_branch;
+  }
+  return std::move(if_expr);
 }
 
 TVM_REGISTER_NODE_TYPE(IfNode);
@@ -205,6 +311,23 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   data_ = std::move(n);
 }
 
+TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
+                        Optional<Integer> opt_index, Optional<Span> opt_span) {
+  Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
+  Integer index = opt_index.value_or(tuple_get_item->index);
+  Span span = opt_span.value_or(tuple_get_item->span);
+
+  bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
+                   span.same_as(tuple_get_item->span);
+  if (!unchanged) {
+    TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
+    cow_tuple_get_item_node->tuple = tuple;
+    cow_tuple_get_item_node->index = index;
+    cow_tuple_get_item_node->span = span;
+  }
+  return std::move(tuple_get_item);
+}
+
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index) {
@@ -222,6 +345,19 @@ RefCreate::RefCreate(Expr value, Span span) {
   n->value = std::move(value);
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value, Optional<Span> opt_span) {
+  Expr value = opt_value.value_or(ref_create->value);
+  Span span = opt_span.value_or(ref_create->span);
+
+  bool unchanged = value.same_as(ref_create->value) && span.same_as(ref_create->span);
+  if (!unchanged) {
+    RefCreateNode* cow_ref_create_node = ref_create.CopyOnWrite();
+    cow_ref_create_node->value = value;
+    cow_ref_create_node->span = span;
+  }
+  return std::move(ref_create);
 }
 
 TVM_REGISTER_NODE_TYPE(RefCreateNode);
@@ -243,6 +379,19 @@ RefRead::RefRead(Expr ref, Span span) {
   data_ = std::move(n);
 }
 
+RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref, Optional<Span> opt_span) {
+  Expr ref = opt_ref.value_or(ref_read->ref);
+  Span span = opt_span.value_or(ref_read->span);
+
+  bool unchanged = ref.same_as(ref_read->ref) && span.same_as(ref_read->span);
+  if (!unchanged) {
+    RefReadNode* cow_ref_read_node = ref_read.CopyOnWrite();
+    cow_ref_read_node->ref = ref;
+    cow_ref_read_node->span = span;
+  }
+  return std::move(ref_read);
+}
+
 TVM_REGISTER_NODE_TYPE(RefReadNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.RefRead").set_body_typed([](Expr ref) { return RefRead(ref); });
@@ -259,6 +408,23 @@ RefWrite::RefWrite(Expr ref, Expr value, Span span) {
   n->value = std::move(value);
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> opt_value,
+                    Optional<Span> opt_span) {
+  Expr ref = opt_ref.value_or(ref_write->ref);
+  Expr value = opt_value.value_or(ref_write->value);
+  Span span = opt_span.value_or(ref_write->span);
+
+  bool unchanged = ref.same_as(ref_write->ref) && value.same_as(ref_write->value) &&
+                   span.same_as(ref_write->span);
+  if (!unchanged) {
+    RefWriteNode* cow_ref_write_node = ref_write.CopyOnWrite();
+    cow_ref_write_node->ref = ref;
+    cow_ref_write_node->value = value;
+    cow_ref_write_node->span = span;
+  }
+  return std::move(ref_write);
 }
 
 TVM_REGISTER_NODE_TYPE(RefWriteNode);

@@ -291,10 +291,9 @@ class RewriteOnDevices : public ExprMutator {
  private:
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item_node) final {
     Expr tuple = VisitExpr(tuple_get_item_node->tuple);
-    // TODO(mbs): Avoid copy.
-    Expr tuple_get_item =
-        TupleGetItem(tuple, tuple_get_item_node->index, tuple_get_item_node->span);
     OnDeviceProps props = GetOnDeviceProps(tuple);
+
+    Expr tuple_get_item = WithFields(GetRef<TupleGetItem>(tuple_get_item_node), std::move(tuple));
     if (props.body.defined() && !props.is_fixed) {
       VLOG(2) << "wrapping tuple get item:" << std::endl
               << PrettyPrint(GetRef<TupleGetItem>(tuple_get_item_node)) << std::endl
@@ -307,9 +306,9 @@ class RewriteOnDevices : public ExprMutator {
 
   Expr VisitExpr_(const LetNode* let_node) final {
     auto expr = GetRef<Expr>(let_node);
-    std::vector<std::tuple<Var, Expr, Span>> bindings;
+    std::vector<std::tuple<Let, Expr>> bindings;
     while (const auto* inner_let_node = expr.as<LetNode>()) {
-      Expr inner_let = GetRef<Let>(inner_let_node);
+      Let inner_let = GetRef<Let>(inner_let_node);
       Expr value = VisitExpr(inner_let_node->value);
       OnDeviceProps props = GetOnDeviceProps(value);
       if (props.body.defined() && !props.is_fixed) {
@@ -318,14 +317,13 @@ class RewriteOnDevices : public ExprMutator {
                 << "to be fixed to SEScope " << props.se_scope;
         value = OnDevice(props.body, props.se_scope, /*is_fixed=*/true);
       }
-      bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
+      bindings.emplace_back(inner_let, value);
       expr = inner_let_node->body;
     }
     expr = VisitExpr(expr);
-    // TODO(mbs): Avoid copy.
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
-      expr = Let(/*var=*/std::get<0>(*itr), /*value=*/std::get<1>(*itr), expr,
-                 /*span=*/std::get<2>(*itr));
+      expr = WithFields(/*let=*/std::move(std::get<0>(*itr)), /*var = unchanged*/ {},
+                        /*value=*/std::move(std::get<1>(*itr)), /*body=*/std::move(expr));
     }
     return expr;
   }
@@ -339,9 +337,8 @@ class RewriteOnDevices : public ExprMutator {
               << "to be fixed to SEScope " << props.se_scope;
       body = OnDevice(props.body, props.se_scope, /*is_fixed=*/true);
     }
-    // TODO(mbs): Avoid copy
-    return Function(function_node->params, body, function_node->ret_type,
-                    function_node->type_params, function_node->attrs, function_node->span);
+    return WithFields(GetRef<Function>(function_node), std::move(function_node->params),
+                      std::move(body));
   }
 };
 
@@ -820,9 +817,8 @@ class DeviceCapturer : public ExprMutator {
         /*expected_se_scope=*/result_se_scope,
         /*child_se_scope=*/GetSEScope(function_node->body), function_node->body);
 
-    // TODO(mbs): Avoid copy
-    Function func = Function(function_node->params, body, function_node->ret_type,
-                             function_node->type_params, function_node->attrs, function_node->span);
+    Function func = WithFields(GetRef<Function>(function_node), std::move(function_node->params),
+                               std::move(body));
     return FunctionOnDevice(func, std::move(param_se_scopes), std::move(result_se_scope));
   }
 
@@ -884,9 +880,7 @@ class DeviceCapturer : public ExprMutator {
                                 /*child_se_scope=*/GetSEScope(call_node->args[i]),
                                 call_node->args[i]));
     }
-    // TODO(mbs): Avoid copy
-    return Call(std::move(op), std::move(args), call_node->attrs, call_node->type_args,
-                call_node->span);
+    return WithFields(GetRef<Call>(call_node), std::move(op), std::move(args));
   }
 
   Expr VisitExpr_(const LetNode* let_node) final {
@@ -925,37 +919,33 @@ class DeviceCapturer : public ExprMutator {
     Expr cond = VisitChild(ife, if_node->cond);
     Expr true_branch = VisitChild(ife, if_node->true_branch);
     Expr false_branch = VisitChild(ife, if_node->false_branch);
-    // TODO(mbs): Avoid copy
-    return If(cond, true_branch, false_branch, if_node->span);
+    return WithFields(std::move(ife), std::move(cond), std::move(true_branch),
+                      std::move(false_branch));
   }
 
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item_node) final {
     auto tuple_get_item = GetRef<TupleGetItem>(tuple_get_item_node);
     Expr tuple = VisitChild(tuple_get_item, tuple_get_item_node->tuple);
-    // TODO(mbs): Avoid copy
-    return TupleGetItem(tuple, tuple_get_item_node->index, tuple_get_item_node->span);
+    return WithFields(std::move(tuple_get_item), std::move(tuple));
   }
 
   Expr VisitExpr_(const RefCreateNode* ref_create_node) final {
     auto ref_create = GetRef<RefCreate>(ref_create_node);
     Expr value = VisitChild(ref_create, ref_create_node->value);
-    // TODO(mbs): Avoid copy
-    return RefCreate(value, ref_create_node->span);
+    return WithFields(std::move(ref_create), std::move(value));
   }
 
   Expr VisitExpr_(const RefReadNode* ref_read_node) final {
     auto ref_read = GetRef<RefRead>(ref_read_node);
     Expr ref = VisitChild(ref_read, ref_read_node->ref);
-    // TODO(mbs): Avoid copy
-    return RefRead(ref, ref_read_node->span);
+    return WithFields(std::move(ref_read), std::move(ref));
   }
 
   Expr VisitExpr_(const RefWriteNode* ref_write_node) final {
     auto ref_write = GetRef<RefWrite>(ref_write_node);
     Expr ref = VisitChild(ref_write, ref_write_node->ref);
     Expr value = VisitChild(ref_write, ref_write_node->value);
-    // TODO(mbs): Avoid copy
-    return RefWrite(ref, value, ref_write_node->span);
+    return WithFields(std::move(ref_write), std::move(ref), std::move(value));
   }
 
   Expr VisitExpr_(const MatchNode* match_node) final {
@@ -968,8 +958,7 @@ class DeviceCapturer : public ExprMutator {
       Expr rhs = VisitChild(match, clause->rhs);
       clauses.push_back(Clause(lhs, rhs));
     }
-    // TODO(mbs): Avoid copy
-    return Match(data, std::move(clauses), match_node->complete, match_node->span);
+    return WithFields(std::move(match), std::move(data), std::move(clauses));
   }
 
   SEScope GetSEScope(const Expr& expr) {
