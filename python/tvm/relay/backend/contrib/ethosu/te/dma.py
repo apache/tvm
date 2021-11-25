@@ -146,6 +146,12 @@ def write_compute(
 def convert_to_nhwc_compute(tensor: te.Tensor, layout: str, channels: int) -> te.Tensor:
     """Converts a tensor into NHWC layout if it's in NHWCB16 layout.
 
+    When the current layout is NHCWB16, a reduce sum operation is inserted
+    to ensure that the whole of the input tensor has a data dependency on
+    the copy operation. Without this, TVM removes compute that is deemed to
+    be unnecessary, which causes strides for the NPU to be calculated
+    incorrectly.
+
     Parameters
     ----------
     tensor : te.Tensor
@@ -167,9 +173,12 @@ def convert_to_nhwc_compute(tensor: te.Tensor, layout: str, channels: int) -> te
         "layout": layout,
     }
     if layout == "NHCWB16":
+        rc = te.reduce_axis((0, 16), name="rc")
         return te.compute(
             (tensor.shape[0], tensor.shape[1], tensor.shape[3], channels),
-            lambda nn, hh, ww, cc: tensor(nn, hh, te.indexdiv(cc, 16), ww, te.indexmod(cc, 16)),
+            lambda nn, hh, ww, cc: te.sum(
+                tensor(nn, hh, te.indexdiv(cc, 16), ww, te.indexmod(rc, 16)), axis=rc
+            ),
             name="ethosu_convert_to_nhwc",
             attrs=convert_to_nhwc_attrs,
         )
