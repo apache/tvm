@@ -107,11 +107,18 @@ The TVM STM32 code generation is based on a lightweight [runtime API](#stm32-run
 
 ### Compiling a Neural Model
 
-The scripts/compile.py script shows how to use the TVM compiler in order to 
-compile a TFLite network model running on the STM32 microcontrollers. 
+The `scripts/compile.py` script shows how to use the TVM compiler in order to 
+compile a TFLite network model running on the STM32 microcontrollers.
+```
+./scripts/compile.py -model <model>.tflite -target-dir <target_dir> -name <my-model-name>
+```
+The generated model C implementation will be placed to `<target_dir>`.
+The user can give any name to the generated implementation, if omitted, the
+name will be `<model>`, i.e. the name is derived from the tflite file name.
+
 The `CodeEmitter` class from the `tvm.micro.contrib.stm32` package is used to
 generate the C implementation from the TVM C module model.
-The script generates following files inside the `<target_dir>` directory:
+The `scripts/compile.py` script generates following files inside the `<target_dir>` directory:
 
  - `<model_name>.json` : The JSON graph from TVM module
  - `<model_name>.params` : The binary params from TVM module
@@ -145,7 +152,7 @@ SERIAL_NUMBER = 003500193137511439383538
 #
 # Setup the firmware path
 #
-X_CUBE_PATH = .../STM32Cube_FW_H7_V1.9.0
+export X_CUBE_PATH = .../STM32Cube_FW_H7_V1.9.0
 ```
 
 #### Data Placement in the STM32 Memory

@@ -49,14 +49,14 @@ endif
 # -----------------------------------
 #BOARD = disco-h747i
 #SERIAL_NUMBER = 
-#X_CUBE_PATH = 
+#export X_CUBE_PATH = 
 
 # -----------------------------------
 # Nucleao
 # -----------------------------------
 #BOARD = nucleo-f412zg
 #SERIAL_NUMBER = 
-#X_CUBE_PATH = 
+#export X_CUBE_PATH = 
 
 # Indicate the revision of the board (if necessary)
 #  xyy with x:1 for A, 2 for B ...
