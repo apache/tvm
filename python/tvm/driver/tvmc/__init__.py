@@ -19,9 +19,10 @@
 TVMC - TVM driver command-line interface
 """
 
+from . import micro
+from . import runner
 from . import autotuner
 from . import compiler
-from . import runner
 from . import result_utils
 from .frontends import load_model as load
 from .compiler import compile_model as compile

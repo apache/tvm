@@ -557,7 +557,7 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
+    assert groups == 1, "only support groups == 1 when targetting cuda/gpu"
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
@@ -839,7 +839,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         )
     else:
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.cuda.batch_matmul),
+            wrap_compute_batch_matmul(topi.cuda.batch_matmul, need_out_dtype=True),
             wrap_topi_schedule(topi.cuda.schedule_batch_matmul),
             name="batch_matmul.cuda",
             plevel=10,

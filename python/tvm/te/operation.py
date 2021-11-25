@@ -17,14 +17,14 @@
 """ Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List
+from typing import List, Union
 
 import tvm._ffi
-import tvm.tir
-import tvm.tir._ffi_api
 from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
+import tvm.tir
+import tvm.tir._ffi_api
 
 from . import _ffi_api
 from . import tag as _tag
@@ -482,3 +482,23 @@ def create_prim_func(ops: List[_tensor.Tensor]) -> tvm.tir.PrimFunc:
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops)
+
+
+def create_prim_func_from_outputs(
+    outputs: Union[_tensor.Tensor, List[_tensor.Tensor]],
+) -> tvm.tir.PrimFunc:
+    """Create a TensorIR PrimFunc from output tensor(s) in TE
+
+    Parameters
+    ----------
+    outputs : Union[Tensor, List[Tensor]]
+        The source expression.
+
+    Returns
+    -------
+    func : tir.PrimFunc
+        The created function.
+    """
+    if not isinstance(outputs, (list, tuple, Array)):
+        outputs = [outputs]
+    return _ffi_api.CreatePrimFuncFromOutputs(outputs)

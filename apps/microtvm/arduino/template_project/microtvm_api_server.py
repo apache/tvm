@@ -71,22 +71,40 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "arduino_board",
+        required=["build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
-        help="Name of the Arduino board to build for",
+        type="str",
+        help="Name of the Arduino board to build for.",
     ),
-    server.ProjectOption("arduino_cli_cmd", help="Path to the arduino-cli tool."),
-    server.ProjectOption("port", help="Port to use for connecting to hardware"),
+    server.ProjectOption(
+        "arduino_cli_cmd",
+        required=["build", "flash", "open_transport"],
+        type="str",
+        help="Path to the arduino-cli tool.",
+    ),
+    server.ProjectOption(
+        "port",
+        optional=["flash", "open_transport"],
+        type="int",
+        help="Port to use for connecting to hardware.",
+    ),
     server.ProjectOption(
         "project_type",
-        help="Type of project to generate.",
+        required=["generate_project"],
         choices=tuple(PROJECT_TYPES),
+        type="str",
+        help="Type of project to generate.",
     ),
     server.ProjectOption(
-        "verbose", help="True to pass --verbose flag to arduino-cli compile and upload"
+        "verbose",
+        optional=["build", "flash"],
+        type="bool",
+        help="Run arduino-cli compile and upload with verbose output.",
     ),
     server.ProjectOption(
         "warning_as_error",
-        choices=(True, False),
+        optional=["generate_project"],
+        type="bool",
         help="Treat warnings as errors and raise an Exception.",
     ),
 ]

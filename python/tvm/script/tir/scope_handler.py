@@ -110,6 +110,7 @@ class Allocate(WithScopeHandler):
         def allocate(extents, dtype, scope, condition=True, annotations=None, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
+
             return tvm.tir.Allocate(
                 self.buffer_var,
                 dtype,

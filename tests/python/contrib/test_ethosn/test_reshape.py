@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration reshape tests"""
+"""Arm(R) Ethos(TM)-N integration reshape tests"""
 
 import tvm
 from tvm import relay

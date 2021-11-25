@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/backend/contrib/ethosn/codegen_ethosn.h
- * \brief The Relay -> Ethos-N command stream compiler.
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_CODEGEN_ETHOSN_H_

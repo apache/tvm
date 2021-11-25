@@ -183,7 +183,16 @@ int TVMModCreateFromCModule(const TVMModule* mod, TVMModuleHandle* out_handle) {
   return -1;
 }
 
+static const TVMModuleHandle kTVMModuleHandleUninitialized = (TVMModuleHandle)(~0UL);
+
+static TVMModuleHandle system_lib_handle;
+
 int TVMModFree(TVMModuleHandle mod) {
+  /* Never free system_lib_handler */
+  if (mod == system_lib_handle && system_lib_handle != kTVMModuleHandleUninitialized) {
+    return 0;
+  }
+
   tvm_module_index_t module_index;
   if (DecodeModuleHandle(mod, &module_index) != 0) {
     return -1;
@@ -192,10 +201,6 @@ int TVMModFree(TVMModuleHandle mod) {
   registered_modules[module_index] = NULL;
   return 0;
 }
-
-static const TVMModuleHandle kTVMModuleHandleUninitialized = (TVMModuleHandle)(~0UL);
-
-static TVMModuleHandle system_lib_handle;
 
 int SystemLibraryCreate(TVMValue* args, int* type_codes, int num_args, TVMValue* ret_val,
                         int* ret_type_codes) {

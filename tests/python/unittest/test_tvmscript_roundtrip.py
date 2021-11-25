@@ -3155,5 +3155,55 @@ def test_primfunc_with_multiple_commreducer():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+@T.prim_func
+def func_div_mod():
+    a = T.var("int32")
+    b = T.var("int32")
+    T.evaluate(a // b)
+    T.evaluate(a % b)
+    T.evaluate(a / b)
+    T.evaluate(T.truncmod(a, b))
+
+
+def test_div_mod():
+    func = func_div_mod
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+    assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
+    assert isinstance(func.body[1].value, tvm.tir.FloorMod)
+    assert isinstance(func.body[2].value, tvm.tir.Div)
+    assert isinstance(func.body[3].value, tvm.tir.Mod)
+
+
+@T.prim_func
+def loop_extent_dependent(a: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="int32")
+    for i in T.serial(0, 128):
+        for j in T.serial(0, i):
+            A[()] = A[()] + j
+
+
+def test_loop_extent_dependent():
+    func = loop_extent_dependent
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def nontrivial_range_axis(a: T.handle) -> None:
+    A = T.match_buffer(a, (10), "float32")
+    for i in range(10):
+        with T.block("block"):
+            vi = T.axis.spatial((1, 11), i + 1)
+            A[vi - 1] = A[vi - 1] + 1.0
+
+
+def test_nontrivial_range_axis():
+    func = nontrivial_range_axis
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

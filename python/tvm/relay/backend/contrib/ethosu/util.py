@@ -75,6 +75,43 @@ class ClipArgs(Enum):
     A_MAX = 2
 
 
+class BinaryElementwiseArgs(Enum):
+    """This is a helper enums to access the correct index
+    of binary elementwise arguments
+    """
+
+    IFM = 0
+    IFM2 = 1
+    IFM_SCALE = 2
+    IFM_ZERO_POINT = 3
+    IFM2_SCALE = 4
+    IFM2_ZERO_POINT = 5
+    OFM_SCALE = 6
+    OFM_ZERO_POINT = 7
+
+
+class QuantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    quantize arguments
+    """
+
+    IFM = 0
+    OFM_SCALE = 1
+    OFM_ZERO_POINT = 2
+
+
+class DequantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    dequantize arguments
+    """
+
+    IFM = 0
+    IFM_SCALE = 1
+    IFM_ZERO_POINT = 2
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
@@ -139,7 +176,7 @@ def round_up(a: int, b: int) -> int:
 
 def get_accelerator_config():
     """Get the variant of the accelerator to compile for"""
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     return compiler_attrs.accelerator_config
 
 
