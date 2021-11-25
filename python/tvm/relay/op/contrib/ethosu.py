@@ -516,11 +516,12 @@ class BinaryElementwiseParams:
         self.activation = clip
         self.operator_type = operator_type
 
-        def can_broadcast(x, y):
-            for i in range(1, 4):
-                if x.shape[i] == y.shape[i] or y.shape[i] == 1:
-                    continue
+        def can_broadcast(ifm, ifm2):
+            if len(ifm.shape) < len(ifm2.shape):
                 return False
+            for m, n in zip(ifm.shape[::-1], ifm2.shape[::-1]):
+                if m != n and m == 1:
+                    return False
             return True
 
         if can_broadcast(self.ifm, self.ifm2):
@@ -539,9 +540,14 @@ class BinaryElementwiseParams:
         """
         if np.dtype(self.ofm) == np.int32 and self.activation is not None:
             return False
-        if len(self.ifm.shape) != 4 or len(self.ifm2.shape) != 4:
+        # Due to identity operator requiring ofm != int32 for now
+        if np.dtype(self.ofm) == np.int32 and len(self.ofm.shape) < 4:
             return False
-        if self.ifm.shape[0] != 1 or self.ifm2.shape[0] != 1:
+        if len(self.ifm.shape) > 4 or len(self.ifm2.shape) > 4:
+            return False
+        if len(self.ifm.shape) == 4 and self.ifm.shape[0] != 1:
+            return False
+        if len(self.ifm2.shape) == 4 and self.ifm2.shape[0] != 1:
             return False
         if not self.valid_broadcast:
             return False
