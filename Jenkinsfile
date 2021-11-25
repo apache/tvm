@@ -235,7 +235,7 @@ def cmake_build(image, path, make_flag) {
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: "Build and run C++ tests",
   )
 }
