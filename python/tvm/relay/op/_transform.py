@@ -67,6 +67,10 @@ _reg.register_injective_schedule("matrix_set_diag")
 _reg.register_injective_schedule("adv_index")
 
 
+@_reg.register_compute("concatenate")
+def compute_concat(attrs, inputs, output_type):
+    return [topi.concatenate(inputs, attrs.axis)]
+
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
 
