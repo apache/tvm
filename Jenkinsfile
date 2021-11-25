@@ -531,7 +531,7 @@ stage('Integration Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
             sh (
-              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+              script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend.sh",
               label: "Run Python frontend tests",
             )
             junit "build/pytest-results/*.xml"
