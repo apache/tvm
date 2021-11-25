@@ -47,6 +47,7 @@ struct RawGraphDef {
   uint32_t compiled_graph_size;
   std::vector<tim::vx::TensorSpec> inputs_spec;
   std::vector<tim::vx::TensorSpec> outputs_spec;
+  std::vector<uint32_t> output_map;
 };
 
 class TensorMakerImpl : private ExprVisitor {
@@ -75,7 +76,6 @@ class TensorMakerImpl : private ExprVisitor {
   VxOpTable vxOpmap_tbl_;
   IRModule module_;
   GlobalVar var_;
-
 };
 
 std::map<Expr, std::shared_ptr<OpSetup>> MakeTensor(const IRModule& module, const GlobalVar& var,

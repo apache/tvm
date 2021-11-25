@@ -48,11 +48,15 @@ struct TensorSpecIR {
 
 class VsiNpuModule : public ModuleNode {
  public:
-  VsiNpuModule(const std::shared_ptr<char>& nbg_buffer,
-               uint32_t nbg_size,
+  VsiNpuModule(const std::shared_ptr<char>& nbg_buffer, uint32_t nbg_size,
                const std::vector<tim::vx::TensorSpec>& inputs_spec,
-               const std::vector<tim::vx::TensorSpec>& outputs_spec)
-      : compiled_nbg_(nbg_buffer), nbg_size_(nbg_size), inputs_(inputs_spec), outputs_(outputs_spec){};
+               const std::vector<tim::vx::TensorSpec>& outputs_spec,
+               const std::vector<uint32_t>& output_map)
+      : compiled_nbg_(nbg_buffer),
+        nbg_size_(nbg_size),
+        inputs_(inputs_spec),
+        outputs_(outputs_spec),
+        output_map_(output_map){};
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
@@ -92,6 +96,7 @@ class VsiNpuModule : public ModuleNode {
   uint32_t nbg_size_;
   std::vector<tim::vx::TensorSpec> inputs_;
   std::vector<tim::vx::TensorSpec> outputs_;
+  std::vector<uint32_t> output_map_;
 
   std::shared_ptr<tim::vx::Context> vx_context_;
   std::shared_ptr<tim::vx::Graph> vx_graph_;

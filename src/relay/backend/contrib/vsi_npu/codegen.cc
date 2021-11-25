@@ -130,6 +130,7 @@ std::map<Expr, std::shared_ptr<OpSetup>>
 TensorMakerImpl::Create(const Expr &expr) {
   this->vxOpmap_tbl_.clear();
   CHECK(expr->checked_type().defined());
+
   if (auto tuple = expr->checked_type().as<TupleTypeNode>()) {
     auto specs = GetTimVxTensorSpec(tuple);
     auto tn = expr.as<TupleNode>();
@@ -293,12 +294,31 @@ RawGraphDef GraphMakerImpl::Create(const Function &func) {
   vx_graph_->PrintGraph();
   auto final_graph = tim::transform::LayoutInference(vx_graph_, vx_global_ctx_);
   final_graph.first->PrintGraph();
-  size_t bin_size = -1;
+
+  std::vector<std::shared_ptr<tim::vx::Tensor>> origin_graph_output_tensors;
+  std::vector<std::shared_ptr<tim::vx::Tensor>> final_graph_output_tensors;
+  std::vector<uint32_t> output_map;
+
+  for (const auto& io_tensor : vx_graph_->OutputsTensor()) {
+      origin_graph_output_tensors.push_back(io_tensor);
+  }
 
   for (const auto& io_tensor : final_graph.first->OutputsTensor()) {
+      final_graph_output_tensors.push_back(io_tensor);
       output_spec.push_back(io_tensor->GetSpec());
   }
 
+  for(auto origin_graph_output_tensor: origin_graph_output_tensors){
+    auto final_graph_map_tensor = final_graph.second[origin_graph_output_tensor];
+    for(uint32_t i=0;i<final_graph_output_tensors.size();i++){
+      if(final_graph_map_tensor == final_graph_output_tensors[i]){
+        output_map.push_back(i);
+        break;
+      }
+    }
+  }
+
+  size_t bin_size = -1;
   bool is_ok = final_graph.first->CompileToBinary(nullptr, &bin_size);
   if (!is_ok) {
     LOG(FATAL) <<  __FUNCTION__ << " fail ";
@@ -313,6 +333,7 @@ RawGraphDef GraphMakerImpl::Create(const Function &func) {
   result.compiled_graph_size = bin_size;
   result.inputs_spec = input_spec;
   result.outputs_spec = output_spec;
+  result.output_map = output_map;
   return result;
 }
 
@@ -388,8 +409,8 @@ tvm::runtime::Module VsiNpuCompiler::CreateRuntimeModule(const ObjectRef &ref) {
   }
 
   return tvm::runtime::Module(make_object<tvm::runtime::vsi_npu::VsiNpuModule>(
-      raw_graph.compiled_graph, raw_graph.compiled_graph_size,
-      raw_graph.inputs_spec, raw_graph.outputs_spec));
+      raw_graph.compiled_graph, raw_graph.compiled_graph_size, raw_graph.inputs_spec,
+      raw_graph.outputs_spec, raw_graph.output_map));
 }
 
 } // namespace vsi_npu

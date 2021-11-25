@@ -87,7 +87,6 @@ class OpSetup {
   std::shared_ptr<CallbackExpr> pCallbackexpr_ = nullptr;
   std::vector<tim::vx::TensorSpec> specs_;
   std::vector<std::shared_ptr<tim::vx::Tensor>> ptensors_;
-  // std::shared_ptr<tim::vx::Operation> operation_;
 };
 
 void UpdateInputTableInfo(std::map<Expr, std::shared_ptr<OpSetup>>& VxOp_tb, Expr expr,

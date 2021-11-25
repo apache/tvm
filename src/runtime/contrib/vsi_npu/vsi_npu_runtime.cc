@@ -67,6 +67,7 @@ PackedFunc VsiNpuModule::GetFunction(const std::string& name,
     auto compiled_nbg_ = this->compiled_nbg_;
     auto inputs_ = this->inputs_;
     auto outputs_ = this->outputs_;
+    auto output_map = this->output_map_;
 
     auto nbg_node = vx_graph_->CreateOperation<tim::vx::ops::NBG>(compiled_nbg_.get(),
                                                                   inputs_.size(), outputs_.size());
@@ -106,7 +107,7 @@ PackedFunc VsiNpuModule::GetFunction(const std::string& name,
     LOG(INFO) << __FUNCTION__ << args.size();
     for (uint32_t i = 0; i < outputs_.size(); i++) {
       DLTensor* out_tensor_tvm = args[argc++];
-      outputs[i]->CopyDataFromTensor(static_cast<uint8_t*>(out_tensor_tvm->data));
+      outputs[output_map[i]]->CopyDataFromTensor(static_cast<uint8_t*>(out_tensor_tvm->data));
     }
   });
 }
@@ -180,10 +181,13 @@ void VsiNpuModule::SaveToBinary(dmlc::Stream* stream) {
 
   stream->Write(this->inputs_.size());
   stream->Write(this->outputs_.size());
+  stream->Write(this->output_map_.data(),output_map_.size()*sizeof(uint32_t));
 
   LOG(INFO) << __FUNCTION__ << ": nbg size = " << this->nbg_size_
             << ": input size = " << this->inputs_.size()
-            << ": output size = " << this->outputs_.size();
+            << ": output size = " << this->outputs_.size()
+            << ": output map size ="<<this->output_map_.size();
+
   for (auto& t_spec : this->inputs_) {
     std::stringstream ss;
     this->SerializeTensorSpec(t_spec, ss);
@@ -210,9 +214,13 @@ Module VsiNpuModule::LoadFromBinary(void* strm) {
   uint64_t output_size;
   stream->Read(&output_size);
 
+  std::vector<uint32_t> output_map(output_size);
+  stream->Read(output_map.data(),output_size*sizeof(uint32_t));
+
   LOG(INFO) << __FUNCTION__ << ": nbg size = " << nbg_size 
             << ": input size = " << input_size
-            << ": output size = " << output_size;
+            << ": output size = " << output_size
+            << ": output_map size = " << output_map.size();
 
   std::vector<tim::vx::TensorSpec> inputs_spec;
   for (size_t i = 0; i < input_size; i++) {
@@ -231,7 +239,7 @@ Module VsiNpuModule::LoadFromBinary(void* strm) {
   }
 
   return tvm::runtime::Module(make_object<tvm::runtime::vsi_npu::VsiNpuModule>(
-      nbg_buf, nbg_size, inputs_spec, outputs_spec));
+      nbg_buf, nbg_size, inputs_spec, outputs_spec, output_map));
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vsi_npu")
