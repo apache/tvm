@@ -27,7 +27,7 @@ from tvm.ir.expr import PrimExpr, Range
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
-from tvm import target
+from tvm.target import Target
 from tvm.ir import Span
 from tvm.tir import IntImm, IterVar
 
@@ -846,7 +846,7 @@ class FuncAttr(SpecialStmt):
 
 
 @register
-class Target(SpecialStmt):
+class TargetAttrValue(SpecialStmt):
     """Special Stmt for target attr value.
     Example
     -------
@@ -863,4 +863,4 @@ class Target(SpecialStmt):
     def __call__(self, target_str):
         if not isinstance(target_str, str):
             raise ArgumentError(f"T.target expected a config string, but got {type(target_str)}")
-        return target.Target(target_str)
+        return Target(target_str)
