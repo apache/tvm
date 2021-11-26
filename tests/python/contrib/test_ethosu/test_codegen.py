@@ -898,7 +898,7 @@ def test_tflite_tanh(accel_type):
         ([(1, 5, 2, 1), (1, 5, 7, 1), (1, 5, 3, 1)], 2),
     ],
 )
-def test_tflite_concat_codegen(shapes, axis, accel_type):
+def test_tflite_concat(shapes, axis, accel_type):
     def create_tflite_graph():
         class Model(tf.Module):
             @tf.function

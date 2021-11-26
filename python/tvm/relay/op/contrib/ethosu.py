@@ -1037,7 +1037,8 @@ def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
 
 class ConcatParams:
     """
-    A class to extract and store parameters of Concatenate in a Ethos-U friendly way
+    This class will parse a call to a ethos-u.concat composite function
+    and extract the parameter information.
     """
 
     composite_name = "ethos-u.concat"

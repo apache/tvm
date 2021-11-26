@@ -45,7 +45,8 @@ def get_unary_elementwise_params(stmt, producers, consumers):
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the unary elementwise output pointer.
-
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
 

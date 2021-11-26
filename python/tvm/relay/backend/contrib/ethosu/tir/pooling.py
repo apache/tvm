@@ -50,6 +50,8 @@ def get_pooling_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
