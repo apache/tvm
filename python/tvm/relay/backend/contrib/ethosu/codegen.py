@@ -90,14 +90,14 @@ class OptimizeLUTs(ExprMutator):
         new_call = call
         lut_activations = ["TANH", "LUT"]
 
-        if (
-            call.op.name == "contrib.ethosu.identity"
-            and call.attrs.activation in lut_activations
-            and isinstance(call.args[0], tvm.relay.expr.Call)
-        ):
+        if isinstance(call.op, tvm.ir.Op) and isinstance(call.args[0], tvm.relay.expr.Call):
             producer_op = call.args[0]
             # Check if the producer can do a LUT operation
-            if producer_op.op.name in self.lut_ops.keys():
+            if (
+                producer_op.op.name in self.lut_ops.keys()
+                and call.op.name == "contrib.ethosu.identity"
+                and call.attrs.activation in lut_activations
+            ):
                 # Check the producer doesn't already have a LUT
                 has_lut = producer_op.attrs.activation in lut_activations
                 if not has_lut:

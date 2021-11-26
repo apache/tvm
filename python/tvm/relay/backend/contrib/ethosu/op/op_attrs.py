@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The attributes node used for EthosU Relay operators."""
+"""The attributes node used for Arm(R) Ethos(TM)-U NPU Relay operators."""
 from tvm.ir import Attrs
 import tvm._ffi
 
