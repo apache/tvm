@@ -249,6 +249,10 @@ BSD 3-Clause "New" or "Revised" License
 Zlib License
 -------------
 
+3rdparty/stm32-runtime/pb_common.h
+3rdparty/stm32-runtime/pb_encode.h
+3rdparty/stm32-runtime/pb_decode.h
+3rdparty/stm32-runtime/stm32msg.pb.h
 3rdparty/stm32-runtime/pb_common.c
 3rdparty/stm32-runtime/pb_encode.c
 3rdparty/stm32-runtime/pb_decode.c
