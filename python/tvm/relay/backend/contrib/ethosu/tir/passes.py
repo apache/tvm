@@ -488,3 +488,34 @@ def EncodeConstants(const_dict):
         return new_func, new_const_dict
 
     return _encode_constants
+
+
+# This need to be kept in sync with kDisableLowerTVMBuiltin in include/tvm/tir/transform.h
+DISABLE_LOWER_BUILTIN = "disable_lower_builtin"
+
+
+def AnnotateAllocates():
+    """
+    This is pass to annotate all allocate
+    nodes of the PrimFuncs of the microNPU
+    to be not lowered to built-ins.
+    """
+
+    def _post_transform(allocate):
+        return tvm.tir.Allocate(
+            buffer_var=allocate.buffer_var,
+            dtype=allocate.dtype,
+            extents=allocate.extents,
+            condition=allocate.condition,
+            body=allocate.body,
+            annotations={DISABLE_LOWER_BUILTIN: True},
+        )
+
+    def _ftransform(f, mod, ctx):
+        return f.with_body(
+            tvm.tir.stmt_functor.ir_transform(f.body, None, _post_transform, ["tir.Allocate"])
+        )
+
+    return tvm.tir.transform.prim_func_pass(
+        _ftransform, opt_level=0, name="tir.ethosu.annotate_allocates"
+    )
