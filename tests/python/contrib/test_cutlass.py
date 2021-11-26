@@ -321,6 +321,9 @@ def verify_conv2d(
     rtol=1e-5,
     run_benchmark=False,
 ):
+    if not has_cutlass():
+        return
+
     np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
     np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
 
