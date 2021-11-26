@@ -48,6 +48,7 @@ def unary_elementwise_compute(
     operator_type: str
         The type of the unary elementwise operator.
             "ABS"
+            "CLZ"
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
@@ -111,7 +112,11 @@ def unary_elementwise_compute(
         "rounding_mode": rounding_mode,
     }
 
-    operators = {"ABS": te.abs}
+    def clz_imp(inp):
+        # Assuming that it's a 32 bit int
+        return 32 - te.log2(inp)
+
+    operators = {"ABS": te.abs, "CLZ": clz_imp}
 
     unary_elementwise = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
