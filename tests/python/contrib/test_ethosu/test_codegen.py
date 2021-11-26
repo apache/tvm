@@ -988,9 +988,7 @@ def test_ethosu_clz(accel_type):
 
     out_data = np.array([clz_comp(i) for i in in_data.ravel()]).reshape(ifm_shape).astype("int32")
 
-    compiled_model = infra.build_source(
-        mod, {"ifm": in_data}, [out_data], accel_type, output_tolerance=1
-    )
+    compiled_model = infra.build_source(mod, {"ifm": in_data}, [out_data], accel_type)
 
     imported_modules = compiled_model[0].executor_factory.lib.imported_modules
     assert len(imported_modules) == 2
