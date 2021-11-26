@@ -52,7 +52,11 @@ def get_unary_elementwise_params(stmt, producers, consumers):
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     input_pointer = None
     if isinstance(inner.value, tir.expr.Select):
+        # ABS
         input_pointer = inner.value.condition.b.buffer_var
+    if isinstance(inner.value, tir.expr.Sub):
+        # CLZ
+        input_pointer = inner.value.b.args[0].buffer_var
     output_pointer = inner.buffer_var
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)

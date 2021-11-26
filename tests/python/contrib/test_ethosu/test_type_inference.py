@@ -381,14 +381,16 @@ def test_ethosu_identity_invalid_dtype():
 @pytest.mark.parametrize(
     "ofm_shape, ofm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
 )
+@pytest.mark.parametrize("operator_type, data_type", [("ABS", "int8"), ("CLZ", "int32")])
 def test_ethosu_unary_elementwise_type_inference(
     ifm_shape,
     ifm_layout,
     ofm_shape,
     ofm_layout,
+    operator_type,
+    data_type,
 ):
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-    operator_type = "ABS"
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=data_type)
     ofm_channels = 33
     unary_elementwise = make_ethosu_unary_elementwise(
         ifm,

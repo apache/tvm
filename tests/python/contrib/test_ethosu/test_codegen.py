@@ -969,5 +969,39 @@ def test_ethosu_section_name():
     assert '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t weights' in source
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+def test_ethosu_clz(accel_type):
+    ifm_shape = (1, 42, 5, 4)
+    # Create a "partitioned" Relay function
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int32")
+    clz = infra.make_ethosu_unary_elementwise(ifm0, 4, "CLZ")
+    mod = infra.make_partitioned_function(clz)
+
+    in_data = np.random.randint(-500000, high=500000, size=ifm_shape, dtype="int32")
+
+    def clz_comp(n):
+        n_bin = np.binary_repr(n)
+        if n_bin[0] == "-":
+            return 0
+        else:
+            return 32 - len(n_bin)
+
+    out_data = np.array([clz_comp(i) for i in in_data.ravel()]).reshape(ifm_shape).astype("int32")
+
+    compiled_model = infra.build_source(mod, {"ifm": in_data}, [out_data], accel_type)
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
