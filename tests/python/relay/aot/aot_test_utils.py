@@ -590,7 +590,6 @@ def compile_models(
     interface_api: str,
     use_unpacked_api: bool,
     workspace_byte_alignment: int = 8,
-    constants_byte_alignment: int = 16,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
     use_runtime_executor: bool = True,
@@ -608,7 +607,6 @@ def compile_models(
         "aot",
         {
             "workspace-byte-alignment": workspace_byte_alignment,
-            "constants-byte-alignment": constants_byte_alignment,
             "interface-api": interface_api,
             "unpacked-api": use_unpacked_api,
         },
