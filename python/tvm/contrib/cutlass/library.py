@@ -70,21 +70,21 @@ class LayoutType(enum.Enum):
 LayoutTag = {
     LayoutType.ColumnMajor: "cutlass::layout::ColumnMajor",
     LayoutType.RowMajor: "cutlass::layout::RowMajor",
-    LayoutType.TensorNHWC: 'cutlass::layout::TensorNHWC',
+    LayoutType.TensorNHWC: "cutlass::layout::TensorNHWC",
 }
 
 
 TransposedLayout = {
     LayoutType.ColumnMajor: LayoutType.RowMajor,
     LayoutType.RowMajor: LayoutType.ColumnMajor,
-    LayoutType.TensorNHWC: LayoutType.TensorNHWC
+    LayoutType.TensorNHWC: LayoutType.TensorNHWC,
 }
 
 
 ShortLayoutTypeNames = {
     LayoutType.ColumnMajor: "n",
     LayoutType.RowMajor: "t",
-    LayoutType.TensorNHWC: 'nhwc',
+    LayoutType.TensorNHWC: "nhwc",
 }
 
 
@@ -112,10 +112,7 @@ class OperationKind(enum.Enum):
     Conv2d = enum_auto()
 
 
-OperationKindNames = {
-    OperationKind.Gemm: "gemm",
-    OperationKind.Conv2d: 'conv2d'
-}
+OperationKindNames = {OperationKind.Gemm: "gemm", OperationKind.Conv2d: "conv2d"}
 
 
 class Target(enum.Enum):
@@ -179,50 +176,50 @@ SwizzlingFunctorTag = {
 
 
 class ConvKind(enum.Enum):
-  Fprop = enum_auto()
+    Fprop = enum_auto()
 
 
 ConvKindTag = {
-  ConvKind.Fprop: 'cutlass::conv::Operator::kFprop',
+    ConvKind.Fprop: "cutlass::conv::Operator::kFprop",
 }
 
 
 ConvKindNames = {
-  ConvKind.Fprop: 'fprop',
+    ConvKind.Fprop: "fprop",
 }
 
 
 class StrideSupport(enum.Enum):
-  Strided = enum_auto()
-  Unity = enum_auto()
+    Strided = enum_auto()
+    Unity = enum_auto()
 
 
 StrideSupportTag = {
-  StrideSupport.Strided: 'cutlass::conv::StrideSupport::kStrided',
-  StrideSupport.Unity: 'cutlass::conv::StrideSupport::kUnity',
+    StrideSupport.Strided: "cutlass::conv::StrideSupport::kStrided",
+    StrideSupport.Unity: "cutlass::conv::StrideSupport::kUnity",
 }
 
 
 StrideSupportNames = {
-  StrideSupport.Strided: '',
-  StrideSupport.Unity: 'unity_stride',
+    StrideSupport.Strided: "",
+    StrideSupport.Unity: "unity_stride",
 }
 
 
 class IteratorAlgorithm(enum.Enum):
-  Analytic = enum_auto()
-  Optimized = enum_auto()
+    Analytic = enum_auto()
+    Optimized = enum_auto()
 
 
 IteratorAlgorithmTag = {
-  IteratorAlgorithm.Analytic: 'cutlass::conv::IteratorAlgorithm::kAnalytic',
-  IteratorAlgorithm.Optimized: 'cutlass::conv::IteratorAlgorithm::kOptimized',
+    IteratorAlgorithm.Analytic: "cutlass::conv::IteratorAlgorithm::kAnalytic",
+    IteratorAlgorithm.Optimized: "cutlass::conv::IteratorAlgorithm::kOptimized",
 }
 
 
 IteratorAlgorithmNames = {
-  IteratorAlgorithm.Analytic: 'analytic',
-  IteratorAlgorithm.Optimized: 'optimized',
+    IteratorAlgorithm.Analytic: "analytic",
+    IteratorAlgorithm.Optimized: "optimized",
 }
 
 

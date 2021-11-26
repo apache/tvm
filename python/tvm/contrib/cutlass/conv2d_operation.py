@@ -16,14 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-wildcard-import, wildcard-import
 """Generator for CUTLASS Conv2D kernels."""
-import enum
-import os.path
-import shutil
-
 from .library import *
 
 
 class Conv2dOperation:
+    """Describes various attributes for instantiating Conv2d kernels."""
+
     def __init__(
         self,
         conv_kind,
@@ -52,7 +50,7 @@ class Conv2dOperation:
         self.swizzling_functor = swizzling_functor
 
     def accumulator_type(self):
-        return  self.tile_description.math_instruction.element_accumulator
+        return self.tile_description.math_instruction.element_accumulator
 
     def core_name(self):
         """ The basic operation kind is prefixed with a letter indicating the accumulation type. """
@@ -105,8 +103,10 @@ class Conv2dOperation:
     def layout_name(self):
         return "%s" % (ShortLayoutTypeNames[self.A.layout])
 
-    def configuration_name(self):
-        """ The full procedural name indicates architecture, extended name, tile size, and layout. """
+    def procedural_name(self):
+        """
+        The full procedural name indicates architecture, extended name, tile size, and layout.
+        """
         opcode_class_name = OpcodeClassNames[self.tile_description.math_instruction.opcode_class]
 
         threadblock = "%dx%d_%dx%d" % (
@@ -117,9 +117,15 @@ class Conv2dOperation:
         )
 
         if self.stride_support == StrideSupport.Unity:
-            configuration_name = "cutlass_${opcode_class}_${extended_name}_${threadblock}_${layout}_align${alignment}_unity_stride"
+            configuration_name = (
+                "cutlass_${opcode_class}_${extended_name}_${threadblock}"
+                "_${layout}_align${alignment}_unity_stride"
+            )
         else:
-            configuration_name = "cutlass_${opcode_class}_${extended_name}_${threadblock}_${layout}_align${alignment}"
+            configuration_name = (
+                "cutlass_${opcode_class}_${extended_name}_${threadblock}"
+                "_${layout}_align${alignment}"
+            )
 
         return substitute_template(
             configuration_name,
@@ -132,12 +138,10 @@ class Conv2dOperation:
             },
         )
 
-    def procedural_name(self):
-        """ The full procedural name indicates architecture, extended name, tile size, and layout. """
-        return self.configuration_name()
-
 
 class EmitConv2dInstance:
+    """ Responsible for emitting a CUTLASS template definition."""
+
     def __init__(self):
         self.template = """
   // Conv2d${conv_kind_name} ${iterator_algorithm_name} kernel instance "${operation_name}"
@@ -172,6 +176,7 @@ class EmitConv2dInstance:
 """
 
     def emit(self, operation):
+        """Instantiate a Conv2d kernel from given `operation`."""
         warp_shape = [
             int(
                 operation.tile_description.threadblock_shape[idx]
@@ -225,7 +230,9 @@ class EmitConv2dInstance:
                 operation.iterator_algorithm
             ].capitalize(),
             "stride_support": StrideSupportTag[operation.stride_support],
-            "math_operator": MathOperationTag[operation.tile_description.math_instruction.math_operation],
+            "math_operator": MathOperationTag[
+                operation.tile_description.math_instruction.math_operation
+            ],
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
         }

@@ -129,7 +129,7 @@ def get_conv2d_nchw(d_shape, w_shape):
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -371,17 +371,16 @@ def test_conv2d():
         sm=80,
         atol=1e-5,
         rtol=1e-5,
-        run_benchmark=True,
+        run_benchmark=False,
     )
 
     dyn_batch_shape = (relay.Any(),) + d_shape[1:]
     mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape)
 
     verify_conv2d(
-        mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=True
+        mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_conv2d()
+    pytest.main([__file__])

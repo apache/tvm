@@ -192,7 +192,7 @@ class CodegenCBase {
     }
     for (size_t i = 0; i < outs.size() - 1; i++) {
       if (pass_dl_tensor) {
-	code_stream_ << "out" << i << ",\n";
+        code_stream_ << "out" << i << ",\n";
       } else {
         code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
       }

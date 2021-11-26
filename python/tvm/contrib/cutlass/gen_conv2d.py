@@ -22,7 +22,6 @@ from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
     TensorDescription,
-    DataTypeTag,
     LayoutType,
     ConvKind,
     StrideSupport,

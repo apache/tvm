@@ -1098,7 +1098,7 @@ def _conv_shape_func_nhwc_ohwi(dshape, kshape, strides, padding, dilation):
     out[dshape.shape[0] - 1] = kshape[0]
 
     for i in const_range(dshape.shape[0] - 2):
-        dilated_k = (kshape[i +  1] - 1) * dilation[i] + 1
+        dilated_k = (kshape[i + 1] - 1) * dilation[i] + 1
         out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
     return out
 
