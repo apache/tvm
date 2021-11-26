@@ -46,9 +46,12 @@ class OptimizeLUTs(ExprMutator):
     def create_op_with_lut(self, call):
         """Extract the parameters and attributes from the NPU operator and create
         a new operator with LUT.
+
+        Parameters
         ----------
         call : tvm.relay.expr.Call
             The current call node being visited.
+
         Returns
         -------
         tvm.relay.expr.Call
@@ -63,8 +66,7 @@ class OptimizeLUTs(ExprMutator):
         new_attrs["activation"] = activation
 
         # Assume that LUT is always the last argument
-        new_args = [ethosu_op.args[n] for n in range(len(ethosu_op.args) - 1)]
-        new_args.append(lut)
+        new_args = ethosu_op.args[:-1] + [lut]
         assert ethosu_op.op.name in self.lut_ops.keys()
 
         return self.lut_ops[ethosu_op.op.name](*new_args, **new_attrs)
@@ -73,10 +75,12 @@ class OptimizeLUTs(ExprMutator):
         """Recursively visit call nodes in the input graph and if an ethosu.identity
         operator with LUT is found and the preceding operator has a LUT attribute, create
         a new NPU operator.
+
         Parameters
         ----------
         call : tvm.relay.expr.Call
             The current call node being visited.
+
         Returns
         -------
         tvm.relay.expr.Call
@@ -104,24 +108,26 @@ class OptimizeLUTs(ExprMutator):
         return new_call
 
 
-@relay.transform.function_pass(opt_level=1, name="LutOptimizer")
+@relay.transform.function_pass(opt_level=1, name="LUTsOptimizer")
 class LUTsOptimizer(Pass):
-    """Register LutOptimizer as a relay pass."""
+    """Register LUTsOptimizer as a relay pass."""
 
     def transform_function(
         self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
     ) -> tvm.IRModule:
         """Visit relay nodes in the given module.
+
         Parameters
         ----------
         func : tvm.relay.function.Function
-            The function to apply the layout optimization pass to.
+            The function to apply the optimization pass for multiple LUTs to.
         mod : tvm.IRModule
-            The module to apply the layout optimization pass to.
+            The module to apply the optimization pass for multiple LUTs to.
+
         Returns
         -------
         mod : tvm.IRModule
-            New module with augmented layouts.
+            New module with optimized LUTs.
         """
         assert len(mod.functions.items()) == 1, "Module can only contain one function."
         return OptimizeLUTs().visit(func)

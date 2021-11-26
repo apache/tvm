@@ -40,8 +40,6 @@ def test_tflite_lut_activations(accel_type):
     ifm_shape = (1, 55, 55, 3)
 
     def create_tflite_graph():
-        tf.config.run_functions_eagerly(True)
-
         class Model(tf.Module):
             @tf.function
             def tf_func(self, x):

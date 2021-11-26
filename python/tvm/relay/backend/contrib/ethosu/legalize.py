@@ -32,6 +32,7 @@ from tvm.relay.dataflow_pattern import CallPattern
 from tvm.relay.backend.contrib.ethosu import op as ethosu_ops  # type: ignore
 from tvm.relay.backend.contrib.ethosu.errors import UnsupportedLayout  # type: ignore
 from tvm.relay.backend.contrib.ethosu import vela_api
+from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.op.contrib import ethosu as ethosu_patterns  # type: ignore
 
 
@@ -124,11 +125,6 @@ class LegalizeSplit:
         pass
 
 
-def round_away_zero(f):
-    r = -0.5 if (f < 0) else 0.5
-    return np.trunc(f + r)
-
-
 def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     """Method to calculate the values of the tanh lookup table"""
     lut_values = list()
@@ -138,7 +134,7 @@ def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     for x in range(qmin, qmax + 1):
         x_real = ifm_scale * (x - ifm_zp)
         out_real = math.tanh(x_real)
-        lut_result = int(round_away_zero(ofm_zp + out_real / ofm_scale))
+        lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
         lut_result = min(qmax, max(qmin, lut_result))
         lut_values.append(lut_result)
 
