@@ -275,31 +275,24 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                                 attrs.at("op_name") + ">;\n");
   CutlassPrint(conv2d_decl, "using Conv2d = Operation_" + attrs.at("op_name") + ";\n");
 
-  auto get_dim = [&attrs, &func_args](const std::string& axis, int arg_idx, int axis_idx) {
+  auto get_dim = [&attrs](const std::string& axis, const std::string& var_name,
+                                      int axis_idx) {
     if (attrs.at(axis) == kAnyDim) {
-      return func_args[arg_idx] + "->shape[" + std::to_string(axis_idx) + "]";
+      return var_name + "->shape[" + std::to_string(axis_idx) + "]";
     } else {
       return attrs.at(axis);
     }
   };
 
-  auto get_out_dim = [&attrs](const std::string& axis, int axis_idx) {
-    if (attrs.at(axis) == kAnyDim) {
-      return "out0->shape[" + std::to_string(axis_idx) + "]";
-    } else {
-      return attrs.at(axis);
-    }
-  };
-
-  CutlassPrint(conv2d_decl, "int N = " + get_dim("N", 0, 0) + ";\n");
-  CutlassPrint(conv2d_decl, "int H = " + get_dim("H", 0, 1) + ";\n");
-  CutlassPrint(conv2d_decl, "int W = " + get_dim("W", 0, 2) + ";\n");
+  CutlassPrint(conv2d_decl, "int N = " + get_dim("N", func_args[0], 0) + ";\n");
+  CutlassPrint(conv2d_decl, "int H = " + get_dim("H", func_args[0], 1) + ";\n");
+  CutlassPrint(conv2d_decl, "int W = " + get_dim("W", func_args[0], 2) + ";\n");
   CutlassPrint(conv2d_decl, "int C = " + attrs.at("C") + ";\n");
   CutlassPrint(conv2d_decl, "int K = " + attrs.at("K") + ";\n");
   CutlassPrint(conv2d_decl, "int R = " + attrs.at("R") + ";\n");
   CutlassPrint(conv2d_decl, "int S = " + attrs.at("S") + ";\n");
-  CutlassPrint(conv2d_decl, "int P = " + get_out_dim("P", 1) + ";\n");
-  CutlassPrint(conv2d_decl, "int Q = " + get_out_dim("Q", 2) + ";\n");
+  CutlassPrint(conv2d_decl, "int P = " + get_dim("P", "out0", 1) + ";\n");
+  CutlassPrint(conv2d_decl, "int Q = " + get_dim("Q", "out0", 2) + ";\n");
   CutlassPrint(conv2d_decl, "int pad_h = " + attrs.at("pad_h") + ";\n");
   CutlassPrint(conv2d_decl, "int pad_w = " + attrs.at("pad_w") + ";\n");
   CutlassPrint(conv2d_decl, "int stride_h = " + attrs.at("stride_h") + ";\n");
