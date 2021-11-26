@@ -25,7 +25,6 @@ from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.expr_functor import ExprMutator
 from tvm.ir.transform import Pass
-from tvm.relay.backend.contrib.ethosu.util import is_ethosu_op
 
 # pylint: disable=unused-import
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
@@ -225,8 +224,6 @@ class LayoutOptimization(ExprMutator):
             else:
                 self.children[input_arg] = [new_call]
 
-        print(new_call)
-
         return super().visit_call(new_call)
 
     def visit_call(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
@@ -245,7 +242,7 @@ class LayoutOptimization(ExprMutator):
             not refer to an Op. Else, a new call node with altered Op
             attributes.
         """
-        if is_ethosu_op(call) and call.op.name != "contrib.ethosu.identity":
+        if isinstance(call.op, tvm.ir.op.Op) and call.op.name in self.optimize_op:
             return self.alter_ethosu_op_layout(call)
         return super().visit_call(call)
 
