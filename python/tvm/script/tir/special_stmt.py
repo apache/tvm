@@ -17,6 +17,7 @@
 """TVM Script Parser Special Stmt Classes"""
 # pylint: disable=unused-argument, no-self-argument, inconsistent-return-statements
 # pylint: disable=relative-beyond-top-level
+from ctypes import ArgumentError
 from typing import Callable, List, Optional, Tuple, Any, Mapping, Union
 
 import synr
@@ -26,6 +27,7 @@ from tvm.ir.expr import PrimExpr, Range
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
+from tvm import target
 from tvm.ir import Span
 from tvm.tir import IntImm, IterVar
 
@@ -841,3 +843,24 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class Target(SpecialStmt):
+    """Special Stmt for target attr value.
+    Example
+    -------
+    .. code-block:: python
+        T.target("llvm")
+    """
+
+    def __init__(self):
+        def target(*args, span):
+            self.context.report_error(f"T.target should not appear as a stmt", span)
+
+        super().__init__(target, def_symbol=False)
+
+    def __call__(self, target_str):
+        if not isinstance(target_str, str):
+            raise ArgumentError(f"T.target expected a config string, but got {type(target_str)}")
+        return target.Target(target_str)

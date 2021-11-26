@@ -3205,5 +3205,17 @@ def test_nontrivial_range_axis():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+@T.prim_func
+def func_with_target_spec() -> None:
+    T.func_attr({"kTarget": T.target("cuda -arch=sm_70")})
+    T.evaluate(0)
+
+
+def test_func_with_target_spec():
+    func = func_with_target_spec
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
