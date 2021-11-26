@@ -275,8 +275,7 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                                 attrs.at("op_name") + ">;\n");
   CutlassPrint(conv2d_decl, "using Conv2d = Operation_" + attrs.at("op_name") + ";\n");
 
-  auto get_dim = [&attrs](const std::string& axis, const std::string& var_name,
-                                      int axis_idx) {
+  auto get_dim = [&attrs](const std::string& axis, const std::string& var_name, int axis_idx) {
     if (attrs.at(axis) == kAnyDim) {
       return var_name + "->shape[" + std::to_string(axis_idx) + "]";
     } else {
