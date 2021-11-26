@@ -28,6 +28,9 @@ import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
+from tvm._ffi import register_object
+from tvm.runtime import Object
+from . import _ffi_api
 
 
 class QConv2DArgs(Enum):
@@ -209,3 +212,30 @@ def calculate_size_bytes(expr):
     element_size = type_info.bits // 8
     elements = np.prod(list(expr.checked_type.shape))
     return element_size * elements
+
+
+@register_object("relay.ext.ethos-u.CompilationArtifact")
+class CompilationArtifact(Object):
+    """
+    This is a structure to hold binary artifacts
+    for the microNPU.
+    """
+
+    def __init__(
+        self,
+        command_stream: str,
+        encoded_constants: str,
+        scratch_size: int,
+        input_size: int,
+        output_size: int,
+        function_name: str,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CompilationArtifact,  # type: ignore # pylint: disable=no-member
+            command_stream,
+            encoded_constants,
+            scratch_size,
+            input_size,
+            output_size,
+            function_name,
+        )

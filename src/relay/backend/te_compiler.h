@@ -115,6 +115,7 @@ class TECompilerNode : public Object {
    * annotated)
    */
   virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+  virtual void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) = 0;
 
   virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
 

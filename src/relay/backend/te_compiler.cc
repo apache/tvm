@@ -181,6 +181,9 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   Map<GlobalVar, String> GetDeviceContexts() { return device_contexts_; }
+  void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) {
+    device_contexts_ = device_contexts;
+  }
 
   void Clear() final { cache_.clear(); }
 
@@ -953,6 +956,10 @@ void UpdateFunctionMetadata(BaseFunc func,
 
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn) {
   TECompiler compiler;
+  auto device_contexts = module->GetAttr<Map<GlobalVar, String>>("device_contexts");
+  if (device_contexts) {
+    compiler->SetDeviceContexts(device_contexts.value());
+  }
 
   auto updated_module = LowerTensorExpr(module_name, compiler, process_fn)(module);
 
