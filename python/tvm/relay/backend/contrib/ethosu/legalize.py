@@ -1112,7 +1112,7 @@ class MeanRewriter(DFPatternCallback):
 
 @ir.transform.module_pass(opt_level=1)
 class LegalizeMean:
-    """This is the pass that wraps the AddRewriter"""
+    """This is the pass that wraps the MeanRewriter"""
 
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
