@@ -235,7 +235,7 @@ def cmake_build(image, path, make_flag) {
 
 def cpp_unittest(image) {
   sh (
-    script: "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh",
+    script: "${docker_run} ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: "Build and run C++ tests",
   )
 }
@@ -531,7 +531,7 @@ stage('Integration Test') {
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
             sh (
-              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
+              script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
               label: "Run Python frontend tests",
             )
             junit "build/pytest-results/*.xml"
