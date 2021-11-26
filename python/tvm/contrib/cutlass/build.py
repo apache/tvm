@@ -189,7 +189,7 @@ def handle_conv2d(
     profile_all,
     use_multiprocessing,
 ):
-    """Profile and select a kernel fo conv2d  op workload."""
+    """Profile and select a kernel for conv2d op workload."""
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
         out = cutlass_profiler.get_default(out_dtype)
         logger.info("Picked the default kernel %s", out["name"])
