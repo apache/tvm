@@ -799,6 +799,8 @@ def _create_npu_op_unary_elementwise(serial_unary_elementwise):
     operator_type = serial_unary_elementwise.operator_type
     if operator_type == "ABS":
         op = vapi.NpuElementWiseOp.ABS
+    if operator_type == "CLZ":
+        op = vapi.NpuElementWiseOp.CLZ
 
     npu_unary_elementwise_op = vapi.NpuElementWiseOperation(op)
     npu_unary_elementwise_op.ifm = _create_npu_feature_map(serial_unary_elementwise.ifm)

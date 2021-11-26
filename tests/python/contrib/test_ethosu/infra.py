@@ -312,8 +312,9 @@ def make_partitioned_function(relay_op):
 
     ifm0 = relay.analysis.free_vars(relay_op)
     ifm_shape = ifm0[0].type_annotation.shape
+    ifm_dtype = ifm0[0].type_annotation.dtype
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=ifm_dtype)
 
     glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
 

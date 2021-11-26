@@ -109,6 +109,7 @@ def ethosu_unary_elementwise(
     operator_type: str
         The type of the unary elementwise operator.
             "ABS"
+            "CLZ"
     ifm_scale : float
         The quantization scale for the Input Feature Map tensor.
     ifm_zero_point : int
@@ -143,7 +144,7 @@ def ethosu_unary_elementwise(
     Returns
     -------
     out : tvm.relay.Call
-        A call to the ethosu_binary_elementwise op.
+        A call to the ethosu_unary_elementwise op.
     """
     return _make.ethosu_unary_elementwise(
         ifm,
