@@ -317,31 +317,58 @@ def verify_conv2d(
 
     params = {"weight": np_weight}
 
-    rt_mod, _, num_cutlass_partition = profile_and_build(
-        convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}),
-        params,
-        80,
-        tmp_dir="./tmp",
-        lib_path="compile.so",
-    )
+    typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
+    use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
 
-    assert num_cutlass_partition > 0
+    if use_vm:
+        rt_mod, _, num_cutlass_partition = profile_and_build_vm(
+            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}), params, sm
+        )
 
-    out = get_output(rt_mod, ["data"], [np_data])
+        rt_mod_ref, _ = get_ref_vm(
+            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "HWIO"]}),
+            params,
+            target=ref_target,
+        )
 
-    rt_mod_ref, _ = get_ref_rt_mod(
-        convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "HWIO"]}), params, target=ref_target
-    )
+        assert num_cutlass_partition > 0
+        out = get_output_vm(rt_mod, ["data"], [np_data])
+        ref_out = get_output_vm(rt_mod_ref, ["data"], [np_data])
+    else:
+        rt_mod, _, num_cutlass_partition = profile_and_build(
+            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}),
+            params,
+            80,
+            tmp_dir="./tmp",
+            lib_path="compile.so",
+        )
 
-    out_ref = get_output(rt_mod_ref, ["data"], [np_data])
+        rt_mod_ref, _ = get_ref_rt_mod(
+            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "HWIO"]}),
+            params,
+            target=ref_target,
+        )
 
-    np.testing.assert_allclose(out, out_ref, atol=atol, rtol=rtol)
+        assert num_cutlass_partition > 0
+        out = get_output(rt_mod, ["data"], [np_data])
+        ref_out = get_output(rt_mod_ref, ["data"], [np_data])
+
+    np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
+
     print("ok")
 
 
 def test_conv2d():
     d_shape = (16, 16, 32, 32)
     w_shape = (32, 16, 3, 3)
+    conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
+    mod = tvm.IRModule.from_expr(conv2d_nchw)
+
+    verify_conv2d(
+        mod, d_shape, w_shape, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    d_shape = (relay.Any(), 16, 32, 32)
     conv2d_nchw = get_conv2d_nchw(d_shape, w_shape)
     mod = tvm.IRModule.from_expr(conv2d_nchw)
 
