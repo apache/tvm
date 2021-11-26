@@ -105,11 +105,20 @@ class GenerateConstantsMutator : public MixedModeMutator {
       conv2d_call = requantize_input;
     }
 
-    // Transpose weights: HWIO -> OHWI
     auto* conv2d_attrs = conv2d_call->attrs.as<Conv2DAttrs>();
-    tvm::Attrs new_conv2d_attrs;
-    Expr transposed_kernel =
-        ConvertKernelLayout(conv2d_call->args[1], conv2d_attrs, &new_conv2d_attrs);
+    tvm::Attrs new_conv2d_attrs = conv2d_call->attrs;
+    Expr conv2d_kernel = conv2d_call->args[1];
+
+    Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
+    Array<PrimExpr> kernel_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
+    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
+    int kernel_pos_o = kernel_layout.find("O");
+    int groups = conv2d_attrs->groups;
+    if (groups != qnn::get_const_int(input_shape[3]) ||
+        groups != qnn::get_const_int(kernel_shape[kernel_pos_o])) {
+      // Transpose weights: HWIO -> OHWI for Conv2D
+      conv2d_kernel = ConvertKernelLayout(conv2d_call->args[1], conv2d_attrs, &new_conv2d_attrs);
+    }
 
     // Obtain input and output scales from Relay's Requantization
     int64_t out_channels = conv2d_attrs->channels.as<IntImmNode>()->value;
@@ -153,11 +162,11 @@ class GenerateConstantsMutator : public MixedModeMutator {
       req_inp_scale = Constant(req_inp_scale_nda);
     }
 
-    // Replace existing weights (HWIO) with the transposed ones (OHWI)
+    // Replace existing weights (HWIO) with the transposed ones (OHWI) for Conv2D
     // Substitute Conv2D weight_zero_point with the CMSIS-NN multiplier
     // Substitute Requantize input_zero_point with CMSIS-NN shift
     // Conv2D arguments: data, weight, input_zp, weight_zp, input_sc, weight_sc
-    Array<Expr> conv2d_args = {conv2d_call->args[0], transposed_kernel,    conv2d_call->args[2],
+    Array<Expr> conv2d_args = {conv2d_call->args[0], conv2d_kernel,        conv2d_call->args[2],
                                multiplier_const,     conv2d_call->args[4], weight_scale};
     Call ret_call = Call(conv2d_call->op, conv2d_args, new_conv2d_attrs, {});
     if (bias_add_call) {

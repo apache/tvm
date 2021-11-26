@@ -146,6 +146,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int32_t padding_h = qnn::get_const_int(conv2d_attrs->padding[0]);
     int32_t dilation_w = qnn::get_const_int(conv2d_attrs->dilation[1]);
     int32_t dilation_h = qnn::get_const_int(conv2d_attrs->dilation[0]);
+    int32_t out_channels = qnn::get_const_int(conv2d_attrs->channels);
+    int32_t groups = conv2d_attrs->groups;
+    std::string kernel_layout = conv2d_attrs->kernel_layout.c_str();
     int32_t clip_min, clip_max;
     if (clip_call) {
       const ClipAttrs* clip_attrs = clip_call->attrs.as<ClipAttrs>();
@@ -156,14 +159,6 @@ class RelayToTIRVisitor : public MixedModeMutator {
       clip_max = 127;
     }
 
-    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm("arm_convolve_wrapper_s8"), input, filter,
-                                          multiplier};
-    if (bias_add_call) {
-      call_ext_args.push_back(bias);
-    }
-    call_ext_args.push_back(shift);
-    call_ext_args.push_back(output);
-
     tvm::Array<PrimExpr> scalar_args = {ToArg(input_offset), ToArg(output_offset), ToArg(stride_w),
                                         ToArg(stride_h),     ToArg(padding_w),     ToArg(padding_h),
                                         ToArg(dilation_w),   ToArg(dilation_h),    ToArg(clip_min),
@@ -173,17 +168,41 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> input_dims = CMSISNNDimensions(input_shape);
 
-    // cmsis_nn_dims *filter_dims (OHWI)
+    // cmsis_nn_dims *filter_dims (OHWI for Conv2D and IHWO for depthwise)
     Array<PrimExpr> filter_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> filter_dims = CMSISNNDimensions(filter_shape);
 
-    // cmsis_nn_dims *bias_dims (1,1,1,output_channels)
-    Array<PrimExpr> bias_shape{1, 1, 1, filter_shape[0]};
+    // cmsis_nn_dims *bias_dims
+    Array<PrimExpr> bias_shape{1, 1, 1, out_channels};
     Array<PrimExpr> bias_dims = CMSISNNDimensions(bias_shape);
 
-    // cmsis_nn_dims *output_dims (NHWC)
+    // cmsis_nn_dims *output_dims (same order as input_dims)
     Array<PrimExpr> output_shape = conv2d_call->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> output_dims = CMSISNNDimensions(output_shape);
+
+    int32_t depth_multiplier = -1;
+    int kernel_pos_o = kernel_layout.find("O");
+    if (groups == qnn::get_const_int(input_shape[3]) &&
+        groups == qnn::get_const_int(filter_shape[kernel_pos_o])) {
+      int kernel_pos_i = kernel_layout.find("I");
+      depth_multiplier = qnn::get_const_int(filter_shape[kernel_pos_i]);
+    }
+    scalar_args.push_back(ToArg(depth_multiplier));
+
+    // original filter_layout for depthwise is HWOI
+    std::string cmsisnn_api = "arm_convolve_wrapper_s8";
+    if (depth_multiplier != -1) {
+      cmsisnn_api = "arm_depthwise_conv_wrapper_s8";
+      Array<PrimExpr> depthwise_filter_shape{1, filter_shape[0], filter_shape[1], out_channels};
+      filter_dims = CMSISNNDimensions(depthwise_filter_shape);
+    }
+
+    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter, multiplier};
+    if (bias_add_call) {
+      call_ext_args.push_back(bias);
+    }
+    call_ext_args.push_back(shift);
+    call_ext_args.push_back(output);
 
     // https://github.com/ARM-software/CMSIS_5/blob/d788fd583984388553391de18afd8b4d2a146868/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_s8.c#L367
     std::string context_buffer_name = "NULL";
