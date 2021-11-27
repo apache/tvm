@@ -928,16 +928,18 @@ def test_ethosu_section_name():
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
     source = ethosu_module.get_source()
     assert (
-        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t cms_data_data' in source
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_cms_data_data'
+        in source
     )
-    assert '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t weights' in source
+    assert (
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_weights'
+        in source
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -961,15 +963,13 @@ def test_ethosu_clz(accel_type):
 
     compiled_model = infra.build_source(mod, {"ifm": in_data}, [out_data], accel_type)
 
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_model[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_model, accel_type)
 
