@@ -160,7 +160,7 @@ Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_20\" instead";
+      DLOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_20\" instead";
       archInt = 20;
     } else {
       archInt = std::stod(version.operator std::string()) * 10 + 0.1;
@@ -188,7 +188,7 @@ Map<String, ObjectRef> UpdateNVPTXAttrs(Map<String, ObjectRef> attrs) {
     // Use the compute version of the first CUDA GPU instead
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
-      LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
+      DLOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_20\" instead";
       arch = 20;
     } else {
       arch = std::stod(version.operator std::string()) * 10 + 0.1;
@@ -214,7 +214,7 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   } else {
     TVMRetValue val;
     if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kGcnArch, &val)) {
-      LOG(WARNING) << "Unable to detect ROCm compute arch, default to \"-mcpu=gfx900\" instead";
+      DLOG(WARNING) << "Unable to detect ROCm compute arch, default to \"-mcpu=gfx900\" instead";
       arch = 900;
     } else {
       arch = val.operator int();
@@ -228,7 +228,7 @@ Map<String, ObjectRef> UpdateROCmAttrs(Map<String, ObjectRef> attrs) {
   TVMRetValue val;
   int version;
   if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kApiVersion, &val)) {
-    LOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
+    DLOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
     version = 305;
   } else {
     version = val.operator int();
