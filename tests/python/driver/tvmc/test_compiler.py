@@ -483,8 +483,8 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
         tvmc.compiler.compile_model(
             tvmc_model,
             target=f"ethos-u -accelerator_config={accel_type}, c -mcpu=cortex-m55",
-            runtime=Runtime("crt", {"system-lib": True}),
-            executor=Executor("aot"),
+            runtime=Runtime("crt"),
+            executor=Executor("aot", {"unpacked-api": True}),
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
