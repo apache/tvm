@@ -52,6 +52,14 @@ using CompilationArtifact = relay::contrib::ethosu::CompilationArtifact;
 // required for invoking the NPU with the command stream
 class EthosUModuleNode : public ModuleNode {
  public:
+  /*!
+   * \brief The microNPU runtime module.
+   *
+   * \param compilation_artifacts
+   *    This is an array of CompilationArtifacts that is produced via
+   *    lowering each PrimFunc to command stream. Here, those artifacts
+   *    will be used to create the c-source.
+   */
   explicit EthosUModuleNode(Array<CompilationArtifact> compilation_artifacts)
       : compilation_artifacts_(compilation_artifacts) {
     c_source += "#include <stdio.h>\n";
