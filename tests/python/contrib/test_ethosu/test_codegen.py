@@ -349,6 +349,7 @@ def test_ethosu_pooling(
         ([1, 2, 3, 4], [1, 2, 3, 4]),
         ([1, 2, 3, 4], [1, 1, 1, 1]),
         ([1, 1, 1, 1], [1, 2, 3, 4]),
+        ([1, 4, 4], [4, 1]),
     ],
 )
 @pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
@@ -419,6 +420,84 @@ def test_ethosu_binary_elementwise(
         output_data,
         accel_type,
         output_tolerance=1 if operator_type == "MAX" else 0,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, ifm2_shape",
+    [
+        ([4], [4]),
+        ([4], [1, 2, 3, 4]),
+        ([1, 4, 4], [4, 1]),
+    ],
+)
+def test_binary_add_with_non_4d_shapes(
+    accel_type,
+    ifm_shape,
+    ifm2_shape,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, lhs, rhs):
+                return tf.math.add(lhs, rhs)
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32), tf.TensorSpec(ifm2_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                data2 = np.random.rand(*tuple(ifm2_shape)) * 2
+                yield [data.astype(np.float32), data2.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"ifm": ifm_shape, "ifm2": ifm2_shape},
+        dtype_dict={"ifm": dtype, "ifm2": dtype},
+    )
+    mod = partition_for_ethosu(mod, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=0,
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
@@ -751,6 +830,165 @@ def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
         out_data,
         accel_type,
     )
+
+    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_model, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("operator_type", ["ABS"])
+@pytest.mark.parametrize(
+    "ifm_shape",
+    [[1, 5, 12, 4], [1, 1, 2], [4, 3, 2], [10, 20], [345]],
+)
+def test_ethosu_unary_elementwise(
+    accel_type,
+    operator_type,
+    ifm_shape,
+):
+    dtype = "int8"
+
+    def get_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def abs_func(self, x):
+                if operator_type == "ABS":
+                    op = tf.math.abs(x)
+                return op
+
+        model = Model()
+
+        concrete_func = model.abs_func.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32) * 2 - 1]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = get_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = partition_for_ethosu(relay_module, params)
+
+    # Generate reference data
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
+    cmms = get_cs(ethosu_module)
+    cmms = bytes.fromhex(cmms)
+
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
+
+
+def test_ethosu_section_name():
+    def create_graph_single(input_tensor_name, input_tensor_shape, input_tensor_dtype):
+        c1_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
+        c1_params.ifm.shape = input_tensor_shape
+        c1_params.kernel.shape = (3, 3, c1_params.ifm.shape[3], 32)
+        c1_params.kernel.sc = relay.const(np.random.rand(32) * 2, "float32")
+        c1_params.strides = (1, 1)
+        c1_params.pad = "VALID"
+        c1_params.update_output_qnn_params(
+            input_tensor_dtype, input_tensor_dtype, input_tensor_dtype
+        )
+        input0 = relay.var(input_tensor_name, shape=c1_params.ifm.shape, dtype=c1_params.ifm.dtype)
+        c1, new_params = relay_ir_builder.create_qnn_conv2d(c1_params, input0)
+        c1_params.ofm.shape = get_shape_expr(input0, c1)
+
+        f = relay.Function([input0], c1)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        return mod, [c1_params]
+
+    accel_type = "ethos-u55-256"
+    relay_module, _ = create_graph_single("input", (1, 300, 300, 3), "int8")
+    input_dtype = "int8"
+    mod = partition_for_ethosu(relay_module)
+
+    # Generate reference data
+    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
+    input_data = {
+        "input": np.random.randint(in_min, high=in_max, size=(1, 300, 300, 3), dtype=input_dtype)
+    }
+    output_data = generate_ref_data(relay_module, input_data)
+
+    compiled_models = infra.build_source(
+        mod, input_data, output_data, accel_type, output_tolerance=1
+    )
+
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
+    assert len(imported_modules) == 2
+    ethosu_module = imported_modules[0]
+
+    # Verify generated C source
+    source = ethosu_module.get_source()
+    assert (
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t cms_data_data' in source
+    )
+    assert '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t weights' in source
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+def test_ethosu_clz(accel_type):
+    ifm_shape = (1, 42, 5, 4)
+    # Create a "partitioned" Relay function
+    ifm0 = relay.var("ifm0", shape=ifm_shape, dtype="int32")
+    clz = infra.make_ethosu_unary_elementwise(ifm0, 4, "CLZ")
+    mod = infra.make_partitioned_function(clz)
+
+    in_data = np.random.randint(-500000, high=500000, size=ifm_shape, dtype="int32")
+
+    def clz_comp(n):
+        n_bin = np.binary_repr(n)
+        if n_bin[0] == "-":
+            return 0
+        else:
+            return 32 - len(n_bin)
+
+    out_data = np.array([clz_comp(i) for i in in_data.ravel()]).reshape(ifm_shape).astype("int32")
+
+    compiled_model = infra.build_source(mod, {"ifm": in_data}, [out_data], accel_type)
 
     imported_modules = compiled_model[0].executor_factory.lib.imported_modules
     assert len(imported_modules) == 2

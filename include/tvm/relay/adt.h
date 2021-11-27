@@ -260,7 +260,24 @@ class Clause : public ObjectRef {
   TVM_DLL explicit Clause(Pattern lhs, Expr rhs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ClauseNode);
 };
+
+/*!
+ * \brief Returns the clause with given properties. A null property denotes 'no change'.
+ * Returns clause if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param clause The clause to copy.
+ * \param opt_lhs The (optional) lhs for the copied clause. If none, ret_clause->lhs = clause->lhs.
+ * \param opt_rhs The (optional) rhs for the copied clause. If none,
+ * ret_clause->rhs = clause->rhs.
+ * \return If all
+ * properties are null or the same as the property in the input clause (i.e., opt_lhs is null or
+ * opt_lhs.value() == clause->lhs, etc.), then we return clause. Otherwise, we return a copy of
+ * clause with the different fields overwritten. (i.e., if opt_lhs.value() != clause->lhs, then
+ * ret_clause->lhs = opt_lhs.value()).
+ */
+Clause WithFields(Clause clause, Optional<Pattern> opt_lhs = Optional<Pattern>(),
+                  Optional<Expr> opt_rhs = Optional<Expr>());
 
 /*! \brief ADT pattern matching exression. */
 class Match;
@@ -315,7 +332,29 @@ class Match : public Expr {
   TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(MatchNode);
 };
+
+/*!
+ * \brief Returns the match with given properties. A null property denotes 'no change'.
+ * Returns match if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param match The match to copy.
+ * \param opt_data The (optional) data for the copied match. If none, ret_match->data = match->data.
+ * \param opt_clauses The (optional) clauses for the copied match. If none, ret_match->clauses =
+ * match->clauses.
+ * \param opt_complete The (optional) complete for the copied match. If none, ret_match->complete =
+ * match->complete.
+ * \param opt_span The (optional) span for the copied match. If none, ret_match->span = match->span.
+ * \return If all properties are null or the same as the
+ * property in the input match (i.e., opt_clauses is null or opt_clauses.value() == match->clauses,
+ * etc.), then we return match. Otherwise, we return a copy of match with the different fields
+ * overwritten. (i.e., if opt_clauses.value() != match->clauses, then ret_match->clauses =
+ * opt_clauses.value()).
+ */
+Match WithFields(Match match, Optional<Expr> opt_data = Optional<Expr>(),
+                 Optional<Array<Clause>> opt_clauses = Optional<Array<Clause>>(),
+                 Optional<Bool> opt_complete = Optional<Bool>(),
+                 Optional<Span> opt_span = Optional<Span>());
 
 }  // namespace relay
 }  // namespace tvm

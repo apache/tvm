@@ -21,7 +21,7 @@ Compiling and Optimizing a Model with the Python Interface (AutoTVM)
 `Chris Hoge <https://github.com/hogepodge>`_
 
 In the `TVMC Tutorial <tvmc_command_line_driver>`_, we covered how to compile, run, and tune a
-pre-trained vision model, ResNet-50-v2 using the command line interface for
+pre-trained vision model, ResNet-50 v2 using the command line interface for
 TVM, TVMC. TVM is more that just a command-line tool though, it is an
 optimizing framework with APIs available for a number of different languages
 that gives you tremendous flexibility in working with machine learning models.
@@ -30,7 +30,7 @@ In this tutorial we will cover the same ground we did with TVMC, but show how
 it is done with the Python API. Upon completion of this section, we will have
 used the Python API for TVM to accomplish the following tasks:
 
-* Compile a pre-trained ResNet 50 v2 model for the TVM runtime.
+* Compile a pre-trained ResNet-50 v2 model for the TVM runtime.
 * Run a real image through the compiled model, and interpret the output and model
   performance.
 * Tune the model that model on a CPU using TVM.
@@ -67,7 +67,7 @@ from tvm.contrib import graph_executor
 # --------------------------------------
 #
 # For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a
-# convolutional neural network that is 50-layers deep and designed to classify
+# convolutional neural network that is 50 layers deep and designed to classify
 # images. The model we will be using has been pre-trained on more than a
 # million images with 1000 different classifications. The network has an input
 # image size of 224x224. If you are interested exploring more of how the
@@ -79,7 +79,7 @@ from tvm.contrib import graph_executor
 # the model and save it to disk. For the instance of an ONNX model, you can
 # then load it into memory using the ONNX runtime.
 #
-# .. note:: Working with Other Model Formats
+# .. admonition:: Working with Other Model Formats
 #
 #   TVM supports many popular model formats. A list can be found in the
 #   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
@@ -145,7 +145,7 @@ img_data = np.expand_dims(norm_img_data, axis=0)
 target = "llvm"
 
 ######################################################################
-# .. note:: Defining the Correct Target
+# .. admonition:: Defining the Correct Target
 #
 #   Specifying the correct target can have a huge impact on the performance of
 #   the compiled module, as it can take advantage of hardware features
@@ -159,7 +159,7 @@ target = "llvm"
 #
 
 # The input name may vary across model types. You can use a tool
-# like netron to check input names
+# like Netron to check input names
 input_name = "data"
 shape_dict = {input_name: img_data.shape}
 
@@ -220,7 +220,7 @@ print(unoptimized)
 # providing output tensors.
 #
 # In our case, we need to run some post-processing to render the outputs from
-# ResNet-50-V2 into a more human-readable form, using the lookup-table provided
+# ResNet-50 v2 into a more human-readable form, using the lookup-table provided
 # for the model.
 
 from scipy.special import softmax
@@ -331,7 +331,7 @@ tuning_option = {
 }
 
 ################################################################################
-# .. note:: Defining the Tuning Search Algorithm
+# .. admonition:: Defining the Tuning Search Algorithm
 #
 #   By default this search is guided using an `XGBoost Grid` algorithm.
 #   Depending on your model complexity and amount of time available, you might
@@ -339,7 +339,7 @@ tuning_option = {
 
 
 ################################################################################
-# .. note:: Setting Tuning Parameters
+# .. admonition:: Setting Tuning Parameters
 #
 #   In this example, in the interest of time, we set the number of trials and
 #   early stopping to 10. You will likely see more performance improvements if
@@ -472,6 +472,6 @@ print("unoptimized: %s" % (unoptimized))
 # demonstrated how to compare the performance of the unoptimized and optimize
 # models.
 #
-# Here we presented a simple example using ResNet 50 V2 locally. However, TVM
+# Here we presented a simple example using ResNet-50 v2 locally. However, TVM
 # supports many more features including cross-compilation, remote execution and
 # profiling/benchmarking.

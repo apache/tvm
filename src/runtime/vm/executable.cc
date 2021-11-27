@@ -65,6 +65,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetConstants(); });
   } else if (name == "get_virtual_devices") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetVirtualDevices(); });
+  } else if (name == "get_primitives") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetPrimitives(); });
   } else if (name == "get_stats") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->Stats(); });
   } else if (name == "save") {
@@ -123,10 +125,14 @@ std::string Executable::GetBytecode() const {
     const auto& func = functions[i];
     // Print the header of the function format.
     oss << "VM Function[" << i << "]: " << func.name << "(";
+    bool first = true;
     for (const auto& param : func.params) {
-      oss << param << ", ";
+      if (!first) {
+        oss << ", ";
+      }
+      oss << param;
+      first = false;
     }
-    oss.seekp(-2, std::ios_base::end);
     oss << ")" << std::endl;
     oss << "# reg file size = " << func.register_file_size << std::endl;
     oss << "# instruction count = " << func.instructions.size() << std::endl;
@@ -137,10 +143,12 @@ std::string Executable::GetBytecode() const {
     for (size_t idx = 0; idx < func.instructions.size(); ++idx) {
       const auto& instr = func.instructions[idx];
       const auto& serialized_instr = SerializeInstruction(instr);
-      oss << std::setw(2) << idx << ": " << serialized_instr.opcode << " ";
+      std::ostringstream line;
+      line << std::setw(2) << idx << ": " << serialized_instr.opcode << " ";
       for (auto it : serialized_instr.fields) {
-        oss << it << " ";
+        line << it << " ";
       }
+      oss << std::setw(40) << std::setfill(' ') << std::left << line.str();
       oss << "  # " << instr;
       if (oss.str().back() != '\n') oss << std::endl;
     }
@@ -184,6 +192,23 @@ std::string Executable::GetVirtualDevices() const {
         << device.device_id << std::endl;
   }
   return oss.str();
+}
+
+std::string Executable::GetPrimitives() const {
+  std::ostringstream os;
+  std::vector<std::pair<int, std::string>> entries;
+  entries.reserve(primitive_map.size());
+  for (const auto& kv : primitive_map) {
+    entries.emplace_back(kv.second, kv.first);
+  }
+  std::sort(entries.begin(), entries.end(),
+            [](const std::pair<int, std::string>& left, const std::pair<int, std::string>& right) {
+              return left.first < right.first;
+            });
+  for (const auto& entry : entries) {
+    os << "VM PackedFunc[" << entry.first << "]: " << entry.second << std::endl;
+  }
+  return os.str();
 }
 
 std::string Executable::Stats() const {

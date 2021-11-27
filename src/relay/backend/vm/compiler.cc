@@ -996,7 +996,10 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
 
   VLOG(1) << std::endl
           << "-------------------------------------------------" << std::endl
-          << exec_->GetVirtualDevices() << exec_->GetConstants() << exec_->GetBytecode()
+          << exec_->GetVirtualDevices()  //
+          << exec_->GetConstants()       //
+          << exec_->GetPrimitives()      //
+          << exec_->GetBytecode()        //
           << "-------------------------------------------------";
 
   backend::UpdateAutoSchedulerOpWeights(context_.compiler);

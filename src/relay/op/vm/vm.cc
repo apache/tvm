@@ -61,7 +61,7 @@ Expr ShapeOf(Expr expr) {
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = DataType::Int(64);
   static const Op& op = Op::Get("vm.shape_of");
-  return Call(op, {expr}, Attrs(attrs), {});
+  return Call(op, {std::move(expr)}, Attrs(std::move(attrs)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed(ShapeOf);
@@ -156,7 +156,9 @@ bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (func_type->ret_type.as<TensorTypeNode>()) {
     ex_output = TupleType({func_type->ret_type});
   } else {
-    ICHECK(func_type->ret_type.as<TupleTypeNode>()) << "should be tuple type";
+    ICHECK(func_type->ret_type.as<TupleTypeNode>())
+        << "expecting function result to be tuple type. Types:" << std::endl
+        << PrettyPrint(types);
     ex_output = func_type->ret_type;
   }
   auto ex_input = TupleType(func_type->arg_types);
@@ -167,10 +169,14 @@ bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 }
 
 Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs) {
-  return Call(Op::Get("vm.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+  static const Op& op = Op::Get("vm.invoke_tvm_op");
+  return Call(op, {std::move(func), std::move(inputs), std::move(outputs)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op").set_body_typed(InvokeTVMOp);
+TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op")
+    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
+      return InvokeTVMOp(std::move(func), std::move(inputs), std::move(outputs));
+    });
 
 RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
@@ -179,9 +185,10 @@ RELAY_REGISTER_OP("vm.invoke_tvm_op")
     .add_argument("ins", "Tuple", "The input tensors.")
     .add_argument("outs", "Tuple", "The output tensors.")
     .add_type_rel("InvokeTVMOp", InvokeTVMOpRel)
+    .set_attrs_type_key("DictAttrs")
     .set_support_level(10)
     .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
+    .set_attr<TOpIsStateful>("TOpIsStateful", true)
     .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
@@ -217,7 +224,7 @@ Expr ReshapeTensor(Expr data, Expr shape, Array<PrimExpr> newshape) {
   static const Op& op = Op::Get("vm.reshape_tensor");
   auto attrs = make_object<ReshapeTensorAttrs>();
   attrs->newshape = std::move(newshape);
-  return Call(op, {data, shape}, Attrs(attrs), {});
+  return Call(op, {std::move(data), std::move(shape)}, Attrs(std::move(attrs)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vm.reshape_tensor").set_body_typed(ReshapeTensor);

@@ -84,10 +84,12 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
   Function Rewrite(const Function& expr) { return Downcast<Function>(Mutate(expr)); }
 
  private:
-  Expr VisitExpr_(const TupleNode* tn) final {
+  Expr VisitExpr_(const TupleNode* tuple_node) final {
     LetList& scope = scopes_.back();
     Array<Expr> new_fields;
-    for (auto field : tn->fields) {
+    new_fields.reserve(tuple_node->fields.size());
+
+    for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
       if (new_field->IsInstance<ConstantNode>()) {
         Var const_var("const", Type(nullptr));
@@ -95,7 +97,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       }
       new_fields.push_back(new_field);
     }
-    return Tuple(new_fields);
+    return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
   }
 
   void PreVisitLetBlock_(const LetNode* let_node) final { scopes_.emplace_back(); }

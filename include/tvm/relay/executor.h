@@ -169,9 +169,6 @@ class Executor : public ObjectRef {
  */
 class ExecutorRegEntry {
  public:
-  /*! \brief Set name of the Executor to be the same as registry if it is empty */
-  inline ExecutorRegEntry& set_name();
-
   /*!
    * \brief Register a valid configuration option and its ValueType for validation
    * \param key The configuration key
@@ -228,13 +225,6 @@ class ExecutorRegEntry {
   friend class Executor;
 };
 
-inline ExecutorRegEntry& ExecutorRegEntry::set_name() {
-  if (name.empty()) {
-    name = name;
-  }
-  return *this;
-}
-
 template <typename ValueType>
 inline ExecutorRegEntry& ExecutorRegEntry::add_attr_option(const String& key) {
   ICHECK(!key2vtype_.count(key)) << "AttributeError: add_attr_option failed because '" << key
@@ -279,7 +269,7 @@ inline ExecutorRegEntry& ExecutorRegEntry::add_attr_option(const String& key,
  */
 #define TVM_REGISTER_EXECUTOR(ExecutorName)                    \
   TVM_STR_CONCAT(TVM_EXECUTOR_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::relay::ExecutorRegEntry::RegisterOrGet(ExecutorName).set_name()
+      ::tvm::relay::ExecutorRegEntry::RegisterOrGet(ExecutorName)
 }  // namespace relay
 }  // namespace tvm
 

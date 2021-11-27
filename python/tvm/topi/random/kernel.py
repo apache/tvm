@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Pseudorandom number kernels."""
+import math
 import numpy as np
 
 import tvm
@@ -544,3 +545,60 @@ def uniform(gen, low, high, out_shape, out_dtype):
     uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
 
     return new_gen, uniform_values
+
+
+def normal(gen, mean, scale, out_shape, out_dtype):
+    """Draw samples from a normal distribution.
+    The algorithm is based on Box-Muller transform
+
+    Parameters
+    ----------
+    gen : ThreefryKey
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    mean : Tensor[(), out_dtype]
+        The mean of the normal distribution.
+
+    scale : Tensor[(), out_dtype]
+        The standard deviation of the normal distribution.
+
+    out_shape : Sequence[int]
+        Output shape of the random numbers.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
+    out : Tensor[out_shape, out_dtype]
+        Tensor of random numbers with shape `out_shape` and type `out_dtype`.
+    """
+    out_shape = list(out_shape)
+    # Box-Muller transform need two pieces of original uniform data
+    out_shape.insert(0, 2)
+    new_gen, uniform_values = uniform(
+        gen,
+        tvm.tir.const(0.0, out_dtype),
+        tvm.tir.const(1.0, out_dtype),
+        out_shape,
+        out_dtype,
+    )
+    two_pi = tvm.tir.const(2.0 * math.pi, out_dtype)
+    uniform_values_1 = tvm.topi.strided_slice(uniform_values, [0], [1], strides=[1], axes=[0])
+    uniform_values_1 = tvm.topi.squeeze(uniform_values_1, axis=0)
+    uniform_values_2 = tvm.topi.strided_slice(uniform_values, [1], [2], strides=[1], axes=[0])
+    uniform_values_2 = tvm.topi.squeeze(uniform_values_2, axis=0)
+    uniform_values_1 = tvm.topi.subtract(tvm.tir.const(1.0, out_dtype), uniform_values_1)
+    sqrt_values = tvm.topi.sqrt(
+        tvm.topi.multiply(tvm.tir.const(-2.0, out_dtype), tvm.topi.log(uniform_values_1))
+    )
+    sin_values = tvm.topi.sin(tvm.topi.multiply(two_pi, uniform_values_2))
+    random_values = tvm.topi.add(
+        tvm.topi.multiply(tvm.topi.multiply(sqrt_values, sin_values), scale), mean
+    )
+
+    return new_gen, random_values

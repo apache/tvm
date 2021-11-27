@@ -297,6 +297,12 @@ class SEScope : public ObjectRef {
     return SEScope(device.device_type, device.device_id, std::move(target));
   }
 
+  /*! \brief Returns the \p SEScope for \p target. */
+  static SEScope ForTarget(Target target) {
+    return SEScope(static_cast<DLDeviceType>(target->kind->device_type), /*virtual_device_id=*/0,
+                   std::move(target));
+  }
+
   /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */
   TVM_DLL static SEScope ForDeviceTargetAndMemoryScope(const Device& device, Target target,
                                                        MemoryScope memory_scope) {

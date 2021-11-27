@@ -565,6 +565,10 @@ def test_tflite_pool2d_legalize(
         ([1, 2, 3, 4], [1, 2, 3, 4], False),
         ([1, 2, 3, 4], [1, 1, 3, 1], False),
         ([1, 1, 3, 1], [1, 2, 3, 4], True),
+        ([1, 4, 4], [4, 1], False),
+        ([4], [4], False),
+        ([4], [1, 2, 3, 4], True),
+        ([1, 4, 4], [4, 1], False),
     ],
 )
 @pytest.mark.parametrize("activation_function", ["NONE", "RELU"])
@@ -621,15 +625,26 @@ def test_tflite_binary_elemwise_legalize(
         shapes = [ifm_shape, ifm2_shape]
         ifm_index, ifm2_index = (1, 0) if reversed_operands else (0, 1)
         op = ext_func.body
-        assert list(op.args[0].checked_type.shape) == shapes[ifm_index]
-        assert list(op.args[1].checked_type.shape) == shapes[ifm2_index]
+
+        has_reshaped_output = False
+        shapes_padded = [[1] * (4 - len(s)) + s for s in shapes]
+        out_padded = [1] * (4 - len(out_shape)) + out_shape
+        if op.op.name != "contrib.ethosu.binary_elementwise":
+            has_reshaped_output = True
+            op = op.args[0]
+
+        assert list(op.args[0].checked_type.shape) == shapes_padded[ifm_index]
+        assert list(op.args[1].checked_type.shape) == shapes_padded[ifm2_index]
         assert op.args[0].checked_type.dtype == dtype
-        assert list(op.checked_type.shape) == out_shape
+        assert list(op.checked_type.shape) == out_padded
         assert op.checked_type.dtype == dtype
         assert op.attrs.operator_type == operator_type
         assert op.attrs.reversed_operands == reversed_operands
         if activation_function == "RELU":
             assert str(op.attrs.activation) == "CLIP"
+
+        if has_reshaped_output:
+            assert list(ext_func.body.checked_type.shape) == out_shape
 
     if operator_type == "ADD":
         rewriter = legalize.AddRewriter()
@@ -888,6 +903,108 @@ def test_relay_strided_slice_legalize(ifm_shape, begin, end):
     # check that identity's output shape matches strided slice's output shape
     slice_shape = [a - b for a, b in zip(end, begin)]
     assert list(identity.checked_type.shape) == slice_shape
+
+
+@pytest.mark.parametrize("operator_type", ["ABS"])
+@pytest.mark.parametrize(
+    "ifm_shape",
+    [[1, 2, 3, 4], [1, 7, 3], [8, 3, 1], [11, 22], [300]],
+)
+def test_tflite_unary_elemwise_legalize(
+    operator_type,
+    ifm_shape,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def abs_func(self, x):
+                if operator_type == "ABS":
+                    op = tf.math.abs(x)
+                return op
+
+        model = Model()
+
+        # Save the model
+        concrete_func = model.abs_func.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        out_shape = ifm_shape
+        func_body = ext_func.body
+
+        # If we legalized the unary elementwise op into 4D
+        if func_body.op.name == "reshape":
+            reshape = func_body
+            unary = func_body.args[0]
+            reshape2 = unary.args[0]
+
+            # Check the input to the reshape
+            reshape2_in_shape = [i for i in reshape2.args[0].checked_type.shape]
+            assert reshape2_in_shape == ifm_shape
+
+            # Check that the unary elementwise operator is 4D after reshape
+            assert len(unary.checked_type.shape) == 4
+            assert unary.args[0].checked_type.dtype == dtype
+
+            # Check that the output of the graph has the same shape as input
+            reshape_out_shape = [i for i in reshape.checked_type.shape]
+            assert reshape_out_shape == ifm_shape
+            assert unary.attrs.operator_type == operator_type
+
+        else:
+            unary = func_body
+
+            # Check the IFM
+            assert list(unary.args[0].checked_type.shape) == ifm_shape
+            assert unary.args[0].checked_type.dtype == dtype
+
+            # Check the OFM
+            assert list(unary.checked_type.shape) == out_shape
+            assert unary.checked_type.dtype == dtype
+
+            # operator type check
+            assert unary.attrs.operator_type == operator_type
+
+    if operator_type == "ABS":
+        rewriter = legalize.AbsRewriter()
+        pattern_table = [
+            (
+                ethosu.AbsParams.composite_name,
+                ethosu.abs_pattern(),
+                lambda pat: ethosu.AbsParams(pat).is_valid(),
+            ),
+        ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 if __name__ == "__main__":

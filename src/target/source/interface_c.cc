@@ -41,8 +41,12 @@ using namespace tvm::relay::backend;
 class InterfaceCNode : public runtime::ModuleNode {
  public:
   InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs,
-                 Array<String> devices)
-      : module_name_(module_name), inputs_(inputs), outputs_(outputs), devices_(devices) {}
+                 Array<String> devices, int workspace_size)
+      : module_name_(module_name),
+        inputs_(inputs),
+        outputs_(outputs),
+        devices_(devices),
+        workspace_size_(workspace_size) {}
   const char* type_key() const { return "h"; }
 
   std::string GetSource(const std::string& format) final {
@@ -60,6 +64,7 @@ class InterfaceCNode : public runtime::ModuleNode {
     }
 
     EmitRunFunction(code);
+    EmitWorkspaceSize(code);
     EmitLowerHeaderGuard(code);
 
     return code.str();
@@ -140,15 +145,25 @@ class InterfaceCNode : public runtime::ModuleNode {
     code_stream << ");\n";
   }
 
+  void EmitWorkspaceSize(std::stringstream& code_stream) {
+    std::string workspace_size_name =
+        ToCConstantStyle(PrefixGeneratedName({module_name_, "WORKSPACE_SIZE"}));
+    code_stream << "/*!\n"
+                << " * \\brief Workspace size for TVM module \"" << module_name_ << "\"\n"
+                << " */\n"
+                << "#define " << workspace_size_name << " " << workspace_size_ << "\n";
+  }
+
   std::string module_name_;
   Array<String> inputs_;
   Array<String> outputs_;
   Array<String> devices_;
+  int workspace_size_;
 };
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
-                                 Array<String> outputs, Array<String> devices) {
-  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, devices);
+                                 Array<String> outputs, Array<String> devices, int workspace_size) {
+  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, devices, workspace_size);
   return runtime::Module(n);
 }
 

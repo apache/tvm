@@ -30,6 +30,8 @@
 
 #include <utility>
 
+#include "../call/call.h"
+
 namespace tvm {
 namespace relay {
 
@@ -76,6 +78,14 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node);
  * scopes.
  */
 DeviceCopyProps GetDeviceCopyProps(const Expr& expr);
+
+/*!
+ * \brief As for GetDeviceCopyProps, but for a lowered call rather than the original
+ * "device_copy" operator.
+ *
+ * See te_compiler.cc for where this rewriting occurs.
+ */
+DeviceCopyProps GetLoweredDeviceCopyProps(const CallLoweredProps& props);
 
 }  // namespace relay
 }  // namespace tvm
