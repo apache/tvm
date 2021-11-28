@@ -134,7 +134,7 @@ class LUTsOptimizer(Pass):
         return OptimizeLUTs().visit(func)
 
 
-@tvm._ffi.register_func("relay.ext.ethosu.constant_updater")
+@tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
     The constant updater process happen after lowering in the core compiler.
@@ -144,11 +144,11 @@ def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     return dict()
 
 
-@tvm._ffi.register_func("relay.ext.ethosu.relay_to_tir_func")
+@tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir_func")
 def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     """
     This is hook for python-based lowering of relay function
-    that gets offloaded to Ethos-U.
+    that gets offloaded to the microNPU.
 
     Parameters
     ----------
@@ -185,7 +185,7 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     return primfunc
 
 
-@tvm._ffi.register_func("relay.ext.ethosu.primfunc_to_artifact")
+@tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")
 def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact:
     """
     This is hook for python-based lowering of TIR PrimFunc
