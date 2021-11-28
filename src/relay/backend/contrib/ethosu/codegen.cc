@@ -75,7 +75,7 @@ class RelayToTIRMutator : public MixedModeMutator {
       auto codegen_name = func->GetAttr<String>(attr::kCompiler);
       if (codegen_name.defined() && codegen_name == "ethos-u") {
         auto relay_to_tir_func_pf =
-            tvm::runtime::Registry::Get("relay.ext.ethosu.relay_to_tir_func");
+            tvm::runtime::Registry::Get("relay.ext.ethos-u.relay_to_tir_func");
         ICHECK(relay_to_tir_func_pf);
         tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
         prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target("ethos-u"));
@@ -101,7 +101,7 @@ tvm::transform::Pass RelayToTIR() {
       [=](IRModule ir_module, transform::PassContext pass_context) {
         return RelayToTIRMutator(ir_module)();
       };
-  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethosu.RelayToTIR", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethos-u.RelayToTIR", {});
 }
 
 /*!
@@ -116,7 +116,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
         prim_func->GetAttr<Map<Integer, runtime::NDArray>>("ethos-u.constants");
     ICHECK(params) << "microNPU params should be present";
     auto primfunc_to_artifact_pf =
-        tvm::runtime::Registry::Get("relay.ext.ethosu.primfunc_to_artifact");
+        tvm::runtime::Registry::Get("relay.ext.ethos-u.primfunc_to_artifact");
     ICHECK(primfunc_to_artifact_pf);
     CompilationArtifact ca = (*primfunc_to_artifact_pf)(prim_func);
     compile_artifacts.push_back(ca);
