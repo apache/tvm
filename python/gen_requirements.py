@@ -109,8 +109,8 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             [
                 "future",  # Hidden dependency of torch.
                 "onnx",
-                "onnxruntime",
                 "onnxoptimizer",
+                "onnxruntime",
                 "torch",
                 "torchvision",
             ],
@@ -146,8 +146,8 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             [
                 "future",  # Hidden dependency of torch.
                 "onnx",
-                "onnxruntime",
                 "onnxoptimizer",
+                "onnxruntime",
                 "paddlepaddle",
                 "tensorflow",
                 "tflite",
@@ -241,8 +241,8 @@ CONSTRAINTS = [
     ("matplotlib", None),
     ("numpy", None),
     ("onnx", None),
-    ("onnxruntime", None),
     ("onnxoptimizer", None),
+    ("onnxruntime", None),
     ("opencv-python", None),
     ("paddlepaddle", None),
     ("pillow", None),
