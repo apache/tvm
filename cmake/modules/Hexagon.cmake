@@ -73,7 +73,7 @@ endif()
 # e.g. when compiling the TVM runtime for Hexagon.
 if (NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
   if(USE_HEXAGON_LAUNCHER STREQUAL "OFF" AND
-      USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "OFF")
+      USE_HEXAGON_PROXY_RPC STREQUAL "OFF")
     if(USE_HEXAGON_DEVICE STREQUAL "OFF")
       list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
       return()
@@ -95,7 +95,7 @@ if(NOT USE_HEXAGON_SDK)
 endif()
 
 if(USE_HEXAGON_LAUNCHER STREQUAL "ON" OR
-    USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "ON")
+    USE_HEXAGON_PROXY_RPC STREQUAL "ON")
   if(DEFINED USE_ANDROID_TOOLCHAIN)
     if(NOT DEFINED ANDROID_PLATFORM)
       message(SEND_ERROR "Please set ANDROID_PLATFORM "
@@ -157,7 +157,7 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
 
 endif()
 
-if(USE_MINIMAL_HEXAGON_TVM_RPC STREQUAL "ON")
+if(USE_HEXAGON_PROXY_RPC STREQUAL "ON")
   set(RPC_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/apps_hexagon_proxy_rpc")
   ExternalProject_Add(proxy_rpc_android
     SOURCE_DIR "${CMAKE_SOURCE_DIR}/apps/hexagon_proxy_rpc/cmake/android"

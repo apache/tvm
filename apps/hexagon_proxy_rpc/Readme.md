@@ -46,7 +46,7 @@ Hexagon SDK is available at //developer.qualcomm.com/software/Hexagon-dsp-sdk.
 ### Compilation with TVM
 
 Building the Hexagon Proxy RPC as a component of the main TVM build
-used for Hexagon codegen can be achieved by setting `USE_MINIMAL_HEXAGON_TVM_RPC=ON`.
+used for Hexagon codegen can be achieved by setting `USE_HEXAGON_PROXY_RPC=ON`.
 A minimal  example invocation for compiling TVM along with the Hexagon Proxy RPC server 
 is included below:
 
@@ -57,7 +57,7 @@ cmake -DCMAKE_C_COMPILER=/path/to/clang \
       -DCMAKE_CXX_STANDARD=14 \
       -DUSE_RPC=ON \
       -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
-      -DUSE_MINIMAL_HEXAGON_TVM_RPC=ON \
+      -DUSE_HEXAGON_PROXY_RPC=ON \
       -DANDROID_ABI=arm64-v8a \
       -DANDROID_PLATFORM=android-28 \
       -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \

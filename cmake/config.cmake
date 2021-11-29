@@ -286,7 +286,7 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 set(USE_HEXAGON_LAUNCHER OFF)
 
 # Whether to build the minimal support android rpc server for hexagon
-set(USE_MINIMAL_HEXAGON_TVM_RPC OFF)
+set(USE_HEXAGON_PROXY_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
