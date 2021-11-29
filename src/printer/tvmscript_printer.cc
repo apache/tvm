@@ -1421,7 +1421,15 @@ Doc TVMScriptPrinter::PrintLoopStack() {
 
 Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
   Doc res;
-  res << tir_prefix_ << ".target(" << Doc::StrLiteral(target->str()) << ")";
+  res << tir_prefix_ << ".target({";
+  Map<String, ObjectRef> config = target->Export();
+  for (auto it = config.begin(); it != config.end(); ++it) {
+    if (it != config.begin()) {
+      res << ", ";
+    }
+    res << "\"" << (*it).first << "\":" << Print((*it).second);
+  }
+  res << "})";
   return res;
 }
 

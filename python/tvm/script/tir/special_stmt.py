@@ -860,7 +860,9 @@ class TargetAttrValue(SpecialStmt):
 
         super().__init__(target, def_symbol=False)
 
-    def __call__(self, target_str):
-        if not isinstance(target_str, str):
-            raise ArgumentError(f"T.target expected a config string, but got {type(target_str)}")
-        return Target(target_str)
+    def __call__(self, target_config):
+        if not isinstance(target_config, (str, dict)):
+            raise ArgumentError(
+                f"T.target expected a config dict or string, but got {type(target_config)}"
+            )
+        return Target(target_config)

@@ -3207,7 +3207,20 @@ def test_nontrivial_range_axis():
 
 @T.prim_func
 def func_with_target_spec() -> None:
-    T.func_attr({"kTarget": T.target("cuda -arch=sm_70")})
+    T.func_attr(
+        {
+            "kTarget": T.target(
+                {
+                    "max_num_threads": 1024,
+                    "arch": "sm_70",
+                    "thread_warp_size": 32,
+                    "kind": "cuda",
+                    "tag": "",
+                    "keys": ["cuda", "gpu"],
+                }
+            )
+        }
+    )
     T.evaluate(0)
 
 
