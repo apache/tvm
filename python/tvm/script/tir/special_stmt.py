@@ -17,7 +17,6 @@
 """TVM Script Parser Special Stmt Classes"""
 # pylint: disable=unused-argument, no-self-argument, inconsistent-return-statements
 # pylint: disable=relative-beyond-top-level
-from ctypes import ArgumentError
 from typing import Callable, List, Optional, Tuple, Any, Mapping, Union
 
 import synr
@@ -862,7 +861,7 @@ class TargetAttrValue(SpecialStmt):
 
     def __call__(self, target_config):
         if not isinstance(target_config, (str, dict)):
-            raise ArgumentError(
+            raise ValueError(
                 f"T.target expected a config dict or string, but got {type(target_config)}"
             )
         return Target(target_config)

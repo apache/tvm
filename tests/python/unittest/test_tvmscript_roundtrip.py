@@ -3206,7 +3206,7 @@ def test_nontrivial_range_axis():
 
 
 @T.prim_func
-def func_with_target_spec() -> None:
+def func_with_target_spec_by_config() -> None:
     T.func_attr(
         {
             "kTarget": T.target(
@@ -3224,8 +3224,20 @@ def func_with_target_spec() -> None:
     T.evaluate(0)
 
 
-def test_func_with_target_spec():
-    func = func_with_target_spec
+@T.prim_func
+def func_with_target_spec_by_str() -> None:
+    T.func_attr({"kTarget": T.target("nvidia/nvidia-a100")})
+    T.evaluate(0)
+
+
+def test_func_with_target_spec_by_config():
+    func = func_with_target_spec_by_config
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_func_with_target_spec_by_str():
+    func = func_with_target_spec_by_str
     rt_func = tvm.script.from_source(func.script(show_meta=True))
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
