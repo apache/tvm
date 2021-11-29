@@ -26,7 +26,6 @@ import os
 
 import tvm
 from tvm.contrib.download import download_testdata
-from tvm.relay.backend import Executor, Runtime
 
 from ..zephyr.test_utils import ZEPHYR_BOARDS
 from ..arduino.test_utils import ARDUINO_BOARDS
@@ -36,7 +35,8 @@ TVMC_COMMAND = [sys.executable, "-m", "tvm.driver.tvmc"]
 MODEL_URL = "https://github.com/tensorflow/tflite-micro/raw/main/tensorflow/lite/micro/examples/micro_speech/micro_speech.tflite"
 MODEL_FILE = "micro_speech.tflite"
 
-
+# TODO(mehrdadh): replace this with _main from tvm.driver.tvmc.main
+# Issue: https://github.com/apache/tvm/issues/9612
 def _run_tvmc(cmd_args: list, *args, **kwargs):
     """Run a tvmc command and return the results"""
     cmd_args_list = TVMC_COMMAND + cmd_args
@@ -74,8 +74,8 @@ def test_tvmc_model_build_only(board):
     tar_path = str(temp_dir / "model.tar")
     project_dir = str(temp_dir / "project")
 
-    runtime = str(Runtime("crt"))
-    executor = str(Executor("graph"))
+    runtime = "crt"
+    executor = "graph"
 
     cmd_result = _run_tvmc(
         [
@@ -99,18 +99,19 @@ def test_tvmc_model_build_only(board):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    cmd_result = _run_tvmc(
-        [
-            "micro",
-            "create-project",
-            project_dir,
-            tar_path,
-            platform,
-            "--project-option",
-            "project_type=host_driven",
-            f"{platform}_board={board}",
-        ]
-    )
+    create_project_cmd = [
+        "micro",
+        "create-project",
+        project_dir,
+        tar_path,
+        platform,
+        "--project-option",
+        "project_type=host_driven",
+    ]
+    if platform == "zephyr":
+        create_project_cmd.append(f"{platform}_board={board}")
+
+    cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     cmd_result = _run_tvmc(
@@ -129,8 +130,8 @@ def test_tvmc_model_run(board):
     tar_path = str(temp_dir / "model.tar")
     project_dir = str(temp_dir / "project")
 
-    runtime = str(Runtime("crt"))
-    executor = str(Executor("graph"))
+    runtime = "crt"
+    executor = "graph"
 
     cmd_result = _run_tvmc(
         [
@@ -154,18 +155,19 @@ def test_tvmc_model_run(board):
     )
     assert cmd_result == 0, "tvmc failed in step: compile"
 
-    cmd_result = _run_tvmc(
-        [
-            "micro",
-            "create-project",
-            project_dir,
-            tar_path,
-            platform,
-            "--project-option",
-            "project_type=host_driven",
-            f"{platform}_board={board}",
-        ]
-    )
+    create_project_cmd = [
+        "micro",
+        "create-project",
+        project_dir,
+        tar_path,
+        platform,
+        "--project-option",
+        "project_type=host_driven",
+    ]
+    if platform == "zephyr":
+        create_project_cmd.append(f"{platform}_board={board}")
+
+    cmd_result = _run_tvmc(create_project_cmd)
     assert cmd_result == 0, "tvmc micro failed in step: create-project"
 
     cmd_result = _run_tvmc(

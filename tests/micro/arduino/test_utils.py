@@ -58,7 +58,6 @@ def make_workspace_dir(test_name, board):
         board_workspace = pathlib.Path(str(board_workspace) + f"-{number}")
     board_workspace.parent.mkdir(exist_ok=True, parents=True)
     t = tvm.contrib.utils.tempdir(board_workspace)
-    # time.sleep(200)
     return t
 
 

@@ -53,6 +53,8 @@ ARDUINO_CLI_VERSION = 0.18
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+ARDUINO_CLI_CMD = shutil.which("arduino-cli")
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -71,14 +73,19 @@ PROJECT_TYPES = ["example_project", "host_driven"]
 PROJECT_OPTIONS = [
     server.ProjectOption(
         "arduino_board",
-        required=["generate_project", "build", "flash", "open_transport"],
+        required=["build", "flash", "open_transport"],
         choices=list(BOARD_PROPERTIES),
         type="str",
         help="Name of the Arduino board to build for.",
     ),
     server.ProjectOption(
         "arduino_cli_cmd",
-        optional=["build", "flash", "open_transport"],
+        required=["generate_project", "build", "flash", "open_transport"]
+        if not ARDUINO_CLI_CMD
+        else None,
+        optional=["generate_project", "build", "flash", "open_transport"]
+        if ARDUINO_CLI_CMD
+        else None,
         default="arduino-cli",
         type="str",
         help="Path to the arduino-cli tool.",
@@ -251,7 +258,9 @@ class Handler(server.ProjectAPIHandler):
                 with filename.open() as file:
                     try:
                         lines = file.readlines()
-                    except:
+                    # TODO: This exception only happens using `tvmc micro` and is not catched on Arduino tests.
+                    # Needs more investigation.
+                    except UnicodeDecodeError:
                         pass
 
                 for i in range(len(lines)):
@@ -321,7 +330,7 @@ class Handler(server.ProjectAPIHandler):
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Arduino version
-        version = self._get_platform_version(options["arduino_cli_cmd"])
+        version = self._get_platform_version(self._get_arduino_cli_cmd(options))
         if version != ARDUINO_CLI_VERSION:
             message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
@@ -371,7 +380,7 @@ class Handler(server.ProjectAPIHandler):
         BUILD_DIR.mkdir()
 
         compile_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "compile",
             "./project/",
             "--fqbn",
@@ -387,6 +396,11 @@ class Handler(server.ProjectAPIHandler):
         subprocess.run(compile_cmd, check=True)
 
     BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
+
+    def _get_arduino_cli_cmd(self, options: dict):
+        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
+        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
+        return arduino_cli_cmd
 
     def _parse_boards_tabular_str(self, tabular_str):
         """Parses the tabular output from `arduino-cli board list` into a 2D array
@@ -420,7 +434,7 @@ class Handler(server.ProjectAPIHandler):
             yield parsed_row
 
     def _auto_detect_port(self, options):
-        list_cmd = [options["arduino_cli_cmd"], "board", "list"]
+        list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
@@ -446,7 +460,7 @@ class Handler(server.ProjectAPIHandler):
         port = self._get_arduino_port(options)
 
         upload_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "upload",
             "./project",
             "--fqbn",
