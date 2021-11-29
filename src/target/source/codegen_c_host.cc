@@ -73,7 +73,8 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   }
 }
 
-void CodeGenCHost::DeclareParameters(Map<String, LinkedParam> params) {
+void CodeGenCHost::DeclareParameters(Map<String, LinkedParam> params,
+                                     const Integer& constants_byte_alignment) {
   for (auto kv : params) {
     decl_stream << "\n"
                 << "#ifdef __cplusplus\n"
@@ -85,8 +86,10 @@ void CodeGenCHost::DeclareParameters(Map<String, LinkedParam> params) {
       num_elements *= dim;
     }
     PrintType(kv.second->param.DataType(), decl_stream);
-    decl_stream << " " << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << "["
-                << num_elements << "] = {\n";
+    decl_stream << " __attribute__((section(\".rodata.tvm\"), "
+                << "aligned(" << constants_byte_alignment->value << "))) "
+                << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << "[" << num_elements
+                << "] = {\n";
     NDArrayDataToC(kv.second->param, 4, decl_stream);
     decl_stream << "};\n"
                 << "#ifdef __cplusplus\n"
@@ -421,14 +424,16 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(f);
   }
 
+  auto constants_byte_alignment = target->GetAttr<Integer>("constants-byte-alignment").value_or(16);
+
   if (could_have_linked_params && !aot_executor_fn.defined()) {
     ICHECK(found_linked_params) << "-link-params given but none found";
-    cg.DeclareParameters(linked_params);
+    cg.DeclareParameters(linked_params, constants_byte_alignment);
     cg.LinkParameters(linked_params);
   }
 
   if (could_have_linked_params && aot_executor_fn.defined()) {
-    cg.DeclareParameters(linked_params);
+    cg.DeclareParameters(linked_params, constants_byte_alignment);
     cg.AddFunction(aot_executor_fn);
   }
 
