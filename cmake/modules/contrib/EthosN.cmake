@@ -29,12 +29,12 @@ if(NOT USE_ETHOSN STREQUAL "OFF")
 
     message(STATUS "Build with Arm(R) Ethos(TM)-N ${ETHOSN_PACKAGE_VERSION}")
 
-    file(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
+    tvm_file_glob(GLOB ETHOSN_RUNTIME_CONTRIB_SRC
       CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_runtime.cc
       CONFIGURE_DEPENDS src/runtime/contrib/ethosn/ethosn_device.cc)
     list(APPEND RUNTIME_SRCS ${ETHOSN_RUNTIME_CONTRIB_SRC})
 
-    file(GLOB COMPILER_ETHOSN_SRCS
+    tvm_file_glob(GLOB COMPILER_ETHOSN_SRCS
       CONFIGURE_DEPENDS src/relay/backend/contrib/ethosn/*)
     list(APPEND COMPILER_SRCS ${COMPILER_ETHOSN_SRCS})
 

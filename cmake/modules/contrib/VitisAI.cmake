@@ -37,8 +37,8 @@ if(USE_VITIS_AI)
   endif()
   message(STATUS "Build with contrib.vitisai")
   include_directories(${PYXIR_INCLUDE_DIR})  
-  file(GLOB VAI_CONTRIB_SRC src/runtime/contrib/vitis_ai/*.cc)
-  file(GLOB COMPILER_VITIS_AI_SRCS
+  tvm_file_glob(GLOB VAI_CONTRIB_SRC src/runtime/contrib/vitis_ai/*.cc)
+  tvm_file_glob(GLOB COMPILER_VITIS_AI_SRCS
        CONFIGURE_DEPENDS src/relay/backend/contrib/vitis_ai/*)
   list(APPEND COMPILER_SRCS ${COMPILER_VITIS_AI_SRCS})
   link_directories(${PYXIR_LIB_DIR})
