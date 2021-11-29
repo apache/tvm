@@ -374,7 +374,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 
 @pytest.mark.skipif(
     not ethosn_available(),
-    reason="--target=Ethos(TM)-N77 is not available. TVM built with 'USE_ETHOSN OFF'",
+    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
 )
 def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
@@ -524,10 +524,24 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     tvmc_model = tvmc.load("no_file_needed")
     tvmc.compile(tvmc_model, target="mockcodegen -testopt=value, llvm")
 
-    mock_pc.assert_called_once_with(
-        opt_level=3,
+    assert mock_pc.call_count == 2
+    codegen_partition_context = mock.call(
         config={"relay.ext.mock.options": {"testopt": "value"}},
+    )
+    codegen_compile_context = mock.call(
+        config={"relay.ext.mock.options": {"testopt": "value"}},
+        opt_level=3,
         disabled_pass=None,
+    )
+    mock_pc.assert_has_calls(
+        [
+            codegen_partition_context,
+            codegen_partition_context.__enter__(),
+            codegen_partition_context.__exit__(None, None, None),
+            codegen_compile_context,
+            codegen_compile_context.__enter__(),
+            codegen_compile_context.__exit__(None, None, None),
+        ]
     )
 
 
