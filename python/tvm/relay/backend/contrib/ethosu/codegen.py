@@ -38,7 +38,7 @@ def constant_updater(expr, symbol):  # pylint: disable=unused-argument
 @tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir_func")
 def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     """
-    This is hook for python-based lowering of relay function
+    This is the hook for python-based lowering of relay function
     that gets offloaded to the microNPU.
 
     Parameters
@@ -78,14 +78,14 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
 @tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")
 def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact:
     """
-    This is hook for python-based lowering of TIR PrimFunc
+    This is the hook for python-based lowering of TIR PrimFunc
     that has undergone unified optimization to Compilation
     Artifact destined for the microNPU.
 
     Parameters
     ----------
     primfunc : tir.PrimFunc
-        TIR PrimFuncthat has undergone unified optimization
+        TIR PrimFunc that has undergone unified optimizations
 
     Returns
     -------

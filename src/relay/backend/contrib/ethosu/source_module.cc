@@ -65,12 +65,10 @@ class EthosUModuleNode : public ModuleNode {
     c_source += "#include <stdio.h>\n";
     c_source += "#include <stdlib.h>\n";
     c_source += "#include <tvm/runtime/crt/module.h>\n";
-    c_source += "#include <tvm_ethosu_runtime.h>\n";
-    c_source += "\n";
+    c_source += "#include <tvm_ethosu_runtime.h>\n\n";
     for (const CompilationArtifact& compilation_artifact : compilation_artifacts) {
       c_source += GenerateSource(compilation_artifact);
-      c_source += "\n";
-      c_source += "\n";
+      c_source += "\n\n";
     }
   }
 
