@@ -49,19 +49,6 @@ inline String get_name_mangled(const String& module_name, const String& name) {
   return ss.str();
 }
 
-/*!
- * \brief Create a metadata module object.
- *
- * \param metadata The variable name to ndarray mapping.
- * \param sym_vars The symbol to the list of required constant variables
- * mapping.
- *
- * \return The created metadata module.
- */
-Module MetadataModuleCreate(
-    const std::unordered_map<std::string, NDArray>& metadata,
-    const std::unordered_map<std::string, std::vector<std::string>>& sym_vars);
-
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
 
