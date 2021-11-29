@@ -163,7 +163,7 @@ class DeviceWrapper(Object):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
 
 
-def profile_function(mod, dev, collectors, func_name="main"):
+def profile_function(mod, dev, collectors, func_name="main", warmup_iters=10):
     """Collect performance information of a function execution. Usually used with
     a compiled PrimFunc.
 
@@ -191,10 +191,15 @@ def profile_function(mod, dev, collectors, func_name="main"):
         Module containing the function to profile.
     dev: Device
         Device to run the function on.
+
     collectors: List[MetricCollector]
         :py:class:`MetricCollector`s which will collect performance information.
     func_name: str
         Name of the function in `mod` to profile. Defaults to "main".
+    warmup_iters: int
+        Number of iterations to run the function before collecting performance
+        information. Recommended to set this larger than 0 for consistent cache
+        effects. Defaults to 10.
 
     Returns
     -------
@@ -203,7 +208,9 @@ def profile_function(mod, dev, collectors, func_name="main"):
         returns performance metrics as a `Dict[str, ObjectRef]` where values
         can be `CountNode`, `DurationNode`, `PercentNode`.
     """
-    return _ffi_api.ProfileFunction(mod, func_name, dev.device_type, dev.device_id, collectors)
+    return _ffi_api.ProfileFunction(
+        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+    )
 
 
 # We only enable this class when TVM is build with PAPI support

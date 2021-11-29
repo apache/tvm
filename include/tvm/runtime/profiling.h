@@ -499,6 +499,9 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  * \param device_type Device type to run on. Profiling will include performance
  *                    metrics specific to this device type.
  * \param device_id Id of device to run on.
+ * \param warmup_iters Number of iterations of the function to run before collecting
+ *                     performance information. Recommend to set this larger
+ *                     than 0 so that cache effects are consistent.
  * \param collectors List of different
  *                   ways to collect metrics. See MetricCollector.
  * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
@@ -506,7 +509,7 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  *          values can be `CountNode`, `DurationNode`, `PercentNode`.
  */
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                           Array<MetricCollector> collectors);
+                           int warmup_iters, Array<MetricCollector> collectors);
 
 }  // namespace profiling
 }  // namespace runtime

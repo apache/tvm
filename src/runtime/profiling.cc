@@ -679,43 +679,50 @@ TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device 
 });
 
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                           Array<MetricCollector> collectors) {
+                           int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
   return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
     // warmup
-    for (size_t i = 0; i < 10; i++) {
+    for (int i = 0; i < warmup_iters; i++) {
       f.CallPacked(args, ret);
     }
 
     for (auto& collector : collectors) {
       collector->Init({DeviceWrapper(dev)});
     }
+    std::vector<Map<String, ObjectRef>> results;
+    results.reserve(collectors.size());
     std::vector<ObjectRef> collector_data;
+    collector_data.reserve(collectors.size());
     for (auto& collector : collectors) {
       collector_data.push_back(collector->Start(dev));
     }
+
     // TODO(tkonolige): repeated calls if the runtime is small?
     f.CallPacked(args, ret);
-    std::unordered_map<String, ObjectRef> results;
+
     for (size_t i = 0; i < collectors.size(); i++) {
-      auto r = collectors[i]->Stop(collector_data[i]);
-      // We might want to do this in a separate loop to avoid unnecessary time
-      // spent before stopping subsequent collectors.
-      for (auto kv : r) {
-        results[kv.first] = kv.second;
+      results.push_back(collectors[i]->Stop(collector_data[i]));
+    }
+    Map<String, ObjectRef> combined_results;
+    for (auto m : results) {
+      for (auto p : m) {
+        // assume that there is no shared metric name between collectors
+        combined_results.Set(p.first, p.second);
       }
     }
-    *ret = Map<String, ObjectRef>(results);
+    *ret = combined_results;
   });
 }
 
 TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
-    .set_body_typed<PackedFunc(Module, String, int, int,
+    .set_body_typed<PackedFunc(Module, String, int, int, int,
                                Array<MetricCollector>)>([](Module mod, String func_name,
                                                            int device_type, int device_id,
+                                                           int warmup_iters,
                                                            Array<MetricCollector> collectors) {
       if (mod->type_key() == std::string("rpc")) {
         LOG(FATAL)
@@ -723,7 +730,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
                                                                     // MetricCollectors over rpc.
         throw;
       } else {
-        return ProfileFunction(mod, func_name, device_type, device_id, collectors);
+        return ProfileFunction(mod, func_name, device_type, device_id, warmup_iters, collectors);
       }
     });
 
