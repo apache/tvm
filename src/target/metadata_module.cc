@@ -35,7 +35,7 @@ namespace tvm {
 namespace codegen {
 
 runtime::Module CreateMetadataModule(
-    const std::unordered_map<std::string, runtime::NDArray>& params,
+    const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
     tvm::relay::Runtime runtime, runtime::Metadata metadata) {
   // Here we split modules into two groups:
@@ -52,19 +52,19 @@ runtime::Module CreateMetadataModule(
   bool is_targeting_crt = runtime->name == "crt";
 
   // Wrap all submodules in the initialization wrapper.
-  std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
+  std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
   for (tvm::runtime::Module mod : ext_modules) {
     auto pf_sym = mod.GetFunction("get_symbol");
     auto pf_var = mod.GetFunction("get_const_vars");
-    std::vector<std::string> arrays;
+    std::vector<std::string> symbol_const_vars;
     if (pf_sym != nullptr && pf_var != nullptr) {
       String symbol = pf_sym();
       Array<String> variables = pf_var();
       for (size_t i = 0; i < variables.size(); i++) {
-        arrays.push_back(variables[i].operator std::string());
+        symbol_const_vars.push_back(variables[i].operator std::string());
       }
-      ICHECK_EQ(sym_metadata.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
-      sym_metadata[symbol] = arrays;
+      ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+      const_vars_by_symbol[symbol] = symbol_const_vars;
     }
     // We only need loading of serialized constant data
     // if there are constants present and required by the
@@ -74,7 +74,7 @@ runtime::Module CreateMetadataModule(
 
     // TODO(@manupa-arm) : we should be able to use csource_metadata
     // if the variables are empty when all the runtime modules implement get_func_names
-    if (arrays.empty() && is_targeting_crt && DSOExportable(mod) &&
+    if (symbol_const_vars.empty() && is_targeting_crt && DSOExportable(mod) &&
         (target->kind->name == "c" || target->kind->name == "llvm")) {
       crt_exportable_modules.push_back(mod);
     } else {
@@ -116,12 +116,12 @@ runtime::Module CreateMetadataModule(
     }
   } else {
     if (!non_crt_exportable_modules.empty()) {
-      runtime::Module binary_meta_mod = runtime::MetadataModuleCreate(params, sym_metadata);
-      binary_meta_mod.Import(target_module);
+      runtime::Module binary_const_loader_mod = runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+      binary_const_loader_mod.Import(target_module);
       for (const auto& it : non_crt_exportable_modules) {
-        binary_meta_mod.Import(it);
+        binary_const_loader_mod.Import(it);
       }
-      return binary_meta_mod;
+      return binary_const_loader_mod;
     }
   }
   return target_module;
