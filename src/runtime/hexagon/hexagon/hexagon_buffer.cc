@@ -124,7 +124,7 @@ std::unique_ptr<Allocation> Allocator<HexagonBuffer::StorageScope::kVTCM>(size_t
 }
 
 HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope)
-    : ndim_(1), nbytes_(nbytes) {
+    : nallocs_(1), nbytes_(nbytes) {
   SetStorageScope(scope);
 
   std::unique_ptr<Allocation> alloca = nullptr;
@@ -138,10 +138,11 @@ HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> s
   managed_allocations_.push_back(std::move(alloca));
 }
 
-HexagonBuffer::HexagonBuffer(size_t ndim, size_t nbytes, size_t alignment, Optional<String> scope)
-    : ndim_(ndim), nbytes_(ndim * nbytes) {
+HexagonBuffer::HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment,
+                             Optional<String> scope)
+    : nallocs_(nallocs), nbytes_(nallocs * nbytes) {
   SetStorageScope(scope);
-  for (size_t i = 0; i < ndim; ++i) {
+  for (size_t i = 0; i < nallocs; ++i) {
     std::unique_ptr<Allocation> alloca = nullptr;
     if (GetStorageScope() == StorageScope::kDDR) {
       alloca = Allocator<StorageScope::kDDR>(nbytes, alignment);
@@ -155,7 +156,7 @@ HexagonBuffer::HexagonBuffer(size_t ndim, size_t nbytes, size_t alignment, Optio
 }
 
 HexagonBuffer::HexagonBuffer(void* data, size_t nbytes, Optional<String> scope)
-    : ndim_(1), nbytes_(nbytes) {
+    : nallocs_(1), nbytes_(nbytes) {
   SetStorageScope(scope);
   // disallow external VTCM allocations
   CHECK(GetStorageScope() != HexagonBuffer::StorageScope::kVTCM);
@@ -191,8 +192,8 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) {
   CHECK(nbytes_ == nbytes);
   size_t offset = 0;
-  for (size_t i = 0; i < ndim_; ++i) {
-    CHECK(nbytes / ndim_ == managed_allocations_[i]->nbytes_);
+  for (size_t i = 0; i < nallocs_; ++i) {
+    CHECK(nbytes / nallocs_ == managed_allocations_[i]->nbytes_);
 
     memcpy(static_cast<char*>(data) + offset,
            static_cast<const char*>(managed_allocations_[i]->data_),
@@ -205,8 +206,8 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) {
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   CHECK(nbytes_ == nbytes);
   size_t offset = 0;
-  for (size_t i = 0; i < ndim_; ++i) {
-    CHECK(nbytes / ndim_ == managed_allocations_[i]->nbytes_);
+  for (size_t i = 0; i < nallocs_; ++i) {
+    CHECK(nbytes / nallocs_ == managed_allocations_[i]->nbytes_);
 
     memcpy(static_cast<char*>(managed_allocations_[i]->data_),
            static_cast<const char*>(data) + offset, managed_allocations_[i]->nbytes_);
@@ -218,18 +219,18 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other) {
   CHECK(nbytes_ == other.nbytes_);
 
-  if (ndim_ == other.ndim_) {
-    for (size_t i = 0; i < ndim_; ++i) {
+  if (nallocs_ == other.nallocs_) {
+    for (size_t i = 0; i < nallocs_; ++i) {
       CHECK(managed_allocations_[i]->nbytes_ == other.managed_allocations_[i]->nbytes_);
 
       memcpy(static_cast<char*>(managed_allocations_[i]->data_),
              static_cast<const char*>(other.managed_allocations_[i]->data_),
              managed_allocations_[i]->nbytes_);
     }
-  } else if (ndim_ == 1) {
+  } else if (nallocs_ == 1) {
     size_t offset = 0;
-    for (size_t i = 0; i < other.ndim_; ++i) {
-      CHECK(nbytes_ / other.ndim_ == other.managed_allocations_[i]->nbytes_);
+    for (size_t i = 0; i < other.nallocs_; ++i) {
+      CHECK(nbytes_ / other.nallocs_ == other.managed_allocations_[i]->nbytes_);
 
       memcpy(static_cast<char*>(managed_allocations_[0]->data_) + offset,
              static_cast<const char*>(other.managed_allocations_[i]->data_),
@@ -237,10 +238,10 @@ void HexagonBuffer::CopyFrom(const HexagonBuffer& other) {
 
       offset += other.managed_allocations_[i]->nbytes_;
     }
-  } else if (other.ndim_ == 1) {
+  } else if (other.nallocs_ == 1) {
     size_t offset = 0;
-    for (size_t i = 0; i < ndim_; ++i) {
-      CHECK(other.nbytes_ / ndim_ == managed_allocations_[i]->nbytes_);
+    for (size_t i = 0; i < nallocs_; ++i) {
+      CHECK(other.nbytes_ / nallocs_ == managed_allocations_[i]->nbytes_);
 
       memcpy(static_cast<char*>(managed_allocations_[i]->data_),
              static_cast<const char*>(other.managed_allocations_[0]->data_) + offset,

@@ -57,13 +57,19 @@ void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* sh
   CHECK(ndim == 1 || ndim == 2);
 
   size_t typesize = (dtype.bits / 8) * dtype.lanes;
+
+  size_t nallocs = 1;
   size_t nbytes = shape[0] * typesize;
+  if (ndim == 2) {
+    nallocs = shape[0];
+    nbytes = shape[1] * typesize;
+  }
 
   size_t alignment = typesize;
   if (alignment < kHexagonAllocAlignment) {
     alignment = kHexagonAllocAlignment;
   }
-  return new HexagonBuffer(ndim, nbytes, alignment, mem_scope);
+  return new HexagonBuffer(nallocs, nbytes, alignment, mem_scope);
 }
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,

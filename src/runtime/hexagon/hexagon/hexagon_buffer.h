@@ -37,10 +37,10 @@ struct Allocation;
 
 class HexagonBuffer {
  public:
-  /* \brief Allocate memory within Hexagon accessible memory
-   * scopes.
+  /* \brief Allocate 1d (contiguous) memory within Hexagon accessible
+   * memory scopes.
    *
-   * \param nbytes The number of bytes of flat physical storage
+   * \param nbytes The number of bytes of physical storage
    * to allocate.
    *
    * \param alignment The byte alignment to be used when allocating.
@@ -51,14 +51,13 @@ class HexagonBuffer {
    */
   HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope);
 
-  /* \brief Allocate memory within Hexagon accessible memory
-   * scopes.
+  /* \brief Allocate 2d (discontiguous) memory within Hexagon accessible
+   * memory scopes.
    *
-   * \param ndim The number of dimensions of physical storage
-   * to allocate.
+   * \param nallocs The number of allocations.
    *
-   * \param nbytes The number of bytes of flat physical storage
-   * to allocate per dimension of physical storage.
+   * \param nbytes The number of bytes of physical storage
+   * to allocate per allocation.
    *
    * \param alignment The byte alignment to be used when allocating.
    *
@@ -66,14 +65,13 @@ class HexagonBuffer {
    * space in which to allocate. Defaults to global system
    * memory (DDR).
    */
-  HexagonBuffer(size_t ndim, size_t nbytes, size_t alignment, Optional<String> scope);
+  HexagonBuffer(size_t nallocs, size_t nbytes, size_t alignment, Optional<String> scope);
 
-  /* \brief Construct a hexagon buffer from externally allocated storage.
+  /* \brief Construct a Hexagon Buffer from an external buffer.
    *
-   * \param data The externally allocated storage.
+   * \param data The pointer to the external buffer.
    *
-   * \param nbytes The number of bytes of flat physical storage
-   * to allocate.
+   * \param nbytes The size of the external buffer in bytes.
    *
    * \param scope Optional storage scope indicating the memory
    * space in which to allocate. Defaults to global system
@@ -114,7 +112,7 @@ class HexagonBuffer {
 
   /* \brief Copy data from a Hexagon Buffer an external buffer.
    *
-   * \param data The externally allocated storage.
+   * \param data The pointer to the external buffer.
    *
    * \param nbytes The number of bytes to copy.
    */
@@ -122,7 +120,7 @@ class HexagonBuffer {
 
   /* \brief Copy data from an external buffer to a Hexagon Buffer.
    *
-   * \param data The externally allocated storage.
+   * \param data The pointer to the external buffer.
    *
    * \param nbytes The number of bytes to copy.
    */
@@ -139,9 +137,8 @@ class HexagonBuffer {
   void SetStorageScope(Optional<String> scope);
   /*! \brief Array of raw pointer allocations required by the buffer.
    *
-   *  For a 1d (flat) storage, a single contiguous allocation will
-   *  result. For 2d storage, (count, nbytes) = shape, which will
-   *  result in `count` discrete allocations.
+   *  For 1d (contiguous) storage a single allocation will result.
+   *  For 2d (discontiguous) storage `nallocs` allocations will result.
    */
   std::vector<void*> allocations_;
   /*! \brief Managed allocations which follow RAII and are released
@@ -151,7 +148,7 @@ class HexagonBuffer {
   /*! \brief The underlying storage type in which the allocation
    *  resides.
    */
-  size_t ndim_;
+  size_t nallocs_;
   size_t nbytes_;
   StorageScope storage_scope_;
 };
