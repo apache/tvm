@@ -233,7 +233,6 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
           module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
       Integer workspace_alignment = 16;
       if (executor_config) {
-        //    ICHECK(tgt) << "There should not be any PrimFuncs without a target attached by now";
         workspace_alignment =
             executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
       }
