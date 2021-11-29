@@ -527,6 +527,14 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
  */
 void UpdateAutoSchedulerOpWeights(const IRModule& module);
 
+/*!
+ * \brief Extract shape from expr to vector<int64_t>
+ *
+ * \param shape
+ * \return std::vector<int64_t>
+ */
+std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape);
+
 }  // namespace backend
 }  // namespace relay
 }  // namespace tvm
