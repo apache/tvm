@@ -330,6 +330,97 @@ class RelayToTIRVisitor : public MixedModeMutator {
                             context_buffer_size);
   }
 
+  void EmitPool2D(const GlobalVar& global_var, const Expr& expr, const String pool_name) {
+    Call clip, pool;
+    Call final_call = GetRef<Call>(expr.as<CallNode>());
+    Op final_op = GetRef<Op>(final_call->op.as<OpNode>());
+    if (final_op->name == "clip") {
+      clip = final_call;
+      Call clip_input = GetRef<Call>(clip->args[0].as<CallNode>());
+      Op clip_input_op = GetRef<Op>(clip_input->op.as<OpNode>());
+      if (clip_input_op->name == "cast") {
+        pool = GetRef<Call>(clip_input->args[0].as<CallNode>());
+      } else {  // max_pool2d
+        pool = clip_input;
+      }
+    } else if (final_op->name == "cast") {
+      pool = GetRef<Call>(final_call->args[0].as<CallNode>());
+    } else {  // max_pool2d
+      pool = final_call;
+    }
+
+    // prepare cmsis_nn_pool_params
+    int32_t stride_h, stride_w, padding_h, padding_w, pool_size_h, pool_size_w;
+    int32_t clip_min, clip_max;
+    std::string cmsisnn_api;
+    if (pool_name == "cmsis-nn.qnn_avg_pool2d") {
+      cmsisnn_api = "arm_avgpool_s8";
+      const AvgPool2DAttrs* attrs = pool->attrs.as<AvgPool2DAttrs>();
+      stride_h = qnn::get_const_int(attrs->strides[0]);
+      stride_w = qnn::get_const_int(attrs->strides[1]);
+      padding_h = qnn::get_const_int(attrs->padding[0]);
+      padding_w = qnn::get_const_int(attrs->padding[1]);
+      pool_size_h = qnn::get_const_int(attrs->pool_size[0]);
+      pool_size_w = qnn::get_const_int(attrs->pool_size[1]);
+    } else {
+      cmsisnn_api = "arm_max_pool_s8";
+      const MaxPool2DAttrs* attrs = pool->attrs.as<MaxPool2DAttrs>();
+      stride_h = qnn::get_const_int(attrs->strides[0]);
+      stride_w = qnn::get_const_int(attrs->strides[1]);
+      padding_h = qnn::get_const_int(attrs->padding[0]);
+      padding_w = qnn::get_const_int(attrs->padding[1]);
+      pool_size_h = qnn::get_const_int(attrs->pool_size[0]);
+      pool_size_w = qnn::get_const_int(attrs->pool_size[1]);
+    }
+    if (clip.defined()) {
+      const ClipAttrs* clip_attrs = clip->attrs.as<ClipAttrs>();
+      clip_min = clip_attrs->a_min;
+      clip_max = clip_attrs->a_max;
+    } else {
+      clip_min = -128;
+      clip_max = 127;
+    }
+
+    tvm::Array<PrimExpr> scalar_args = {ToArg(stride_h),  ToArg(stride_w), ToArg(padding_h),
+                                        ToArg(padding_w), ToArg(clip_min), ToArg(clip_max)};
+
+    // cmsis_nn_dims *input_dims
+    Array<PrimExpr> input_shape = pool->args[0]->type_as<TensorTypeNode>()->shape;
+    Array<PrimExpr> cmsisnn_input_shape{1, input_shape[1], input_shape[2], input_shape[3]};
+
+    // cmsis_nn_dims *filter_dims
+    Array<PrimExpr> cmsisnn_filter_shape{1, pool_size_h, pool_size_w, 1};
+
+    // cmsis_nn_dims *output_dims
+    Array<PrimExpr> output_shape = pool->type_as<TensorTypeNode>()->shape;
+    Array<PrimExpr> cmsisnn_output_shape{1, output_shape[1], output_shape[2], output_shape[3]};
+
+    tir::Var input("input", DataType::Handle(8));
+    tir::Var output("output", DataType::Handle(8));
+    tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, output};
+
+    int context_buffer_size = 0;
+    std::string context_buffer_name = "NULL";
+    if (pool_name == "cmsisnn.qnn_avg_pool2d") {
+      // TODO(@Mousius): Need to move this into buffer_size calculations
+      context_buffer_size = qnn::get_const_int(input_shape[3]) * sizeof(int32_t);
+      context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
+    }
+    tvm::Array<PrimExpr> context_buffer_args = {tir::StringImm(context_buffer_name),
+                                                ToArg(context_buffer_size)};
+
+    scalar_args = tvm::runtime::Concat(context_buffer_args, scalar_args);
+    scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_input_shape);
+    scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_filter_shape);
+    scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_output_shape);
+    call_ext_args = tvm::runtime::Concat(call_ext_args, scalar_args);
+
+    Array<tir::Var> func_signature{input, output};
+
+    CreatePrimFuncForExtern(global_var, func_signature, call_ext_args, context_buffer_name,
+                            context_buffer_size);
+  }
+
   void EmitSoftMax(const GlobalVar& global_var, const Expr& expr) {
     const CallNode* quantize_call = expr.as<CallNode>();
     const CallNode* softmax_call = quantize_call->args[0].as<CallNode>();
@@ -520,6 +611,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
         }
         if (comp_name == "cmsis-nn.qnn_fully_connected") {
           EmitFullyConnected(new_global_var, composite_func->body);
+        }
+        if (comp_name == "cmsis-nn.qnn_avg_pool2d" || comp_name == "cmsis-nn.qnn_max_pool2d") {
+          EmitPool2D(new_global_var, composite_func->body, comp_name.value());
         }
 
         Array<Expr> args;

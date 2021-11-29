@@ -146,7 +146,7 @@ def pattern_table():
         )
 
     def qnn_fully_connected_pattern():
-        """Create pattern for qnn.dense with optional relu."""
+        """Create pattern for qnn.dense with optional Relu."""
         qnn_fc = is_op("qnn.dense")(
             wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
         )
@@ -188,6 +188,30 @@ def pattern_table():
             and kernel_zp == 0
         )
 
+    def qnn_avg_pool2d_pattern():
+        """Matches average pooling with optional Relu"""
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("nn.avg_pool2d")(pattern)
+        pattern = is_op("cast")(pattern)
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def check_qnn_avg_pool2d(pattern):
+        """Check if avg pool2d is supported by CMSIS-NN."""
+        in_cast = pattern
+        out_cast = in_cast.args[0].args[0]
+        return in_cast.checked_type.dtype == "int8" and out_cast.checked_type.dtype == "int32"
+
+    def qnn_max_pool2d_pattern():
+        """Matches max pooling with optional Relu"""
+        pattern = is_op("nn.max_pool2d")(wildcard())
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def check_qnn_max_pool2d(pattern):
+        """Check if max pool2d is supported by CMSIS-NN."""
+        return True
+
     def binary_op_pattern(op):
         """Matches QNN binary operation"""
         return is_op(f"qnn.{op}")(
@@ -211,6 +235,8 @@ def pattern_table():
     return [
         ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(), check_qnn_conv2d),
         ("cmsis-nn.qnn_fully_connected", qnn_fully_connected_pattern(), check_qnn_fully_connected),
+        ("cmsis-nn.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_qnn_avg_pool2d),
+        ("cmsis-nn.qnn_max_pool2d", qnn_max_pool2d_pattern(), check_qnn_max_pool2d),
         ("cmsis-nn.qnn_mul", binary_op_pattern("mul"), check_qnn_binary_op),
         ("cmsis-nn.qnn_add", binary_op_pattern("add"), check_qnn_binary_op),
         ("cmsis-nn.qnn_softmax", qnn_softmax_pattern(), check_qnn_softmax),
