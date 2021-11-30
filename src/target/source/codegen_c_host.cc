@@ -51,6 +51,10 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, std::string target_s
   CodeGenC::Init(output_ssa);
 }
 
+void CodeGenCHost::InitGlobalContext() {
+  decl_stream << "void* " << tvm::runtime::symbol::tvm_module_ctx << " = NULL;\n";
+}
+
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
 
 void CodeGenCHost::AddFunction(const PrimFunc& f) {
@@ -435,6 +439,10 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   if (could_have_linked_params && aot_executor_fn.defined()) {
     cg.DeclareParameters(linked_params, constants_byte_alignment);
     cg.AddFunction(aot_executor_fn);
+  }
+
+  if (aot_executor_fn.defined()) {
+    cg.InitGlobalContext();
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {

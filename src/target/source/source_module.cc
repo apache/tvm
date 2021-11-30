@@ -26,6 +26,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include "../metadata.h"
 
 #include <string>
 #include <unordered_map>
@@ -130,7 +131,7 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, relay::Runtime runtime, runtime::Metadata metadata)
+                               Target target, relay::Runtime runtime, runtime::metadata::Metadata metadata)
       : fmt_(fmt),
         func_names_(func_names),
         target_(target),
@@ -164,7 +165,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   Array<String> func_names_;
   Target target_;
   relay::Runtime runtime_;
-  runtime::Metadata metadata_;
+  runtime::metadata::Metadata metadata_;
 
   void CreateFuncRegistry() {
     code_ << "#include <tvm/runtime/crt/module.h>\n";
@@ -200,7 +201,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   void GenerateEntrypointForUnpackedAPI(const std::string& entrypoint_name,
                                         const std::string& run_func) {
     code_ << "TVM_DLL int32_t " << run_func << "(";
-    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
+    unsigned int total_args = (metadata_->num_inputs() + metadata_->num_outputs());
     for (unsigned int i = 0; i < total_args; ++i) {
       code_ << "void* arg" << i;
       if (i + 1 != total_args) {
@@ -246,7 +247,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "#include <" << mod_name << ".h>\n";
     code_ << "TVM_DLL int32_t " << run_func << "(";
     unsigned int total_args =
-        (metadata_->inputs.size() + metadata_->devices.size() + metadata_->num_outputs);
+        (metadata_->num_inputs() + metadata_->num_devices() + metadata_->num_outputs());
     for (unsigned int i = 0; i < total_args; ++i) {
       code_ << "void* arg" << i;
       if (i + 1 != total_args) {
@@ -256,7 +257,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
     code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-    if (!metadata_->devices.empty()) {
+    if (metadata_->num_devices() > 0) {
       code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
       code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
     } else {
@@ -265,27 +266,28 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     code_ << ") {"
           << "return " << run_func << "(";
-    for (const auto& input : metadata_->inputs) {
-      std::string sanitised_input = input;
+    for (const auto& input : metadata_->inputs()) {
+      std::string sanitised_input = input->name();
       std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
       code_ << "inputs->" << sanitised_input << ",";
     }
-    if (metadata_->num_outputs == 1) {
+    if (metadata_->num_outputs() == 1) {
       code_ << "outputs->output";
     } else {
-      for (int i = 0; i < metadata_->num_outputs; ++i) {
+      for (int i = 0; i < metadata_->num_outputs(); ++i) {
         code_ << "outputs->output" << i;
-        if (i + 1 != metadata_->num_outputs) {
+        if (i + 1 != metadata_->num_outputs()) {
           code_ << ",";
         }
       }
     }
 
-    if (!metadata_->devices.empty()) {
+    if (metadata_->num_devices() > 0) {
       code_ << ",";
-      for (const String& device : metadata_->devices) {
+      auto devices = metadata_->devices();
+      for (const String& device : devices) {
         code_ << "devices->" << device;
-        if (device != metadata_->devices.back()) {
+        if (device != devices[devices.size() -1]) {
           code_ << ",";
         }
       }
@@ -299,24 +301,24 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
     const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
     const std::string run_func_mangled =
-        runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
+        runtime::get_name_mangled(metadata_->mod_name(), run_func_suffix);
     const std::string entrypoint_mangled =
-        runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
-    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
+        runtime::get_name_mangled(metadata_->mod_name(), tvm_entrypoint_suffix);
+    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name(), "network");
 
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
 
-    if (metadata_->unpacked_api) {
-      if (metadata_->interface_api == "c") {
-        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
+    if (metadata_->use_unpacked_api()) {
+      if (metadata_->interface_api() == "c") {
+        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name());
       } else {
         GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
       }
     } else {
-      ICHECK_EQ(metadata_->interface_api, "packed")
+      ICHECK_EQ(metadata_->interface_api(), "packed")
           << "Packed interface required for packed operators";
       GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
     }
@@ -331,15 +333,441 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
-    if (metadata_.defined() && metadata_->executor == runtime::kTvmExecutorAot) {
+    if (metadata_.defined() && metadata_->executor() == runtime::kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
     code_ << ";";
   }
 };
 
+
+class CMetadataWriterVisitor : public ::tvm::AttrVisitor {
+ private:
+  std::stringstream struct_defs_;
+
+  std::vector<std::stringstream> streams_;
+  std::stringstream* current_stream_;
+
+  void Visit(const char* key, double* value) override {
+    (*current_stream_) << *value;
+  }
+
+  void Visit(const char* key, int64_t* value) override {
+    (*current_stream_) << *value << "L";
+  }
+
+  void Visit(const char* key, uint64_t* value) override {
+    (*current_stream_) << *value << "UL";
+  }
+
+  void Visit(const char* key, int* value) override {
+    (*current_stream_) << *value;
+  }
+
+  void Visit(const char* key, bool* value) override {
+    (*current_stream_) << (value ? "true" : "false");
+  }
+
+  void Visit(const char* key, std::string* value) override {
+    (*current_stream_) << "\"" << value << "\"";  // todo: ->replace('\\', "\\\\").replace('\"', "\\\"") << "\"";
+  }
+
+  void Visit(const char* key, void** value) override {
+    (*current_stream_) << *value;
+  }
+
+  void Visit(const char* key, DataType* value) override {
+    (*current_stream_) << "DLDataType{" << value->code() << ", " << value->bits() << ", " << value->lanes() << "}";
+  }
+
+  void Visit(const char* key, runtime::NDArray* value) override {
+    ICHECK(false) << "at key " << key << ": cannot emit metadata of type NDArray";
+  }
+
+  void Visit(const char* key, runtime::ObjectRef* value) override {
+//    if (value->as<
+    // todo
+  }
+
+};
+
+class MetadataStructDefiner : public AttrVisitor {
+ public:
+
+  void Visit(const char* key, double* value) final {
+    // dns: mangle name
+    code_ << "  double " << key << ";" << std::endl;
+  }
+
+  void Visit(const char* key, int64_t* value) final {
+    // dns: mangle name
+    code_ << "  int64_t " << key << ";" << std::endl;
+  }
+
+  void Visit(const char* key, uint64_t* value) final {
+    // dns: mangle name
+    code_ << "  uint64_t " << key << ";" << std::endl;
+  }
+  void Visit(const char* key, int* value) final {
+    // dns: mangle name
+    code_ << "  int " << key << ";" << std::endl;
+  }
+  void Visit(const char* key, bool* value) final {
+    // dns: mangle name
+    code_ << "  uint8_t " << key << ";" << std::endl;
+  }
+  void Visit(const char* key, std::string* value) final {
+    // dns: mangle name
+    code_ << "  const char* " << key << ";" << std::endl;
+  }
+  void Visit(const char* key, void** value) final {
+    // dns: mangle name
+    code_ << "  void* " << key << ";" << std::endl;
+  }
+  void Visit(const char* key, DataType* value) final {
+    // dns: mangle name
+    code_ << "  DLDataType " << key << ";" << std::endl;
+  }
+
+  void Visit(const char* key, runtime::NDArray* value) final {
+    // TODO(areusch): probably we could consolidate --link-params here, tho...
+    ICHECK(false) << "do not support serializing NDArray as metadata";
+  }
+
+  void WriteComma() {
+    if (!is_first_item_) {
+      code_ << ", ";
+    }
+  }
+
+  void VisitArray(const char* key, const runtime::metadata::MetadataArrayNode* array) {
+    code_ << "  " << array->c_type << "* " << key << ";" << std::endl;
+  }
+  //   switch (array->type_index) {
+  //   case MetadataTypeIndex::kUint64:
+  //     code_ << "  uint64_t** " << key << ";" << std::endl;
+  //   case MetadataTypeIndex::kInt64:
+  //     code_ << "  int64_t** " << key << ";" << std::endl;
+  //   case MetadataTypeIndex::kString:
+  //     code_ << "  const char** " << key << ";" << std::endl;
+  //   case MetadataTypeIndex::kHandle:
+  //     code_ << "  void** " << key << ";" << std::endl;
+  //   default:
+  //     CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
+  //   }
+  // }
+
+
+  //   const ArrayNode* arr = value->as<ArrayNode>();
+  //   if (arr != nullptr) {
+  //     // dns: mangle name
+
+  //     code_ << "  " <<  "" << key << ";" << std::endl;
+  //     WriteComma();
+  //     code_ << "{";
+  //     if (arr->size() > 0) {
+  //       is_first_item_ = true;
+  //       for (ObjectRef o : *arr) {
+  //         // todo might have to switch on object type.
+  //         WriteComma();
+  //         ReflectionVTable::Global()->VisitAttrs(o.get(), this);
+  //       }
+  //     }
+  //     code_ << "}";
+  //     return;
+  //   }
+  // }
+
+  void Visit(const char* key, ObjectRef* value) final {
+    auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+    auto arr = metadata.as<runtime::metadata::MetadataArrayNode>();
+    if (arr != nullptr) {
+      VisitArray(key, arr);
+      return;
+    }
+
+    auto old_is_first_item = is_first_item_;
+    is_first_item_ = true;
+    code_ << "{";
+    ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    code_ << "}";
+    is_first_item_ = old_is_first_item;
+  }
+
+  std::string GetOutput() {
+    return code_.str();
+  }
+
+ private:
+  ::std::stringstream code_;
+  bool is_first_item_;
+};
+
+
+static std::string address_from_parts(const std::vector<std::string>& parts) {
+  std::stringstream ss;
+  for (unsigned int i = 0; i < parts.size(); ++i) {
+    if (i > 0) {
+      ss << "_";
+    }
+    ss << parts[i];
+  }
+  return ss.str();
+}
+
+class MetadataQueuer : public AttrVisitor {
+ public:
+  using QueueItem = std::tuple<std::string, runtime::metadata::MetadataBase>;
+  MetadataQueuer(std::vector<QueueItem>* queue) : queue_{queue} {}
+
+  void Visit(const char* key, double* value) final {}
+  void Visit(const char* key, int64_t* value) final {}
+  void Visit(const char* key, uint64_t* value) final {}
+  void Visit(const char* key, int* value) final {}
+  void Visit(const char* key, bool* value) final {}
+  void Visit(const char* key, std::string* value) final {}
+  void Visit(const char* key, DataType* value) final {}
+  void Visit(const char* key, runtime::NDArray* value) final {}
+  void Visit(const char* key, void** value) final {}
+
+  void Visit(const char* key, ObjectRef* value) final {
+    address_parts_.push_back(key);
+    if (value->as<runtime::metadata::MetadataBaseNode>() != nullptr) {
+      auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+      const runtime::metadata::MetadataArrayNode* arr = value->as<runtime::metadata::MetadataArrayNode>();
+      std::cout << "Is array? " << arr << std::endl;
+      if (arr != nullptr) {
+        for (unsigned int i = 0; i < arr->array.size(); i++) {
+          ObjectRef o = arr->array[i];
+          std::cout << "queue-visiting array element " << i << ": " << o->type_index() << " (" << o.operator->() << ")" << std::endl;
+          if (o.as<runtime::metadata::MetadataBaseNode>() != nullptr) {
+            std::stringstream ss;
+            ss << i;
+            address_parts_.push_back(ss.str());
+            runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
+            ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+            address_parts_.pop_back();
+          }
+        }
+      } else {
+        ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+      }
+
+      queue_->push_back(std::make_tuple(address_from_parts(address_parts_), Downcast<runtime::metadata::MetadataBase>(*value)));
+    }
+    address_parts_.pop_back();
+  }
+
+ private:
+  std::vector<QueueItem>* queue_;
+  std::vector<std::string> address_parts_;
+};
+
+class MetadataSerializer : public AttrVisitor {
+public:
+  static constexpr const char* kGlobalSymbol = "kTvmgenMetadata";
+
+  MetadataSerializer() : is_first_item_{true} {}
+
+  void WriteComma() {
+    if (is_first_item_) {
+      is_first_item_ = false;
+    } else {
+      code_ << ", " << std::endl;
+    }
+  }
+
+  void WriteKey(const char* key) {
+    if (key != nullptr) {
+      code_ << " /* " << key << "*/";
+    }
+  }
+
+  void Visit(const char* key, double* value) final {
+    WriteComma();
+    code_.setf(std::ios::hex | std::ios::showbase | std::ios::fixed | std::ios::scientific,
+              std::ios::basefield | std::ios::showbase | std::ios::floatfield);
+    code_ << *value;
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, int64_t* value) final {
+    WriteComma();
+    code_ << *value << "L";
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, uint64_t* value) final {
+    WriteComma();
+    code_ << *value << "UL";
+    WriteKey(key);
+  }
+  void Visit(const char* key, int* value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, bool* value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, std::string* value) final {
+    WriteComma();
+    code_ << "\"" << *value << "\"";
+    WriteKey(key);
+  }
+  void Visit(const char* key, void** value) final {
+    WriteComma();
+    code_ << *value;
+    WriteKey(key);
+  }
+  void Visit(const char* key, DataType* value) final {
+    WriteComma();
+    code_ << "DLDataType{" << value->code() << ", " << value->bits() << ", "
+          << value->lanes() << "}";
+    WriteKey(key);
+  }
+
+  void Visit(const char* key, runtime::NDArray* value) final {
+    // TODO(areusch): probably we could consolidate --link-params here, tho...
+    ICHECK(false) << "do not support serializing NDArray as metadata";
+  }
+
+  void VisitArray(const runtime::metadata::MetadataArrayNode* array) {
+    std::cout << "visit array " << array << ": " << array->c_type << " " << array->array.size() << std::endl;
+    auto old_is_first_item = is_first_item_;
+    is_first_item_ = true;
+    for (unsigned int i = 0; i < array->array.size(); ++i) { //ObjectRef o : *(array->array)) {
+      ObjectRef o = array->array[i];
+      std::cout << "visiting array element " << i << ": " << o->type_index() << " (" << o.operator->() << ")" << std::endl;
+      if (o->IsInstance<IntImmNode>()) {
+        int64_t i = Downcast<Integer>(o);
+        Visit(nullptr, &i);
+        continue;
+      }
+
+      if (o->IsInstance<StringObj>()) {
+        std::string s = Downcast<String>(o);
+        Visit(nullptr, &s);
+        continue;
+      }
+
+      runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
+      std::cout << "visit member " << metadata->get_name() << std::endl;
+      std::stringstream i_str;
+      i_str << i;
+      address_.push_back(i_str.str());
+      Visit(nullptr, &metadata);
+      address_.pop_back();
+//      ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    }
+    is_first_item_ = old_is_first_item;
+  }
+
+  void Visit(const char* key, ObjectRef* value) final {
+    const runtime::metadata::MetadataArrayNode* arr = value->as<runtime::metadata::MetadataArrayNode>();
+    std::cout << "Is array? " << arr << std::endl;
+    if (arr != nullptr) {
+      WriteComma();
+      if (key != nullptr) {
+        address_.push_back(key);
+      }
+      code_ << address_from_parts(address_) << " , " << arr->array.size() << " /* " << key << "_size */";
+      if (key != nullptr) {
+        address_.pop_back();
+      }
+//      VisitArray(key, Downcast<runtime::metadata::MetadataArray>(*value).operator->());
+      // WriteComma();
+      // code_ << "{";
+      // if (arr->size() > 0) {
+      //   is_first_item_ = true;
+      //   for (ObjectRef* o : *arr) {
+      //     // todo might have to switch on object type.
+      //     WriteComma();
+      //     ReflectionVTable::Global()->VisitAttrs(o.get(), this);
+      //   }
+      // }
+      // code_ << "}";
+      return;
+    }
+
+    std::cout << "downcast..." << std::endl;
+    runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+    std::cout << "downcast ok: " << metadata->get_name() << std::endl;
+
+    if (key != nullptr) {  // NOTE: outermost call passes nullptr key
+      address_.push_back(key);
+    }
+    ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    if (key != nullptr) {  // NOTE: outermost call passes nullptr key
+      address_.pop_back();
+    }
+  }
+
+  // void EnterStruct(::tvm::runtime::metadata::MetadataBase metadata) {
+  //   const char* type_key = metadata->GetTypeKey();
+  //   is_defining_struct_.emplace_back(
+  //     !generated_struct_decls_.contains(type_key));
+  //   if (is_defining_struct()) {
+  //     decl_ << "struct " << get_struct_name(metadata) << "{";
+  //   }
+  //   is_first_item_.emplace_back(true);
+  // }
+
+  // void ExitStruct(::tvm::runtime::metadata::MetadataBase metadata) {
+  //   decl_ << "}; // struct " << get_struct_name(metadata);
+  //   is_first_item_.pop_back();
+  // }
+
+  void CodegenMetadata(::tvm::runtime::metadata::Metadata metadata) {
+    decl_
+      << "#include <inttypes.h>" << std::endl
+      << "#include <tvm/runtime/metadata.h>" << std::endl
+      << "#include <tvm/runtime/c_runtime_api.h>" << std::endl;
+    std::vector<MetadataQueuer::QueueItem> queue;
+    MetadataQueuer queuer{&queue};
+    queuer.Visit(kGlobalSymbol, &metadata);
+
+    for (MetadataQueuer::QueueItem item : queue) {
+      auto struct_name = std::get<0>(item);
+      auto obj = std::get<1>(item);
+      auto arr = obj.as<runtime::metadata::MetadataArrayNode>();
+      std::cout << "codegen: " << struct_name;
+      is_first_item_ = true;
+      address_.push_back(struct_name);
+      if (arr != nullptr) {
+        const char* const_part = "const ";
+        if (strcmp(arr->c_type, "const char*") == 0) {
+          const_part = "";
+        }
+        code_ << const_part << arr->c_type << " " << struct_name
+              << "[" << arr->array.size() << "] = {" << std::endl;
+        VisitArray(arr);
+      } else {
+        code_ << "const struct TVMMetadata " << struct_name << " = {" << std::endl;
+        Visit(nullptr, &obj);
+      }
+      address_.pop_back();
+      code_ << "};" << std::endl;
+    }
+  }
+
+  std::string GetOutput() {
+    return decl_.str() + code_.str();
+  }
+
+private:
+  std::vector<std::string> address_;
+  std::stringstream decl_;
+  std::stringstream code_;
+  bool is_first_item_;
+  std::unordered_set<std::string> generated_struct_decls_;
+  std::vector<bool> is_defining_struct_;
+};
+
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               relay::Runtime runtime, runtime::Metadata metadata) {
+                                               relay::Runtime runtime, runtime::metadata::Metadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -356,6 +784,30 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
     csrc_metadata_module.Import(mod);
   }
   return std::move(csrc_metadata_module);
+}
+
+runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metadata) {
+//  MetadataStructDefiner definer;
+//  ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), &definer);
+  MetadataSerializer serializer;
+  serializer.CodegenMetadata(metadata);
+  std::stringstream lookup_func;
+  lookup_func << "#ifdef __cplusplus\n"
+              << "extern \"C\"\n"
+              << "#endif\n";
+
+  lookup_func << "TVM_DLL int32_t get_c_metadata(TVMValue* arg_values, int* arg_tcodes, int num_args, TVMValue* ret_values, int* ret_tcodes, void* resource_handle) {" << std::endl;
+  lookup_func << "    ret_values[0].v_handle = (void*) &" << MetadataSerializer::kGlobalSymbol << ";" << std::endl;
+  lookup_func << "    ret_tcodes[0] = kTVMOpaqueHandle;" << std::endl;
+  lookup_func << "    return 0;" << std::endl;
+  lookup_func << "};" << std::endl;
+
+  auto mod = MetadataModuleCreate(metadata);
+  std::vector<String> func_names{"get_c_metadata"};
+  //definer.GetOutput() +
+  auto c = CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names, Array<String>());
+  mod->Import(c);
+  return mod;
 }
 
 // supports limited save without cross compile
@@ -423,7 +875,7 @@ TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
     .set_body_typed([](const Array<runtime::Module>& modules, Target target,
                        relay::Runtime runtime) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::Metadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::metadata::Metadata());
     });
 
 }  // namespace codegen
