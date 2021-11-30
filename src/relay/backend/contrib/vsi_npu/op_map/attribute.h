@@ -61,6 +61,8 @@ void attrs_uint_transform(uint32_t tvm_attr, uint32_t& vx_attr) { vx_attr = tvm_
 
 void attrs_int_transform(int tvm_attr, int& vx_attr) { vx_attr = tvm_attr; }
 
+void attrs_float_transform(float tvm_attr, float& vx_attr) { vx_attr = tvm_attr; }
+
 void attrs_roundtype_transform(bool tvm_attr, tim::vx::RoundType& round_type) {
   round_type = tvm_attr ? tim::vx::RoundType::CEILING : tim::vx::RoundType::FLOOR;
 }
@@ -81,6 +83,23 @@ void attrs_padtype_transform(tvm::relay::Shape tvm_attr, tim::vx::PadType& vx_at
   }
 }
 
+void attrs_layout_transform(tvm::String tvm_attr, tim::vx::DataLayout& vx_attr) {
+  static std::map<tvm::String, tim::vx::DataLayout> layout_table = {
+    {"NHWC", tim::vx::DataLayout::CWHN},
+    {"NCHW", tim::vx::DataLayout::WHCN},
+    {"OHWI", tim::vx::DataLayout::IcWHOc},
+    {"HWIO", tim::vx::DataLayout::OcIcWH},
+    {"HWOI", tim::vx::DataLayout::IcOcWH},
+    {"OIHW", tim::vx::DataLayout::WHIcOc},
+  };
+  auto it = layout_table.find(tvm_attr);
+  if (it != layout_table.end()) {
+    vx_attr = it->second;
+  } else {
+    vx_attr = tim::vx::DataLayout::WHCN;
+  }
+}
+
 #define TRANS_ATTR(attr_name, creator) creator(tvm_attr_struct->attr_name, tim::vx_##attr_name)
 
 struct TvxConv2dAttrs {
@@ -89,6 +108,9 @@ struct TvxConv2dAttrs {
   std::vector<uint32_t> dilation;
   std::vector<uint32_t> padding;
   tim::vx::PadType pad_type;
+  tim::vx::DataLayout data_layout;
+  tim::vx::DataLayout kernel_layout;
+  tim::vx::DataLayout out_layout;
   int groups;
   TvxConv2dAttrs(const Call call) {
     auto tvm_attr_struct = call->attrs.as<Conv2DAttrs>();
@@ -98,6 +120,9 @@ struct TvxConv2dAttrs {
     attrs_vector_transform(tvm_attr_struct->padding, padding);
     attrs_int_transform(tvm_attr_struct->groups, groups);
     attrs_padtype_transform(tvm_attr_struct->padding, pad_type);
+    attrs_layout_transform(tvm_attr_struct->data_layout, data_layout);
+    attrs_layout_transform(tvm_attr_struct->kernel_layout, kernel_layout);
+    attrs_layout_transform(tvm_attr_struct->out_layout, out_layout);
   }
 };
 
@@ -124,6 +149,7 @@ struct TvxPool2DAttrs {
   std::vector<uint32_t> strides;
   tim::vx::RoundType ceil_mode;
   tim::vx::PadType pad_type;
+  tim::vx::DataLayout layout;
   static const int kMaxPool = 0;
   static const int kAvgPool = 1;
   TvxPool2DAttrs(const Call call, int type) {
@@ -132,14 +158,26 @@ struct TvxPool2DAttrs {
       attrs_vector_transform(tvm_attr_struct->pool_size, pool_size);
       attrs_vector_transform(tvm_attr_struct->strides, strides);
       attrs_roundtype_transform(tvm_attr_struct->ceil_mode, ceil_mode);
-      attrs_padtype_transform(tvm_attr_struct->padding, pad_type);
+      attrs_padtype_transform(tvm_attr_struct->padding,pad_type);
+      attrs_layout_transform(tvm_attr_struct->layout, layout);
     } else {
       auto tvm_attr_struct = call->attrs.as<AvgPool2DAttrs>();
       attrs_vector_transform(tvm_attr_struct->pool_size, pool_size);
       attrs_vector_transform(tvm_attr_struct->strides, strides);
       attrs_roundtype_transform(tvm_attr_struct->ceil_mode, ceil_mode);
-      attrs_padtype_transform(tvm_attr_struct->padding, pad_type);
+      attrs_padtype_transform(tvm_attr_struct->padding,pad_type);
+      attrs_layout_transform(tvm_attr_struct->layout, layout);
     }
+  }
+};
+
+struct TvxAdaptivePool2DAttrs {
+  std::vector<uint32_t> output_size;
+  tim::vx::DataLayout layout;
+  TvxAdaptivePool2DAttrs(const Call call) {
+    auto tvm_attr_struct = call->attrs.as<AdaptivePool2DAttrs>();
+    attrs_vector_transform(tvm_attr_struct->output_size, output_size);
+    attrs_layout_transform(tvm_attr_struct->layout, layout);
   }
 };
 
@@ -148,6 +186,14 @@ struct TvxSoftmaxAttrs {
   TvxSoftmaxAttrs(const Call call) {
     auto tvm_attr_struct = call->attrs.as<SoftmaxAttrs>();
     attrs_uint_transform(tvm_attr_struct->axis, axis);
+  }
+};
+
+struct TvxDropoutAttrs {
+  float rate;
+  TvxDropoutAttrs(const Call call) {
+    auto tvm_attr_struct = call->attrs.as<DropoutAttrs>();
+    attrs_float_transform(tvm_attr_struct->rate, rate);
   }
 };
 
@@ -172,6 +218,10 @@ struct TvxSqueezeAttrs {
   TvxSqueezeAttrs(const Call call) {
     auto tvm_attr_struct = call->attrs.as<SqueezeAttrs>();
     attrs_vector_transform2(tvm_attr_struct->axis, axis);
+    auto shape = call->args[0]->checked_type().as<TensorTypeNode>()->shape;
+    for (auto& a : axis) {
+      a = shape.size() - 1 - a;
+    }
   }
 };
 

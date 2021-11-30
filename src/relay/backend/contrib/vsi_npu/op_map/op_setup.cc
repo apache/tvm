@@ -36,19 +36,7 @@
 #include "helper.h"
 #include "tim/vx/graph.h"
 #include "tim/vx/operation.h"
-#include "tim/vx/ops/activations.h"
-#include "tim/vx/ops/addn.h"
-#include "tim/vx/ops/arg.h"
-#include "tim/vx/ops/concat.h"
-#include "tim/vx/ops/conv2d.h"
-#include "tim/vx/ops/elementwise.h"
-#include "tim/vx/ops/pool2d.h"
-#include "tim/vx/ops/reduce.h"
-#include "tim/vx/ops/reshape.h"
-#include "tim/vx/ops/resize.h"
-#include "tim/vx/ops/simple_operations.h"
-#include "tim/vx/ops/softmax.h"
-#include "tim/vx/ops/transpose.h"
+#include "tim/vx/ops.h"
 
 namespace tvx = tim::vx;
 
@@ -171,36 +159,50 @@ void VsiNpuQnnConv2d::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx
   TvxConv2dAttrs tvx_attrs(conv_);
   UpdateInputTableInfo(vxOpmap_tbl, input_key_, graph.get());
   UpdateInputTableInfo(vxOpmap_tbl, bias_key_, graph.get());
-
   UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
 
-  bool is_depthwise_conv =
-      (static_cast<uint32_t>(tvx_attrs.groups) == vxOpmap_tbl[input_key_]->specs_[0].shape_[0]) &&
-      (static_cast<uint32_t>(tvx_attrs.groups) != 1);
+  bool is_depthwise_conv;
 
-  auto weight_spec = vxOpmap_tbl[weight_key_]->specs_[0];
-  uint32_t kernel_ic = weight_spec.shape_[1];
-  uint32_t kernel_oc = weight_spec.shape_[0];
+  auto& weight_spec = vxOpmap_tbl[weight_key_]->specs_[0];
+  uint32_t kernel_ic_index, kernel_oc_index;
+  uint32_t kernel_ic, kernel_oc;
 
-  if (is_depthwise_conv && kernel_oc != 1) {
-    vxOpmap_tbl[weight_key_]->specs_[0].shape_[0] = 1;
-    vxOpmap_tbl[weight_key_]->specs_[0].shape_[1] = kernel_ic * kernel_oc;
+  if (tvx_attrs.kernel_layout == tim::vx::DataLayout::OcIcWH) {
+    kernel_ic_index = 1;
+    kernel_oc_index = 0;
+  } else if (tvx_attrs.kernel_layout == tim::vx::DataLayout::IcOcWH) {
+    kernel_ic_index = 0;
+    kernel_oc_index = 1;
+  } else { // tim::vx::DataLayout::WHIcOc
+    kernel_ic_index = 2;
+    kernel_oc_index = 3;
   }
 
-  if (vxOpmap_tbl[weight_key_]->specs_[0].quantization_.Scales().size() != 1 && is_depthwise_conv) {
-    vxOpmap_tbl[weight_key_]->specs_[0].quantization_.SetChannelDim(1);
+  kernel_ic = weight_spec.shape_[kernel_ic_index];
+  kernel_oc = weight_spec.shape_[kernel_oc_index];
+  is_depthwise_conv =
+      (static_cast<uint32_t>(tvx_attrs.groups) == weight_spec.shape_[kernel_oc_index])
+      && (static_cast<uint32_t>(tvx_attrs.groups) != 1);
+
+  if(is_depthwise_conv && kernel_oc != 1){
+    weight_spec.shape_[kernel_oc_index]= 1;
+    weight_spec.shape_[kernel_ic_index]= kernel_ic*kernel_oc;
+  }
+
+  if(weight_spec.quantization_.Scales().size() != 1 && is_depthwise_conv){
+    weight_spec.quantization_.SetChannelDim(kernel_ic_index);
   }
 
   UpdateInputTableInfo(vxOpmap_tbl, weight_key_, graph.get());
 
   auto op = graph->CreateOperation<tim::vx::ops::Conv2d>(
-      is_depthwise_conv ? kernel_ic : kernel_oc, tvx_attrs.pad_type,
+      kernel_oc, tvx_attrs.pad_type,
       std::array<uint32_t, 2>{tvx_attrs.kernel_size[0], tvx_attrs.kernel_size[1]},
       std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]},
       std::array<uint32_t, 2>{tvx_attrs.dilation[0], tvx_attrs.dilation[1]},
       std::array<uint32_t, 4>{tvx_attrs.padding[0], tvx_attrs.padding[1], tvx_attrs.padding[2],
                               tvx_attrs.padding[3]},
-      is_depthwise_conv ? kernel_oc : 0, tim::vx::DataLayout::CWHN, tim::vx::DataLayout::OcIcWH);
+      is_depthwise_conv ? 1 : 0, tvx_attrs.data_layout, tvx_attrs.kernel_layout);
 
   (*op).BindInputs({vxOpmap_tbl[input_key_]->ptensors_[0], vxOpmap_tbl[weight_key_]->ptensors_[0],
                     vxOpmap_tbl[bias_key_]->ptensors_[0]});
@@ -234,10 +236,56 @@ std::shared_ptr<tim::vx::Operation> VsiNpuQnnAvgPool::CreateOperation(
     std::shared_ptr<tim::vx::Graph> graph) {
   TvxPool2DAttrs tvx_attrs(avgpool_, TvxPool2DAttrs::kAvgPool);
   return graph->CreateOperation<tvx::ops::Pool2d>(
-      tvx::PoolType::AVG, tvx_attrs.pad_type,
-      std::array<uint32_t, 2>{tvx_attrs.pool_size[0], tvx_attrs.pool_size[1]},
-      std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]}, tvx_attrs.ceil_mode,
-      tvx::DataLayout::CWHN);
+        tvx::PoolType::AVG, tvx_attrs.pad_type,
+        std::array<uint32_t, 2>{tvx_attrs.pool_size[0], tvx_attrs.pool_size[1]},
+        std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]},
+        tvx_attrs.ceil_mode, tvx_attrs.layout);
+}
+
+void VsiNpuQnnAdaptiveAvgPool::SetupOperand(const CallNode* cn, tim::vx::Quantization& quant_info,
+                                    std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
+  using Input_Field = Field_NoQuant_Operand<0>;
+
+  call_ = GetRef<Call>(cn);
+  expr_key_ = GetRef<Expr>(cn);
+
+  const CallNode* callnode = cn->op.as<FunctionNode>()->body.as<CallNode>();
+  auto expr = GetRef<Expr>(callnode);
+  // extract calls in pattern
+  Call cast_out = Downcast<Call>(expr);
+  avgpool_ = Downcast<Call>(cast_out->args[0]);
+  Call cast_in = Downcast<Call>(avgpool_->args[0]);
+
+  input_key_ = call_->args[Input_Field::arg_pos];
+
+  auto input_callback =
+      std::make_shared<CallbackExpr>(input_key_, vxOpmap_tbl[expr_key_]->pCallbackexpr_);
+  insert_op_map_table(vxOpmap_tbl, input_key_,
+    std::make_shared<OpSetup>(Input_Field::AsTimVxTensorSpec(call_), input_callback));
+};
+
+void VsiNpuQnnAdaptiveAvgPool::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> graph,
+                      std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
+  TvxAdaptivePool2DAttrs tvx_attrs(avgpool_);
+  UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
+  UpdateInputTableInfo(vxOpmap_tbl, input_key_, graph.get());
+  std::array<uint32_t, 2> input_size;
+  auto& shape = vxOpmap_tbl[input_key_]->specs_[0].shape_;
+  if (tvx_attrs.layout == tim::vx::DataLayout::WHCN) {
+    input_size[0] = shape[0];
+    input_size[1] = shape[1];
+  } else { // tim::vx::DataLayout::CWHN
+    input_size[0] = shape[1];
+    input_size[0] = shape[2];
+  }
+
+  auto op = graph->CreateOperation<tvx::ops::Pool2d>(
+        tvx::PoolType::AVG,
+        input_size,
+        std::array<uint32_t, 2>{tvx_attrs.output_size[0], tvx_attrs.output_size[1]},
+        tvx::RoundType::FLOOR, tvx_attrs.layout);
+  (*op).BindInput(vxOpmap_tbl[input_key_]->ptensors_[0]);
+  (*op).BindOutput(vxOpmap_tbl[expr_key_]->ptensors_[0]);
 }
 
 void VsiNpuQnnMean::SetupOperand(const CallNode* cn, tim::vx::Quantization& quant_info,
@@ -436,7 +484,7 @@ std::shared_ptr<tim::vx::Operation> AvgPool::CreateOperation(
       tim::vx::PoolType::AVG, tim::vx::PadType::VALID,
       std::array<uint32_t, 2>{tvx_attrs.pool_size[0], tvx_attrs.pool_size[1]},
       std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]}, tvx_attrs.ceil_mode,
-      tim::vx::DataLayout::CWHN);
+      tvx_attrs.layout);
 }
 
 std::shared_ptr<tim::vx::Operation> Transpose::CreateOperation(
@@ -732,25 +780,49 @@ void Conv::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> gr
                           std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
   TvxConv2dAttrs tvx_attrs(call_);
   UpdateInputTableInfo(vxOpmap_tbl, input0_key_, graph.get());
+  bool is_depthwise_conv;
 
-  auto input1_spec = vxOpmap_tbl[input1_key_]->specs_[0];
-  uint32_t kernel_ic = input1_spec.shape_[1];
-  uint32_t kernel_oc = input1_spec.shape_[0];
+  auto& weight_spec = vxOpmap_tbl[input1_key_]->specs_[0];
+  uint32_t kernel_ic_index, kernel_oc_index;
+  uint32_t kernel_ic, kernel_oc;
+
+  if (tvx_attrs.kernel_layout == tim::vx::DataLayout::OcIcWH) {
+    kernel_ic_index = 1;
+    kernel_oc_index = 0;
+  } else if (tvx_attrs.kernel_layout == tim::vx::DataLayout::IcOcWH) {
+    kernel_ic_index = 0;
+    kernel_oc_index = 1;
+  } else { // tim::vx::DataLayout::WHIcOc
+    kernel_ic_index = 2;
+    kernel_oc_index = 3;
+  }
+
+  kernel_ic = weight_spec.shape_[kernel_ic_index];
+  kernel_oc = weight_spec.shape_[kernel_oc_index];
+  is_depthwise_conv =
+      (static_cast<uint32_t>(tvx_attrs.groups) == weight_spec.shape_[kernel_oc_index])
+      && (static_cast<uint32_t>(tvx_attrs.groups) != 1);
+
+  if(is_depthwise_conv && kernel_oc != 1){
+    weight_spec.shape_[kernel_oc_index]= 1;
+    weight_spec.shape_[kernel_ic_index]= kernel_ic*kernel_oc;
+  }
+
+  if(weight_spec.quantization_.Scales().size() != 1 && is_depthwise_conv){
+    weight_spec.quantization_.SetChannelDim(kernel_ic_index);
+  }
 
   UpdateInputTableInfo(vxOpmap_tbl, input1_key_, graph.get());
   UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
 
-  bool is_depthwise_conv =
-      (static_cast<uint32_t>(tvx_attrs.groups) ==
-       vxOpmap_tbl[input0_key_]->specs_[0].shape_[0]);  // group == input_channel
   auto op = graph->CreateOperation<tim::vx::ops::Conv2d>(
-      is_depthwise_conv ? kernel_ic : kernel_oc, tim::vx::PadType::SAME,
+      kernel_oc, tvx_attrs.pad_type,
       std::array<uint32_t, 2>{tvx_attrs.kernel_size[0], tvx_attrs.kernel_size[1]},
       std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]},
       std::array<uint32_t, 2>{tvx_attrs.dilation[0], tvx_attrs.dilation[1]},
       std::array<uint32_t, 4>{tvx_attrs.padding[0], tvx_attrs.padding[1], tvx_attrs.padding[2],
                               tvx_attrs.padding[3]},
-      is_depthwise_conv ? 1 : 0, tim::vx::DataLayout::CWHN, tim::vx::DataLayout::OcIcWH);
+      is_depthwise_conv ? 1 : 0, tvx_attrs.data_layout, tvx_attrs.kernel_layout);
 
   (*op).BindInputs(
       {vxOpmap_tbl[input0_key_]->ptensors_[0], vxOpmap_tbl[input1_key_]->ptensors_[0]});
@@ -850,6 +922,44 @@ std::shared_ptr<tim::vx::Operation> Squeeze::CreateOperation(
   return graph->CreateOperation<tim::vx::ops::Squeeze>(tvx_attrs.axis);
 }
 
+std::shared_ptr<tim::vx::Operation> Dropout::CreateOperation(
+    std::shared_ptr<tim::vx::Graph> graph) {
+  TvxDropoutAttrs tvx_attrs(dropout_);
+  return graph->CreateOperation<tim::vx::ops::Dropout>(tvx_attrs.rate);
+}
+
+void Dropout::SetupOperand(const CallNode* cn, tim::vx::Quantization& quant_info,
+                                   std::map<Expr, std::shared_ptr<OpSetup>>& vxOpmap_tbl) {
+  call_ = GetRef<Call>(cn);
+  expr_key_ = GetRef<Expr>(cn);
+  const TupleGetItemNode* tuple_item_node = cn->op.as<FunctionNode>()->body.as<TupleGetItemNode>();
+  auto expr = GetRef<Expr>(tuple_item_node);
+  // extract calls in pattern
+  TupleGetItem tuple_item = Downcast<TupleGetItem>(expr);
+  const CallNode* callnode = tuple_item->tuple.as<CallNode>();
+  auto expr1 = GetRef<Expr>(callnode);
+  dropout_ = Downcast<Call>(expr1);
+
+  using Input = Field_NoQuant_Operand<0>;
+  input_key_ = call_->args[Input::arg_pos];
+
+  if (vxOpmap_tbl.find(input_key_) != vxOpmap_tbl.end()) {
+    return;
+  }
+
+  tim::vx::Quantization output_quant = vxOpmap_tbl[expr_key_]->specs_[0].quantization_ ;
+  if(output_quant.Type() == tim::vx::QuantType::NONE){
+    auto input_callback =
+      std::make_shared<CallbackExpr>(input_key_, vxOpmap_tbl[expr_key_]->pCallbackexpr_);
+    vxOpmap_tbl[input_key_] =
+      std::make_shared<OpSetup>(Input::AsTimVxTensorSpec(dropout_), input_callback);
+  }else{
+    vxOpmap_tbl[input_key_] =
+      std::make_shared<OpSetup>(Input::AsTimVxTensorSpec(dropout_));
+    vxOpmap_tbl[input_key_]->specs_[0].SetQuantization(output_quant);
+  }
+};
+
 std::shared_ptr<tim::vx::Operation> DepthtoSpace::CreateOperation(
     std::shared_ptr<tim::vx::Graph> graph) {
   TvxDepthtoSpaceAttrs tvx_attrs(call_);
@@ -909,7 +1019,7 @@ std::shared_ptr<tim::vx::Operation> MaxPool2d::CreateOperation(
       tim::vx::PoolType::MAX, tvx_attrs.pad_type,
       std::array<uint32_t, 2>{tvx_attrs.pool_size[0], tvx_attrs.pool_size[1]},
       std::array<uint32_t, 2>{tvx_attrs.strides[0], tvx_attrs.strides[1]}, tvx_attrs.ceil_mode,
-      tim::vx::DataLayout::CWHN);
+      tvx_attrs.layout);
 }
 
 void Pad::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> graph,

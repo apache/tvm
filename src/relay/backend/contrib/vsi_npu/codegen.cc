@@ -109,6 +109,7 @@ GetTimVxTensorSpec(const TupleTypeNode *tuple) {
   std::vector<tim::vx::TensorSpec> specs;
   uint32_t input_node_num = input_node_tensors.size();
   for (uint32_t i = 0; i < input_node_num; i++) {
+    LOG(INFO) << "GetTimVxTensorSpec: " << input_node_tensors[i].as<TensorTypeNode>();
     tim::vx::ShapeType shape;
     std::transform(input_node_tensors[i].as<TensorTypeNode>()->shape.rbegin(),
                    input_node_tensors[i].as<TensorTypeNode>()->shape.rend(),
@@ -202,6 +203,7 @@ static std::map<std::string, setup_operand_fun_ptr> call_node_table = {
 static std::map<std::string, setup_operand_fun_ptr> func_node_table = {
   DEFINE_NODE_ITEM("vsi_npu.qnn_conv2d", VsiNpuQnnConv2d),
   DEFINE_NODE_ITEM("vsi_npu.qnn_avgpool2d", VsiNpuQnnAvgPool),
+  DEFINE_NODE_ITEM("vsi_npu.qnn_adaptive_avg_pool2d", VsiNpuQnnAdaptiveAvgPool),
   DEFINE_NODE_ITEM("vsi_npu.qnn_softmax", VsiNpuQnnSoftmax),
   DEFINE_NODE_ITEM("vsi_npu.qnn_sigmoid", VsiNpuQnnSigmoid),
   DEFINE_NODE_ITEM("vsi_npu.qnn_clip", VsiNpuQnnClip),
@@ -210,6 +212,7 @@ static std::map<std::string, setup_operand_fun_ptr> func_node_table = {
   DEFINE_NODE_ITEM("vsi_npu.qnn_leaky_relu", VsiNpuQnnLeakyRelu),
   DEFINE_NODE_ITEM("vsi_npu.qnn_deconv", VsiNpuQnnDeconv),
   DEFINE_NODE_ITEM("vsi_npu.qnn_tanh", VsiNpuQnnTanh),
+  DEFINE_NODE_ITEM("vsi_npu.dropout", Dropout),
 };
 
 void TensorMakerImpl::InferCall(const CallNode *cn) {
@@ -221,18 +224,20 @@ void TensorMakerImpl::InferCall(const CallNode *cn) {
     auto comp = fn->GetAttr<String>(attr::kComposite);
     CHECK(comp.defined());
     name = comp.value();
+    LOG(INFO) << "TensorMakerImpl::InferCall: " << name;
     if (func_node_table.find(name) != func_node_table.end()) {
       func_node_table[name](vxOpmap_tbl_, expr);
       vxOpmap_tbl_[expr]->SetupOperand(cn, out_quant, vxOpmap_tbl_);
     }
   } else if (const auto *fn = cn->op.as<OpNode>()) {
     name = fn->name;
+    LOG(INFO) << "TensorMakerImpl::InferCall: " << name;
     if (call_node_table.find(name) != call_node_table.end()) {
       call_node_table[name](vxOpmap_tbl_, expr);
       vxOpmap_tbl_[expr]->SetupOperand(cn, out_quant, vxOpmap_tbl_);
     }
   } else {
-    LOG(ERROR)<<  __FUNCTION__ << "not support operator "<<name;
+    LOG(INFO) << __FUNCTION__ << " not support operator.";
   }
 
   assert(vxOpmap_tbl_.find(expr) != vxOpmap_tbl_.end());
@@ -321,7 +326,8 @@ RawGraphDef GraphMakerImpl::Create(const Function &func) {
   size_t bin_size = -1;
   bool is_ok = final_graph.first->CompileToBinary(nullptr, &bin_size);
   if (!is_ok) {
-    LOG(FATAL) <<  __FUNCTION__ << " fail ";
+    LOG(INFO) << "Fatal error: compile to binary failed";
+    assert(false);
   }
   assert(bin_size > 0 && is_ok);
   std::shared_ptr<char> nbg_buf(new char[bin_size]);
@@ -352,7 +358,7 @@ void GraphMakerImpl::VisitExpr_(const CallNode *cn) {
 
 void GraphMakerImpl::VisitExpr_(const TupleNode *tn) {
   Tuple tuple = GetRef<Tuple>(tn);
-  LOG(INFO) << __FUNCTION__ <<" (TupleNode):  "<<tn->fields.size();
+  LOG(INFO) << "GraphMakerImpl::VisitExpr_(TupleNode): " << tn->fields.size();
   for (size_t i = 0; i < tn->fields.size(); i++) {
     if (vxOpmap_tbl_.find(tuple) != vxOpmap_tbl_.end() && vxOpmap_tbl_[tuple] != nullptr) {
       vxOpmap_tbl_[tn->fields[i]]->ptensors_ = {
@@ -375,6 +381,7 @@ void GraphMakerImpl::InferCall(const CallNode *cn) {
     Function func = Downcast<Function>(call->op);
     CHECK(func.defined());
     auto name_node = func->GetAttr<String>(attr::kComposite);
+    LOG(INFO) << "GraphMakerImpl::InferCall: " << name_node.value();
     if (func_node_table.find(name_node.value()) != func_node_table.end()) {
       vxOpmap_tbl_[GetRef<Expr>(cn)]->SetupOperation(cn, vx_graph_,
                                                      vxOpmap_tbl_);
@@ -383,6 +390,7 @@ void GraphMakerImpl::InferCall(const CallNode *cn) {
     Op op = Downcast<Op>(call->op);
     CHECK(op.defined());
     auto *op_node = cn->op.as<OpNode>();
+    LOG(INFO) << "GraphMakerImpl::InferCall: " << op_node->name;
     if (call_node_table.find(op_node->name) != call_node_table.end()) {
       vxOpmap_tbl_[GetRef<Expr>(cn)]->SetupOperation(cn, vx_graph_,
                                                      vxOpmap_tbl_);
@@ -400,8 +408,7 @@ tvm::runtime::Module VsiNpuCompiler::CreateRuntimeModule(const ObjectRef &ref) {
 
     CHECK(name_node.defined()) << "Failed to retrieved external symbol.";
     GlobalVar gvar = GlobalVar(name_node.value());
-    LOG(INFO) << __FUNCTION__ << "This is important----> name_node.value() == "
-              <<name_node.value();
+    LOG(INFO) << "name_node.value() == " << name_node.value();
     mod->Add(gvar, func);
     Function mod_func = Downcast<Function>(mod->functions.at(gvar));
 

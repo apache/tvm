@@ -39,7 +39,6 @@ bool AsConstant(const Expr& expr, std::vector<T>& out) {
   runtime::NDArray data = Downcast<Constant>(expr)->data;
 
   if (data->ndim == 0) {
-    runtime::NDArray data = Downcast<Constant>(expr)->data;
     out.push_back(*static_cast<T*>(data->data));
   } else {
     int64_t size = data->shape[0];
