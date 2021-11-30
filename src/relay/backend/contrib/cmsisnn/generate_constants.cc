@@ -179,7 +179,7 @@ class GenerateConstantsMutator : public MixedModeMutator {
     if (clip_call) {
       ret_call = Call(clip_call->op, {ret_call}, clip_call->attrs, {});
     }
-    return ret_call;
+    return std::move(ret_call);
   }
 
   Expr Rewrite_(const CallNode* call, const Expr& post) final {

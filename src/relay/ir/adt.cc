@@ -115,7 +115,7 @@ Clause WithFields(Clause clause, Optional<Pattern> opt_lhs, Optional<Expr> opt_r
     cow_clause_node->lhs = lhs;
     cow_clause_node->rhs = rhs;
   }
-  return std::move(clause);
+  return clause;
 }
 
 TVM_REGISTER_NODE_TYPE(ClauseNode);
@@ -168,7 +168,7 @@ Match WithFields(Match match, Optional<Expr> opt_data, Optional<Array<Clause>> o
     cow_match_node->complete = complete;
     cow_match_node->span = span;
   }
-  return std::move(match);
+  return match;
 }
 
 TVM_REGISTER_NODE_TYPE(MatchNode);

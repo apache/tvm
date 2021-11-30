@@ -57,6 +57,8 @@
  *       idempotent.
  *  - Some special operators require their arguments or results to be on the 'host' (typcially
  *    a CPU) \p SEScope, see below.
+ *  - Any \p PrimFuncs in the \p IRModule (if \p LowerTEPass has already run) may constrain their
+ *    argument buffers to have a specific memory scope, which is part of \p SEScope.
  *  - Annotations left over from a previous run of this pass, such as 'param_se_scopes' and
  *    'result_se_scope' function attributes we introduce below. This is so the pass is idempotent
  *    and can be re-run to flow additional memory scope constraints.
@@ -71,10 +73,14 @@
  *  - We wish to treat \code on_device(expr, device_type=d).0 \endcode as if it were written
  *    \code on_device(expr.0, device_type_d) \endcode. I.e. we prefer to copy the projection from
  *    the tuple rather than project from a copy of the tuple. We'll do this by rewriting.
+ *  - We are prepared to insert device_copies on the arguments and result of calls to PrimFuncs,
+ *    on the assumption a) we already ran PlanDevices before lowering so we are not allowing
+ *    any new cross-device copies, but b) after lowering we may have new memory scope constraits
+ *    to deal with.
  *
  * Phase 1
  * -------
- * We flow constraints from the "on_device" and "device_copy" calls,
+ * We flow constraints from the "on_device" and "device_copy" calls, PrimFunc buffer memory scopes,
  * and some special ops, to all other Relay sub-expressions.
  *
  * For a primitive such as \code add(e1, e2) \endcode all arguments and results must be on the
@@ -101,6 +107,10 @@
  *    same device as \p body. However parameters \p x and \p may be on different devices, even
  *    different from each other. Every call to the function must use the same choice of parameter
  *    and result devices -- there is no 'device polymorphism' for Relay functions.
+ *
+ * Currently \p PrimFuncs and external functions do not carry over their parameter and result
+ * devices from their original Relay Function representations. However we know all calls to those
+ * functions are device-consistent, thus no information is lost.
  *
  * Phase 2
  * -------
@@ -138,6 +148,7 @@
  *    around a var or global var. These uses of "on_device" imply both the argument and result are
  *    on the same device. We signal this by setting the 'is_fixed' OnDeviceAttrs field to true,
  *    which helps make this pass idempotent.
+ *  - The buffer maps for called PrimFuncs are updated to capture memory scopes.
  *
  * Helper visitors (in device_aware_visitors.h) can be used by downstream transforms to recover
  * the device for any expression for their own use, e.g. during memory planning. All downstream
@@ -268,6 +279,7 @@
 
 #include <unordered_map>
 
+#include "../../tir/analysis/device_constraint_utils.h"
 #include "../op/annotation/annotation.h"
 #include "../op/memory/device_copy.h"
 #include "../op/memory/on_device.h"
@@ -300,6 +312,17 @@ namespace {
  *    \code
  *      on_device(e).0
  *      ==> on_device(e.0)
+ *    \endcode
+ *
+ *  - Be prepared to copy arguments and results on primitive call boundaries in case memory
+ *    scopes don't line up. We'll use the 'fully unconstrained' version of on_device so that
+ *    we can allow for a device_copy without knowing the specific device for the arguments.
+ *    \code
+ *      call_lowered(@prim, (a, b))
+ *      ==> copy_ok(call_lowered(@prim, (copy_ok(a), copy_ok(b))))
+ *      where
+ *        copy_ok(x) = on_device(x, se_scope=SEScope::FullyUnconstrained,
+ *                               constrain_body=False, constrain_result=False)
  *    \endcode
  */
 class RewriteOnDevices : public ExprMutator {
@@ -358,6 +381,26 @@ class RewriteOnDevices : public ExprMutator {
     return WithFields(GetRef<Function>(function_node), function_node->params, std::move(body));
   }
 
+  Expr VisitExpr_(const CallNode* call_node) final {
+    CallLoweredProps props = GetCallLoweredProps(call_node);
+    if (props.lowered_func.defined()) {
+      BaseFunc base_func = mod_->Lookup(props.lowered_func);
+      if (base_func.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "allowing device_copy on PrimFunc arguments and result";
+        Array<Expr> new_args;
+        new_args.reserve(props.arguments.size());
+        for (const auto& arg : props.arguments) {
+          Expr new_arg = VisitExpr(arg);
+          new_args.push_back(OnDeviceCopyOk(std::move(new_arg)));
+        }
+        Call new_call = CallLowered(std::move(props.lowered_func), std::move(new_args), props.attrs,
+                                    call_node->span);
+        return OnDeviceCopyOk(std::move(new_call));
+      }
+    }
+    return ExprMutator::VisitExpr_(call_node);
+  }
+
   /*! \brief Module we are rewriting, so we can lookup global definitions. */
   IRModule mod_;
 };
@@ -398,6 +441,10 @@ class DeviceAnalyzer : public ExprVisitor {
         VLOG(2) << "collecting constraints from Relay Function '" << kv.first->name_hint << "'";
         domains_->UnifyExprExact(kv.first, kv.second);
         VisitExpr(GetRef<Function>(function_node));
+      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "collecting constraints from TIR PrimFunc '" << kv.first->name_hint << "'";
+        domains_->UnifyExprExact(
+            kv.first, DomainForPrimFunc(kv.first, GetRef<tir::PrimFunc>(prim_func_node)));
       } else {
         VLOG(2) << "skipping '" << kv.first->name_hint << "'";
       }
@@ -406,6 +453,40 @@ class DeviceAnalyzer : public ExprVisitor {
   }
 
  private:
+  /*!
+   * \brief Return the domain representing \p prim_func which, before lowering, had
+   * the Relay \p type.
+   */
+  DeviceDomainPtr DomainForPrimFunc(const GlobalVar& global_var, const tir::PrimFunc& prim_func) {
+    // CAUTION: The prim_func->checked_type() is currently w.r.t. the flattened and DPS form
+    // of the prim func, however here we wish to remain within the Relay view of all functions.
+    // Thus we'll use the global var who's checked_type is in Relay form.
+    auto func_domain = domains_->DomainFor(global_var);  // higher-order
+
+    // TODO(mbs): We don't visit the body of the function -- there's currently nothing to be done.
+    const auto* func_type_node = global_var->checked_type().as<FuncTypeNode>();
+    ICHECK(func_type_node);
+    ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
+
+    Array<SEScope> se_scopes =
+        tir::GetPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node));
+
+    // Build the implied domain (in terms of the function's Relay type) implied by any memory scope
+    // constrains in the function's buffers, for both arguments and results.
+    std::vector<DeviceDomainPtr> args_and_result_domains;
+    args_and_result_domains.reserve(se_scopes.size());
+    for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
+      const SEScope& param_se_scope = se_scopes[i];
+      VLOG(2) << "param_se_scope[" << i << "] = " << param_se_scope;
+      args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(param_se_scope));
+    }
+    const SEScope& ret_se_scope = se_scopes.back();
+    VLOG(2) << "ret_se_scope = " << ret_se_scope;
+    args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(ret_se_scope));
+
+    return domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));
+  }
+
   void VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
 
@@ -849,6 +930,15 @@ class DeviceCapturer : public ExprMutator {
       if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         VLOG(2) << "capturing devices for Relay Function '" << kv.first->name_hint << "'";
         result->Add(kv.first, Downcast<Function>(Mutate(GetRef<Function>(function_node))));
+      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
+        VLOG(2) << "capturing devices for TIR PrimFunc '" << kv.first->name_hint << "'";
+        auto prim_func = GetRef<tir::PrimFunc>(prim_func_node);
+        tir::PrimFunc new_prim_func = UpdatePrimFunc(kv.first, prim_func);
+        VLOG(2) << "Rewritten prim func:" << std::endl
+                << PrettyPrint(prim_func) << std::endl
+                << "to:" << std::endl
+                << PrettyPrint(new_prim_func);
+        result->Add(kv.first, std::move(new_prim_func));
       } else {
         VLOG(2) << "skipping '" << kv.first->name_hint << "'";
         result->Add(kv.first, kv.second);
@@ -858,6 +948,34 @@ class DeviceCapturer : public ExprMutator {
   }
 
  private:
+  /*!
+   * \brief Returns \p prim_func updated to capture any memory scope's implied by its device
+   * domain.
+   */
+  tir::PrimFunc UpdatePrimFunc(const GlobalVar& global_var, const tir::PrimFunc& prim_func) {
+    // CAUTION: Same caution as for DeviceAnalyzer::DomainForPrimFunc.
+    auto func_domain = domains_->DomainFor(global_var);
+    ICHECK(func_domain->is_higher_order());
+
+    const auto* func_type_node = global_var->checked_type().as<FuncTypeNode>();
+    ICHECK(func_type_node);
+    ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
+
+    std::vector<SEScope> arg_and_result_se_scopes;
+    arg_and_result_se_scopes.reserve(func_type_node->arg_types.size() + 1);
+    for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
+      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
+      VLOG(2) << "param_se_scope[" << i << "] = " << param_se_scope;
+      arg_and_result_se_scopes.push_back(param_se_scope);
+    }
+    SEScope ret_se_scope = domains_->ResultSEScope(func_domain->function_result());
+    VLOG(2) << "ret_se_scope = " << ret_se_scope;
+    arg_and_result_se_scopes.push_back(ret_se_scope);
+
+    return tir::ApplyPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node),
+                                                     arg_and_result_se_scopes);
+  }
+
   // Nothing interesting for VarNode, ConstantNode, GlobalVarNode, OpNode and ConstructorNode
 
   Expr VisitExpr_(const TupleNode* tuple_node) final {
@@ -932,8 +1050,7 @@ class DeviceCapturer : public ExprMutator {
         // match.
         return VisitExpr(device_copy_props.body);
       } else {
-        return VisitChild(/*lexical_se_scope=*/
-                          dst_se_scope,
+        return VisitChild(/*lexical_se_scope=*/dst_se_scope,
                           /*expected_se_scope=*/dst_se_scope,
                           /*child_se_scope=*/src_se_scope, device_copy_props.body);
       }
