@@ -42,6 +42,7 @@ from .dispatcher import DispatchContext
 from .search_task import SearchTask
 from .utils import get_const_tuple
 from .workload_registry import register_workload_tensors
+import traceback
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -66,9 +67,12 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         if params:
             compiler.set_params(params)
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
-        compiler.lower(mod, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+        try:
+            compiler.lower(mod, target)
+        except Exception:
+            logger.warning(f"Got exception in task extraction:\n{traceback.format_exc()}")
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
