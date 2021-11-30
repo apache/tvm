@@ -61,19 +61,22 @@ macro(find_ethosn use_ethosn)
     set(ETHOSN_PACKAGE_VERSION "0.1.1")
     set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
 
+    # Runtime hardware support. Driver library also needed for
+    # test support.
+    find_path(_DL_DIR NAMES Network.hpp
+      PATHS ${__ethosn_stack}/include/ethosn_driver_library)
+    string(REGEX REPLACE "/ethosn_driver_library" "" _DL_DIR2 ${_DL_DIR})
+    list(APPEND ETHOSN_INCLUDE_DIRS "${_DL_DIR2}")
+
+    find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver
+      PATHS ${__ethosn_stack}/lib)
+    find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver)
     if(${USE_ETHOSN_HW} MATCHES ${IS_TRUE_PATTERN})
-      # Runtime hardware support
-      find_path(_DL_DIR NAMES Network.hpp
-        PATHS ${__ethosn_stack}/include/ethosn_driver_library)
-      string(REGEX REPLACE "/ethosn_driver_library" "" _DL_DIR2 ${_DL_DIR})
-      list(APPEND ETHOSN_INCLUDE_DIRS "${_DL_DIR2}")
-
-      find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver
-        PATHS ${__ethosn_stack}/lib)
-      find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver)
       set(ETHOSN_DEFINITIONS -DETHOSN_HW -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
-    endif ()
-
+    else()
+      set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
+    endif()
+  
     if(ETHOSN_COMPILER_LIBRARY)
       set(ETHOSN_FOUND TRUE)
     endif()
