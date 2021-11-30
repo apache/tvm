@@ -173,6 +173,9 @@ AEEResult __QAIC_HEADER(hexagon_proxy_rpc_read)(remote_handle64 handle, unsigned
   tvm::ShapeTuple shape(t->shape, t->shape + t->ndim);
   auto* container = new tvm::runtime::NDArray::Container(
       static_cast<void*>(dst_ptr), shape, src_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
+  container->SetDeleter([](tvm::Object* container) {
+    delete static_cast<tvm::runtime::NDArray::Container*>(container);
+  });
   tvm::runtime::NDArray dst(GetObjectPtr<tvm::Object>(container));
   dst.CopyFrom(*src_ptr);
   return AEE_SUCCESS;
@@ -186,6 +189,9 @@ AEEResult __QAIC_HEADER(hexagon_proxy_rpc_write)(remote_handle64 handle, unsigne
   auto* container =
       new tvm::runtime::NDArray::Container(const_cast<unsigned char*>(src_ptr), shape,
                                            dst_ptr->operator->()->dtype, tvm::Device{kDLCPU, 0});
+  container->SetDeleter([](tvm::Object* container) {
+    delete static_cast<tvm::runtime::NDArray::Container*>(container);
+  });
   tvm::runtime::NDArray src(GetObjectPtr<tvm::Object>(container));
   dst_ptr->CopyFrom(src);
   return AEE_SUCCESS;
