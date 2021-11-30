@@ -285,8 +285,8 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "zephyr_base",
-        required=["generate_project", "open_transport"] if not ZEPHYR_BASE else None,
-        optional=["generate_project", "open_transport", "build"] if ZEPHYR_BASE else ["build"],
+        required=(["generate_project", "open_transport"] if not ZEPHYR_BASE else None),
+        optional=(["generate_project", "open_transport", "build"] if ZEPHYR_BASE else ["build"]),
         default=ZEPHYR_BASE,
         type="str",
         help="Path to the zephyr base directory.",
@@ -322,7 +322,7 @@ PROJECT_OPTIONS = [
 def get_zephyr_base(options: dict):
     """Returns Zephyr base path"""
     zephyr_base = options.get("zephyr_base", ZEPHYR_BASE)
-    assert zephyr_base, "'zephyr_base' not passed and not found by default!"
+    assert zephyr_base, "'zephyr_base' option not passed and not found by default!"
     return zephyr_base
 
 

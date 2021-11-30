@@ -80,13 +80,15 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=["generate_project", "build", "flash", "open_transport"]
-        if not ARDUINO_CLI_CMD
-        else None,
-        optional=["generate_project", "build", "flash", "open_transport"]
-        if ARDUINO_CLI_CMD
-        else None,
-        default="arduino-cli",
+        required=(
+            ["generate_project", "build", "flash", "open_transport"]
+            if not ARDUINO_CLI_CMD
+            else None
+        ),
+        optional=(
+            ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
+        ),
+        default=ARDUINO_CLI_CMD,
         type="str",
         help="Path to the arduino-cli tool.",
     ),
@@ -255,27 +257,21 @@ class Handler(server.ProjectAPIHandler):
         """
         for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
-                with filename.open() as file:
-                    try:
-                        lines = file.readlines()
-                    # TODO: This exception only happens using `tvmc micro` and is not catched on Arduino tests.
-                    # Needs more investigation.
-                    except UnicodeDecodeError:
-                        pass
-
-                for i in range(len(lines)):
-                    # Check if line has an include
-                    result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", lines[i])
-                    if not result:
-                        continue
-                    new_include = self._find_modified_include_path(
-                        project_dir, filename, result.groups()[0]
-                    )
-
-                    lines[i] = f'#include "{new_include}"\n'
-
-                with filename.open("w") as file:
-                    file.writelines(lines)
+                with filename.open("rb") as src_file:
+                    lines = src_file.readlines()
+                    with filename.open("wb") as dst_file:
+                        for i, line in enumerate(lines):
+                            line_str = str(line, "utf-8")
+                            # Check if line has an include
+                            result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", line_str)
+                            if not result:
+                                dst_file.write(line)
+                            else:
+                                new_include = self._find_modified_include_path(
+                                    project_dir, filename, result.groups()[0]
+                                )
+                                updated_line = f'#include "{new_include}"\n'
+                                dst_file.write(updated_line.encode("utf-8"))
 
     # Most of the files we used to be able to point to directly are under "src/standalone_crt/include/".
     # Howver, crt_config.h lives under "src/standalone_crt/crt_config/", and more exceptions might
