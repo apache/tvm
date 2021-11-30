@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tir/analysis/usmp/algo/greedy_by_size.cc
+ * \file tir/analysis/usmp/algo/greedy.cc
  * \brief This source contains greedy algorithms for planning
  * memory for USMP. There are two algorithms present here :
  * 1) greedy_by_size and 2) greedy_by_conflicts.
@@ -89,17 +89,17 @@ class GreedyBase {
    * \brief Selects a pool for placement in the given set of ordered pool candidates
    */
   PoolInfo SelectPlacementPool(
-      const Array<PoolInfo>& pool_candidates,
+      const BufferInfo& buf_info,
       const std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual>& pool_offsets) {
     // Here the pool candidates are ordered when it is consumed by the algorithm.
     // This could be from order the user has specified. However, schedulers are
     // welcome to change the order for performance reasons.
-    for (const auto& pool_info : pool_candidates) {
+    for (const auto& pool_info : buf_info->pool_candidates) {
       if (pool_offsets.count(pool_info)) {
         return pool_info;
       }
     }
-    ICHECK(false) << "TVM USMP Internal Error: no candidate have been selected!";
+    CHECK(false) << "TVM USMP Error: no candidate have been selected for " << buf_info;
     return PoolInfo();
   }
 
@@ -141,7 +141,7 @@ class GreedyBase {
           }
         }
       }
-      auto selected_pool = SelectPlacementPool(buf_info->pool_candidates, pool_offset_candidates);
+      auto selected_pool = SelectPlacementPool(buf_info, pool_offset_candidates);
       pool_allocations.Set(
           buf_info, PoolAllocation(selected_pool, Integer(pool_offset_candidates[selected_pool])));
     }

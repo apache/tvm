@@ -51,7 +51,7 @@ def _get_allocates(primfunc):
     return allocates
 
 
-def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
+def _assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
     """helper to assing poolinfos to allocate nodes in a tir.PrimFunc"""
 
     def set_poolinfos(stmt):
@@ -68,12 +68,12 @@ def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
     return primfunc.with_body(stmt_functor.ir_transform(primfunc.body, None, set_poolinfos))
 
 
-def assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
+def _assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
     """helper to assing poolinfos to allocate nodes in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
-            ret[global_var] = assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
+            ret[global_var] = _assign_poolinfos_to_allocates_in_primfunc(basefunc, pool_infos)
     return ret
 
 
@@ -96,9 +96,204 @@ def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
     assert max_workspace_size == size
 
 
+def test_no_pool_error():
+    target = Target("c")
+    tiny_workspace_pool = usmp_utils.PoolInfo(
+        pool_name="tiny_workspace",
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        size_hint_bytes=10,
+    )
+    bi_a = usmp_utils.BufferInfo(
+        name_hint="bi_a", size_bytes=10, pool_candidates=[tiny_workspace_pool]
+    )
+    bi_b = usmp_utils.BufferInfo(
+        name_hint="bi_b", size_bytes=10, pool_candidates=[tiny_workspace_pool]
+    )
+    bi_c = usmp_utils.BufferInfo(
+        name_hint="bi_c", size_bytes=10, pool_candidates=[tiny_workspace_pool]
+    )
+    bi_a.set_conflicts([bi_b])
+    bi_b.set_conflicts([bi_c])
+    bi_c.set_conflicts([bi_a])
+    buffer_info_arr = [bi_a, bi_b, bi_c]
+    fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.greedy_by_size")
+    with pytest.raises(
+        tvm.TVMError, match="TVM USMP Error: no candidate have been selected for BufferInfoNode"
+    ):
+        buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+
+
+@pytest.mark.parametrize("algorithm", ["greedy_by_size", "greedy_by_conflicts"])
+def test_name_based_ordering(algorithm):
+    """ This checks when the size and conlicts are same a stable result is generated"""
+
+    def _test():
+        target = Target("c")
+        global_workspace_pool = usmp_utils.PoolInfo(
+            pool_name="global_workspace",
+            target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+        )
+        bi_a = usmp_utils.BufferInfo(
+            name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
+        )
+        bi_b = usmp_utils.BufferInfo(
+            name_hint="bi_b", size_bytes=10, pool_candidates=[global_workspace_pool]
+        )
+        bi_c = usmp_utils.BufferInfo(
+            name_hint="bi_c", size_bytes=10, pool_candidates=[global_workspace_pool]
+        )
+        bi_a.set_conflicts([bi_b])
+        bi_b.set_conflicts([bi_c])
+        bi_c.set_conflicts([bi_a])
+
+        buffer_info_arr = [bi_a, bi_b, bi_c]
+        fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
+        buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+        assert buffer_pool_allocations[bi_a].byte_offset == 0
+        assert buffer_pool_allocations[bi_b].byte_offset == 20
+        assert buffer_pool_allocations[bi_c].byte_offset == 10
+
+    # This is tested for several times to check stability
+    for x in range(0, 10):
+        _test()
+
+
+@pytest.mark.parametrize(
+    ["algorithm", "workspace_size"],
+    [("greedy_by_size", 140), ("greedy_by_conflicts", 140)],
+)
+def test_linear(algorithm, workspace_size):
+    """
+    The test case here represent BufferInfo objects
+    that could get generated for a linear sequence
+    such as :
+    (Op A)
+    |
+    bi_a
+    |
+    (Op B)
+    |
+    bi_b
+    |
+    .
+    .
+    .
+    (Op F)
+    |
+    bi_f
+    """
+    target = Target("c")
+    global_workspace_pool = usmp_utils.PoolInfo(
+        pool_name="global_workspace",
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    )
+    bi_a = usmp_utils.BufferInfo(
+        name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
+    )
+    bi_b = usmp_utils.BufferInfo(
+        name_hint="bi_b", size_bytes=20, pool_candidates=[global_workspace_pool]
+    )
+    bi_c = usmp_utils.BufferInfo(
+        name_hint="bi_c", size_bytes=100, pool_candidates=[global_workspace_pool]
+    )
+    bi_d = usmp_utils.BufferInfo(
+        name_hint="bi_d", size_bytes=40, pool_candidates=[global_workspace_pool]
+    )
+    bi_e = usmp_utils.BufferInfo(
+        name_hint="bi_e", size_bytes=50, pool_candidates=[global_workspace_pool]
+    )
+    bi_f = usmp_utils.BufferInfo(
+        name_hint="bi_f", size_bytes=50, pool_candidates=[global_workspace_pool]
+    )
+
+    # Creating conflicts for a linear graph
+    bi_a.set_conflicts([bi_b])
+    bi_b.set_conflicts([bi_a, bi_c])
+    bi_c.set_conflicts([bi_b, bi_d])
+    bi_d.set_conflicts([bi_c, bi_e])
+    bi_e.set_conflicts([bi_d, bi_f])
+    bi_f.set_conflicts([bi_e])
+
+    buffer_info_arr = [bi_a, bi_b, bi_c, bi_d, bi_e, bi_f]
+    fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
+
+
+@pytest.mark.parametrize(
+    ["algorithm", "workspace_size"],
+    [("greedy_by_size", 190), ("greedy_by_conflicts", 320)],
+)
+def test_fanout(algorithm, workspace_size):
+    """
+    The test case here represent BufferInfo objects
+    that could get generated for a fanout topology
+    such as :
+    (Op A)
+    |
+    bi_a ---------
+    |            |
+    (Op B)     (Op C)
+    |            |
+    bi_b        bi_c
+    |            |
+    (Op D)     (Op E)
+    |            |
+    bi_d        bi_e
+    |            |
+    (Op F) ------
+    |
+    bi_f
+    |
+    (Op G)
+    |
+    bi_g
+    """
+    target = Target("c")
+    global_workspace_pool = usmp_utils.PoolInfo(
+        pool_name="global_workspace",
+        target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS},
+    )
+    bi_a = usmp_utils.BufferInfo(
+        name_hint="bi_a", size_bytes=10, pool_candidates=[global_workspace_pool]
+    )
+    bi_b = usmp_utils.BufferInfo(
+        name_hint="bi_b", size_bytes=20, pool_candidates=[global_workspace_pool]
+    )
+    bi_c = usmp_utils.BufferInfo(
+        name_hint="bi_c", size_bytes=100, pool_candidates=[global_workspace_pool]
+    )
+    bi_d = usmp_utils.BufferInfo(
+        name_hint="bi_d", size_bytes=40, pool_candidates=[global_workspace_pool]
+    )
+    bi_e = usmp_utils.BufferInfo(
+        name_hint="bi_e", size_bytes=50, pool_candidates=[global_workspace_pool]
+    )
+    bi_f = usmp_utils.BufferInfo(
+        name_hint="bi_f", size_bytes=60, pool_candidates=[global_workspace_pool]
+    )
+    bi_g = usmp_utils.BufferInfo(
+        name_hint="bi_g", size_bytes=70, pool_candidates=[global_workspace_pool]
+    )
+
+    # Creating conflicts for a linear graph
+    bi_a.set_conflicts([bi_b, bi_c])
+    bi_b.set_conflicts([bi_a, bi_c, bi_e])
+    bi_c.set_conflicts([bi_e, bi_a, bi_b, bi_d])
+    bi_d.set_conflicts([bi_b, bi_f, bi_c, bi_e])
+    bi_e.set_conflicts([bi_c, bi_f, bi_b, bi_d])
+    bi_f.set_conflicts([bi_d, bi_e, bi_f])
+    bi_g.set_conflicts([bi_f])
+
+    buffer_info_arr = [bi_a, bi_b, bi_c, bi_d, bi_e, bi_f, bi_g]
+    fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
+
+
 # fmt: off
 @tvm.script.ir_module
-class LinearStructure:
+class MobilenetStructure:
     @T.prim_func
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
@@ -167,22 +362,11 @@ class LinearStructure:
 # fmt: on
 
 
-def print_conflicts(buffer_info_map):
-    """_verify_conflicts("sid_8", ["Conv2dOutput_7", "tensor_2"], buffer_info_map)"""
-
-    for buffer_info_name, buf_info in buffer_info_map.items():
-        conflict_str = "["
-        for conflict in buf_info.conflicts:
-            conflict_str += f'"{conflict.name_hint}", '
-        conflict_str += "]"
-        print(f'_verify_conflicts("{buffer_info_name}", {conflict_str}, buffer_info_map_names)')
-
-
 @pytest.mark.parametrize(
     ["algorithm", "fast_memory_size", "slow_memory_size"],
     [("greedy_by_size", 200704, 1418528), ("greedy_by_conflicts", 200704, 1418528)],
 )
-def test_linear(algorithm, fast_memory_size, slow_memory_size):
+def test_mobilenet_subgraph(algorithm, fast_memory_size, slow_memory_size):
     target = Target("c")
     fast_memory_pool = usmp_utils.PoolInfo(
         pool_name="fast_memory",
@@ -192,9 +376,9 @@ def test_linear(algorithm, fast_memory_size, slow_memory_size):
     slow_memory_pool = usmp_utils.PoolInfo(
         pool_name="slow_memory", target_access={target: usmp_utils.PoolInfo.READ_WRITE_ACCESS}
     )
-    tir_mod = LinearStructure
+    tir_mod = MobilenetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
-    tir_mod = assign_poolinfos_to_allocates_in_irmodule(
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
     main_func = tir_mod["run_model"]
@@ -202,8 +386,8 @@ def test_linear(algorithm, fast_memory_size, slow_memory_size):
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
-    fusmp_algo_greedy_by_size = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
+    fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
 
     buffer_info_map_names = dict()
     for buf_info in buffer_info_arr:
@@ -346,7 +530,7 @@ class ResnetStructure:
 @pytest.mark.parametrize(
     ["algorithm", "workspace_size"], [("greedy_by_size", 7920256), ("greedy_by_conflicts", 7200256)]
 )
-def test_fanout(algorithm, workspace_size):
+def test_resnet_subgraph(algorithm, workspace_size):
     target = Target("c")
     global_workspace_pool = usmp_utils.PoolInfo(
         pool_name="global_workspace",
@@ -354,14 +538,14 @@ def test_fanout(algorithm, workspace_size):
     )
     tir_mod = ResnetStructure
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
-    tir_mod = assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
+    tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
     main_func = tir_mod["tvmgen_default_run_model"]
     buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
-    fusmp_algo_greedy_by_size = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
+    fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
 
     buffer_info_map_names = dict()
     for buf_info in buffer_info_arr:

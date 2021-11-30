@@ -114,6 +114,10 @@ class BufferInfo(Object):
             alignment,
         )
 
+    def set_conflicts(self, conflicts: list):
+        """Sets the the conflicting array of buffer info objects"""
+        _ffi_api.BufferInfoSetConflicts(self, conflicts)
+
 
 @register_object("tir.usmp.PoolAllocation")
 class PoolAllocation(Object):

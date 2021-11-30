@@ -454,7 +454,6 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
 
   // Traverse the liveness events using a open set to track what
   // is live while updating the conflicts through out the linear traversal
-  //  std::unordered_set<BufferInfo, ObjectPtrHash, ObjectPtrEqual> open_set;
   std::unordered_map<BufferInfo, int, ObjectPtrHash, ObjectPtrEqual> open_set;
   for (const auto& le_event : le_events_timeline) {
     if (le_event.le_type == START) {
@@ -465,7 +464,6 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
           le_event.buffer_info->conflicts.push_back(open_buffer_info);
         }
       }
-      //      open_set.insert(le_event.buffer_info);
       if (open_set.find(le_event.buffer_info) == open_set.end()) {
         open_set[le_event.buffer_info] = 1;
       } else {
@@ -477,7 +475,6 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
       } else {
         open_set[le_event.buffer_info] -= 1;
       }
-      //      open_set.erase(le_event.buffer_info);
     }
   }
   return this->buffer_info_map_;
