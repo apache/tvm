@@ -31,3 +31,5 @@ from .ndarray import vpi, rocm, ext_dev
 from .module import load_module, enabled, system_lib
 from .container import String, ShapeTuple
 from .params import save_param_dict, load_param_dict
+
+from . import executor
