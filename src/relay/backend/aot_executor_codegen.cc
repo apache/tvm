@@ -27,6 +27,7 @@
 #include <tvm/relay/attrs/call.h>
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
@@ -325,6 +326,43 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
   }
 
+  PrimExpr MakeDLTensor(Expr relay_arg, TensorType ttype, PrimExpr data) {
+    for (Var v : input_vars_) {
+      if (v == relay_arg) {
+        return data;
+      }
+    }
+    for (int return_sid : return_sid_) {
+      auto return_expr = sids_table_[return_sid];
+      if (return_expr == relay_arg) {
+        return data;
+      }
+    }
+    return data; /*tvm::tir::Call(
+      DataType::Handle(),
+      tvm::tir::builtin::tvm_stack_make_array(),
+      Array<PrimExpr>({data, tvm::tir::Call(DataType::Handle(),
+                                tvm::tir::builtin::tvm_stack_make_shape(),
+                                {ttype->shape}),
+           tvm::Integer(0),
+           tvm::Integer(ttype->shape.size()),
+           tvm::tir::make_const(ttype->dtype, 0),
+           tvm::Integer(0)})); */
+  }
+
+  void PushTuple(Tuple tuple, std::vector<tir::Var> sids, Array<PrimExpr> args) {
+    CHECK_EQ(sids.size(), tuple->fields.size())
+      << "Relay tuple does not map 1:1 into TIR; AOT can't handle this type of Relay Expr in a CallNode.";
+    StorageInfo& sinfo = storage_device_map_[tuple];
+    for (unsigned int i = 0; i < sids.size(); ++i) {
+      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[i]) != return_sid_.end()) {
+        args.push_back(sids[i]);
+      } else {
+        args.push_back(MakeDLTensor(tuple->fields[i], Downcast<TensorType>(tuple->fields[i]->checked_type()), sids[i]));
+      }
+    }
+  }
+
   /*!
    * brief Create a function call
    * \param call_lowered_props The lowered function and the arguments to call it with
@@ -339,32 +377,53 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Pack the inputs
     for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
-        auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                           {tir::StringImm(params_by_expr_[arg])});
-        args.push_back(param_handle);
+        args.push_back(MakeDLTensor(arg, Downcast<TensorType>(arg->checked_type()),
+                                    tir::Cast(runtime::DataType(DataType::TypeCode::kHandle, 32, 1),
+                                              tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                                             {tir::StringImm(params_by_expr_[arg])}))));
       } else {
-        auto var_arg = FindExpr(arg);
-        for (const auto& var : var_arg) {
-          args.push_back(var);
+        auto sids = FindExpr(arg);
+        if (sids.size() > 1) {
+          auto tuple = Downcast<Tuple>(arg);
+          PushTuple(tuple, sids, args);
+        } else {
+          StorageInfo& sinfo = storage_device_map_[arg];
+          if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) != return_sid_.end()) {
+            args.push_back(sids[0]);
+          } else {
+            args.push_back(MakeDLTensor(arg, Downcast<TensorType>(arg->checked_type()), sids[0]));
+          }
         }
       }
     }
 
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : PackSid(result_expr)) {
-      args.push_back(var);
+    auto result_expr_sid = PackSid(result_expr);
+    if (result_expr_sid.size() > 1) {
+      auto tuple = Downcast<Tuple>(result_expr);
+      PushTuple(tuple, result_expr_sid, args);
+    } else {
+      StorageInfo& sinfo = storage_device_map_[result_expr];
+      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) != return_sid_.end()) {
+        args.push_back(result_expr_sid[0]);
+      } else {
+        args.push_back(MakeDLTensor(result_expr, Downcast<TensorType>(result_expr->checked_type()), result_expr_sid[0]));
+      }
     }
 
-    // Use tvm_call_packed to execute the function unless we're calling directly
-    auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    // Choose call style based on Runtime/Executor config.
+    Op calling_pattern;
     if (use_unpacked_api_) {
       calling_pattern = tvm::tir::builtin::call_extern();
+    } else if (use_call_cpacked_) {
+      calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    } else {
+      calling_pattern = tvm::tir::builtin::tvm_call_packed();
     }
 
     GlobalVar global_var = call_lowered_props.lowered_func;
     tir::Var empty_var("no_device_context", DataType::Handle());
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
-    bool use_cpacked_api = !use_unpacked_api_;
 
     // The device context is passed to the operator in one of the following calling patterns:
     //  * Unpacked / direct function call with context:
@@ -388,7 +447,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
-    } else if (use_cpacked_api) {
+    } else if (use_call_cpacked_) {
       // call_cpacked calling convention needs a blank context
       args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
@@ -698,13 +757,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Target target_host_;
   /*!
    * \brief unpacked api toggle
-   * When set to true the code generated will use unpacked calls to functions:
+   * When set to true, the generated code will use unpacked calls to functions:
    * func(void* arg0, void* arg1)
    * Rather than packed calls:
    * func(void* args)
    * Defaults to using the packed calling convention
    */
   Bool use_unpacked_api_;
+  /*!
+   * \brief cpacked api toggle
+   * When set to true, the generated code will use call_cpacked to call functions directly, assuming
+   * they exist in a DSO-exportable module.
+   * func(...)
+   * Rather than through the traditional call_packed calls, which should use function pointers
+   * looked-up through TVMBackendGetFuncFromEnv:
+   * TVMBackendPackedCFunc* func_ptr = TVMBackendGetFuncFromEnv("func");
+   * func_ptr(...)
+   * Defaults to using the packed calling convention
+   */
+  Bool use_call_cpacked_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -731,7 +802,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
+      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)),
+        use_call_cpacked_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     VLOG_CONTEXT << "AOT";
@@ -741,11 +813,29 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
     VLOG(1) << "target host: " << target_host_->ToDebugString();
 
+    Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
+    use_call_cpacked_ = Bool(interface_api == "c");
+
+    // Validate choice of use_unpacked_api_ and use_call_cpacked_
+    if (runtime_config->name == kTvmRuntimeCrt) {
+      CHECK(interface_api == "c" || bool(use_unpacked_api_) == false)
+          << "Either need interface_api == \"c\" (got: " << interface_api
+          << ") or unpacked-api == false (got: " << use_unpacked_api_
+          << ") when targeting c runtime";
+    } else if (runtime_config->name == kTvmRuntimeCpp) {
+      CHECK(bool(use_unpacked_api_) == false && bool(use_call_cpacked_) == true)
+        << "Need unpacked-api == false (got: " << use_unpacked_api_
+        << ") and interface-api == \"c\" (got: " << interface_api
+        << ") when targeting c++ runtime";
+    } else {
+      ICHECK(false) << "runtime_config (" << runtime_config->name
+                    << ") is not one of the expected values";
+    }
 
     // TODO(mbs): Plumb from compiler config
     VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
@@ -886,6 +976,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
             v->name_hint(), ShapeToJSON(ttype->shape), ttype->dtype)));
     }
 
+    LOG(INFO) << "MAKE METADATA? ";
     std::vector<runtime::metadata::TensorInfo> outputs;
     auto output_ttypes = final_aot_allocator.GetReturnTtypes();
     for (unsigned int i = 0; i < output_ttypes.size(); i++) {
@@ -905,6 +996,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto n = make_object<target::metadata::InMemoryMetadataNode>(
       kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_);
     ret.metadata = runtime::metadata::Metadata(std::move(n));
+    LOG(INFO) << "MAKE METADATA: " << ret.metadata;
     return ret;
   }
 
