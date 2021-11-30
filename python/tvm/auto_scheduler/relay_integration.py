@@ -25,6 +25,7 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
+import traceback
 import warnings
 
 import tvm
@@ -42,7 +43,6 @@ from .dispatcher import DispatchContext
 from .search_task import SearchTask
 from .utils import get_const_tuple
 from .workload_registry import register_workload_tensors
-import traceback
 
 logger = logging.getLogger("auto_scheduler")
 
@@ -69,8 +69,10 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
         try:
             compiler.lower(mod, target)
+
+        # pylint: disable=broad-except
         except Exception:
-            logger.warning(f"Got exception in task extraction:\n{traceback.format_exc()}")
+            logger.warning(f"Got exception in task extraction:\n %s", traceback.format_exc())
         finally:
             autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
