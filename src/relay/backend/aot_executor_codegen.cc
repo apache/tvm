@@ -352,7 +352,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
         auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                            {tir::StringImm(params_by_expr_[arg])});
-        args.push_back(tvm::tir::Cast(DataType::Handle(), param_handle));
+        // NOTE: this cast looks like a no-op, but is required for compilation downstream.
+        // Because DataType::Handle has default bits=64, but CodeGenC does not observe this field,
+        // adding this cast forces the codegen to insert the cast. In this case, a cast is required
+        // because param_handle is actually code-generated as `const void*`, and the `const` piece
+        // needs to be removed.
+        args.push_back(tvm::tir::Cast(DataType::Handle(32, 1), param_handle));
       } else {
         auto sids = FindExpr(arg);
         PushArgs(arg, sids, &args);
@@ -907,9 +912,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
-      CHECK(interface_api == "c" || static_cast<bool>(use_unpacked_api_) == false)
-          << "Either need interface_api == \"c\" (got: " << interface_api
-          << ") or unpacked-api == false (got: " << use_unpacked_api_
+      CHECK(interface_api == "packed" || static_cast<bool>(use_unpacked_api_) == true)
+          << "Either need interface_api == \"packed\" (got: " << interface_api
+          << ") or unpacked-api == true (got: " << use_unpacked_api_
           << ") when targeting c runtime";
     } else if (runtime_config->name == kTvmRuntimeCpp) {
       CHECK(static_cast<bool>(use_unpacked_api_) == false &&
