@@ -69,9 +69,7 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
         try:
             compiler.lower(mod, target)
-
-        # pylint: disable=broad-except
-        except Exception:
+        except Exception: # pylint: disable=broad-except
             logger.warning("Got exception in task extraction:\n %s", traceback.format_exc())
         finally:
             autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
