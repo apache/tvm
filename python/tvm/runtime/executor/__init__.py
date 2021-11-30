@@ -14,22 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM runtime namespace."""
 
-# class exposures
-from .packed_func import PackedFunc
-from .object import Object
-from .object_generic import ObjectGeneric, ObjectTypes
-from .ndarray import NDArray, DataType, DataTypeCode, Device
-from .module import Module
-from .profiling import Report
+"""This module contains Python wrappers for the TVM C++ Executor implementations.
 
-# function exposures
-from .object_generic import convert_to_object, convert, const
-from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, ext_dev
-from .module import load_module, enabled, system_lib
-from .container import String, ShapeTuple
-from .params import save_param_dict, load_param_dict
+NOTE: at present, only AOT Executor is contained here. The others are:
+ - GraphExecutor, in python/tvm/contrib/graph_executor.py
+ - VM Executor, in python/tvm/runtime/vm.py
 
-from . import executor
+TODO(areusch): Consolidate these into this module.
+"""
+from .aot_executor import AotModule
