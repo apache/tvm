@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#define TVM_LOG_CUSTOMIZE 1
+
 #include "hexagon_buffer.h"
 
 #include <tvm/runtime/module.h>
@@ -38,13 +40,20 @@ static size_t GetDataAlignment(const DLDataType dtype) {
 
 HexagonBuffer::HexagonBuffer(int ndim, const int64_t* shape, DLDataType dtype,
                              Optional<String> scope) {
-  ICHECK_LE(ndim, 1) << "Hexagon currently only supports flat allocations "
-                     << "and arrays of flat allocations.";
+  // TODO(csullivan): Re-enable check on ndim <= 2 when physical layout support
+  // in MakePackedAPI is added.
+  // ICHECK_LE(ndim, 1) << "Hexagon currently only supports flat allocations "
+  //                    << "and arrays of flat allocations.";
 
+  DLTensor t;
+  t.shape = const_cast<int64_t*>(shape);
+  t.ndim = ndim;
+  t.dtype = dtype;
+  size_t nbytes = GetDataSize(t);
   size_t alignment = GetDataAlignment(dtype);
   // TODO(csullivan): Extend to support arrays of allocations.
   // Move assignment from r-value constructed flat allocation.
-  *this = HexagonBuffer(shape[0] * (dtype.bits / 8) * dtype.lanes, alignment, scope);
+  *this = HexagonBuffer(nbytes, alignment, scope);
 }
 
 HexagonBuffer::HexagonBuffer(size_t nbytes, size_t alignment, Optional<String> scope) {
