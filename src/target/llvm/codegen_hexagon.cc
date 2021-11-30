@@ -65,6 +65,7 @@ class CodeGenHexagon final : public CodeGenLLVM {
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
+  void AddMainFunction(const std::string& entry_func_name) override;
   llvm::Module* GetModulePtr() const { return module_.get(); }
 
  protected:
@@ -734,11 +735,11 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::unique_ptr<CodeGenHexagon> cg(new CodeGenHexagon());
 
   std::vector<PrimFunc> funcs;
+  std::string entry_func;
   Map<String, LinkedParam> linked_params;
   bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "Can only lower IR Module with PrimFuncs";
     if (could_have_linked_params &&
         kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
       // If `f` is the linked-params function, extract the parameters from the
@@ -752,12 +753,25 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
           Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
       continue;
     }
+    if (!kv.second->IsInstance<PrimFuncNode>()) {
+      // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+      DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      continue;
+    }
     auto f = Downcast<PrimFunc>(kv.second);
+    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+      auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      ICHECK(global_symbol.defined());
+      entry_func = global_symbol.value();
+    }
     funcs.emplace_back(f);
   }
 
   cg->Init("TVMHexagonModule", tm.get(), ctx.get(), false, false, false);
   cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
+  if (entry_func.length() != 0) {
+    cg->AddMainFunction(entry_func);
+  }
 
   if (!linked_params.empty()) {
     cg->LinkParameters(linked_params);
@@ -838,6 +852,30 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   }
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str,
                              export_abi);
+}
+
+void CodeGenHexagon::AddMainFunction(const std::string& entry_func_name) {
+  llvm::Function* f = module_->getFunction(entry_func_name);
+  ICHECK(f) << "Function " << entry_func_name << "does not in module";
+  llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
+  llvm::GlobalVariable* global =
+      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::WeakAnyLinkage, nullptr,
+                               runtime::symbol::tvm_module_main);
+#if TVM_LLVM_VERSION >= 100
+  global->setAlignment(llvm::Align(1));
+#else
+  global->setAlignment(1);
+#endif
+  // comdat is needed for windows select any linking to work
+  // set comdat to Any(weak linking)
+  if (target_machine_->getTargetTriple().isOSWindows()) {
+    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
+    comdat->setSelectionKind(llvm::Comdat::Any);
+    global->setComdat(comdat);
+  }
+
+  global->setInitializer(llvm::ConstantDataArray::getString(*ctx_, entry_func_name));
+  global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
 }
 
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
