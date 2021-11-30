@@ -72,7 +72,7 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
 
         # pylint: disable=broad-except
         except Exception:
-            logger.warning(f"Got exception in task extraction:\n %s", traceback.format_exc())
+            logger.warning("Got exception in task extraction:\n %s", traceback.format_exc())
         finally:
             autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
