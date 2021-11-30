@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
+#include <tvm/generated/target/metadata.h>
 #include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
 
@@ -147,7 +148,7 @@ struct LoweredOutput {
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-  runtime::Metadata metadata;
+  runtime::metadata::Metadata metadata;  // points to InMemoryMetadataNode
 };
 
 /*!

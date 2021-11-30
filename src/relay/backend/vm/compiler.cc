@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../target/metadata.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"
@@ -1162,7 +1163,7 @@ void VMCompiler::Codegen() {
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"), runtime::Metadata());
+                                      Runtime::Create("cpp"), runtime::metadata::Metadata(make_object<target::metadata::InMemoryMetadataNode>()));
   exec_->SetLib(lib);
 }
 

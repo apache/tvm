@@ -290,6 +290,14 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
+
+    std::vector<runtime::metadata::TensorInfo> inputs;
+    std::vector<runtime::metadata::TensorInfo> outputs;
+    std::vector<std::string> devices_vector;
+    auto n = make_object<target::metadata::InMemoryMetadataNode>(
+        kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorGraph, mod_name_,
+        "packed", Bool(false));
+    ret.metadata = runtime::metadata::Metadata(std::move(n));
     return ret;
   }
 
