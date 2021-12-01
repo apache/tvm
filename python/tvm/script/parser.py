@@ -32,6 +32,7 @@ from tvm import IRModule
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.ir.function import BaseFunc
+from tvm.tir import buffer
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import tir
@@ -448,9 +449,15 @@ class TVMScriptParser(Transformer):
             arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
             # Note that this case is for T.match_buffer syntax sugar
             if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)):
-                buf = self.transform(arg.ty)
-                self.context.func_buffer_map[arg_var] = buf
-                self.context.update_symbol(arg.name, buf, node)
+                result = self.transform(arg.ty)
+                if not isinstance(result, buffer.Buffer):
+                    self.report_error(
+                        f"The result type of evaluating TypeCall and TypeApply stmt is wrong: {type(result)}."
+                        " It should be a Buffer",
+                        node.span,
+                    )
+                self.context.func_buffer_map[arg_var] = result
+                self.context.update_symbol(arg.name, result, node)
             else:
                 self.context.update_symbol(arg.name, arg_var, node)
             self.context.func_params.append(arg_var)
