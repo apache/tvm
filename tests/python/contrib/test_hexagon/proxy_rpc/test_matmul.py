@@ -21,7 +21,7 @@ import sys
 import tvm
 import tvm.testing
 from tvm import te
-import tvm.contrib.hexagon as hexagon
+import tvm.contrib.hexagon.hexagon as hexagon
 from tvm.contrib import utils
 from tvm import rpc
 import numpy as np
