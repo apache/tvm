@@ -691,10 +691,10 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
   // pattern with the input FunctionVar* Variables. The resulting memoization map will only
   // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
   // (i.e., some piece of computation) overlaps with the nodes in a previous group, we'll have a
-  // situation where we try to rewrite the same node twice in the second rewriting or parition
+  // situation where we try to rewrite the same node twice in the second rewriting or partition
   // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
   // because they exist more globally outside of the fusion.
-  // Similiarly, if interior nodes in a group are used outside of the group fusing to a single
+  // Similarly, if interior nodes in a group are used outside of the group fusing to a single
   // output would create an invalid graph tranformation, so we block the creation of such groups.
   auto memo = extractor.GetMemo();
   for (auto kv : memo) {
@@ -869,9 +869,10 @@ class PatternPartitioner : protected MixedModeMutator {
 
   Expr DispatchVisitExpr(const Expr& pre) override {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
-    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node &&
-        static_cast<bool>(check_(pre))) {
-      post = RewritePartition(groups_[gid_assignments_[pre]]);
+    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
+      if (check_ == nullptr || static_cast<bool>(check_(pre))) {
+        post = RewritePartition(groups_[gid_assignments_[pre]]);
+      }
     }
     return post;
   }
@@ -885,6 +886,15 @@ class PatternPartitioner : protected MixedModeMutator {
 Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs,
                       PackedFunc check) {
   return PatternPartitioner().Partition(pattern, expr, attrs, check);
+}
+
+Expr PartitionPattern(Array<DFPattern> patterns, Expr expr, Map<String, ObjectRef> attrs,
+                      PackedFunc check) {
+  auto partitioned = expr;
+  for (auto pattern : patterns) {
+    partitioned = PatternPartitioner().Partition(pattern, partitioned, attrs, check);
+  }
+  return partitioned;
 }
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition")

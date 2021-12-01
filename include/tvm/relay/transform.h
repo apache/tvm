@@ -134,6 +134,14 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 TVM_DLL Pass DefuseOps();
 
 /*!
+ * \brief Fuse operation based on pattern-based rules and splits the initial graph into separate
+ * functions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass FuseWithPattern();
+
+/*!
  * \brief Rewrite the annotated program.
  *
  * \param fallback_device The fallback device which is the default device for
@@ -250,13 +258,23 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
  * \return The pass.
  */
 TVM_DLL Pass InferType();
+
+/*!
+ * \brief Annoate primitive functions
+ *
+ * The result is an update module with annotated the primitive functions originated from the fuse
+ * ops pass.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass AnnotatePostFuseFuncs();
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are

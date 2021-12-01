@@ -299,6 +299,21 @@ def DefuseOps():
     return _ffi_api.DefuseOps()
 
 
+def FuseWithPattern():
+    """Fuse operators in an expr to a larger operator according to some rules.
+    Parameters
+    ----------
+    fuse_opt_level : int
+        The level of fuse optimization. -1 indicates that the level will be
+        inferred from pass context.
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for operator fusion.
+    """
+    return _ffi_api.FuseWithPattern()
+
+
 def CombineParallelConv2D(min_num_branches=3):
     """Combine multiple conv2d operators into one.
 
@@ -524,7 +539,10 @@ def MergeComposite(pattern_table):
     for tup in pattern_table:
         if len(tup) == 2:
             pattern_name, pattern = tup
-            check = lambda extract: True
+
+            def check(extract):
+                return True
+
         elif len(tup) == 3:
             pattern_name, pattern, check = tup
 
