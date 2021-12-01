@@ -20,10 +20,8 @@ This module provides typing class for TVM script type annotation usage, it can b
 a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
-from os import stat
 import tvm
-from tvm import script
-from tvm.script.tir.special_stmt import SpecialStmt
+from .special_stmt import SpecialStmt
 
 
 class TypeGeneric:  # pylint: disable=too-few-public-methods

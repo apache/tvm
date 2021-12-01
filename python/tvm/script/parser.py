@@ -257,12 +257,15 @@ class TVMScriptParser(Transformer):
         arg_list : list
             The parsed positional argument.
         """
-        assert isinstance(node_call, ast.Call)
+        assert isinstance(node_call, (ast.Call, ast.TypeApply, ast.TypeCall))
         # collect arguments
         args = [self.transform(arg) for arg in node_call.params]
-        kw_args = {
-            self.transform(k): self.transform(v) for k, v in node_call.keyword_params.items()
-        }
+        if isinstance(node_call, ast.TypeApply):
+            kw_args = {}  # TypeApply (e.g. foo[bar]) doesn't have kwargs defined in synr
+        else:
+            kw_args = {
+                self.transform(k): self.transform(v) for k, v in node_call.keyword_params.items()
+            }
         # get the name and parameter list of func
         if isinstance(func, (Intrin, ScopeHandler, SpecialStmt)):
             func_name, param_list = func.signature()
@@ -1120,7 +1123,11 @@ class TVMScriptParser(Transformer):
         return node.value
 
     def transform_TypeTuple(self, node):
-        return node.values
+        """Tuple value visitor for types.
+
+        Mostly used in `transform_TypeCall` and `transform_TypeApply`.
+        """
+        return [self.transform(value) for value in node.values]
 
     def transform_TypeCall(self, node):
         """Call value visitor for TypeCall.
@@ -1128,49 +1135,15 @@ class TVMScriptParser(Transformer):
         This method is for syntax sugar of T.match_buffer()
         """
 
-        def parse_typecall_params(func, params, keyword_params):
-            args = []
-            for arg in params:
-                if isinstance(arg, ast.TypeTuple):
-                    values = []
-                    for value in self.transform(arg):
-                        values.append(self.transform(value))
-                else:
-                    values = self.transform(arg)
-                args.append(values)
-            kw_args = {}
-            for k, v in keyword_params.items():
-                if isinstance(v, ast.TypeTuple):
-                    values = []
-                    for value in self.transform(v):
-                        values.append(self.transform(value))
-                else:
-                    values = self.transform(v)
-                kw_args[self.transform(k)] = values
-            # get the name and parameter list of func
-            func_name, param_list = func.signature()
-            # check arguments and parameter list and get a list of arguments
-            reader = CallArgumentReader(func_name, args, kw_args, self, node)
-            pos_only, kwargs, varargs = param_list
-            internal_args = list()
-            for i, arg_name in enumerate(pos_only):
-                internal_args.append(reader.get_pos_only_arg(i + 1, arg_name))
-            for i, arg_info in enumerate(kwargs):
-                arg_name, default = arg_info
-                internal_args.append(
-                    reader.get_kwarg(i + 1 + len(pos_only), arg_name, default=default)
-                )
-            return internal_args
-
         func = self.transform(node.func_name)
 
         if isinstance(func, SpecialStmt):
             # parse args and kwargs for TypeCall
-            arg_list = parse_typecall_params(func, node.params, node.keyword_params)
+            arg_list = self.parse_arg_list(func, node)
             buf = func.handle(node, self.context, arg_list, node.func_name.span)
             return buf
         self.report_error(
-            "Syntax sugar for T.match_buffer needs to be evaluated into a SpecialStmt.",
+            "Unsupported TypeCall stmt.",
             node.span,
         )
 
@@ -1180,27 +1153,15 @@ class TVMScriptParser(Transformer):
         This method is for syntax sugar of T.match_buffer()
         """
 
-        def parse_typeapply_params(params):
-            args = []
-            for arg in params:
-                if isinstance(arg, ast.TypeTuple):
-                    values = []
-                    for value in self.transform(arg):
-                        values.append(self.transform(value))
-                else:
-                    values = self.transform(arg)
-                args.append(values)
-            return args
-
         func = self.transform(node.func_name)
 
         if isinstance(func, SpecialStmt):
             # parse args for TypeApply
-            arg_list = parse_typeapply_params(node.params)
+            arg_list = self.parse_arg_list(func, node)
             buf = func.handle(node, self.context, arg_list, node.func_name.span)
             return buf
         self.report_error(
-            "Syntax sugar for T.match_buffer needs to be evaluated into a SpecialStmt.",
+            "Unsupported TypeApply stmt.",
             node.span,
         )
 
