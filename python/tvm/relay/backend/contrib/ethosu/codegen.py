@@ -172,14 +172,14 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     # this should be a single intelligent and a composite scheduler
     # that can perform scheduling based on user inputs such as
     # scratch memory size.
-    tir_mod, params = lower_to_tir(mod["main"], copy_constants())
+    tir_mod, const_dict = lower_to_tir(mod["main"], copy_constants())
 
-    for idx in params.keys():
-        params[idx] = tvm.nd.array(params[idx])
+    for idx in const_dict.keys():
+        const_dict[idx] = tvm.nd.array(const_dict[idx])
 
     primfunc = tir_mod["main"]
     primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
-    primfunc = primfunc.with_attr("ethos-u.constants", params)
+    primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
     primfunc = primfunc.with_attr("ethos-u.input_size", input_size)
     primfunc = primfunc.with_attr("ethos-u.output_size", output_size)
     return primfunc
@@ -189,8 +189,8 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
 def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact:
     """
     This is the hook for python-based lowering of TIR PrimFunc
-    that has undergone unified optimization to Compilation
-    Artifact destined for the microNPU.
+    that has undergone unified optimization to compilation
+    artifact destined for the microNPU.
 
     Parameters
     ----------
@@ -204,18 +204,18 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
         for the microNPU
     """
     symbol = str(primfunc.attrs["global_symbol"])
-    params = primfunc.attrs["ethos-u.constants"]
+    const_dict = primfunc.attrs["ethos-u.constants"]
     input_size = primfunc.attrs["ethos-u.input_size"]
     output_size = primfunc.attrs["ethos-u.output_size"]
     tir_mod = tvm.IRModule()
     tir_mod[symbol] = primfunc
 
-    params_with_int_keys = dict()
-    for idx in params.keys():
-        params_with_int_keys[int(idx)] = params[idx].numpy()
+    const_dict_with_int_keys = dict()
+    for idx in const_dict.keys():
+        const_dict_with_int_keys[int(idx)] = const_dict[idx].numpy()
 
     cmms, encoded_constants, scratch_size = tir_to_cs_translator.translate(
-        tir_mod, params_with_int_keys
+        tir_mod, const_dict_with_int_keys
     )
     return util.CompilationArtifact(
         cmms, encoded_constants, scratch_size, input_size, output_size, symbol
