@@ -56,11 +56,7 @@ from tvm.contrib import utils
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
 from tvm.runtime.module import BenchmarkResult
 
-try:
-    from tvm.micro import export_model_library_format
-except ImportError:
-    export_model_library_format = None
-
+from . import check_micro_support
 from .common import TVMCException
 
 
@@ -286,10 +282,11 @@ class TVMCModel(object):
                 executor_factory, package_path, cross, cross_options, output_format
             )
         elif output_format == "mlf":
-            if export_model_library_format:
-                package_path = export_model_library_format(executor_factory, package_path)
-            else:
-                raise Exception("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
+            check_micro_support(raise_error=True)
+            # pylint: disable=import-outside-toplevel
+            from tvm.micro import export_model_library_format
+
+            package_path = export_model_library_format(executor_factory, package_path)
 
         return package_path
 

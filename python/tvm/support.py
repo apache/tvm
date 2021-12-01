@@ -39,6 +39,17 @@ def libinfo():
     return dict(lib_info.items())
 
 
+USE_MICRO = libinfo().get("USE_MICRO", "OFF") == "ON"
+
+
+def check_micro_support(raise_error=False):
+    if USE_MICRO:
+        return True
+    if raise_error:
+        raise Exception("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
+    return False
+
+
 class FrontendTestModule(Module):
     """A tvm.runtime.Module whose member functions are PackedFunc."""
 

@@ -36,6 +36,7 @@ import warnings
 
 import tvm._ffi
 import tvm.ir.transform
+import tvm.support
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
@@ -537,11 +538,10 @@ class _WrappedBuildFunc:
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
             if self.build_func.output_format == ".model-library-format":
+                tvm.support.check_micro_support(raise_error=True)
                 # Late import to preserve autoTVM with USE_MICRO OFF
-                try:
-                    from tvm import micro  # pylint: disable=import-outside-toplevel
-                except ImportError:
-                    raise ImportError("Requires USE_MICRO")
+                from tvm import micro  # pylint: disable=import-outside-toplevel
+
                 micro.export_model_library_format(func, filename)
             else:
                 func.export_library(filename, self.build_func)

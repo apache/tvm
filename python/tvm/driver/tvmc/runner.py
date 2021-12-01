@@ -34,10 +34,7 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
-import tvm.micro.project as project
-from tvm.micro.project import TemplateProjectError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
-from . import common
+from . import common, check_micro_support
 from .common import (
     TVMCException,
     TVMCSuppressedArgumentParser,
@@ -134,6 +131,13 @@ def add_run_parser(subparsers, main_parser):
     if vars(known_args).get("device") != "micro":
         # No need to augment the parser for micro targets.
         return
+
+    check_micro_support(raise_error=True)
+
+    # pylint: disable=import-outside-toplevel
+    import tvm.micro.project as project
+    from tvm.micro.project import TemplateProjectError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 
     project_dir = known_args.PATH
 
@@ -491,6 +495,9 @@ def run_module(
             # This is guaranteed to work since project_dir was already checked when
             # building the dynamic parser to accommodate the project options, so no
             # checks are in place when calling GeneratedProject.
+            check_micro_support(raise_error=True)
+            import tvm.micro.project as project  # pylint: disable=import-outside-toplevel
+
             project_ = project.GeneratedProject.from_directory(project_dir, options)
         else:
             if tvmc_package.type == "mlf":
@@ -512,6 +519,7 @@ def run_module(
         elif device == "micro":
             # Remote RPC (running on a micro target)
             logger.debug("Running on remote RPC (micro target).")
+            check_micro_support(raise_error=True)
             try:
                 session = tvm.micro.Session(project_.transport())
                 stack.enter_context(session)

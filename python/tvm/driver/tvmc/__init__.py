@@ -19,7 +19,11 @@
 TVMC - TVM driver command-line interface
 """
 
-from . import micro
+from tvm.support import check_micro_support
+
+# pylint: disable=wrong-import-position
+if check_micro_support():
+    from . import micro
 from . import runner
 from . import autotuner
 from . import compiler
