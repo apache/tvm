@@ -349,6 +349,17 @@ def squeeze(a, axis=None):
     return cpp.squeeze(a, axis)
 
 def concatenate(a_tuple, axis=0):
+    """Join a sequence of arrays along an existing axis.
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.te.Tensor
+        The arrays to concatenate
+    axis : int, optional
+        The axis along which the arrays will be joined. Default is 0.
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
     return cpp.concatenate(a_tuple, axis)
 
 def stack(a, axis):
