@@ -618,7 +618,7 @@ def RemoveConcatenates():
                 concat_buffer = replace_info.buffer
                 new_indices = list(stmt.indices)
                 new_indices[replace_info.axis] += replace_info.offset
-                # DODGY STORE NODE
+                # The new buffer store node that stores the tensor directly into the concat buffer
                 new_store = tvm.tir.BufferStore(concat_buffer, stmt.value, new_indices, stmt.span)
                 return new_store
         if isinstance(stmt, tvm.tir.BufferLoad):

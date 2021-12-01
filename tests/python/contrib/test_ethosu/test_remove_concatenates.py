@@ -14,6 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
 import tvm
 import tvm.script
 from tvm.script import tir
@@ -22,7 +25,6 @@ from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from .infra import make_ethosu_conv2d
 
-import pytest
 
 # fmt: off
 @tvm.script.ir_module
@@ -56,11 +58,11 @@ def test_concat():
     def _get_func():
         ifm1 = relay.var("ifm1", shape=(1, 8, 12, 16), dtype="int8")
         ifm2 = relay.var("ifm2", shape=(1, 8, 10, 16), dtype="int8")
-        conv1 = make_ethosu_conv2d(ifm1, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1), "NONE", "NHWC")
-        conv2 = make_ethosu_conv2d(ifm2, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1), "NONE", "NHWC")
+        conv1 = make_ethosu_conv2d(ifm1, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1))
+        conv2 = make_ethosu_conv2d(ifm2, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1))
         conc1 = relay.concatenate((conv1, conv2), axis=2)
-        conv3 = make_ethosu_conv2d(conc1, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1), "NONE", "NHWC")
-        conv4 = make_ethosu_conv2d(conv2, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1), "NONE", "NHWC")
+        conv3 = make_ethosu_conv2d(conc1, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1))
+        conv4 = make_ethosu_conv2d(conv2, 16, 16, (3, 3), (1, 1), (1, 1), (1, 1))
         conc2 = relay.concatenate((conv3, conv4), axis=2)
         func = relay.Function(relay.analysis.free_vars(conc2), conc2)
         func = run_opt_pass(func, relay.transform.InferType())
@@ -71,7 +73,6 @@ def test_concat():
     script = mod.script(show_meta=True)
     test_mod = tvm.script.from_source(script)
 
-    # script = tvm.script.asscript(mod, True)
     reference_mod = ReferenceModule
     tvm.ir.assert_structural_equal(test_mod["main"], reference_mod["main"], True)
 
