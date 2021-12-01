@@ -99,7 +99,9 @@ class GreedyBase {
         return pool_info;
       }
     }
-    CHECK(false) << "TVM USMP Error: no candidate have been selected for " << buf_info;
+    CHECK(false) << "TVM USMP Error: the space available in the provided pools exceeded when "
+                    "trying to allocate the buffer : "
+                 << buf_info << "\n. Please increase the size_hints for memory pools.";
     return PoolInfo();
   }
 

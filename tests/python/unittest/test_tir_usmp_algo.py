@@ -118,7 +118,7 @@ def test_no_pool_error():
     buffer_info_arr = [bi_a, bi_b, bi_c]
     fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.greedy_by_size")
     with pytest.raises(
-        tvm.TVMError, match="TVM USMP Error: no candidate have been selected for BufferInfoNode"
+        tvm.TVMError, match="TVM USMP Error: the space available in the provided pools exceeded"
     ):
         buffer_pool_allocations = fusmp_algo(buffer_info_arr)
 
