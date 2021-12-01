@@ -58,13 +58,33 @@ def create_conv2d_operator(
             for iterator_algorithm in iterator_algorithms:
                 op_entry = {}
 
+                op = Conv2dOperation(
+                    ConvKind.Fprop,
+                    iterator_algorithm,
+                    tile.minimum_compute_capability,
+                    tile,
+                    A,
+                    B,
+                    C,
+                    element_epilogue,
+                    StrideSupport.Strided,
+                    EpilogueFunctor.LinearCombination,
+                    swizzling_functor_,
+                )
+
+                # TODO(masahi): Add profiler source here
+                op_entry["opdef"] = kernel_emitter.emit(op)
+                op_entry["op"] = op
+                op_entry["name"] = op.procedural_name()
+                op_entry["runtime"] = 9999999
+
+                # fused ops
                 for epilogue, opdef in zip(
                     [
-                        EpilogueFunctor.LinearCombination,
                         EpilogueFunctor.LinearCombinationBias,
                         EpilogueFunctor.LinearCombinationRelu,
                     ],
-                    ["opdef", "opdef_bias", "opdef_bias_relu"],
+                    ["opdef_bias", "opdef_bias_relu"],
                 ):
                     op = Conv2dOperation(
                         ConvKind.Fprop,
@@ -81,11 +101,6 @@ def create_conv2d_operator(
                     )
 
                     op_entry[opdef] = kernel_emitter.emit(op)
-
-                    if epilogue == EpilogueFunctor.LinearCombination:
-                        op_entry["op"] = op
-                        op_entry["name"] = op.procedural_name()
-                        op_entry["runtime"] = 9999999
 
                 ret.append(op_entry)
 
