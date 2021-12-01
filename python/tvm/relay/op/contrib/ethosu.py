@@ -915,6 +915,35 @@ def abs_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
+class TanhParams:
+    """
+    This class will parse a call to a ethos-u.tanh composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.tanh"
+
+    def __init__(self, func_body: Call):
+        self.ofm = TensorParams(func_body)
+        self.ifm = TensorParams(func_body.args[0].args[0].args[0])
+
+    def is_valid(self):
+        """
+        This function checks whether reshape has compatible attributes with the NPU
+        """
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def tanh_pattern():
+    """Create pattern for tanh"""
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    tanh = is_op("tanh")(dequant)
+    quant = is_op("qnn.quantize")(tanh, is_constant(), is_constant())
+    return quant
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -983,6 +1012,7 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             abs_pattern(),
             lambda pat: AbsParams(pat).is_valid(),
         ),
+        (TanhParams.composite_name, tanh_pattern(), lambda pat: TanhParams(pat).is_valid()),
     ]
 
 

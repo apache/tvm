@@ -29,7 +29,7 @@ from .infra import make_ethosu_conv2d, get_convolutional_args
 @pytest.mark.parametrize(
     "trial",
     [
-        [(1, 8, 8, 3), 3, 16, (1, 1), (2, 1), (1, 1), (1, 1), "TANH", "NHWC", "NHWC", "TFL"],
+        [(1, 8, 8, 3), 3, 16, (1, 1), (2, 1), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TFL"],
         [(1, 8, 8, 3), 3, 16, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "NATURAL"],
         [(1, 1, 1, 1), 1, 16, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TRUNCATE"],
         [(1, 7, 9, 4), 4, 13, (3, 2), (1, 2), (2, 1), (1, 2), "SIGMOID", "NHWC", "NHWC", "TFL"],
@@ -124,12 +124,10 @@ def test_conv2d_single(trial):
             padding,
             strides,
             dilation,
-            activation,
-            ifm_layout,
-            ofm_layout,
-            "int8",
-            "uint8",
-            rounding_mode,
+            activation=activation,
+            ifm_layout=ifm_layout,
+            ofm_layout=ofm_layout,
+            rounding_mode=rounding_mode,
         )
         func = relay.Function(relay.analysis.free_vars(conv), conv)
         func = run_opt_pass(func, relay.transform.InferType())
@@ -409,9 +407,9 @@ def test_conv2d_double_cascade(trial):
             padding,
             strides,
             dilation,
-            "NONE",
-            layout,
-            layout,
+            activation="NONE",
+            ifm_layout=layout,
+            ofm_layout=layout,
         )
         conv2 = make_ethosu_conv2d(
             conv1,
@@ -421,9 +419,9 @@ def test_conv2d_double_cascade(trial):
             padding,
             strides,
             dilation,
-            "NONE",
-            layout,
-            layout,
+            activation="NONE",
+            ifm_layout=layout,
+            ofm_layout=layout,
         )
         func = relay.Function(relay.analysis.free_vars(conv2), conv2)
         func = run_opt_pass(func, relay.transform.InferType())
@@ -577,7 +575,15 @@ def test_conv2d_inline_reshape(trial):
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
         ifm_reshaped = relay.reshape(ifm, reshaped)
         conv = make_ethosu_conv2d(
-            ifm_reshaped, reshaped[3], 16, (3, 3), (1, 1), (1, 1), (1, 1), "NONE", ifm_layout
+            ifm_reshaped,
+            reshaped[3],
+            16,
+            (3, 3),
+            (1, 1),
+            (1, 1),
+            (1, 1),
+            activation="NONE",
+            ifm_layout=ifm_layout,
         )
         func = relay.Function(relay.analysis.free_vars(conv), conv)
         func = run_opt_pass(func, relay.transform.InferType())
@@ -598,7 +604,9 @@ def test_conv2d_big_pad():
     def _get_func():
         ifm_shape = (1, 2, 2, 8)
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-        conv = make_ethosu_conv2d(ifm, ifm_shape[3], 16, (1, 1), (7, 7), (1, 1), (1, 1), "NHWC")
+        conv = make_ethosu_conv2d(
+            ifm, ifm_shape[3], 16, (1, 1), (7, 7), (1, 1), (1, 1), ifm_layout="NHWC"
+        )
         func = relay.Function(relay.analysis.free_vars(conv), conv)
         func = run_opt_pass(func, relay.transform.InferType())
         return func

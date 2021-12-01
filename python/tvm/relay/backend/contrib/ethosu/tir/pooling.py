@@ -18,7 +18,7 @@
 """Extract information from the pooling operators in TIR."""
 from typing import Dict, Tuple
 import tvm
-from .utils import get_outer_loops, get_op_attrs
+from .utils import get_outer_loops, get_op_attrs, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialKernel, SerialActivation, SerialPooling
 
@@ -55,9 +55,12 @@ def get_pooling_params(
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     rh = inner
     rw = rh.body
-    compute = rw.body.value.b
-    input_pointer = compute.buffer_var
-    output_pointer = rw.body.buffer_var
+    # loads = [output, input, LUT, LUT]
+    loads = get_loads(rw.body)
+    # stores = [output]
+    stores = get_stores(rw.body)
+    input_pointer = loads[1].buffer_var
+    output_pointer = stores[0].buffer_var
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
     serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)

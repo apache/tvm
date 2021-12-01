@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
 from typing import List, Type
+import math
 
 import numpy as np  # type: ignore
 
@@ -31,6 +32,7 @@ from tvm.relay.dataflow_pattern import CallPattern
 from tvm.relay.backend.contrib.ethosu import op as ethosu_ops  # type: ignore
 from tvm.relay.backend.contrib.ethosu.errors import UnsupportedLayout  # type: ignore
 from tvm.relay.backend.contrib.ethosu import vela_api
+from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.op.contrib import ethosu as ethosu_patterns  # type: ignore
 
 
@@ -116,6 +118,75 @@ class LegalizeSplit:
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(SplitRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
+    """Method to calculate the values of the tanh lookup table"""
+    lut_values = list()
+    # Only int8 is currently supported
+    dtype = np.int8
+    qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
+    for x in range(qmin, qmax + 1):
+        x_real = ifm_scale * (x - ifm_zp)
+        out_real = math.tanh(x_real)
+        lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
+        lut_result = min(qmax, max(qmin, lut_result))
+        lut_values.append(lut_result)
+
+    return lut_values
+
+
+class TanhRewriter(DFPatternCallback):
+    """This pass adds tanh as a LUT to the identity operator"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.TanhParams.composite_name})
+        )(wildcard())
+
+    def callback(self, pre, post, node_map):
+        id_input = post.args[0]
+
+        quantize_args = post.op.body.args
+        output_scale = float(quantize_args[1].data.asnumpy())
+        output_zp = int(quantize_args[2].data.asnumpy())
+
+        dequantize_args = quantize_args[0].args[0].args
+        input_scale = float(dequantize_args[1].data.asnumpy())
+        input_zp = int(dequantize_args[2].data.asnumpy())
+
+        lut_values = find_tanh_values(input_scale, input_zp, output_scale, output_zp)
+        lut = relay.const(lut_values, dtype="uint8")
+
+        # We baked the requantization into the LUT, so we don't requantize the identity operator
+        identity = ethosu_ops.ethosu_identity(
+            ifm=id_input,
+            lut=lut,
+            ifm_scale=input_scale,
+            ifm_zero_point=input_zp,
+            ofm_scale=input_scale,
+            ofm_zero_point=input_zp,
+            activation="TANH",
+        )
+
+        return identity
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeTanh:
+    """This is the pass that wraps TanhRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(TanhRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -915,6 +986,7 @@ class LegalizeEthosU:
         mod = LegalizeMax()(mod)
         mod = LegalizeShl()(mod)
         mod = LegalizeAbs()(mod)
+        mod = LegalizeTanh()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

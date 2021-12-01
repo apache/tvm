@@ -140,6 +140,13 @@ def conv2d_compute(
         "dilation_w": dilation_w,
     }
 
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if activation in ("TANH", "LUT") else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if activation in ("TANH", "LUT"):
+        conv2d_attrs["lut"] = lut
+
     conv = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
         lambda nn, hh, ww, cc: te.sum(
@@ -148,7 +155,7 @@ def conv2d_compute(
             ).astype(ifm.dtype)
             * weight[cc, rh, rw, rc].astype(ifm.dtype)
             # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
+            + (scale_bias[cc, 0] * scale_bias[cc, 9] + lut_expr).astype(ifm.dtype),
             axis=[rh, rw, rc],
         ),
         name="ethosu_conv2d",
