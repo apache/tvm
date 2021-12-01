@@ -64,31 +64,21 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   // Collect variables and buffers to map between
   Array<Var> args;
   std::vector<std::pair<Var, Var>> var_def;
-  std::vector<std::pair<Var, Buffer>> buffer_def;
+  bool buffer_map_found = false;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-    Var v_arg = Var("arg" + std::to_string(i), param->dtype);
 
     auto it = func_ptr->buffer_map.find(param);
     if (it != func_ptr->buffer_map.end()) {
-      buffer_def.emplace_back(v_arg, (*it).second);
+      args.push_back((*it).second->data);
+      buffer_map_found = true;
     } else {
-      var_def.emplace_back(v_arg, param);
+      args.push_back(param);
     }
-
-    args.push_back(v_arg);
   }
 
-  // Bind variables then bind buffers to them to ensure correct ordering
-  for (const auto& kv : var_def) {
-    binder.Bind(kv.second, kv.first, kv.first->name_hint, true);
-  }
-  for (const auto& kv : buffer_def) {
-    binder.Bind(kv.second->data, kv.first, kv.first->name_hint, true);
-  }
-
-  if (buffer_def.size()) {
+  if (buffer_map_found) {
     device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
   }

@@ -173,16 +173,16 @@ def extract_buffer_info(
     primfunc = mod.functions.items()[0][1]
     for idx, const_data in param_dict.items():
         param = primfunc.params[idx]
-        buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
 
     for param in primfunc.params:
-        if primfunc.buffer_map[param].data not in buffer_info.keys():
-            buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        if param not in buffer_info.keys():
+            buffer_info[param] = BufferInfo(
                 None,
-                primfunc.buffer_map[param].shape,
-                primfunc.buffer_map[param].dtype,
+                None,
+                None,
                 BufferType.input_or_output,
             )
 
@@ -253,7 +253,7 @@ def assign_addresses(buffer_info, npu_ops):
     def replace_npu_address_range_with_address(npu_addr_range):
         assert isinstance(npu_addr_range.address, tvm.tir.Load)
         buffer = npu_addr_range.address.buffer_var
-        assert buffer in buffer_addresses.keys()
+        assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
         return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
 
@@ -299,11 +299,6 @@ def assign_addresses(buffer_info, npu_ops):
                 size_in_bytes = util.round_up(size_in_bytes, 16)
                 constant_tensor = np.append(constant_tensor, np.resize(info.values, size_in_bytes))
         else:
-            size_in_bytes = int(
-                (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
-            )
-            # Every memory address the NPU access have to be 16 byte aligned
-            size_in_bytes = util.round_up(size_in_bytes, 16)
             if info.btype == BufferType.input_or_output:
                 buffer_type = classify_io(_buffer)
                 assert buffer_type in (BufferType.input, BufferType.output)
@@ -315,6 +310,11 @@ def assign_addresses(buffer_info, npu_ops):
                 address = arch_config.lut_start_address
                 buffer_addresses[_buffer] = (address, info.btype)
             else:
+                size_in_bytes = int(
+                    (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
+                )
+                # Every memory address the NPU access have to be 16 byte aligned
+                size_in_bytes = util.round_up(size_in_bytes, 16)
                 assert info.btype == BufferType.scratch
                 address = scratch_size
                 scratch_size += size_in_bytes

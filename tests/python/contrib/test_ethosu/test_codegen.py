@@ -154,14 +154,14 @@ def test_ethosu_conv2d(accel_type):
         )
 
         # Assumes only two runtime.Modules are created -- i.e. single offload module
-        imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-        assert len(imported_modules) == 2
-        ethosu_module = imported_modules[0]
+        ethosu_module = (
+            compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
+        )
 
         # Verify generated C source
-        get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-        cmms = get_cs(ethosu_module)
-        cmms = bytes.fromhex(cmms)
+        get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+        compilation_artifacts = get_artifacts(ethosu_module)
+        cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
         infra.print_payload(cmms)
         infra.verify_source(compiled_models, accel_type)
 
@@ -241,15 +241,12 @@ def test_tflite_depthwise_conv2d(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -328,15 +325,12 @@ def test_ethosu_pooling(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -423,15 +417,12 @@ def test_ethosu_binary_elementwise(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -501,15 +492,12 @@ def test_binary_add_with_non_4d_shapes(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -551,15 +539,12 @@ def test_binary_add_from_constant_scalar(accel_type):
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -608,15 +593,12 @@ def test_ethosu_left_shift_binary_elemwise(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -705,18 +687,16 @@ def test_ethosu_right_shift_binary_elemwise(
         [rounding_right_shift(x[0], x[1]) for x in zip(lhs.flat, rhs.flat)]
     ).astype(ofm_dtype)
 
-    compiled_model = infra.build_source(mod, input_data, [output_data], accel_type)
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    compiled_models = infra.build_source(mod, input_data, [output_data], accel_type)
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_model, accel_type)
+    infra.verify_source(compiled_models, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -738,15 +718,13 @@ def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp
         mod, {"ifm": in_data}, [out_data], accel_type, output_tolerance=1
     )
 
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_model[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_model, accel_type)
 
@@ -786,15 +764,13 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
         accel_type,
     )
 
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_model[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_model, accel_type)
 
@@ -831,15 +807,13 @@ def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
         accel_type,
     )
 
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_model[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_model, accel_type)
 
@@ -907,15 +881,12 @@ def test_ethosu_unary_elementwise(
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 
@@ -957,16 +928,18 @@ def test_ethosu_section_name():
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
     source = ethosu_module.get_source()
     assert (
-        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t cms_data_data' in source
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_cms_data_data'
+        in source
     )
-    assert '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t weights' in source
+    assert (
+        '__attribute__((section(".rodata.tvm"), aligned(16))) static int8_t tvmgen_default_ethos_u_main_0_weights'
+        in source
+    )
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -990,15 +963,13 @@ def test_ethosu_clz(accel_type):
 
     compiled_model = infra.build_source(mod, {"ifm": in_data}, [out_data], accel_type)
 
-    imported_modules = compiled_model[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_model[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_model, accel_type)
 
@@ -1057,15 +1028,12 @@ def test_tflite_tanh(accel_type):
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
-
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
 

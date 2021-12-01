@@ -228,6 +228,9 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   Map<GlobalVar, String> GetDeviceContexts() { return device_contexts_; }
+  void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) {
+    device_contexts_ = device_contexts;
+  }
 
   void Clear() final { cache_.clear(); }
 

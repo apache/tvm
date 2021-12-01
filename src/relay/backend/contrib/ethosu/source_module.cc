@@ -41,34 +41,35 @@
 #include <vector>
 
 #include "../../../../runtime/file_utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace runtime {
+
+using CompilationArtifact = relay::contrib::ethosu::CompilationArtifact;
 
 // The runtime.Module that contains the host-side c code
 // required for invoking the NPU with the command stream
 class EthosUModuleNode : public ModuleNode {
  public:
   /*!
-   * \brief The ethos runtime module.
+   * \brief The microNPU runtime module.
    *
-   * \param func_name_ name of the should be codegen'd function
-   * \param cmms_hex_ command stream for the NPU in hex
-   * \param weights_bias_hex_ the encoded biases and weights for the NPU in hex
-   * \param scratch_size_ the size of the scratch memory required for command stream
-   * \param input_size_ the size (in bytes) for the input tensor
-   * \param output_size_ the size (in bytes) for the output tensor
+   * \param compilation_artifacts
+   *    This is an array of CompilationArtifacts that is produced via
+   *    lowering each PrimFunc to command stream. Here, those artifacts
+   *    will be used to create the c-source.
    */
-  explicit EthosUModuleNode(const String& func_name_, const String& cmms_hex_,
-                            const String& weights_bias_hex_, const Integer& scratch_size_,
-                            const Integer& input_size_, const Integer& output_size_) {
-    func_name = func_name_;
-    cmms_hex = std::move(cmms_hex_);
-    weights_bias_hex = std::move(weights_bias_hex_);
-    scratch_size = scratch_size_->value;
-    input_size = input_size_->value;
-    output_size = output_size_->value;
-    c_source = GenerateSource();
+  explicit EthosUModuleNode(Array<CompilationArtifact> compilation_artifacts)
+      : compilation_artifacts_(compilation_artifacts) {
+    c_source += "#include <stdio.h>\n";
+    c_source += "#include <stdlib.h>\n";
+    c_source += "#include <tvm/runtime/crt/module.h>\n";
+    c_source += "#include <tvm_ethosu_runtime.h>\n\n";
+    for (const CompilationArtifact& compilation_artifact : compilation_artifacts) {
+      c_source += GenerateSource(compilation_artifact);
+      c_source += "\n\n";
+    }
   }
 
   /*!
@@ -79,7 +80,6 @@ class EthosUModuleNode : public ModuleNode {
    */
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = GetFileFormat(file_name, format);
-    LOG(INFO) << "format=" << fmt << ";;\n";
     ICHECK_EQ(fmt, "c") << "Can only save to format="
                         << "c";
     std::ofstream out(file_name);
@@ -89,7 +89,7 @@ class EthosUModuleNode : public ModuleNode {
 
   std::string GetSource(const std::string& format) final { return c_source; }
 
-  std::string GetCS() { return cmms_hex; }
+  Array<CompilationArtifact> GetArtifacts() { return compilation_artifacts_; }
 
   /*!
    * \brief Get a PackedFunc from the module.
@@ -102,7 +102,11 @@ class EthosUModuleNode : public ModuleNode {
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = Array<String>{this->func_name};
+        Array<String> func_names;
+        for (const CompilationArtifact& ca : compilation_artifacts_) {
+          func_names.push_back(ca->function_name);
+        }
+        *rv = func_names;
       });
     }
     return PackedFunc();
@@ -110,21 +114,14 @@ class EthosUModuleNode : public ModuleNode {
 
   const char* type_key() const override { return "c"; }
 
-  static Module Create(String func_name, String cmms_hex, String weights_bias_hex,
-                       Integer scratch_size, Integer input_size, Integer output_size) {
-    auto n = make_object<EthosUModuleNode>(func_name, cmms_hex, weights_bias_hex, scratch_size,
-                                           input_size, output_size);
+  static Module Create(Array<CompilationArtifact> compilation_artifacts) {
+    auto n = make_object<EthosUModuleNode>(compilation_artifacts);
     return Module(n);
   }
 
  private:
-  String c_source;
-  String func_name;
-  String cmms_hex;
-  String weights_bias_hex;
-  size_t scratch_size;
-  size_t input_size;
-  size_t output_size;
+  std::string c_source;
+  Array<CompilationArtifact> compilation_artifacts_;
   int indent_{0};
 
   /*!
@@ -151,10 +148,10 @@ class EthosUModuleNode : public ModuleNode {
    * \return string of code that updates the base_addrs array with the base address of the given
    * array
    */
-  std::string SetBaseAddress(int index, std::string name) {
+  std::string SetBaseAddress(int index, std::string name, std::string size) {
     std::stringstream ss;
     ss << "  base_addrs[" << index << "] = (uintptr_t)(" << name << ");\n";
-    ss << "  base_addrs_size[" << index << "] = " << name << "_size;\n";
+    ss << "  base_addrs_size[" << index << "] = " << size << ";\n";
     return ss.str();
   }
 
@@ -211,43 +208,39 @@ class EthosUModuleNode : public ModuleNode {
    *
    * \return string of code that offloads a subgraph to the NPU
    */
-  std::string GenerateSource() {
-    std::string func_no_dashes = func_name;
+  std::string GenerateSource(relay::contrib::ethosu::CompilationArtifact compilation_artifact) {
+    std::string func_no_dashes = compilation_artifact->function_name;
     std::replace(func_no_dashes.begin(), func_no_dashes.end(), '-', '_');
     std::stringstream ss;
 
-    ss << "#include <stdio.h>\n";
-    ss << "#include <stdlib.h>\n";
-    ss << "#include <tvm/runtime/crt/module.h>\n";
-    ss << "#include <tvm_ethosu_runtime.h>\n";
-    ss << "\n";
-    size_t weights_size = (weights_bias_hex.size() / 2);
-    ss << "static const size_t weights_size = " << std::to_string(weights_size) << ";\n";
-    ss << "static const size_t scratch_size = " << std::to_string(scratch_size) << ";\n";
+    size_t weights_size = (compilation_artifact->encoded_constants.size() / 2);
+    size_t scratch_size = compilation_artifact->scratch_size;
     ss << "// Update linker script to place .rodata.tvm in memory that can be accessed by the "
           "NPU\n";
     if (weights_size > 0) {
-      ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t weights["
-         << weights_size << "] = \"";
-      ss << GetHexString(weights_bias_hex);
+      ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t "
+         << func_no_dashes << "_weights[" << weights_size << "] = \"";
+      ss << GetHexString(compilation_artifact->encoded_constants);
       ss << "\";\n";
     } else {
-      ss << "static int8_t* weights = NULL;\n";
+      ss << "static int8_t* " << func_no_dashes << "_weights = NULL;\n";
     }
-    ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t cms_data_data["
-       << cmms_hex.size() / 2 << "] = \"";
-    ss << GetHexString(cmms_hex);
+    ss << "__attribute__((section(\".rodata.tvm\"), aligned(16))) static int8_t " << func_no_dashes
+       << "_cms_data_data[" << compilation_artifact->command_stream.size() / 2 << "] = \"";
+    ss << GetHexString(compilation_artifact->command_stream);
     ss << "\";\n";
-    ss << "static const size_t cms_data_size = sizeof(cms_data_data);\n";
     ss << "\n";
 
     PrintExternCPrefix(ss);
     ss << "static int32_t " << func_no_dashes + "_(int8_t* in0, "
        << "size_t in0_size, int8_t* out0, size_t out0_size, void* resource_handle) {\n";
     ss << "  int num_tensors = 5;\n";
-    ss << "  void* cms_data = (void*)(cms_data_data);\n";
+    ss << "  void* cms_data = (void*)(" << func_no_dashes << "_cms_data_data);\n";
     ss << "  int64_t device_type = kDLCPU;\n";
     ss << "  int64_t device_id = 0;\n";
+    ss << "  const size_t weights_size = " << std::to_string(weights_size) << ";\n";
+    ss << "  const size_t scratch_size = " << std::to_string(scratch_size) << ";\n";
+    ss << "  const size_t cms_data_size = sizeof(" << func_no_dashes << "_cms_data_data);\n";
     if (scratch_size > 0) {
       ss << "  int8_t* scratch = (int8_t*) TVMBackendAllocWorkspace(device_type, device_id, "
             "(uint64_t)scratch_size, 0, 16);\n";
@@ -257,11 +250,11 @@ class EthosUModuleNode : public ModuleNode {
     ss << "  size_t base_addrs_size[num_tensors];\n";
     ss << "  uint64_t base_addrs[num_tensors];\n";
     ss << "\n";
-    ss << SetBaseAddress(0, "weights");
-    ss << SetBaseAddress(1, "scratch");
-    ss << SetBaseAddress(2, "scratch");
-    ss << SetBaseAddress(3, "in0");
-    ss << SetBaseAddress(4, "out0");
+    ss << SetBaseAddress(0, func_no_dashes + "_weights", "weights_size");
+    ss << SetBaseAddress(1, "scratch", "scratch_size");
+    ss << SetBaseAddress(2, "scratch", "scratch_size");
+    ss << SetBaseAddress(3, "in0", "in0_size");
+    ss << SetBaseAddress(4, "out0", "out0_size");
     ss << "\n";
     ss << "  int32_t result = TVMEthosULaunch(resource_handle, cms_data, cms_data_size, "
           "base_addrs, base_addrs_size, num_tensors);\n";
@@ -277,8 +270,8 @@ class EthosUModuleNode : public ModuleNode {
     ss << "// Wrapper function is provided to allow for easier debugging\n";
     ss << "inline static int32_t " + func_no_dashes +
               "_wrapper_(void* input, void* output, void* resource_handle) {\n";
-    ss << "  size_t input_data_size = " << input_size << ";\n";
-    ss << "  size_t output_data_size = " << output_size << ";\n";
+    ss << "  size_t input_data_size = " << compilation_artifact->input_size << ";\n";
+    ss << "  size_t output_data_size = " << compilation_artifact->output_size << ";\n";
     ss << "  return " + func_no_dashes +
               "_((int8_t*)input, input_data_size, (int8_t*)output, output_data_size, " +
               "resource_handle);\n";
@@ -286,7 +279,7 @@ class EthosUModuleNode : public ModuleNode {
     PrintExternCPostfix(ss);
     ss << "\n";
     PrintExternCPrefix(ss);
-    PrintRuntimeFunctionHeader(ss, func_name);
+    PrintRuntimeFunctionHeader(ss, func_no_dashes);
     EnterScope();
     PrintIndents(ss);
     ss << "return " << func_no_dashes << "_wrapper_(input, output, resource_handle);\n";
@@ -313,14 +306,12 @@ inline EthosUModuleNode* EthosUModule::operator->() {
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.ethos-u.create")
-    .set_body_typed([](String func_name, String cmms_hex, String weights_bias_hex,
-                       Integer scratch_size, Integer input_size, Integer output_size) {
-      return EthosUModuleNode::Create(func_name, cmms_hex, weights_bias_hex, scratch_size,
-                                      input_size, output_size);
+    .set_body_typed([](Array<CompilationArtifact> compilation_artifacts) {
+      return EthosUModuleNode::Create(compilation_artifacts);
     });
 
-TVM_REGISTER_GLOBAL("runtime.module.ethos-u.getcs").set_body_typed([](EthosUModule mod) {
-  return mod->GetCS();
+TVM_REGISTER_GLOBAL("runtime.module.ethos-u.get_artifacts").set_body_typed([](EthosUModule mod) {
+  return mod->GetArtifacts();
 });
 
 }  // namespace runtime

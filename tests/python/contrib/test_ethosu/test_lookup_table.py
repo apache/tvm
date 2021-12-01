@@ -103,16 +103,13 @@ def test_tflite_lut_activations(accel_type):
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-
     infra.verify_source(compiled_models, accel_type)
 
 
@@ -162,16 +159,13 @@ def test_random_lut(accel_type):
     )
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
-    imported_modules = compiled_models[0].executor_factory.lib.imported_modules
-    assert len(imported_modules) == 2
-    ethosu_module = imported_modules[0]
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
     # Verify generated C source
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethos-u.getcs")
-    cmms = get_cs(ethosu_module)
-    cmms = bytes.fromhex(cmms)
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-
     infra.verify_source(compiled_models, accel_type)
 
 
