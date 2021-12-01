@@ -233,9 +233,12 @@ def test_buffer_info_extraction():
         },
     ]
     for test_case in test_cases:
-        buffer_info = tir_to_cs_translator.extract_buffer_info(
-            test_case["tir_module"], test_case["param_dict"]
-        )
+        # With Target Hooks the TIR module needs a target attached
+        # and lowered via make unpacked API.
+        tir_mod = test_case["tir_module"]
+        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
+        buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
         for buffer_var, info in buffer_info.items():
             buffer_name = buffer_var.name
             if buffer_name in test_case["constants"].keys():
@@ -247,8 +250,6 @@ def test_buffer_info_extraction():
                 )
                 info.btype == tir_to_cs_translator.BufferType.constant
             else:
-                assert list(info.shape) == test_case["data_buffers"][buffer_name][0]
-                assert info.dtype == test_case["data_buffers"][buffer_name][1]
                 assert info.btype == test_case["data_buffers"][buffer_name][2]
 
 
@@ -831,10 +832,11 @@ def test_assign_addresses():
                     )
 
     for test_case in test_cases:
-        buffer_info = tir_to_cs_translator.extract_buffer_info(
-            test_case["tir_module"], test_case["param_dict"]
-        )
-        extern_calls = extract_call_extern_list(test_case["tir_module"])
+        tir_mod = test_case["tir_module"]
+        tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
+        tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
+        buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
+        extern_calls = extract_call_extern_list(tir_mod)
         _npu_ops = list()
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))

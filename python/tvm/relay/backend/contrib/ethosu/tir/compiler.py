@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
 from tvm.driver.build_module import schedule_to_module
 
-from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants
+from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants, AnnotateAllocates
 from .scheduler import schedule
 
 
@@ -88,6 +88,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod, const_dict = EncodeConstants(const_dict)(mod)
         mod = tvm.tir.transform.StorageRewrite()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
+        mod = AnnotateAllocates()(mod)
     return mod, const_dict
 
 
