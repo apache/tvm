@@ -35,6 +35,7 @@ import builtins
 from tvm.tir.function import PrimFunc
 from tvm.tir import Range
 from tvm.runtime import Object
+from tvm.target import Target
 from .node import BufferSlice
 
 """
@@ -371,3 +372,5 @@ class handle:
     def data(self: handle) -> Ptr: ...
 
 class Ptr: ...
+
+def target(target_str: Union[str, Mapping[str, Object]]) -> Target: ...
