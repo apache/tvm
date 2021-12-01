@@ -149,9 +149,9 @@ def test_name_based_ordering(algorithm):
         buffer_info_arr = [bi_a, bi_b, bi_c]
         fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
         buffer_pool_allocations = fusmp_algo(buffer_info_arr)
-        assert buffer_pool_allocations[bi_a].byte_offset == 0
-        assert buffer_pool_allocations[bi_b].byte_offset == 20
-        assert buffer_pool_allocations[bi_c].byte_offset == 10
+        assert buffer_pool_allocations[bi_a].byte_offset == 20
+        assert buffer_pool_allocations[bi_b].byte_offset == 10
+        assert buffer_pool_allocations[bi_c].byte_offset == 0
 
     # This is tested for several times to check stability
     for x in range(0, 10):

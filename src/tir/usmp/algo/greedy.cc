@@ -167,9 +167,7 @@ class GreedySize : public GreedyBase {
               [](const BufferInfo& a, const BufferInfo& b) {
                 if (a->size_bytes->value == b->size_bytes->value) {
                   if (a->conflicts.size() == b->conflicts.size()) {
-                    auto a_name_hash = std::hash<std::string>{}(a->name_hint->data);
-                    auto b_name_hash = std::hash<std::string>{}(b->name_hint->data);
-                    return a_name_hash > b_name_hash;
+                    return std::string(a->name_hint->data) > std::string(b->name_hint->data);
                   } else {
                     return a->conflicts.size() > b->conflicts.size();
                   }
@@ -198,9 +196,7 @@ class GreedyConflicts : public GreedyBase {
               [](const BufferInfo& a, const BufferInfo& b) {
                 if (a->conflicts.size() == b->conflicts.size()) {
                   if (a->size_bytes->value == b->size_bytes->value) {
-                    auto a_name_hash = std::hash<std::string>{}(a->name_hint->data);
-                    auto b_name_hash = std::hash<std::string>{}(b->name_hint->data);
-                    return a_name_hash > b_name_hash;
+                    return std::string(a->name_hint->data) > std::string(b->name_hint->data);
                   } else {
                     return a->size_bytes->value > b->size_bytes->value;
                   }
