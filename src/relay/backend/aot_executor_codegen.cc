@@ -43,6 +43,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
+#include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./name_transforms.h"
 #include "./te_compiler.h"
@@ -52,7 +53,6 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-using IntegerArray = Array<Integer>;
 using StorageMap =
     std::unordered_map<Expr, StorageInfo, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 
@@ -70,6 +70,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   std::vector<int> GetReturnIds() const { return return_ids_; }
 
   StorageMap GetStorageMap() const { return storage_device_map_; }
+
+  using ExprVisitor::VisitExpr_;
 
   void VisitExpr_(const ConstantNode* op) final {
     CreateStorage(op);
@@ -225,7 +227,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   /*!
    * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
    */
-  void CreateStorage(const Expr& expr, SEScope se_scope) {
+  void CreateStorage(const Expr& expr, const SEScope& se_scope) {
     ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
                                               << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
@@ -314,9 +316,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   /*!
    * brief Create a function call
    * \param call_lowered_props The lowered function and the arguments to call it with
-   * \param call The call we got func and args from
+   * \param result_expr The call we got func and args from (so as to recover the storage
+   * ids to hold the result).
    */
-  void CreateFuncCall(CallLoweredProps call_lowered_props, Call call) {
+  void CreateFuncCall(CallLoweredProps call_lowered_props, const Expr& result_expr) {
     std::string func_name = call_lowered_props.lowered_func->name_hint;
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
@@ -335,9 +338,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
     }
 
-    auto ret_expr = Downcast<Expr>(call);
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : PackSid(ret_expr)) {
+    for (const auto& var : PackSid(result_expr)) {
       args.push_back(var);
     }
 
@@ -507,23 +509,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   void VisitExpr_(const CallNode* call_node) override {
-    // Descend the call tree
-    CallLoweredProps call_lowered_props;
-    if (const auto* gvn = call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
-      ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
-      for (const auto& arg : call_node->args) {
-        VisitExpr(arg);
-      }
-      call_lowered_props = CallLoweredProps{GetRef<GlobalVar>(gvn), call_node->args, {}};
-    } else {
-      call_lowered_props = GetCallLoweredProps(call_node);
-      ICHECK(call_lowered_props.lowered_func.defined())
-          << "Operators should be transformed away; Try "
-             "applying the fuse_ops transformation to the "
-             "expression.";
-      for (const auto& arg : call_lowered_props.arguments) {
-        VisitExpr(arg);
-      }
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+
+    if (device_copy_props.body.defined()) {
+      // TODO(mbs): device_copy cleaunp
+      // Suspect treating as no-op is better since already built into the StorageInfo?
+      LOG(FATAL) << "The AOT executor does not currently support device_copy";
+      return;
+    }
+
+    // At this point we should only see calls of the form call_lowered(@callee, (args...)),
+    // where @callee can be a PrimFunc we've compiled or an external function supplied via
+    // some other mechanism.
+    ICHECK(call_lowered_props.lowered_func.defined())
+        << "AOT does not support calling Relay functions. Attempting to call:" << std::endl
+        << PrettyPrint(GetRef<Call>(call_node));
+    for (const auto& arg : call_lowered_props.arguments) {
+      // Evaluate the args
+      VisitExpr(arg);
     }
     CreateFuncCall(call_lowered_props, GetRef<Call>(call_node));
   }
@@ -722,9 +726,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     for (const auto& kv : targets_) {
       VLOG(1) << "target: " << kv.second->ToDebugString();
     }
-    if (target_host_.defined()) {
-      VLOG(1) << "target host: " << target_host_->ToDebugString();
-    }
+    ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
+    VLOG(1) << "target host: " << target_host_->ToDebugString();
 
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
@@ -732,8 +735,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
-    IRModule lowered_mod =
-        tec::LowerTEPass(mod_name, [this, workspace_byte_alignment](BaseFunc func) {
+    // TODO(mbs): Plumb from compiler config
+    SEScope host_se_scope = SEScope::ForTarget(target_host_);
+
+    IRModule lowered_mod = tec::LowerTEPass(
+        mod_name,
+        [this, workspace_byte_alignment](BaseFunc func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -745,7 +752,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // execute as a further pass, instead writing data to the
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
-        })(mod);
+        },
+        host_se_scope)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());

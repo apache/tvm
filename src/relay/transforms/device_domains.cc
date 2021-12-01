@@ -198,10 +198,6 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
   OnDeviceProps on_device_props = GetOnDeviceProps(call.get());
   DeviceCopyProps device_copy_props = GetDeviceCopyProps(call.get());
   CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
-  if (!device_copy_props.body.defined() && call_lowered_props.lowered_func.defined()) {
-    // Special case for the TIR-ified version of "device_copy".
-    device_copy_props = GetLoweredDeviceCopyProps(call_lowered_props);
-  }
 
   if (on_device_props.body.defined()) {
     // on_device(expr, se_scope=<t>, is_fixed=false)
@@ -240,17 +236,6 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(free_domain);
-  } else if (call->op == shape_func_op) {
-    ICHECK_EQ(call->args.size(), 3U);
-    // shape_func(func, inputs, outputs, is_inputs=[...])
-    // shape_func: fn(..., <cpu>, <cpu>):<cpu>
-    // where ... is a free domain appropriate for func's type
-    args_and_result.emplace_back(Free(call->args[0]->checked_type()));
-    // TODO(mbs): I think this should be on the cpu only when is_input = [false], but
-    // what do we do when we have multiple arguments with different is_input values?
-    args_and_result.emplace_back(host_domain_);
-    args_and_result.emplace_back(host_domain_);
-    args_and_result.emplace_back(host_domain_);
   } else if (call->op == shape_of_op) {
     ICHECK_EQ(call->args.size(), 1U);
     // shape_of(tensor)
