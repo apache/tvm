@@ -157,7 +157,7 @@ void OutputShape(int format, int dims, int groups, const int pad[], const int st
                                              entry_ptr->conv_entry.data_type));
 
   if (entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
-    ICHECK_EQ(full_dims, 4) << "Use of layout CUDNN_TENSOR_NHWC is only defined for 4d tensors";
+    ICHECK_EQ(full_dims, 4) << "Use of layout CUDNN_TENSOR_NHWC is only supported for 4d tensors";
 
     // Set Input
     CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
@@ -206,23 +206,53 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
 
   // conv desc
   CUDNN_CALL(cudnnSetConvolutionGroupCount(entry_ptr->conv_entry.conv_desc, groups));
-  CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc, dims, pad, stride,
-                                             dilation, CUDNN_CROSS_CORRELATION,
-                                             entry_ptr->conv_entry.data_type));
 
-  std::vector<int> tensor_stride(full_dims);
-  // input desc
-  GetCudnnStride(full_dims, x_dim, tensor_stride.data());
-  CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc, data_type, full_dims,
-                                        x_dim, tensor_stride.data()));
-  // filter desc
-  CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc, data_type,
-                                        entry_ptr->conv_entry.tensor_format, full_dims, w_dim));
+  if (format == 1) {
+    ICHECK_EQ(full_dims, 4) << "Use of layout CUDNN_TENSOR_NHWC is only supported for 4d tensors";
+    int ni = 0;
+    int ci = 3;
+    int hi = 1;
+    int wi = 2;
 
-  // output desc
-  GetCudnnStride(full_dims, y_dim, tensor_stride.data());
-  CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc, data_type, full_dims,
-                                        y_dim, tensor_stride.data()));
+    // Set Input
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(
+        entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.tensor_format, data_type,
+        static_cast<int>(x_dim[ni]), static_cast<int>(x_dim[ci]), static_cast<int>(x_dim[hi]),
+        static_cast<int>(x_dim[wi])));
+
+    CUDNN_CALL(cudnnSetFilter4dDescriptor(
+        entry_ptr->conv_entry.filter_desc, data_type, entry_ptr->conv_entry.tensor_format,
+        static_cast<int>(w_dim[ni]), static_cast<int>(w_dim[ci]), static_cast<int>(w_dim[hi]),
+        static_cast<int>(w_dim[wi])));
+    // Set Output
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(
+        entry_ptr->conv_entry.output_desc, entry_ptr->conv_entry.tensor_format, data_type,
+        static_cast<int>(y_dim[ni]), static_cast<int>(y_dim[ci]), static_cast<int>(y_dim[hi]),
+        static_cast<int>(y_dim[wi])));
+
+    CUDNN_CALL(cudnnSetConvolution2dDescriptor(
+        entry_ptr->conv_entry.conv_desc, pad[0], pad[1], stride[0], stride[1], dilation[0],
+        dilation[1], entry_ptr->conv_entry.mode, entry_ptr->conv_entry.data_type));
+  } else {
+    CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc, dims, pad, stride,
+                                               dilation, CUDNN_CROSS_CORRELATION,
+                                               entry_ptr->conv_entry.data_type));
+
+    std::vector<int> tensor_stride(full_dims);
+    // input desc
+    GetCudnnStride(full_dims, x_dim, tensor_stride.data());
+    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc, data_type, full_dims,
+                                          x_dim, tensor_stride.data()));
+    // filter desc
+    CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc, data_type,
+                                          entry_ptr->conv_entry.tensor_format, full_dims, w_dim));
+
+    // output desc
+    GetCudnnStride(full_dims, y_dim, tensor_stride.data());
+    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc, data_type, full_dims,
+                                          y_dim, tensor_stride.data()));
+  }
+
   if (cudnnGetVersion() > 7000) {
     CUDNN_CALL(cudnnSetConvolutionMathType(entry_ptr->conv_entry.conv_desc, CUDNN_TENSOR_OP_MATH))
   }
