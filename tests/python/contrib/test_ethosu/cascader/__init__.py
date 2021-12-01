@@ -14,10 +14,4 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-if(USE_ETHOSU)
-  file(GLOB COMPILER_ETHOSU_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/ethosu/*
-       CONFIGURE_DEPENDS src/contrib/ethosu/cascader/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
-endif(USE_ETHOSU)
+"""Test infrastructure for the NPU planner"""
