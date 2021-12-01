@@ -72,7 +72,9 @@ _reg.register_injective_schedule("adv_index")
 def compute_concat(attrs, inputs, output_type):
     return [topi.concatenate(inputs, attrs.axis)]
 
+
 _reg.register_strategy("concatenate", strategy.concatenate_strategy)
+
 
 # strided_set
 @_reg.register_compute("strided_set")
