@@ -266,12 +266,20 @@ class TVMScriptParser(Transformer):
         # get the name and parameter list of func
         if isinstance(func, (Intrin, ScopeHandler, SpecialStmt)):
             func_name, param_list = func.signature()
+            print(func_name, param_list)
         else:
             self.report_error(
                 "Internal Error: function must be of type Intrin, ScopeHandler or SpecialStmt, "
                 f"but it is {type(func).__name__}",
                 node_call.span,
             )
+
+        # for loop syntax sugar, check if starting 0 is omitted
+        # param_list[0] is the list of positional args. However synr reads kw_args with
+        # values into kw_args so here the sum of len(args) and len(kw_args) is used
+        if isinstance(func, ForScopeHandler) and len(args) + len(kw_args) < len(param_list[0]):
+            if args[0] != 0:
+                args.insert(0, 0)
         # check arguments and parameter list and get a list of arguments
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list
