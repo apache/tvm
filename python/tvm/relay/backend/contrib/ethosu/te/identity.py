@@ -58,14 +58,21 @@ def identity_compute(
         The Output Feature Map tensor.
 
     """
-
     dmaed_ifm = read_compute(ifm, ifm_zero_point, ifm_scale)
+    id_attrs = {"op": "ethosu_identity", "activation": activation}
+
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if activation in ("TANH", "LUT") else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if activation in ("TANH", "LUT"):
+        id_attrs["lut"] = lut
 
     identity = te.compute(
         ifm.shape,
-        lambda *i: dmaed_ifm(*i).astype(ifm.dtype),
+        lambda *i: (dmaed_ifm(*i) + lut_expr).astype(ifm.dtype),
         name="ethosu_identity",
-        attrs={"op": "ethosu_identity", "activation": activation},
+        attrs=id_attrs,
     )
 
     dmaed_ofm = write_compute(identity, ofm_zero_point, ofm_scale)
