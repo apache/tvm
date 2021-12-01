@@ -274,8 +274,8 @@ class TVMScriptParser(Transformer):
             )
 
         # for loop syntax sugar, check if starting 0 is omitted
-        # param_list[0] is the list of positional args. However synr reads kw_args with
-        # values into kw_args so here the sum of len(args) and len(kw_args) is used
+        # param_list[0] is the list of positional args which could include kw_args
+        # therefore the sum of len(args) and len(kw_args) is used here
         if isinstance(func, ForScopeHandler) and len(args) + len(kw_args) < len(param_list[0]):
             if args[0] != 0:
                 args.insert(0, 0)
