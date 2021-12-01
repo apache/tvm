@@ -1087,6 +1087,35 @@ def concat_pattern():
     return concat
 
 
+class SigmoidParams:
+    """
+    This class will parse a call to a ethos-u.sigmoid composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.sigmoid"
+
+    def __init__(self, func_body: Call):
+        self.ofm = TensorParams(func_body)
+        self.ifm = TensorParams(func_body.args[0].args[0].args[0])
+
+    def is_valid(self):
+        """
+        This function checks whether reshape has compatible attributes with the NPU
+        """
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def sigmoid_pattern():
+    """Create pattern for sigmoid"""
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    sigmoid = is_op("sigmoid")(dequant)
+    quant = is_op("qnn.quantize")(sigmoid, is_constant(), is_constant())
+    return quant
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1162,6 +1191,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: MeanParams(pat).is_valid(),
         ),
         (ConcatParams.composite_name, concat_pattern(), lambda pat: ConcatParams(pat).is_valid()),
+        (
+            SigmoidParams.composite_name,
+            sigmoid_pattern(),
+            lambda pat: SigmoidParams(pat).is_valid(),
+        ),
     ]
 
 

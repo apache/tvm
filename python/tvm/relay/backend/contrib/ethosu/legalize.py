@@ -125,15 +125,15 @@ class LegalizeSplit:
         pass
 
 
-def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
-    """Method to calculate the values of the tanh lookup table"""
+def get_lut_from_func(ifm_scale, ifm_zp, ofm_scale, ofm_zp, func):
+    """Method to calculate the values of the lookup table based on the calculation function"""
     lut_values = list()
     # Only int8 is currently supported
     dtype = np.int8
     qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
     for x in range(qmin, qmax + 1):
         x_real = ifm_scale * (x - ifm_zp)
-        out_real = math.tanh(x_real)
+        out_real = func(x_real)
         lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
         lut_result = min(qmax, max(qmin, lut_result))
         lut_values.append(lut_result)
@@ -161,7 +161,7 @@ class TanhRewriter(DFPatternCallback):
         input_scale = float(dequantize_args[1].data.asnumpy())
         input_zp = int(dequantize_args[2].data.asnumpy())
 
-        lut_values = find_tanh_values(input_scale, input_zp, output_scale, output_zp)
+        lut_values = get_lut_from_func(input_scale, input_zp, output_scale, output_zp, math.tanh)
         lut = relay.const(lut_values, dtype="uint8")
 
         # We baked the requantization into the LUT, so we don't requantize the identity operator
@@ -187,6 +187,76 @@ class LegalizeTanh:
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(TanhRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def sigmoid_calc_func(x):
+    """Function to calculate the values for sigmoid"""
+    # Thse limits are inherited from TFLite
+    upper_limit = 8.0
+    lower_limit = -8.0
+
+    if x <= lower_limit:
+        y = 0.0
+    elif x >= upper_limit:
+        y = 1.0
+    else:
+        y = 1 / (1 + math.exp(-x))
+    return y
+
+
+class SigmoidRewriter(DFPatternCallback):
+    """This pass adds sigmoid as a LUT for identity op"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.SigmoidParams.composite_name})
+        )(wildcard())
+
+    def callback(self, pre, post, node_map):
+        inp = post.args[0]
+
+        quantize_args = post.op.body.args
+        output_scale = float(quantize_args[1].data.asnumpy())
+        output_zp = int(quantize_args[2].data.asnumpy())
+
+        dequantize_args = quantize_args[0].args[0].args
+        input_scale = float(dequantize_args[1].data.asnumpy())
+        input_zp = int(dequantize_args[2].data.asnumpy())
+
+        lut_values = get_lut_from_func(
+            input_scale, input_zp, output_scale, output_zp, sigmoid_calc_func
+        )
+        lut = relay.const(lut_values, dtype="uint8")
+
+        # We baked the requantization into the LUT, so we don't requantize the identity operator
+        identity = ethosu_ops.ethosu_identity(
+            ifm=inp,
+            lut=lut,
+            ifm_scale=input_scale,
+            ifm_zero_point=input_zp,
+            ofm_scale=input_scale,
+            ofm_zero_point=input_zp,
+            activation="SIGMOID",
+        )
+
+        return identity
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeSigmoid:
+    """This is the pass that wraps SigmoidRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(SigmoidRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -1196,6 +1266,7 @@ class LegalizeEthosU:
         mod = LegalizeTanh()(mod)
         mod = LegalizeMean()(mod)
         mod = LegalizeConcat()(mod)
+        mod = LegalizeSigmoid()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

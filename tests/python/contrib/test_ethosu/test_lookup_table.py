@@ -59,7 +59,7 @@ def test_tflite_lut_activations(accel_type):
                 op = tf.nn.depthwise_conv2d(
                     op, weight2, strides=(1, 1, 1, 1), padding="VALID", dilations=(2, 2)
                 )
-                op = tf.nn.tanh(op)
+                op = tf.nn.sigmoid(op)
                 op = tf.nn.max_pool(op, (1, 1), strides=(1, 1, 1, 1), padding="SAME")
                 op = tf.nn.tanh(op)
                 return op

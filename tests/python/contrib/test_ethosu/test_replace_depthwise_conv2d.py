@@ -33,7 +33,7 @@ from .infra import make_ethosu_depthwise_conv2d, get_convolutional_args
         [(1, 8, 8, 3), 3, (1, 1), (2, 1), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "NATURAL"],
         [(1, 8, 8, 3), 3, (1, 1), (0, 0), (1, 1), (1, 1), "NONE", "NHWC", "NHWC", "TRUNCATE"],
         [(1, 1, 1, 1), 1, (1, 1), (0, 0), (1, 1), (1, 1), "CLIP", "NHWC", "NHWC", "TFL"],
-        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "SIGMOID", "NHWC", "NHWC", "NATURAL"],
+        [(1, 7, 9, 4), 4, (3, 2), (1, 2), (2, 1), (1, 2), "NONE", "NHWC", "NHWC", "NATURAL"],
         [
             (1, 8, 2, 8, 16),
             18,
