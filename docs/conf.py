@@ -352,7 +352,7 @@ sphinx_gallery_conf = {
     "gallery_dirs": gallery_dirs,
     "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
-    "image_scrapers": ("mayavi",),
+    "find_mayavi_figures": False,
     "download_all_examples": False,
     "min_reported_time": 60,
     "expected_failing_examples": [],

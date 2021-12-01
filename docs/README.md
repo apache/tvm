@@ -20,12 +20,34 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
 
 ## Build Locally
 
+See also the instructions below to run a specific tutorial. Note that some of the tutorials need GPU support. Once build, either of these can be served using Python's build in HTTP server:
+
+```bash
+# Run this and then visit http://localhost:8000 in your browser
+cd docs/_build/html && python3 -m http.server
+```
+
+### With Docker (recommended)
+
+1. Build TVM and the docs inside the [tlcpack/ci-gpu image](https://hub.docker.com/r/tlcpack/ci-gpu)
+
+    ```bash
+    # If this runs into errors, try cleaning your 'build' directory
+    make docs
+    ```
+
+
+### Native
+
 1. [Build TVM](https://tvm.apache.org/docs/install/from_source.html) first in the repo root folder
 2. Install dependencies
 
     ```bash
     # Pillow on Ubuntu may require libjpeg-dev from apt
-    pip install -r requirements.txt
+    sudo docker run tlcpack/ci-gpu:v0.78 bash -c \
+    'python3 -m pip install --quiet tlcpack-sphinx-addon==0.2.1 synr==0.5.0 && python3 -m pip freeze' > frozen-requirements.txt
+
+    pip install -r frozen-requirements.txt
     ```
 
 3. Generate the docs
@@ -37,8 +59,6 @@ This folder contains the source of TVM's documentation, hosted at https://tvm.ap
 
     make html
     ```
-
-See also the instructions below to run a specific tutorial. Note that some of the tutorials need GPU support.
 
 
 ## Only Execute Specified Tutorials
