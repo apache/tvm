@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 
-import math
 import pytest
 
 pytest.importorskip("ethosu.vela")
 
+import math
 import numpy as np
 import tensorflow as tf
 import tflite.Model
