@@ -228,7 +228,11 @@ def build(
         for x in inputs:
             merged_mod.update(lower(x))
         input_mod = merged_mod
-    elif isinstance(inputs, (tvm.IRModule, PrimFunc)):
+    elif isinstance(inputs, PrimFunc):
+        input_mod = lower(inputs, name=name)
+    elif isinstance(inputs, tvm.IRModule):
+        if name is not None:
+            warnings.warn("Specifying name with IRModule input is useless")
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
