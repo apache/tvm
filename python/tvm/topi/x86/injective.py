@@ -19,6 +19,8 @@
 from tvm import te
 from tvm.tir import IntImm
 from ..utils import is_empty_shape
+from tvm.topi import tag
+from tvm.topi.generic.injective import schedule_injective_from_existing
 
 
 def schedule_injective_from_existing(sch, out):
@@ -131,13 +133,11 @@ def schedule_injective(outs):
 #         s[x].parallel(s[x].op.axis[0])
 #     return s
 
+
 def schedule_concatenate(outs):
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
-
-    from tvm.topi import tag
-    from tvm.topi.generic.injective import schedule_injective_from_existing
 
     def traverse(op):
         if tag.is_injective(op.tag):

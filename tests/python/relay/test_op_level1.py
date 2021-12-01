@@ -345,6 +345,7 @@ def test_concatenate():
             )
             tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.01)
 
+
 def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
     varsToConcat = []
     inputData    = []
@@ -372,6 +373,7 @@ def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
     )
     tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=0.000001)
 
+
 @tvm.testing.uses_gpu
 def test_concatenate1():
     for target, dev in tvm.testing.enabled_targets():
@@ -396,6 +398,7 @@ def test_concatenate1():
                         shapes.append(shp[:normalizedAxis] + tuple([shape[(i % len(shape))]]) + shp[normalizedAxis+1:])
                     t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis+1:]
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
+
 
 @tvm.testing.uses_gpu
 def test_concatenate2():
@@ -427,6 +430,7 @@ def test_concatenate2():
                     temp[axis] = finalSize
                     t_shape = tuple(temp)
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
+
 
 def test_dropout():
     for dtype in ["float16", "float32"]:

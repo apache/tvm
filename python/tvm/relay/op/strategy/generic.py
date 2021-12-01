@@ -1747,8 +1747,10 @@ def wrap_compute_scanop(topi_compute):
 
     return _compute_scanop
 
+
 def wrap_compute_concat(topi_compute):
-    """Wrap concatenate style topi compute"""
+    """Wrap concatenate topi compute"""
+
     def _compute_concat(attrs, inputs, _):
         return [topi_compute(inputs, attrs.axis)]
 
@@ -1766,6 +1768,7 @@ def cumsum_strategy(attrs, inputs, out_type, target):
     )
     return strategy
 
+
 @override_native_generic_func("concat_strategy")
 def concatenate_strategy(attrs, inputs, out_type, target):
     """concatenate generic strategy"""
@@ -1777,6 +1780,7 @@ def concatenate_strategy(attrs, inputs, out_type, target):
     )
     return strategy
 
+
 @concatenate_strategy.register(["cpu"])
 def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     """concatenate x86 strategy"""
@@ -1787,6 +1791,7 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
         name="concatenate.cpu",
     )
     return strategy
+
 
 @override_native_generic_func("cumprod_strategy")
 def cumprod_strategy(attrs, inputs, out_type, target):
