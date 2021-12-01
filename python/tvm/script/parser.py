@@ -266,7 +266,6 @@ class TVMScriptParser(Transformer):
         # get the name and parameter list of func
         if isinstance(func, (Intrin, ScopeHandler, SpecialStmt)):
             func_name, param_list = func.signature()
-            print(func_name, param_list)
         else:
             self.report_error(
                 "Internal Error: function must be of type Intrin, ScopeHandler or SpecialStmt, "
