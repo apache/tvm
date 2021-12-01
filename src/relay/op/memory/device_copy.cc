@@ -117,15 +117,5 @@ DeviceCopyProps GetDeviceCopyProps(const Expr& expr) {
   return {};
 }
 
-DeviceCopyProps GetLoweredDeviceCopyProps(const CallLoweredProps& props) {
-  if (props.attrs.metadata.count("src_se_scope") == 1 &&
-      props.attrs.metadata.count("dst_se_scope") == 1) {
-    ICHECK_EQ(props.arguments.size(), 1) << "device_copy is of arity 1";
-    return {props.arguments[0], Downcast<SEScope>(props.attrs.metadata["src_se_scope"]),
-            Downcast<SEScope>(props.attrs.metadata["dst_se_scope"])};
-  }
-  return {};
-}
-
 }  // namespace relay
 }  // namespace tvm
