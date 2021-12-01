@@ -27,9 +27,10 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import (
     total_cascader,
     copy_constants,
     schedule_cache_reads,
+    copy_luts,
 )
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_te, extract_constants
-from .infra import AttachType, make_ethosu_conv2d
+from .infra import AttachType, make_ethosu_conv2d, make_ethosu_identity
 
 
 class TestTEGraph:
@@ -124,6 +125,31 @@ def test_copy_constants():
     assert ".global" in sch.stages[7].op.name
     assert ".global" in sch.stages[15].op.name
     assert ".global" in sch.stages[17].op.name
+
+
+# This test makes sure that constants and LUTs have a correct storage scope
+def test_copy_luts():
+    ifm_shape = (1, 33, 33, 11)
+    ifm = relay.var("IFM", shape=ifm_shape, dtype="int8")
+    lut = relay.const([i for i in range(256)], dtype="int8")
+    conv = make_ethosu_conv2d(
+        ifm, ifm_shape[3], 8, (3, 3), (0, 0), (1, 1), (1, 1), lut=lut, activation="TANH"
+    )
+    identity = make_ethosu_identity(conv, lut=lut, activation="TANH")
+    func = relay.Function(relay.analysis.free_vars(identity), identity)
+    func = run_opt_pass(func, relay.transform.InferType())
+
+    func, const_dict = extract_constants(func)
+    te_graph = lower_to_te(func)
+
+    sch = te.create_schedule([te_graph.outputs[0].op])
+    copy_constants()(te_graph, const_dict, sch)
+    copy_luts()(te_graph, const_dict, sch)
+    assert len(sch.stages) == 17
+    assert ".global" in sch.stages[5].op.name
+    assert ".global" in sch.stages[7].op.name
+    assert ".local" in sch.stages[9].op.name
+    assert ".local" in sch.stages[10].op.name
 
 
 def test_schedule_cache_reads():
