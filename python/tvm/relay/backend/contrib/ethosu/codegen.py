@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Codegen for Arm(R) Ethos(TM)-U"""
+"""Codegen for Arm(R) Ethos(TM)-U NPU"""
+
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
@@ -133,24 +134,6 @@ class LUTsOptimizer(Pass):
         return OptimizeLUTs().visit(func)
 
 
-@tvm._ffi.register_func("relay.ext.ethos-u")
-def ethosu_compiler(external_function):
-    """The entry-point to a compile a external relay function of
-    NPU compatible operators to generated command stream.
-    Such generated command stream would be used to create c-source r
-    runtime module that interfaces with NPU driver.
-    """
-    assert isinstance(external_function, tvm.ir.function.BaseFunc)
-    func_name = external_function.attrs["global_symbol"]
-    # There should only be a single input
-    assert len(external_function.params) == 1
-    input_size = util.calculate_size_bytes(external_function.params[0])
-    output_size = util.calculate_size_bytes(external_function.body)
-    cmms, encoded_constants, scratch_size = _compile(external_function)
-    ethosu_runtime = tvm._ffi.get_global_func("runtime.module.ethos-u.create")
-    return ethosu_runtime(func_name, cmms, encoded_constants, scratch_size, input_size, output_size)
-
-
 @tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
 def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     """
@@ -161,25 +144,25 @@ def constant_updater(expr, symbol):  # pylint: disable=unused-argument
     return dict()
 
 
-def _compile(ext_func):
+@tvm._ffi.register_func("relay.ext.ethos-u.relay_to_tir_func")
+def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     """
-    This is the main wrapper that accepts an external
-    relay function and runs all the passes to lower it down
-    to command stream
+    This is the hook for python-based lowering of relay function
+    that gets offloaded to the microNPU.
+
     Parameters
     ----------
-    ext_func : tvm.relay.function.Function
-        The partitioned relay function
+    ext_func : relay.Function
+        This is the partitioned relay function
+
     Returns
     -------
-    cs : str
-        An hex string of the bytes of command stream
-    encoded_constants : str
-        An hex string of the bytes that includes concat'd
-        encoded weights, encoded biases and scales.
-    scratch_size : int
-        The size of the scratch buffer needed.
+    primfunc : tir.PrimFunc
+        This returns the scheduled PrimFunc
     """
+    assert len(ext_func.params) == 1
+    input_size = util.calculate_size_bytes(ext_func.params[0])
+    output_size = util.calculate_size_bytes(ext_func.body)
     mod = tvm.IRModule()
     mod["main"] = ext_func
     mod = LegalizeEthosU()(mod)
@@ -189,6 +172,51 @@ def _compile(ext_func):
     # this should be a single intelligent and a composite scheduler
     # that can perform scheduling based on user inputs such as
     # scratch memory size.
-    tir_mod, params = lower_to_tir(mod["main"], copy_constants())
-    cmms, encoded_constants, scratch_size = tir_to_cs_translator.translate(tir_mod, params)
-    return cmms, encoded_constants, scratch_size
+    tir_mod, const_dict = lower_to_tir(mod["main"], copy_constants())
+
+    for idx in const_dict.keys():
+        const_dict[idx] = tvm.nd.array(const_dict[idx])
+
+    primfunc = tir_mod["main"]
+    primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
+    primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
+    primfunc = primfunc.with_attr("ethos-u.input_size", input_size)
+    primfunc = primfunc.with_attr("ethos-u.output_size", output_size)
+    return primfunc
+
+
+@tvm._ffi.register_func("relay.ext.ethos-u.primfunc_to_artifact")
+def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact:
+    """
+    This is the hook for python-based lowering of TIR PrimFunc
+    that has undergone unified optimization to compilation
+    artifact destined for the microNPU.
+
+    Parameters
+    ----------
+    primfunc : tir.PrimFunc
+        TIR PrimFunc that has undergone unified optimizations
+
+    Returns
+    -------
+    CompilationArtifact
+        This is a structure that holds the binary artifacts
+        for the microNPU
+    """
+    symbol = str(primfunc.attrs["global_symbol"])
+    const_dict = primfunc.attrs["ethos-u.constants"]
+    input_size = primfunc.attrs["ethos-u.input_size"]
+    output_size = primfunc.attrs["ethos-u.output_size"]
+    tir_mod = tvm.IRModule()
+    tir_mod[symbol] = primfunc
+
+    const_dict_with_int_keys = dict()
+    for idx in const_dict.keys():
+        const_dict_with_int_keys[int(idx)] = const_dict[idx].numpy()
+
+    cmms, encoded_constants, scratch_size = tir_to_cs_translator.translate(
+        tir_mod, const_dict_with_int_keys
+    )
+    return util.CompilationArtifact(
+        cmms, encoded_constants, scratch_size, input_size, output_size, symbol
+    )
