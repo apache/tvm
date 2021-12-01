@@ -103,6 +103,17 @@ FuncType FunctionNode::func_type_annotation() const {
   return FuncType(param_types, ret_type, this->type_params, {});
 }
 
+const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func) {
+  if (const auto* function_node = base_func.as<FunctionNode>()) {
+    if (!function_node->GetAttr<String>(attr::kCompiler).defined() &&
+        !function_node->GetAttr<String>(attr::kExternalSymbol).defined() &&
+        !function_node->HasNonzeroAttr(attr::kSkipOptimization)) {
+      return function_node;
+    }
+  }
+  return nullptr;
+}
+
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Function")

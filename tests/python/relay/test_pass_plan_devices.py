@@ -647,55 +647,6 @@ def test_device_copy():
     exercise(input(), expected(), ref, rands((5, 7), 1))
 
 
-def test_shape_func():
-    metatable = {"SEScope": [HOST, GPU]}
-
-    def input():
-        return tvm.parser.parse(
-            """
-            #[version = "0.0.5"] 
-            def @main(%x: Tensor[(?), float32], %s: Tensor[(1), int64]) {
-              %0 = fn (%y: Tensor[(?), float32]) {
-                nn.relu(%y)
-              };
-              let %p = on_device(%0, se_scope=meta[SEScope][1], is_fixed=True);
-              %1 = on_device(%x, se_scope=meta[SEScope][1], is_fixed=True);
-              %2 = vm.shape_of(%1, dtype="int64");
-              %3 = (%2,);
-              %4 = (%s,);
-              vm.shape_func(%p, %3, %4, is_input=[False])
-            }
-        """,
-            "from_string",
-            None,
-            metatable,
-        )
-
-    def expected():
-        return tvm.parser.parse(
-            """
-            #[version = "0.0.5"] 
-            def @main(%x: Tensor[(?), float32], %s: Tensor[(1), int64],
-                      param_se_scopes=[meta[SEScope][1], meta[SEScope][0]], result_se_scope=meta[SEScope][0]) {
-              let %p = fn (%y: Tensor[(?), float32],
-                           param_se_scopes=[meta[SEScope][1]], result_se_scope=meta[SEScope][1]) {
-                nn.relu(%y)
-              };
-              %1 = vm.shape_of(%x, dtype="int64");
-              %2 = (%1,);
-              %3 = (%s,);
-              vm.shape_func(%p, %2, %3, is_input=[False])
-            }
-        """,
-            "from_string",
-            None,
-            metatable,
-        )
-
-    # Don't try to execute, too fiddly to setup.
-    exercise(input(), expected(), None, None)
-
-
 def test_shape_of():
     metatable = {"SEScope": [HOST, GPU]}
 

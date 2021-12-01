@@ -259,8 +259,8 @@ class Executable(object):
         return self._get_virtual_devices()
 
     @property
-    def primitive(self):
-        """Returns a human-readable dencription of all the primitives (ie PackedFuncs) in the
+    def primitives(self):
+        """Returns a human-readable description of all the primitives (ie PackedFuncs) in the
         executable"""
         return self._get_primitives()
 

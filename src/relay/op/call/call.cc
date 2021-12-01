@@ -113,6 +113,17 @@ CallLoweredProps GetCallLoweredProps(const CallNode* call_node) {
   return {};
 }
 
+Call GetAnyCall(const CallNode* call_node) {
+  CallLoweredProps props = GetCallLoweredProps(call_node);
+  if (props.lowered_func.defined()) {
+    auto attrs = make_object<CallLoweredAttrs>(props.attrs);
+    return Call(std::move(props.lowered_func), props.arguments, Attrs(std::move(attrs)),
+                /*type_args=*/{}, call_node->span);
+  } else {
+    return GetRef<Call>(call_node);
+  }
+}
+
 bool IsReshapeOnly(const CallLoweredProps& props) {
   if (props.attrs.metadata.count("relay_attrs")) {
     auto dict_attrs = Downcast<DictAttrs>(props.attrs.metadata["relay_attrs"]);

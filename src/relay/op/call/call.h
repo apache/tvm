@@ -68,6 +68,14 @@ struct CallLoweredProps {
 CallLoweredProps GetCallLoweredProps(const CallNode* call_node);
 
 /*!
+ * \brief Returns \p call_node in 'standard' Relay form. Ie if \p call_node is a call_lowered
+ * then returns it in un-lowered form, otherwise returns \p call_node directly.
+ *
+ * Useful for passes which can act uniformly on calls irrespective of their form.
+ */
+Call GetAnyCall(const CallNode* call_node);
+
+/*!
  * \brief Returns true if lowered call described by \p props is to a reshape primitive.
  */
 bool IsReshapeOnly(const CallLoweredProps& props);

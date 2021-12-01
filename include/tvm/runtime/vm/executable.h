@@ -133,21 +133,20 @@ class Executable : public ModuleNode {
 
   /*!
    * \brief Returns a description of all the constants in the executable in human-readable
-   * format. Not intended to be machine readable, but rather to help with debugging and
-   * diffing generated code.
+   * format. Intended for debugging and diff-testing.
    */
   std::string GetConstants() const;
 
   /*!
    * \brief Returns a description of all the (virtual) devices in the executable in human-readable
-   * format.
+   * format. Intended for debugging and diff-testing.
    */
   std::string GetVirtualDevices() const;
 
   /*!
-   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable.
-   * These correspond to eithed PrimFuncs we've compiled locally, or functions compiled by
-   * a BYOC external codegen.
+   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable in
+   * human-readable format. These correspond either to PrimFuncs we've compiled locally, or
+   * functions compiled by a BYOC external codegen. Intended for debugging and diff-testing.
    */
   std::string GetPrimitives() const;
 

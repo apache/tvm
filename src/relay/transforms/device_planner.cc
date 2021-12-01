@@ -76,9 +76,9 @@
  * and so on.
  *
  * Some special ops (or 'dialects') are handled:
- *  - Relay supports computing the shape of tensors and operators at runtime using "shape_of",
- *    "shape_func", and "reshape_tensor". Shapes must only be held on the CPU, but the tensors
- *    they describe may reside on any device.
+ *  - Relay supports computing the shape of tensors and operators at runtime using "shape_of"
+ *    and "reshape_tensor". Shapes must only be held on the CPU, but the tensors they describe
+ *    may reside on any device.
  *  - Explicit memory allocation is done using the "alloc_storage" and "alloc_tensor". Again
  *    shapes reside on the CPU, but the allocated tensors may reside on any device.
  *
@@ -765,7 +765,8 @@ class DeviceCapturer : public ExprMutator {
 
   IRModule Capture() {
     VLOG_CONTEXT << "CaptureDevices";
-    IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map);
+    IRModule result(/*functions=*/{}, mod_->type_definitions, mod_->Imports(), mod_->source_map,
+                    mod_->attrs);
     for (const auto& pair : mod_->functions) {
       VLOG(2) << "capturing devices for '" << PrettyPrint(pair.first) << "'";
       result->Add(pair.first, Downcast<BaseFunc>(Mutate(pair.second)));

@@ -315,9 +315,9 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
   ICHECK(exec_) << "The executable has not been created yet.";
   auto it = exec_->global_map.find(name);
   ICHECK(it != exec_->global_map.end()) << "Cannot find function " << name << " in the executable";
-  auto func_index_ = it->second;
-  VLOG(2) << "Invoke Global " << name << " at index " << func_index_;
-  return Invoke(exec_->functions[func_index_], args);
+  Index func_index = it->second;
+  VLOG(2) << "Invoke Global " << name << " at index " << func_index;
+  return Invoke(exec_->functions[func_index], args);
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
@@ -372,7 +372,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   runtime::Module lib = exec_->GetLib();
 
   ICHECK(exec->primitive_map.empty() || lib.operator->())
-      << "If the executable has declared primitive functions, the"
+      << "If the executable has declared primitive functions, the "
       << "generated kernel library must non-be null.";
 
   for (const auto& it : exec_->primitive_map) {
@@ -381,7 +381,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     if (packed_funcs_.size() <= packed_index) {
       packed_funcs_.resize(packed_index + 1);
     }
-    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
+    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, /*query_imports=*/true);
     ICHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
     packed_funcs_[packed_index] = pf;
   }
