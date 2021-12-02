@@ -300,7 +300,12 @@ class AllocBuffer(SpecialStmt):
 
 @register
 class BlockReads(SpecialStmt):
-    """Special function reads([read_buffer_regions])
+    """Special function reads([read_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    reads syntax sugar like reads(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
@@ -346,7 +351,12 @@ class BlockReads(SpecialStmt):
 
 @register
 class BlockWrites(SpecialStmt):
-    """Special function writes([write_buffer_regions])
+    """Special function writes([write_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    writes syntax sugar like writes(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
