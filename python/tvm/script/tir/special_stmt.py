@@ -17,7 +17,7 @@
 """TVM Script Parser Special Stmt Classes"""
 # pylint: disable=unused-argument, no-self-argument, inconsistent-return-statements
 # pylint: disable=relative-beyond-top-level
-from typing import Callable, List, Optional, Tuple, Any, Mapping, Union, overload
+from typing import Callable, List, Optional, Tuple, Any, Mapping, Union
 
 import synr
 from synr import ast
