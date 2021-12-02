@@ -235,3 +235,32 @@ if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=T
             for dev, names in metric_names.items():
                 wrapped[DeviceWrapper(dev)] = names
             self.__init_handle_by_constructor__(_ffi_api.PAPIMetricCollector, wrapped)
+
+
+if _ffi.get_global_func("runtime.profiling.LikwidMetricCollector", allow_missing=True) is not None:
+
+    @_ffi.register_object("runtime.profiling.LikwidMetricCollector")
+    class LikwidMetricCollector(MetricCollector):
+        """Collects performance counter information using the Likwid library."""
+
+        def __init__(self, group: str):
+            """
+            Parameters
+            ----------
+            group : str
+                Likwid group name to profile. Available groups can be listed
+                with `likwid-perfctr -a`.
+            """
+            self.__init_handle_by_constructor__(_ffi_api.LikwidMetricCollector, group)
+
+    @_ffi.register_object("runtime.profiling.LikwidMarkerMetricCollector")
+    class LikwidMarkerMetricCollector(MetricCollector):
+        """
+        Marks profiling regions with a Likwid Marker so that it can be used to
+        profile an application at runtime. To use, prefix your script like so:
+        `likwid-perfctr -m -g MY_GROUP python3 my_script.py` (the `-m` flag is
+        required). See `likwid-perfctr -h` for more information.
+        """
+
+        def __init__(self):
+            self.__init_handle_by_constructor__(_ffi_api.LikwidMarkerMetricCollector)

@@ -357,6 +357,13 @@ set(USE_CCACHE AUTO)
 # - /path/to/folder/containing/: Path to folder containing papi.pc.
 set(USE_PAPI OFF)
 
+# Whether to enable Likwid support in profiling. Likwid provides access to hardware
+# counters while profiling and high level metrics like memory bandwidth.
+# Possible values:
+# - ON: enable Likwid support.
+# - OFF: disable Likwid support.
+set(USE_LIKWID OFF)
+
 # Whether to use GoogleTest for C++ unit tests. When enabled, the generated
 # build file (e.g. Makefile) will have a target "cpptest".
 # Possible values:

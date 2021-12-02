@@ -133,6 +133,32 @@ def test_papi(target, dev):
     assert any([float(x) > 0 for x in csv[metric]])
 
 
+@tvm.testing.parametrize_targets("llvm")
+@pytest.mark.skipif(
+    tvm.get_global_func("runtime.profiling.LikwidMetricCollector", allow_missing=True) is None,
+    reason="Likwid profiling not enabled",
+)
+def test_likwid(target, dev):
+    target = tvm.target.Target(target)
+    mod, params = mlp.get_workload(1)
+
+    exe = relay.vm.compile(mod, target, params=params)
+    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
+
+    data = tvm.nd.array(np.random.rand(1, 1, 28, 28).astype("float32"), device=dev)
+    report = vm.profile(
+        [data],
+        func_name="main",
+        collectors=[tvm.runtime.profiling.LikwidMetricCollector("FLOPS_SP")],
+    )
+    metric = "SP [MFLOP/s]"
+    assert metric in str(report)
+
+    csv = read_csv(report)
+    assert metric in csv.keys()
+    assert any([float(x) > 0 for x in csv[metric]])
+
+
 @tvm.testing.requires_llvm
 def test_json():
     mod, params = mlp.get_workload(1)

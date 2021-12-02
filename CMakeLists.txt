@@ -533,6 +533,7 @@ target_compile_definitions(tvm_runtime PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runt
 include(cmake/modules/Logging.cmake)
 
 include(cmake/modules/contrib/PAPI.cmake)
+include(cmake/modules/contrib/Likwid.cmake)
 
 if(USE_MICRO)
   # NOTE: cmake doesn't track dependencies at the file level across subdirectories. For the

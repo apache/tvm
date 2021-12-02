@@ -215,7 +215,7 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
    * \returns A `PAPIEventSetNode` containing values for the counters at the
    * start of the call. Passed to a corresponding `Stop` call.
    */
-  ObjectRef Start(Device dev) final {
+  ObjectRef Start(Device dev, CallId call_id) final {
     // Record counter values at the start of the call, so we can calculate the
     // metrics for the call by comparing the values at the end of the call.
     auto it = event_sets.find(dev);
@@ -251,6 +251,10 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
       }
     }
     return reported_metrics;
+  }
+
+  bool SupportsNested() const final {
+    return true;
   }
 
   ~PAPIMetricCollectorNode() final {

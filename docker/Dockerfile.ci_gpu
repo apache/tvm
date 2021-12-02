@@ -119,6 +119,10 @@ RUN bash /install/ubuntu_install_universal.sh
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
 
+# likwid profiling deps
+COPY install/ubuntu_install_likwid.sh /install/ubuntu_install_likwid.sh
+RUN bash /install/ubuntu_install_likwid.sh
+
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh

@@ -122,17 +122,28 @@ Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric
 void Profiler::Start() {
   is_running_ = true;
   for (auto dev : devs_) {
-    StartCall("Total", dev, {});
+    StartCallInternal("Total", dev, {}, false);
   }
 }
 
 void Profiler::StartCall(String name, Device dev,
                          std::unordered_map<std::string, ObjectRef> extra_metrics) {
+  StartCallInternal(name, dev, extra_metrics, true);
+}
+
+void Profiler::StartCallInternal(String name, Device dev,
+                                 std::unordered_map<std::string, ObjectRef> extra_metrics,
+                                 bool innermost) {
+  CallId call_id(counter_);
+  counter_++;
+
   std::vector<std::pair<MetricCollector, ObjectRef>> objs;
   for (auto& collector : collectors_) {
-    ObjectRef obj = collector->Start(dev);
-    if (obj.defined()) {
-      objs.emplace_back(collector, obj);
+    if (collector->SupportsNested() || innermost) {
+      ObjectRef obj = collector->Start(dev, call_id);
+      if (obj.defined()) {
+        objs.emplace_back(collector, obj);
+      }
     }
   }
   in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics, objs});
@@ -147,8 +158,10 @@ void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics
   // collect the extra metrics from user defined collectors
   for (const auto& obj : cf.extra_collectors) {
     auto collector_metrics = obj.first->Stop(obj.second);
-    for (auto& p : collector_metrics) {
-      cf.extra_metrics[p.first] = p.second;
+    if (collector_metrics.defined()) {
+      for (auto& p : collector_metrics) {
+        cf.extra_metrics[p.first] = p.second;
+      }
     }
   }
   in_flight_.pop();
@@ -159,6 +172,19 @@ void Profiler::Stop() {
   is_running_ = false;
   for (size_t i = 0; i < devs_.size(); i++) {
     StopCall();
+  }
+
+  for (auto& collector : collectors_) {
+    auto final_metrics = collector->Finish();
+    if (final_metrics.defined()) {
+      for (auto kv : final_metrics) {
+        auto call_id = kv.first;
+        auto call_metrics = kv.second;
+        for (auto metric : call_metrics) {
+          calls_[call_id->id].extra_metrics[metric.first] = metric.second;
+        }
+      }
+    }
   }
 }
 
@@ -263,8 +289,13 @@ String ReportNode::AsCSV() const {
           s << (*it).second.as<DurationNode>()->microseconds;
         } else if ((*it).second.as<PercentNode>()) {
           s << (*it).second.as<PercentNode>()->percent;
+        } else if ((*it).second.as<RateNode>()) {
+          s << (*it).second.as<RateNode>()->rate;
         } else if ((*it).second.as<StringObj>()) {
           s << "\"" << Downcast<String>((*it).second) << "\"";
+        } else {
+          LOG(FATAL) << "Unexpected type " << (*it).second->GetTypeKey()
+                     << " when serializing to CSV";
         }
       }
       if (i < headers.size() - 1) {
@@ -288,6 +319,8 @@ void print_metric(std::ostream& os, ObjectRef o) {
     os << "{\"microseconds\":" << std::setprecision(17) << std::fixed << n->microseconds << "}";
   } else if (const PercentNode* n = o.as<PercentNode>()) {
     os << "{\"percent\":" << std::setprecision(17) << std::fixed << n->percent << "}";
+  } else if (const RateNode* n = o.as<RateNode>()) {
+    os << "{\"rate\":" << std::setprecision(17) << std::fixed << n->rate << "}";
   } else {
     LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
   }
@@ -387,11 +420,14 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
               aggregated[metric.first] =
                   ObjectRef(make_object<PercentNode>(it->second.as<PercentNode>()->percent +
                                                      metric.second.as<PercentNode>()->percent));
+            } else if (metric.second.as<RateNode>()) {
+              aggregated[metric.first] = ObjectRef(make_object<RateNode>(
+                  (it->second.as<RateNode>()->rate + metric.second.as<RateNode>()->rate) / 2.0));
             } else if (metric.second.as<StringObj>()) {
               // Don't do anything. Assume the two strings are the same.
             } else {
               LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
-                            "PercentNode, and StringObj, but got "
+                            "PercentNode, RateNode, and StringObj, but got "
                          << metric.second->GetTypeKey();
             }
           }
@@ -440,6 +476,13 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
             val += it->second.as<PercentNode>()->percent;
           }
           col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
+        } else if (p.second.as<RateNode>()) {
+          // Summing rates does not make sense
+        } else if (p.second.as<StringObj>()) {
+          // Summing strings does not make sense
+        } else {
+          LOG(FATAL) << "Cannot sum " << p.second->GetTypeKey()
+                     << " in profiling report. Add a way to sum it here";
         }
       }
     }
@@ -501,6 +544,14 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
           val = s.str();
         } else if ((*it).second.as<StringObj>()) {
           val = Downcast<String>((*it).second);
+        } else if ((*it).second.as<RateNode>()) {
+          std::stringstream s;
+          s.imbue(std::locale(""));
+          s << std::fixed << std::setprecision(2) << (*it).second.as<RateNode>()->rate;
+          val = s.str();
+        } else {
+          LOG(FATAL) << "Cannot print " << (*it).second->GetTypeKey()
+                     << ". Add a printer for it here";
         }
         cols[i].push_back(val);
       }
@@ -615,6 +666,10 @@ Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
       int64_t count;
       reader->Read(&count);
       o = ObjectRef(make_object<CountNode>(count));
+    } else if (metric_value_name == "rate") {
+      double rate;
+      reader->Read(&rate);
+      o = ObjectRef(make_object<RateNode>(rate));
     } else if (metric_value_name == "string") {
       std::string s;
       reader->Read(&s);
@@ -664,6 +719,7 @@ Report Report::FromJSON(String json) {
 TVM_REGISTER_OBJECT_TYPE(DurationNode);
 TVM_REGISTER_OBJECT_TYPE(PercentNode);
 TVM_REGISTER_OBJECT_TYPE(CountNode);
+TVM_REGISTER_OBJECT_TYPE(RateNode);
 TVM_REGISTER_OBJECT_TYPE(ReportNode);
 TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
@@ -684,6 +740,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
   return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
+    CallId call_id(0);
 
     // warmup
     for (int i = 0; i < warmup_iters; i++) {
@@ -698,7 +755,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     std::vector<ObjectRef> collector_data;
     collector_data.reserve(collectors.size());
     for (auto& collector : collectors) {
-      collector_data.push_back(collector->Start(dev));
+      collector_data.push_back(collector->Start(dev, call_id));
     }
 
     // TODO(tkonolige): repeated calls if the runtime is small?
@@ -709,9 +766,11 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     }
     Map<String, ObjectRef> combined_results;
     for (auto m : results) {
-      for (auto p : m) {
-        // assume that there is no shared metric name between collectors
-        combined_results.Set(p.first, p.second);
+      if (m.defined()) {
+        for (auto p : m) {
+          // assume that there is no shared metric name between collectors
+          combined_results.Set(p.first, p.second);
+        }
       }
     }
     *ret = combined_results;

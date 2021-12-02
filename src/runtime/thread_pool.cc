@@ -329,6 +329,10 @@ class ThreadPool {
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
 
+  std::set<unsigned int> CoresUsed() const {
+    return threads_->CoresUsed();
+  }
+
  private:
   // Shared initialization code
   void Init() {
@@ -393,6 +397,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
 
 namespace threading {
 void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
+std::set<unsigned int> CoresUsed() { return tvm::runtime::ThreadPool::ThreadLocal()->CoresUsed();}
 /*!
  * \brief configure the CPU id affinity
  * \param mode The preferred CPU type (1 = big, -1 = little, -2 = kSpecifyOneCorePerThread,

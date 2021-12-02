@@ -27,6 +27,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <set>
 
 #if defined(__linux__) || defined(__ANDROID__)
 #if defined(__ANDROID__)
@@ -82,6 +83,11 @@ class ThreadGroup {
    */
   void Join();
 
+  /*! Get the cores used by the thread group
+   * \returns List of cores used by threads in the thread group
+   */
+  std::set<unsigned int> CoresUsed() const;
+
   enum AffinityMode : int {
     kBig = 1,
     kLittle = -1,
@@ -129,6 +135,11 @@ void SetMaxConcurrency(int value);
  * Note that this does nothing when openmp is used.
  */
 void ResetThreadPool();
+
+/*! Get the cores used by the thread group
+ * \returns List of cores used by threads in the thread group
+ */
+std::set<unsigned int> CoresUsed();
 
 /*!
  * \brief Configuring the CPU affinity mode for the working threads.

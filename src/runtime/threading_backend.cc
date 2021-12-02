@@ -36,6 +36,7 @@
 #include <dlfcn.h>
 #endif
 #include <algorithm>
+#include <set>
 #include <thread>
 #define CURRENT_THREAD_HANDLE (static_cast<std::thread::native_handle_type>(0))
 namespace tvm {
@@ -110,6 +111,9 @@ class ThreadGroup::Impl {
     pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
 #endif
 #endif
+    for (auto id : ids) {
+      used_cores_.insert(id);
+    }
   }
 
   // bind worker threads to disjoint cores
@@ -263,6 +267,9 @@ class ThreadGroup::Impl {
   std::vector<unsigned int> sorted_order_;
   int big_count_ = 0;
   int little_count_ = 0;
+
+ public:
+  std::set<unsigned int> used_cores_;
 };
 
 ThreadGroup::ThreadGroup(int num_workers, std::function<void(int)> worker_callback,
@@ -275,6 +282,8 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
                            std::vector<unsigned int> cpus) {
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
+
+std::set<unsigned int> ThreadGroup::CoresUsed() const { return impl_->used_cores_; }
 
 void Yield() { std::this_thread::yield(); }
 /*!

@@ -25,6 +25,8 @@
 #define TVM_RUNTIME_PROFILING_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -180,7 +182,7 @@ class ReportNode : public Object {
    *
    * Each element is a mapping from metric name to value. Some metrics that
    * appear in every call are "Name" (the function name), "Argument Shapes",
-   * and "Duration (us)". Values are one of `String`, `PercentNode`,
+   * and "Duration (us)". Rates are one of `String`, `PercentNode`,
    * `DurationNode`, or `CountNode`.
    */
   Array<Map<String, ObjectRef>> calls;
@@ -267,6 +269,26 @@ class Report : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
 };
 
+class CallIdNode : public Object {
+ public:
+  int32_t id;
+
+  explicit CallIdNode(int32_t a) : id(a) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.CallId";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CallIdNode, Object);
+};
+
+class CallId : public ObjectRef {
+ public:
+  explicit CallId(int32_t a) {
+    auto node = make_object<CallIdNode>(a);
+    data_ = std::move(node);
+  }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CallId, ObjectRef, CallIdNode);
+};
+
 /*! \brief Interface for user defined profiling metric collection.
  *
  * Users can register their own collector by registering a packed function with
@@ -275,14 +297,20 @@ class Report : public ObjectRef {
  * take an Array of Device as input which contains the devices the collector
  * will be run on.
  *
+ * `MetricCollectorNode` supports two different ways of recording profiling
+ * metrics. The first way is by directly returning profiling metrics after each
+ * `Start`/`Stop` pair. The second way is by returning metrics for each
+ * `Start`/`Stop` pair once the entire profiling session has ended.
+ *
  * `MetricCollectorNode`s will be called in the following fashion.
  * \code
  * MetricCollector mc;
  * for (auto op : model) {
- *   auto o = mc.Start();
+ *   auto o = mc.Start(device, call_id);
  *   op();
  *   auto metrics = mc.Stop(o); // metrics are added the profiling report
  * }
+ * auto more_metrics = mc.Finish();
  * \endcode
  */
 class MetricCollectorNode : public Object {
@@ -294,17 +322,37 @@ class MetricCollectorNode : public Object {
   virtual void Init(Array<DeviceWrapper> devs) = 0;
   /*! \brief Start colling metrics for a function call.
    * \param dev The device the call will be run on.
+   * \param call_id Unique identifier of this function call. If returning
+   * results with `Finish`, use this identifier to specify which function call
+   * a set of metrics belongs to.
    * \returns An object used to maintain state of the metric collection. This
    * object will be passed to the corresponding `Stop` call. If the device is
    * not supported, this function will return a nullptr ObjectRef.
    */
-  virtual ObjectRef Start(Device dev) = 0;
+  virtual ObjectRef Start(Device dev, CallId call_id) = 0;
   /*! \brief Stop collecting metrics.
    * \param obj The object created by the corresponding `Start` call.
-   * \returns A set of metric names and the associated values. Values must be
+   * \returns A set of metric names and the associated values. Rates must be
    * one of DurationNode, PercentNode, CountNode, or StringObj.
    */
   virtual Map<String, ObjectRef> Stop(ObjectRef obj) = 0;
+
+  /*! Function called when profiling has finished. Used if the collector needs
+   * to do postprocessing of results.
+   * \returns Mapping from function call identifier to mapping of metric name
+   * to metric value. The function call identifiers must correspond to
+   * identifiers pass to `Start` calls.
+   */
+  virtual Map<CallId, Map<String, ObjectRef>> Finish() {
+    return Map<CallId, Map<String, ObjectRef>>(nullptr);
+  }
+
+  /*! Does this metric collect support nested Start/Stop regions. If nested
+   * regions are not supported, this MetricCollector will only be used to time
+   * innermost regions.
+   * \returns Bool indicating if nested regions are supported.
+   */
+  virtual bool SupportsNested() const = 0;
 
   virtual ~MetricCollectorNode() {}
 
@@ -384,9 +432,8 @@ class Profiler {
    * \param extra_metrics Optional additional profiling information to add to
    * the frame (input sizes, allocations).
    *
-   * `StartCall` may be nested, but each `StartCall` needs a matching
-   * `StopCall`. Function calls are stopped in LIFO order, so calls to
-   * `StartCall` and `StopCall` must be nested properly.
+   * `StartCall` may not be nested, and each `StartCall` needs a matching
+   * `StopCall`.
    */
   void StartCall(String name, Device dev,
                  std::unordered_map<std::string, ObjectRef> extra_metrics = {});
@@ -407,11 +454,15 @@ class Profiler {
   bool IsRunning() const { return is_running_; }
 
  private:
+  void StartCallInternal(String name, Device dev,
+                         std::unordered_map<std::string, ObjectRef> extra_metrics, bool innermost);
+
   std::vector<Device> devs_;
   bool is_running_{false};
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
   std::vector<MetricCollector> collectors_;
+  int32_t counter_{0};
 };
 
 /* \brief A duration in time. */
@@ -457,6 +508,21 @@ class CountNode : public Object {
 
   static constexpr const char* _type_key = "runtime.profiling.Count";
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
+};
+
+/* A rate at which something is happening */
+class RateNode : public Object {
+ public:
+  /* The actual count */
+  double rate;
+
+  /* \brief Construct a new count.
+   * \param a The count.
+   */
+  explicit RateNode(double a) : rate(a) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.Rate";
+  TVM_DECLARE_FINAL_OBJECT_INFO(RateNode, Object);
 };
 
 /*! \brief String representation of an array of NDArray shapes
