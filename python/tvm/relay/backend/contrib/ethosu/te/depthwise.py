@@ -42,6 +42,7 @@ def depthwise_conv2d_compute(
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
+    ofm_dtype: str,
 ) -> te.Tensor:
     """A compute operator representing the capabilities of 2D convolution for the NPU.
 
@@ -96,6 +97,8 @@ def depthwise_conv2d_compute(
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    ofm_dtype : str, optional
+        The Output Feature Map tensor data type. Can be 'int8', 'uint8' or 'int16'.
 
     Returns
     -------
@@ -146,12 +149,14 @@ def depthwise_conv2d_compute(
     depthwise = te.compute(
         (1, ofm_height, ofm_width, channels),
         lambda nn, hh, ww, cc: te.sum(
-            dmaed_ifm(
-                nn, hh * stride_h + rh * dilation_h, ww * stride_w + rw * dilation_w, cc
-            ).astype(ifm.dtype)
-            * weight[cc, rh, rw, 0].astype(ifm.dtype)
-            # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9] + lut_expr).astype(ifm.dtype),
+            (
+                dmaed_ifm(
+                    nn, hh * stride_h + rh * dilation_h, ww * stride_w + rw * dilation_w, cc
+                ).astype(ifm.dtype)
+                * weight[cc, rh, rw, 0].astype(ifm.dtype)
+                # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
+                + (scale_bias[cc, 0] * scale_bias[cc, 9] + lut_expr).astype(ifm.dtype)
+            ).astype(ofm_dtype),
             axis=[rh, rw],
         ),
         name="ethosu_depthwise_conv2d",

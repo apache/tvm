@@ -354,6 +354,7 @@ class DepthwiseConv2DRewriter(DFPatternCallback):
             upscale="NONE",
             ifm_layout=str(params.ifm.layout),
             ofm_layout=str(params.ofm.layout),
+            ofm_dtype=str(params.ofm.dtype),
         )
         return ethosu_depthwise_conv2d
 
@@ -961,6 +962,170 @@ class LegalizeAbs:
         pass
 
 
+class MeanRewriter(DFPatternCallback):
+    """Convert ethosu.mean composite functions to to an equivalent legalization:
+    - Case 1 (axis == [1, 2] and keepsdims == True):
+        ethosu_depthwise_conv2d + ethosu_binary_elementwise
+    - Case 2 (ifm qparams == ofm qparams): ethosu_pooling
+    - Case 3 (else): ethosu_depthwise_conv2d
+    """
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.MeanParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.MeanParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        ifm_shape = params.ifm.shape
+        ofm_shape = params.ofm.shape
+        lut = relay.const([], "int8")
+        axis = params.axis
+        reduced_op = params.ifm.tensor
+
+        # Enforce 4d input
+        if len(ifm_shape) < 4:
+            axis = [x + 1 for x in axis]
+            if len(ifm_shape) == 3:
+                ifm_shape = [1, params.height, params.width, ifm_shape[2]]
+            else:
+                ifm_shape = [1, params.height, params.width, 1]
+            reduced_op = relay.reshape(reduced_op, ifm_shape)
+
+        filter_height = ifm_shape[1] if 1 in axis else 1
+        filter_width = ifm_shape[2] if 2 in axis else 1
+        in_channels = out_channels = ifm_shape[-1]
+
+        # If the height is greater than max kernel height, reshape the input
+        # from [filter_height, filter_width] to [1, (filter_height*filter_width)]
+        # only in the case the axis is [1, 2].
+        if axis == [1, 2] and filter_height > 64:
+            ifm_shape = (ifm_shape[0], 1, filter_height * filter_width, in_channels)
+            filter_width = filter_height * filter_width
+            filter_height = 1
+            reduced_op = relay.reshape(reduced_op, ifm_shape)
+
+        if axis == [1, 2] and params.keepdims:
+            weight_scale = 1
+            weight_values = np.ones([out_channels, filter_height, filter_width, in_channels])
+            scale_bias = vela_api.pack_biases(
+                biases=np.zeros(ifm_shape[-1]),
+                ifm_scale=params.ifm.q_params.scale_f32,
+                ifm_dtype=np.dtype(params.ifm.dtype),
+                weight_scales=np.array([weight_scale], dtype=np.float),
+                ofm_scale=params.ofm.q_params.scale_f32,
+                is_activation_tanh_or_sigmoid=False,
+            )
+
+            reduced_op = ethosu_ops.ethosu_depthwise_conv2d(
+                ifm=reduced_op,
+                weight=relay.const(weight_values, params.ifm.dtype),
+                scale_bias=relay.const(scale_bias, "uint8"),
+                lut=lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                weight_zero_point=0,
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+                kernel_shape=(filter_height, filter_width),
+                ofm_channels=out_channels,
+                ofm_dtype="int16",
+            )
+
+            n = int(filter_height * filter_width)
+            eps = 1 / (256 * (n + 1)) if n % 2 == 0 else 0
+
+            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="uint8"), dtype="uint8")
+
+            reduced_op = ethosu_ops.ethosu_binary_elementwise(
+                ifm=reduced_op,
+                ifm2=scalar_tensor,
+                lut=lut,
+                operator_type="MUL",
+                ifm_scale=float(params.ofm.q_params.scale_f32),
+                ifm_zero_point=int(params.ofm.q_params.zero_point),
+                ifm2_scale=1 / (n - eps),
+                ifm2_zero_point=0,
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+                ifm_channels=out_channels,
+                ifm2_channels=out_channels,
+                reversed_operands=False,
+                ofm_dtype="int8",
+                rounding_mode="NATURAL",
+            )
+        elif (
+            params.ifm.q_params.scale_f32 == params.ofm.q_params.scale_f32
+            and params.ifm.q_params.zero_point == params.ofm.q_params.zero_point
+        ):
+            reduced_op = ethosu_ops.ethosu_pooling(
+                ifm=reduced_op,
+                lut=lut,
+                pooling_type="AVG",
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=0,
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=0,
+                pool_shape=(filter_height, filter_width),
+                ofm_channels=out_channels,
+                rounding_mode="TRUNCATE",
+            )
+        else:
+            weight_scale = 1 / (filter_height * filter_width)
+            weight_values = np.ones([out_channels, filter_height, filter_width, in_channels])
+            bias = -1 * int(params.ifm.q_params.zero_point) * filter_height * filter_width
+
+            scale_bias = vela_api.pack_biases(
+                biases=np.ones([ifm_shape[-1]]) * bias,
+                ifm_scale=params.ifm.q_params.scale_f32,
+                ifm_dtype=np.dtype(params.ifm.dtype),
+                weight_scales=np.array([weight_scale], dtype=np.float),
+                ofm_scale=params.ofm.q_params.scale_f32,
+                is_activation_tanh_or_sigmoid=False,
+            )
+            reduced_op = ethosu_ops.ethosu_depthwise_conv2d(
+                ifm=reduced_op,
+                weight=relay.const(weight_values, params.ifm.dtype),
+                scale_bias=relay.const(scale_bias, "uint8"),
+                lut=lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=0,
+                weight_zero_point=0,
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+                kernel_shape=(filter_height, filter_width),
+                ofm_channels=out_channels,
+                rounding_mode="NATURAL",
+            )
+
+        # Reshape to original ofm shape
+        if len(ofm_shape) < 4:
+            reduced_op = relay.reshape(reduced_op, ofm_shape)
+
+        return reduced_op
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeMean:
+    """This is the pass that wraps the MeanRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(MeanRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -987,6 +1152,7 @@ class LegalizeEthosU:
         mod = LegalizeShl()(mod)
         mod = LegalizeAbs()(mod)
         mod = LegalizeTanh()(mod)
+        mod = LegalizeMean()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)
