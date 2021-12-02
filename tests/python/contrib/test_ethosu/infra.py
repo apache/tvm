@@ -222,7 +222,7 @@ def build_source(module, inputs, outputs, accel="ethos-u55-256", output_toleranc
             inputs=inputs,
             outputs=outputs,
             output_tolerance=output_tolerance,
-            extra_memory_in_bytes=16 * 1024 * 1024,
+            extra_memory_in_bytes=0,
         ),
         interface_api="c",
         use_unpacked_api=True,
