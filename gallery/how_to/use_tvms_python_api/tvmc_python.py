@@ -36,7 +36,7 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 ################################################################################
 # Step 1: Load a model
 # --------------------
-# Let's import our model into tvmc.
+
 # Let's import our model into tvmc. This step converts a machine learning model from 
 # a supported framework into tvm's high level graph representation language called relay. 
 # This is to have a unified starting point for all models in tvm. The frameworks we currently 
