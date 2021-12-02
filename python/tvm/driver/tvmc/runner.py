@@ -34,9 +34,6 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
-import tvm.micro.project as project
-from tvm.micro.project import TemplateProjectError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 from . import common
 from .common import (
     TVMCException,
@@ -47,6 +44,15 @@ from .common import (
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
+
+try:
+    import tvm.micro.project as project
+    from tvm.micro.project import TemplateProjectError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
+
+    SUPPORT_MICRO = True
+except ImportError:
+    SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -134,6 +140,12 @@ def add_run_parser(subparsers, main_parser):
     if vars(known_args).get("device") != "micro":
         # No need to augment the parser for micro targets.
         return
+
+    if SUPPORT_MICRO is False:
+        sys.exit(
+            "'--device micro' is not supported. "
+            "Please build TVM with micro support (USE_MICRO ON)!"
+        )
 
     project_dir = known_args.PATH
 
