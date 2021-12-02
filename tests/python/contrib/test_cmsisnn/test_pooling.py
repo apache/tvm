@@ -143,6 +143,7 @@ def test_op_int8(
     )
 
 
+@tvm.testing.requires_cmsisnn
 def test_invalid_parameters():
     model = make_model(
         pool_op=relay.nn.avg_pool2d,

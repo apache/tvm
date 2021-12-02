@@ -203,6 +203,7 @@ def parameterize_for_invalid_model(test):
     )(test)
 
 
+@tvm.testing.requires_cmsisnn
 @parameterize_for_invalid_model
 def test_invalid_parameters(
     in_dtype,
