@@ -17,7 +17,7 @@
 """
 Getting Starting using TVMC Python, the simplified tvm API
 ==========================================================
-**Authors**:
+**Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_,
 
 Welcome to TVMC Python
