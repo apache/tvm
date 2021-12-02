@@ -503,7 +503,7 @@ class Serial(ForScopeHandler):
             end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
-            if not end:
+            if end is None:
                 end = begin
                 begin = 0
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
@@ -521,7 +521,7 @@ class Parallel(ForScopeHandler):
             end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
-            if not end:
+            if end is None:
                 end = begin
                 begin = 0
             self.create_loop_info(begin, end, ForKind.PARALLEL, annotations=annotations)
@@ -539,7 +539,7 @@ class Vectorized(ForScopeHandler):
             end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
-            if not end:
+            if end is None:
                 end = begin
                 begin = 0
             self.create_loop_info(begin, end, ForKind.VECTORIZED, annotations=annotations)
@@ -557,7 +557,7 @@ class Unroll(ForScopeHandler):
             end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
-            if not end:
+            if end is None:
                 end = begin
                 begin = 0
             self.create_loop_info(begin, end, ForKind.UNROLLED, annotations=annotations)
@@ -576,13 +576,13 @@ class ThreadBinding(ForScopeHandler):
             thread: str = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
-            if not thread:
+            if thread is None:
                 if isinstance(end, str):  # handle case like thread_binding(128, "threadIdx.x")
                     thread = end
                     end = None
                 else:
                     raise ValueError("Thread cannot be None for thread_binding")
-            if not end:
+            if end is None:
                 end = begin
                 begin = 0
             thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread)
