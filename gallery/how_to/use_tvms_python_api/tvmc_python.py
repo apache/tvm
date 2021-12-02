@@ -161,7 +161,7 @@ Additional TVMC Functionalities
 # After the model has been compiled (Step 2) the package also is also saveable.  
 # 
 #    .. code-block:: python
-#      tvmc.compile(model, target="llvm", package_path="whatever") #Step 2: Compile
+#      tvmc.compile(model, target="llvm", package_path="whatever")
 #      
 #      new_package = tvmc.TVMCPackage(package_path="whatever") 
 #      result = tvmc.run(new_package) #Step 3: Run
