@@ -175,7 +175,7 @@ Additional TVMC Functionalities
 # previously where they needed to be hand written. (Learn more: 1, 2) 
 # 
 #    .. code-block:: python
-#      tvmc.tune(model, target="llvm", enable_autoscheduler = True) #Step 1.5: Optional Tune
+#      tvmc.tune(model, target="llvm", enable_autoscheduler = True)
 #
 
 ################################################################################
