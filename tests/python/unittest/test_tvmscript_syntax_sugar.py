@@ -20,7 +20,7 @@ import sys
 import pytest
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
-from tvm.tir import check_error
+from tvm.testing import check_error
 
 
 @T.prim_func

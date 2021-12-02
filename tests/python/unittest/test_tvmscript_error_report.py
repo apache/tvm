@@ -19,7 +19,7 @@ import pytest
 import sys
 import tvm
 from tvm import tir
-from tvm.tir import check_error
+from tvm.testing import check_error
 from tvm.script import tir as T
 from tvm.ir.diagnostics import override_renderer
 import inspect
