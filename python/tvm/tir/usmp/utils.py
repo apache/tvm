@@ -114,14 +114,6 @@ class BufferInfo(Object):
             alignment,
         )
 
-    def set_pool_candidates(self, pool_candidates: list):
-        """Sets the pool candidate names"""
-        _ffi_api.BufferInfoSetPoolCandidates(self, pool_candidates)
-
-    def set_pool_offsets(self, pool_name: str, pool_offset: int):
-        """Sets the pool offset by name"""
-        _ffi_api.BufferInfoSetPoolOffset(self, pool_name, pool_offset)
-
     def set_conflicts(self, conflicts: list):
         """Sets the the conflicting array of buffer info objects"""
         _ffi_api.BufferInfoSetConflicts(self, conflicts)
