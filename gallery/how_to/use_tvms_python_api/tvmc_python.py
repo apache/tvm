@@ -40,7 +40,7 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # Let's import our model into tvmc. This step converts a machine learning model from 
 # a supported framework into TVM's high level graph representation language called relay. 
 # This is to have a unified starting point for all models in tvm. The frameworks we currently 
-# support are: Keras, Onnx, Tensorflow, TFLite, and Pytorch.
+# support are: Keras, ONNX, Tensorflow, TFLite, and PyTorch.
 # 
 # .. code-block:: python
 #      model = tvmc.load('my_model.onnx') #Step 1: Load
