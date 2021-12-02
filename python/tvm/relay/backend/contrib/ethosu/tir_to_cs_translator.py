@@ -280,13 +280,13 @@ def assign_addresses(buffer_info, npu_ops):
     total_constant_len = 0
     buffer_addresses = dict()
     for _buffer, info in buffer_info.items():
-        dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
         if info.values is not None:
             assert info.btype == BufferType.constant
             assert len(info.shape) == 1
             buffer_addresses[_buffer] = (
                 (total_constant_len, info.btype) if constant_hex_data else (0, info.btype)
             )
+            dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
             size_in_bytes = dtype_bytes * np.prod(list(info.shape))
             # Every memory address the NPU access have to be 16 byte aligned
             size_in_bytes = util.round_up(size_in_bytes, 16)
@@ -306,6 +306,7 @@ def assign_addresses(buffer_info, npu_ops):
                 address = arch_config.lut_start_address
                 buffer_addresses[_buffer] = (address, info.btype)
             else:
+                dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
                 size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
                 # Every memory address the NPU access have to be 16 byte aligned
                 size_in_bytes = util.round_up(size_in_bytes, 16)
