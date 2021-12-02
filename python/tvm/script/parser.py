@@ -272,7 +272,6 @@ class TVMScriptParser(Transformer):
                 f"but it is {type(func).__name__}",
                 node_call.span,
             )
-
         # check arguments and parameter list and get a list of arguments
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list

@@ -16,7 +16,7 @@
 # under the License.
 """TVM Script Parser Scope Handler Classes"""
 # pylint: disable=redefined-builtin, unused-argument, invalid-name, relative-beyond-top-level
-from typing import Tuple, Any, Callable, Optional, List, Union, Mapping, overload
+from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
 import tvm.tir
