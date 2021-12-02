@@ -222,17 +222,6 @@ def get_shape_expr(in_expr, out_expr):
     return shape
 
 
-def compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation):
-    if padding.lower() == "valid":
-        h = math.ceil((ifm_shape[1] - (kernel_shape[0] - 1) * dilation[0]) / strides[0])
-        w = math.ceil((ifm_shape[2] - (kernel_shape[1] - 1) * dilation[1]) / strides[1])
-    if padding.lower() == "same":
-        h = math.ceil(ifm_shape[1] / strides[0])
-        w = math.ceil(ifm_shape[2] / strides[1])
-    ofm_shape = [ifm_shape[0], h, w, kernel_shape[3]]
-    return ofm_shape
-
-
 INVERSE_LAYOUT_TRANSFORM_OHWI_MAP = {
     "HWIO": [1, 2, 3, 0],
     "HWOI": [1, 2, 0, 3],
@@ -245,7 +234,7 @@ INVERSE_LAYOUT_TRANSFORM_OHWI_MAP = {
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("activation", [None, "RELU"])
-def test_tflite_conv_2d_legalize(ifm_shape, kernel_shape, padding, strides, dilation, activation):
+def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilation, activation):
     dtype = "int8"
 
     def create_tflite_graph_single():
@@ -298,7 +287,8 @@ def test_tflite_conv_2d_legalize(ifm_shape, kernel_shape, padding, strides, dila
 
         # check OFM
         ofm = op.checked_type
-        expected_ofm_shape = compute_ofm_shape(ifm_shape, padding, kernel_shape, strides, dilation)
+        expected_ofm_shape = infra.compute_ofm_shape(
+            ifm_shape, padding, kernel_shape, strides, dilation)
         assert list(ofm.shape) == list(expected_ofm_shape)
         assert str(ofm.dtype) == dtype
         assert ofm.shape[3] == ofm_channels
