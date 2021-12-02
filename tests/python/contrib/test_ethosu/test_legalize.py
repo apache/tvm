@@ -288,7 +288,8 @@ def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilat
         # check OFM
         ofm = op.checked_type
         expected_ofm_shape = infra.compute_ofm_shape(
-            ifm_shape, padding, kernel_shape, strides, dilation)
+            ifm_shape, padding, kernel_shape, strides, dilation
+        )
         assert list(ofm.shape) == list(expected_ofm_shape)
         assert str(ofm.dtype) == dtype
         assert ofm.shape[3] == ofm_channels
