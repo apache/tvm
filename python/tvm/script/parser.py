@@ -596,7 +596,7 @@ class TVMScriptParser(Transformer):
         else:
             if symbol.dtype == "handle" and len(indexes) != 1:
                 self.report_error(
-                    "Handles only support one-dimensional indexing. Use `T.match_buffer` to " \
+                    "Handles only support one-dimensional indexing. Use `T.match_buffer` to "
                     "construct a multidimensional buffer from a handle.",
                     node.params[0].span,
                 )
