@@ -60,6 +60,13 @@ if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
 fi
 cd ..
 
+if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
+    echo "PYTHON_DOCS_ONLY was set, skipping other doc builds"
+    rm -rf _docs
+    mv docs/_build/html _docs
+    exit 0
+fi
+
 # C++ doc
 make doc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
@@ -89,10 +96,12 @@ mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
 mv web/dist/docs _docs/reference/api/typedoc
 
-echo "Start creating the docs tarball.."
-# make the tarball
-tar -C _docs -czf docs.tgz .
-echo "Finish creating the docs tarball"
-du -h docs.tgz
+if [ "$IS_LOCAL" != "1" ]; then
+    echo "Start creating the docs tarball.."
+    # make the tarball
+    tar -C _docs -czf docs.tgz .
+    echo "Finish creating the docs tarball"
+    du -h docs.tgz
 
-echo "Finish everything"
+    echo "Finish everything"
+fi

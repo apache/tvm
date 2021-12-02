@@ -85,6 +85,10 @@ Usage: docker/bash.sh [-i|--interactive] [--net=host] [-t|--tty]
 
     Print the docker command to be run, but do not execute it.
 
+--env
+
+    Pass an environment variable through to the container.
+
 --name
 
     Set the name of the docker container, and the hostname that will
@@ -149,6 +153,7 @@ function parse_error() {
 # to overwrite the parent scope's behavior.
 break_joined_flag='if (( ${#1} == 2 )); then shift; else set -- -"${1#-i}" "${@:2}"; fi'
 
+DOCKER_ENV=( )
 
 while (( $# )); do
     case "$1" in
@@ -193,6 +198,11 @@ while (( $# )); do
             else
                 parse_error 'ERROR: --name requires a non empty argument'
             fi
+            ;;
+
+        --env)
+            DOCKER_ENV+=( --env "$2" )
+            shift 2
             ;;
 
         --dry-run)
@@ -263,7 +273,6 @@ fi
 source "$(dirname $0)/dev_common.sh" || exit 2
 
 DOCKER_FLAGS=( )
-DOCKER_ENV=( )
 DOCKER_MOUNT=( )
 DOCKER_DEVICES=( )
 

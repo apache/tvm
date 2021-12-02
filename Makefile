@@ -177,4 +177,4 @@ jvminstall:
 clean: cmake_clean cyclean webclean
 
 docs:
-	bash docs/ci.sh
+	python3 tests/scripts/ci.py docs
