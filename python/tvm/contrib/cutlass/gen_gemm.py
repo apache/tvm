@@ -125,6 +125,9 @@ def create_gemm_operator(
                     op.leading_dim(),
                 )
                 op_entry["runtime"] = 9999999
+                op_entry["tile_description"] = tile_description
+                op_entry["alignment"] = alignment
+                op_entry["data_type"] = data_type
                 ret.append(op_entry)
     return ret
 

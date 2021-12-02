@@ -55,6 +55,11 @@ def make_batch_matmul_pattern():
     return is_op("nn.batch_matmul")(wildcard(), wildcard())
 
 
+def make_conv2d_pattern():
+    # TODO(masahi): Check layout and alignment
+    return is_op("nn.conv2d")(wildcard(), wildcard())
+
+
 def partition_for_cutlass(mod):
     """Partition the input module into CUTLASS-supported subgraphs."""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
@@ -72,6 +77,8 @@ def partition_for_cutlass(mod):
         dense_bias_pat,
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern()),
+        # TODO(masahi): Add more conv2d patterns
+        ("cutlass.conv2d", make_conv2d_pattern()),
     ]
     mod = transform.MergeComposite(cutlass_patterns)(mod)
     mod = transform.AnnotateTarget(["cutlass"])(mod)
