@@ -17,13 +17,13 @@
 
 if(USE_ETHOSU)
   tvm_file_glob(GLOB COMPILER_ETHOSU_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/ethosu/*
-       CONFIGURE_DEPENDS src/contrib/ethosu/cascader/*)
+                src/relay/backend/contrib/ethosu/*
+                src/contrib/ethosu/cascader/*)
   list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
 else()
   # Keeping just utils.cc because it has Object definitions
   # used by python side
   tvm_file_glob(GLOB COMPILER_ETHOSU_SRCS
-          CONFIGURE_DEPENDS src/relay/backend/contrib/ethosu/utils.cc)
+                src/relay/backend/contrib/ethosu/utils.cc)
   list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
 endif(USE_ETHOSU)
