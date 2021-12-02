@@ -22,6 +22,8 @@ import sys
 import multiprocessing
 import os
 import click
+import getpass
+import contextlib
 import subprocess
 from pathlib import Path
 from typing import List, Dict, Any
@@ -62,6 +64,12 @@ def cmd(commands: List[Any], **kwargs: Any):
         raise RuntimeError(f"Command failed: '{command_str}'")
 
 
+def cleanup():
+    # chown the directories back to the current user in case Docker generated
+    # files with a different user ID
+    cmd(["sudo", "chown", getpass.getuser(), REPO_ROOT, "-R"])
+
+
 def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     """
     Invoke a set of bash scripts through docker/bash.sh
@@ -76,9 +84,12 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     try:
         cmd(command)
     except RuntimeError as e:
+        cleanup()
         clean_exit(f"Error invoking Docker: {e}")
     except KeyboardInterrupt:
         cmd(["sudo", "docker", "stop", name])
+
+    cleanup()
 
 
 @click.group()
@@ -120,9 +131,7 @@ def docs(full: bool, precheck: bool) -> None:
 
 
 @cli.command()
-@click.option(
-    "--directory", default="_docs"
-)
+@click.option("--directory", default="_docs")
 def serve_docs(directory) -> None:
     """
     Serve the docs using Python's http server
@@ -131,6 +140,19 @@ def serve_docs(directory) -> None:
     if not directory.exists():
         clean_exit("Docs have not been build, run 'ci.py docs' first")
     cmd([sys.executable, "-m", "http.server"], cwd=directory)
+
+
+@cli.command()
+def lint() -> None:
+    """
+    Serve the docs using Python's http server
+    """
+    docker(
+        name="ci-lint",
+        image="tlcpack/ci-lint:v0.67",
+        scripts=["./tests/scripts/task_lint.sh"],
+        env={},
+    )
 
 
 if __name__ == "__main__":
