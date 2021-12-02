@@ -14,20 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import tvm
+# pylint: disable=invalid-name, import-outside-toplevel, unused-variable
+"""Common utility functions in TVM tir"""
 import inspect
+import tvm
+from tvm.ir.diagnostics import override_renderer
 
 
 def check_error(func, rel_lineno):
+    """check if TIR script throws error"""
     # Override the default renderer to accumulate errors
     errors = []
 
     def render(e):
         for d in e.diagnostics:
             errors.append(d)
-
-    from tvm.ir.diagnostics import override_renderer
 
     override_renderer(render)
     # The diagnostic context throws an exception when it gets an error
@@ -36,6 +37,7 @@ def check_error(func, rel_lineno):
         source_code = "@T.prim_func\n" + source_code
         from tvm.script import from_source
 
+        # to avoid cyclic import
         from_source(source_code)
     except tvm.error.DiagnosticError as e:
         pass
