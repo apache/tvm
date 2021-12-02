@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Getting Starting using TVMC Python, the simplified tvm API
+Getting Starting using TVMC Python: a high-level API for TVM
 ==========================================================
 **Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_,
@@ -71,9 +71,9 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # In order to compile a model a tvm.target string is required. 
 # To learn more about tvm.targets and their options look at the `documentation <https://tvm.apache.org/docs/api/python/target.html>`_. 
 # Some examples include:
-# 1. cuda (nvidia gpu)
-# 2. llvm (cpu)
-# 3. llvm -mcpu=cascadelake (intel cpu)
+# 1. cuda (Nvidia GPU)
+# 2. llvm (CPU)
+# 3. llvm -mcpu=cascadelake (Intel CPU)
 #
 #  .. code-block:: python
 #      package = tvmc.compile(model, target="llvm") #Step 2: Compile
@@ -100,7 +100,7 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # Run speed can further be improved by tuning. This optional step uses 
 # machine learning to look at each operation within a model (a function) and 
 # tries to find a faster way to run it. We do this through a cost model, and 
-# bench marking possible schedules.
+# benchmarking possible schedules.
 # 
 # The target is the same as compile. 
 # 
@@ -219,7 +219,7 @@ Additional TVMC Functionalities
 ################################################################################
 # Compiling a model for a remote device:
 # 
-# A remote procedural call is useful when you would like to compile for hardware 
+# A remote procedural call (RPC) is useful when you would like to compile for hardware 
 # that is not on your local machine. The tvmc methods support this. 
 # To set up the RPC server take a look at the 'Set up RPC Server on Device' 
 # section in this `document <https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html>`_. 
