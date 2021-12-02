@@ -23,11 +23,6 @@ from pathlib import Path
 import shutil
 import sys
 
-import tvm.micro.project as project
-from tvm.micro import get_microtvm_template_projects
-from tvm.micro.build import MicroTVMTemplateProjectNotFoundError
-from tvm.micro.project_api.server import ServerError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 from .main import register_parser
 from .common import (
     TVMCException,
@@ -36,20 +31,35 @@ from .common import (
     get_and_check_options,
 )
 
+try:
+    import tvm.micro.project as project
+    from tvm.micro import get_microtvm_template_projects
+    from tvm.micro.build import MicroTVMTemplateProjectNotFoundError
+    from tvm.micro.project_api.server import ServerError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 
-TEMPLATES = {}
-for p in ("zephyr", "arduino"):
-    try:
-        TEMPLATES[p] = get_microtvm_template_projects(p)
-    except MicroTVMTemplateProjectNotFoundError:
-        pass
+    SUPPORT_MICRO = True
+except (ImportError, NameError):
+    SUPPORT_MICRO = False
 
 
 @register_parser
 def add_micro_parser(subparsers, main_parser):
     """Includes parser for 'micro' context and associated subcommands:
-    create-project, build, and flash.
+    create-project (create), build, and flash.
     """
+
+    if SUPPORT_MICRO is False:
+        # Don't create 'tvmc micro' parser.
+        return
+
+    # Probe available default platform templates.
+    templates = {}
+    for p in ("zephyr", "arduino"):
+        try:
+            templates[p] = get_microtvm_template_projects(p)
+        except MicroTVMTemplateProjectNotFoundError:
+            pass
 
     micro = subparsers.add_parser("micro", help="select micro context.")
     micro.set_defaults(func=drive_micro)
@@ -132,7 +142,7 @@ def add_micro_parser(subparsers, main_parser):
         subcmd_parser = subcmd_parser_handler[0]
         subcmd_parser.required = True  # Selecting a platform or template is mandatory
         parser_by_platform = {}
-        for platform in TEMPLATES:
+        for platform in templates:
             new_parser = _add_parser(subcmd_parser, platform)
             parser_by_platform[platform] = new_parser
 
@@ -169,7 +179,7 @@ def add_micro_parser(subparsers, main_parser):
         template_dir = str(Path(known_args.template_dir).resolve())
     else:
         # default template
-        template_dir = TEMPLATES[platform]
+        template_dir = templates[platform]
 
     try:
         template = project.TemplateProject.from_directory(template_dir)
