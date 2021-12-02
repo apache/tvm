@@ -24,9 +24,12 @@ from __future__ import print_function
 import threading
 import numpy as np
 import pytest
+from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
 try:
     import tensorflow.compat.v1 as tf
+
+    tf.compat.v1.enable_eager_execution()
 except ImportError:
     import tensorflow as tf
 
@@ -1738,54 +1741,50 @@ def test_forward_variable():
 def test_read_variable_op(target, dev):
     """Read Variable op test"""
 
-    tf.reset_default_graph()
     data = np.random.uniform(size=(32, 100)).astype("float32")
-    input_tensor = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-
-    size = input_tensor.shape.dims[1]
+    size = data.shape[1]
     var_data = np.random.uniform(-5, 5, size=[size, size]).astype(np.float32)
     input_var = tf.Variable(var_data, name="var1", use_resource=True)
-    math_ops.matmul(input_tensor, input_var)
 
     out_name = ["MatMul:0"]
-    out_node = ["MatMul"]
-    in_name = ["Placeholder:0"]
-    in_node = ["Placeholder"]
+    in_node = ["InputTensor"]
+    in_name = ["InputTensor:0"]
     in_data = [data]
 
-    with tf.Session() as sess:
-        sess.run(variables.global_variables_initializer())
+    @tf.function
+    def graph_def(InputTensor):
+        return tf.matmul(InputTensor, input_var)
 
-        final_graph_def = sess.graph.as_graph_def(add_shapes=True)
-        tf_output = run_tf_graph(sess, in_data, in_name, out_name)
+    tf_output = graph_def(in_data)
 
-        shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
-        with pytest.raises(Exception) as execinfo:
-            mod, params = relay.frontend.from_tensorflow(
-                final_graph_def, layout=None, shape=shape_dict, outputs=None
-            )
-
-        assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
-
-        # Now convert the variables to constant and run inference on the converted graph
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            out_node,
+    shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
+    with pytest.raises(Exception) as execinfo:
+        mod, params = relay.frontend.from_tensorflow(
+            graph_def.get_concrete_function(InputTensor=var_data).graph.as_graph_def(),
+            layout=None,
+            shape=shape_dict,
+            outputs=None,
         )
 
-        tvm_output = run_tvm_graph(
-            final_graph_def,
-            in_data,
-            in_node,
-            target=target,
-            out_names=out_name,
-            num_output=len(out_name),
-        )
-        for i in range(len(tf_output)):
-            tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
+    assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
-        sess.close()
+    # Now convert the variables to constants
+    final_graph = convert_variables_to_constants_v2(
+        graph_def.get_concrete_function(InputTensor=var_data)
+    )
+
+    # Run inference on the converted graph
+    tvm_output = run_tvm_graph(
+        final_graph.graph.as_graph_def(),
+        in_data,
+        in_node,
+        target=target,
+        out_names=out_name,
+        num_output=len(out_name),
+    )
+
+    for i in range(len(tf_output)):
+        tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
 
 #######################################################################
