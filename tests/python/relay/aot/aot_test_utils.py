@@ -768,6 +768,7 @@ def run_and_check(
     with open(run_log_path) as run_log:
         assert AOT_SUCCESS_TOKEN in run_log.read()
 
+
 def compile_and_run(
     models: Union[List[AOTTestModel], AOTTestModel],
     runner: AOTTestRunner,
