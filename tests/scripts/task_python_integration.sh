@@ -60,9 +60,6 @@ run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_p
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
-if python -c "import tvm; from tvm.relay.op.contrib.ethosn import ethosn_available; print(ethosn_available().name)" -eq "SW_ONLY"; then
-  ETHOSN_VARIANT_CONFIG=ETHOSN78_1TOPS_4PLE_448KSRAM run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosn tests/python/contrib/test_ethosn
-fi
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
 
 # forked is needed because the global registry gets contaminated
@@ -74,3 +71,8 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
+
+
+if [ -z "${TVM_INTEGRATION_GPU_ONLY:-}" ] && [ -z "${TVM_INTEGRATION_I386_ONLY:-}" ] ; then
+    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-m7-simd tests/python/integration/test_arm_mprofile_dsp.py --enable-corstone300-tests
+fi

@@ -26,6 +26,7 @@ from tvm.ir.expr import PrimExpr, Range
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
+from tvm.target import Target
 from tvm.ir import Span
 from tvm.tir import IntImm, IterVar
 
@@ -288,7 +289,11 @@ class AllocBuffer(SpecialStmt):
                 buffer_type,
                 span=span,
             )
-            self.context.current_block_scope().alloc_buffers.append(buffer)
+            if self.context.current_block_scope():
+                self.context.current_block_scope().alloc_buffers.append(buffer)
+            else:
+                # If it is allocated outside all blocks, allocate it under root block.
+                self.context.root_alloc_buffers.append(buffer)
             self.context.update_symbol(buffer_name, buffer, self.node)
 
         super().__init__(alloc_buffer, def_symbol=True)
@@ -309,6 +314,11 @@ class BlockReads(SpecialStmt):
         def reads(read_regions: Union[BufferSlice, List[BufferSlice]], span: Span = None):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
+            if block_scope is None:
+                self.context.report_error(
+                    "Expected to declare read regions inside a block.",
+                    span,
+                )
             if block_scope.reads is not None:
                 self.context.report_error(
                     "Duplicate write region declaration, "
@@ -344,6 +354,11 @@ class BlockWrites(SpecialStmt):
         def writes(write_region: Union[BufferSlice, List[BufferSlice]], span: Span = None):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
+            if block_scope is None:
+                self.context.report_error(
+                    "Expected to declare write regions inside a block.",
+                    span,
+                )
             if block_scope.writes is not None:
                 self.context.report_error(
                     "Duplicate write region declaration, "
@@ -381,6 +396,11 @@ class BlockAttr(SpecialStmt):
         def block_attr(attrs: Mapping[str, Object], span: Span = None):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
+            if block_scope is None:
+                self.context.report_error(
+                    "Expected to declare block annotations inside a block.",
+                    span,
+                )
             if block_scope.annotations is not None:
                 self.context.report_error(
                     "Duplicate block annotations declaration, "
@@ -438,16 +458,23 @@ class BlockAxis(SpecialStmt):
         """
         assert self.context, "call 'exit_scope' before 'enter_scope'"
         block_scope: BlockInfo = self.context.current_block_scope()
+        if block_scope is None:
+            self.context.report_error(
+                "Expected to declare block axes inside a block.",
+                self.node.span,
+            )
         if var_name in [iter_var.var.name for iter_var in block_scope.iter_vars]:
             self.context.report_error("Duplicate block axis " + var_name, self.node.span)
 
         block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
-            dom = tvm.ir.Range.from_min_extent(0, dom)
+            dom = tvm.ir.Range(dom)
+        elif isinstance(dom, tvm.ir.container.Array) and len(dom) == 2:
+            dom = tvm.ir.Range(dom[0], dom[1])
         elif not isinstance(dom, tvm.ir.Range):
             self.context.report_error(
-                f"Block axis domain expected PrimExpr or Range, but got {type(value)}",
+                f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
         value = tvm.runtime.convert(value)
@@ -721,6 +748,11 @@ class BlockPredicate(SpecialStmt):
         def where(predicate, span=None):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
+            if block_scope is None:
+                self.context.report_error(
+                    "Expected to declare the predicate inside a block.",
+                    span,
+                )
             if block_scope.predicate is not None:
                 self.context.report_error(
                     "Duplicate block predicate declaration, "
@@ -810,3 +842,26 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class TargetAttrValue(SpecialStmt):
+    """Special Stmt for target attr value.
+    Example
+    -------
+    .. code-block:: python
+        T.target("llvm")
+    """
+
+    def __init__(self):
+        def target(*args, span):
+            self.context.report_error(f"T.target should not appear as a stmt", span)
+
+        super().__init__(target, def_symbol=False)
+
+    def __call__(self, target_config):
+        if not isinstance(target_config, (str, dict)):
+            raise ValueError(
+                f"T.target expected a config dict or string, but got {type(target_config)}"
+            )
+        return Target(target_config)

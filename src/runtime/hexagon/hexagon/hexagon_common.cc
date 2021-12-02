@@ -20,6 +20,7 @@
 /*!
  * \file hexagon_common.cc
  */
+#define TVM_LOG_CUSTOMIZE 1
 
 #include "hexagon_common.h"
 
@@ -31,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../library_module.h"
 #include "hexagon_buffer.h"
 
 namespace tvm {
@@ -132,5 +134,10 @@ void LogMessageImpl(const std::string& file, int lineno, const std::string& mess
 
 TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params")
     .set_body(hexagon::HexagonLookupLinkedParam);
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
+  *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+});
 }  // namespace runtime
 }  // namespace tvm

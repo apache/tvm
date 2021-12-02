@@ -23,6 +23,8 @@
  */
 #include "metadata_module.h"
 
+#include <tvm/relay/runtime.h>
+
 #include <vector>
 
 #include "../runtime/meta_data.h"
@@ -32,21 +34,10 @@
 namespace tvm {
 namespace codegen {
 
-/*!
- * \brief Create a metadata module wrapper. The helper is used by different
- *        codegens, such as graph executor codegen and the vm compiler.
- *
- * \param params The metadata for initialization of all modules.
- * \param target_module the internal module that is compiled by tvm.
- * \param ext_modules The external modules that needs to be imported inside the metadata
- * module(s).
- * \param target The target that all the modules are compiled for
- * \return The created metadata module that manages initialization of metadata.
- */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
-    runtime::Metadata metadata) {
+    tvm::relay::Runtime runtime, runtime::Metadata metadata) {
   // Here we split modules into two groups:
   //  1. Those modules which can be exported to C-runtime. These are DSO-exportable
   //     (i.e. llvm or c) modules which return nothing from get_const_vars().
@@ -58,8 +49,7 @@ runtime::Module CreateMetadataModule(
     return !std::strcmp(mod->type_key(), "llvm") || !std::strcmp(mod->type_key(), "c");
   };
 
-  bool is_targeting_crt =
-      target.defined() && target->GetAttr<String>("runtime").value_or(String("")) == kTvmRuntimeCrt;
+  bool is_targeting_crt = runtime->name == "crt";
 
   // Wrap all submodules in the initialization wrapper.
   std::unordered_map<std::string, std::vector<std::string>> sym_metadata;
@@ -114,11 +104,12 @@ runtime::Module CreateMetadataModule(
 
     if (target->kind->name == "c") {
       crt_exportable_modules.push_back(target_module);
-      target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, metadata);
+      target_module =
+          CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
     } else if (target->kind->name == "llvm") {
 #ifdef TVM_LLVM_VERSION
       crt_exportable_modules.push_back(target_module);
-      target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target);
+      target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target, runtime);
 #else   // TVM_LLVM_VERSION
       LOG(FATAL) << "TVM was not built with LLVM enabled.";
 #endif  // TVM_LLVM_VERSION

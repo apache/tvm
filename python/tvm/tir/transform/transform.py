@@ -206,6 +206,17 @@ def InjectDoubleBuffer():
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 
@@ -575,6 +586,18 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElseBasic()  # type: ignore
     elif variant is None:
         return _ffi_api.HoistIfThenElse()  # type: ignore
+
+
+def LowerCrossThreadReduction():
+    """Lower cross-thread reduction from thread bindings to
+    intrinsic function calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
 
 
 def LowerInitBlock():

@@ -36,11 +36,29 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     for i, j in T.grid(128, 128):
         with T.block("init"):
             vi, vj = T.axis.remap("SS", [i, j])
-            C[vi, vj] = T.float32(0)
+            C[vi, vj] = 0.0
         for k in range(0, 128):
             with T.block("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024))
+    B = T.match_buffer(b, (1024, 1024))
+    C = T.alloc_buffer((1024, 1024))
+    D = T.match_buffer(d, (1024, 1024))
+    for i, j, k in T.grid(1024, 1024, 1024):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(1024, 1024):
+        with T.block("relu"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -140,6 +158,45 @@ def test_tir_schedule_remove_rv():
     sch.remove_rv(block_rv)
     with pytest.raises(IndexError):
         sch.get(block_rv)
+
+
+def test_get_child_blocks():
+    s = tir.Schedule(matmul, debug_mask="all")
+    init = s.get_block("init")
+    update = s.get_block("update")
+    # loop
+    blocks = s.get_child_blocks(s.get_loops(init)[0])
+    assert len(blocks) == 2
+    assert s.get(init) == s.get(blocks[0])
+    assert s.get(update) == s.get(blocks[1])
+    # block
+    root = s.get_block("root")
+    blocks = s.get_child_blocks(root)
+    assert len(blocks) == 2
+    assert s.get(init) == s.get(blocks[0])
+    assert s.get(update) == s.get(blocks[1])
+
+
+def test_get_producers():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    block = sch.get_block("relu")
+    (producer,) = sch.get_producers(block)
+    assert tvm.ir.structural_equal(
+        sch.get_sref(producer).stmt,
+        sch.get_sref(sch.get_block("matmul")).stmt,
+    )
+    verify_trace_roundtrip(sch, mod=matmul_relu)
+
+
+def test_get_consumers():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    block = sch.get_block("matmul")
+    (consumer,) = sch.get_consumers(block)
+    assert tvm.ir.structural_equal(
+        sch.get_sref(consumer).stmt,
+        sch.get_sref(sch.get_block("relu")).stmt,
+    )
+    verify_trace_roundtrip(sch, mod=matmul_relu)
 
 
 if __name__ == "__main__":

@@ -19,9 +19,8 @@
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
 # pylint: disable=missing-function-docstring
 """PT: PyTorch frontend."""
-import itertools
 import functools
-import logging
+import itertools
 import math
 import sys
 
@@ -40,11 +39,11 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind, lstm_cell, gru_cell
-from .common import infer_value as _infer_value
+from .common import AttrCvt, get_relay_op, gru_cell, logger
 from .common import infer_shape as _infer_shape
+from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import try_infer_value
+from .common import lstm_cell, try_infer_value, unbind
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -1010,6 +1009,9 @@ class PyTorchOpConverter:
         elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
+            if use_transpose:
+                # Transposed convolutions have IOHW layout.
+                kernel_layout = "IOHW"
         else:
             data_layout = "NCW"
             kernel_layout = "OIW"
@@ -1819,7 +1821,7 @@ class PyTorchOpConverter:
 
             def func(x):
                 return _op.image.resize2d(
-                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                    x, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
                 )
 
             if self.is_quantized_tensor(data):
@@ -1851,7 +1853,7 @@ class PyTorchOpConverter:
             else:
                 coord_trans = "half_pixel"
 
-            return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+            return _op.image.resize3d(data, out_size, None, "NCDHW", method, coord_trans)
 
         return upsample3d
 
@@ -2183,7 +2185,9 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
+        return _op.image.resize2d(
+            data, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
+        )
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2197,7 +2201,7 @@ class PyTorchOpConverter:
         weights = inputs[1]
         input_type = self.infer_type(data).dtype
         if input_type == "int64":
-            logging.warning(
+            logger.warning(
                 "Casting an int64 input to int32, since we do not have int64 atomic add"
                 "needed for bincount yet."
             )
@@ -2275,7 +2279,7 @@ class PyTorchOpConverter:
         assert len(inputs) == 4
         [data, is_sorted, return_inverse, return_counts] = inputs
         if not is_sorted:
-            logging.warning("TVM always assumes sorted=True for torch.unique")
+            logger.warning("TVM always assumes sorted=True for torch.unique")
             is_sorted = True
         if return_counts:
             [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
@@ -3255,7 +3259,7 @@ class PyTorchOpConverter:
                     unpacked = _unpack_tuple(inputs[0])
                 outputs.update(zip(_get_output_names(op_node), unpacked))
             elif operator == "prim::prim::RaiseException":
-                logging.warning("raising exceptions is ignored")
+                logger.warning("raising exceptions is ignored")
                 outputs[node_name] = None
             elif operator == "prim::If":
                 if_out = self.convert_if(op_node, outputs)
@@ -3483,7 +3487,7 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         if typ.scalarType() is None:
             # Tensor's type can be unknown if we use torch.jit.script(...)
             # Defaults can be passed in, if not it is float32
-            logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
+            logger.warning("Untyped Tensor found, assume it is %s", default_dtype)
             return default_dtype
         else:
             return _convert_data_type(typ.scalarType())

@@ -74,10 +74,10 @@ def test_mod_export():
         synthetic_llvm_mod, synthetic_llvm_params = relay.testing.synthetic.get_workload()
         with tvm.transform.PassContext(opt_level=3):
             _, synthetic_gpu_lib, _ = relay.build_module.build(
-                synthetic_mod, "cuda", params=synthetic_params
+                synthetic_mod, "cuda", params=synthetic_params, mod_name="cudalib"
             )
             _, synthetic_llvm_cpu_lib, _ = relay.build_module.build(
-                synthetic_llvm_mod, "llvm", params=synthetic_llvm_params
+                synthetic_llvm_mod, "llvm", params=synthetic_llvm_params, mod_name="llvmlib"
             )
 
         from tvm.contrib import utils

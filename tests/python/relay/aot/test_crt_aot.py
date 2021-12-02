@@ -27,6 +27,7 @@ from tvm.ir.module import IRModule
 from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.backend import Executor, Runtime
 from aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
@@ -623,6 +624,39 @@ def test_name_sanitiser_name_clash():
         )
 
 
+# This tests for deprecated AOT executor arguments
+# TODO(Mousius) Remove deprecated arguments later
+def test_deprecated_target_arguments(capsys):
+    """Tests we can still use relay.build with -executor, -runtime and -link-params"""
+
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_DEFAULT_RUNNER
+
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    x_in = np.ones((1, 10)).astype("float32")
+    y_in = np.random.uniform(size=(1, 10)).astype("float32")
+
+    params = {"x": x_in}
+    inputs = {"y": y_in}
+    output_list = generate_ref_data(func, inputs, params)
+
+    compile_and_run(
+        AOTTestModel(
+            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+        use_runtime_executor=False,
+        target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
+    )
+
+
 @pytest.mark.parametrize(
     "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
     [
@@ -633,10 +667,16 @@ def test_name_sanitiser_name_clash():
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
     mod, params = tvm.relay.testing.synthetic.get_workload()
-
-    target = f"c -runtime=c --link-params --executor=aot --workspace-byte-alignment={workspace_byte_alignment}"
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+        },
+    )
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, params=params)
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
 
     assert (
         sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
@@ -691,6 +731,29 @@ def test_aot_codegen_backend_alloc_workspace_calls():
     # There should be three allocates created for three primitive relay function
     # calls in the main for the above relay snippet.
     assert source.count("TVMBackendAllocWorkspace") == 3
+
+
+@pytest.mark.parametrize("constants_byte_alignment", [8, 16, 32])
+def test_constants_alignment(constants_byte_alignment):
+    """Test that constants_byte_alignment correctly sets constants byte alignment"""
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    mod, params = testing.mobilenet.get_workload(batch_size=1)
+    data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
+    data = np.random.uniform(size=data_shape).astype("float32")
+    inputs = {"data": data}
+    output_list = generate_ref_data(mod, inputs, params)
+    target_opts = {"-constants-byte-alignment": constants_byte_alignment}
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api,
+        use_unpacked_api,
+        target_opts=target_opts,
+    )
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
+    assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
 
 
 if __name__ == "__main__":

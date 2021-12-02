@@ -262,7 +262,9 @@ class PyTorchFrontend(Frontend):
         input_shapes = list(shape_dict.items())
 
         logger.debug("parse Torch model and convert into Relay computation graph")
-        return relay.frontend.from_pytorch(traced_model, input_shapes, **kwargs)
+        return relay.frontend.from_pytorch(
+            traced_model, input_shapes, keep_quantized_weight=True, **kwargs
+        )
 
 
 class PaddleFrontend(Frontend):

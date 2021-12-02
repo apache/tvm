@@ -143,6 +143,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         (
             "Requirements for the tvmc command-line tool",
             [
+                "ethos-u-vela",
                 "future",  # Hidden dependency of torch.
                 "onnx",
                 "onnxruntime",

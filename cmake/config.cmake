@@ -272,6 +272,9 @@ set(USE_THRUST OFF)
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
+# Whether to build the PyTorch custom class module
+set(USE_PT_TVMDSOOP OFF)
+
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 
@@ -281,6 +284,9 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to build the hexagon launcher
 set(USE_HEXAGON_LAUNCHER OFF)
+
+# Whether to build the minimal support android rpc server for hexagon
+set(USE_HEXAGON_PROXY_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
@@ -347,3 +353,7 @@ set(USE_PAPI OFF)
 # Note that cmake will use `find_package` to find GTest. Please use cmake's
 # predefined variables to specify the path to the GTest package if needed.
 set(USE_GTEST AUTO)
+
+# Enable using CUTLASS as a BYOC backend
+# Need to have USE_CUDA=ON
+set(USE_CUTLASS OFF)

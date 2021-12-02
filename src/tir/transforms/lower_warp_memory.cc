@@ -224,6 +224,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     // Align the local memory size. The number of elements may not
     // be a multiple of width_ * warp_coeff_; round it up.
     int factor = width_ * warp_coeff_;
+    ICHECK_NE(factor, 0) << "Divide by zero";
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 

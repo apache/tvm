@@ -70,6 +70,10 @@ def get_onnx_version():
     return onnx.__version__
 
 
+def get_node_shape(node):
+    return tuple("Any" if isinstance(i, tvm.tir.Any) else int(i) for i in node.shape)
+
+
 def infer_type(node):
     """A method to infer the type of a relay expression."""
     mod = tvm.IRModule.from_expr(node)
@@ -521,7 +525,7 @@ class Split(OpConverter):
         input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node["types"][0].concrete_shape
+        shape = get_node_shape(input_node["types"][0])
 
         indices_or_sect = attrs["indices_or_section"]
         axis = attrs["axis"]
@@ -1019,7 +1023,7 @@ class RelayToONNXConverter(ExprVisitor):
             node_type = node_entry["types"][0]
             dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
             input = onnx.helper.make_tensor_value_info(
-                node_entry["name"], dtype, shape=node_type.concrete_shape
+                node_entry["name"], dtype, shape=get_node_shape(node_type)
             )
             self._mc.add_inputs([input])
 
@@ -1030,7 +1034,7 @@ class RelayToONNXConverter(ExprVisitor):
             for node_type, output_name in zip(node_entry["types"], node_entry["output_names"]):
                 dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
                 output = onnx.helper.make_tensor_value_info(
-                    output_name, dtype, shape=node_type.concrete_shape
+                    output_name, dtype, shape=get_node_shape(node_type)
                 )
                 self._mc.add_outputs([output])
 

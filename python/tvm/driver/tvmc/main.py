@@ -60,13 +60,19 @@ def _main(argv):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="TVM compiler driver",
         epilog=__doc__,
+        # Help action will be added later, after all subparsers are created,
+        # so it doesn't interfere with the creation of the dynamic subparsers.
+        add_help=False,
     )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity")
     parser.add_argument("--version", action="store_true", help="print the version and exit")
 
     subparser = parser.add_subparsers(title="commands")
     for make_subparser in REGISTERED_PARSER:
-        make_subparser(subparser)
+        make_subparser(subparser, parser)
+
+    # Finally, add help for the main parser.
+    parser.add_argument("-h", "--help", action="help", help="show this help message and exit.")
 
     args = parser.parse_args(argv)
     if args.verbose > 4:

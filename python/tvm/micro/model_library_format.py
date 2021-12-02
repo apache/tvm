@@ -44,13 +44,15 @@ class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
 
 
-def generate_c_interface_header(module_name, inputs, outputs, include_path):
+def generate_c_interface_header(
+    module_name, inputs, outputs, devices, workspace_size, include_path
+):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
-    interface_c_module = interface_c_create(module_name, inputs, outputs)
+    interface_c_module = interface_c_create(module_name, inputs, outputs, devices, workspace_size)
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
@@ -174,11 +176,14 @@ def _build_function_memory_map(function_metadata):
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
     num_targets = len(main_func_metadata.workspace_sizes.items())
+    from tvm.driver import tvmc  # pylint: disable=import-outside-toplevel
+
+    external_codegens = tvmc.composite_target.get_codegen_names()
     func_entries = []
     target_local_entries = dict()
     for i in range(num_targets):
-        target = main_func_metadata.workspace_sizes.items()[i][0]
-        device_max_workspace[target] = 0
+        main_target = main_func_metadata.workspace_sizes.items()[i][0]
+        device_max_workspace[main_target] = 0
         for func_name, finfo in function_metadata.items():
             if func_name == MAIN_FUNC_NAME_STR:
                 continue
@@ -201,8 +206,11 @@ def _build_function_memory_map(function_metadata):
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size > device_max_workspace[target]:
+            if workspace_size > device_max_workspace.get(target, 0):
                 device_max_workspace[target] = workspace_size
+            # TODO(Mousius) - Remove this massive hack when Targets are unified
+            if target.kind.name in external_codegens:
+                device_max_workspace[main_target] += int(workspace_size)
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -264,7 +272,7 @@ def _get_inputs_and_outputs_from_module(mod):
 
 
 def _should_generate_interface_header(mod):
-    return any(target.attrs.get("interface-api") == "c" for target in mod.target.values())
+    return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
 def _make_tar(source_dir, tar_file_path):
@@ -318,7 +326,11 @@ def _export_graph_model_library_format(
         include_path = codegen_dir / "host" / "include"
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
-        generate_c_interface_header(mod.libmod_name, inputs, outputs, include_path)
+        devices = mod.get_devices()
+        workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
+        generate_c_interface_header(
+            mod.libmod_name, inputs, outputs, devices, workspace_size, include_path
+        )
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()

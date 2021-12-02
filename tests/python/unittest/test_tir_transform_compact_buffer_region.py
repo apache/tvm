@@ -383,6 +383,127 @@ def compacted_storage_align_func(a: T.handle, c: T.handle) -> None:
                     C[i, j] = B[0, j] * 2.0
 
 
+@T.prim_func
+def padding_pattern_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (16, 16), "float32")
+    C = T.match_buffer(c, (20, 20), "float32")
+    with T.block():
+        B = T.alloc_buffer((20, 20), dtypes="float32")
+        for i, j in T.grid(16, 16):
+            with T.block():
+                B[i, j] = A[i, j]
+        for i, j in T.grid(20, 20):
+            with T.block():
+                C[i, j] = T.if_then_else(
+                    2 <= i and i < 18 and 2 <= j and j < 18,
+                    B[i - 2, j - 2],
+                    0.0,
+                    dtype="float32",
+                )
+
+
+@T.prim_func
+def compacted_padding_pattern_func(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [16, 16], dtype="float32")
+    C = T.match_buffer(c, [20, 20], dtype="float32")
+    with T.block():
+        B = T.alloc_buffer([16, 16], dtype="float32")
+        for i, j in T.grid(16, 16):
+            with T.block():
+                B[i, j] = A[i, j]
+        for i, j in T.grid(20, 20):
+            with T.block():
+                C[i, j] = T.if_then_else(
+                    2 <= i and i < 18 and 2 <= j and j < 18, B[i - 2, j - 2], 0.0, dtype="float32"
+                )
+
+
+@T.prim_func
+def mem_access_in_branch_func(a: T.handle) -> None:
+    A = T.match_buffer(a, (224, 224), "float32")
+    with T.block():
+        B1 = T.alloc_buffer((224, 224), dtypes="float32")
+        B2 = T.alloc_buffer((224, 224), dtypes="float32")
+        B3 = T.alloc_buffer((224, 224), dtypes="float32")
+        B4 = T.alloc_buffer((224, 224), dtypes="float32")
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    if i < 112 and j < 112:
+                        B1[i, j] = A[i, j] * 2.0
+                    else:
+                        B2[i, j] = A[i, j] + 3.0
+        for i in range(0, 224):
+            for j in range(0, 224):
+                with T.block():
+                    if i < 112 or j < 112:
+                        B3[i, j] = A[i, j] * 2.0
+                    else:
+                        B4[i, j] = A[i, j] + 3.0
+
+
+@T.prim_func
+def compacted_mem_access_in_branch_func(a: T.handle) -> None:
+    A = T.match_buffer(a, [224, 224], dtype="float32")
+    with T.block():
+        B1 = T.alloc_buffer([112, 112], dtype="float32")
+        B2 = T.alloc_buffer([224, 224], dtype="float32")
+        B3 = T.alloc_buffer([224, 224], dtype="float32")
+        B4 = T.alloc_buffer([112, 112], dtype="float32")
+        for i, j in T.grid(224, 224):
+            with T.block():
+                if i < 112 and j < 112:
+                    B1[i, j] = A[i, j] * 2.0
+                else:
+                    B2[i, j] = A[i, j] + 3.0
+        for i, j in T.grid(224, 224):
+            with T.block():
+                if i < 112 or j < 112:
+                    B3[i, j] = A[i, j] * 2.0
+                else:
+                    B4[i - 112, j - 112] = A[i, j] + 3.0
+
+
+@T.prim_func
+def opaque_access_annotated_func(a: T.handle) -> None:
+    A = T.match_buffer(a, (1024,), "float32")
+    with T.block():
+        B = T.alloc_buffer((1024,), dtypes="float32")
+        C = T.alloc_buffer((1024,), dtypes="float32")
+        for i in range(0, 512):
+            with T.block():
+                # no annotation, opaque access will cover full region
+                T.reads([])
+                T.writes([])
+                T.store(B.data, i, "float32", A[i])
+            with T.block():
+                # treat opaque access only access annotated regions, even if
+                # they are not compatible with actual buffer accesses.
+                T.reads([B[i]])
+                T.writes([C[i : i + 9]])
+                T.store(C.data, i, T.load("float32", B.data, i))
+
+
+@T.prim_func
+def compacted_opaque_access_annotated_func(a: T.handle) -> None:
+    A = T.match_buffer(a, (1024,), "float32")
+    with T.block():
+        B = T.alloc_buffer((1024,), dtypes="float32")
+        C = T.alloc_buffer((520,), dtypes="float32")
+        for i in range(0, 512):
+            with T.block():
+                # no annotation, opaque access will cover full region
+                T.reads([])
+                T.writes([])
+                T.store(B.data, i, "float32", A[i])
+            with T.block():
+                # treat opaque access only access annotated regions, even if
+                # they are not compatible with actual buffer accesses.
+                T.reads([B[i]])
+                T.writes([C[i : i + 9]])
+                T.store(C.data, i, T.load("float32", B.data, i))
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -428,6 +549,18 @@ def test_storage_align():
     _check(storage_align_func, compacted_storage_align_func)
 
 
+def test_padding_pattern():
+    _check(padding_pattern_func, compacted_padding_pattern_func)
+
+
+def test_mem_access_in_branch_func():
+    _check(mem_access_in_branch_func, compacted_mem_access_in_branch_func)
+
+
+def test_opaque_access_annotated_func():
+    _check(opaque_access_annotated_func, compacted_opaque_access_annotated_func)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -439,3 +572,6 @@ if __name__ == "__main__":
     test_match_buffer()
     test_storage_align()
     test_lower_te()
+    test_padding_pattern()
+    test_mem_access_in_branch_func()
+    test_opaque_access_annotated_func()
