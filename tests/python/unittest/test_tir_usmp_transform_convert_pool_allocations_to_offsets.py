@@ -231,7 +231,9 @@ def test_mobilenet_subgraph():
     )(tir_mod)
 
     tir_mod_with_offsets_ref = LinearStructurePlanned
-    tir_mod_with_offsets_ref = tvm.script.from_source(tir_mod_with_offsets_ref.script(show_meta=False))
+    tir_mod_with_offsets_ref = tvm.script.from_source(
+        tir_mod_with_offsets_ref.script(show_meta=False)
+    )
     # The TIR produced fails on roundtrip TVMScript testing.
     # Therefore, indicates the TVMScript produced here and/or the parser
     # is lacking functionality. Thus for these tests, uses a string
