@@ -947,6 +947,92 @@ def tanh_pattern():
     return quant
 
 
+class MeanParams:
+    """
+    This class will parse a call to ethosu.mean composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.mean"
+
+    def __init__(self, func_body: Call):
+        requantize = func_body
+        mean_op = requantize.args[0]
+        attrs = mean_op.attrs
+        cast = mean_op.args[0]
+
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            cast.args[0],
+            layout,
+            requantize.args[RequantArgs.IFM_SCALE.value],
+            requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            requantize,
+            layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        ifm_shape = self.ifm.shape
+        self.height = ifm_shape[0] if len(ifm_shape) in (2, 3) else ifm_shape[1]
+        self.width = ifm_shape[1] if len(ifm_shape) in (2, 3) else ifm_shape[2]
+        self.keepdims = attrs.keepdims
+
+        self.axis = list(sorted(attrs.axis))
+        if attrs.exclude:
+            self.axis = [i for i in range(len(self.ifm.shape)) if i not in self.axis]
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Mean has compatible attributes with HW.
+        """
+
+        def check_axis(num_dims, axis):
+            if num_dims in (2, 3):
+                return axis in ([0], [1], [0, 1])
+            return axis in ([1], [2], [1, 2])
+
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not len(self.ifm.shape) in [2, 3, 4]:
+            return False
+        if not check_axis(len(self.ifm.shape), self.axis):
+            return False
+
+        # MEAN has further restrictions on the input size, depending on legalization method.
+        input_size = self.height * self.width
+        if input_size > 65536:
+            return False
+        if (
+            self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32
+            or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
+        ) and input_size > 4096:
+            return False
+        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
+            return False
+        # Large kernel height reshape only when axis is [1, 2]
+        if self.axis != [1, 2] and self.height > 64:
+            return False
+        return True
+
+
+def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for mean.
+    """
+    pattern = is_op("cast")(wildcard())
+    pattern = is_op("mean")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return pattern
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1016,6 +1102,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: AbsParams(pat).is_valid(),
         ),
         (TanhParams.composite_name, tanh_pattern(), lambda pat: TanhParams(pat).is_valid()),
+        (
+            MeanParams.composite_name,
+            mean_pattern(),
+            lambda pat: MeanParams(pat).is_valid(),
+        ),
     ]
 
 
