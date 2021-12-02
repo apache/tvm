@@ -956,6 +956,8 @@ class MeanParams:
     composite_name = "ethos-u.mean"
 
     def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
         requantize = func_body
         mean_op = requantize.args[0]
         attrs = mean_op.attrs
