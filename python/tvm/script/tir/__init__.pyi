@@ -325,28 +325,28 @@ Scope handler - Loops
 
 def serial(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int],
+    end: Union[PrimExpr, int] = None,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def parallel(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int],
+    end: Union[PrimExpr, int] = None,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def vectorized(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int],
+    end: Union[PrimExpr, int] = None,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def unroll(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int],
+    end: Union[PrimExpr, int] = None,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def thread_binding(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int],
-    thread: str,
+    end: Union[PrimExpr, int] = None,
+    thread: str = None,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def for_range(
