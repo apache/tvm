@@ -452,8 +452,8 @@ class TVMScriptParser(Transformer):
                 result = self.transform(arg.ty)
                 if not isinstance(result, buffer.Buffer):
                     self.report_error(
-                        f"The result type of evaluating TypeCall and TypeApply stmt is wrong: {type(result)}."
-                        " It should be a Buffer",
+                        "The result type of evaluating TypeCall and TypeApply stmt"
+                        f" is wrong: {type(result)}. It should be a Buffer",
                         node.span,
                     )
                 self.context.func_buffer_map[arg_var] = result

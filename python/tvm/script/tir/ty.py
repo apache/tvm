@@ -21,7 +21,7 @@ a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
 import tvm
-from .special_stmt import SpecialStmt
+from .special_stmt import SpecialStmt, convert_to_int
 
 
 class TypeGeneric:  # pylint: disable=too-few-public-methods
@@ -72,8 +72,6 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
     """TVM script typing class for uniform Type objects"""
 
     def __init__(self, vtype):
-        from .special_stmt import convert_to_int
-
         def match_buffer_syntax_sugar(
             shape,
             dtype="float32",
@@ -127,7 +125,8 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
     ):
         pass
 
-    def __getitem__(shape, dtype: str):
+    @staticmethod
+    def __getitem__(args):
         pass
 
     def evaluate(self):
