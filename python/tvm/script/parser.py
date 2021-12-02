@@ -273,12 +273,6 @@ class TVMScriptParser(Transformer):
                 node_call.span,
             )
 
-        # for loop syntax sugar, check if starting 0 is omitted
-        # param_list[0] is the list of positional args which could include kw_args
-        # therefore the sum of len(args) and len(kw_args) is used here
-        if isinstance(func, ForScopeHandler) and len(args) + len(kw_args) < len(param_list[0]):
-            if args[0] != 0:
-                args.insert(0, 0)
         # check arguments and parameter list and get a list of arguments
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list

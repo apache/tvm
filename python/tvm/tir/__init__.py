@@ -48,6 +48,8 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift
 
+from .utils import check_error
+
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
 
 from . import schedule

@@ -19,6 +19,7 @@ import pytest
 import sys
 import tvm
 from tvm import tir
+from tvm.tir import check_error
 from tvm.script import tir as T
 from tvm.ir.diagnostics import override_renderer
 import inspect
@@ -507,29 +508,6 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_attrs, 2)
     check_error(implicit_root_has_predicate, 2)
     check_error(implicit_root_has_axes, 2)
-
-
-def check_error(func, rel_lineno):
-    # Override the default renderer to accumulate errors
-    errors = []
-
-    def render(e):
-        for d in e.diagnostics:
-            errors.append(d)
-
-    override_renderer(render)
-    # The diagnostic context throws an exception when it gets an error
-    try:
-        source_code = inspect.getsource(func)
-        source_code = "@T.prim_func\n" + source_code
-        tvm.script.from_source(source_code)
-    except tvm.error.DiagnosticError as e:
-        pass
-    assert len(errors) == 1, errors
-    for d in errors:
-        assert (
-            d.span.line - 1 == rel_lineno
-        ), f"Expected error to be on line {rel_lineno}, but it was on {d.span.line - 1}"
 
 
 @T.prim_func
