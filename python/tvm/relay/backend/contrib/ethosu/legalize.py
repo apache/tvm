@@ -1156,7 +1156,6 @@ class LegalizeEthosU:
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)
-        print(mod)
         return mod
 
     def __call__(self, *args, **kwargs):
