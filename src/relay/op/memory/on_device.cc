@@ -127,8 +127,14 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
                           SEScope result_se_scope) {
-  return WithAttrs(std::move(function), {{tvm::attr::kParamSEScopes, std::move(param_se_scopes)},
-                                         {tvm::attr::kResultSEScope, std::move(result_se_scope)}});
+  ICHECK(function->params.size() == param_se_scopes.size()) << "ParamSEScopes must be the same size as the function parameters.";
+  Array<Var> new_params;
+  for (size_t i = 0; i < function->params.size(); i++) {
+    Var param = function->params[i];
+    new_params.push_back(WithFields(std::move(param), {}, {}, std::move(param_se_scopes[i])));
+  }
+
+  return WithAttrs(WithFields(std::move(function), std::move(new_params)), {{tvm::attr::kResultSEScope, std::move(result_se_scope)}});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
@@ -153,14 +159,14 @@ SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i) {
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
-  auto opt_array = function_node->GetAttr<Array<SEScope>>(tvm::attr::kParamSEScopes);
-  if (!opt_array) {
-    // No annotation.
+
+  // TODO(@electriclilies): Should we still check that all param sescopes are defined here?
+  SEScope se_scope = function_node->params[i]->virtual_device();
+  if (se_scope.defined()) {
     return SEScope::FullyUnconstrained();
   }
-  ICHECK_EQ(opt_array.value().size(), function_node->params.size())
-      << "annotation parameters do not match function arity";
-  return opt_array.value()[i];
+
+  return se_scope;
 }
 
 }  // namespace relay

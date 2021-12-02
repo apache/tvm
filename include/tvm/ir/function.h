@@ -191,16 +191,6 @@ constexpr const char* kTarget = "target";
 constexpr const char* kGlobalSymbol = "global_symbol";
 
 /*!
- * \brief The SEScope which will hold each of the functions parameters.
- *
- * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
- * may be included as an annotation on user programs.
- *
- * Type: Array<SEScope>
- */
-constexpr const char* kParamSEScopes = "param_se_scopes";
-
-/*!
  * \brief The SEScope which will hold the function result.
  *
  * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
