@@ -860,14 +860,12 @@ def test_tflite_tanh(accel_type):
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
-    print("Starting compile")
     compiled_models = infra.build_source(
         mod,
         input_data,
         output_data,
         accel_type,
     )
-    print("Finished compile")
 
     # Assumes only two runtime.Modules are created -- i.e. single offload module
     ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
