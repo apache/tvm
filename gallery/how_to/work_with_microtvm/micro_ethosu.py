@@ -133,36 +133,31 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 # .. code-block:: bash
 #
-#   tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, c \
-#       -runtime=c \
-#       --link-params \
-#       -mcpu=cortex-m55 \
-#       --executor=aot \
-#       --interface-api=c \
-#       --unpacked-api=1" \
-#       --pass-config tir.disable_vectorize=1 \
-#       ./mobilenet_v1_1.0_224_quant.tflite \
-#       --output-format=mlf
+#   tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, c" \
+#                --target-c-mcpu=cortex-m55 \
+#                --runtime=crt \
+#                --executor=aot \
+#                --executor-aot-interface-api=c \
+#                --executor-aot-unpacked-api=1 \
+#                --pass-config tir.disable_vectorize=1 \
+#                ./mobilenet_v1_1.0_224_quant.tflite \
+#                --output-format=mlf
 #
 
 ################################################################################
 # .. note:: Explanation of tvmc compile arguments:
 #
-#   * ``--target``
+#   * ``--target="ethos-u -accelerator_config=ethos-u55-256, c"`` : offload operators to the Ethos(TM)-U55 NPU where possible and fall back to using generated C code on the Cortex(R)-M where an operator is not supported on the NPU..
 #
-#     * ``ethos-u -accelerator_config=ethos-u55-256, c`` : offload operators to the Ethos(TM)-U55 NPU where possible and fall back to using generated C code on the Cortex(R)-M where an operator is not supported on the NPU..
+#   * ``--target-c-mcpu=cortex-m55`` : Cross-compile for the Cortex(R)-M55.
 #
-#     * ``-runtime=c`` : Generate glue code to allow operators to work with C runtime.
+#   * ``--runtime=crt`` : Generate glue code to allow operators to work with C runtime.
 #
-#     * ``--link-params`` : Include parameters as global constants to load from flash.
+#   * ``--executor=aot`` : Use Ahead Of Time compiltaion instead of the Graph Executor.
 #
-#     * ``-mcpu=cortex-m55`` : Cross-compile for the Cortex(R)-M55.
+#   * ``--executor-aot-interface-api=c`` : Generate a C-style interface with structures designed for integrating into C apps at the boundary.
 #
-#     * ``--executor=aot`` : Use Ahead Of Time compiltaion instead of the Graph Executor.
-#
-#     * ``--interface-api=c`` : Generate a C-style interface with structures designed for integrating into C apps at the boundary.
-#
-#     * ``--unpacked-api=1`` : Use the unpacked API internally.
+#   * ``--executor-aot-unpacked-api=1`` : Use the unpacked API internally.
 #
 #   * ``--pass-config tir.disable_vectorize=1`` : Disable vectorize since there are no standard vectorized types in C.
 #
@@ -386,7 +381,12 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #       struct tvmgen_default_inputs inputs = {
 #           .input = input,
 #       };
-#       tvmgen_default_run(&inputs, &outputs);
+#       struct ethosu_driver* driver = ethosu_reserve_driver();
+#       struct tvmgen_default_devices devices = {
+#           .ethos_u = driver,
+#       };
+#       tvmgen_default_run(&inputs, &outputs, &devices);
+#       ethosu_release_driver(driver);
 #
 #       // Calculate index of max value
 #       uint8_t max_value = 0;
@@ -407,114 +407,9 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #     }
 #
 #
-# In addition, you will need these 4 header files in ``./include``:
+# In addition, you will need these header files from github in your ``./include`` directory:
 #
-# .. code-block:: c
-#    :caption: ethosu_55.h
-#    :name: ethosu_55.h
-#
-#     #ifndef TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_55_H_
-#     #define TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_55_H_
-#
-#     /* Define Ethos(TM)-U55 specific IRQs & base address */
-#     #define ETHOSU_NPU_FAIL (1 << 4)
-#     #define ETHOSU_IRQ ((IRQn_Type)56)
-#     #define ETHOSU_BASE_ADDRESS ((void*)0x48102000)
-#
-#     #endif  // TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_55_H_
-#
-# .. code-block:: c
-#    :caption: ethosu_mod.h
-#    :name: ethosu_mod.h
-#
-#     #ifndef TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_MOD_H_
-#     #define TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_MOD_H_
-#
-#     #include <ARMCM55.h>
-#     #include <ethosu_driver.h>
-#     #include <stdio.h>
-#
-#     #include "ethosu_55.h"
-#
-#     struct ethosu_driver* ethosu0_driver = &ethosu_drv;
-#
-#     void ethosuIrqHandler0() { ethosu_irq_handler(ethosu0_driver); }
-#
-#     // Initialize Ethos(TM)-U NPU driver
-#     int EthosuInit() {
-#       if (ethosu_init(ethosu0_driver, (void*)ETHOSU_BASE_ADDRESS, NULL, 0, 1, 1)) {
-#         printf("Failed to initialize NPU.\n");
-#         return -1;
-#       }
-#
-#       // Assumes SCB->VTOR points to RW memory
-#       NVIC_SetVector(ETHOSU_IRQ, (uint32_t)&ethosuIrqHandler0);
-#       NVIC_EnableIRQ(ETHOSU_IRQ);
-#
-#       return 0;
-#     }
-#
-#     #endif  // TVM_APPS_MICROTVM_ETHOS_U_ETHOSU_MOD_H_
-#
-#
-# .. code-block:: c
-#    :caption: crt_config.h
-#    :name: crt_config.h
-#
-#     #ifndef TVM_RUNTIME_CRT_CONFIG_H_
-#     #define TVM_RUNTIME_CRT_CONFIG_H_
-#
-#     /*! Log level of the CRT runtime */
-#     #define TVM_CRT_LOG_LEVEL TVM_CRT_LOG_LEVEL_DEBUG
-#
-#     #endif  // TVM_RUNTIME_CRT_CONFIG_H_
-#
-#
-# .. code-block:: c
-#    :caption: tvm_runtime.h.h
-#    :name: tvm_runtime.h.h
-#
-#     #include <stdarg.h>
-#     #include <stdio.h>
-#     #include <stdlib.h>
-#     #include <tvm/runtime/c_runtime_api.h>
-#     #include <tvm/runtime/crt/stack_allocator.h>
-#
-#     #ifdef __cplusplus
-#     extern "C" {
-#     #endif
-#
-#     #define WORKSPACE_SIZE (16384 * 1024)
-#     __attribute__((section("ethosu_scratch"))) static uint8_t g_aot_memory[WORKSPACE_SIZE];
-#
-#     tvm_workspace_t app_workspace;
-#
-#     void __attribute__((noreturn)) TVMPlatformAbort(tvm_crt_error_t error_code) {
-#       printf("TVMPlatformAbort: %d\n", error_code);
-#       printf("EXITTHESIM\n");
-#       exit(-1);
-#     }
-#
-#     tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
-#       return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
-#     }
-#
-#     tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
-#       return StackMemoryManager_Free(&app_workspace, ptr);
-#     }
-#
-#     void TVMLogf(const char* msg, ...) {
-#       va_list args;
-#       va_start(args, msg);
-#       vfprintf(stdout, msg, args);
-#       va_end(args);
-#     }
-#
-#     TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) { return 0; }
-#
-#     #ifdef __cplusplus
-#     }
-#     #endif
+# `include files <https://github.com/apache/tvm/tree/main/apps/microtvm/ethosu/include>`_
 
 ################################################################################
 # Creating the linker script
@@ -522,7 +417,7 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 # We need to create a linker script that will be used when we build our application
 # in the following section. The linker script tells the linker where everything
-# should be placed in memory. The corstone300.ld linker script follows should be
+# should be placed in memory. The corstone300.ld linker script below should be
 # placed in your working directory.
 #
 # An example linker script for the FVP can be found here
@@ -552,106 +447,11 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 # Building the demo application using make
 # ----------------------------------------
 #
-# We can now build the demo application using make. The following Makefile
-# should be placed in your working directory before running ``make`` on the command
-# line:
+# We can now build the demo application using make. The Makefile should be placed
+# in your working directory before running ``make`` on the command line:
 #
-# .. code-block:: make
-#    :caption: Makefile
-#    :name: Makefile
-#
-#     # Setup build environment
-#     BUILD_DIR := build
-#     STANDALONE_CRT_PATH := $(shell python3 -c "import tvm.micro; print(tvm.micro.get_standalone_crt_dir())")
-#
-#     ARM_CPU = ARMCM55
-#     ETHOSU_PATH = /opt/arm/ethosu
-#     ETHOSU_DRIVER_PATH ?= ${ETHOSU_PATH}/core_driver
-#     CMSIS_PATH ?= ${ETHOSU_PATH}/cmsis
-#     ETHOSU_PLATFORM_PATH ?= ${ETHOSU_PATH}/core_platform
-#     CORSTONE_300_PATH = ${ETHOSU_PLATFORM_PATH}/targets/corstone-300
-#     PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
-#     CMAKE = cmake
-#     CC = arm-none-eabi-gcc
-#     AR = arm-none-eabi-ar
-#     RANLIB = arm-none-eabi-ranlib
-#     PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
-#     	-I${STANDALONE_CRT_PATH}/include \
-#     	-I${STANDALONE_CRT_PATH}/src/runtime/crt/include \
-#     	-Iinclude \
-#     	-I${CORSTONE_300_PATH} \
-#     	-I${ETHOSU_PATH}/core_driver/include \
-#     	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
-#     	-I${CMSIS_PATH}/CMSIS/Core/Include \
-#     	-I$(abspath $(BUILD_DIR))/codegen/host/include \
-#     	-DETHOSU_TEST_RUNNER_TOL=${ETHOSU_TEST_RUNNER_TOL}
-#     DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
-#     	-DETHOSU_LOG_SEVERITY=debug \
-#     	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
-#     PKG_LDFLAGS = -lm -specs=nosys.specs -static -T corstone300.ld
-#
-#     $(ifeq VERBOSE,1)
-#     QUIET ?=
-#     $(else)
-#     QUIET ?= @
-#     $(endif)
-#
-#     CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
-#     CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
-#     CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
-#     UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
-#
-#     demo: $(BUILD_DIR)/demo
-#
-#     $(BUILD_DIR)/stack_allocator.o: $(STANDALONE_CRT_PATH)/src/runtime/crt/memory/stack_allocator.c
-#     	$(QUIET)mkdir -p $(@D)
-#     	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
-#
-#     $(BUILD_DIR)/crt_backend_api.o: $(STANDALONE_CRT_PATH)/src/runtime/crt/common/crt_backend_api.c
-#     	$(QUIET)mkdir -p $(@D)
-#     	$(QUIET)$(CC) -c $(PKG_CFLAGS) -o $@  $^
-#
-#     # Build generated code
-#     $(BUILD_DIR)/libcodegen.a: $(CODEGEN_SRCS)
-#     	$(QUIET)cd $(abspath $(BUILD_DIR)/codegen/host/src) && $(CC) -c $(PKG_CFLAGS) $(CODEGEN_SRCS)
-#     	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcodegen.a) $(CODEGEN_OBJS)
-#     	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcodegen.a)
-#
-#     # Build CMSIS startup code
-#     ${BUILD_DIR}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
-#     	$(QUIET)mkdir -p $(abspath $(BUILD_DIR)/libcmsis_startup)
-#     	$(QUIET)cd $(abspath $(BUILD_DIR)/libcmsis_startup) && $(CC) -c $(PKG_CFLAGS) -D${ARM_CPU} $^
-#     	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcmsis_startup.a) $(abspath $(BUILD_DIR))/libcmsis_startup/*.o
-#     	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcmsis_startup.a)
-#
-#     # Build UART code
-#     ${BUILD_DIR}/libuart.a: $(UART_SRCS)
-#     	$(QUIET)mkdir -p $(abspath $(BUILD_DIR)/libuart)
-#     	$(QUIET)cd $(abspath $(BUILD_DIR)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
-#     	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libuart.a) $(abspath $(BUILD_DIR))/libuart/*.o
-#     	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libuart.a)
-#
-#     # Build Arm(R) Ethos(TM)-U core driver
-#     ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
-#     	$(QUIET)mkdir -p $(@D)
-#     	$(QUIET)cd $(ETHOSU_DRIVER_PATH) && $(CMAKE) -B $(abspath $(BUILD_DIR)/ethosu_core_driver) $(DRIVER_CMAKE_FLAGS)
-#     	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
-#
-#     # Build demo application
-#     $(BUILD_DIR)/demo: src/demo.c $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libuart.a
-#     	$(QUIET)mkdir -p $(@D)
-#     	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
-#
-#     clean:
-#     	$(QUIET)rm -rf $(BUILD_DIR)/crt
-#
-#     cleanall:
-#     	$(QUIET)rm -rf $(BUILD_DIR)
-#
-#     .SUFFIXES:
-#
-#     .DEFAULT: demo
-#
+# An example Makefile can be found here:
+# `Makefile <https://github.com/apache/tvm/blob/main/apps/microtvm/ethosu/Makefile>`_
 
 ################################################################################
 # Running the demo application
