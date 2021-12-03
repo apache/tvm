@@ -24,9 +24,17 @@ Welcome to TVMC Python
 ======================
 Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂 
 
-An example model to use:"""
-wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
-"""
+If you don't have an example model, you can download one via the terminal:
+
+ .. code-block:: bash
+
+     mkdir myscripts
+     cd myscripts
+     wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
+     mv resnet50-v2-7.onnx my_model.onnx
+     touch tvmcpythonintro.py
+
+
 ################################################################################
 # Step 0: Imports
 # ---------------
