@@ -270,7 +270,7 @@ def _create_ethosu_partition(mod):
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-@pytest.mark.parametrize("ifm_shape", [(1, 10, 10, 8), (1, 23, 32, 7)])
+@pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
 @pytest.mark.parametrize(
     "kernel_shape, activation",
     [((3, 3), "relu"), ((1, 2), None)],
@@ -307,7 +307,7 @@ def test_tflite_depthwise_conv2d(
     ACCEL_TYPES,
 )
 @pytest.mark.parametrize("pooling_type", ["MAX", "AVG"])
-@pytest.mark.parametrize("ifm_shape", [[1, 10, 10, 24], [1, 4, 5, 2]])
+@pytest.mark.parametrize("ifm_shape", [[1, 3, 4, 3], [1, 4, 5, 2]])
 @pytest.mark.parametrize(
     "pool_shape, strides, activation_function, padding",
     [([1, 2], [1, 2], "NONE", "SAME"), ([2, 3], [2, 3], "RELU", "VALID")],
