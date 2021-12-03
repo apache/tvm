@@ -197,9 +197,7 @@ def drive_run(args):
     if args.device == "micro":
         path = path / "model.tar"
         if not path.is_file():
-            TVMCException(
-                f"Could not find model (model.tar) in the specified project dir {path.dirname()}."
-            )
+            TVMCException(f"Could not find model '{path}'!")
 
         # Check for options unavailable for micro targets.
 
