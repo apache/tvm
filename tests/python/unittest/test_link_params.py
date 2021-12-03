@@ -283,7 +283,7 @@ def test_c_link_params():
             c_dtype = _get_c_datatype(dtype)
             src_lines = src.split("\n")
             param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
-            param_def = f"static const {c_dtype} __tvm_param__p0[{np.prod(param.shape)}] = {{"
+            param_def = f'static const {c_dtype} __attribute__((section(".rodata.tvm"), aligned(16))) __tvm_param__p0[{np.prod(param.shape)}] = {{'
             for i, line in enumerate(src_lines):
                 if line == param_def:
                     i += 1

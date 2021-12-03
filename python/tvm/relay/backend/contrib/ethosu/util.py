@@ -28,6 +28,9 @@ import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
+from tvm._ffi import register_object
+from tvm.runtime import Object
+from . import _ffi_api
 
 
 class QConv2DArgs(Enum):
@@ -139,6 +142,31 @@ def is_composite_func(func: relay.Function, name: str) -> bool:
     return composite_name == name
 
 
+def is_named_ethosu_op(expr: tvm.relay.Expr, name: str) -> bool:
+    """Checks whether a relay expression matches that of the
+    named operator.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The expression to check.
+    name : str
+        The name of the expected operator
+        (without NPU prefix "contrib.ethosu").
+
+    Returns
+    -------
+    bool
+        True if expression matches name, false if not.
+    """
+    prefix = "contrib.ethosu."
+    return (
+        isinstance(expr, tvm.relay.expr.Call)
+        and isinstance(expr.op, tvm.ir.op.Op)
+        and expr.op.name == prefix + name
+    )
+
+
 def get_range_for_dtype_str(dtype: str) -> Tuple[int, int]:
     """
     Produce the min,max for a give data type.
@@ -209,3 +237,30 @@ def calculate_size_bytes(expr):
     element_size = type_info.bits // 8
     elements = np.prod(list(expr.checked_type.shape))
     return element_size * elements
+
+
+@register_object("relay.ext.ethos-u.CompilationArtifact")
+class CompilationArtifact(Object):
+    """
+    This is a structure to hold binary artifacts
+    for the microNPU.
+    """
+
+    def __init__(
+        self,
+        command_stream: str,
+        encoded_constants: str,
+        scratch_size: int,
+        input_size: int,
+        output_size: int,
+        function_name: str,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CompilationArtifact,  # type: ignore # pylint: disable=no-member
+            command_stream,
+            encoded_constants,
+            scratch_size,
+            input_size,
+            output_size,
+            function_name,
+        )

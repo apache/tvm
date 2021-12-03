@@ -32,8 +32,6 @@
 #include <vector>
 
 #include "../../library_module.h"
-#include "hexagon_buffer.h"
-#include "hexagon_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -42,15 +40,10 @@ Module HexagonModuleCreate(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                            std::string obj_str, std::string ir_str, std::string bc_str,
                            const std::set<std::string>& packed_c_abi) {
-  CHECK(fmt == "so") << "Invalid format provided when constructing Hexagon runtime module: " << fmt
-                     << ". Valid formats are: 'so'.";
-  ObjectPtr<Library> n = CreateDSOLibraryObject(data);
-  return CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+  auto n = make_object<HexagonHostModuleNode>(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str,
+                                              packed_c_abi);
+  return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-  *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
-});
 }  // namespace runtime
 }  // namespace tvm

@@ -43,6 +43,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
+#include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./name_transforms.h"
 #include "./te_compiler.h"
@@ -52,7 +53,6 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-using IntegerArray = Array<Integer>;
 using StorageMap =
     std::unordered_map<Expr, StorageInfo, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
 
@@ -71,6 +71,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
 
   StorageMap GetStorageMap() const { return storage_device_map_; }
 
+  using ExprVisitor::VisitExpr_;
+
   void VisitExpr_(const ConstantNode* op) final {
     CreateStorage(op);
     AssignReturnSid(GetRef<Expr>(op));
@@ -83,8 +85,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     Expr func;
     Array<Expr> args;
 
-    if (call_node->op == CallLoweredOp()) {
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.lowered_func.defined()) {
       func = call_lowered_props.lowered_func;
       args = call_lowered_props.arguments;
     } else {  // Relay functions that have not been lowered and lowered extern functions
@@ -225,7 +227,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   /*!
    * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
    */
-  void CreateStorage(const Expr& expr, SEScope se_scope) {
+  void CreateStorage(const Expr& expr, const SEScope& se_scope) {
     ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
                                               << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
@@ -314,9 +316,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   /*!
    * brief Create a function call
    * \param call_lowered_props The lowered function and the arguments to call it with
-   * \param call The call we got func and args from
+   * \param result_expr The call we got func and args from (so as to recover the storage
+   * ids to hold the result).
    */
-  void CreateFuncCall(CallLoweredProps call_lowered_props, Call call) {
+  void CreateFuncCall(CallLoweredProps call_lowered_props, const Expr& result_expr) {
     std::string func_name = call_lowered_props.lowered_func->name_hint;
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
@@ -335,9 +338,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
     }
 
-    auto ret_expr = Downcast<Expr>(call);
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : PackSid(ret_expr)) {
+    for (const auto& var : PackSid(result_expr)) {
       args.push_back(var);
     }
 
@@ -348,10 +350,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     GlobalVar global_var = call_lowered_props.lowered_func;
+    tir::Var empty_var("no_device_context", DataType::Handle());
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
+    bool use_cpacked_api = !use_unpacked_api_;
+
+    // The device context is passed to the operator in one of the following calling patterns:
+    //  * Unpacked / direct function call with context:
+    //      operator(arg0, arg1, device_context);
+    //  * Unpacked / direct function call without context:
+    //      operator(arg0, arg1);
+    //  * Type-erased packed function call with context:
+    //      operator(args, type_codes, int num_args, out_ret_value, out_ret_tcode,
+    //      device_context_my_device)
+    //  * Type-erased packed function call without context (we create an empty var for codegen):
+    //      operator(args, type_codes, int num_args, out_ret_value, out_ret_tcode,
+    //      no_device_context)
     if (has_c_device_api_context) {
+      // call_extern calling convention with context
       tir::Var context = device_contexts_.Get(global_var).value();
-      args.push_back(device_contexts_[global_var]);
+      args.push_back(context);
 
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(tir::SeqStmt({
@@ -359,7 +376,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
+    } else if (use_cpacked_api) {
+      // call_cpacked calling convention needs a blank context
+      args.push_back(tir::make_zero(DataType::Handle()));
+      tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
+      create_func_call_stmts.push_back(func_call);
     } else {
+      // call_extern calling convention without context
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(func_call);
     }
@@ -486,22 +509,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   void VisitExpr_(const CallNode* call_node) override {
-    // Descend the call tree
-    CallLoweredProps call_lowered_props;
-    if (const auto* gvn = call_node->op.as<GlobalVarNode>()) {  // Lowered extern function
-      ICHECK(!(call_node->attrs.defined())) << "Extern functions should have null attributes.";
-      for (const auto& arg : call_node->args) {
-        VisitExpr(arg);
-      }
-      call_lowered_props = CallLoweredProps{GetRef<GlobalVar>(gvn), call_node->args, {}};
-    } else {
-      ICHECK(call_node->op == CallLoweredOp()) << "Operators should be transformed away; Try "
-                                                  "applying the fuse_ops transformation to the "
-                                                  "expression.";
-      call_lowered_props = GetCallLoweredProps(call_node);
-      for (const auto& arg : call_lowered_props.arguments) {
-        VisitExpr(arg);
-      }
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+
+    if (device_copy_props.body.defined()) {
+      // TODO(mbs): device_copy cleaunp
+      // Suspect treating as no-op is better since already built into the StorageInfo?
+      LOG(FATAL) << "The AOT executor does not currently support device_copy";
+      return;
+    }
+
+    // At this point we should only see calls of the form call_lowered(@callee, (args...)),
+    // where @callee can be a PrimFunc we've compiled or an external function supplied via
+    // some other mechanism.
+    ICHECK(call_lowered_props.lowered_func.defined())
+        << "AOT does not support calling Relay functions. Attempting to call:" << std::endl
+        << PrettyPrint(GetRef<Call>(call_node));
+    for (const auto& arg : call_lowered_props.arguments) {
+      // Evaluate the args
+      VisitExpr(arg);
     }
     CreateFuncCall(call_lowered_props, GetRef<Call>(call_node));
   }
@@ -696,14 +722,25 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
+    VLOG_CONTEXT << "AOT";
+    for (const auto& kv : targets_) {
+      VLOG(1) << "target: " << kv.second->ToDebugString();
+    }
+    ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
+    VLOG(1) << "target host: " << target_host_->ToDebugString();
+
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
-    IRModule lowered_mod =
-        tec::LowerTEPass(mod_name, [this, workspace_byte_alignment](BaseFunc func) {
+    // TODO(mbs): Plumb from compiler config
+    SEScope host_se_scope = SEScope::ForTarget(target_host_);
+
+    IRModule lowered_mod = tec::LowerTEPass(
+        mod_name,
+        [this, workspace_byte_alignment](BaseFunc func) {
           // We need to maintain the constant map for external
           // functions so we pass this processing function which
           // allows us to process each function as we lower it.
@@ -715,7 +752,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // execute as a further pass, instead writing data to the
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
-        })(mod);
+        },
+        host_se_scope)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());
@@ -772,10 +810,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           std::make_pair(static_cast<int>(param_storage_ids_[param.first]), param.second)));
     }
 
-    // Build the TIR IRModule for the AOT function
+    // Build the TIR IRModule for the main AOT function
     Map<GlobalVar, BaseFunc> symbol_map;
     symbol_map.Set(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
     IRModule mod_run(symbol_map, {}, {}, {}, mod->attrs);
+    VLOG(1) << "main module:" << std::endl << PrettyPrint(mod_run);
 
     // Apply storage rewrite pass to the runner function to do memory planning
     auto storage_rewrite = tir::transform::StorageRewrite();
@@ -806,12 +845,23 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ICHECK(external_modules) << "Attribute \"external_mods\" should be set at this point.";
 
     // This is the point where we separate the functions in the module by target
+    VLOG(1) << "lowered module:" << std::endl << PrettyPrint(lowered_mod);
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
+    VLOG(1) << "per-target modules:";
+    for (const auto& kv : ret.lowered_funcs) {
+      VLOG(1) << "target:" << std::endl
+              << kv.first->ToDebugString() << std::endl
+              << "maps to:" << std::endl
+              << PrettyPrint(kv.second);
+    }
+
     ret.external_mods = external_modules.value();
 
     if (ret.lowered_funcs.find(target_host_) != ret.lowered_funcs.end()) {
+      VLOG(1) << "merging main into existing module for host target";
       ret.lowered_funcs[target_host_]->Update(mod_run);
     } else {
+      VLOG(1) << "adding main into new module for host target";
       ret.lowered_funcs.Set(target_host_, mod_run);
     }
 

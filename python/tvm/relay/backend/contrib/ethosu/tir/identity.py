@@ -19,7 +19,7 @@
 from typing import Dict, Tuple
 import tvm
 from .spec import SerialKernel, SerialActivation, SerialPooling, SerialPadding, SerialFeatureMap
-from .utils import get_op_attrs, get_base_address, get_strides
+from .utils import get_op_attrs, get_base_address, get_strides, get_loads
 
 
 def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatureMap, tvm.tir.Var]:
@@ -123,7 +123,10 @@ def get_identity_params(
     while hasattr(stmt, "body"):
         stmt = stmt.body
 
-    input_pointer = stmt.value.buffer_var
+    # loads = [input, LUT, LUT]
+    loads = get_loads(stmt)
+
+    input_pointer = loads[0].buffer_var
     output_pointer = stmt.buffer_var
 
     read = producers[input_pointer]

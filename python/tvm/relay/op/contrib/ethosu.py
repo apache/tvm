@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=ungrouped-imports
+# pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
 
@@ -36,14 +36,6 @@ try:
     # rely on imports from ethos-u-vela, we protect them with the decorator @requires_vela
     # implemented below.
     from ethosu.vela import api as vapi  # type: ignore
-    from tvm.relay.backend.contrib.ethosu import preprocess
-    from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
-    from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
-    from tvm.relay.backend.contrib.ethosu.util import RequantArgs
-    from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
-    from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
-    from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
-    from tvm.relay.backend.contrib.ethosu.util import get_dim_value
 except ImportError:
     vapi = None
 
@@ -116,6 +108,8 @@ def check_valid_dtypes(tensor_params: List[TensorParams], supported_dtypes: List
 
 def check_weights(weights: TensorParams, dilation: List[int]):
     """This function checks whether weight tensor is compatible with the NPU"""
+    from tvm.relay.backend.contrib.ethosu.util import get_dim_value
+
     dilated_height_range = (1, 64)
     dilated_hxw_range = (1, 64 * 64)
     weights_limit = 127 * 65536
@@ -200,6 +194,10 @@ class QnnConv2DParams:
 
     @requires_vela
     def __init__(self, func_body: tvm.relay.Function):
+        from tvm.relay.backend.contrib.ethosu.util import QConv2DArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
         activation = None
         if str(func_body.op) in self.activation_map.keys():
             activation = func_body
@@ -472,6 +470,8 @@ class BinaryElementwiseParams:
     """
 
     def __init__(self, func_body: Call, operator_type: str, has_quantization_parameters: bool):
+        from tvm.relay.backend.contrib.ethosu.util import BinaryElementwiseArgs
+
         clip = None
         if str(func_body.op) == "clip":
             clip = func_body
@@ -516,11 +516,12 @@ class BinaryElementwiseParams:
         self.activation = clip
         self.operator_type = operator_type
 
-        def can_broadcast(x, y):
-            for i in range(1, 4):
-                if x.shape[i] == y.shape[i] or y.shape[i] == 1:
-                    continue
+        def can_broadcast(ifm, ifm2):
+            if len(ifm.shape) < len(ifm2.shape):
                 return False
+            for m, n in zip(ifm.shape[::-1], ifm2.shape[::-1]):
+                if m != n and m == 1:
+                    return False
             return True
 
         if can_broadcast(self.ifm, self.ifm2):
@@ -539,9 +540,14 @@ class BinaryElementwiseParams:
         """
         if np.dtype(self.ofm) == np.int32 and self.activation is not None:
             return False
-        if len(self.ifm.shape) != 4 or len(self.ifm2.shape) != 4:
+        # Due to identity operator requiring ofm != int32 for now
+        if np.dtype(self.ofm) == np.int32 and len(self.ofm.shape) < 4:
             return False
-        if self.ifm.shape[0] != 1 or self.ifm2.shape[0] != 1:
+        if len(self.ifm.shape) > 4 or len(self.ifm2.shape) > 4:
+            return False
+        if len(self.ifm.shape) == 4 and self.ifm.shape[0] != 1:
+            return False
+        if len(self.ifm2.shape) == 4 and self.ifm2.shape[0] != 1:
             return False
         if not self.valid_broadcast:
             return False
@@ -863,6 +869,9 @@ class AbsParams:
     composite_name = "ethos-u.abs"
 
     def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
         quantize = func_body
         abs_op = quantize.args[0]
         dequantize = abs_op.args[0]
@@ -906,6 +915,123 @@ def abs_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     pattern = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
     pattern = is_op("abs")(pattern)
     pattern = is_op("qnn.quantize")(pattern, is_constant(), is_constant())
+    return pattern
+
+
+class TanhParams:
+    """
+    This class will parse a call to a ethos-u.tanh composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.tanh"
+
+    def __init__(self, func_body: Call):
+        self.ofm = TensorParams(func_body)
+        self.ifm = TensorParams(func_body.args[0].args[0].args[0])
+
+    def is_valid(self):
+        """
+        This function checks whether reshape has compatible attributes with the NPU
+        """
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def tanh_pattern():
+    """Create pattern for tanh"""
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    tanh = is_op("tanh")(dequant)
+    quant = is_op("qnn.quantize")(tanh, is_constant(), is_constant())
+    return quant
+
+
+class MeanParams:
+    """
+    This class will parse a call to ethosu.mean composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.mean"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        requantize = func_body
+        mean_op = requantize.args[0]
+        attrs = mean_op.attrs
+        cast = mean_op.args[0]
+
+        layout = "NHWC"
+        self.ifm = TensorParams(
+            cast.args[0],
+            layout,
+            requantize.args[RequantArgs.IFM_SCALE.value],
+            requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            requantize,
+            layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        ifm_shape = self.ifm.shape
+        self.height = ifm_shape[0] if len(ifm_shape) in (2, 3) else ifm_shape[1]
+        self.width = ifm_shape[1] if len(ifm_shape) in (2, 3) else ifm_shape[2]
+        self.keepdims = attrs.keepdims
+
+        self.axis = list(sorted(attrs.axis))
+        if attrs.exclude:
+            self.axis = [i for i in range(len(self.ifm.shape)) if i not in self.axis]
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether Mean has compatible attributes with HW.
+        """
+
+        def check_axis(num_dims, axis):
+            if num_dims in (2, 3):
+                return axis in ([0], [1], [0, 1])
+            return axis in ([1], [2], [1, 2])
+
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if self.ifm.dtype != self.ofm.dtype:
+            return False
+        if not len(self.ifm.shape) in [2, 3, 4]:
+            return False
+        if not check_axis(len(self.ifm.shape), self.axis):
+            return False
+
+        # MEAN has further restrictions on the input size, depending on legalization method.
+        input_size = self.height * self.width
+        if input_size > 65536:
+            return False
+        if (
+            self.ifm.q_params.scale_f32 != self.ofm.q_params.scale_f32
+            or self.ifm.q_params.zero_point != self.ofm.q_params.zero_point
+        ) and input_size > 4096:
+            return False
+        if self.axis == [1, 2] and self.keepdims and self.ifm.dtype == "int8" and input_size > 256:
+            return False
+        # Large kernel height reshape only when axis is [1, 2]
+        if self.axis != [1, 2] and self.height > 64:
+            return False
+        return True
+
+
+def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for mean.
+    """
+    pattern = is_op("cast")(wildcard())
+    pattern = is_op("mean")(pattern)
+    pattern = is_op("qnn.requantize")(
+        pattern, is_constant(), is_constant(), is_constant(), is_constant()
+    )
     return pattern
 
 
@@ -977,6 +1103,12 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             abs_pattern(),
             lambda pat: AbsParams(pat).is_valid(),
         ),
+        (TanhParams.composite_name, tanh_pattern(), lambda pat: TanhParams(pat).is_valid()),
+        (
+            MeanParams.composite_name,
+            mean_pattern(),
+            lambda pat: MeanParams(pat).is_valid(),
+        ),
     ]
 
 
@@ -1001,6 +1133,8 @@ def partition_for_ethosu(
     mod : IRModule
         The partitioned IRModule with external global functions
     """
+    from tvm.relay.backend.contrib.ethosu import preprocess
+
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 

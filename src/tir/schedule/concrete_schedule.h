@@ -204,7 +204,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {
                << (obj.defined() ? obj->GetTypeKey() : "None");
   }
   if (sref->stmt == nullptr) {
-    LOG(FATAL) << "ValueError: The StmtSRef has expired";
+    LOG(FATAL) << "ValueError: The block no longer exists in the IRModule";
   }
   return GetRef<StmtSRef>(sref);
 }
@@ -229,7 +229,7 @@ inline StmtSRef ConcreteScheduleNode::GetSRef(const LoopRV& loop_rv) const {
                << (obj.defined() ? obj->GetTypeKey() : "None");
   }
   if (sref->stmt == nullptr) {
-    LOG(FATAL) << "ValueError: The StmtSRef has expired";
+    LOG(FATAL) << "ValueError: The loop no longer exists in the IRModule";
   }
   return GetRef<StmtSRef>(sref);
 }

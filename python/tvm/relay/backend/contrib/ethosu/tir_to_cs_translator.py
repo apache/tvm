@@ -39,6 +39,7 @@ class BufferType(Enum):
     scratch = auto()
     input = auto()
     output = auto()
+    shram = auto()
 
 
 _REGION_MAP = {
@@ -46,6 +47,7 @@ _REGION_MAP = {
     BufferType.scratch: 1,
     BufferType.input: 3,
     BufferType.output: 4,
+    BufferType.shram: int((1 << 8) | (3 << 0)),
 }
 
 
@@ -57,6 +59,25 @@ class BufferInfo(NamedTuple):
     shape: tvm.ir.container.Array
     dtype: np.dtype
     btype: BufferType
+
+
+class AcceleratorArchConfig:
+    def __init__(self, total_shram_banks):
+        self.shram_bank_size = 1024
+        self.total_shram_banks = total_shram_banks
+        self.shram_size_bytes = self.shram_bank_size * self.total_shram_banks
+        self.lut_size_bytes = 2048
+        self.lut_start_address = self.shram_size_bytes - self.lut_size_bytes
+
+
+def get_accelerator_arch_config(accel_type):
+    accel_config_str_map = {
+        "ethos-u55-256": AcceleratorArchConfig(48),
+        "ethos-u55-128": AcceleratorArchConfig(24),
+        "ethos-u55-64": AcceleratorArchConfig(16),
+        "ethos-u55-32": AcceleratorArchConfig(16),
+    }
+    return accel_config_str_map[accel_type]
 
 
 def translate(tir_module, params):
@@ -152,27 +173,36 @@ def extract_buffer_info(
     primfunc = mod.functions.items()[0][1]
     for idx, const_data in param_dict.items():
         param = primfunc.params[idx]
-        buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
 
     for param in primfunc.params:
-        if primfunc.buffer_map[param].data not in buffer_info.keys():
-            buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        if param not in buffer_info.keys():
+            buffer_info[param] = BufferInfo(
                 None,
-                primfunc.buffer_map[param].shape,
-                primfunc.buffer_map[param].dtype,
+                None,
+                None,
                 BufferType.input_or_output,
             )
 
     def populate_allocate_buffer_info(stmt):
         if isinstance(stmt, tvm.tir.stmt.Allocate):
             allocate = stmt
+            if "placeholder" in allocate.buffer_var.name:
+                storage_scope = allocate.buffer_var.name.split(".")[-1]
+            else:
+                storage_scope = "global"
+
+            if storage_scope == "local":
+                buffer_type = BufferType.shram
+            else:
+                buffer_type = BufferType.scratch
             buffer_info[allocate.buffer_var] = BufferInfo(
                 None,
                 allocate.extents,
                 allocate.dtype,
-                BufferType.scratch,
+                buffer_type,
             )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
@@ -223,7 +253,7 @@ def assign_addresses(buffer_info, npu_ops):
     def replace_npu_address_range_with_address(npu_addr_range):
         assert isinstance(npu_addr_range.address, tvm.tir.Load)
         buffer = npu_addr_range.address.buffer_var
-        assert buffer in buffer_addresses.keys()
+        assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
         return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
 
@@ -269,17 +299,22 @@ def assign_addresses(buffer_info, npu_ops):
                 size_in_bytes = util.round_up(size_in_bytes, 16)
                 constant_tensor = np.append(constant_tensor, np.resize(info.values, size_in_bytes))
         else:
-            size_in_bytes = int(
-                (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
-            )
-            # Every memory address the NPU access have to be 16 byte aligned
-            size_in_bytes = util.round_up(size_in_bytes, 16)
             if info.btype == BufferType.input_or_output:
                 buffer_type = classify_io(_buffer)
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
+            elif info.btype == BufferType.shram:
+                accl_config = util.get_accelerator_config()
+                arch_config = get_accelerator_arch_config(accl_config)
+                address = arch_config.lut_start_address
+                buffer_addresses[_buffer] = (address, info.btype)
             else:
+                size_in_bytes = int(
+                    (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
+                )
+                # Every memory address the NPU access have to be 16 byte aligned
+                size_in_bytes = util.round_up(size_in_bytes, 16)
                 assert info.btype == BufferType.scratch
                 address = scratch_size
                 scratch_size += size_in_bytes
@@ -597,14 +632,18 @@ def _create_npu_activation(serial_activation: spec.SerialActivation) -> vapi.Npu
         return None
     op_map = {
         "CLIP": vapi.NpuActivationOp.NONE_OR_RELU,
-        "TANH": vapi.NpuActivationOp.TANH,
-        "SIGMOID": vapi.NpuActivationOp.SIGMOID,
+        "TANH": vapi.NpuActivationOp.TABLE_LOOKUP,
+        "SIGMOID": vapi.NpuActivationOp.TABLE_LOOKUP,
+        "LUT": vapi.NpuActivationOp.TABLE_LOOKUP,
     }
     op = str(serial_activation.op.value)
     assert op in op_map.keys()
     act_op = vapi.NpuActivation(op_map[op])
-    act_op.min = int(serial_activation.clip_min)
-    act_op.max = int(serial_activation.clip_max)
+    if serial_activation.op == "CLIP":
+        act_op.min = int(serial_activation.clip_min.value)
+        act_op.max = int(serial_activation.clip_max.value)
+    if op_map[op] == vapi.NpuActivationOp.TABLE_LOOKUP:
+        act_op.lookup_table_index = 0
     return act_op
 
 
@@ -799,6 +838,8 @@ def _create_npu_op_unary_elementwise(serial_unary_elementwise):
     operator_type = serial_unary_elementwise.operator_type
     if operator_type == "ABS":
         op = vapi.NpuElementWiseOp.ABS
+    if operator_type == "CLZ":
+        op = vapi.NpuElementWiseOp.CLZ
 
     npu_unary_elementwise_op = vapi.NpuElementWiseOperation(op)
     npu_unary_elementwise_op.ifm = _create_npu_feature_map(serial_unary_elementwise.ifm)

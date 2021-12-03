@@ -16,6 +16,14 @@
 # under the License.
 
 if(USE_ETHOSU)
-  file(GLOB ETHOSU_RELAY_CONTRIB_SRC src/relay/backend/contrib/ethosu/*)
-  list(APPEND COMPILER_SRCS ${ETHOSU_RELAY_CONTRIB_SRC})
+  file(GLOB COMPILER_ETHOSU_SRCS
+       CONFIGURE_DEPENDS src/relay/backend/contrib/ethosu/*
+       CONFIGURE_DEPENDS src/contrib/ethosu/cascader/*)
+  list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
+else()
+  # Keeping just utils.cc because it has Object definitions
+  # used by python side
+  file(GLOB COMPILER_ETHOSU_SRCS
+          CONFIGURE_DEPENDS src/relay/backend/contrib/ethosu/utils.cc)
+  list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
 endif(USE_ETHOSU)

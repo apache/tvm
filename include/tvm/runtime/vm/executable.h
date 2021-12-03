@@ -133,16 +133,22 @@ class Executable : public ModuleNode {
 
   /*!
    * \brief Returns a description of all the constants in the executable in human-readable
-   * format. Not intended to be machine readable, but rather to help with debugging and
-   * diffing generated code.
+   * format. Intended for debugging and diff-testing.
    */
   std::string GetConstants() const;
 
   /*!
    * \brief Returns a description of all the (virtual) devices in the executable in human-readable
-   * format.
+   * format. Intended for debugging and diff-testing.
    */
   std::string GetVirtualDevices() const;
+
+  /*!
+   * \brief Returns a description of all the 'primitive' (ie PackedFuncs) in the executable in
+   * human-readable format. These correspond either to PrimFuncs we've compiled locally, or
+   * functions compiled by a BYOC external codegen. Intended for debugging and diff-testing.
+   */
+  std::string GetPrimitives() const;
 
   /*!
    * \brief Print the detailed statistics of the given code, i.e. number of
@@ -201,9 +207,9 @@ class Executable : public ModuleNode {
   int host_device_index = -1;
   /*! \brief The global constant pool. */
   std::vector<ObjectRef> constants;
-  /*! \brief A map from globals (as strings) to their index in the function map. */
+  /*! \brief A map from globals (as strings) to their index in the Relay function map. */
   std::unordered_map<std::string, Index> global_map;
-  /*! \brief A mapping from the packed function (as string) to the index that
+  /*! \brief A mapping from the packed function's global name (as string) to the index that
    * corresponds to the position of the `packed_funcs` list in a `VirtualMachine` object.
    */
   std::unordered_map<std::string, Index> primitive_map;

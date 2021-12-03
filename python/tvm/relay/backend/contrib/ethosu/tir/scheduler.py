@@ -42,6 +42,8 @@ def schedule(cached_func, const_dict, cascader=None):
     if cascader:
         cascader(cached_func, const_dict, s)
     inline_no_ops(cached_func, s)
+    copy_luts()(cached_func, const_dict, s)
+    inline_no_ops(cached_func, s)
     schedule_pragmas(s)
     schedule_cache_reads(s)
     return s
@@ -129,20 +131,54 @@ def copy_constants():
     def _planner(cached_func, const_dict, sch):
         planned = set()  # type: ignore
 
-        def _visit(tensor, reader):
+        def _visit(tensor, reader, lut):
             if tensor is not planned:
                 planned.add(tensor)
-                if isinstance(tensor.op, tvm.te.PlaceholderOp):
+                if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor != lut:
                     index = list(cached_func.inputs).index(tensor)
                     if index in const_dict:
                         sch.cache_read(tensor, "global", [reader])
 
                 elif isinstance(tensor.op, tvm.te.ComputeOp):
+                    if "lut" in tensor.op.attrs.keys():
+                        lut = tensor.op.attrs["lut"]
                     for input_tensor in tensor.op.input_tensors:
-                        _visit(input_tensor, tensor)
+                        _visit(input_tensor, tensor, lut)
 
         for output_tensor in cached_func.outputs:
-            _visit(output_tensor, None)
+            _visit(output_tensor, None, None)
+
+    return _planner
+
+
+def copy_luts():
+    """A scheduler that copies LUTs to SHRAM.
+
+    Returns
+    -------
+    planner : callable
+        The planning function.
+    """
+
+    def _planner(te_graph, const_dict, sch):
+        planned = set()  # type: ignore
+
+        def _visit(tensor, reader, lut):
+            if tensor is not planned:
+                planned.add(tensor)
+                if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor == lut:
+                    index = list(te_graph.inputs).index(tensor)
+                    if index in const_dict:
+                        sch.cache_read(tensor, "local", [reader])
+
+                elif isinstance(tensor.op, tvm.te.ComputeOp):
+                    if "lut" in tensor.op.attrs.keys():
+                        lut = tensor.op.attrs["lut"]
+                    for input_tensor in tensor.op.input_tensors:
+                        _visit(input_tensor, tensor, lut)
+
+        for output_tensor in te_graph.outputs:
+            _visit(output_tensor, None, None)
 
     return _planner
 
@@ -165,7 +201,7 @@ def schedule_pragmas(sch):
         if "op" in [attr for attr, val in stage.op.attrs.items()]:
             stage.pragma(ax, "op", stage.op.attrs["op"])
             for attr, val in stage.op.attrs.items():
-                if attr != "op":
+                if attr not in ("op", "lut"):
                     stage.pragma(ax, str(attr), val)
 
     for stage in sch.stages:
