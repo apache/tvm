@@ -16,7 +16,7 @@
 # under the License.
 """
 Getting Starting using TVMC Python: a high-level API for TVM
-==========================================================
+=============================================================
 **Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_,
 
