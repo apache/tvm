@@ -43,9 +43,12 @@ cmake -DUSE_HEXAGON_RPC=ON \
 ```
 
 ## Testing Using HexagonLauncher
-Before starting a test you need to run an RPC tracker on your local machine and export HOST and PORT as environment variables
+Before starting a test you need to run an RPC tracker on your local machine and export HOST and PORT as environment variables. Also, you need to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`.
 
 ```bash
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/path/to/clang++/lib"
+export HEXAGON_TOOLCHAIN="/path/to/Hexagon/toolchain/"
+
 export TVM_TRACKER_HOST="0.0.0.0"
 export TVM_TRACKER_PORT=9192
 python -m tvm.exec.rpc_tracker --host $TVM_TRACKER_HOST --port $TVM_TRACKER_PORT
@@ -66,16 +69,13 @@ launcher.android_run_rpc(rpc_tracker_host="TVM_TRACKER_HOST", rpc_tracker_port="
 # Upload Hexagon RPC libraries to Android workspace.
 launcher.hexagon_setup()
 
-# Connect and RPC session from host to Android to be able to upload TVMModules to Android file system.
+# Create an RPC session from host to Hexagon.
 remote_kw = {
     "host": "TVM_TRACKER_HOST",
     "port": "TVM_TRACKER_PORT",
     "priority": 0,
     "timeout": 60,
 }
-launcher.android_remote_setup(remote_kw)
-
-# Create an RPC session from host to Hexagon.
 launcher.hexagon_session_setup(remote_kw)
 
 # Upload TVMModule binary file to Android remote.

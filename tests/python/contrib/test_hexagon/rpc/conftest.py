@@ -71,12 +71,12 @@ def requires_rpc_tracker(*args):
     return _compose(args, _requires_rpc_tracker)
 
 
-def requires_ndk_cc(*args):
-    _requires_ndk_cc = [
+def requires_hexagon_toolchain(*args):
+    _requires_hexagon_toolchain = [
         pytest.mark.skipif(
-            os.environ.get("TVM_NDK_CC") == None,
-            reason="TVM_NDK_CC environment variable is required to run this test.",
+            os.environ.get("HEXAGON_TOOLCHAIN") == None,
+            reason="HEXAGON_TOOLCHAIN environment variable is required to run this test.",
         ),
     ]
 
-    return _compose(args, _requires_ndk_cc)
+    return _compose(args, _requires_hexagon_toolchain)

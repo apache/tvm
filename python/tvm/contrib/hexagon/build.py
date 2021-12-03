@@ -25,7 +25,6 @@ import stat
 import datetime
 
 import tvm
-from tvm import rpc as _rpc
 from ..._ffi import libinfo
 from .session import Session
 
@@ -75,12 +74,10 @@ class HexagonLauncher:
 
         self._serial_number = serial_number
         self._adb_device_sub_cmd = ["adb", "-s", self._serial_number]
-        self._android_remote = None
         self._mod = None
         self._workspace = None
 
-    ANDROID_REMOTE_DEVICE_KEY = "hexagon_dev-android"
-    HEXAGON_REMOTE_DEVICE_KEY = "hexagon_dev-hexagon"
+    HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
 
     def android_run_rpc(
         self,
@@ -127,10 +124,6 @@ class HexagonLauncher:
                         line = line.replace("<RPC_TRACKER_HOST>", str(rpc_tracker_host))
                     if "<RPC_TRACKER_PORT>" in line:
                         line = line.replace("<RPC_TRACKER_PORT>", str(rpc_tracker_port))
-                    if f"<ANDROID_REMOTE_DEVICE_KEY>" in line:
-                        line = line.replace(
-                            "<ANDROID_REMOTE_DEVICE_KEY>", self.ANDROID_REMOTE_DEVICE_KEY
-                        )
                     if "<HEXAGON_REMOTE_DEVICE_KEY>" in line:
                         line = line.replace(
                             "<HEXAGON_REMOTE_DEVICE_KEY>", self.HEXAGON_REMOTE_DEVICE_KEY
@@ -184,21 +177,6 @@ class HexagonLauncher:
             dst_path = f"{self._workspace}/{item}"
             subprocess.check_call(self._adb_device_sub_cmd + ["push", src_path, dst_path])
 
-    def android_remote_setup(self, remote_kw: dict):
-        """Setup remote connection from host to Android RPC server.
-
-        Parameters
-        ----------
-        remote_kw : dict
-            RPC tracker configs.
-        """
-        tracker = _rpc.connect_tracker(remote_kw["host"], remote_kw["port"])
-        self.android_remote = tracker.request(
-            self.ANDROID_REMOTE_DEVICE_KEY,
-            priority=remote_kw["priority"],
-            session_timeout=remote_kw["timeout"],
-        )
-
     def hexagon_session_setup(self, remote_kw: dict):
         """Setup Hexagon RPC Session from host to Hexagon device.
 
@@ -207,7 +185,6 @@ class HexagonLauncher:
         remote_kw : dict
             RPC tracker configs.
         """
-        assert self.android_remote, "android_remote should initialied first."
         hexagon_remote_kw = dict(remote_kw)
         hexagon_remote_kw["key"] = self.HEXAGON_REMOTE_DEVICE_KEY
         self.session = Session(hexagon_remote_kw)
@@ -229,7 +206,7 @@ class HexagonLauncher:
         self._mod = self.session.load_module(module_path)
         return self._mod
 
-    def upload(self, host_path: Union[str, pathlib.Path], remote_filename: str = None):
+    def upload(self, host_path: Union[str, pathlib.Path], remote_filename: str):
         """Upload a file to remote(Android).
 
         Parameters
@@ -245,11 +222,8 @@ class HexagonLauncher:
             A TVM Module loaded on hexagon.
         """
         src_path = str(host_path)
-        if remote_filename:
-            dst_remote_path = f"{self._workspace}/{remote_filename}"
-        else:
-            dst_remote_path = None
-        self.android_remote.upload(src_path, target=dst_remote_path)
+        dst_remote_path = f"{self._workspace}/{remote_filename}"
+        subprocess.check_call(self._adb_device_sub_cmd + ["push", src_path, dst_remote_path])
 
     def get_local_graph_executor(self, libmod, remote_libmod_filename: str):
         """Create a GraphModule.
@@ -274,6 +248,12 @@ class HexagonLauncher:
         )
 
     def close(self):
-        """Close RPC servers"""
-        subprocess.Popen(self._adb_device_sub_cmd + ["shell", "kill `cat android_rpc_pid.txt`"])
-        subprocess.Popen(self._adb_device_sub_cmd + ["shell", "kill `cat hexagon_rpc_pid.txt`"])
+        """Close RPC server on Android"""
+        # kill process childs
+        subprocess.Popen(
+            self._adb_device_sub_cmd + ["shell", f"pkill -P `cat {self._workspace}/rpc_pid.txt`"]
+        )
+        # kill main process
+        subprocess.Popen(
+            self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
+        )

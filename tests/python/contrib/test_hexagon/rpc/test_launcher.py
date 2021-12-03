@@ -28,59 +28,11 @@ from tvm.contrib import utils, ndk
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.contrib.hexagon.hexagon as hexagon
 
-from conftest import requires_rpc_tracker, requires_ndk_cc
+from conftest import requires_rpc_tracker, requires_hexagon_toolchain
 
 
 @requires_rpc_tracker
-@requires_ndk_cc
-def test_rpc_on_android(tvm_tracker_host, tvm_tracker_port, android_serial_number):
-    if "TVM_NDK_CC" not in os.environ:
-        raise RuntimeError(
-            "Require environment variable TVM_NDK_CC" " to be the NDK standalone compiler"
-        )
-    target = "llvm -mtriple=arm64-linux-android"
-
-    n = tvm.runtime.convert(1024)
-    A = te.placeholder((n,), name="A")
-    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    a_np = np.random.uniform(size=1024).astype(A.dtype)
-    temp = utils.tempdir()
-
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=64)
-    s[B].parallel(xi)
-    s[B].pragma(xo, "parallel_launch_point")
-    s[B].pragma(xi, "parallel_barrier_when_finish")
-    f = tvm.build(s, [A, B], target, name="myadd_cpu")
-    path_dso_cpu = temp.relpath("cpu_lib.so")
-    f.export_library(path_dso_cpu, ndk.create_shared)
-
-    launcher = HexagonLauncher(serial_number=android_serial_number)
-    launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
-
-    remote_kw = {
-        "host": tvm_tracker_host,
-        "port": tvm_tracker_port,
-        "priority": 0,
-        "timeout": 60,
-    }
-    launcher.android_remote_setup(remote_kw)
-
-    print("Run CPU test ...")
-    remote = launcher.android_remote
-    dev = remote.cpu(0)
-    launcher.upload(path_dso_cpu)
-    f2 = remote.load_module("cpu_lib.so")
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-    time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
-    cost = time_f(a, b).mean
-    print("%g secs/op\n" % cost)
-    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-    launcher.close()
-
-
-@requires_rpc_tracker
+@requires_hexagon_toolchain
 def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     dtype = "int8"
     A = tvm.te.placeholder((2,), dtype=dtype)
@@ -88,8 +40,10 @@ def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
     sched = tvm.te.create_schedule(C.op)
 
-    target = tvm.target.hexagon("v68", link_params=True)
-    func = tvm.build(sched, [A, B, C], target=target, target_host=target, name="add")
+    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    func = tvm.build(
+        sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
+    )
 
     temp = utils.tempdir()
     dso_binary = "test_binary.so"
@@ -105,7 +59,6 @@ def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
         "priority": 0,
         "timeout": 60,
     }
-    launcher.android_remote_setup(remote_kw)
     launcher.hexagon_session_setup(remote_kw)
     launcher.upload(dso_binary_path, dso_binary)
 
@@ -129,6 +82,7 @@ class TestMatMul:
     K = tvm.testing.parameter(32)
 
     @requires_rpc_tracker
+    @requires_hexagon_toolchain
     def test_matmul(self, tvm_tracker_host, tvm_tracker_port, android_serial_number, M, N, K):
         X = te.placeholder((M, K), dtype="float32")
         Y = te.placeholder((K, N), dtype="float32")
@@ -137,7 +91,9 @@ class TestMatMul:
         schedule = te.create_schedule(Z.op)
 
         target_hexagon = tvm.target.hexagon("v68", link_params=True)
-        func = tvm.build(schedule, [X, Y, Z], target=target_hexagon, target_host=target_hexagon)
+        func = tvm.build(
+            schedule, [X, Y, Z], tvm.target.Target(target_hexagon, host=target_hexagon)
+        )
 
         temp = utils.tempdir()
         dso_binary = "test_binary.so"
@@ -155,7 +111,6 @@ class TestMatMul:
             "priority": 0,
             "timeout": 60,
         }
-        launcher.android_remote_setup(remote_kw)
         launcher.hexagon_session_setup(remote_kw)
         launcher.upload(dso_binary_path, dso_binary)
 
@@ -171,7 +126,7 @@ class TestMatMul:
             mod(xt, yt, zt)
 
         target_llvm = tvm.target.Target("llvm")
-        mod = tvm.build(schedule, [X, Y, Z], target=target_llvm, target_host=target_llvm)
+        mod = tvm.build(schedule, [X, Y, Z], tvm.target.Target(target_llvm, host=target_llvm))
         device = tvm.cpu(0)
         xtcpu = tvm.nd.array(x, device)
         ytcpu = tvm.nd.array(y, device)
@@ -179,10 +134,11 @@ class TestMatMul:
         mod(xtcpu, ytcpu, ztcpu)
         launcher.close()
 
-        tvm.testing.assert_allclose(zt.asnumpy(), ztcpu.asnumpy(), rtol=1e-4)
+        tvm.testing.assert_allclose(zt.numpy(), ztcpu.numpy(), rtol=1e-4)
 
 
 @requires_rpc_tracker
+@requires_hexagon_toolchain
 def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     dtype = "float32"
     data = relay.var("data", relay.TensorType((1, 64, 64, 3), dtype))
@@ -211,8 +167,7 @@ def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_numbe
     with tvm.transform.PassContext(opt_level=3):
         lowered = tvm.relay.build(
             relay_mod,
-            target=target_hexagon,
-            target_host=target_hexagon,
+            tvm.target.Target(target_hexagon, host=target_hexagon),
             runtime=runtime,
             executor=executor,
         )
@@ -227,7 +182,6 @@ def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_numbe
         "priority": 0,
         "timeout": 60,
     }
-    launcher.android_remote_setup(remote_kw)
     launcher.hexagon_session_setup(remote_kw)
     launcher.upload(dso_binary_path, dso_binary)
 
@@ -242,8 +196,7 @@ def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_numbe
     with tvm.transform.PassContext(opt_level=3):
         llvm_lowered = tvm.relay.build(
             relay_mod,
-            target=target_llvm,
-            target_host=target_llvm,
+            tvm.target.Target(target_llvm, host=target_llvm),
             runtime=runtime,
             executor=executor,
         )
