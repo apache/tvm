@@ -193,7 +193,9 @@ def _compare_ethosu_with_reference(
     infra.verify_source(compiled_models, accel_type)
 
 
-def _compare_tvm_with_tflite(tf_func, shapes, accel_type, ranges=None, print_cmm=False):
+def _compare_tvm_with_tflite(
+    tf_func, shapes, accel_type, ranges=None, output_tolerance=0, print_cmm=False
+):
     tensor_specs = [tf.TensorSpec(shape, dtype=tf.float32) for shape in shapes]
     if not ranges:
         ranges = [(0, 1) for _ in shapes]
@@ -227,7 +229,14 @@ def _compare_tvm_with_tflite(tf_func, shapes, accel_type, ranges=None, print_cmm
     # Generate reference data
     input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
-    _compare_ethosu_with_reference(mod, input_data, output_data, accel_type, print_cmm=print_cmm)
+    _compare_ethosu_with_reference(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
+        output_tolerance=output_tolerance,
+        print_cmm=print_cmm,
+    )
 
 
 class EthosUAnnotator(ExprMutator):
@@ -272,8 +281,8 @@ def _create_ethosu_partition(mod):
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
 @pytest.mark.parametrize(
-    "kernel_shape, activation",
-    [((3, 3), "relu"), ((1, 2), None)],
+    "kernel_shape, activation_function",
+    [((3, 3), "RELU"), ((1, 2), "NONE")],
 )
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 2)), ((3, 2), (1, 1))])
@@ -284,7 +293,7 @@ def test_tflite_depthwise_conv2d(
     padding,
     strides,
     dilation,
-    activation,
+    activation_function,
 ):
     @tf.function
     def depthwise_conv2d(x):
@@ -295,7 +304,7 @@ def test_tflite_depthwise_conv2d(
         op = tf.nn.depthwise_conv2d(
             x, weight, strides=tf_strides, padding=padding, dilations=dilation
         )
-        if activation:
+        if activation_function:
             op = tf.nn.relu(op)
         return op
 
@@ -374,6 +383,7 @@ def test_ethosu_binary_elementwise(
         shapes=[ifm_shape, ifm2_shape],
         ranges=[(0, 1), (0, 2)],
         accel_type=accel_type,
+        output_tolerance=1 if operator_type == "MAX" else 0,
     )
 
 
