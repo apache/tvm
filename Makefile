@@ -19,7 +19,7 @@
 .PHONY: all \
         runtime vta cpptest crttest \
         lint pylint cpplint scalalint \
-	doc docs \
+	cppdoc docs \
 	web webclean \
 	cython cython3 cyclean \
         clean
@@ -114,7 +114,7 @@ scalalint:
 mypy:
 	tests/scripts/task_mypy.sh
 
-doc:
+cppdoc:
 	doxygen docs/Doxyfile
 
 

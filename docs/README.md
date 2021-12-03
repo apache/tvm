@@ -44,8 +44,8 @@ cd docs/_build/html && python3 -m http.server
 
     ```bash
     # Pillow on Ubuntu may require libjpeg-dev from apt
-    sudo docker run tlcpack/ci-gpu:v0.78 bash -c \
-    'python3 -m pip install --quiet tlcpack-sphinx-addon==0.2.1 synr==0.5.0 && python3 -m pip freeze' > frozen-requirements.txt
+    docker run tlcpack/ci-gpu:v0.78 bash -c \
+        'python3 -m pip install --quiet tlcpack-sphinx-addon==0.2.1 synr==0.5.0 && python3 -m pip freeze' > frozen-requirements.txt
 
     pip install -r frozen-requirements.txt
     ```
@@ -93,7 +93,7 @@ The following script runs the full build which includes tutorial executions.
 You will need a GPU CI environment.
 
 ```bash
-./tests/scripts/task_python_docs.sh
+python tests/scripts/ci.py --precheck --full
 ```
 
 ## Define the Order of Tutorials
