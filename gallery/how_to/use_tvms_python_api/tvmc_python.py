@@ -24,6 +24,9 @@ Welcome to TVMC Python
 ======================
 Hi! Here we explain the scripting tool designed for the complete TVM beginner. ðŸ™‚ 
 
+An example model to use:"""
+wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
+"""
 ################################################################################
 # Step 0: Imports
 # ---------------
@@ -36,7 +39,7 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 ################################################################################
 # Step 1: Load a model
 # --------------------
-
+#
 # Let's import our model into tvmc. This step converts a machine learning model from 
 # a supported framework into TVM's high level graph representation language called relay. 
 # This is to have a unified starting point for all models in tvm. The frameworks we currently 
@@ -85,7 +88,7 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 # Step 3: Run
 # -----------
 # The compiled package can now be run on the hardware target. The device 
-# input options are: cpu, cuda, cl, metal, and vulkan.
+# input options are: CPU, Cuda, CL, Metal, and Vulkan.
 # 
 #  .. code-block:: python
 #      result = tvmc.run(package, device="cpu") #Step 3: Run
@@ -148,10 +151,11 @@ Additional TVMC Functionalities
 # ----------------
 # 
 # To make things faster for later, after loading the model (Step 1) save the relay version. 
-# 
+# The model will then appear where you saved it for later in the coverted syntax.
+#
 #   .. code-block:: python
 #      model = tvmc.load('my_model.onnx') #Step 1: Load
-#      model.save(model_path) 
+#      model.save(desired_model_path) 
 # 
 
 ################################################################################
@@ -210,7 +214,9 @@ Additional TVMC Functionalities
 ################################################################################
 # Tuning a more complex model:
 # ----------------------------
-# If you notice T's (timeouts) printed, increase the searching time frame: 
+# If you notice T's (timeouts) printed like below,
+# .........T.T..T..T..T.T.T.T.T.T. 
+# increase the searching time frame: 
 # 
 #    .. code-block:: python
 #      tvmc.tune(model,trials=10000,timeout=10,)
