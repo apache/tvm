@@ -126,14 +126,14 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         """
         This function is for Buffer(...) syntax sugar.
         """
-        pass
+        pass  # pylint: disable=unnecessary-pass
 
     def __getitem__(self, args):
         """
         This function is for Buffer[...] syntax sugar
         Note that args is the list of all arguments
         """
-        pass
+        pass  # pylint: disable=unnecessary-pass
 
     def evaluate(self):
         return tvm.ir.PrimType(self.type)
