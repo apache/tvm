@@ -24,7 +24,8 @@ Welcome to TVMC Python
 ======================
 Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂 
 
-If you don't have an example model, you can download one via the terminal:
+Before we get started let's get an example model if you don't already have one.
+Follow the steps to download a resnet model via the terminal:
 
  .. code-block:: bash
 
@@ -34,6 +35,7 @@ If you don't have an example model, you can download one via the terminal:
      mv resnet50-v2-7.onnx my_model.onnx
      touch tvmcpythonintro.py
 
+Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Step 0: Imports
