@@ -231,6 +231,10 @@ set(USE_ETHOSN_HW OFF)
 # Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
 set(USE_ETHOSU OFF)
 
+# Whether to build with CMSIS-NN external library support.
+# See https://github.com/ARM-software/CMSIS_5
+set(USE_CMSISNN OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
