@@ -203,7 +203,7 @@ def pattern_table():
         return in_cast.checked_type.dtype == "int8" and out_cast.checked_type.dtype == "int32"
 
     def qnn_max_pool2d_pattern():
-        """Matches max pooling with optional Relu"""
+        """Matches max pool2d with optional Relu"""
         pattern = is_op("nn.max_pool2d")(wildcard())
         pattern = pattern.optional(is_op("clip"))
         return pattern
