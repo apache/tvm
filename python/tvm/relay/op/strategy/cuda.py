@@ -180,8 +180,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_hwcn),
                 name="conv2d_hwcn.cuda",
             )
-        elif layout == "NHWC":
-            assert kernel_layout == "HWIO"
+        elif layout == "NHWC" and kernel_layout == "HWIO":
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.gpu.conv2d_nhwc),
                 wrap_topi_schedule(topi.gpu.schedule_conv2d_nhwc),
@@ -304,19 +303,27 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_conv2d_NCHWc_int8),
                 name="conv2d_NCHWc_int8.cuda",
             )
-        else:
+        elif target.kind.name == "cuda" and "cudnn" not in target.libs:
+            # No TVM native kernel applicable
             raise RuntimeError("Unsupported conv2d layout {} for CUDA".format(layout))
-        # add cudnn implementation
-        if target.kind.name == "cuda" and "cudnn" in target.libs:
-            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and padding[1] == padding[3]:
-                strategy.add_implementation(
-                    wrap_compute_conv2d(
-                        topi.cuda.conv2d_cudnn, need_data_layout=True, has_groups=True
-                    ),
-                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
-                    name="conv2d_cudnn.cuda",
-                    plevel=25,
-                )
+
+        if (
+            target.kind.name == "cuda"
+            and "cudnn" in target.libs
+            and layout in ["NCHW", "NHWC"]
+            and padding[0] == padding[2]
+            and padding[1] == padding[3]
+        ):
+            # add cudnn implementation
+            if layout == "NHWC":
+                assert kernel_layout == "OHWI"
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.cuda.conv2d_cudnn, need_data_layout=True, has_groups=True),
+                wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
+                name="conv2d_cudnn.cuda",
+                plevel=25,
+            )
+
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"

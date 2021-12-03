@@ -126,6 +126,7 @@ class TECompilerNode : public Object {
    * annotated)
    */
   virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+  virtual void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) = 0;
 
   virtual Map<String, Integer> GetOpWeights() const = 0;
 

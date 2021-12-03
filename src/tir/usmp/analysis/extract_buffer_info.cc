@@ -26,6 +26,7 @@
  * conflicts between other tir.allocate nodes.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/relay/executor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
@@ -99,11 +100,21 @@ class BufferInfoExtractor : public StmtExprVisitor {
    */
   std::unordered_map<Call, Map<tir::Stmt, Integer>, ObjectPtrHash, ObjectPtrEqual>
       buffer_info_end_stmt_idx_;
+
+  /*!
+   * \brief This structure contains information regarding a Allocate node.
+   */
+  struct AllocateInfo {
+    tir::Stmt Allocate;
+    PrimFunc prim_func;
+    Call call;
+  };
+
   /*!
    * \brief Maintains the mapping of buffer variable to their allocate nodes to ensure
    * that only one BufferInfo object is created.
    */
-  Map<tir::Var, tir::Stmt> allocate_var_to_stmt_map_;
+  std::unordered_map<tir::Var, AllocateInfo, ObjectPtrHash, ObjectPtrEqual> allocate_infos;
   /*!
    * \brief Indicates a count of stmts visited so far to use as a metric of liveness
    */
@@ -203,29 +214,40 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
   auto size_bytes = CalculateExtentsSize(op);
   // We only statically memory plan only allocates with known
   // compile time sizes.
-  if (size_bytes.defined() &&
-      allocate_var_to_stmt_map_.find(op->buffer_var) == allocate_var_to_stmt_map_.end()) {
-    // By default, the core compiler is assumed to attach the a default pool to each allocate.
-    ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
-        << "Every statically sized allocate node needs an pool candidate attribute";
-    auto pool_candidates = Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+  if (size_bytes.defined()) {
+    if (allocate_infos.find(op->buffer_var) == allocate_infos.end()) {
+      // By default, the core compiler is assumed to attach the a default pool to each allocate.
+      ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
+          << "Every statically sized allocate node needs an pool candidate attribute";
+      auto pool_candidates =
+          Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
 
-    // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
-    // pool is added
-    ICHECK(pool_candidates.size() > 0)
-        << "The core compiler should at least attach a single PoolInfo. If there were no "
-           "user-given arguments for memory pools, the default behaviour is a single size "
-           "un-restricted pool is assigned";
-    PrimFunc func = scope_stack_.top().func;
-    Optional<Target> tgt = func->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(tgt) << "There should not be any PrimFuncs without a target attached by now";
-    auto workspace_alignment =
-        tgt.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
-    auto buffer_info = BufferInfo(GetUniqueBufferName(op->buffer_var->name_hint), size_bytes,
-                                  pool_candidates, workspace_alignment);
-    auto allocate = GetRef<Allocate>(op);
-    allocate_var_to_stmt_map_.Set(op->buffer_var, allocate);
-    buffer_info_map_.Set(buffer_info, allocate);
+      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
+      // pool is added
+      ICHECK(pool_candidates.size() > 0)
+          << "The core compiler should at least attach a single PoolInfo. If there were no "
+             "user-given arguments for memory pools, the default behaviour is a single size "
+             "un-restricted pool is assigned";
+      PrimFunc func = scope_stack_.top().func;
+      Optional<tvm::relay::Executor> executor_config =
+          module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+      Integer workspace_alignment = 16;
+      if (executor_config) {
+        workspace_alignment =
+            executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+      }
+      auto buffer_info = BufferInfo(GetUniqueBufferName(op->buffer_var->name_hint), size_bytes,
+                                    pool_candidates, workspace_alignment);
+      auto allocate = GetRef<Allocate>(op);
+      allocate_infos[op->buffer_var] =
+          AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
+      buffer_info_map_.Set(buffer_info, allocate);
+    } else {
+      // Update the allocate info with the latest call
+      AllocateInfo ai = allocate_infos[op->buffer_var];
+      ai.call = scope_stack_.top().call;
+      allocate_infos[op->buffer_var] = ai;
+    }
   }
 }
 
@@ -257,17 +279,25 @@ void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
     si.initial_stmt_of_the_nested_loops = Integer(current_stmt_idx_);
   }
   Call current_call = scope_stack_.top().call;
+  PrimFunc current_primfunc = scope_stack_.top().func;
   scope_stack_.push(si);
   StmtExprVisitor::VisitStmt_(op);
   // Extending the liveness to beginning of for-loop next and end of the current for-loop
   for (const Allocate& allocate : scope_stack_.top().allocate_nodes) {
+    AllocateInfo ai = allocate_infos[allocate->buffer_var];
+    Call update_call = current_call;
+    // If the allocate does not belong to current prim func
+    // We need to update the call to which the allocate belong to
+    if (ai.prim_func != current_primfunc) {
+      update_call = ai.call;
+    }
     if (scope_stack_.top().initial_stmt_of_the_nested_loops->value <
-        buffer_info_start_stmt_idx_[current_call][allocate]) {
-      buffer_info_start_stmt_idx_[current_call].Set(
+        buffer_info_start_stmt_idx_[update_call][allocate]) {
+      buffer_info_start_stmt_idx_[update_call].Set(
           allocate, scope_stack_.top().initial_stmt_of_the_nested_loops->value);
     }
-    if (current_stmt_idx_ > buffer_info_end_stmt_idx_[current_call][allocate]) {
-      buffer_info_end_stmt_idx_[current_call].Set(allocate, current_stmt_idx_);
+    if (current_stmt_idx_ > buffer_info_end_stmt_idx_[update_call][allocate]) {
+      buffer_info_end_stmt_idx_[update_call].Set(allocate, current_stmt_idx_);
     }
   }
   scope_stack_.pop();
@@ -286,12 +316,21 @@ void BufferInfoExtractor::VisitStmt_(const StoreNode* op) {
 void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
   Call current_call = scope_stack_.top().call;
-  if (allocate_var_to_stmt_map_.count(var)) {
-    auto allocate = allocate_var_to_stmt_map_[var];
-    if (buffer_info_start_stmt_idx_[current_call].count(allocate) == 0) {
-      buffer_info_start_stmt_idx_[current_call].Set(allocate, current_stmt_idx_);
+  PrimFunc current_primfunc = scope_stack_.top().func;
+  if (allocate_infos.count(var)) {
+    auto allocate = allocate_infos[var].Allocate;
+    auto allocate_primfunc = allocate_infos[var].prim_func;
+    Call update_call = current_call;
+    if (allocate_primfunc != current_primfunc) {
+      // If the allocate node does not belong to the current primfunc.
+      // It's access should be reported to the call to PrimFunc that
+      // Allocate belong to.
+      update_call = allocate_infos[var].call;
     }
-    buffer_info_end_stmt_idx_[current_call].Set(allocate, current_stmt_idx_);
+    if (buffer_info_start_stmt_idx_[update_call].count(allocate) == 0) {
+      buffer_info_start_stmt_idx_[update_call].Set(allocate, current_stmt_idx_);
+    }
+    buffer_info_end_stmt_idx_[update_call].Set(allocate, current_stmt_idx_);
 
     ScopeInfo& currect_scope_info = scope_stack_.top();
     if (currect_scope_info.for_loop.defined()) {
@@ -320,13 +359,13 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
     // to the original allocate
     if (arg->IsInstance<LoadNode>()) {
       auto load = Downcast<Load>(arg);
-      if (allocate_var_to_stmt_map_.count(load->buffer_var)) {
-        allocate_var_to_stmt_map_.Set(param_buf, allocate_var_to_stmt_map_[load->buffer_var]);
+      if (allocate_infos.count(load->buffer_var)) {
+        allocate_infos[param_buf] = allocate_infos[load->buffer_var];
       }
     } else if (arg->IsInstance<VarNode>()) {
       auto var = Downcast<Var>(arg);
-      if (allocate_var_to_stmt_map_.count(var)) {
-        allocate_var_to_stmt_map_.Set(param_buf, allocate_var_to_stmt_map_[var]);
+      if (allocate_infos.count(var)) {
+        allocate_infos[param_buf] = allocate_infos[var];
       }
     }
   }
@@ -415,18 +454,27 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
 
   // Traverse the liveness events using a open set to track what
   // is live while updating the conflicts through out the linear traversal
-  std::unordered_set<BufferInfo, ObjectPtrHash, ObjectPtrEqual> open_set;
+  std::unordered_map<BufferInfo, int, ObjectPtrHash, ObjectPtrEqual> open_set;
   for (const auto& le_event : le_events_timeline) {
     if (le_event.le_type == START) {
-      for (const auto& open_buffer_info : open_set) {
+      for (const auto& kv : open_set) {
+        BufferInfo open_buffer_info = kv.first;
         open_buffer_info->conflicts.push_back(le_event.buffer_info);
         if (le_event.buffer_info != open_buffer_info) {
           le_event.buffer_info->conflicts.push_back(open_buffer_info);
         }
       }
-      open_set.insert(le_event.buffer_info);
+      if (open_set.find(le_event.buffer_info) == open_set.end()) {
+        open_set[le_event.buffer_info] = 1;
+      } else {
+        open_set[le_event.buffer_info] += 1;
+      }
     } else {
-      open_set.erase(le_event.buffer_info);
+      if (open_set[le_event.buffer_info] == 1) {
+        open_set.erase(le_event.buffer_info);
+      } else {
+        open_set[le_event.buffer_info] -= 1;
+      }
     }
   }
   return this->buffer_info_map_;

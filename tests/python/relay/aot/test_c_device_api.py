@@ -92,7 +92,7 @@ def device_api_main_func():
             workspace_byte_alignment=16,
             pass_config=test_runner.pass_config,
         )
-        main_ir_module = list(compiled_models[0].executor_factory.lowered_ir_mods.values())[0]
+        main_ir_module = compiled_models[0].executor_factory.lowered_ir_mods.items()[1][1]
         main_func = main_ir_module["run_model"]
         return main_func
 
@@ -177,6 +177,9 @@ def test_device_api_hooks_unpacked_api(device_api_main_func):
     )
 
 
+@pytest.mark.skip(
+    "Skipping this test as this is incorrectly using Arm(R) Ethos(TM)-U NPU with packed calling convention which is not supported by the NPU codegen's TIR to Runtime Hook. We need to use a different target to test this feature"
+)
 def test_device_api_hooks_packed_api(device_api_main_func):
     """Check for Device API hooks with packed internal calls"""
     main_func = device_api_main_func(interface_api="packed", use_unpacked_api=False)

@@ -26,6 +26,7 @@ from tvm.ir.expr import PrimExpr, Range
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
+from tvm.target import Target
 from tvm.ir import Span
 from tvm.tir import IntImm, IterVar
 
@@ -841,3 +842,26 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class TargetAttrValue(SpecialStmt):
+    """Special Stmt for target attr value.
+    Example
+    -------
+    .. code-block:: python
+        T.target("llvm")
+    """
+
+    def __init__(self):
+        def target(*args, span):
+            self.context.report_error(f"T.target should not appear as a stmt", span)
+
+        super().__init__(target, def_symbol=False)
+
+    def __call__(self, target_config):
+        if not isinstance(target_config, (str, dict)):
+            raise ValueError(
+                f"T.target expected a config dict or string, but got {type(target_config)}"
+            )
+        return Target(target_config)
