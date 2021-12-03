@@ -1,0 +1,249 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:33+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_extend_tvm_use_pass_instrument.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:13
+msgid "How to Use TVM Pass Instrument"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:14
+msgid "**Author**: `Chi-Wei Wang <https://github.com/chiwwang>`_"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:16
+msgid ""
+"As more and more passes are implemented, it becomes useful to instrument "
+"pass execution, analyze per-pass effects, and observe various events."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:19
+msgid ""
+"We can instrument passes by providing a list of "
+":py:class:`tvm.ir.instrument.PassInstrument` instances to "
+":py:class:`tvm.transform.PassContext`. We provide a pass instrument for "
+"collecting timing information "
+"(:py:class:`tvm.ir.instrument.PassTimingInstrument`), but an extension "
+"mechanism is available via the :py:func:`tvm.instrument.pass_instrument` "
+"decorator."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:24
+msgid ""
+"This tutorial demostrates how developers can use ``PassContext`` to "
+"instrument passes. Please also refer to the :ref:`pass-infra`."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:48
+msgid "Create An Example Relay Program"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:49
+msgid "We use pre-defined resnet-18 network in Relay."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:69
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:197
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:237
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:420
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:515
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:567
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:625
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:659
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:690
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:718
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:743
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:173
+msgid "Create PassContext With Instruments"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:174
+msgid ""
+"To run all passes with an instrument, pass it via the ``instruments`` "
+"argument to the ``PassContext`` constructor. A built-in "
+"``PassTimingInstrument`` is used to profile the execution time of each "
+"passes."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:211
+msgid "Use Current PassContext With Instruments"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:212
+msgid ""
+"One can also use the current ``PassContext`` and register ``PassInstrument``"
+" instances by ``override_instruments`` method. Note that "
+"``override_instruments`` executes ``exit_pass_ctx`` method if any instrument"
+" already exists. Then it switches to new instruments and calls "
+"``enter_pass_ctx`` method of new instruments. Refer to following sections "
+"and :py:func:`tvm.instrument.pass_instrument` for these methods."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:250
+msgid "Register empty list to clear existing instruments."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:252
+msgid ""
+"Note that ``exit_pass_ctx`` of ``PassTimingInstrument`` is called. Profiles "
+"are cleared so nothing is printed."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:271
+msgid "Create Customized Instrument Class"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:272
+msgid ""
+"A customized instrument class can be created using the "
+":py:func:`tvm.instrument.pass_instrument` decorator."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:275
+msgid ""
+"Let's create an instrument class which calculates the change in number of "
+"occurrences of each operator caused by each pass. We can look at ``op.name``"
+" to find the name of each operator. And we do this before and after passes "
+"to calculate the difference."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:365
+msgid "Apply Passes and Multiple Instrument Classes"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:366
+msgid ""
+"We can use multiple instrument classes in a ``PassContext``. However, it "
+"should be noted that instrument methods are executed sequentially, obeying "
+"the order of ``instruments`` argument. So for instrument classes like "
+"``PassTimingInstrument``, it is inevitable to count-up the execution time of"
+" other instrument classes to the final profile result."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:403
+msgid "We can see how many CallNode increase/decrease per op type."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:433
+msgid "Exception Handling"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:434
+msgid ""
+"Let's see what happens if an exception occurs in a method of a "
+"``PassInstrument``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:436
+msgid ""
+"Define ``PassInstrument`` classes which raise exceptions in enter/exit "
+"``PassContext``:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:487
+msgid ""
+"If an exception occurs in ``enter_pass_ctx``, ``PassContext`` will disable "
+"the pass instrumentation. And it will run the ``exit_pass_ctx`` of each "
+"``PassInstrument`` which successfully finished ``enter_pass_ctx``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:491
+msgid ""
+"In following example, we can see ``exit_pass_ctx`` of `PassFine_0` is "
+"executed after exception."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:526
+msgid ""
+"Exceptions in ``PassInstrument`` instances cause all instruments of the "
+"current ``PassContext`` to be cleared, so nothing is printed when "
+"``override_instruments`` is called."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:540
+msgid ""
+"If an exception occurs in ``exit_pass_ctx``, then the pass instrument is "
+"disabled. Then exception is propagated. That means ``PassInstrument`` "
+"instances registered after the one throwing the exception do not execute "
+"``exit_pass_ctx``."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:589
+msgid ""
+"Exceptions occured in ``should_run``, ``run_before_pass``, "
+"``run_after_pass`` are not handled explicitly -- we rely on the context "
+"manager (the ``with`` syntax) to exit ``PassContext`` safely."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:593
+msgid "We use ``run_before_pass`` as an example:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:644
+msgid ""
+"Also note that pass instrumentation is not disable. So if we call "
+"``override_instruments``, the ``exit_pass_ctx`` of old registered "
+"``PassInstrument`` is called."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:669
+msgid ""
+"If we don't wrap pass execution with ``with`` syntax, ``exit_pass_ctx`` is "
+"not called. Let try this with current ``PassContext``:"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:700
+msgid ""
+"Then call passes. ``exit_pass_ctx`` is not executed after the exception, as "
+"expectation."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:731
+msgid "Clear instruments."
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:766
+msgid ""
+":download:`Download Python source code: use_pass_instrument.py "
+"<use_pass_instrument.py>`"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:772
+msgid ""
+":download:`Download Jupyter notebook: use_pass_instrument.ipynb "
+"<use_pass_instrument.ipynb>`"
+msgstr ""
+
+#: ../../_staging/how_to/extend_tvm/use_pass_instrument.rst:779
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

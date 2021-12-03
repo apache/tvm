@@ -1,0 +1,603 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# Xiaoyu Zhang, 2021
+# HLearning, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:40+0000\n"
+"Last-Translator: HLearning, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_tutorial_tvmc_command_line_driver.py>` "
+"to download the full example code"
+msgstr ""
+"点击 :ref:`这里 <sphx_glr_download_tutorial_tvmc_command_line_driver.py>` "
+"下载完整的样例代码"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:11
+msgid "Compiling and Optimizing a Model with TVMC"
+msgstr "使用TVMC编译和优化一个模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:12
+msgid ""
+"**Authors**: `Leandro Nunes <https://github.com/leandron>`_, `Matthew "
+"Barrett <https://github.com/mbaret>`_, `Chris Hoge "
+"<https://github.com/hogepodge>`_"
+msgstr ""
+"**作者**: `Leandro Nunes <https://github.com/leandron>`_, `Matthew Barrett "
+"<https://github.com/mbaret>`_, `Chris Hoge <https://github.com/hogepodge>`_"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:17
+msgid ""
+"In this section, we will work with TVMC, the TVM command line driver. TVMC "
+"is a tool that exposes TVM features such as auto-tuning, compiling, "
+"profiling and execution of models through a command line interface."
+msgstr ""
+"在这个教程中，我们将使用TVMC（TVM命令行驱动程序）。TVMC是一个将TVM的一些特性比如自动调优，编译，分析和运行模型等通过命令行前端暴露出来的工具。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:21
+msgid ""
+"Upon completion of this section, we will have used TVMC to accomplish the "
+"following tasks:"
+msgstr "在本教程中，我们会基于TVMC完成以下任务："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:24
+msgid "Compile a pre-trained ResNet 50 v2 model for the TVM runtime."
+msgstr "将一个预训练的ResNet50 V2模型编译为TVM运行时。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:25
+msgid ""
+"Run a real image through the compiled model, and interpret the output and "
+"model performance."
+msgstr "基于编译完成的模型运行一张真实的图片，并分析输出和模型的性能。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:27
+msgid "Tune the model on a CPU using TVM."
+msgstr "使用TVM在CPU上对模型调优。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:28
+msgid "Re-compile an optimized model using the tuning data collected by TVM."
+msgstr "基于TVM收集的调优数据再编译一个优化后的模型。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:29
+msgid ""
+"Run the image through the optimized model, and compare the output and model "
+"performance."
+msgstr "基于优化后的模型运行一张真实的图片，并且对比输出和性能（这里是和未优化的模型进行对比）。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:32
+msgid ""
+"The goal of this section is to give you an overview of TVM and TVMC's "
+"capabilities, and set the stage for understanding how TVM works."
+msgstr "这一节的目标是向你概述TVM和TVMC的功能，并为了解TVM的工作原理奠定基础。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:36
+msgid "Using TVMC"
+msgstr "使用TVMC"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:38
+msgid ""
+"TVMC is a Python application, part of the TVM Python package. When you "
+"install TVM using a Python package, you will get TVMC as as a command line "
+"application called ``tvmc``. The location of this command will vary "
+"depending on your platform and installation method."
+msgstr ""
+"TVMC是一个Python应用程序，是TVM "
+"Python包的一部分。当你使用Python包安装TVM时，您将获得一个叫作``tvmc``的命令行应用程序。此命令的位置将根据你的平台和安装方法而各有不同。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:43
+msgid ""
+"Alternatively, if you have TVM as a Python module on your "
+"``$PYTHONPATH``,you can access the command line driver functionality via the"
+" executable python module, ``python -m tvm.driver.tvmc``."
+msgstr ""
+"或者，如果你将TVM编译为在``$PYTHONPATH`` 中的Python模块，你可以通过下面的命令来启动TVMC命令行驱动程序`python -m "
+"tvm.driver.tvmc``。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:47
+msgid ""
+"For simplicity, this tutorial will mention TVMC command line using ``tvmc "
+"<options>``, but the same results can be obtained with ``python -m "
+"tvm.driver.tvmc <options>``."
+msgstr ""
+"简单起见，本教程以``tvmc ``的方式提起TVMC命令行，但使用``python -m tvm.driver.tvmc ``可以获得相同的结果。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:51
+msgid "You can check the help page using:"
+msgstr "你可以使用以下方法查看帮助页面： "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:57
+msgid ""
+"The main features of TVM available to ``tvmc`` are from subcommands "
+"``compile``, and ``run``, and ``tune``.  To read about specific options "
+"under a given subcommand, use ``tvmc <subcommand> --help``. We will cover "
+"each of these commands in this tutorial, but first we need to download a "
+"pre-trained model to work with."
+msgstr ""
+" 对``tvmc``有用的TVM的主要功能来自子命令 ``compile``, 和 ``run``, "
+"和``tune``。要获取给定子命令下的特定选项，请使用``tvmc <subcommand> "
+"--help``。在本教程中我们会介绍这些命令，但首先我们需要下载一个预训练的模型来使用。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:65
+msgid "Obtaining the Model"
+msgstr "获取模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:67
+msgid ""
+"For this tutorial, we will be working with ResNet-50 v2. ResNet-50 is a "
+"convolutional neural network that is 50-layers deep and designed to classify"
+" images. The model we will be using has been pre-trained on more than a "
+"million images with 1000 different classifications. The network has an input"
+" image size of 224x224. If you are interested exploring more of how the "
+"ResNet-50 model is structured, we recommend downloading `Netron "
+"<https://netron.app>`, a freely available ML model viewer."
+msgstr ""
+"在本教程中，我们将使用ResNet-50 v2。ResNet-"
+"50是一个深度为50层的卷积神经网络，被用于图像分类。我们将要使用的模型已经在超过100万张具有1000种的不同分类图像上进行了预训练。该网络的输入大小是224x224"
+"。如果你对ResNet-50的结构很感兴趣，我们建议你下载 `Netron "
+"<https://netron.app>`,它是一款免费的ML模型可视化软件。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:75
+msgid "For this tutorial we will be using the model in ONNX format."
+msgstr "在本教程中，我们将使用ONNX格式的模型。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:82
+msgid "Supported model formats"
+msgstr "已支持的模型格式。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:84
+msgid ""
+"TVMC supports models created with Keras, ONNX, TensorFlow, TFLite and Torch."
+" Use the option``--model-format`` if you need to explicitly provide the "
+"model format you are using. See ``tvmc compile --help`` for more "
+"information."
+msgstr ""
+"TVMC支持使用Keras，ONNX，TensorFlow，TFLite和Torch创建的模型。如果你需要明确提供你正在使用的模型格式，请使用选项"
+"``--model-format``。 有关更多信息，请参阅“tvmc compile --help”。 "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:90
+msgid "Adding ONNX Support to TVM"
+msgstr "给TVM添加ONNX支持"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:92
+msgid ""
+"TVM relies on the ONNX python library being available on your system. You "
+"can install ONNX using the command ``pip3 install --user onnx "
+"onnxoptimizer``. You may remove the ``--user`` option if you have root "
+"access and want to install ONNX globally.  The ``onnxoptimizer`` dependency "
+"is optional, and is only used for ``onnx>=1.9``."
+msgstr ""
+"TVM依赖于你系统上有可用的ONNX Python库。你可以使用命令``pip3 install --user "
+"onnx``来安装ONNX。如果你具有root权限并且想全局安装ONNX，则可以删除``--user`` 选项。  ``onnxoptimizer`` "
+"依赖是可选的，仅用于 ``onnx>=1.9``。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:100
+msgid "Compiling an ONNX Model to the TVM Runtime"
+msgstr "编译一个ONNX模型到TVM运行时"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:102
+msgid ""
+"Once we've downloaded the ResNet-50 model, the next step is to compile it. "
+"To accomplish that, we are going to use ``tvmc compile``. The output we get "
+"from the compilation process is a TAR package of the model compiled to a "
+"dynamic library for our target platform. We can run that model on our target"
+" device using the TVM runtime."
+msgstr ""
+"一旦我们下载好ResNet-50模型，下一步就是编译它。需要调用``tvmc "
+"compile``.来实现它。从编译过程中获得的输出是一个将模型编译为目标平台动态库的TAR包。我们可以使用TVM运行时在的目标设备上运行该模型。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:115
+msgid ""
+"Let's take a look at the files that ``tvmc compile`` creates in the module:"
+msgstr "我们来看看 ``tvmc compile`` 在模块中创建的文件： "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:123
+msgid "You will see three files listed."
+msgstr "你将看到列出的三个文件。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:125
+msgid ""
+"``mod.so`` is the model, represented as a C++ library, that can be loaded by"
+" the TVM runtime."
+msgstr "`mod.so`` 是模型，用一个可以由TVM运行时加载的C++库来表示。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:127
+msgid ""
+"``mod.json`` is a text representation of the TVM Relay computation graph."
+msgstr "``mod.json``是TVM Relay计算图的文本表示。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:128
+msgid ""
+"``mod.params`` is a file containing the parameters for the pre-trained "
+"model."
+msgstr "``mod.params``是一个包含预训练模型参数的文件。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:131
+msgid ""
+"This module can be directly loaded by your application, and the model can be"
+" run via the TVM runtime APIs."
+msgstr "该模块可以由你的应用程序直接加载，并且模型可以通过TVM运行时APIs来运行。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:134
+msgid "Defining the Correct Target"
+msgstr "定义正确的目标"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:136
+msgid ""
+"Specifying the correct target (option ``--target``) can have a huge impact "
+"on the performance of the compiled module, as it can take advantage of "
+"hardware features available on the target. For more information, please "
+"refer to `Auto-tuning a convolutional network for x86 CPU "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-"
+"network>`_. We recommend identifying which CPU you are running, along with "
+"optional features, and set the target appropriately."
+msgstr ""
+"指定正确的目标（选项``--target``）会对编译后的模块的性能产生巨大的影响，因为它可以利用目标上的可用硬件特性。有关更多信息，请参阅`给X86 "
+"CPU自动调优一个卷积神经网络 "
+"<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-"
+"network>`_。我们建议指明你正在运行的CPU以及可选特点，并合适的设置目标。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:146
+msgid "Running the Model from The Compiled Module with TVMC"
+msgstr "使用TVMC运行编译好的模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:148
+msgid ""
+"Now that we've compiled the model to this module, we can use the TVM runtime"
+" to make predictions with it. TVMC has the TVM runtime built in to it, "
+"allowing you to run compiled TVM models. To use TVMC to run the model and "
+"make predictions, we need two things:"
+msgstr ""
+"现在我们已经将模型编译到了这个模块中，我们可以使用TVM运行时来进行预测。TVMC内置了TVM运行时，允许你运行编译好的TVM模型。要使用TVMC运行模型并进行预测，我们需要做两个东西:"
+" "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:153
+msgid "The compiled module, which we just produced."
+msgstr "我们刚刚产生的编译好的模块。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:154
+msgid "Valid input to the model to make predictions on."
+msgstr "模型进行预测的合法输入。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:156
+msgid ""
+"Each model is particular when it comes to expected tensor shapes, formats "
+"and data types. For this reason, most models require some pre and post-"
+"processing, to ensure the input is valid and to interpret the output. TVMC "
+"has adopted NumPy's ``.npz`` format for both input and output data. This is "
+"a well-supported NumPy format to serialize multiple arrays into a file"
+msgstr ""
+"当涉及到预期的张量形状，格式和数据类型时每个模型都是特殊的。出于这个原因，大多数模型需要一些预处理和后处理，以确保输入有效并解释输出。TVMC对输入和输出数据都采用了NumPy的``.npz``"
+" 格式。这是一种得到良好支持的NumPy格式，用于将多个数组序列化为一个文件。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:162
+msgid ""
+"As input for this tutorial, we will use the image of a cat, but you can feel"
+" free to substitute image for any of your choosing."
+msgstr "作为本教程的输入，我们将使用猫的图片，但你可以随意替换为任何你选择的图片。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:171
+msgid "Input pre-processing"
+msgstr "输入前处理"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:173
+msgid ""
+"For our ResNet 50 V2 model, the input is expected to be in ImageNet format. "
+"Here is an example of a script to pre-process an image for ResNet 50 V2."
+msgstr "对于我们的ResNet-50 V2模型，输入被期望是ImageNet格式。下面是为ResNet-50 V2预处理图形的脚本示例。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:176
+msgid ""
+"You will need to have a supported version of the Python Image Library "
+"installed. You can use ``pip3 install --user pillow`` to satisfy this "
+"requirement for the script."
+msgstr "你需要安装一个支持的Python图像库。你可以使用 ``pip3 install --user pillow`` 来满足脚本的这个需求。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:180
+msgid "preprocess.py"
+msgstr "preprocess.py"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:214
+msgid "Running the Compiled Module"
+msgstr "运行编译好的模块"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:216
+msgid ""
+"With both the model and input data in hand, we can now run TVMC to make a "
+"prediction:"
+msgstr "有了模型和输入数据，我们现在可以运行TVMC来进行预测："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:226
+msgid ""
+"Recall that the `.tar` model file includes a C++ library, a description of "
+"the Relay model, and the parameters for the model. TVMC includes the TVM "
+"runtime, which can load the model and make predictions against input. When "
+"running the above command, TVMC outputs a new file, ``predictions.npz``, "
+"that contains the model output tensors in NumPy format."
+msgstr ""
+"回想一下，`.tar` "
+"模型文件包含一个C++库，一个Relay模型的描述和模型的参数。TVMC包括TVM运行时，它可以加载模型并根据输入进行预测。运行上述命令时，TVMC会输出一个新文件``predictions.npz``，其中包含NumPy格式的模型输出张量。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:232
+msgid ""
+"In this example, we are running the model on the same machine that we used "
+"for compilation. In some cases we might want to run it remotely via an RPC "
+"Tracker. To read more about these options please check ``tvmc run --help``."
+msgstr ""
+"在此示例中，我们在用于编译的同一台机器上运行模式。在某些情况下，我们可能希望通过RPC "
+"Tracker远程运行它。要阅读有关这些选项的更多信息，请检查``tvmc run --help``。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:237
+msgid "Output Post-Processing"
+msgstr "输入后处理"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:239
+msgid ""
+"As previously mentioned, each model will have its own particular way of "
+"providing output tensors."
+msgstr "如前所述，每个模型都有自己特定的提供输出张量的方式。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:242
+msgid ""
+"In our case, we need to run some post-processing to render the outputs from "
+"ResNet 50 V2 into a more human-readable form, using the lookup-table "
+"provided for the model."
+msgstr "在我们的例子中，我们会基于为模型提供的查找表执行一些后处理来使得ResNet-50 V2的输出呈现为更易读的形式。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:246
+msgid ""
+"The script below shows an example of the post-processing to extract labels "
+"from the output of our compiled module."
+msgstr "下面的脚本显示了从我们的编译后模块的输出中提取标签的后处理示例。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:249
+msgid "postprocess.py"
+msgstr "postprocess.py"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:280
+msgid "Running this script should produce the following output:"
+msgstr "运行这个脚本会产生下面的输出："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:292
+msgid ""
+"Try replacing the cat image with other images, and see what sort of "
+"predictions the ResNet model makes."
+msgstr "尝试用其它图形替换猫的图像，看看ResNet模型会做出什么样的预测。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:296
+msgid "Automatically Tuning the ResNet Model"
+msgstr "自动调整ResNet模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:298
+msgid ""
+"The previous model was compiled to work on the TVM runtime, but did not "
+"include any platform specific optimization. In this section, we will show "
+"you how to build an optimized model using TVMC to target your working "
+"platform."
+msgstr "之前的模型被编译为在TVM运行时工作，但不包括任何特定平台的优化。在本节中，我们将向你展示如何使用TVMC构建基于你工作平台的优化模型。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:302
+msgid ""
+"In some cases, we might not get the expected performance when running "
+"inferences using our compiled module.  In cases like this, we can make use "
+"of the auto-tuner, to find a better configuration for our model and get a "
+"boost in performance. Tuning in TVM refers to the process by which a model "
+"is optimized to run faster on a given target. This differs from training or "
+"fine-tuning in that it does not affect the accuracy of the model, but only "
+"the runtime performance. As part of the tuning process, TVM will try running"
+" many different operator implementation variants to see which perform best. "
+"The results of these runs are stored in a tuning records file, which is "
+"ultimately the output of the ``tune`` subcommand."
+msgstr ""
+"在某些情况下，使用我们编译的模块进行推理时，我们可能无法获得预期的性能。在这种情况下，我们可以利用自动调优器为我们的模型找到更好的配置并提示性能。TVM中的调优是指在给定目标上优化模型使其运行更快的过程。这与训练和微调的不同之处在于，它不会影响模型的准确率，而只会影响运行时性能。作为调优过程的一部分，TVM将尝试运行许多不同的算子实现变体来看看哪个性能最佳。这些运行结果存储在调整记录文件中，该文件最终是"
+" ``tune``子命令的输出。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:313
+msgid "In the simplest form, tuning requires you to provide three things:"
+msgstr "以最简形式，调优需要你提供三个东西："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:315
+msgid "the target specification of the device you intend to run this model on"
+msgstr "你打算将这个模型运行运行在哪个目标设备"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:316
+msgid ""
+"the path to an output file in which the tuning records will be stored, and "
+"finally"
+msgstr "最后调优文件将被存储的路径"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:318
+msgid "a path to the model to be tuned."
+msgstr "要调整的模型的路径"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:320
+msgid "The example below demonstrates how that works in practice:"
+msgstr "下面的例子演示了它实际上是怎么工作的："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:329
+msgid ""
+"In this example, you will see better results if you indicate a more specific"
+" target for the `--target` flag.  For example, on an Intel i7 processor you "
+"could use `--target llvm -mcpu=skylake`. For this tuning example, we are "
+"tuning locally on the CPU using LLVM as the compiler for the specified "
+"achitecture."
+msgstr ""
+"在这个例子中，如果你为`--target`标志指定一个具体的目标，你会看到更好的结果。比如，在Intel i7处理器上，你可以使用 `--target "
+"llvm -mcpu=skylake`。对于此调优示例，我们将LLVM作为指定架构的编译器在CPU上进行本地调优。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:335
+msgid ""
+"TVMC will perform a search against the parameter space for the model, trying"
+" out different configurations for operators and choosing the one that runs "
+"fastest on your platform. Although this is a guided search based on the CPU "
+"and model operations, it can still take several hours to complete the "
+"search. The output of this search will be saved to the "
+"`resnet50-v2-7-autotuner_records.json` file, which will later be used to "
+"compile an optimized model."
+msgstr ""
+"TVMC将针对模型的参数空间执行搜索，为算子尝试不同的配置并选择在你的平台上运行最快的配置。虽然这是基于CPU和模型算子的启发式搜索，但仍可能需要几个小时才能完成搜索。此搜索的输出将保存到`resnet50-v2-7-autotuner_records.json`"
+" 文件，稍后将用于编译一个优化后的模型。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:343
+msgid "Defining the Tuning Search Algorithm"
+msgstr "定义调优搜索算法"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:345
+msgid ""
+"By default this search is guided using an `XGBoost Grid` algorithm. "
+"Depending on your model complexity and amount of time avilable, you might "
+"want to choose a different algorithm. A full list is available by consulting"
+" ``tvmc tune --help``."
+msgstr ""
+"默认情况下，此搜索使用`XGBoost Grid` 算法。根据你的模型的复杂性和可用时间，你可能需要选择不同的算法。完整列表可以通过``tvmc "
+"tune --help``获得。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:350
+msgid ""
+"The output will look something like this for a consumer-level Skylake CPU:"
+msgstr "对于消费级的Skylake CPU，输出将如下所示："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:381
+msgid ""
+"Tuning sessions can take a long time, so ``tvmc tune`` offers many options "
+"to customize your tuning process, in terms of number of repetitions "
+"(``--repeat`` and ``--number``, for example), the tuning algorithm to be "
+"used, and so on. Check ``tvmc tune --help`` for more information."
+msgstr ""
+"调整会话可能需要很长时间，因此 ``tvmc tune``提供了许多选项来自定义你的调整过程，就重复次数而已（例如，``--repeat`` 和--"
+"number`），要使用的调整算法等等。检查``tvmc tune --help``获得更多信息。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:387
+msgid "Compiling an Optimized Model with Tuning Data"
+msgstr "使用调优数据编译一个优化后的模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:389
+msgid ""
+"As an output of the tuning process above, we obtained the tuning records "
+"stored in ``resnet50-v2-7-autotuner_records.json``. This file can be used in"
+" two ways:"
+msgstr ""
+"作为上述调优过程的输出，我们获得了存储在``resnet50-v2-7-autotuner_records.json``文件中的调优记录。该文件可以通过两种方式使用："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:393
+msgid "As input to further tuning (via ``tvmc tune --tuning-records``)."
+msgstr "作为进一步调优的输入（通过 ``tvmc tune --tuning-records``）"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:394
+msgid "As input to the compiler"
+msgstr "作为编译器的输入"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:396
+msgid ""
+"The compiler will use the results to generate high performance code for the "
+"model on your specified target. To do that we can use ``tvmc compile "
+"--tuning-records``. Check ``tvmc compile --help`` for more information."
+msgstr ""
+"编译器将使用调优结果为指定目标上的模型生成高性能代码。为此，我们可以用``tvmc compile --tuning-records``。 检查 "
+"``tvmc compile --help`` 以获取更多信息。 "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:400
+msgid ""
+"Now that tuning data for the model has been collected, we can re-compile the"
+" model using optimized operators to speed up our computations."
+msgstr "现在我们已经收集了模型的调优数据，我们可以使用优化后的算子来重新编译模型以加快运算速度。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:411
+msgid "Verify that the optimized model runs and produces the same results:"
+msgstr "验证优化后模型运行并产生相同的结果："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:422
+msgid "Verifying that the predictions are the same:"
+msgstr "验证预测结果是相同的："
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:433
+msgid "Comparing the Tuned and Untuned Models"
+msgstr "比较调优和未调优的模型"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:435
+msgid ""
+"TVMC gives you tools for basic performance benchmarking between the models. "
+"You can specify a number of repetitions and that TVMC report on the model "
+"run time (independent of runtime startup). We can get a rough idea of how "
+"much tuning has improved the model performance. For example, on a test Intel"
+" i7 system, we see that the tuned model runs 47% faster than the untuned "
+"model:"
+msgstr ""
+"TVMC为你提供了再模型之间进行基本性能基准测试的工具。你可以指定重复次数然后TVMC会报告模型的运行时间（独立于运行时启动）。我们可以大概了解调优对模型性能的改进程度。例如，在Intel"
+" i7的测试中，我们看到调优后的模型运行速度比调优前快47%。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:467
+msgid "Final Remarks"
+msgstr "结语"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:469
+msgid ""
+"In this tutorial, we presented TVMC, a command line driver for TVM. We "
+"demonstrated how to compile, run, and tune a model. We also discussed the "
+"need for pre and post-processing of inputs and outputs. After the tuning "
+"process, we demonstrated how to compare the performance of the unoptimized "
+"and optimize models."
+msgstr ""
+"在本教程中，我们介绍了 TVMC，这是 TVM 的命令行驱动程序。 我们演示了如何编译、运行和调优模型。 "
+"我们还讨论了对输入和输出进行预处理和后处理的必要性。 在调优过程之后，我们演示了如何比较未优化和优化模型的性能。 "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:475
+msgid ""
+"Here we presented a simple example using ResNet 50 V2 locally. However, TVMC"
+" supports many more features including cross-compilation, remote execution "
+"and profiling/benchmarking."
+msgstr ""
+"这里我们展示了一个在本地使用 ResNet-50 V2 的简单示例。 但是，TVMC 支持更多功能，包括交叉编译、远程执行和分析/基准测试。 "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:479
+msgid ""
+"To see what other options are available, please have a look at ``tvmc "
+"--help``."
+msgstr "要查看其他可用选项，请查看 ``tvmc --help``。 "
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:482
+msgid ""
+"In the next tutorial, `Compiling and Optimizing a Model with the Python "
+"Interface <auto_tuning_with_pyton>`_, we will cover the same compilation and"
+" optimization steps using the Python interface."
+msgstr ""
+"在下一个教程中, `使用 Python 接口编译和优化模型 <auto_tuning_with_pyton>`_, 我们将使用 Python "
+"接口实现相同的编译和优化步骤。"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:499
+msgid ""
+":download:`Download Python source code: tvmc_command_line_driver.py "
+"<tvmc_command_line_driver.py>`"
+msgstr ""
+":download:`下载 Python 源码: tvmc_command_line_driver.py "
+"<tvmc_command_line_driver.py>`"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:505
+msgid ""
+":download:`Download Jupyter notebook: tvmc_command_line_driver.ipynb "
+"<tvmc_command_line_driver.ipynb>`"
+msgstr ""
+":download:`下载 Jupyter notebook: tvmc_command_line_driver.ipynb "
+"<tvmc_command_line_driver.ipynb>`"
+
+#: ../../_staging/tutorial/tvmc_command_line_driver.rst:512
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

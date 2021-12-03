@@ -1,0 +1,715 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# JiaKui Hu, 2021
+# DH Luo, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:37+0000\n"
+"Last-Translator: DH Luo, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/reference/api/python/target.rst:19
+msgid "tvm.target"
+msgstr "tvm.target"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:1
+msgid "Target description and codgen module."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:3
+msgid "TVM's target string is in format ``<target_kind> [-option=value]...``."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:7
+msgid "The list of options include:"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:9
+msgid "**-device=<device name>**"
+msgstr "**-device=<device name>**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:11
+msgid "The device name."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:13
+msgid "**-mtriple=<target triple>**"
+msgstr "**-mtriple=<target triple>**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:15
+msgid "Specify the target triple, which is useful for cross compilation."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:18
+msgid "**-mcpu=<cpuname>**"
+msgstr "**-mcpu=<cpuname>**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:20
+msgid ""
+"Specify a specific chip in the current architecture to generate code for. By"
+" default this is infered from the target triple and autodetected to the "
+"current architecture."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:24
+msgid "**-mattr=a1,+a2,-a3,...**"
+msgstr "**-mattr=a1,+a2,-a3,...**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:26
+msgid ""
+"Override or control specific attributes of the target, such as whether SIMD "
+"operations are enabled or not. The default set of attributes is set by the "
+"current CPU."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:30
+msgid "**-mabi=<abi>**"
+msgstr "**-mabi=<abi>**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:32
+msgid "Generate code for the specified ABI, for example \"lp64d\"."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:34
+msgid "**-system-lib**"
+msgstr "**-system-lib**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:36
+msgid ""
+"Build TVM system library module. System lib is a global module that contains"
+" self registered functions in program startup. User can get the module using"
+" :any:`tvm.runtime.system_lib`. It is useful in environments where dynamic "
+"loading api like dlopen is banned. The system lib will be available as long "
+"as the result code is linked by the program."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:42
+msgid ""
+"We can use :py:func:`tvm.target.Target` to create a tvm.target.Target from "
+"the target string. We can also use other specific function in this module to"
+" create specific targets."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:1
+msgid "**Classes:**"
+msgstr "**类：**"
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target:1:<autosummary>:1
+msgid ":obj:`Target <tvm.target.Target>`\\ \\(target\\[\\, host\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target:1:<autosummary>:1 ../../../python/tvm/target/target.pydocstring
+#: of tvm.target.target.Target:1
+msgid "Target device information, use through TVM API."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target:1:<autosummary>:1
+msgid ":obj:`GenericFunc <tvm.target.GenericFunc>`\\ \\(\\)"
+msgstr ":obj:`GenericFunc <tvm.target.GenericFunc>`\\ \\(\\)"
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target:1:<autosummary>:1
+msgid "GenericFunc node reference."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target:1
+msgid "**Functions:**"
+msgstr "**函数：**"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`create <tvm.target.create>`\\ \\(target\\)"
+msgstr ":obj:`create <tvm.target.create>`\\ \\(target\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid "Deprecated."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`cuda <tvm.target.cuda>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`cuda <tvm.target.cuda>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.cuda:1
+msgid "Returns a cuda target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`rocm <tvm.target.rocm>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`rocm <tvm.target.rocm>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.rocm:1
+msgid "Returns a ROCM target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`mali <tvm.target.mali>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`mali <tvm.target.mali>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.mali:1
+msgid "Returns a ARM Mali GPU target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`intel_graphics <tvm.target.intel_graphics>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`intel_graphics <tvm.target.intel_graphics>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.intel_graphics:1
+msgid "Returns an Intel Graphics target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`arm_cpu <tvm.target.arm_cpu>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`arm_cpu <tvm.target.arm_cpu>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid "Returns a ARM CPU target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`rasp <tvm.target.rasp>`\\ \\(\\[options\\]\\)"
+msgstr ":obj:`rasp <tvm.target.rasp>`\\ \\(\\[options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.rasp:1
+msgid "Return a Raspberry 3b target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`bifrost <tvm.target.bifrost>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`bifrost <tvm.target.bifrost>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.bifrost:1
+msgid "Return an ARM Mali GPU target (Bifrost architecture)."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`riscv_cpu <tvm.target.riscv_cpu>`\\ \\(\\[model\\, options\\]\\)"
+msgstr ":obj:`riscv_cpu <tvm.target.riscv_cpu>`\\ \\(\\[model\\, options\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid "Returns a RISC-V CPU target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`hexagon <tvm.target.hexagon>`\\ \\(\\[cpu\\_ver\\]\\)"
+msgstr ":obj:`hexagon <tvm.target.hexagon>`\\ \\(\\[cpu\\_ver\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:1
+msgid "Returns a Hexagon target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`list_tags <tvm.target.list_tags>`\\ \\(\\)"
+msgstr ":obj:`list_tags <tvm.target.list_tags>`\\ \\(\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.tag.list_tags:1
+msgid ""
+"Returns a dict of tags, which maps each tag name to its corresponding "
+"target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`generic_func <tvm.target.generic_func>`\\ \\(fdefault\\)"
+msgstr ":obj:`generic_func <tvm.target.generic_func>`\\ \\(fdefault\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:1
+msgid "Wrap a target generic function."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ""
+":obj:`get_native_generic_func <tvm.target.get_native_generic_func>`\\ "
+"\\(name\\)"
+msgstr ""
+":obj:`get_native_generic_func <tvm.target.get_native_generic_func>`\\ "
+"\\(name\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid "Get a generic function from the global registry."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ""
+":obj:`override_native_generic_func "
+"<tvm.target.override_native_generic_func>`\\ \\(func\\_name\\)"
+msgstr ""
+":obj:`override_native_generic_func "
+"<tvm.target.override_native_generic_func>`\\ \\(func\\_name\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:1
+msgid "Override a generic function defined in C++"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:5
+msgid "You can create target using the constructor or the following functions"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:7
+msgid ":py:func:`tvm.target.arm_cpu` create arm_cpu target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:8
+msgid ":py:func:`tvm.target.cuda` create CUDA target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:9
+msgid ":py:func:`tvm.target.rocm` create ROCM target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:10
+msgid ":py:func:`tvm.target.mali` create Mali target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:11
+msgid ":py:func:`tvm.target.intel_graphics` create Intel Graphics target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:1
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc:1
+msgid "**Methods:**"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`current <tvm.target.Target.current>`\\ \\(\\[allow\\_none\\]\\)"
+msgstr ":obj:`current <tvm.target.Target.current>`\\ \\(\\[allow\\_none\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1
+msgid "Returns the current target."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ":obj:`list_kinds <tvm.target.Target.list_kinds>`\\ \\(\\)"
+msgstr ":obj:`list_kinds <tvm.target.Target.list_kinds>`\\ \\(\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.list_kinds:1
+msgid "Returns the list of available target names."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ""
+":obj:`check_and_update_host_consist "
+"<tvm.target.Target.check_and_update_host_consist>`\\ \\(target\\[\\, "
+"...\\]\\)"
+msgstr ""
+":obj:`check_and_update_host_consist "
+"<tvm.target.Target.check_and_update_host_consist>`\\ \\(target\\[\\, "
+"...\\]\\)"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target:1:<autosummary>:1
+msgid ""
+"A helper function that merges a legacy \"target, target_host\" pair, then "
+"returns the merged target and its host field."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.target.Target:1
+msgid "**Attributes:**"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+msgid ":obj:`model <tvm.target.Target.model>`\\"
+msgstr ":obj:`model <tvm.target.Target.model>`\\"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.Target.model:1
+msgid "Returns model from the target if it exists."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+msgid ":obj:`mcpu <tvm.target.Target.mcpu>`\\"
+msgstr ":obj:`mcpu <tvm.target.Target.mcpu>`\\"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.Target.mcpu:1
+msgid "Returns the mcpu from the target if it exists."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+msgid ":obj:`mattr <tvm.target.Target.mattr>`\\"
+msgstr ":obj:`mattr <tvm.target.Target.mattr>`\\"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:1:<autosummary>:1
+#: ../../../python/tvm/target/target.pydocstring of tvm.target.Target.mattr:1
+msgid "Returns the mattr from the target if it exists."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:0
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.check_and_update_host_consist:0
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.cuda:0
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.rocm:0
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.mali:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.intel_graphics:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.arm_cpu:0 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.target.rasp:0 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.target.bifrost:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.riscv_cpu:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:0
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:0
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.register:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:3
+msgid "Whether allow the current target to be none"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.current:0
+msgid "Raises"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.check_and_update_host_consist:1
+msgid ""
+"A helper function that merges a legacy \"target, target_host\" pair, then "
+"returns the merged target and its host field. The function is for legacy "
+"target and target host pair only, and should not be used in the new target "
+"system."
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.check_and_update_host_consist:5
+msgid "The target or heterogeneous target"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.check_and_update_host_consist:7
+msgid "The target host"
+msgstr ""
+
+#: ../../../python/tvm/target/target.pydocstring of
+#: tvm.target.target.Target.check_and_update_host_consist:9
+msgid ""
+"When the type of target is dict, whether Target is the key (Otherwise the "
+"value)"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.create:1
+msgid ""
+"Deprecated. Use the constructor of :py:mod:`tvm.target.Target` directly."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.cuda:3
+msgid "The model of cuda device (e.g. 1080ti)"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.cuda:5
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.rocm:5
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.mali:5
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.intel_graphics:5
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.arm_cpu:6 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.target.rasp:3 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.target.bifrost:3
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.riscv_cpu:6
+msgid "Additional options"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.rocm:3
+#: ../../../python/tvm/target/__init__.pydocstring of tvm.target.target.mali:3
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.intel_graphics:3
+msgid "The model of this device"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.arm_cpu:1
+msgid ""
+"Returns a ARM CPU target. This function will also download pre-tuned op "
+"parameters when there is none."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.arm_cpu:4
+msgid "SoC name or phone name of the arm board."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.riscv_cpu:1
+msgid "Returns a RISC-V CPU target. Default: sifive-u54 rv64gc"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.riscv_cpu:4
+msgid "CPU name."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:3
+msgid ""
+"CPU version used for code generation. Not all allowed cpu str will be valid,"
+" LLVM will throw an error."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:8
+msgid "Size of HVX vector in bytes. Value of 0 disables HVX codegen."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:10
+msgid ""
+"User defined sim arguments. CPU version defaults to cpu_ver. Otherwise, "
+"separate versions are used for codegen and sim. Not all allowed cpu strings "
+"will be valid, simulator will throw an error if invalid. Does not affect "
+"codegen."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:15
+msgid "User defined compiler arguments."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.target.hexagon:17
+msgid "Whether to link graph parameters into the LLVM module."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.tag.list_tags:0 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.generic_func.generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.tag.list_tags:3
+msgid ""
+"**tag_dict** -- The dict of tags mapping each tag name to to its "
+"corresponding target. None if TVM is built in runtime-only mode."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.tag.list_tags:0 ../../../python/tvm/target/__init__.pydocstring
+#: of tvm.target.generic_func.generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:0
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc:1
+msgid ""
+"GenericFunc node reference. This represents a generic function that may be "
+"specialized for different targets. When this object is called, a "
+"specialization is chosen based on the current target."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc:7
+msgid ""
+"Do not construct an instance of this object, it should only ever be used as "
+"a return value from calling into C++."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1
+msgid ""
+":obj:`set_default <tvm.target.GenericFunc.set_default>`\\ \\(func\\[\\, "
+"allow\\_override\\]\\)"
+msgstr ""
+":obj:`set_default <tvm.target.GenericFunc.set_default>`\\ \\(func\\[\\, "
+"allow\\_override\\]\\)"
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:1
+msgid ""
+"Set the default function to be used if no specializations match the current "
+"target."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1
+msgid ""
+":obj:`register <tvm.target.GenericFunc.register>`\\ \\(func\\, "
+"key\\_list\\[\\, allow\\_override\\]\\)"
+msgstr ""
+":obj:`register <tvm.target.GenericFunc.register>`\\ \\(func\\, "
+"key\\_list\\[\\, allow\\_override\\]\\)"
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:1:<autosummary>:1
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.register:1
+msgid "Register a specialization for this GenericFunc."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:4
+msgid "The default function"
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.set_default:6
+msgid "Whether to allow the current default to be overridden"
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.register:3
+msgid "The function to be registered."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.register:5
+msgid "The key to be registered."
+msgstr ""
+
+#: ../../../python/tvm/target/generic_func.pydocstring of
+#: tvm.target.generic_func.GenericFunc.register:7
+msgid "Whether to allow existing keys to be overridden."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:3
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:3
+msgid ""
+"Generic function allows registration of further functions that can be "
+"dispatched on current target context. If no registered dispatch is matched, "
+"the fdefault will be called."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:7
+msgid "The default function."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:10
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:10
+msgid "**fgeneric** -- A wrapped generic function."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.generic_func:14
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:14
+msgid "Example"
+msgstr "样例"
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:1
+msgid ""
+"Get a generic function from the global registry. If no function is "
+"registered under the given name, a new generic function is created."
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:5
+msgid "The name of the generic function to get"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.get_native_generic_func:8
+msgid "**func** -- The generic function for the given name"
+msgstr ""
+
+#: ../../../python/tvm/target/__init__.pydocstring of
+#: tvm.target.generic_func.override_native_generic_func:7
+msgid "The name of the generic func to be overridden"
+msgstr ""

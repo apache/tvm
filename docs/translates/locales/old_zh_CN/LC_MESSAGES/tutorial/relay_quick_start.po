@@ -73,7 +73,8 @@ msgid ""
 " initialized with Xavier initializer. Relay also supports other model "
 "formats such as MXNet, CoreML, ONNX and Tensorflow."
 msgstr ""
-"首先，我们先基于Relay的Python前端定义一个神经网络。简单起见，我们将在Relay中使用预训练的ResNet-18网络。参数使用Xavier初始化方法进行初始化。Relay也支持其它的模型格式比如MxNet，CoreML，ONNX和TensorFlow。"
+"首先，我们先基于Relay的Python前端定义一个神经网络。简单起见，我们将在Relay中使用预训练的ResNet-"
+"18网络。参数使用Xavier初始化方法进行初始化。Relay也支持其它的模型格式比如MxNet，CoreML，ONNX和TensorFlow。"
 
 #: ../../_staging/tutorial/relay_quick_start.rst:57
 msgid ""

@@ -1,0 +1,233 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# juzi, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:32+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_how_to_deploy_models_deploy_sparse.py>` "
+"to download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:11
+msgid "Deploy a Hugging Face Pruned Model on CPU"
+msgstr "在CPU上部署Hugging Face Pruned模型"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:12
+msgid "**Author**: `Josh Fromm <https://github.com/jwfromm>`_"
+msgstr "**作者**: `Josh Fromm <https://github.com/jwfromm>`_"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:14
+msgid ""
+"This tutorial demonstrates how to take any pruned model, in this case "
+"`PruneBert from Hugging Face <https://huggingface.co/huggingface/prunebert-"
+"base-uncased-6-finepruned-w-distil-squad>`_, and use TVM to leverage the "
+"model's sparsity support to produce real speedups. Although the primary "
+"purpose of this tutorial is to realize speedups on already pruned models, it"
+" may also be useful to estimate how fast a model would be *if* it were "
+"pruned. To this end, we also provide a function that takes an unpruned model"
+" and replaces its weights with random and pruned weights at a specified "
+"sparsity. This may be a useful feature when trying to decide if a model is "
+"worth pruning or not."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:25
+msgid ""
+"Before we get into the code, it's useful to discuss sparsity and pruning and"
+" dig into the two different types of sparsity: **structured** and "
+"**unstructured**."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:29
+msgid ""
+"Pruning is a technique primarily used to reduce the parameter size of a "
+"model by replacing weight values with 0s. Although many methods exist for "
+"choosing which weights should be set to 0, the most straight forward is by "
+"picking the weights with the smallest value. Typically, weights are pruned "
+"to a desired sparsity percentage. For example, a 95% sparse model would have"
+" only 5% of its weights non-zero. Pruning to very high sparsities often "
+"requires finetuning or full retraining as it tends to be a lossy "
+"approximation. Although parameter size benefits are quite easy to obtain "
+"from a pruned model through simple compression, leveraging sparsity to yield"
+" runtime speedups is more complicated."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:40
+msgid ""
+"In structured sparsity weights are pruned with the goal of clustering pruned"
+" weights together. In other words, they are pruned using both their value "
+"and location. The benefit of bunching up pruned weights is that it allows an"
+" algorithm such as matrix multiplication to skip entire blocks. It turns out"
+" that some degree of *block sparsity* is very important to realizing "
+"significant speedups on most hardware available today. This is because when "
+"loading memory in most CPUs or GPUs, it doesn't save any work to skip "
+"reading a single value at a time, instead an entire chunk or tile is read in"
+" and executed using something like vectorized instructions."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:50
+msgid ""
+"Unstructured sparse weights are those that are pruned only on the value of "
+"the original weights. They may appear to be scattered randomly throughout a "
+"tensor rather than in chunks like we'd see in block sparse weights. At low "
+"sparsities, unstructured pruning techniques are difficult to accelerate. "
+"However, at high sparsities many blocks of all 0 values will naturally "
+"appear, making it possible to accelerate."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:57
+msgid ""
+"This tutorial interacts with both structured and unstructured sparsity. "
+"Hugging Face's PruneBert model is unstructured but 95% sparse, allowing us "
+"to apply TVM's block sparse optimizations to it, even if not optimally. When"
+" generating random sparse weights for an unpruned model, we do so with "
+"structured sparsity. A fun exercise is comparing the real speed of PruneBert"
+" with the block sparse speed using fake weights to see the benefit of "
+"structured sparsity."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:65
+msgid "Load Required Modules"
+msgstr "加载所需的模块"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:66
+msgid ""
+"Other than TVM, scipy, the latest transformers, and tensorflow 2.2+ are "
+"required."
+msgstr "除TVM、scipy外，还需要最新的transformers和tensorflow 2.2+。"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:107
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:116
+msgid "Configure Settings"
+msgstr "配置设置"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:117
+msgid ""
+"Let's start by defining some parameters that define the type of model and "
+"sparsity to run."
+msgstr "让我们从定义一些参数开始，这些参数定义了要运行的模型类型和稀疏度。"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:154
+msgid "Download and Convert Transformers Model"
+msgstr "下载并转换Transformers Model"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:155
+msgid ""
+"Now we'll grab a model from the transformers module, download it, convert it"
+" into a TensorFlow graphdef in preperation for converting that graphdef into"
+" a relay graph that we can optimize and deploy."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:205
+msgid "Convert to Relay Graph"
+msgstr "转换为Relay Graph"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:206
+msgid ""
+"We now have all the tooling to get a transformers model in the right format "
+"for relay conversion. Let's import it! In the following function we save the"
+" imported graph in relay's json format so that we dont have to reimport from"
+" tensorflow each time this script is run."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:254
+msgid "Run the Dense Graph"
+msgstr "运行稠密图"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:255
+msgid ""
+"Let's run the default version of the imported model. Note that even if the "
+"weights are sparse, we won't see any speedup because we are using regular "
+"dense matrix multiplications on these dense (but mostly zero) tensors "
+"instead of sparse aware kernels."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:290
+msgid "Run the Sparse Graph"
+msgstr "运行稀疏图"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:291
+msgid ""
+"Next we'll convert the graph into a sparse representation and generate fake "
+"sparse weights if needed. Then we'll use the same benchmarking script as "
+"dense to see how much faster we go! We apply a few relay passes to the graph"
+" to get it leveraging sparsity. First we use `simplify_fc_transpose` to use "
+"transposes on the weights of dense layers into the parameters. This makes it"
+" easier to convert to matrix multiplies to sparse versions. Next we apply "
+"`bsr_dense.convert` to identify all weight matrices that can be sparse, and "
+"automatically replace them."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:300
+msgid ""
+"The `bsr_dense.convert` call below is doing the heavy lifting of identifying"
+" which weights in the model can be made sparse by checking if they are at "
+"least `sparsity_threshold` percent sparse. If so, it converts those weights "
+"into *Block Compressed Row Format (BSR)*. BSR is essentially a "
+"representation that indexes into the nonzero chunks of the tensor, making it"
+" easy for an algorithm to load those non-zero chunks and ignore the rest of "
+"the tensor. Once the sparse weights are in BSR format, "
+"`relay.transform.DenseToSparse` is applied to actually replace `relay.dense`"
+" operations with `relay.sparse_dense` calls that can be run faster."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:370
+msgid "Run All the Code!"
+msgstr "运行所有代码！"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:371
+msgid ""
+"And that's it! Now we'll simply call all the needed function to benchmark "
+"the model according to the set parameters. Note that to run this code you'll"
+" need to uncomment the last line first."
+msgstr "就这样！现在我们只需调用所有需要的函数，根据设置的参数对模型进行基准测试。请注意，要运行此代码，首先需要取消最后一行的注释。"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:395
+msgid "Sample Output"
+msgstr "样本输出"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:396
+msgid ""
+"For reference, below is the output of the script when run on an AMD CPU and "
+"shows about a 2.5X speedup from using sparsity."
+msgstr ""
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:447
+msgid ""
+":download:`Download Python source code: deploy_sparse.py <deploy_sparse.py>`"
+msgstr ":download:`下载Python源代码: deploy_sparse.py <deploy_sparse.py>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:453
+msgid ""
+":download:`Download Jupyter notebook: deploy_sparse.ipynb "
+"<deploy_sparse.ipynb>`"
+msgstr ""
+":download:`下载 Jupyter notebook: deploy_sparse.ipynb <deploy_sparse.ipynb>`"
+
+#: ../../_staging/how_to/deploy_models/deploy_sparse.rst:460
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

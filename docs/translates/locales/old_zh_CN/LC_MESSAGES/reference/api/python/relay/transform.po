@@ -1,0 +1,2034 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# a_flying_fish <a_flying_fish@outlook.com>, 2021
+# HLearning, 2021
+# JiaKui Hu, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:38+0000\n"
+"Last-Translator: JiaKui Hu, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/reference/api/python/relay/transform.rst:19
+msgid "tvm.relay.transform"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1
+msgid "The Relay IR namespace containing transformations."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1
+msgid "**Functions:**"
+msgstr "**函数：**"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`recast <tvm.relay.transform.tvm.relay.transform.recast>`\\ \\(expr\\, "
+"dtype\\, out\\_dtype\\[\\, ops\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Convert the types of operations in a graph to a new value."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`AlterOpLayout "
+"<tvm.relay.transform.tvm.relay.transform.AlterOpLayout>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+"Alternate the layouts of operators or replace primitive operators with other"
+" expressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`AnnotateSpans "
+"<tvm.relay.transform.tvm.relay.transform.AnnotateSpans>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateSpans:1
+msgid ""
+"Annotate a program with span information by first generating its textual "
+"representation and then parsing it back into a Relay AST annotated with span"
+" information."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`AnnotateTarget "
+"<tvm.relay.transform.tvm.relay.transform.AnnotateTarget>`\\ \\(targets\\[\\,"
+" include\\_non\\_call\\_ops\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:1
+msgid ""
+"Annotate ops in an experession with a provied compiler/target and then use "
+"it for codegen."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`BackwardFoldScaleAxis "
+"<tvm.relay.transform.tvm.relay.transform.BackwardFoldScaleAxis>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BackwardFoldScaleAxis:1
+msgid "Backward fold axis scaling into weights of conv2d/dense."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`BatchingOps <tvm.relay.transform.tvm.relay.transform.BatchingOps>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BatchingOps:1
+msgid ""
+"Batching parallel operators into one for Conv2D, Dense and BatchMatmul."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`CanonicalizeCast "
+"<tvm.relay.transform.tvm.relay.transform.CanonicalizeCast>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeCast:1
+msgid "Canonicalize cast expressions to make operator fusion more efficient."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`CanonicalizeOps "
+"<tvm.relay.transform.tvm.relay.transform.CanonicalizeOps>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Canonicalize special operators to basic operators."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`CombineParallelBatchMatmul "
+"<tvm.relay.transform.tvm.relay.transform.CombineParallelBatchMatmul>`\\ "
+"\\(\\[min\\_num\\_branches\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Combine multiple batch matmul operators into one."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`CombineParallelConv2D "
+"<tvm.relay.transform.tvm.relay.transform.CombineParallelConv2D>`\\ "
+"\\(\\[min\\_num\\_branches\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:1
+msgid "Combine multiple conv2d operators into one."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`CombineParallelDense "
+"<tvm.relay.transform.tvm.relay.transform.CombineParallelDense>`\\ "
+"\\(\\[min\\_num\\_branches\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Combine multiple dense operators into one."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`Conv2dToSparse "
+"<tvm.relay.transform.tvm.relay.transform.Conv2dToSparse>`\\ "
+"\\(weight\\_name\\, weight\\_shape\\, ...\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:1
+msgid "Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`Conv2dToSparse2 "
+"<tvm.relay.transform.tvm.relay.transform.Conv2dToSparse2>`\\ \\(layout\\, "
+"kernel\\_size\\, ...\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:1
+msgid "Rewrite freezed ```nn.conv2d``` operation to ```nn.sparse_conv2d```"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ConvertLayout "
+"<tvm.relay.transform.tvm.relay.transform.ConvertLayout>`\\ "
+"\\(desired\\_layouts\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+"Given a dest layout, this pass transforms the expr such that most of the ops"
+" input data layout is changed to the dest layout."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`DeadCodeElimination "
+"<tvm.relay.transform.tvm.relay.transform.DeadCodeElimination>`\\ "
+"\\(\\[inline\\_once\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:1
+msgid "Remove expressions that do not have any users (dead code)."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`Defunctionalization "
+"<tvm.relay.transform.tvm.relay.transform.Defunctionalization>`\\ \\(func\\, "
+"mod\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:1
+msgid ""
+"Performs defunctionalization on func, transforming func from a higher-order "
+"program to a first-order program."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`DefuseOps <tvm.relay.transform.tvm.relay.transform.DefuseOps>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "The inverse operation of FuseOps."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`DenseToSparse "
+"<tvm.relay.transform.tvm.relay.transform.DenseToSparse>`\\ "
+"\\(weight\\_name\\, weight\\_shape\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:1
+msgid ""
+"Rewrite qualified ```nn.dense operation``` to ```nn.sparse_dense``` This "
+"pass is used in ```data_dep_optimization.bsr_dense``` Parameters of this "
+"pass is generated by ```analysis.sparse_dense.process_params```"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`DynamicToStatic "
+"<tvm.relay.transform.tvm.relay.transform.DynamicToStatic>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DynamicToStatic:1
+msgid "If possible, convert tvm.relay.dynamic* ops to static versions"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`EliminateCommonSubexpr "
+"<tvm.relay.transform.tvm.relay.transform.EliminateCommonSubexpr>`\\ "
+"\\(\\[fskip\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:1
+msgid "Eliminate common subexpressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`EtaExpand <tvm.relay.transform.tvm.relay.transform.EtaExpand>`\\ "
+"\\(\\[expand\\_constructor\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:1
+msgid ""
+"Add abstraction over a constructor or global variable bound to a function"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FakeQuantizationToInteger "
+"<tvm.relay.transform.tvm.relay.transform.FakeQuantizationToInteger>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:1
+msgid "Find regions of the graph of the form"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ":obj:`FastMath <tvm.relay.transform.tvm.relay.transform.FastMath>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FastMath:1
+msgid ""
+"Converts the expensive non linear functions to their fast but approximate "
+"counterparts."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FirstOrderGradient "
+"<tvm.relay.transform.tvm.relay.transform.FirstOrderGradient>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+"Transforms all global functions in the module to return the original result,"
+" paired with the gradients of the inputs."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FoldConstant <tvm.relay.transform.tvm.relay.transform.FoldConstant>`\\"
+" \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstant:1
+msgid "Fold the constant expressions in a Relay program."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FoldConstantExpr "
+"<tvm.relay.transform.tvm.relay.transform.FoldConstantExpr>`\\ \\(expr\\, "
+"mod\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FoldExplicitPadding "
+"<tvm.relay.transform.tvm.relay.transform.FoldExplicitPadding>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldExplicitPadding:1
+msgid ""
+"FoldExplicitPadding finds explict padding before an op that can support "
+"implicit padding and fuses them."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FoldScaleAxis "
+"<tvm.relay.transform.tvm.relay.transform.FoldScaleAxis>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ForwardFoldScaleAxis:1
+msgid "Fold the scaling of axis into weights of conv2d/dense."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ForwardFoldScaleAxis "
+"<tvm.relay.transform.tvm.relay.transform.ForwardFoldScaleAxis>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`FuseOps <tvm.relay.transform.tvm.relay.transform.FuseOps>`\\ "
+"\\(\\[fuse\\_opt\\_level\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:1
+msgid ""
+"Fuse operators in an expr to a larger operator according to some rules."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`InferType <tvm.relay.transform.tvm.relay.transform.InferType>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.InferType:1
+msgid "Infer the type of an expr."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ":obj:`Inline <tvm.relay.transform.tvm.relay.transform.Inline>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Perform inlining on the given Relay IR module."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`LambdaLift <tvm.relay.transform.tvm.relay.transform.LambdaLift>`\\ "
+"\\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LambdaLift:1
+msgid "Lift the closure to global function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`LazyGradientInit "
+"<tvm.relay.transform.tvm.relay.transform.LazyGradientInit>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LazyGradientInit:1
+msgid "Reduces memory usage of gradient tensors"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`Legalize <tvm.relay.transform.tvm.relay.transform.Legalize>`\\ "
+"\\(\\[legalize\\_map\\_attr\\_name\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Legalizes an expression with another expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`MergeCompilerRegions "
+"<tvm.relay.transform.tvm.relay.transform.MergeCompilerRegions>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeCompilerRegions:1
+msgid "Merge together compiler regions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`MergeComposite "
+"<tvm.relay.transform.tvm.relay.transform.MergeComposite>`\\ "
+"\\(pattern\\_table\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:1
+msgid "Merge multiple operators into a single composite relay function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`PartialEvaluate "
+"<tvm.relay.transform.tvm.relay.transform.PartialEvaluate>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartialEvaluate:1
+msgid "Evaluate the static fragment of the code."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`PartitionGraph "
+"<tvm.relay.transform.tvm.relay.transform.PartitionGraph>`\\ "
+"\\(\\[mod\\_name\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartitionGraph:1
+msgid ""
+"Partition a Relay program into regions that can be executed on different "
+"backends."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`PlanDevices <tvm.relay.transform.tvm.relay.transform.PlanDevices>`\\ "
+"\\(default\\_device\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+"Uses existing \"on_device\" and \"device_copy\" CallNodes to infer the "
+"device on which every Relay sub-expression should run (and the result "
+"stored)."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`RemoveUnusedFunctions "
+"<tvm.relay.transform.tvm.relay.transform.RemoveUnusedFunctions>`\\ "
+"\\(\\[entry\\_functions\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:1
+msgid "Remove unused global relay functions in a relay module."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`SimplifyExpr <tvm.relay.transform.tvm.relay.transform.SimplifyExpr>`\\"
+" \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyExpr:1
+msgid "Simplify the Relay expression, including merging consecutive reshapes."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`SimplifyFCTranspose "
+"<tvm.relay.transform.tvm.relay.transform.SimplifyFCTranspose>`\\ "
+"\\(target\\_weight\\_name\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:1
+msgid ""
+"Rewrite ```y = nn.dense(x, transpose(w, [1, 0]))``` to ```y = nn.dense(x, "
+"wt)``` This pass is used in "
+"```data_dep_optimization.simplify_fc_transpose```"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`SimplifyInference "
+"<tvm.relay.transform.tvm.relay.transform.SimplifyInference>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Simplify the data-flow graph for inference phase."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`SplitArgs <tvm.relay.transform.tvm.relay.transform.SplitArgs>`\\ "
+"\\(max\\_function\\_args\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SplitArgs:1
+msgid "Split function with huge number of arguments to smaller pieces."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToANormalForm "
+"<tvm.relay.transform.tvm.relay.transform.ToANormalForm>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Turn Graph Normal Form expression into A Normal Form Expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToANormalFormExpr "
+"<tvm.relay.transform.tvm.relay.transform.ToANormalFormExpr>`\\ \\(e\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:1
+msgid "ToANormalForm, but on expression level."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToBasicBlockNormalForm "
+"<tvm.relay.transform.tvm.relay.transform.ToBasicBlockNormalForm>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Turn an expression to Basic Block Normal Form."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToCPS <tvm.relay.transform.tvm.relay.transform.ToCPS>`\\ \\(expr\\[\\,"
+" mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToCPS:1
+msgid "Turn expression into continuation passing style(CPS)."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToGraphNormalForm "
+"<tvm.relay.transform.tvm.relay.transform.ToGraphNormalForm>`\\ \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToGraphNormalForm:1
+msgid "Turn a Relay program in A Normal Form into Graph Normal Form"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`ToMixedPrecision "
+"<tvm.relay.transform.tvm.relay.transform.ToMixedPrecision>`\\ "
+"\\(\\[mixed\\_precision\\_type\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Automatic mixed precision rewriter."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`build_config <tvm.relay.transform.tvm.relay.transform.build_config>`\\"
+" \\(\\[opt\\_level\\, required\\_pass\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid "Configure the build behavior by setting config variables."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`function_pass "
+"<tvm.relay.transform.tvm.relay.transform.function_pass>`\\ "
+"\\(\\[pass\\_func\\, opt\\_level\\, name\\, ...\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:1
+msgid "Decorate a function pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`gradient <tvm.relay.transform.tvm.relay.transform.gradient>`\\ "
+"\\(expr\\[\\, mod\\, mode\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:1
+msgid ""
+"Transform the input function, returning a function that calculate the "
+"original result, paired with gradient of the input."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ""
+":obj:`to_cps <tvm.relay.transform.tvm.relay.transform.to_cps>`\\ "
+"\\(func\\[\\, mod\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:1
+msgid "Turn expression into CPS expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+msgid ":obj:`un_cps <tvm.relay.transform.tvm.relay.transform.un_cps>`\\ \\(func\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:1
+msgid ""
+"Turn an cps function into a Function without the continuation argument."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform:1
+msgid "**Classes:**"
+msgstr "**类：**"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+msgid ""
+":obj:`ChangeBatch <tvm.relay.transform.tvm.relay.transform.ChangeBatch>`\\ "
+"\\(data\\[\\, batch\\_size\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:1
+msgid "Change the batch size."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+msgid ""
+":obj:`FunctionPass <tvm.relay.transform.tvm.relay.transform.FunctionPass>`\\"
+" \\(\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+msgid "A pass that works on each tvm.relay.Function in a module."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+msgid ""
+":obj:`LayoutConfig <tvm.relay.transform.tvm.relay.transform.LayoutConfig>`\\"
+" \\(\\[skip\\_layers\\]\\)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1:<autosummary>:1
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform.LayoutConfig:1
+msgid "A structure for customizing the ConvertLayout pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:1
+msgid ""
+"Convert the types of operations in a graph to a new value. Note that this is"
+" primarily useful for testing performance of individual operations at the "
+"new datatype. In a real setting, this pass will almost certainly do a poor "
+"job converting from one datatype to another as it just applies hard casting."
+" For example, when recasting from float to integer, many small values will "
+"simply be set to 0. Although this will allow autotuning and benchmarking to "
+"produce proper timings at the new data type, the output of the model will of"
+" course be heavily impacted."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:0
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:0
+msgid "Parameters"
+msgstr "参数"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:10
+msgid "The original function that will have its type changed."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:12
+msgid "The target type to cast to."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:14
+msgid "The output type to cast to."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:16
+msgid ""
+"A list of operations that should have their type changed, others will be "
+"left as is."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:19
+msgid ""
+"A list of integers indicating operations that should not have their type "
+"changed, counted starting with the first valid operation encountered. "
+"Negative indices are allowed and indicate starting at the last layer."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AlterOpLayout:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateSpans:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BackwardFoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BatchingOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeCast:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeOps:0
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DefuseOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DynamicToStatic:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FastMath:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FirstOrderGradient:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstant:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstantExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldExplicitPadding:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ForwardFoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.InferType:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Inline:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LambdaLift:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LazyGradientInit:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeCompilerRegions:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartialEvaluate:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartitionGraph:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyInference:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SplitArgs:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToBasicBlockNormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToCPS:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToGraphNormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:0
+msgid "Returns"
+msgstr "返回"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:25
+msgid ""
+"**output_expr** -- The graph after recasting to the specified datatype."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.recast.recast:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AlterOpLayout:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateSpans:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BackwardFoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BatchingOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeCast:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeOps:0
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DefuseOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DynamicToStatic:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FastMath:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FirstOrderGradient:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstant:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstantExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldExplicitPadding:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ForwardFoldScaleAxis:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.InferType:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Inline:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LambdaLift:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LazyGradientInit:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeCompilerRegions:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartialEvaluate:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartitionGraph:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyInference:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SplitArgs:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToBasicBlockNormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToCPS:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToGraphNormalForm:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:0
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:0
+msgid "Return type"
+msgstr "返回的数据类型"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AlterOpLayout:1
+msgid ""
+"Alternate the layouts of operators or replace primitive operators with other"
+" expressions. This pass can be used for computing convolution in custom "
+"layouts or other general weight pre-transformation."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AlterOpLayout:6
+msgid "**ret** -- The registered pass that alters the layout of operators."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateSpans:5
+msgid "**ret** -- The registered AnnotateSpans pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:4
+msgid "The list of target compilers used for codegen."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:6
+msgid ""
+"If True then non-call ops also will be annotated with targets If False then "
+"non-call ops will not be processed"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.AnnotateTarget:10
+msgid ""
+"**ret** -- The annotated pass that wrapps ops with subgraph_start and "
+"subgraph_end."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BackwardFoldScaleAxis:3
+msgid "**ret** -- The registered pass to backward fold expressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BackwardFoldScaleAxis:8
+msgid ""
+"It is recommended to call backward_fold_scale_axis before using "
+"forward_fold_scale_axis as backward folding targets the common conv->bn "
+"pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.BatchingOps:3
+msgid ""
+"**ret** -- The sequential pass which apply batching for different operator "
+"types."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeCast:3
+msgid "**ret** -- The registered pass that canonicalizes cast expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeOps:1
+msgid ""
+"Canonicalize special operators to basic operators. This can simplify "
+"followed analysis, e.g. expanding bias_add to expand_dims and broadcast_add."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CanonicalizeOps:5
+msgid "**ret** -- The registered pass performing the canonicalization."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:3
+msgid ""
+"A dictionary of all the params to change. The keys are all params, and the "
+"values are which dimension hold the batch."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:6
+msgid "The batch size to change to."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform._wrap_class_function_pass.<locals>.PyFunctionPass:9
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:21
+msgid "**pass** -- The pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:1
+msgid "Combine multiple batch matmul operators into one. For example:"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:9
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:9
+msgid "Would become:"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:19
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:3
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:25
+msgid ""
+"The minimum number of required parallel branches for performing this "
+"optimization."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelBatchMatmul:23
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:32
+msgid "**ret** -- The registered pass that combines parallel dense operators."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelConv2D:7
+msgid ""
+"**ret** -- The registered pass that combines parallel conv2d operators."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:1
+msgid "Combine multiple dense operators into one. For example:"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:17
+msgid "or (if to_batch=False)"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.CombineParallelDense:28
+msgid ""
+"If True, combine parallel dense ops into batch_matmul op. If False, combine "
+"parallel dense ops into dense op."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:3
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:5
+msgid "Names of weights which qualified sparse contrains"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:5
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:7
+msgid "Weights shape in BSR format."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:7
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:3
+msgid "layout of data"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse:10
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:8
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DenseToSparse:10
+msgid "**ret** -- The registered DenseToSparse pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Conv2dToSparse2:5
+msgid "kernel size of conv2d"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:1
+msgid ""
+"Given a dest layout, this pass transforms the expr such that most of the ops"
+" input data layout is changed to the dest layout. In ideal situation, there "
+"are only 2 layout transforms, one at the start and one at the end."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:5
+msgid ""
+"This pass is not a part of relay.build and is expected to be called between "
+"framework-relay parser and relay.build call. This is very helpful for "
+"hardware backends that support/prefer only type of data layout."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:9
+msgid "RFC - https://discuss.tvm.apache.org/t/layout-conversion-pass/4009"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:11
+msgid ""
+"This pass uses most of the AlterOpLayout and InferCorrectLayout "
+"infrastructure. We can define new layouts for conv2d ops for now. Most of "
+"the other operators try to adapt to their input layout using the "
+"InferCorrectLayout infrastructure."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ConvertLayout:15
+msgid ""
+"Specify a mapping of operator names to a list of layouts to convert to, in "
+"the order defined by the operator. An example for nn.conv2d could be: "
+"{\"nn.conv2d\", [\"NHWC\", \"OHWI]}, where the first item in the list "
+"specifies the data layout and the second specifies the kernel layout."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:3
+msgid "Whether to inline binding that occurs only once."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DeadCodeElimination:6
+msgid ""
+"**ret** -- The registered pass that eliminates the dead code in a Relay "
+"program."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:4
+msgid ""
+"At each call site, the function is cloned and type parameters are "
+"substituted in. Function arguments are encoded as datatypes and additional "
+"apply functions are used for application."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:8
+msgid ""
+"The input function, which should not be polymorphic or be higher-order. This"
+" is because all types must be known and we can't encode function arguments "
+"to the program itself."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:12
+msgid ""
+"The IRModule containing function and type definitions, which is also mutated"
+" during this pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Defunctionalization:16
+msgid "**expr** -- The output function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DefuseOps:1
+msgid ""
+"The inverse operation of FuseOps. It transforms a fused program returned by "
+"FuseOps into the program before FuseOps. (i.e., x == DefuseOps(FuseOps(x)))"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DefuseOps:4
+msgid "**ret** -- The registered pass for operator defusion."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.DynamicToStatic:3
+msgid "**ret** -- The registered pass for dynamic->static conversion."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:3
+msgid ""
+"The callback function that decides whether an expression should be skipped."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EliminateCommonSubexpr:7
+msgid "**ret** -- The registered pass that eliminates common subexpressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:3
+msgid "Whether to expand constructors."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:5
+msgid "Whether to expand global variables."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.EtaExpand:8
+msgid "**ret** -- The registered pass that eta expands an expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:15
+msgid ""
+"where ``q == qnn.quantize`` and ``dq = qnn.dequantize`` and rewrite them "
+"into integer versions of ``op1`` and ``op2``"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:18
+msgid ""
+"Rules for rewriting indivdual ops are in fake_quantization_to_integer.py"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FakeQuantizationToInteger:20
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyExpr:3
+msgid "**ret** -- The registered SimplifyExpr pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FastMath:3
+msgid "**ret** -- The registered pass to perform fast math operations."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FirstOrderGradient:1
+msgid ""
+"Transforms all global functions in the module to return the original result,"
+" paired with the gradients of the inputs. This pass transforms each global "
+"function independently and does not support interprocedural AD. "
+"Additionally, this pass does not support any control-flow or references, and"
+" should only be used on pure data-flow graphs."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FirstOrderGradient:6
+msgid "**ret** -- The registered FirstOrderGradient pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstant:3
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SplitArgs:3
+msgid "**ret** -- The registered pass for constant folding."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstantExpr:1
+msgid ""
+"Fold the constant expressions in a Relay program. :param expr: The "
+"expression to fold :type expr: Expr :param mod: The module the expr lives in"
+" (for global calls) :type mod: IRModule"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldConstantExpr:7
+msgid "**new_expr** -- The expr after Constant Folding"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldExplicitPadding:4
+msgid "**ret** -- The registered ImplicitPadding pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldScaleAxis:1
+msgid ""
+"Fold the scaling of axis into weights of conv2d/dense. This pass will invoke"
+" both forward and backward scale folding."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldScaleAxis:4
+msgid "**ret** -- The registered pass to fold expressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FoldScaleAxis:9
+msgid ""
+"Internally, we will call backward_fold_scale_axis before using "
+"forward_fold_scale_axis as backward folding targets the common conv->bn "
+"pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ForwardFoldScaleAxis:3
+msgid "**ret** -- The registered pass to forward fold expressions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ForwardFoldScaleAxis:8
+msgid ""
+"It is recommended to call backward_fold_scale_axis before using "
+"forward_fold_scale_axis, as backward folding targets the common conv->bn "
+"pattern."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/transform.pydocstring of
+#: tvm.relay.transform.transform.FunctionPass:1
+msgid ""
+"A pass that works on each tvm.relay.Function in a module. A function pass "
+"class should be created through `function_pass`."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:3
+msgid ""
+"The level of fuse optimization. -1 indicates that the level will be inferred"
+" from pass context."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.FuseOps:7
+msgid "**ret** -- The registered pass for operator fusion."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.InferType:3
+msgid "**ret** -- The registered type inference pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Inline:1
+msgid ""
+"Perform inlining on the given Relay IR module. The global functions that are"
+" marked as `inline` should be always inlined. A cost model will be needed in"
+" the future to decide if it is profitable to inline the function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Inline:5
+msgid ""
+"**ret** -- The registered pass that performs inlining for a Relay IR module."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LambdaLift:3
+msgid "**ret** -- The registered pass that lifts the lambda function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.LazyGradientInit:4
+msgid ""
+"**ret** -- A pass which delays and/or reduces memory allocation, by lazily "
+"allocating 0 or one filled tensors."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:1
+msgid ""
+"Legalizes an expression with another expression. This pass can be used to "
+"replace an expr with another expr for target dependent optimizations. For "
+"example, one expr, though semnatically equivalent to the other, can have "
+"better performance on a target. This pass can be used to legalize the expr "
+"in a target-dependent manner."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:7
+msgid "The Op's attr name which corresponds to the legalize rule function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.Legalize:10
+msgid "**ret** -- The registered pass that rewrites an expr."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeCompilerRegions:3
+msgid "**ret** -- The registered pass that merges compiler regions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:3
+msgid ""
+"A list of (pattern_name, pattern, check) tuples. The order of the patterns "
+"in the list will determine the order of priority in which they are matched. "
+"'check' is a function to check whether an extracted pattern matches. It can "
+"be implemented by pattern writer but if not specified it will always return "
+"True."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.MergeComposite:11
+msgid ""
+"**ret** -- The registered pass that merges operators into a single composite"
+" relay function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartialEvaluate:5
+msgid ""
+"This transformation could be either `Module -> Module` or `Expr -> Expr`. It"
+" will directly transform the input expression to a new one if the target "
+"expression is provided. Otherwise, it will rely on the pass manager to carry"
+" out transformation."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartialEvaluate:10
+msgid ""
+"**ret** -- The registered pass that performs partial evaluation on an "
+"expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PartitionGraph:4
+msgid "**ret** -- The registered pass that partitions the Relay program."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.PlanDevices:1
+msgid ""
+"Uses existing \"on_device\" and \"device_copy\" CallNodes to infer the "
+"device on which every Relay sub-expression should run (and the result "
+"stored). Captures the result of that analysis using new \"on_device\" and "
+"\"device_copy\" CallNodes. Note that the device_id of the default_device is "
+"ignored."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:3
+msgid "The set of entry functions to start from."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.RemoveUnusedFunctions:6
+msgid "**ret** -- The registered pass to remove unused functions."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:4
+msgid ""
+"Names of weights which qualified ```y = nn.dense(x, transpose(w, [1, 0]))```"
+" This parameter is generated by ```analysis.search_fc_transpose``` function"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyFCTranspose:8
+msgid "**ret** -- The registered SimplifyFCTranspose pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyInference:1
+msgid ""
+"Simplify the data-flow graph for inference phase. An simplified expression "
+"which is semantically equal to the input expression will be returned."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyInference:4
+msgid ""
+"Note that batch norms will only be simplified if their result is indexed at "
+"tuple index 0."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.SimplifyInference:7
+msgid "**ret** -- The registered pass to perform operator simplification."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalForm:1
+msgid ""
+"Turn Graph Normal Form expression into A Normal Form Expression. The scope "
+"of the root expression is the global scope. The scope of any non root "
+"expression is the least common ancestor of all it's scope. Values are "
+"ordered by post-DFS order in each scope."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalForm:6
+msgid ""
+"**ret** -- The registered pass that transforms an expression into A Normal "
+"Form."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:3
+msgid "The graph expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToANormalFormExpr:6
+msgid "**ret** -- The transformed expresion."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToBasicBlockNormalForm:1
+msgid ""
+"Turn an expression to Basic Block Normal Form. We define a block as a group "
+"of expressions implied by the scope structure. Each graph node can only "
+"belong to a single block. For any value that is being used in multiple "
+"blocks, it has to be referred by a Var which is defined in a block, whose "
+"scope is the least common ancestor of blocks this value is used."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToBasicBlockNormalForm:8
+msgid ""
+"**ret** -- The registered pass that transforms an expression into Basic "
+"Block Normal Form."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToCPS:3
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:3
+msgid "Every intermediate compute will be passed to a continuation."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToCPS:5
+msgid ""
+"**result** -- The registered pass that transforms an expression into CPS."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToGraphNormalForm:3
+msgid ""
+"**ret** -- The registered pass that transforms an expression into Graph "
+"Normal Form."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:1
+msgid ""
+"Automatic mixed precision rewriter. Rewrite an FP32 relay graph into a "
+"version where as many operations as possible are in the target "
+"mixed_precision_type."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:4
+msgid "The target datatype to transform operations in the graph to use."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:6
+msgid ""
+"Determines how to handle ops not registered with "
+"FTVMMixedPrecisionConversionType   0: Does not allow any missing ops. Will "
+"throw errors when encountering any.   1: Allow missing ops but emit "
+"warnings.   2: Allow missing ops and silently ignore them."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:9
+msgid ""
+"Determines how to handle ops not registered with "
+"FTVMMixedPrecisionConversionType"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:8
+msgid ""
+"0: Does not allow any missing ops. Will throw errors when encountering any. "
+"1: Allow missing ops but emit warnings. 2: Allow missing ops and silently "
+"ignore them."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.ToMixedPrecision:13
+msgid "**ret** -- The registered pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:1
+msgid ""
+"Configure the build behavior by setting config variables. This function will"
+" be deprecated in TVM v0.7. Instead, we should directly use "
+"tvm.transform.PassContext."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:5
+msgid ""
+"Optimization level. The optimization pass name and level are as the "
+"following:  .. code-block:: python      OPT_PASS_LEVEL = {         "
+"\"SimplifyInference\": 0,         \"OpFusion\": 1,         \"FoldConstant\":"
+" 2,         \"FoldScaleAxis\": 3,         \"AlterOpLayout\": 3,         "
+"\"CanonicalizeOps\": 3,         \"CanonicalizeCast\": 3,         "
+"\"EliminateCommonSubexpr\": 3,         \"CombineParallelConv2D\": 4,"
+"         \"CombineParallelDense\": 4,         "
+"\"CombineParallelBatchMatmul\": 4,         \"FastMath\": 4     }"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:5
+msgid ""
+"Optimization level. The optimization pass name and level are as the "
+"following:"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:25
+msgid ""
+"Optimization passes that are required regardless of optimization level."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:27
+msgid "Optimization passes to be disabled during optimization."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:29
+msgid "A tracing function for debugging or introspection."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.build_config:32
+msgid "**pass_context** -- The pass context for optimizations."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:3
+msgid ""
+"This function returns a callback when pass_func is provided. Otherwise, it "
+"returns the created function pass using the given optimization function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:7
+msgid "The transformation function or class."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:9
+msgid "The optimization level of this module pass."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:11
+msgid ""
+"The name of the function pass. The name could be empty. In this case, the "
+"name of the optimization function will be used as the pass name."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:14
+msgid "The list of passes that the module pass is dependent on."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:17
+msgid ""
+"**create_function_pass** -- A decorator will be returned if pass_func is not"
+" provided, otherwise return the decorated result. The returned decorator has"
+" two behaviors depending on the input: A new FunctionPass will be returned "
+"when we decorate a pass function. A new FunctionPass class will be returned "
+"when we decorate a class type."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:25
+msgid "Examples"
+msgstr "样例"
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:26
+msgid "The following code block decorates a function pass class."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.function_pass:49
+msgid ""
+"The following code creates a function pass by decorating a user defined "
+"transform function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:5
+msgid "The input expression, which is a Function or a GlobalVar."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:9
+msgid ""
+"The mode of the automatic differentiation algorithm. 'first_order' only "
+"works on first order code, but will not produce reference nor closure. "
+"'higher_order' works on all code using reference and closure."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.gradient:15
+msgid "**expr** -- The transformed expression."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:5
+msgid "The input function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:7
+msgid "The global module."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.to_cps:10
+msgid "**result** -- The output function."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:4
+msgid "Note that this will not give the exact same interface as before cps:"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:4
+msgid "If the input/output is higher order, they will still be in cps form."
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:6
+msgid "The input function"
+msgstr ""
+
+#: ../../../python/tvm/relay/transform/__init__.pydocstring of
+#: tvm.relay.transform.transform.un_cps:9
+msgid "**result** -- The output function"
+msgstr ""

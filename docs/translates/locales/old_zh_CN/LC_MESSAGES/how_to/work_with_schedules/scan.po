@@ -1,0 +1,172 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# Xiaoyu Zhang, 2021
+# DH Luo, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:35+0000\n"
+"Last-Translator: DH Luo, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:4
+msgid ""
+"Click :ref:`here <sphx_glr_download_how_to_work_with_schedules_scan.py>` to "
+"download the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:11
+msgid "Scan and Recurrent Kernel"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:12
+msgid "**Author**: `Tianqi Chen <https://tqchen.github.io>`_"
+msgstr "**作者**: `Tianqi Chen <https://tqchen.github.io>`_"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:14
+msgid ""
+"This is an introduction material on how to do recurrent computing in TVM. "
+"Recurrent computing is a typical pattern in neural networks."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:33
+msgid ""
+"TVM supports a scan operator to describe symbolic loop. The following scan "
+"op computes cumsum over columns of X."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:36
+msgid ""
+"The scan is carried over the highest dimension of the tensor. "
+":code:`s_state` is a placeholder that describes the transition state of the "
+"scan. :code:`s_init` describes how we can initialize the first k timesteps. "
+"Here since s_init's first dimension is 1, it describes how we initialize The"
+" state at first timestep."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:42
+msgid ""
+":code:`s_update` describes how to update the value at timestep t. The update"
+" value can refer back to the values of previous timestep via state "
+"placeholder. Note that while it is invalid to refer to :code:`s_state` at "
+"current or later timestep."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:46
+msgid ""
+"The scan takes in state placeholder, initial value and update description. "
+"It is also recommended(although not necessary) to list the inputs to the "
+"scan cell. The result of the scan is a tensor, giving the result of "
+":code:`s_state` after the update over the time domain."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:70
+msgid "Schedule the Scan Cell"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:71
+msgid ""
+"We can schedule the body of the scan by scheduling the update and init part "
+"seperately. Note that it is invalid to schedule the first iteration "
+"dimension of the update part. To split on the time iteration, user can "
+"schedule on scan_op.scan_axis instead."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:98
+#: ../../_staging/how_to/work_with_schedules/scan.rst:197
+#: ../../_staging/how_to/work_with_schedules/scan.rst:263
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:126
+msgid "Build and Verify"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:127
+msgid ""
+"We can build the scan kernel like other TVM kernels, here we use numpy to "
+"verify the correctness of the result."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:151
+msgid "Multi-Stage Scan Cell"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:152
+msgid ""
+"In the above example we described the scan cell using one Tensor computation"
+" stage in s_update. It is possible to use multiple Tensor stages in the scan"
+" cell."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:156
+msgid ""
+"The following lines demonstrate a scan with two stage operations in the scan"
+" cell."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:178
+msgid ""
+"These intermediate tensors can also be scheduled normally. To ensure "
+"correctness, TVM creates a group constraint to forbid the body of scan to be"
+" compute_at locations outside the scan loop."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:232
+msgid "Multiple States"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:233
+msgid ""
+"For complicated applications like RNN, we might need more than one recurrent"
+" state. Scan support multiple recurrent states. The following example "
+"demonstrates how we can build recurrence with two states."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:294
+msgid "Summary"
+msgstr "总结"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:295
+msgid "This tutorial provides a walk through of scan primitive."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:297
+msgid "Describe scan with init and update."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:298
+msgid "Schedule the scan cells as normal schedule."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:299
+msgid "For complicated workload, use multiple states and steps in scan cell."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:314
+msgid ":download:`Download Python source code: scan.py <scan.py>`"
+msgstr ":download:`Python源码下载: scan.py <scan.py>`"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:320
+msgid ":download:`Download Jupyter notebook: scan.ipynb <scan.ipynb>`"
+msgstr ":download:`Jupyter notebook 下载: scan.ipynb <scan.ipynb>`"
+
+#: ../../_staging/how_to/work_with_schedules/scan.rst:327
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"

@@ -1,0 +1,174 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2020 - 2021, Apache Software Foundation
+# This file is distributed under the same license as the tvm package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# 
+# Translators:
+# HLearning, 2021
+# Xiaoyu Zhang, 2021
+# juzi, 2021
+# 
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: tvm 0.8.dev1734+gca660ba1e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2021-10-12 10:06+0000\n"
+"PO-Revision-Date: 2021-10-13 01:35+0000\n"
+"Last-Translator: juzi, 2021\n"
+"Language-Team: Chinese (China) (https://www.transifex.com/TVMChinese/teams/124815/zh_CN/)\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:4
+msgid ""
+"Click :ref:`here "
+"<sphx_glr_download_how_to_work_with_schedules_intrin_math.py>` to download "
+"the full example code"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:11
+msgid "Intrinsics and Math Functions"
+msgstr "内部函数和数学函数"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:12
+msgid "**Author**: `Tianqi Chen <https://tqchen.github.io>`_"
+msgstr "**作者**: `Tianqi Chen <https://tqchen.github.io>`_"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:14
+msgid ""
+"While TVM supports basic arithmetic operations. In many cases usually we "
+"will need more complicated builtin functions. For example :code:`exp` to "
+"take the exponential of the function."
+msgstr "尽管TVM支持基本的算术运算。但是在许多情况下，我们需要更复杂的内置函数。例如:code:`exp`来取函数的指数。"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:18
+msgid ""
+"These functions are target system dependent and may have different names of "
+"different target platforms. In this tutorial, we will learn how we can "
+"invoke these target specific functions, and how we can unify the interface "
+"via tvm's intrinsic API."
+msgstr ""
+"这些函数依赖于目标系统，可能具有不同目标平台的不同名称。在本教程中，我们将学习如何调用这些特定于目标的函数，以及如何通过tvm的内部API统一接口。"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:40
+msgid "Direct Declare Extern Math Call"
+msgstr "直接声明外部数学调用"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:41
+msgid ""
+"The most straight-forward way to call target specific function is via extern"
+" function call construct in tvm. In the following example, we use "
+":any:`tvm.tir.call_pure_extern` to call :code:`__expf` function, which is "
+"only available under CUDA."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:67
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:131
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:179
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:255
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:335
+msgid "Out:"
+msgstr "输出:"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:100
+msgid "Unified Intrinsic Call"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:101
+msgid ""
+"The above code verifies that direct external call can be used to call into "
+"device specific functions. However, the above way only works for CUDA target"
+" with float type. Ideally, we want to write same code for any device and any"
+" data type."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:106
+msgid ""
+"TVM intrinsic provides the user a mechanism to achieve this, and this is the"
+" recommended way to solve the problem. The following code use te.exp "
+"instead, which create an intrinsic call :py::func:`tvm.te.exp` to do the "
+"exponential."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:163
+msgid ""
+"We can find that the code works for both CUDA and opencl. The same te.exp "
+"can also be used for float64 data types."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:199
+msgid "Intrinsic Lowering Rule"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:200
+msgid ""
+"When :py:func:`tvm.te.exp` is called, TVM creates an intrinsic Call Expr. "
+"TVM uses transformation rules to transform the intrinsic call to device "
+"specific extern calls."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:204
+msgid ""
+"TVM also allows user to customize the rules during runtime. The following "
+"example customizes CUDA lowering rule for :code:`exp`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:237
+msgid ""
+"Register the rule to TVM with override option to override existing rule. "
+"Notice the difference between the printed code from previous one: our new "
+"rule uses math function :code:`expf` instead of fast math version "
+":code:`__expf`."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:288
+msgid "Add Your Own Intrinsic"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:289
+msgid ""
+"If there is an intrinsic that is not provided by TVM. User can easily add "
+"new intrinsic by using the intrinsic rule system. The following example add "
+"an intrinsic :code:`mylog` to the system."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:368
+msgid "Summary"
+msgstr "总结"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:369
+msgid "TVM can call extern target dependent math function."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:370
+msgid "Use intrinsic to defined a unified interface for the functions."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:371
+msgid "For more intrinsics available in tvm, take a look at :any:`tvm.tir`"
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:372
+msgid "You can customize the intrinsic behavior by defining your own rules."
+msgstr ""
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:388
+msgid ""
+":download:`Download Python source code: intrin_math.py <intrin_math.py>`"
+msgstr ":download:`下载 Python 源代码: intrin_math.py <intrin_math.py>`"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:394
+msgid ""
+":download:`Download Jupyter notebook: intrin_math.ipynb <intrin_math.ipynb>`"
+msgstr ""
+":download:`下载 Jupyter notebook: intrin_math.ipynb <intrin_math.ipynb>`"
+
+#: ../../_staging/how_to/work_with_schedules/intrin_math.rst:401
+msgid ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
+msgstr ""
+"`Gallery generated by Sphinx-Gallery <https://sphinx-gallery.github.io>`_"
