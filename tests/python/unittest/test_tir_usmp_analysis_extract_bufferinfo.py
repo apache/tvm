@@ -176,8 +176,9 @@ def test_linear():
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(tir_mod["run_model"], tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(tir_mod["run_model"], tir_mod)
+    assert buffer_info_analysis.memory_pressure == 1117718
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts("PaddedInput_7", ["sid_9", "sid_8", "Conv2dOutput_7"], buffer_info_map)
@@ -293,8 +294,9 @@ def test_parallel_serial_mixed_for_loops():
         all_serial_tir_mod, [global_ws_pool]
     )
     main_func = all_serial_tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, all_serial_tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, all_serial_tir_mod)
+    assert buffer_info_analysis.memory_pressure == 430848
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # When all loops are serial all allocates are touched by USMP
     assert len(buffer_info_map) == 3
@@ -309,10 +311,11 @@ def test_parallel_serial_mixed_for_loops():
         parallel_serial_mixed_tir_mod, [global_ws_pool]
     )
     main_func = parallel_serial_mixed_tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(
         main_func, parallel_serial_mixed_tir_mod
     )
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    assert buffer_info_analysis.memory_pressure == 430848
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # USMP will not touch (yet) the allocates inside parallel for loops
     assert len(buffer_info_map) == 2
@@ -656,8 +659,9 @@ def test_inception_structure():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 1117718
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts(
@@ -1369,8 +1373,9 @@ def test_multiple_calls_to_same_primfunc():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 11424
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts(

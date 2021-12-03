@@ -120,7 +120,7 @@ def test_no_pool_error():
     with pytest.raises(
         tvm.TVMError, match="TVM USMP Error: the space available in the provided pools exceeded"
     ):
-        buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+        buffer_pool_allocations = fusmp_algo(buffer_info_arr, 0)
 
 
 @pytest.mark.parametrize("algorithm", ["greedy_by_size", "greedy_by_conflicts"])
@@ -148,7 +148,7 @@ def test_name_based_ordering(algorithm):
 
         buffer_info_arr = [bi_a, bi_b, bi_c]
         fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-        buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+        buffer_pool_allocations = fusmp_algo(buffer_info_arr, 0)
         assert buffer_pool_allocations[bi_a].byte_offset == 20
         assert buffer_pool_allocations[bi_b].byte_offset == 10
         assert buffer_pool_allocations[bi_c].byte_offset == 0
@@ -216,7 +216,7 @@ def test_linear(algorithm, workspace_size):
 
     buffer_info_arr = [bi_a, bi_b, bi_c, bi_d, bi_e, bi_f]
     fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr, 0)
     _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
 
 
@@ -287,7 +287,7 @@ def test_fanout(algorithm, workspace_size):
 
     buffer_info_arr = [bi_a, bi_b, bi_c, bi_d, bi_e, bi_f, bi_g]
     fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr, 0)
     _check_max_workspace_size(buffer_pool_allocations, global_workspace_pool, workspace_size)
 
 
@@ -382,12 +382,13 @@ def test_mobilenet_subgraph(algorithm, fast_memory_size, slow_memory_size):
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 1117718
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
-    buffer_info_arr = fcreate_array_bi(buffer_info_map)
+    buffer_info_arr = fcreate_array_bi(buffer_info_analysis.buffer_info_stmts)
     fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr, buffer_info_analysis.memory_pressure)
 
     buffer_info_map_names = dict()
     for buf_info in buffer_info_arr:
@@ -540,12 +541,13 @@ def test_resnet_subgraph(algorithm, workspace_size):
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
     main_func = tir_mod["tvmgen_default_run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 7200256
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
-    buffer_info_arr = fcreate_array_bi(buffer_info_map)
+    buffer_info_arr = fcreate_array_bi(buffer_info_analysis.buffer_info_stmts)
     fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
-    buffer_pool_allocations = fusmp_algo(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo(buffer_info_arr, buffer_info_analysis.memory_pressure)
 
     buffer_info_map_names = dict()
     for buf_info in buffer_info_arr:
