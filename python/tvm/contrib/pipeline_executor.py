@@ -125,7 +125,9 @@ class PipelineModule(object):
         self._stop()
 
     def set_input(self, key, value):
-        """Set inputs to the module via "value".
+        """Set the value of "value" to the global input named "value". A global input is
+        defined during the pipeline configurration, it is connected with a graph module input.
+
         Parameters
         ----------
         key : str
@@ -140,7 +142,10 @@ class PipelineModule(object):
         v.copyfrom(value)
 
     def set_params(self, params_name, params_data):
-        """Set params to the module via param name and params data.
+        """Set the value of "params_data" to the global params named "params_name", the global
+        params name is defined during the pipeline configueration creation, it is connected with
+        the params of a graph module which is a dictionary constructed from key and value.
+
         Parameters
         ----------
         params_name : str
@@ -153,7 +158,7 @@ class PipelineModule(object):
             self._set_param(params_name, key, val)
 
     def get_input(self, key):
-        """Get the input via a input name.
+        """Get the input via an input name.
         Parameters
         ----------
         key : str
@@ -162,7 +167,7 @@ class PipelineModule(object):
         Returns
         -------
         data : NDArray
-            Then input data.
+            The input data.
         """
         self._get_input(key)
 
