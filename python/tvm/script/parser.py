@@ -566,7 +566,18 @@ class TVMScriptParser(Transformer):
                 self.context.remove_symbol(var.name)
                 return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
-        self.report_error("Unsupported Assign stmt", node.span)
+        self.report_error(
+            """Assignments should be either
+            1. A "special statement" with return value
+                1.1 Buffer = T.match_buffer()/T.buffer_decl()
+                1.2 Var = T.var()
+                1.3 Var = T.env_thread()
+            2. A store into a buffer: Buffer[PrimExpr, PrimExpr, ..., PrimExpr] = PrimExpr
+            3. A store into a variable: Var[PrimExpr] = PrimExpr
+            4. A with scope handler with concise scoping and var def
+                4.1 var = T.allocate()""",
+            node.span,
+        )
 
     def transform_SubscriptAssign(self, node):
         """Visitor for statements of the form :code:`x[1] = 2`."""
@@ -583,6 +594,12 @@ class TVMScriptParser(Transformer):
                 span=tvm_span_from_synr(node.span),
             )
         else:
+            if symbol.dtype == "handle" and len(indexes) != 1:
+                self.report_error(
+                    "Handles only support one-dimensional indexing. Use `T.match_buffer` to "
+                    "construct a multidimensional buffer from a handle.",
+                    node.params[0].span,
+                )
             if len(indexes) != 1:
                 self.report_error(
                     f"Store is only allowed with one index, but {len(indexes)} were provided.",
@@ -736,9 +753,35 @@ class TVMScriptParser(Transformer):
                 return self.transform_Subscript(node)
             if node.func_name.name in self._binop_maker:
                 lhs = self.transform(node.params[0])
+                # There is no supertype for everything that can appear in
+                # an expression, so we manually add what we might get here.
+                if not isinstance(lhs, (tvm.tir.PrimExpr, BufferSlice)):
+                    # We would really like to report a more specific
+                    # error here, but this parser contains no distinction
+                    # between parsing statements and parsing expressions. All
+                    # rules just call `transform`.
+                    self.report_error(
+                        f"Left hand side of binary op must be a PrimExpr, "
+                        "but it is a {type(lhs).__name__}",
+                        node.params[0].span,
+                    )
                 rhs = self.transform(node.params[1])
-                return self._binop_maker[node.func_name.name](
-                    lhs, rhs, span=tvm_span_from_synr(node.span)
+                if not isinstance(rhs, (tvm.tir.PrimExpr, BufferSlice)):
+                    self.report_error(
+                        f"Right hand side of binary op must be a PrimExpr, "
+                        "but it is a {type(rhs).__name__}",
+                        node.params[1].span,
+                    )
+                return call_with_error_reporting(
+                    self.report_error,
+                    node.span,
+                    lambda node, lhs, rhs, span: self._binop_maker[node.func_name.name](
+                        lhs, rhs, span=span
+                    ),
+                    node,
+                    lhs,
+                    rhs,
+                    tvm_span_from_synr(node.span),
                 )
             if node.func_name.name in self._unaryop_maker:
                 rhs = self.transform(node.params[0])
@@ -764,6 +807,8 @@ class TVMScriptParser(Transformer):
                     self.transform(k): self.transform(v) for k, v in node.keyword_params.items()
                 }
                 if isinstance(func, tvm.tir.op.Op):
+                    if not "dtype" in kw_args.keys():
+                        self.report_error(f"{func} requires a dtype keyword argument.", node.span)
                     # pattern 2
                     return tvm.tir.Call(
                         kw_args["dtype"], func, args, span=tvm_span_from_synr(node.span)
@@ -862,15 +907,33 @@ class TVMScriptParser(Transformer):
 
         indexes = [self.transform(x) for x in node.params[1].values]
         if isinstance(symbol, tvm.tir.expr.Var):
-            for index in indexes:
-                if not isinstance(index, (tvm.tir.PrimExpr, int)):
-                    self.report_error(
-                        "Buffer load indexes should be int or PrimExpr, but they are "
-                        + type(index),
-                        node.span,
-                    )
-            return tvm.tir.Load(
-                "float32", symbol, indexes, True, span=tvm_span_from_synr(node.span)
+            if symbol.dtype == "handle":
+                self.report_error(
+                    "Cannot read directly from a handle, use `T.match_buffer` "
+                    "to create a buffer to read from.",
+                    node.params[0].span,
+                )
+            if len(indexes) > 1:
+                self.report_error(
+                    "Only a single index can be provided when indexing into a `var`.",
+                    node.params[1].span,
+                )
+            index = indexes[0]
+            if not isinstance(index, (tvm.tir.PrimExpr, int)):
+                self.report_error(
+                    "Var load index should be an int or PrimExpr, but it is a" + type(index),
+                    node.span,
+                )
+
+            return call_with_error_reporting(
+                self.report_error,
+                node.span,
+                tvm.tir.Load,
+                "float32",
+                symbol,
+                index,
+                True,
+                span=tvm_span_from_synr(node.span),
             )
         elif isinstance(symbol, tvm.tir.Buffer):
             return BufferSlice(
