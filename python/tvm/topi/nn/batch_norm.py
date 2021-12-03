@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Batch normalization."""
+import typing
+
 from tvm import te
 from tvm import topi
 
@@ -23,10 +25,10 @@ def batch_norm(
     data: te.Tensor,
     gamma: te.Tensor,
     beta: te.Tensor,
-    axis: int = 1,
-    epsilon: float = 1e-5,
-    center: bool = True,
-    scale: bool = True,
+    axis: typing.Optional[int] = None,
+    epsilon: typing.Optional[float] = None,
+    center: typing.Optional[bool] = None,
+    scale: typing.Optional[bool] = None,
 ):
     """Batch normalization layer (Ioffe and Szegedy, 2014).
 
@@ -45,17 +47,17 @@ def batch_norm(
     beta : tvm.te.Tensor
         Offset to be applied to the normalized tensor.
 
-    axis : Optional[int] = 1
+    axis : int, optional, default=1
         Specify along which shape axis the normalization should occur.
 
-    epsilon : Optional[float] = 1e-5
+    epsilon : float, optional, default=1e-5
         Small float added to variance to avoid dividing by zero.
 
-    center : Optional[bool] = True
+    center : bool, optional, default=True
         If True, add offset of beta to normalized tensor, If False,
         beta is ignored.
 
-    scale : Optional[bool] = True
+    scale : bool, optional, defualt=True
         If True, scale normalized tensor by gamma. If False, gamma
         is ignored.
 
@@ -64,6 +66,18 @@ def batch_norm(
     output : tvm.te.Tensor
         Normalized data with same shape as input
     """
+    if axis is None:
+        axis = 1
+
+    if epsilon is None:
+        epsilon = 1e-5
+
+    if center is None:
+        center = True
+
+    if scale is None:
+        scale = True
+
     mean = topi.reduction.sum(data, axis=axis, keepdims=True) / data.shape[axis]
     var_summands = topi.broadcast.power(topi.broadcast.subtract(data, mean), 2.0)
     var = topi.reduction.sum(var_summands, axis=axis, keepdims=True) / data.shape[axis]
