@@ -109,8 +109,8 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         self.type = vtype
         super().__init__(match_buffer_syntax_sugar, def_symbol=True)
 
-    @staticmethod
     def __call__(
+        self,
         shape,
         dtype: str = "float32",
         name: str = "Buffer",
@@ -123,10 +123,16 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         buffer_type="default",
         span=None,
     ):
+        """
+        This function is for Buffer(...) syntax sugar.
+        """
         pass
 
-    @staticmethod
-    def __getitem__(args):
+    def __getitem__(self, args):
+        """
+        This function is for Buffer[...] syntax sugar
+        Note that args is the list of all arguments
+        """
         pass
 
     def evaluate(self):
