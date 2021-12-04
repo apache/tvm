@@ -252,7 +252,7 @@ if(USE_HEXAGON_RPC)
   ExternalProject_Add_Step(android_runtime_rpc copy_binary_runtime
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       ${BINARY_DIR}/libtvm_runtime.so
-      ${HEXAGON_RPC_OUTPUT}/libtvm_runtime_android.so
+      ${HEXAGON_RPC_OUTPUT}/libtvm_runtime.so
     DEPENDEES install
   )
   ExternalProject_Add_Step(android_runtime_rpc copy_binary_rpc

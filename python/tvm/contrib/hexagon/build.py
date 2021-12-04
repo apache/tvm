@@ -29,7 +29,7 @@ from ..._ffi import libinfo
 from .session import Session
 
 
-RPC_SERVER_FILES = ["tvm_rpc_android", "libtvm_runtime_android.so", "android_bash.sh"]
+RPC_SERVER_FILES = ["tvm_rpc_android", "libtvm_runtime.so", "android_bash.sh"]
 
 HEXAGON_FILES = ["libhexagon_rpc_skel.so"]
 
@@ -145,8 +145,6 @@ class HexagonLauncher:
         for item in RPC_SERVER_FILES:
             src_path = get_hexagon_rpc_dir() / item
             destination = f"{self._workspace}/{item}"
-            if item == "libtvm_runtime_android.so":
-                destination = f"{self._workspace}/libtvm_runtime.so"
             subprocess.check_call(self._adb_device_sub_cmd + ["push", src_path, destination])
 
         # enable root for adb
