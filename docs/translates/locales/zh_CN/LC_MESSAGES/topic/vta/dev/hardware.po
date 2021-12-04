@@ -219,9 +219,9 @@ msgstr ""
 #: ../../_staging/topic/vta/dev/hardware.rst:154
 msgid ""
 "This `reference guide "
-"<https://www.xilinx.com/support/documentation/sw_manuals/xilinx2018_2/ug902-vivado-"
-"high-level-synthesis.pdf>`_ provides a much more in-depth, and complete "
-"specification of HLS for the Xilinx 2018.2 toolchains."
+"<https://www.xilinx.com/support/documentation/sw_manuals/xilinx2018_2/ug902"
+"-vivado-high-level-synthesis.pdf>`_ provides a much more in-depth, and "
+"complete specification of HLS for the Xilinx 2018.2 toolchains."
 msgstr ""
 
 #: ../../_staging/topic/vta/dev/hardware.rst:158

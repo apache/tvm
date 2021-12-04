@@ -129,8 +129,8 @@ msgid ""
 "<https://github.com/apache/tvm/tree/main/apps/android_rpc#architecture-and-"
 "android-standalone-toolchain>`_ ."
 msgstr ""
-"此时，别忘了`创建一个独立的工具链<https://github.com/apache/tvm/tree/main/apps/android_rpc"
-"#architecture-and-android-standalone-toolchain>`_ .。"
+"此时，别忘了`创建一个独立的工具链<https://github.com/apache/tvm/tree/main/apps/android_rpc#architecture-"
+"and-android-standalone-toolchain>`_ .。"
 
 #: ../../_staging/how_to/deploy_models/deploy_model_on_android.rst:141
 msgid "for example"
