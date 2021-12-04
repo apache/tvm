@@ -61,7 +61,7 @@ def get_hexagon_rpc_dir() -> pathlib.Path:
 class HexagonLauncher:
     """Hexagon Launcher"""
 
-    def __init__(self, serial_number: str):
+    def __init__(self, serial_number: str, workspace_size_gb: int = 1):
         """Configure a new HexagonLauncher
 
         Parameters
@@ -76,6 +76,7 @@ class HexagonLauncher:
         self._adb_device_sub_cmd = ["adb", "-s", self._serial_number]
         self._mod = None
         self._workspace = None
+        self._workspace_max_size_mb = workspace_size_gb * 1024
 
     HEXAGON_REMOTE_DEVICE_KEY = "hexagon-dev"
 
@@ -102,6 +103,10 @@ class HexagonLauncher:
         rpc_tracker_port : int
             RPC tracker port on host
         """
+        # Check size of base directory and cleanup if needed
+        while self._get_workspace_size() > self._workspace_max_size_mb:
+            self._workspace_remove_latest()
+        
         if not workspace_dir:
             self._workspace = str(
                 ANDROID_HEXAGON_TEST_BASE_DIR
@@ -257,3 +262,18 @@ class HexagonLauncher:
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
+
+    def _get_workspace_size(self) -> int:
+        """Get workspace base directory size in MB"""
+        line = subprocess.check_output(self._adb_device_sub_cmd + ["shell", "du", "-shm", str(ANDROID_HEXAGON_TEST_BASE_DIR)], encoding="utf-8")
+        return int(line.split("\t")[0])
+
+    def _workspace_remove_latest(self):
+        # find oldest(lower number) directory
+        latest_dir = subprocess.check_output(self._adb_device_sub_cmd + [
+            "shell", "find", str(ANDROID_HEXAGON_TEST_BASE_DIR),
+            "!", "-path", ".", "-type", "d", "|", "sort", "-n", "|", "head", "-1"
+            ], encoding="utf-8")
+        latest_dir = latest_dir.replace("\n", "").replace("\t", "")
+
+        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "rm", "-rf", latest_dir])
