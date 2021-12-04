@@ -331,11 +331,15 @@ def EncodeConstants(const_dict):
     def _new_buffer(old_buffer, new_value):
         """Create a new buffer and add the old buffer and its pointer to the
         rewriting maps."""
-        new_buffer = tvm.tir.decl_buffer((len(new_value),), str(new_value.dtype))
-        pointer_to_buffer[new_buffer.data] = new_buffer
+        if old_buffer in rewrite_buffer:
+            new_buffer = rewrite_buffer[old_buffer]
+        else:
+            new_buffer = tvm.tir.decl_buffer((len(new_value),), str(new_value.dtype))
+            pointer_to_buffer[new_buffer.data] = new_buffer
+            buffer_to_const[new_buffer] = new_value
+
         rewrite_buffer[old_buffer] = new_buffer
         rewrite_pointer[old_buffer.data] = new_buffer.data
-        buffer_to_const[new_buffer] = new_value
 
     def _visit_encode_pre(stmt):
         if isinstance(stmt, tvm.tir.Call):
