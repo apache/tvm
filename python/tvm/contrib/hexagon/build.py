@@ -147,8 +147,6 @@ class HexagonLauncher:
             destination = f"{self._workspace}/{item}"
             subprocess.check_call(self._adb_device_sub_cmd + ["push", src_path, destination])
 
-        # enable root for adb
-        subprocess.check_call(self._adb_device_sub_cmd + ["root"])
         # Removed pre-defined forward/reverse rules
         subprocess.check_call(self._adb_device_sub_cmd + ["forward", "--remove-all"])
         subprocess.check_call(self._adb_device_sub_cmd + ["reverse", "--remove-all"])
