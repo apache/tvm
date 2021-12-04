@@ -185,7 +185,7 @@ def test_graph_executor(tvm_tracker_host, tvm_tracker_port, android_serial_numbe
     launcher.hexagon_session_setup(remote_kw)
     launcher.upload(dso_binary_path, dso_binary)
 
-    graph_mod = launcher.get_local_graph_executor(lowered, dso_binary)
+    graph_mod = launcher.get_graph_executor(lowered, dso_binary)
     weight_in = np.random.rand(5, 5, 3, 8).astype(dtype=dtype)
     data_in = np.random.rand(1, 64, 64, 3).astype(dtype=dtype)
     graph_mod.set_input(weight=weight_in)

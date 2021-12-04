@@ -44,6 +44,7 @@ class Session:
 
     def __enter__(self):
         if self.device:
+            # Already initialized
             return self
 
         tracker = _rpc.connect_tracker(self._remote_kw["host"], self._remote_kw["port"])

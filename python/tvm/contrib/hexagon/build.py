@@ -118,7 +118,7 @@ class HexagonLauncher:
         # Upload RPC server and libraries
         subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", self._workspace])
 
-        # create bash script
+        # Create bash script
         android_bash_script_path = get_hexagon_rpc_dir() / "android_bash.sh"
         with open(get_hexagon_rpc_dir() / "android_bash.sh.template", "r") as src_f:
             if os.path.exists(android_bash_script_path):
@@ -137,11 +137,11 @@ class HexagonLauncher:
                         line = line.replace("<RPC_SERVER_PORT>", str(rpc_server_port))
                     dest_f.write(line)
 
-        # make shell script executable
+        # Make shell script executable
         android_bash_stat = os.stat(android_bash_script_path)
         os.chmod(android_bash_script_path, android_bash_stat.st_mode | stat.S_IEXEC)
 
-        # push files
+        # Push files
         for item in RPC_SERVER_FILES:
             src_path = get_hexagon_rpc_dir() / item
             destination = f"{self._workspace}/{item}"
@@ -226,16 +226,16 @@ class HexagonLauncher:
         dst_remote_path = f"{self._workspace}/{remote_filename}"
         subprocess.check_call(self._adb_device_sub_cmd + ["push", src_path, dst_remote_path])
 
-    def get_local_graph_executor(self, libmod, remote_libmod_filename: str):
-        """Create a GraphModule.
+    def get_graph_executor(self, libmod, remote_libmod_filename: str):
+        """Create a local GraphModule which consumes a remote libmod.
 
         Parameters
         ----------
         libmod : tvm.runtime.Module
-            The module of the corresponding function
+            The module of the corresponding function. This library module is for remote hexagon runtime.
 
         remote_libmod_filename : str
-            Module filename on remote. Assumed this file lives under self._workspace path.
+            Module filename on remote. It is assumed this file lives under self._workspace path.
 
         Returns
         -------
@@ -250,11 +250,11 @@ class HexagonLauncher:
 
     def close(self):
         """Close RPC server on Android"""
-        # kill process childs
+        # Kill process childs
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"pkill -P `cat {self._workspace}/rpc_pid.txt`"]
         )
-        # kill main process
+        # Kill main process
         subprocess.Popen(
             self._adb_device_sub_cmd + ["shell", f"kill `cat {self._workspace}/rpc_pid.txt`"]
         )
@@ -265,7 +265,7 @@ class HexagonLauncher:
         return int(line.split("\t")[0])
 
     def _workspace_remove_latest(self):
-        # find oldest(lower number) directory
+        # Find oldest(lower number) directory
         latest_dir = subprocess.check_output(self._adb_device_sub_cmd + [
             "shell", "find", str(ANDROID_HEXAGON_TEST_BASE_DIR),
             "!", "-path", ".", "-type", "d", "|", "sort", "-n", "|", "head", "-1"
