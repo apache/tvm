@@ -406,6 +406,7 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
     .add_attr_option<Array<Target>>("devices");
 
+
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
