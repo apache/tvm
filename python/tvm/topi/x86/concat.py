@@ -19,8 +19,8 @@
 from typing import Optional
 import tvm
 from tvm import te
-from ..utils import get_const_int, const_vector
 import numpy as np
+from ..utils import get_const_int, const_vector
 
 
 def _concat(a_tuple, axis=0):
