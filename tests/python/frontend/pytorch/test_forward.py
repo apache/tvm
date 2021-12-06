@@ -4020,5 +4020,17 @@ def test_roll():
     verify_model(test_fn(shifts=(2, 1), dims=(0, 1)), [x])
 
 
+@tvm.testing.uses_gpu
+def test_einsum():
+    def test_fn(equation):
+        return lambda *x: torch.einsum(equation, *x)
+
+    x = torch.ones([2, 3])
+    y = torch.ones([3, 4])
+    z = torch.ones([4, 5])
+    verify_model(test_fn("ij,jk"), [x, y])
+    verify_model(test_fn("ij,jk,km->im"), [x, y, z])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
