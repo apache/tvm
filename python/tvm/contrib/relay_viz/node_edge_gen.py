@@ -29,7 +29,17 @@ UNKNOWN_TYPE = "unknown"
 
 
 class VizNode:
-    """Node carry information used by `plotter.Graph` interface."""
+    """Node carry information used by `plotter.Graph` interface.
+
+    Parameters
+    ----------
+    node_id: int | str
+        Unique identifier for this node.
+    node_type: str
+        Type of this node.
+    node_detail: str
+        Any supplement for this node such as attributes.
+    """
 
     def __init__(self, node_id: Union[int, str], node_type: str, node_detail: str):
         self._id = node_id
@@ -50,7 +60,15 @@ class VizNode:
 
 
 class VizEdge:
-    """Edges for `plotter.Graph` interface."""
+    """Edges for `plotter.Graph` interface.
+
+    Parameters
+    ----------
+    start_node: int | str
+        The identifier of the node starting the edge.
+    end_node: int | str
+        The identifier of the node ending the edge.
+    """
 
     def __init__(self, start_node: Union[int, str], end_node: Union[int, str]):
         self._start_node = start_node
@@ -150,7 +168,7 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
     def _function_node(
         self,
         node: relay.Expr,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        _: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         """Render rule for a relay function node"""
@@ -170,7 +188,7 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
     def _call_node(
         self,
         node: relay.Expr,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        _: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         """Render rule for a relay call node"""
@@ -203,7 +221,7 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
     def _tuple_node(
         self,
         node: relay.Expr,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        _: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         node_id = node_to_id[node]
@@ -214,7 +232,7 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
     def _tuple_get_item_node(
         self,
         node: relay.Expr,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        _: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         node_id = node_to_id[node]
@@ -225,7 +243,7 @@ class DefaultNodeEdgeGenerator(NodeEdgeGenerator):
     def _constant_node(
         self,
         node: relay.Expr,
-        _: Dict[str, tvm.runtime.NDArray],  # relay_param
+        _: Dict[str, tvm.runtime.NDArray],
         node_to_id: Dict[relay.Expr, Union[int, str]],
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         node_id = node_to_id[node]

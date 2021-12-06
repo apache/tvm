@@ -39,7 +39,7 @@ class RelayVisualizer:
 
     Parameters
     ----------
-    relay_mod : tvm.IRModule
+    relay_mod: tvm.IRModule
         Relay IR module.
     relay_param: None | Dict[str, tvm.runtime.NDArray]
         Relay parameter dictionary. Default `None`.
@@ -104,8 +104,16 @@ class RelayVisualizer:
         self._plotter.render(filename=filename)
 
 
-def get_plotter_and_generator(backend):
-    """Specify the Plottor and its NodeEdgeGenerator"""
+def get_plotter_and_generator(
+    backend: Union[PlotterBackend, Tuple[Plotter, NodeEdgeGenerator]]
+) -> Tuple[Plotter, NodeEdgeGenerator]:
+    """Specify the Plottor and its NodeEdgeGenerator
+
+    Parameters
+    ----------
+    backend : PlotterBackend | Tuple[Plotter, NodeEdgeGenerator]
+        Backend used to generate nodes/edges and render them.
+    """
     if isinstance(backend, (tuple, list)) and len(backend) == 2:
         if not isinstance(backend[0], Plotter):
             raise ValueError(f"First element should be an instance derived from {type(Plotter)}")
@@ -115,7 +123,7 @@ def get_plotter_and_generator(backend):
                 f"Second element should be an instance derived from {type(NodeEdgeGenerator)}"
             )
 
-        return backend
+        return tuple(backend)
 
     if backend not in PlotterBackend:
         raise ValueError(f"Unknown plotter backend {backend}")
