@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
 from tvm.driver.build_module import schedule_to_module
 
-from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants, AnnotateAllocates
+from . import passes as ethosu_passes
 from .scheduler import schedule
 
 
@@ -76,19 +76,20 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = schedule_to_module(sch, args, name)
 
         mod = tvm.tir.transform.Simplify()(mod)
+        mod = ethosu_passes.RemoveConcatenates()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
-        mod = RemoveZeroStores()(mod)
+        mod = ethosu_passes.RemoveZeroStores()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
-        mod = ReplaceOperators()(mod)
+        mod = ethosu_passes.ReplaceOperators()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
-        mod, const_dict = EncodeConstants(const_dict)(mod)
+        mod, const_dict = ethosu_passes.EncodeConstants(const_dict)(mod)
         mod = tvm.tir.transform.StorageRewrite()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
-        mod = AnnotateAllocates()(mod)
+        mod = ethosu_passes.AnnotateAllocates()(mod)
     return mod, const_dict
 
 
@@ -118,19 +119,22 @@ class ExtractConstants(ExprMutator):
     def __init__(self):
         super().__init__()
         self.constants = []
+        self.const_vars = []
 
     def visit_constant(self, const):
         if isinstance(const.checked_type, relay.ty.TensorType):
             if const.checked_type.concrete_shape != ():
                 self.constants.append(const.data.asnumpy())
                 name = "p" + str(len(self.constants))
-                return relay.var(type_annotation=const.checked_type, name_hint=name)
+                var = relay.var(type_annotation=const.checked_type, name_hint=name)
+                self.const_vars.append(var)
+                return var
 
         return const
 
     def visit_function(self, fn):
         new_body = self.visit(fn.body)
-        new_params = list(relay.analysis.free_vars(new_body))
+        new_params = list(fn.params) + self.const_vars
         return relay.Function(new_params, new_body)
 
     def extract_constants(self, func):
