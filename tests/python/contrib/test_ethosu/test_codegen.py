@@ -888,5 +888,24 @@ def test_tflite_tanh(accel_type):
     infra.verify_source(compiled_models, accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "shapes, axis",
+    [
+        ([(2, 3), (4, 3)], 0),
+        ([(3, 2, 1), (3, 1, 1)], 1),
+        ([(10,), (13,), (14,)], 0),
+        ([(1, 5, 2, 1), (1, 5, 7, 1), (1, 5, 3, 1)], 2),
+    ],
+)
+def test_tflite_concat(shapes, axis, accel_type):
+    @tf.function
+    def concat_func(*inputs):
+        op = tf.concat(list(inputs), axis)
+        return op
+
+    _compare_tvm_with_tflite(concat_func, shapes, accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

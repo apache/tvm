@@ -25,7 +25,7 @@ import tvm  # type: ignore
 from tvm import relay
 from tvm.relay.expr import Constant, Call  # type: ignore
 from tvm.relay.op.contrib.register import register_pattern_table  # type: ignore
-from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant  # type: ignore
+from tvm.relay.dataflow_pattern import wildcard, is_op, is_constant, is_tuple  # type: ignore
 from tvm.relay.build_module import bind_params_by_name  # type: ignore
 
 try:
@@ -1035,6 +1035,58 @@ def mean_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
+class ConcatParams:
+    """
+    This class will parse a call to a ethos-u.concat composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.concat"
+
+    def __init__(self, func_body):
+        self.concat = func_body
+        self.input_tensors = [TensorParams(tensor) for tensor in list(func_body.args[0])]
+        self.input_scales = [s.data.asnumpy() for s in list(func_body.args[1])]
+        self.input_zero_points = [zp.data.asnumpy() for zp in list(func_body.args[2])]
+        self.axis = func_body.attrs.axis
+
+    def is_valid(self):
+        """Checks whether Concatenate has compatible attributes with the hardware"""
+        if not check_valid_dtypes(self.input_tensors, supported_dtypes=[np.int8]):
+            return False
+        # Check that the scales and zero points of input tensors are the same
+        if not all(self.input_scales == self.input_scales[0]):
+            return False
+        if not all(self.input_zero_points == self.input_zero_points[0]):
+            return False
+
+        input_dim = len(self.input_tensors[0].shape)
+        for tensor in self.input_tensors:
+            if len(tensor.shape) != input_dim:
+                return False
+
+        if self.axis is None:
+            return False
+        if self.axis < 0:
+            return False
+        if self.axis >= input_dim:
+            return False
+
+        output_shape = self.concat.checked_type.shape
+        if len(output_shape) != input_dim:
+            return False
+        return True
+
+
+def concat_pattern():
+    """Create pattern for concat"""
+    tensors = is_tuple(None)
+    scales = is_tuple(None)
+    zero_points = is_tuple(None)
+    concat = is_op("qnn.concatenate")(tensors, scales, zero_points, is_constant(), is_constant())
+    return concat
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1109,6 +1161,7 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             mean_pattern(),
             lambda pat: MeanParams(pat).is_valid(),
         ),
+        (ConcatParams.composite_name, concat_pattern(), lambda pat: ConcatParams(pat).is_valid()),
     ]
 
 
