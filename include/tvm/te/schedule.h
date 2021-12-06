@@ -813,6 +813,36 @@ class Singleton : public IterVarRelation {
   TVM_DEFINE_OBJECT_REF_METHODS(Singleton, IterVarRelation, SingletonNode);
 };
 
+/*!
+ * \brief Transform iterator according to some arbitrary expression.
+ */
+class TransformNode : public IterVarRelationNode {
+ public:
+  Array<IterVar> original_variables;
+  Array<IterVar> transformed_variables;
+  IndexMap forward_transformation;
+  IndexMap inverse_transformation;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("original_variables", &original_variables);
+    v->Visit("transformed_variables", &transformed_variables);
+    v->Visit("forward_transformation", &forward_transformation);
+    v->Visit("inverse_transformation", &inverse_transformation);
+  }
+
+  static constexpr const char* _type_key = "Transform";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TransformNode, IterVarRelationNode);
+};
+
+class Transform : public IterVarRelation {
+ public:
+  TVM_DLL explicit Transform(Array<IterVar> original_variables,
+                             Array<IterVar> transformed_variables, IndexMap forward_transformation,
+                             IndexMap inverse_transformation);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Transform, IterVarRelation, TransformNode);
+};
+
 /*! \brief Container for specialization conditions. */
 class SpecializedConditionNode : public Object {
  public:

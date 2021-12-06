@@ -723,6 +723,16 @@ Singleton::Singleton(IterVar iter) {
   data_ = std::move(n);
 }
 
+Transform::Transform(Array<IterVar> original_variables, Array<IterVar> transformed_variables,
+                     IndexMap forward_transformation, IndexMap inverse_transformation) {
+  auto n = make_object<TransformNode>();
+  n->original_variables = original_variables;
+  n->transformed_variables = transformed_variables;
+  n->forward_transformation = forward_transformation;
+  n->inverse_transformation = inverse_transformation;
+  data_ = std::move(n);
+}
+
 SpecializedCondition::SpecializedCondition(Array<PrimExpr> conditions) {
   ObjectPtr<SpecializedConditionNode> n = make_object<SpecializedConditionNode>();
   n->clauses = std::move(conditions);
