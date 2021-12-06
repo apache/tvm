@@ -25,8 +25,10 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule.h>
 
+#include <algorithm>
 #include <stack>
 #include <unordered_set>
+#include <vector>
 
 #include "graph.h"
 
@@ -432,7 +434,63 @@ Stage& Stage::rolling_buffer() {
 Stage& Stage::transform_layout(const Array<Var>& initial_indices,
                                const Array<PrimExpr>& final_indices) {
   StageNode* self = operator->();
-  self->layout_transforms.push_back(IndexMap(initial_indices, final_indices));
+  IndexMap map(initial_indices, final_indices);
+  self->layout_transforms.push_back(map);
+
+  auto* compute = self->op.as<ComputeOpNode>();
+
+  // Can only rewrite the indices of compute op nodes.
+  if (!compute) {
+    return *this;
+  }
+
+  CHECK_EQ(initial_indices.size(), compute->axis.size())
+      << "Expected number of initial indices in transformation to match the dimension of "
+      << self->op->name;
+
+  // Locate the IterVar objects for the data axes.
+  auto leaf_iter_range = [&]() -> std::pair<size_t, size_t> {
+    std::vector<size_t> leaf_var_indices;
+    for (const auto& axis : compute->axis) {
+      leaf_var_indices.push_back(
+          FindLeafVar(self->all_iter_vars.CopyOnWrite(), self->leaf_iter_vars.CopyOnWrite(), axis));
+    }
+    auto minmax_element = std::minmax_element(leaf_var_indices.begin(), leaf_var_indices.end());
+    return {*minmax_element.first, *minmax_element.second + 1};
+  }();
+  CHECK_EQ(leaf_iter_range.first + compute->axis.size(), leaf_iter_range.second)
+      << "Cannot transform indices if they have already been reordered";
+
+  // Determine the updated ranges of iteration.
+  Array<Range> initial_ranges;
+  for (const auto& iter_var : compute->axis) {
+    initial_ranges.push_back(iter_var->dom);
+  }
+  Array<Range> final_ranges = map->MapRanges(initial_ranges);
+
+  // Make IterVar objects to represent the new iterations.
+  auto inverse = map.Inverse(initial_ranges);
+  Array<IterVar> final_indices_iter;
+  ICHECK_EQ(inverse->initial_indices.size(), final_ranges.size());
+  for (size_t i = 0; i < inverse->initial_indices.size(); i++) {
+    final_indices_iter.push_back(IterVar(final_ranges[i], inverse->initial_indices[i], kDataPar));
+  }
+
+  // Append the new IterVar objects to all_iter_vars
+  for (const auto& iter_var : final_indices_iter) {
+    self->all_iter_vars.push_back(iter_var);
+  }
+
+  // Replace the existing IterVar objects in leaf_iter_vars with the
+  // new IterVar objects.
+  self->leaf_iter_vars.erase(self->leaf_iter_vars.begin() + leaf_iter_range.first,
+                             self->leaf_iter_vars.begin() + leaf_iter_range.second);
+  self->leaf_iter_vars.insert(self->leaf_iter_vars.begin() + leaf_iter_range.first,
+                              final_indices_iter.begin(), final_indices_iter.end());
+
+  // Define a relationship for each new axis
+  self->relations.push_back(Transform(compute->axis, final_indices_iter, map, inverse));
+
   return *this;
 }
 

@@ -498,9 +498,27 @@ class StageNode : public Object {
    *  while origin_op remains fixed.
    */
   Operation origin_op;
-  /*! \brief All the nodes in the iter var */
+  /*! \brief All the nodes in the iter var
+   *
+   * Each element of all_iter_vars represents an iteration variable
+   * that may appear within this stage's computation.  Any element
+   * of `all_iter_vars` that is in `leaf_iter_vars` represents a
+   * variable that is directly defined and usable within the stage's
+   * computation.  All other elements of `all_iter_vars` represent
+   * variables whose value must be computed from the variables in
+   * `leaf_iter_vars`.  (e.g. Support index k has been split by
+   * ``ko, ki = s.split(k, factor=4)``.  ko and ki will appear in
+   * `leaf_iter_vars`, while k will not, and must be computed as
+   * `4*ko + ki`.
+   */
   Array<IterVar> all_iter_vars;
-  /*! \brief The current active leaf iter vars in the stage. */
+  /*! \brief The current active leaf iter vars in the stage.
+   *
+   * Each element of leaf_iter_vars will either be replaced with the
+   * bound index (e.g. threadIdx.x), or will be expanded into a loop
+   * over the variable's extent.  `leaf_iter_vars` is a subset of
+   * `all_iter_vars`.
+   */
   Array<IterVar> leaf_iter_vars;
   /*!
    * \brief Specify threads to be launched at the stage.
