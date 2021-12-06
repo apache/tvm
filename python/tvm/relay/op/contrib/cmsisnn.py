@@ -145,6 +145,73 @@ def pattern_table():
             and (not is_depthwise or bias_add is not None)
         )
 
+    def qnn_fully_connected_pattern():
+        """Create pattern for qnn.dense with optional Relu."""
+        qnn_fc = is_op("qnn.dense")(
+            wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        bias_add = is_op("nn.bias_add")(qnn_fc, is_constant())
+        req = is_op("qnn.requantize")(
+            qnn_fc | bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+        )
+        clip_or_req = req.optional(is_op("clip"))
+        return clip_or_req
+
+    def check_qnn_fully_connected(pattern):
+        """Check if the fully connected is supported by CMSIS-NN."""
+        if str(pattern.op.name) == "clip":
+            relu = pattern
+            requantize = relu.args[0]
+        else:
+            requantize = pattern
+        requantize_input = requantize.args[0]
+        bias_add = None
+        bias_dtype = "int32"
+        if str(requantize_input.op.name) == "nn.bias_add":
+            bias_add = requantize_input
+            fc = bias_add.args[0]
+            bias_dtype = bias_add.args[1].checked_type.dtype
+        else:
+            fc = requantize_input
+        fc_input = fc.args[0]
+        fc_weight = fc.args[1]
+
+        # kernel zero_point should be 0
+        kernel_zp = fc.args[3].data.numpy().item(0)
+
+        return (
+            fc.attrs.out_dtype == "int32"
+            and fc_input.checked_type.dtype == "int8"
+            and fc_weight.checked_type.dtype == "int8"
+            and pattern.checked_type.dtype == "int8"
+            and bias_dtype == "int32"
+            and kernel_zp == 0
+        )
+
+    def qnn_avg_pool2d_pattern():
+        """Matches average pooling with optional Relu"""
+        pattern = is_op("cast")(wildcard())
+        pattern = is_op("nn.avg_pool2d")(pattern)
+        pattern = is_op("cast")(pattern)
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def check_qnn_avg_pool2d(pattern):
+        """Check if avg pool2d is supported by CMSIS-NN."""
+        in_cast = pattern
+        out_cast = in_cast.args[0].args[0]
+        return in_cast.checked_type.dtype == "int8" and out_cast.checked_type.dtype == "int32"
+
+    def qnn_max_pool2d_pattern():
+        """Matches max pool2d with optional Relu"""
+        pattern = is_op("nn.max_pool2d")(wildcard())
+        pattern = pattern.optional(is_op("clip"))
+        return pattern
+
+    def check_qnn_max_pool2d(pattern):
+        """Check if max pool2d is supported by CMSIS-NN."""
+        return True
+
     def binary_op_pattern(op):
         """Matches QNN binary operation"""
         return is_op(f"qnn.{op}")(
@@ -166,8 +233,11 @@ def pattern_table():
         )
 
     return [
-        ("cmsis-nn.qnn_softmax", qnn_softmax_pattern(), check_qnn_softmax),
         ("cmsis-nn.qnn_conv2d", qnn_conv2d_pattern(), check_qnn_conv2d),
+        ("cmsis-nn.qnn_fully_connected", qnn_fully_connected_pattern(), check_qnn_fully_connected),
+        ("cmsis-nn.qnn_avg_pool2d", qnn_avg_pool2d_pattern(), check_qnn_avg_pool2d),
+        ("cmsis-nn.qnn_max_pool2d", qnn_max_pool2d_pattern(), check_qnn_max_pool2d),
         ("cmsis-nn.qnn_mul", binary_op_pattern("mul"), check_qnn_binary_op),
         ("cmsis-nn.qnn_add", binary_op_pattern("add"), check_qnn_binary_op),
+        ("cmsis-nn.qnn_softmax", qnn_softmax_pattern(), check_qnn_softmax),
     ]
