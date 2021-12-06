@@ -56,17 +56,6 @@ class ProjectTransport(Transport):
         return self._api_client.read_transport(n, timeout_sec)["data"]
 
 
-def prepare_options(received_options: dict, all_options: dict) -> dict:
-    """Add default value of options that are not passed to the project options."""
-    options_default = {option["name"]: option["default"] for option in all_options}
-    prepared_options = dict(received_options) if received_options else dict()
-
-    for option, def_val in options_default.items():
-        if option not in prepared_options and def_val is not None:
-            prepared_options[option] = def_val
-    return prepared_options
-
-
 class TemplateProjectError(Exception):
     """Raised when the Project API server given to GeneratedProject reports is_template=True."""
 
@@ -80,10 +69,10 @@ class GeneratedProject:
 
     def __init__(self, api_client, options):
         self._api_client = api_client
+        self._options = options
         self._info = self._api_client.server_info_query(__version__)
         if self._info["is_template"]:
             raise TemplateProjectError()
-        self._options = prepare_options(options, self.info()["project_options"])
 
     def build(self):
         self._api_client.build(self._options)
@@ -135,15 +124,14 @@ class TemplateProject:
     def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
         """Generate a project from MLF file."""
         self._check_project_options(options)
-        prepared_options = prepare_options(options, self.info()["project_options"])
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),
             standalone_crt_dir=get_standalone_crt_dir(),
             project_dir=project_dir,
-            options=prepared_options,
+            options=options,
         )
 
-        return GeneratedProject.from_directory(project_dir, prepared_options)
+        return GeneratedProject.from_directory(project_dir, options)
 
     def info(self):
         return self._info
