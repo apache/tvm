@@ -106,7 +106,7 @@ class HexagonLauncher:
         # Check size of base directory and cleanup if needed
         while self._get_workspace_size() > self._workspace_max_size_mb:
             self._workspace_remove_latest()
-        
+
         if not workspace_dir:
             self._workspace = str(
                 ANDROID_HEXAGON_TEST_BASE_DIR
@@ -261,15 +261,34 @@ class HexagonLauncher:
 
     def _get_workspace_size(self) -> int:
         """Get workspace base directory size in MB"""
-        line = subprocess.check_output(self._adb_device_sub_cmd + ["shell", "du", "-shm", str(ANDROID_HEXAGON_TEST_BASE_DIR)], encoding="utf-8")
+        line = subprocess.check_output(
+            self._adb_device_sub_cmd + ["shell", "du", "-shm", str(ANDROID_HEXAGON_TEST_BASE_DIR)],
+            encoding="utf-8",
+        )
         return int(line.split("\t")[0])
 
     def _workspace_remove_latest(self):
         # Find oldest(lower number) directory
-        latest_dir = subprocess.check_output(self._adb_device_sub_cmd + [
-            "shell", "find", str(ANDROID_HEXAGON_TEST_BASE_DIR),
-            "!", "-path", ".", "-type", "d", "|", "sort", "-n", "|", "head", "-1"
-            ], encoding="utf-8")
+        latest_dir = subprocess.check_output(
+            self._adb_device_sub_cmd
+            + [
+                "shell",
+                "find",
+                str(ANDROID_HEXAGON_TEST_BASE_DIR),
+                "!",
+                "-path",
+                ".",
+                "-type",
+                "d",
+                "|",
+                "sort",
+                "-n",
+                "|",
+                "head",
+                "-1",
+            ],
+            encoding="utf-8",
+        )
         latest_dir = latest_dir.replace("\n", "").replace("\t", "")
 
         subprocess.check_call(self._adb_device_sub_cmd + ["shell", "rm", "-rf", latest_dir])

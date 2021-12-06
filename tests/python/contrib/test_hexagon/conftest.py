@@ -30,9 +30,11 @@ TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_TRACKER_KEY = "ANDROID_TRACKER_KEY"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 
+
 @tvm.testing.fixture
 def shape_nhwc(batch, in_channel, in_size):
     return (batch, in_size, in_size, in_channel)
+
 
 def _compose(args, decs):
     """Helper to apply multiple markers"""
@@ -43,6 +45,7 @@ def _compose(args, decs):
         return f
     return decs
 
+
 def requires_hexagon_toolchain(*args):
     _requires_hexagon_toolchain = [
         pytest.mark.skipif(
@@ -52,6 +55,7 @@ def requires_hexagon_toolchain(*args):
     ]
 
     return _compose(args, _requires_hexagon_toolchain)
+
 
 @tvm.testing.fixture
 def android_tracker_key():
@@ -82,6 +86,7 @@ def rpc_sess(android_tracker_key, tvm_tracker_host, tvm_tracker_port):
     remote = tracker.request(android_tracker_key, priority=0, session_timeout=600)
     return remote
 
+
 def requires_rpc_tracker_and_android_key(*args):
     """Mark a test as requiring an RPC tracker to exist in
     the host environment to run."""
@@ -106,6 +111,7 @@ def requires_rpc_tracker_and_android_key(*args):
     ]
 
     return _compose(args, _requires_rpc_tracker)
+
 
 def requires_rpc_tracker(*args):
     """Mark a test as requiring an RPC tracker to exist in

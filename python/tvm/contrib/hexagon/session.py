@@ -58,7 +58,7 @@ class Session:
                 session_constructor_args=[
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
-                    self._remote_stack_size_bytes
+                    self._remote_stack_size_bytes,
                 ],
             )
             self.device = self._rpc.hexagon(0)

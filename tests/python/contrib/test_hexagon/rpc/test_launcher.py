@@ -30,6 +30,7 @@ import tvm.contrib.hexagon.hexagon as hexagon
 
 from ..conftest import requires_rpc_tracker, requires_hexagon_toolchain
 
+
 @requires_rpc_tracker
 @requires_hexagon_toolchain
 def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):

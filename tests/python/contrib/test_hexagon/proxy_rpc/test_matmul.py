@@ -26,6 +26,7 @@ import numpy as np
 
 from ..conftest import requires_hexagon_toolchain, requires_rpc_tracker_and_android_key
 
+
 @requires_rpc_tracker_and_android_key
 @requires_hexagon_toolchain
 class TestMatMul:
