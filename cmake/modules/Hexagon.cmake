@@ -293,6 +293,8 @@ if(USE_HEXAGON_RPC)
   # copy android_bash template file
   configure_file("${CMAKE_SOURCE_DIR}/src/runtime/hexagon/rpc/android_bash.sh.template" 
     ${HEXAGON_RPC_OUTPUT} COPYONLY)
+
+  set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${HEXAGON_RPC_OUTPUT}")
 endif()
 
 if (USE_HEXAGON_SDK AND BUILD_FOR_ANDROID)
@@ -317,7 +319,7 @@ if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
       "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
     INSTALL_COMMAND "true"
   )
-elseif((USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}") OR (USE_HEXAGON_RPC AND BUILD_FOR_ANDROID))
+elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
   find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   find_hexagon_toolchain()
   
@@ -344,11 +346,13 @@ if (USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
     file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/hexagon/*.cc)
   elseif(BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
     list(APPEND RUNTIME_HEXAGON_SRCS src/runtime/hexagon/proxy_rpc/device_api.cc)
-  elseif(USE_HEXAGON_RPC)
-    file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
   endif()
 else()
   file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/android/*.cc)
+endif()
+
+if(USE_HEXAGON_RPC)
+  file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
 endif()
 
 if(USE_HEXAGON_SDK AND BUILD_FOR_ANDROID)
