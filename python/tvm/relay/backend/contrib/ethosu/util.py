@@ -142,6 +142,31 @@ def is_composite_func(func: relay.Function, name: str) -> bool:
     return composite_name == name
 
 
+def is_named_ethosu_op(expr: tvm.relay.Expr, name: str) -> bool:
+    """Checks whether a relay expression matches that of the
+    named operator.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The expression to check.
+    name : str
+        The name of the expected operator
+        (without NPU prefix "contrib.ethosu").
+
+    Returns
+    -------
+    bool
+        True if expression matches name, false if not.
+    """
+    prefix = "contrib.ethosu."
+    return (
+        isinstance(expr, tvm.relay.expr.Call)
+        and isinstance(expr.op, tvm.ir.op.Op)
+        and expr.op.name == prefix + name
+    )
+
+
 def get_range_for_dtype_str(dtype: str) -> Tuple[int, int]:
     """
     Produce the min,max for a give data type.

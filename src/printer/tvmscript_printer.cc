@@ -25,6 +25,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -211,6 +212,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
   Doc PrintCommReducer(const CommReducerNode* op);
   Doc PrintAnnotations(const Map<String, ObjectRef>& annotations);
+  Doc PrintTarget(const TargetNode* target);
   static Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   Doc GetUniqueName(std::string prefix);
@@ -531,6 +533,8 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
   } else if (node->IsInstance<CommReducerNode>()) {
     return PrintCommReducer(node.as<CommReducerNode>());
+  } else if (node->IsInstance<TargetNode>()) {
+    return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
     return Doc();
@@ -1412,6 +1416,20 @@ Doc TVMScriptPrinter::PrintLoopStack() {
     res << "for " << PrintSep(vars, Doc::Text(", ")) << " in " << tir_prefix_ << ".grid("
         << PrintSep(extents, Doc::Text(", ")) << "):";
   }
+  return res;
+}
+
+Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
+  Doc res;
+  res << tir_prefix_ << ".target({";
+  Map<String, ObjectRef> config = target->Export();
+  for (auto it = config.begin(); it != config.end(); ++it) {
+    if (it != config.begin()) {
+      res << ", ";
+    }
+    res << "\"" << (*it).first << "\":" << Print((*it).second);
+  }
+  res << "})";
   return res;
 }
 

@@ -68,6 +68,9 @@ def get_binary_elementwise_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the binary elementwise output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
+
     """
     attrs, body = get_op_attrs(stmt)
     reversed_operands = attrs["reversed_operands"]
@@ -83,7 +86,7 @@ def get_binary_elementwise_params(
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)
     serial_ifm2, _ = get_ifm_params(input_pointer1, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
     # Get activation info
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
@@ -100,4 +103,5 @@ def get_binary_elementwise_params(
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

@@ -37,3 +37,13 @@ class EthosuDepthwiseConv2DAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.EthosuPoolingAttrs")
 class EthosuPooling2DAttrs(Attrs):
     """Attributes for contrib.ethosu.pooling."""
+
+
+@tvm._ffi.register_object("relay.attrs.EthosuBinaryElementwiseAttrs")
+class EthosuBinaryElementwiseAttrs(Attrs):
+    """Attributes for contrib.ethosu.binary_elementwise"""
+
+
+@tvm._ffi.register_object("relay.attrs.EthosuUnaryElementwiseAttrs")
+class EthosuUnaryElementwiseAttrs(Attrs):
+    """Attributes for contrib.ethosu.unary_elementwise"""

@@ -50,6 +50,7 @@ def _extract_ethosu_depthwise_conv2d_params(attrs, args):
     upscale = attrs.upscale
     ifm_layout = attrs.ifm_layout
     ofm_layout = attrs.ofm_layout
+    ofm_dtype = attrs.ofm_dtype
 
     return (
         ifm,
@@ -71,6 +72,7 @@ def _extract_ethosu_depthwise_conv2d_params(attrs, args):
         upscale,
         ifm_layout,
         ofm_layout,
+        ofm_dtype,
     )
 
 
@@ -115,6 +117,7 @@ def ethosu_depthwise_conv2d(
     upscale: str = "NONE",
     ifm_layout: str = "NHWC",
     ofm_layout: str = "NHWC",
+    ofm_dtype: str = "int8",
 ) -> tvm.relay.Call:
     """This is a quantized 2D depthwise convolution operation as supported by
     the NPU. It accepts either NHWC or NHCWB16 format
@@ -183,6 +186,8 @@ def ethosu_depthwise_conv2d(
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str, optional
         The layout of the Output Feature Map tensor. Can be "NHWC" or "NHCWB16".
+    ofm_dtype : str, optional
+        The Output Feature Map tensor data type. Can be 'int8', 'uint8' or 'int16'.
 
     Returns
     -------
@@ -212,4 +217,5 @@ def ethosu_depthwise_conv2d(
         upscale,
         ifm_layout,
         ofm_layout,
+        ofm_dtype,
     )

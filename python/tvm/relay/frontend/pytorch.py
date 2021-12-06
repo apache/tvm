@@ -2819,6 +2819,10 @@ class PyTorchOpConverter:
 
         return out
 
+    def einsum(self, inputs, input_types):
+        equation, data = inputs
+        return _op.einsum(data, equation)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3063,6 +3067,7 @@ class PyTorchOpConverter:
             "aten::searchsorted": self.searchsorted,
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
+            "aten::einsum": self.einsum,
         }
 
     def update_convert_map(self, custom_map):

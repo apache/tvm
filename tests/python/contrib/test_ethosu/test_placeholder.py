@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,9 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""This file contains a placeholder test that always run"""
 
-set -e
-set -u
-set -o pipefail
 
-pip3 install ethos-u-vela==3.2.0
+def test_placeholder():
+    """
+    This test always run on every docker image.
+    Otherwise, pytest will return exit code 5
+    and breaks CI in the docker images where
+    microNPU tests are not run.
+    """
+    pass
