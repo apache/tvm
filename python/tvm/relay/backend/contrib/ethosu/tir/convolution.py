@@ -53,7 +53,7 @@ def get_conv2d_params(stmt, producers, consumers):
     rh = inner
     rw = rh.body
     rc = rw.body
-    # loads = [output, input, weights, scale_bias, scale_bias]
+    # loads = [output, input, weights, scale_bias, scale_bias, LUT, LUT]
     loads = get_loads(rc.body)
     # stores = [output]
     stores = get_stores(rc.body)
@@ -99,6 +99,7 @@ def get_conv2d_params(stmt, producers, consumers):
             scale_bias=serial_scale_bias,
             padding=serial_padding,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
         ),
         output_pointer,

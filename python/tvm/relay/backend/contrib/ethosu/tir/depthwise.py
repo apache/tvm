@@ -109,6 +109,7 @@ def get_depthwise_conv2d_params(
             scale_bias=serial_scale_bias,
             padding=serial_padding,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
         ),
         output_pointer,

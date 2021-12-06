@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/backend/contrib/ethosn/codegen.cc
- * \brief The Relay -> Ethos-N command stream compiler.
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/module.h>
@@ -195,6 +195,20 @@ sl::TensorsAndId MakeOps(const sl::TensorAndId<sl::Operand>& op) {
   return ops;
 }
 
+String MakeVariant(auto configuration) {
+  String variant = configuration.value()->variant;
+  // Transform variant string to lowercase for comparison
+  std::string variant_string = variant.c_str();
+  std::transform(variant_string.begin(), variant_string.end(), variant_string.begin(), ::tolower);
+  std::string variant_n78 = "ethos-n78";
+  if (variant_string == variant_n78) {
+    String tops = configuration.value()->tops;
+    String ple_ratio = configuration.value()->ple_ratio;
+    variant = "Ethos-N78_" + tops + "TOPS_" + ple_ratio + "PLE_RATIO";
+  }
+  return variant;
+}
+
 NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
   // Initialise everything
   auto ctx = transform::PassContext::Current();
@@ -203,8 +217,9 @@ NetworkWithIDs ConstructNetworkVisitor::Construct(const Function& func) {
     cfg = AttrsWithDefaultValues<EthosnCompilerConfig>();
   }
   NetworkWithIDs network_with_ids;
-  network_ = sl::CreateNetwork(sl::GetFwAndHwCapabilities(
-      sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
+  network_ = sl::CreateNetwork(
+      sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(MakeVariant(cfg).c_str()),
+                                 static_cast<uint32_t>(std::stoul(cfg.value()->sram_size))));
   network_with_ids.network = network_;
   operand_table_.clear();
 
@@ -553,7 +568,7 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   // the inputs/outputs from the TVM runtime to the inputs/outputs of the compiled network
   runtime::ethosn::OrderedCompiledNetwork ordered_network;
   ordered_network.name = gvar->name_hint;
-  ordered_network.cmm = std::move(compiled_network);
+  ordered_network.compiled_cmm = std::move(compiled_network);
   ordered_network.inputs = input_output_order.first;
   ordered_network.outputs = input_output_order.second;
   return ordered_network;
@@ -615,9 +630,9 @@ EthosnError EthosnCompiler::SupportedSetup() {
                    ? ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
                    : AttrsWithDefaultValues<EthosnCompilerConfig>();
     m_Queries = std::make_unique<sl::SupportQueries>(sl::GetFwAndHwCapabilities(
-        sl::EthosNVariantFromString(cfg.value()->variant.c_str()), cfg.value()->sram_size_bytes));
+        sl::EthosNVariantFromString(MakeVariant(cfg).c_str()), std::stoul(cfg.value()->sram_size)));
     if (m_Queries == nullptr) {
-      return EthosnError("Could not initialise Ethos-N compiler isSupported");
+      return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }
   }
   return EthosnError();

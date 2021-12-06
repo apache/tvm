@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration depth-to-space tests"""
+"""Arm(R) Ethos(TM)-N integration depth-to-space tests"""
 
 import tvm
 from tvm import relay

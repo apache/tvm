@@ -231,12 +231,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   }
 
  private:
-  struct GenerateBodyOutput {
-    std::string decl;
-    std::vector<std::string> buffers;
-    std::vector<Output> outputs;
-  };
-
   std::vector<std::string> GetArgumentNames(const CallNode* call) {
     std::vector<std::string> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {

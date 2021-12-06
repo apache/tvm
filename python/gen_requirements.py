@@ -143,6 +143,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         (
             "Requirements for the tvmc command-line tool",
             [
+                "ethos-u-vela",
                 "future",  # Hidden dependency of torch.
                 "onnx",
                 "onnxruntime",
@@ -232,7 +233,7 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==2.1.1"),
+    ("ethos-u-vela", "==3.2.0"),
     ("future", None),
     ("h5py", "==2.10.0"),
     ("image", None),

@@ -56,12 +56,12 @@ namespace tir {
  *      const Array<String>& outputs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static Array<ObjectRef> AttrsAsJSON(
+ *   static ObjectRef AttrsAsJSON(
  *      const Array<ObjectRef>& attrs);
  *
  *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
  *   static Array<ObjectRef> AttrsFromJSON(
- *      const Array<ObjectRef>& attrs_record);
+ *      const ObjectRef& attrs_record);
  * };
  *
  * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);

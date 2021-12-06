@@ -233,7 +233,9 @@ with autotvm.tophub.context(target):
 
     # Compile Relay program with AlterOpLayout disabled
     with vta.build_config(disabled_pass={"AlterOpLayout"}):
-        lib = relay.build(mod, target=target, params=params, target_host=env.target_host)
+        lib = relay.build(
+            mod, target=tvm.target.Target(target, host=env.target_host), params=params
+        )
 
     # Measure Relay build time
     build_time = time.time() - build_start

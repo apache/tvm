@@ -21,7 +21,7 @@ from tvm import relay
 from tvm.relay.expr_functor import ExprMutator
 from tvm.driver.build_module import schedule_to_module
 
-from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants
+from .passes import ReplaceOperators, RemoveZeroStores, EncodeConstants, AnnotateAllocates
 from .scheduler import schedule
 
 
@@ -29,7 +29,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
     """Lower a schedule to TIR for the Arm(R) Ethos(TM)-U NPU target.
 
     The resulting TIR module will contain a single function
-    that consists of a sequence of tir.extern_calls to NPU
+    that consists of a sequence of tir.call_extern to NPU
     operations.
 
     Parameters
@@ -78,6 +78,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.UnrollLoop()(mod)
+        mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = RemoveZeroStores()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
@@ -87,6 +88,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod, const_dict = EncodeConstants(const_dict)(mod)
         mod = tvm.tir.transform.StorageRewrite()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
+        mod = AnnotateAllocates()(mod)
     return mod, const_dict
 
 

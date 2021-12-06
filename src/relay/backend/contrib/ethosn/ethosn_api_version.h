@@ -17,6 +17,10 @@
  * under the License.
  */
 
+/*!
+ * \file src/relay/backend/contrib/ethosn/ethosn_api_version.h
+ * \brief Arm(R) Ethos(TM)-N versioning
+ */
 #include "ethosn_support_library/Support.hpp"
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_VERSION_H_
@@ -29,13 +33,14 @@
  * along with associated compatibility measures when no
  * longer necessary.
  */
-#if ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH == 2
-#define _ETHOSN_API_VERSION_ 2102
+#if ETHOSN_SUPPORT_LIBRARY_VERSION_MAJOR == 1 && ETHOSN_SUPPORT_LIBRARY_VERSION_MINOR == 1 && \
+    ETHOSN_SUPPORT_LIBRARY_VERSION_PATCH == 0
+#define _ETHOSN_API_VERSION_ 2108
 #else
 #ifndef ETHOSN_API_VERSION
-#define _ETHOSN_API_VERSION_ 2011
+#define _ETHOSN_API_VERSION_ 2102
 #elif ~(~ETHOSN_API_VERSION + 0) == 0 && ~(~ETHOSN_API_VERSION + 1) == 1
-#define _ETHOSN_API_VERSION_ 2011
+#define _ETHOSN_API_VERSION_ 2102
 #else
 #define _ETHOSN_API_VERSION_ ETHOSN_API_VERSION
 #endif
