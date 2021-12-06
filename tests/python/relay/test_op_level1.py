@@ -358,7 +358,7 @@ def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
     params = varsToConcat
     params.append(t)
     func = relay.Function(params, z)
-    t_data  = np.random.uniform(low=-10, high=10, size=t_shape).astype(dtype)
+    t_data = np.random.uniform(low=-10, high=10, size=t_shape).astype(dtype)
     ref_res = np.concatenate((tuple(inputData)), axis=axis) + t_data
     mod = tvm.IRModule.from_expr(func)
 
@@ -397,9 +397,9 @@ def test_concatenate1():
                         shapes.append(
                             shp[:normalizedAxis]
                             + tuple([shape[(i % len(shape))]])
-                            + shp[normalizedAxis+1 :]
+                            + shp[normalizedAxis + 1 :]
                         )
-                    t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis+1 :]
+                    t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis + 1 :]
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
 
 
