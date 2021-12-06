@@ -84,9 +84,7 @@ def generate_jit_model(index):
     with torch.no_grad():
         out = model(inp)
 
-        print("tracing")
         script_module = do_trace(model, inp)
-        print("done")
         script_out = script_module(inp)
 
         assert len(out[0]) > 0 and len(script_out[0]) > 0

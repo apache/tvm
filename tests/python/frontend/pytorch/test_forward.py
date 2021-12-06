@@ -3896,7 +3896,7 @@ def test_masked_select():
     for shape in [(10,), (3, 4), (16, 32, 64)]:
         x = torch.randn(*shape)
         mask = x.ge(0.5)
-        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda"])
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
 
 
 def test_unique():
