@@ -827,7 +827,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr VisitFuncDynamic(const Function& func, const Func& f, const Expr& self) {
     return store_.Extend<Expr>([&]() {
       store_.Invalidate();
-      return Function(func->params, LetList::With([&](LetList* ll) {
+      return WithFields(std::move(func), func->params, LetList::With([&](LetList* ll) {
                         std::vector<PStatic> pv;
                         for (const auto& v : func->params) {
                           pv.push_back(NoStatic(v));
@@ -837,8 +837,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
                           type_args.push_back(tp);
                         }
                         return f(HasStatic(MkSFunc(f), self), pv, Attrs(), type_args, ll)->dynamic;
-                      }),
-                      func->ret_type, func->type_params, func->attrs);
+                      }));
     });
   }
 

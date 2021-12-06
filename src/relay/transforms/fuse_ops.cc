@@ -951,6 +951,8 @@ class FuseMutator : private MixedModeMutator {
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
     // Quickly check special properties of the fused function.
     // A pass to check if the fused op contains only reshape ops.
+    // TODO(@electriclilies): This won't propagate the rest of the function information correctly.
+    // We probably should pass the whole function in here.
     class CheckReshapeOnly : public ExprVisitor {
      public:
       void VisitExpr_(const CallNode* cn) final {

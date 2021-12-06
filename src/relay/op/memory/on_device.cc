@@ -133,12 +133,12 @@ Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
     Var param = function->params[i];
     new_params.push_back(WithFields(std::move(param), {}, {}, std::move(param_se_scopes[i])));
   }
-
-  return WithAttrs(WithFields(std::move(function), std::move(new_params)), {{tvm::attr::kResultSEScope, std::move(result_se_scope)}});
+  return WithFields(std::move(function), std::move(new_params), {}, {}, {}, {}, std::move(result_se_scope));
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
 
+/*
 Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
                                SEScope result_se_scope) {
   if (std::all_of(param_se_scopes.begin(), param_se_scopes.end(),
@@ -148,11 +148,10 @@ Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes
     return function;
   }
   return FunctionOnDevice(function, std::move(param_se_scopes), std::move(result_se_scope));
-}
+}*/
 
 SEScope GetFunctionResultSEScope(const FunctionNode* function_node) {
-  auto opt_se_scope = function_node->GetAttr<SEScope>(tvm::attr::kResultSEScope);
-  return opt_se_scope.value_or(SEScope::FullyUnconstrained());
+  return function_node->virtual_device();
 }
 
 SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i) {
@@ -160,13 +159,7 @@ SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i) {
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
 
-  // TODO(@electriclilies): Should we still check that all param sescopes are defined here?
-  SEScope se_scope = function_node->params[i]->virtual_device();
-  if (se_scope.defined()) {
-    return SEScope::FullyUnconstrained();
-  }
-
-  return se_scope;
+  return function_node->params[i]->virtual_device();
 }
 
 }  // namespace relay

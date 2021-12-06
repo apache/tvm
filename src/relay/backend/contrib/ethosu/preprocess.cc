@@ -177,11 +177,10 @@ class ExternalFuncIOHandler : public ExprRewriter {
         reshaped_outputs.push_back(CreateFlattenTensor(out));
       }
       auto concat_out = CreateConcatTensor(reshaped_outputs);
-      auto f = Function(params, concat_out, concat_out->checked_type_, {}, func->attrs);
+      Function f = WithFields(std::move(func), std::move(params), std::move(concat_out), std::move(concat_out->checked_type_), Array<TypeVar>() /* erase type params */);
       return InferType(f, this->module_);
     } else {
-      auto f =
-          Function(params, core_compute_expr, core_compute_expr->checked_type_, {}, func->attrs);
+      Function f = WithFields(std::move(func), std::move(params), std::move(core_compute_expr), std::move(core_compute_expr->checked_type_), Array<TypeVar>() /* erase type params */);
       return InferType(f, this->module_);
     }
   }

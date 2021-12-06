@@ -251,24 +251,24 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       //   fn(closure args, lifter function args) { body }
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
-      std::vector<Var> params;
+      Array<Var> params;
       std::vector<SEScope> param_se_scopes;
       params.reserve(func->params.size() + inner_func->params.size());
       param_se_scopes.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        params.emplace_back(func->params[i]);
+        params.push_back(func->params[i]);
         SEScope param_se_scope = GetFunctionParamSEScope(func.get(), i);
         param_se_scopes.push_back(param_se_scope);
         param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
       }
       for (size_t i = 0; i < inner_func->params.size(); ++i) {
-        params.emplace_back(inner_func->params[i]);
+        params.push_back(inner_func->params[i]);
         SEScope param_se_scope = GetFunctionParamSEScope(inner_func.get(), i);
         param_se_scopes.push_back(param_se_scope);
         param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
       }
-      std::vector<TypeVar> type_params;
+      Array<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
       for (const auto& tyvar : func->type_params) {
         type_params.push_back(tyvar);
@@ -276,8 +276,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       for (const auto& tyvar : inner_func->type_params) {
         type_params.push_back(tyvar);
       }
-      Function flattened_func = Function(params, inner_func->body, inner_func->ret_type,
-                                         type_params, func->attrs, func->span);
+      Function flattened_func = WithFields(std::move(func), std::move(params), inner_func->body, inner_func->ret_type,
+                                           std::move(type_params));
       VisitExpr(MaybeFunctionOnDevice(flattened_func, param_se_scopes,
                                       GetFunctionResultSEScope(inner_func.get())));
     } else {

@@ -272,8 +272,8 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
     new_params.push_back(remap(v));
   }
   new_params.push_back(k);
-  return Function(new_params, mut.VisitExpr(f->body, [&](const Expr& e) { return Call(k, {e}); }),
-                  answer, f->type_params, f->attrs);
+  return WithFields(std::move(f), std::move(new_params), mut.VisitExpr(f->body, [&](const Expr& e) { return Call(k, {e}); }),
+                  std::move(answer));
 }
 
 Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
@@ -299,7 +299,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
   Function ret = ToCPS(f, m, cm, &var, answer);
   auto new_type_params = ret->type_params;
   new_type_params.push_back(answer);
-  return Function(ret->params, ret->body, ret->ret_type, new_type_params, ret->attrs);
+  return WithFields(std::move(ret), ret->params, ret->body, ret->ret_type, std::move(new_type_params));
 }
 
 Function ToCPS(const Function& f, const IRModule& m) {
@@ -311,15 +311,17 @@ Function ToCPS(const Function& f, const IRModule& m) {
 Function UnCPS(const Function& f) {
   CheckFeature(f, FeatureSet::All() - fGraph);
   ICHECK_GT(f->params.size(), 0);
-  std::vector<Var> new_params;
+  Array<Var> new_params;
   for (const auto& p : f->params) {
-    new_params.push_back(Var(p->name_hint(), p->checked_type()));
+    // TODO(@electriclilies): Not sure if this is correct, it was copying before,
+    // but seems like we just need to make a copy to pop so should be fine?
+    new_params.push_back(WithFields(std::move(p)));
   }
   auto cont_type = Downcast<FuncType>(new_params.back()->type_annotation);
   new_params.pop_back();
   ICHECK_EQ(cont_type->arg_types.size(), 1);
   auto new_ret_type = Type(cont_type->arg_types[0]);
-  std::vector<TypeVar> new_type_params;
+  Array<TypeVar> new_type_params;
   for (const auto& tp : f->type_params) {
     new_type_params.push_back(TypeVar(tp->name_hint, tp->kind));
   }
@@ -339,8 +341,9 @@ Function UnCPS(const Function& f) {
     type_args.push_back(tp);
   }
   type_args.push_back(new_ret_type);
-  return Function(new_params, Call(f, args, {}, type_args), new_ret_type, new_type_params,
-                  f->attrs);
+  Call call = Call(f, args, {}, type_args);
+  // How do I fix this?
+  return WithFields(f, std::move(new_params), call, std::move(new_ret_type), std::move(new_type_params));
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.to_cps")

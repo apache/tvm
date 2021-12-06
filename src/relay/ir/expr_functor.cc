@@ -477,42 +477,28 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
-    Array<Var> new_params;
-    std::vector<SEScope> new_param_se_scopes;
-    for (size_t i = 0; i < func->params.size(); ++i) {
-      if (!args_map.count(func->params[i])) {
-        new_params.push_back(func->params[i]);
-        new_param_se_scopes.push_back(GetFunctionParamSEScope(func, i));
-      }
-    }
-    if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
-      return expr;
-    }
-    auto ret =
-        Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_se_scopes, GetFunctionResultSEScope(func));
+
+    Function ret_func = WithFields(GetRef<Function>(func), func->params, std::move(new_body));
+
     std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
     }
-    for (const auto& v : FreeVars(ret)) {
+
+    for (const auto& v : FreeVars(ret_func)) {
       if (set.count(v) == 0) {
-        new_params.push_back(v);
-        if (!GetFunctionResultSEScope(func)->IsFullyUnconstrained()) {
+        if (!v->virtual_device()->IsFullyConstrained()) {
           // TODO(mbs): The function has been annotated with a device, which means we are supposed
           // to be preserving device annotations on every transformation. However there's no
           // such context for the free vars in args_map.
           LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
                        << "' into function body but no device is known for it";
+          continue;
         }
-        new_param_se_scopes.push_back(SEScope::FullyUnconstrained());
       }
     }
-    ret =
-        Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret = MaybeFunctionOnDevice(ret, new_param_se_scopes, GetFunctionResultSEScope(func));
-    ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
-    return std::move(ret);
+    ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret_func).size());
+    return std::move(ret_func);
   } else {
     return ExprBinder(args_map).VisitExpr(expr);
   }

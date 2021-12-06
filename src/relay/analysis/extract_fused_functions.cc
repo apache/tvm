@@ -52,15 +52,14 @@ class FusedFunctionExtractorWrapper : private ExprVisitor {
   // have the desired equals property
   Map<String, Function> functions;
 
-  void VisitExpr_(const FunctionNode* n) final {
-    if (n->HasNonzeroAttr(attr::kPrimitive)) {
+  void VisitExpr_(const FunctionNode* func_node) final {
+    if (func_node->HasNonzeroAttr(attr::kPrimitive)) {
       // Add function to functions, keyed by function hash string
-      Function func = Function(n->params, n->body, n->ret_type, n->type_params, n->attrs);
-      size_t hash_ = tvm::StructuralHash()(func);
-      this->functions.Set(std::to_string(hash_), func);
+      size_t hash_ = tvm::StructuralHash()(GetRef<Function>(func_node));
+      this->functions.Set(std::to_string(hash_), GetRef<Function>(func_node));
     }
 
-    ExprVisitor::VisitExpr_(n);
+    ExprVisitor::VisitExpr_(func_node);
   }
 };
 

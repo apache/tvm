@@ -91,8 +91,7 @@ class Inliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    return Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                    func->attrs);
+    return WithFields(std::move(func), func->params, VisitExpr(func->body));
   }
 
  private:
@@ -131,7 +130,9 @@ class Inliner : ExprMutator {
     const auto* fn = base_func.as<FunctionNode>();
     ICHECK(fn) << "Expected to work on a Relay function.";
 
-    auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
+    // TODO(@electriclilies): If Function is a COW node, then if it gets written to we shouldn't have any sharing, right?
+    // So we don't need to reconstruct?
+    Function func = WithFields(GetRef<Function>(fn));
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
     if (!func->GetAttr<String>(attr::kCompiler).defined() &&

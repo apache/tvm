@@ -295,7 +295,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
       func = Downcast<Function>(post);
       new_body = InsertCompilerEndAndPropogateTarget(func->body);
     }
-    return Function(func->params, new_body, func->ret_type, func->type_params, func->attrs);
+    return WithFields(std::move(func), func->params, std::move(new_body));
   }
 
   Expr Rewrite_(const LetNode* op, const Expr& post) override {
