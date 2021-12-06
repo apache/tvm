@@ -91,9 +91,15 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
 
     for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
-      if (new_field->IsInstance<ConstantNode>()) {
-        Var const_var("const", Type(nullptr));
-        new_field = scope.Push(const_var, new_field);
+      if (auto op = new_field.as<ConstantNode>()) {
+        DataType dtype = DataType(op->data->dtype);
+        bool is_simple_const = (dtype == DataType::Int(32) || dtype == DataType::Int(64) ||
+                                dtype == DataType::Float(32) || dtype == DataType::Float(64) ||
+                                dtype == DataType::Bool());
+        if (!op->is_scalar() || !is_simple_const) {
+          Var const_var("const", Type(nullptr));
+          new_field = scope.Push(const_var, new_field);
+        }
       }
       new_fields.push_back(new_field);
     }

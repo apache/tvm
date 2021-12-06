@@ -41,6 +41,9 @@
 namespace tvm {
 namespace relay {
 
+// shape_of
+TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
+
 // vm.shape_func
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
