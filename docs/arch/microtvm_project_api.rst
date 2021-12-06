@@ -79,17 +79,16 @@ The typical usage flow is as follows:
    project. The Template Project API server should copy itself into the
    newly-generated project.
 4. Terminate the Template Project API server.
-
-4. Launch Project API server in Generated Project.
-5. Verify the API server is version-compatible with TVM, plus read properties
+5. Launch Project API server in Generated Project.
+6. Verify the API server is version-compatible with TVM, plus read properties
    of the implementation, by sending ``server_info_query`` command.
-6. Build and flash the projec by sending commands ``build`` and ``flash`` to the
+7. Build and flash the projec by sending commands ``build`` and ``flash`` to the
    API server.
-7. Communicate with the target. Send command ``open_transport`` followed by
+8. Communicate with the target. Send command ``open_transport`` followed by
    commands ``write_transport`` and ``read_transport`` to write and read from
    e.g. a serial port attached to the target. Upon completion,
    ``close_transport`` is sent.
-8. Terminate Project API server.
+9. Terminate Project API server.
 
 Disk Layout of the Project
 --------------------------
