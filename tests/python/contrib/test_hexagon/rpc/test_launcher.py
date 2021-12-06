@@ -28,8 +28,7 @@ from tvm.contrib import utils, ndk
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.contrib.hexagon.hexagon as hexagon
 
-from conftest import requires_rpc_tracker, requires_hexagon_toolchain
-
+from ..conftest import requires_rpc_tracker, requires_hexagon_toolchain
 
 @requires_rpc_tracker
 @requires_hexagon_toolchain
