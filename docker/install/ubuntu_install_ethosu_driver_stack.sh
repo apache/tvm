@@ -20,7 +20,7 @@ set -e
 set -u
 set -o pipefail
 
-fvp_dir="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
+fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
 ethosu_driver_ver="21.05"
@@ -56,9 +56,9 @@ apt-get install -y \
 # Download the FVP
 mkdir -p "$fvp_dir"
 cd "$tmpdir"
-curl -sL https://developer.arm.com/-/media/Arm%20Developer%20Community/Downloads/OSS/FVP/Corstone-300/MPS3/FVP_Corstone_SSE-300_Ethos-U55_11.14_24.tgz | tar -xz
-./FVP_Corstone_SSE-300_Ethos-U55.sh --i-agree-to-the-contained-eula --no-interactive -d "$fvp_dir"
-rm -rf FVP_Corstone_SSE-300_Ethos-U55.sh license_terms
+curl -sL https://developer.arm.com/-/media/Arm%20Developer%20Community/Downloads/OSS/FVP/Corstone-300/FVP_Corstone_SSE-300_11.15_24.tgz | tar -xz
+./FVP_Corstone_SSE-300.sh --i-agree-to-the-contained-eula --no-interactive -d "$fvp_dir"
+rm -rf FVP_Corstone_SSE-300.sh license_terms
 
 # Setup cmake 3.19.5
 mkdir -p "${cmake_dir}"
