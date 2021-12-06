@@ -33,20 +33,6 @@ def test_buffer_bind():
     check_error(buffer_bind_missing_args, 2)
 
 
-def range_missing_args(a: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-
-    T.attr(A, "realize_scope", "")
-    T.realize(A[0:16, 0:16], "")
-    for i in T.serial(16):  # error
-        for j in T.serial(0, 16):
-            A[i, j] = 0.0
-
-
-def test_range_missing_args():
-    check_error(range_missing_args, 6)
-
-
 def undefined_buffer(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
 
