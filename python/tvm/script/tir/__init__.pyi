@@ -370,13 +370,13 @@ def unroll(
 def thread_binding(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
-    thread: str = None,
+    thread: str,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 @overload
 def thread_binding(
     end: Union[PrimExpr, int],
-    thread: str = None,
+    thread: str,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 @overload
