@@ -1101,7 +1101,7 @@ class SigmoidParams:
 
     def is_valid(self):
         """
-        This function checks whether reshape has compatible attributes with the NPU
+        This function checks whether sigmoid has compatible attributes with the NPU
         """
         if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
             return False

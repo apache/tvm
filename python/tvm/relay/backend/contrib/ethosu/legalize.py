@@ -141,14 +141,14 @@ def get_lut_from_func(ifm_scale, ifm_zp, ofm_scale, ofm_zp, func):
     return lut_values
 
 
-class TanhRewriter(DFPatternCallback):
-    """This pass adds tanh as a LUT to the identity operator"""
+class LutActivationRewriter(DFPatternCallback):
+    """A class to create an identity operator with the LUT"""
 
-    def __init__(self):
+    def __init__(self, params_class, activation_type, calc_func):
         super().__init__(require_type=True, rewrite_once=True)
-        self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.TanhParams.composite_name})
-        )(wildcard())
+        self.pattern = (wildcard().has_attr({"Composite": params_class.composite_name}))(wildcard())
+        self.activation_type = activation_type
+        self.calc_func = calc_func
 
     def callback(self, pre, post, node_map):
         id_input = post.args[0]
@@ -161,7 +161,9 @@ class TanhRewriter(DFPatternCallback):
         input_scale = float(dequantize_args[1].data.asnumpy())
         input_zp = int(dequantize_args[2].data.asnumpy())
 
-        lut_values = get_lut_from_func(input_scale, input_zp, output_scale, output_zp, math.tanh)
+        lut_values = get_lut_from_func(
+            input_scale, input_zp, output_scale, output_zp, self.calc_func
+        )
         lut = relay.const(lut_values, dtype="uint8")
 
         # We baked the requantization into the LUT, so we don't requantize the identity operator
@@ -172,10 +174,19 @@ class TanhRewriter(DFPatternCallback):
             ifm_zero_point=input_zp,
             ofm_scale=input_scale,
             ofm_zero_point=input_zp,
-            activation="TANH",
+            activation=self.activation_type,
         )
 
         return identity
+
+
+class TanhRewriter(LutActivationRewriter):
+    """This pass adds tanh as a LUT to the identity operator"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.TanhParams, activation_type="TANH", calc_func=math.tanh
+        )
 
 
 @ir.transform.module_pass(opt_level=1)
@@ -209,43 +220,15 @@ def sigmoid_calc_func(x):
     return y
 
 
-class SigmoidRewriter(DFPatternCallback):
+class SigmoidRewriter(LutActivationRewriter):
     """This pass adds sigmoid as a LUT for identity op"""
 
     def __init__(self):
-        super().__init__(require_type=True, rewrite_once=True)
-        self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.SigmoidParams.composite_name})
-        )(wildcard())
-
-    def callback(self, pre, post, node_map):
-        inp = post.args[0]
-
-        quantize_args = post.op.body.args
-        output_scale = float(quantize_args[1].data.asnumpy())
-        output_zp = int(quantize_args[2].data.asnumpy())
-
-        dequantize_args = quantize_args[0].args[0].args
-        input_scale = float(dequantize_args[1].data.asnumpy())
-        input_zp = int(dequantize_args[2].data.asnumpy())
-
-        lut_values = get_lut_from_func(
-            input_scale, input_zp, output_scale, output_zp, sigmoid_calc_func
+        super().__init__(
+            params_class=ethosu_patterns.SigmoidParams,
+            activation_type="SIGMOID",
+            calc_func=sigmoid_calc_func,
         )
-        lut = relay.const(lut_values, dtype="uint8")
-
-        # We baked the requantization into the LUT, so we don't requantize the identity operator
-        identity = ethosu_ops.ethosu_identity(
-            ifm=inp,
-            lut=lut,
-            ifm_scale=input_scale,
-            ifm_zero_point=input_zp,
-            ofm_scale=input_scale,
-            ofm_zero_point=input_zp,
-            activation="SIGMOID",
-        )
-
-        return identity
 
 
 @ir.transform.module_pass(opt_level=1)
