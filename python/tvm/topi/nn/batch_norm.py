@@ -25,11 +25,13 @@ def batch_norm(
     data: te.Tensor,
     gamma: te.Tensor,
     beta: te.Tensor,
+    moving_mean: te.Tensor,
+    moving_var: te.Tensor,
     axis: typing.Optional[int] = None,
     epsilon: typing.Optional[float] = None,
     center: typing.Optional[bool] = None,
     scale: typing.Optional[bool] = None,
-):
+) -> typing.List[te.Tensor]:
     """Batch normalization layer (Ioffe and Szegedy, 2014).
 
     Normalizes the input at each batch, i.e. applies a transformation
@@ -47,6 +49,12 @@ def batch_norm(
     beta : tvm.te.Tensor
         Offset to be applied to the normalized tensor.
 
+    moving_mean : tvm.te.Tensor
+        Running mean of input.
+
+    moving_var : tvm.te.Tensor
+        Running variance of input.
+
     axis : int, optional, default=1
         Specify along which shape axis the normalization should occur.
 
@@ -63,8 +71,14 @@ def batch_norm(
 
     Returns
     -------
-    output : tvm.te.Tensor
+    output : list of tvm.te.Tensor
         Normalized data with same shape as input
+
+    moving_mean : tvm.te.Tensor
+        Running mean of input.
+
+    moving_var : tvm.te.Tensor
+        Running variance of input.
     """
     if axis is None:
         axis = 1
@@ -92,4 +106,10 @@ def batch_norm(
     if center:
         out = out + topi.reshape(beta, shape)
 
-    return out
+    moving_mean = moving_mean * 1 #+ mean * (1 - 1)
+    moving_var = moving_var * 1 #+ var * (1 - 1)
+
+    saved_mean = topi.reshape(mean, moving_mean.shape)
+    saved_var = topi.reshape(var, moving_var.shape)
+
+    return [out, moving_mean, moving_var, saved_mean, saved_var]

@@ -474,7 +474,7 @@ class BatchNorm(OnnxOpConverter):
             op_name="batch_norm",
             ignores=["spatial", "is_test", "consumed_inputs", "momentum", "training_mode"],
         )(inputs, attr, params)
-        return out[0]
+        return out
 
 
 class InstanceNorm(OnnxOpConverter):
