@@ -23,8 +23,7 @@ from tvm import topi
 from tvm.te import hybrid
 from . import cpp
 from . import tag
-from .utils import within_index, make_idx, const_vector, get_const_int
-import numpy as np
+from .utils import within_index, make_idx, const_vector
 
 
 def expand_dims(a, axis, num_newaxis=1):
