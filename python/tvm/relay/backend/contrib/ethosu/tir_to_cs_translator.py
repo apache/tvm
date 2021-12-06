@@ -444,8 +444,6 @@ def _create_npu_op_conv2d(
     npu_conv2d_op.rounding_mode = _create_npu_rounding_mode(serial_2d_convolution.rounding_mode)
     npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
     accel_config = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
-    npu_conv2d_op.block_config = block_config
     weights_shape_ohwi = [
         npu_conv2d_op.ofm.shape.depth,
         npu_conv2d_op.kernel.height,
@@ -457,6 +455,8 @@ def _create_npu_op_conv2d(
         weights_shape_ohwi=weights_shape_ohwi,
         ifm_bitdepth=npu_conv2d_op.ifm.data_type.size_in_bits(),
     )
+    block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
+    npu_conv2d_op.block_config = block_config
     return npu_conv2d_op, weights_zero_point
 
 

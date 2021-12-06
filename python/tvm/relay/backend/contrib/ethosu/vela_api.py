@@ -207,7 +207,7 @@ def compress_weights(
     layout_transform_indices = {"HWIO": (3, 0, 1, 2), "HWOI": (2, 0, 1, 3), "OHWI": (0, 1, 2, 3)}
     assert weights_layout in layout_transform_indices.keys()
     assert isinstance(weights_zp, np.int64)
-    weights = weights.astype(np.int64) - weights_zp
+    weights = weights.astype(np.int16) - weights_zp
     # Vela needs the weights in OHWI layout
     weights_ohwi = np.transpose(weights, layout_transform_indices[weights_layout])
     shape_ohwi = [
