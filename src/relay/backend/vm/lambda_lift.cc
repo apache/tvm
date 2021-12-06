@@ -190,7 +190,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       // construct the "closure" function with fully annotated arguments, no longer relying
       // on type inference.
       size_t before_arity = body->params.size();
-      auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map)); 
+      auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map));
       size_t after_arity = rebound_body->params.size();
       CHECK_EQ(before_arity, after_arity);
 

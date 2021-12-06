@@ -131,7 +131,7 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (const Var param: function_node->params) {
+    for (const Var param : function_node->params) {
       PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
@@ -144,7 +144,7 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     ExitFunctionBody();
     PopSEScope();
     // Function parameters go out of scope.
-    for (const Var param: function_node->params) {
+    for (const Var param : function_node->params) {
       PopBoundVar(param);
     }
   }
@@ -217,7 +217,7 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     return DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (const Var param: function_node->params) {
+    for (const Var param : function_node->params) {
       PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
@@ -230,7 +230,7 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     ExitFunctionBody();
     PopSEScope();
     // Function parameters go out of scope.
-    for (const Var param: function_node->params) {
+    for (const Var param : function_node->params) {
       PopBoundVar(param);
     }
 

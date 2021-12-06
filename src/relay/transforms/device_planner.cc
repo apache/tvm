@@ -481,11 +481,12 @@ class DeviceAnalyzer : public ExprVisitor {
     // function's domain to match them.
     if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
-      for (const Var param: function_node->params) {
-        args_and_result.emplace_back(domains_->ForSEScope(
-            param->checked_type(), param->virtual_device()));
+      for (const Var param : function_node->params) {
+        args_and_result.emplace_back(
+            domains_->ForSEScope(param->checked_type(), param->virtual_device()));
       }
-      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(), function_node->virtual_device()));
+      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(),
+                                                        function_node->virtual_device()));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.

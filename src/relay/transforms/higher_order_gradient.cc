@@ -346,7 +346,8 @@ struct ReverseAD : ExprMutator {
         params.push_back(Downcast<Var>(VisitExpr(p)));
       }
       params.push_back(bp);
-      Function f = WithFields(std::move(orig_f), std::move(params), VisitExpr(orig_f->body), VisitType(orig_f->ret_type));
+      Function f = WithFields(std::move(orig_f), std::move(params), VisitExpr(orig_f->body),
+                              VisitType(orig_f->ret_type));
       std::cout << "gv " << op->name_hint << ": " << AsText(f, false) << std::endl;
       mod.value()->Add(gv, f);
     }
@@ -360,8 +361,9 @@ struct ReverseAD : ExprMutator {
     }
     auto new_bp = Var("bp", bpt);
     params.push_back(new_bp);
-    return WithFields(GetRef<Function>(func_node), std::move(params), ReverseAD(mod, new_bp, ad_vars, ad_gvars)(func_node->body),
-                    VisitType(func_node->ret_type));
+    return WithFields(GetRef<Function>(func_node), std::move(params),
+                      ReverseAD(mod, new_bp, ad_vars, ad_gvars)(func_node->body),
+                      VisitType(func_node->ret_type));
   }
 
   Type VisitType(const Type& t) final { return t.defined() ? ReverseType(t) : t; }
@@ -455,7 +457,8 @@ Expr Gradient(const Expr& re, const Optional<IRModule>& mod) {
     };
     return Pair(get_final_result(c, f->body->checked_type()), Tuple(ret));
   });
-  Function ret = WithFields(GetRef<Function>(f), f->params, std::move(body), GradRetType(GetRef<Function>(f)));
+  Function ret =
+      WithFields(GetRef<Function>(f), f->params, std::move(body), GradRetType(GetRef<Function>(f)));
   CheckFeature(ret, FeatureSet::All() - fGraph);
   return std::move(ret);
 }

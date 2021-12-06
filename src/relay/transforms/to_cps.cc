@@ -272,8 +272,9 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
     new_params.push_back(remap(v));
   }
   new_params.push_back(k);
-  return WithFields(std::move(f), std::move(new_params), mut.VisitExpr(f->body, [&](const Expr& e) { return Call(k, {e}); }),
-                  std::move(answer));
+  return WithFields(std::move(f), std::move(new_params),
+                    mut.VisitExpr(f->body, [&](const Expr& e) { return Call(k, {e}); }),
+                    std::move(answer));
 }
 
 Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
@@ -299,7 +300,8 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
   Function ret = ToCPS(f, m, cm, &var, answer);
   auto new_type_params = ret->type_params;
   new_type_params.push_back(answer);
-  return WithFields(std::move(ret), ret->params, ret->body, ret->ret_type, std::move(new_type_params));
+  return WithFields(std::move(ret), ret->params, ret->body, ret->ret_type,
+                    std::move(new_type_params));
 }
 
 Function ToCPS(const Function& f, const IRModule& m) {
@@ -343,7 +345,8 @@ Function UnCPS(const Function& f) {
   type_args.push_back(new_ret_type);
   Call call = Call(f, args, {}, type_args);
   // How do I fix this?
-  return WithFields(f, std::move(new_params), call, std::move(new_ret_type), std::move(new_type_params));
+  return WithFields(f, std::move(new_params), call, std::move(new_ret_type),
+                    std::move(new_type_params));
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.to_cps")

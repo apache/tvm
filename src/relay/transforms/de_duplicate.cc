@@ -90,7 +90,8 @@ Expr DeDup(const Expr& e) {
       for (const Var& param : func_node->params) {
         params.push_back(Fresh(param));
       }
-      return WithFields(GetRef<Function>(func_node), std::move(params), VisitExpr(func_node->body), VisitType(func_node->ret_type), std::move(type_params));
+      return WithFields(GetRef<Function>(func_node), std::move(params), VisitExpr(func_node->body),
+                        VisitType(func_node->ret_type), std::move(type_params));
     }
 
     Pattern VisitPattern(const Pattern& p) final { return PatternFunctor::VisitPattern(p); }

@@ -127,17 +127,18 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
                           SEScope result_se_scope) {
-  ICHECK(function->params.size() == param_se_scopes.size()) << "ParamSEScopes must be the same size as the function parameters.";
+  ICHECK(function->params.size() == param_se_scopes.size())
+      << "ParamSEScopes must be the same size as the function parameters.";
   Array<Var> new_params;
   for (size_t i = 0; i < function->params.size(); i++) {
     Var param = function->params[i];
     new_params.push_back(WithFields(std::move(param), {}, {}, std::move(param_se_scopes[i])));
   }
-  return WithFields(std::move(function), std::move(new_params), {}, {}, {}, {}, std::move(result_se_scope));
+  return WithFields(std::move(function), std::move(new_params), {}, {}, {}, {},
+                    std::move(result_se_scope));
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
-
 
 }  // namespace relay
 }  // namespace tvm

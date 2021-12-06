@@ -164,7 +164,8 @@ class TECompilerImpl : public TECompilerNode {
         for (const auto& kv2 : kv1.second->cached_func->funcs->functions) {
           if (const auto* function_node = kv2.second.as<FunctionNode>()) {
             // Abandon the existing function annotations.
-            Function function = WithFields(GetRef<Function>(function_node), {}, {}, {}, {}, /* erase attributes */ DictAttrs());
+            Function function = WithFields(GetRef<Function>(function_node), {}, {}, {}, {},
+                                           /* erase attributes */ DictAttrs());
             // Mark function as 'extern' using the "ExternalSymbol" attribute.
             function = WithAttr(std::move(function), attr::kExternalSymbol, kv2.first->name_hint);
             module->Add(kv2.first, function);

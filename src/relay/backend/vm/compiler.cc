@@ -254,7 +254,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       Array<Var> params;
       params.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
-      for (const Var param: func->params) {
+      for (const Var param : func->params) {
         params.push_back(param);
         param_device_indexes.push_back(GetDeviceIndex(param->virtual_device()));
       }
@@ -270,12 +270,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       for (const auto& tyvar : inner_func->type_params) {
         type_params.push_back(tyvar);
       }
-      Function flattened_func = WithFields(std::move(func), std::move(params), inner_func->body, inner_func->ret_type,
-                                           std::move(type_params), {}, inner_func->virtual_device());
+      Function flattened_func =
+          WithFields(std::move(func), std::move(params), inner_func->body, inner_func->ret_type,
+                     std::move(type_params), {}, inner_func->virtual_device());
 
     } else {
       param_device_indexes.reserve(func->params.size());
-      for (const Var param: func->params) {
+      for (const Var param : func->params) {
         param_device_indexes.push_back(GetDeviceIndex(param->virtual_device()));
       }
       VisitExpr(func);

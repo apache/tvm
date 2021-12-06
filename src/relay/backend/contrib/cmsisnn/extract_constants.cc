@@ -53,7 +53,8 @@ class ExtractConstantsMutator : public MixedModeMutator {
     auto new_body = VisitExpr(func->body);
     functions_.pop_back();
     if (function_to_constants_[func].size()) {
-      func = WithFields(std::move(func), FreeVars(new_body), new_body, func->ret_type, FreeTypeVars(new_body, mod_), func->attrs);
+      func = WithFields(std::move(func), FreeVars(new_body), new_body, func->ret_type,
+                        FreeTypeVars(new_body, mod_), func->attrs);
     }
     return func;
   }

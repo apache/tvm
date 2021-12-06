@@ -380,7 +380,8 @@ class DefuncMutator : public ExprMutator {
       map.Set(f->type_params[i], type_args[i]);
     }
     // copy with typevars removed
-    auto copy = TypeSubst(WithFields(std::move(f), {}, {}, {}, /* erase typeparams */ Array<TypeVar>()), map);
+    auto copy = TypeSubst(
+        WithFields(std::move(f), {}, {}, {}, /* erase typeparams */ Array<TypeVar>()), map);
     return Downcast<Function>(copy);
   }
 

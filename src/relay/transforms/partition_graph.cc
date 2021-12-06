@@ -521,7 +521,8 @@ class NameMangleExtFuncs : public MixedModeMutator {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol,
                        String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
-          func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type, func->type_params, DictAttrs(new_dict));
+          func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type,
+                            func->type_params, DictAttrs(new_dict));
           new_module->Add(mangled_gvars_[pair.first->name_hint], func);
         } else {
           func = WithFields(func, func->params, VisitExpr(func->body));

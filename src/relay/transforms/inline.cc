@@ -130,8 +130,8 @@ class Inliner : ExprMutator {
     const auto* fn = base_func.as<FunctionNode>();
     ICHECK(fn) << "Expected to work on a Relay function.";
 
-    // TODO(@electriclilies): If Function is a COW node, then if it gets written to we shouldn't have any sharing, right?
-    // So we don't need to reconstruct?
+    // TODO(@electriclilies): If Function is a COW node, then if it gets written to we shouldn't
+    // have any sharing, right? So we don't need to reconstruct?
     Function func = WithFields(GetRef<Function>(fn));
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.

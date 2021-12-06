@@ -294,14 +294,15 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
       // Keep track of expression and bound variable device types for lexically enclosing
       // sub-expressions.
       PushSEScope(f->virtual_device());
-      for (const Var param: f->params) {
+      for (const Var param : f->params) {
         PushBoundVar(param, param->virtual_device());
       }
       EnterFunctionBody();
-      ret = WithFields(GetRef<Function>(f), f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)));
+      ret = WithFields(GetRef<Function>(f), f->params,
+                       GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)));
       // We are done with this function.
       ExitFunctionBody();
-      for (const Var param: f->params) {
+      for (const Var param : f->params) {
         PopBoundVar(param);
       }
       PopSEScope();
