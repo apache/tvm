@@ -136,7 +136,10 @@ TensorMakerImpl::Create(const Expr &expr) {
     auto specs = GetTimVxTensorSpec(tuple);
     auto tn = expr.as<TupleNode>();
     for (uint32_t i = 0; i < tuple->fields.size(); i++) {
-      vxOpmap_tbl_[tn->fields[i]] = std::make_shared<OpSetup>(specs[i]);
+      specs[i].attr_ = tvx::TensorAttribute::OUTPUT;
+      auto output_Opsetup = std::make_shared<OpSetup>(
+        specs[i],std::make_shared<CallbackExpr>(tn->fields[i]));
+      vxOpmap_tbl_[tn->fields[i]] = output_Opsetup;
     }
   }
   else {

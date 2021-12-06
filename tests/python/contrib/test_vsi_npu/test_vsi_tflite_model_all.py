@@ -80,8 +80,11 @@ def get_ref_result(shape, model_path,image_data,input_tensor_name,DTYPE):
     #           (round(np.mean(prof_res), 2), round(np.std(prof_res), 2)))
 
     cpu_mod.run()
-    ref_out = cpu_mod.get_output(0)
-    return ref_out.asnumpy()
+    rf_output = []
+    output_num = cpu_mod.get_num_outputs()
+    for i in range(output_num):
+        rf_output.append(cpu_mod.get_output(i).asnumpy())
+    return rf_output
 
 def compile_tflite_model(shape,model_path,input_data,input_tensor_name,DTYPE):
     inputs = input_tensor_name
@@ -120,8 +123,11 @@ def compile_tflite_model(shape,model_path,input_data,input_tensor_name,DTYPE):
     # rt_mod = graph_runtime.GraphModule(lib["default"](ctx))
     rt_mod.set_input(**input_data)
     rt_mod.run()
-    rf_output = rt_mod.get_output(0)
-    return rf_output.asnumpy()
+    rf_output = []
+    output_num = rt_mod.get_num_outputs()
+    for i in range(output_num):
+        rf_output.append(rt_mod.get_output(i).asnumpy())
+    return rf_output
 
 def print_top5(input):
     k = 5
@@ -207,6 +213,10 @@ model_list = [
      'shape': (1, 320, 320, 3),
      'input_tensor_name': 'serving_default_input:0',
      'dtype': "uint8"},
+    {'name': 'operation_1_in_29_out_4.tflite',
+     'shape': (1, 416, 416, 3),
+     'input_tensor_name': 'input_0:out0',
+     'dtype': "uint8"},
 ]
 
 def process(model_name):
@@ -236,23 +246,24 @@ def process(model_name):
     ref_output = get_ref_result(shape, model_file, input_data, input_tensor_name, DTYPE)
     vsi_output = compile_tflite_model(shape, model_file, vsi_input_data, input_tensor_name, DTYPE)
 
+    output_num = len(ref_output)
+
     if DTYPE == "uint8":
         tolerance = 5
     else:
         tolerance = 1e-3
 
-    logging.info("top5 of ref:")
-    print_top5(ref_output)
+    for i in range(output_num):
+        logging.info("top5 of ref output %d:",i)
+        print_top5(ref_output[i])
+        logging.info("top5 of vsi output %d:",i)
+        print_top5(vsi_output[i])
 
-    logging.info("top5 of vsi:")
-    print_top5(vsi_output)
-
-    result = abs(vsi_output.astype("float32") - ref_output.astype("float32"))
-    np.savetxt(path + model_name +"_ref_output.txt", ref_output.flatten(), fmt='%.3f')
-    np.savetxt(path + model_name + "_vsi_output.txt", vsi_output.flatten(), fmt='%.3f')
-    np.savetxt(path + model_name + "_diff.txt", result.flatten(), fmt='%.3f')
-
-    assert_allclose(vsi_output, ref_output, rtol=0, atol=tolerance)
+        diff = abs(vsi_output[i].astype("float32") - ref_output[i].astype("float32"))
+        np.savetxt(path + model_name+ "_output_" + str(i) +"_ref_output.txt", ref_output[i].flatten(), fmt='%.3f')
+        np.savetxt(path + model_name+ "_output_" + str(i) +"_vsi_output.txt", vsi_output[i].flatten(), fmt='%.3f')
+        np.savetxt(path + model_name+ "_output_" + str(i) +"_diff.txt", diff.flatten(), fmt='%.3f')
+        assert_allclose(vsi_output[i], ref_output[i], rtol=0, atol=tolerance)
 
 
 def test_mobilenet_v1_224_quant():

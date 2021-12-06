@@ -385,7 +385,7 @@ void VsiNpuConcat::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::G
   int32_t input_size = vxOpmap_tbl[input_key_]->specs_.size();
   int32_t input_tensor_dims = vxOpmap_tbl[input_key_]->specs_[0].shape_.size();
 
-  axis = input_tensor_dims - axis - 1;
+  axis = input_tensor_dims - (axis < 0 ? input_tensor_dims + axis : axis) - 1;
   auto op = graph->CreateOperation<tim::vx::ops::Concat>(axis, input_size);
 
   for (int32_t i = 0; i < input_size; i++) {
@@ -490,7 +490,12 @@ std::shared_ptr<tim::vx::Operation> AvgPool::CreateOperation(
 std::shared_ptr<tim::vx::Operation> Transpose::CreateOperation(
     std::shared_ptr<tim::vx::Graph> graph) {
   TvxTransposeAttrs tvx_attrs(call_);
-  return graph->CreateOperation<tim::vx::ops::Transpose>(tvx_attrs.axes);
+  std::vector<uint32_t> perms;
+  std::reverse(tvx_attrs.axes.begin(),tvx_attrs.axes.end());
+  for(uint32_t i=0;i<tvx_attrs.axes.size();i++){
+    perms.push_back(tvx_attrs.axes.size() - 1 - tvx_attrs.axes[i]);
+  }
+  return graph->CreateOperation<tim::vx::ops::Transpose>(perms);
 }
 
 void ElementWiseQnnOp::SetupOperand(const CallNode* cn, tim::vx::Quantization& quant_info,
@@ -1028,6 +1033,9 @@ void Pad::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> gra
   UpdateInputTableInfo(vxOpmap_tbl, input_key_, graph.get());
   UpdateOutputTableInfo(vxOpmap_tbl, expr_key_, graph.get());
 
+  auto const_expr = call_->args[1];
+  void* data = const_expr->IsInstance<ConstantNode>() ? const_expr.as<ConstantNode>()->data->data : nullptr;
+
   auto pad_width = tvx_attrs.pad_width;
 
   uint32_t size_0 = pad_width.size();
@@ -1048,7 +1056,13 @@ void Pad::SetupOperation(const CallNode* cn, std::shared_ptr<tim::vx::Graph> gra
     front_size.push_back(pad_size[i - 1]);
   }
 
-  auto op = graph->CreateOperation<tim::vx::ops::Pad>(front_size, back_size, 0);
+  int32_t const_value = vxOpmap_tbl[input_key_]->specs_[0].quantization_.ZeroPoints()[0];
+  std::shared_ptr<tim::vx::Operation> op;
+  if(*static_cast<float*>(data) == static_cast<float>(const_value)){
+    op = graph->CreateOperation<tim::vx::ops::Pad>(front_size, back_size, 0);
+  }else{
+    op = graph->CreateOperation<tim::vx::ops::Pad>(front_size, back_size, const_value);
+  }
 
   (*op).BindInput(vxOpmap_tbl[input_key_]->ptensors_[0]);
   (*op).BindOutput(vxOpmap_tbl[expr_key_]->ptensors_[0]);
