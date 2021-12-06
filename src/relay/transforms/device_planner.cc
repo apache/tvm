@@ -479,14 +479,13 @@ class DeviceAnalyzer : public ExprVisitor {
 
     // If the function already has SEScope attributes then we can further constrain the
     // function's domain to match them.
-    if (!GetFunctionResultSEScope(function_node)->IsFullyUnconstrained()) {
+    if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
+      for (const Var param: function_node->params) {
         args_and_result.emplace_back(domains_->ForSEScope(
-            function_node->params[i]->checked_type(), GetFunctionParamSEScope(function_node, i)));
+            param->checked_type(), param->virtual_device()));
       }
-      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(),
-                                                        GetFunctionResultSEScope(function_node)));
+      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(), function_node->virtual_device()));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.

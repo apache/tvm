@@ -120,19 +120,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
 Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes, SEScope body_se_scope);
 
 /*!
- * \brief As for \p FunctionOnDevice, but returns \p function unchanged if all parameters and
- * result \p SEScopes are unconstrained.
- */
-Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
-                               SEScope result_se_scope);
-
-/*!
- * \brief Returns the \p SEScope for the resut of \p function_node, or the unconstrained
- * \p SEScope if function does not have the "result_se_scope" annotation.
- */
-SEScope GetFunctionResultSEScope(const FunctionNode* function_node);
-
-/*!
  * \brief Returns the \p SEScope for the \p i'th parameter of \p function_node, or
  * the unconstrained \p SEScope if function does not have the "param_se_scopes" annotation.
  */

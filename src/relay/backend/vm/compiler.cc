@@ -252,21 +252,15 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
       Array<Var> params;
-      std::vector<SEScope> param_se_scopes;
       params.reserve(func->params.size() + inner_func->params.size());
-      param_se_scopes.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
-      for (size_t i = 0; i < func->params.size(); ++i) {
-        params.push_back(func->params[i]);
-        SEScope param_se_scope = GetFunctionParamSEScope(func.get(), i);
-        param_se_scopes.push_back(param_se_scope);
-        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
+      for (const Var param: func->params) {
+        params.push_back(param);
+        param_device_indexes.push_back(GetDeviceIndex(param->virtual_device()));
       }
-      for (size_t i = 0; i < inner_func->params.size(); ++i) {
-        params.push_back(inner_func->params[i]);
-        SEScope param_se_scope = GetFunctionParamSEScope(inner_func.get(), i);
-        param_se_scopes.push_back(param_se_scope);
-        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
+      for (const Var inner_param : inner_func->params) {
+        params.push_back(inner_param);
+        param_device_indexes.push_back(GetDeviceIndex(inner_param->virtual_device()));
       }
       Array<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
@@ -277,13 +271,12 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
         type_params.push_back(tyvar);
       }
       Function flattened_func = WithFields(std::move(func), std::move(params), inner_func->body, inner_func->ret_type,
-                                           std::move(type_params));
-      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_se_scopes,
-                                      GetFunctionResultSEScope(inner_func.get())));
+                                           std::move(type_params), {}, inner_func->virtual_device());
+
     } else {
       param_device_indexes.reserve(func->params.size());
-      for (size_t i = 0; i < func->params.size(); ++i) {
-        param_device_indexes.push_back(GetDeviceIndex(GetFunctionParamSEScope(func.get(), i)));
+      for (const Var param: func->params) {
+        param_device_indexes.push_back(GetDeviceIndex(param->virtual_device()));
       }
       VisitExpr(func);
     }

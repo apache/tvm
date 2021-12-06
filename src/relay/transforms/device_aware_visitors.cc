@@ -38,7 +38,7 @@ LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) 
   if (maybe_mod) {
     for (const auto& pair : maybe_mod.value()->functions) {
       if (const auto* function_node = pair.second.as<FunctionNode>()) {
-        SEScope se_scope = GetFunctionResultSEScope(function_node);
+        SEScope se_scope = function_node->virtual_device();
         if (!se_scope->IsFullyUnconstrained()) {
           global_var_se_scopes_.emplace(pair.first, se_scope);
         }
@@ -73,7 +73,7 @@ SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
       }
       // else: fallthrough to unconstrained
     } else {
-      return GetFunctionResultSEScope(function_node);
+      return function_node->virtual_device();
     }
   } else {
     if (!expr_se_scopes_.empty()) {
@@ -131,11 +131,11 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
+    for (const Var param: function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
-    PushSEScope(GetFunctionResultSEScope(function_node));
+    PushSEScope(function_node->virtual_device());
     EnterFunctionBody();
 
     DeviceAwareVisitExpr_(function_node);
@@ -144,8 +144,8 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     ExitFunctionBody();
     PopSEScope();
     // Function parameters go out of scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PopBoundVar(function_node->params[i]);
+    for (const Var param: function_node->params) {
+      PopBoundVar(param);
     }
   }
 }
@@ -217,11 +217,11 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     return DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
+    for (const Var param: function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
-    PushSEScope(GetFunctionResultSEScope(function_node));
+    PushSEScope(function_node->virtual_device());
     EnterFunctionBody();
 
     Expr result = DeviceAwareVisitExpr_(function_node);
@@ -230,8 +230,8 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     ExitFunctionBody();
     PopSEScope();
     // Function parameters go out of scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PopBoundVar(function_node->params[i]);
+    for (const Var param: function_node->params) {
+      PopBoundVar(param);
     }
 
     return result;

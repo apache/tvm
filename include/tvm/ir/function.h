@@ -190,16 +190,6 @@ constexpr const char* kTarget = "target";
  */
 constexpr const char* kGlobalSymbol = "global_symbol";
 
-/*!
- * \brief The SEScope which will hold the function result.
- *
- * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
- * may be included as an annotation on user programs.
- *
- * Type: SEScope
- */
-constexpr const char* kResultSEScope = "result_se_scope";
-
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_

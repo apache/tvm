@@ -111,27 +111,25 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     auto free_type_vars = FreeTypeVars(func, module_);
 
     Array<Var> captured_vars;
-    std::vector<SEScope> captured_var_se_scopes;
     bool recursive = false;
     for (const auto& var : free_vars) {
       if (!letrec_.empty() && var == letrec_.back()) {
         recursive = true;
         continue;
       }
-      captured_vars.push_back(var);
-      captured_var_se_scopes.push_back(GetSEScope(var));
     }
 
     // Freshen all the captured vars.
     Array<Var> typed_captured_vars;
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
-      auto var = Var(free_var->name_hint(), free_var->checked_type());
+      auto var = Var(free_var->name_hint(), free_var->checked_type(), free_var->span);
+      var->virtual_device_ = free_var->virtual_device();
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
 
-    SEScope result_se_scope = GetSEScope(func_node->body);
+    SEScope result_se_scope = func_node->body->virtual_device();
 
     if (recursive) {
       if (!captured_vars.empty()) {
@@ -177,7 +175,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       // COME BACk
       lifted_func = Function(body->params, body->body, body->ret_type, body->type_params,
                              body->attrs, body->span);
-      lifted_func->virtual_device_ = body->virtual_device();
+      lifted_func->virtual_device_ = result_se_scope;
     } else {
       // When a closure is locally bound in a program, we have its full type information
       // avalible to us.
@@ -195,12 +193,12 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map)); 
       size_t after_arity = rebound_body->params.size();
       CHECK_EQ(before_arity, after_arity);
-      // COME BACK
+
       lifted_func =
           Function(typed_captured_vars, rebound_body, /*ret_type=*/func->func_type_annotation(),
                    free_type_vars, /*attrs=*/{}, func->span);
-      // COME BACK
-      lifted_func = MaybeFunctionOnDevice(lifted_func, captured_var_se_scopes, result_se_scope);
+      // We have already propagated the se_scopes of the variables
+      lifted_func->virtual_device_ = result_se_scope;
       lifted_func = MarkClosure(lifted_func);
     }
 

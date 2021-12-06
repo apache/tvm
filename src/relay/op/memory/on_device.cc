@@ -138,29 +138,6 @@ Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
 
-/*
-Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
-                               SEScope result_se_scope) {
-  if (std::all_of(param_se_scopes.begin(), param_se_scopes.end(),
-                  [](const SEScope& se_scope) { return se_scope->IsFullyUnconstrained(); }) &&
-      result_se_scope->IsFullyUnconstrained()) {
-    // Nothing to annotate.
-    return function;
-  }
-  return FunctionOnDevice(function, std::move(param_se_scopes), std::move(result_se_scope));
-}*/
-
-SEScope GetFunctionResultSEScope(const FunctionNode* function_node) {
-  return function_node->virtual_device();
-}
-
-SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i) {
-  ICHECK_LT(i, function_node->params.size())
-      << "param index " << i << " out of range for function of arity "
-      << function_node->params.size();
-
-  return function_node->params[i]->virtual_device();
-}
 
 }  // namespace relay
 }  // namespace tvm

@@ -142,11 +142,11 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
       return DeviceAwareVisitExpr_(function_node);
     } else {
       // Function parameters come into scope.
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
-        PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
+      for (const Var param: function_node->params) {
+        PushBoundVar(param, param->virtual_device());
       }
       // Entering scope of function body.
-      PushSEScope(GetFunctionResultSEScope(function_node));
+      PushSEScope(function_node->virtual_device());
       EnterFunctionBody();
 
       DeviceAwareVisitExpr_(function_node);
@@ -155,8 +155,8 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
       ExitFunctionBody();
       PopSEScope();
       // Function parameters go out of scope.
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
-        PopBoundVar(function_node->params[i]);
+      for (const Var param: function_node->params) {
+        PopBoundVar(param);
       }
     }
   }
