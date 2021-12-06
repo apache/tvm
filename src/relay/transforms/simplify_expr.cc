@@ -585,6 +585,49 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
+/*! \brief Make two consecutive add able to be constant_folded.
+ * This pattern matching supports commutative property for addition.
+ */
+class SimplifyConsecutiveAdd : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveAdd() {
+    x_ = IsWildcard();
+    const1_ = IsConstant();
+    const2_ = IsConstant();
+    DFPattern add_op = IsOp("add");
+    pattern_ = add_op({add_op({x_, const1_}), const2_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    auto x = node_map[x_][0];
+    auto c1 = node_map[const1_][0];
+    auto c2 = node_map[const2_][0];
+
+    auto pre_call = call;
+    // Find the next add call.
+    if (pre_call->args[1].as<ConstantNode>()) {
+      pre_call = pre_call->args[0].as<CallNode>();
+    } else {
+      pre_call = pre_call->args[1].as<CallNode>();
+    }
+    // Do nothing if both inputs are not constants as they will be constant folded already.
+    if (pre_call->args[0].as<ConstantNode>() && pre_call->args[1].as<ConstantNode>()) {
+      return post;
+    } else {
+      auto add_res = Call(call->op, {c1, c2});
+      return Call(call->op, {x, add_res});
+    }
+    return post;
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern const1_;
+  DFPattern const2_;
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -599,6 +642,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyTranspose>();
   composer.AddRewrite<SimplifyCast>();
   composer.AddRewrite<FullElementwise>();
+  composer.AddRewrite<SimplifyConsecutiveAdd>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
