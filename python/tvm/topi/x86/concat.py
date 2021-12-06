@@ -22,6 +22,7 @@ from tvm import te
 from ..utils import get_const_int, const_vector
 import numpy as np
 
+
 def _concat(a_tuple, axis=0):
     """Join a sequence of arrays along an existing axis.
 
@@ -37,11 +38,12 @@ def _concat(a_tuple, axis=0):
     -------
     ret : tvm.te.Tensor
     """
+
     def gen_ir_1D(data_bufs, in_outers_tensor, out_buf):
         ib = tvm.tir.ir_builder.create()
         data_bufs1 = [ib.buffer_ptr(data_buf) for data_buf in data_bufs]
-        out_buf    = ib.buffer_ptr(out_buf)
-        outers     = ib.buffer_ptr(in_outers_tensor)
+        out_buf = ib.buffer_ptr(out_buf)
+        outers = ib.buffer_ptr(in_outers_tensor)
         pos = 0
         for i in range(len(a_tuple)):
             with ib.for_range(0, outers[i], name="j") as j:
@@ -52,8 +54,8 @@ def _concat(a_tuple, axis=0):
     def gen_ir(data_bufs, in_outers_tensor, out_buf, inner, outer):
         ib = tvm.tir.ir_builder.create()
         data_bufs1 = [ib.buffer_ptr(data_buf) for data_buf in data_bufs]
-        out_buf    = ib.buffer_ptr(out_buf)
-        outers     = ib.buffer_ptr(in_outers_tensor)
+        out_buf = ib.buffer_ptr(out_buf)
+        outers = ib.buffer_ptr(in_outers_tensor)
         if inner > 1:
             with ib.for_range(0, inner, name="inn", kind="parallel") as inn:
                 pos = inn * outer
@@ -76,23 +78,25 @@ def _concat(a_tuple, axis=0):
     join_size = int(np.sum(concat_axis_sizes))
     in_outers = [int(np.prod(i.shape[axis:])) for i in a_tuple]
     dtype = a_tuple[0].dtype
-    out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis+1:]
+    out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis + 1:]
     in_outers_tensor = const_vector(in_outers)
     # check if dimensions tail is (... , axis, 1, ... , 1)
-    if len(out_shape[axis + 1:]) == 0:
+    if len(out_shape[axis + 1 :]) == 0:
         rightVal = out_shape[axis]
     else:
-        rightVal = np.prod(out_shape[axis + 1:])
+        rightVal = np.prod(out_shape[axis + 1 :])
     # check if dimensions tail is (1 , ... , 1, axis, ...)
     if len(out_shape[:axis]) == 0:
         leftVal = out_shape[axis]
     else:
         leftVal = np.prod(out_shape[:axis])
 
-    if len(a_tuple[0].shape) == 1 or \
-       rightVal == 1 or \
-       (leftVal == 1 and axis == len(a_tuple[0].shape) - 1) or \
-       (leftVal == 1 and rightVal == 1):
+    if (
+        len(a_tuple[0].shape) == 1
+        or rightVal == 1
+        or (leftVal == 1 and axis == len(a_tuple[0].shape) - 1)
+        or (leftVal == 1 and rightVal == 1)
+    ):
         # badly parallelized case
         return te.extern(
             [out_shape],
@@ -106,15 +110,13 @@ def _concat(a_tuple, axis=0):
     return te.extern(
         [out_shape],
         list(a_tuple) + [in_outers_tensor],
-        lambda ins, outs: gen_ir(ins, ins[-1], outs[0] , inner, outer),
+        lambda ins, outs: gen_ir(ins, ins[-1], outs[0], inner, outer),
         dtype=dtype,
         name="concatenate_ext",
     )
 
-def concatenate(
-    data: tvm.te.Tensor,
-    axis: Optional[int] = 0
-):
+
+def concatenate(data: tvm.te.Tensor, axis: Optional[int] = 0):
     """Join a sequence of arrays along an existing axis.
 
     Parameters
@@ -129,4 +131,4 @@ def concatenate(
     -------
     ret : tvm.te.Tensor
     """
-    return _concat(data, axis = axis)
+    return _concat(data, axis=axis)
