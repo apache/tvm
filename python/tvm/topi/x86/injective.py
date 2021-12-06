@@ -17,10 +17,10 @@
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
 from tvm import te
-from tvm.tir import IntImm
-from ..utils import is_empty_shape
+# from tvm.tir import IntImm
 from tvm.topi import tag
 from tvm.topi.generic.injective import schedule_injective_from_existing
+from ..utils import is_empty_shape
 
 
 def schedule_injective_from_existing(sch, out):
@@ -135,6 +135,20 @@ def schedule_injective(outs):
 
 
 def schedule_concatenate(outs):
+    """X86 schedule for concatenate op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of injective in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
