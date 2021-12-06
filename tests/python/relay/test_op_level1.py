@@ -346,20 +346,20 @@ def test_concatenate():
 
 def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
     varsToConcat = []
-    inputData    = []
+    inputData = []
     pos = 0
     for s in shapes:
         varsToConcat.append(relay.var("x{}".format(pos), shape=s))
-        inputData.append( np.random.rand(*s).astype(dtype))
+        inputData.append(np.random.rand(*s).astype(dtype))
         pos += 1
-    t = relay.var("z", shape = t_shape, dtype=dtype)
+    t = relay.var("z", shape=t_shape, dtype=dtype)
     z = relay.concatenate(varsToConcat, axis=axis)
     z = relay.add(z, t)
     params = varsToConcat
     params.append(t)
     func = relay.Function(params, z)
-    t_data  = np.random.uniform(low=-10,high=10, size = t_shape).astype(dtype)
-    ref_res = np.concatenate((tuple(inputData)), axis = axis) + t_data
+    t_data  = np.random.uniform(low=-10,high=10, size=t_shape).astype(dtype)
+    ref_res = np.concatenate((tuple(inputData)), axis=axis) + t_data
     mod = tvm.IRModule.from_expr(func)
 
     executor = relay.create_executor("graph", mod=mod, device=dev, target=target)
@@ -378,12 +378,12 @@ def test_concatenate1():
         if target != "llvm": continue
         np.random.seed(471)
         maxNumDimensions = 6
-        shape = [ 4, 32, 32,  1, 62, 20, 42,  8, 55,  7] # just randomly selected 10 numbers
+        shape = [4, 32, 32, 1, 62, 20, 42, 8, 55, 7]  # just randomly selected 10 numbers
         for dtype in ["float32"]:
             for dimsNum in range(1, maxNumDimensions):
                 np.random.shuffle(shape)
-                for axis in range(0, dimsNum): # range should be (-dimsNum + 1, dimsNum)
-                    numToConcat = np.random.uniform(low = 2, high = 10,size=(1)).astype("int64")[0]
+                for axis in range(0, dimsNum):  # range should be (-dimsNum + 1, dimsNum)
+                    numToConcat = np.random.uniform(low=2, high=10,size=(1)).astype("int64")[0]
                     shapes = []
                     # the code below to normalize axes index. For some reasons tvm notifies about error if the axis is negative
                     normalizedAxis = axis
@@ -393,7 +393,10 @@ def test_concatenate1():
                     for i in range(0, numToConcat):
                         shp = tuple(shape[:dimsNum])
                         finalSize += shape[(i % len(shape))]
-                        shapes.append(shp[:normalizedAxis] + tuple([shape[(i % len(shape))]]) + shp[normalizedAxis+1:])
+                        shapes.append(
+                            shp[:normalizedAxis]
+                            + tuple([shape[(i % len(shape))]])
+                            + shp[normalizedAxis+1 :])
                     t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis+1:]
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
 
@@ -402,16 +405,17 @@ def test_concatenate1():
 def test_concatenate2():
     # test to cover cases (1, .. , x, 1, .. , 1)
     for target, dev in tvm.testing.enabled_targets():
-        if target != "llvm": continue
+        if target != "llvm":
+            continue
         np.random.seed(13)
         maxNumDimensions = 6
-        shape = [8, 3, 25, 33, 12, 29, 5, 11, 29, 11] # just randomly selected 10 numbers
+        shape = [8, 3, 25, 33, 12, 29, 5, 11, 29, 11]  # just randomly selected 10 numbers
         ind = 0
         for dtype in ["float32"]:
             for dimsNum in range(2, maxNumDimensions):
                 np.random.shuffle(shape)
-                for axis in range(-dimsNum + 1, dimsNum): # range should be (-dimsNum + 1, dimsNum)
-                    numToConcat = np.random.uniform(low = 2, high = 10,size=(1)).astype("int64")[0]
+                for axis in range(-dimsNum + 1, dimsNum):  # range should be (-dimsNum + 1, dimsNum)
+                    numToConcat = np.random.uniform(low=2, high=10,size=(1)).astype("int64")[0]
                     shapes = []
                     # the code below to normalize axes index. For some reasons tvm notifies about error if the axis is negative
                     normalizedAxis = axis
