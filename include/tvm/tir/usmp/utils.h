@@ -293,11 +293,7 @@ namespace attr {
  * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
  */
 static constexpr const char* kPoolArgs = "pool_args";
-/*!
- * \brief This is a BaseFunc attribute to indicate which input var represent
- * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
- */
-static constexpr const char* kPoolInfoIRModuleAttr = "pool_infos";
+
 }  // namespace attr
 
 }  // namespace tvm
