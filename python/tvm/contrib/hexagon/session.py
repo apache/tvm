@@ -36,8 +36,10 @@ class Session:
         self,
         remote_kw: dict,
         session_name: str = "hexagon-rpc",
+        remote_stack_size_bytes: int = 128 * 1024,
     ):
         self._session_name = session_name
+        self._remote_stack_size_bytes = remote_stack_size_bytes
         self._remote_kw = remote_kw
         self._rpc = None
         self.device = None
@@ -56,6 +58,7 @@ class Session:
                 session_constructor_args=[
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
+                    self._remote_stack_size_bytes
                 ],
             )
             self.device = self._rpc.hexagon(0)

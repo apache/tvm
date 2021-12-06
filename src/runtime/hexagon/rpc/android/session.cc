@@ -45,11 +45,11 @@ namespace hexagon {
 
 class HexagonTransportChannel : public RPCChannel {
  public:
-  explicit HexagonTransportChannel(const std::string& uri) {
+  explicit HexagonTransportChannel(const std::string& uri, int remote_stack_size_bytes) {
     if (_handle != AEE_EUNKNOWN) return;
 
     enable_unsigned_pd(true);
-    set_remote_stack_size(128 * 1024);
+    set_remote_stack_size(remote_stack_size_bytes);
     AEEResult rc = hexagon_rpc_open(uri.c_str(), &_handle);
     ICHECK(rc == AEE_SUCCESS) << "Hexagon RPC Open failed. URI: " << uri.c_str();
   }
@@ -106,8 +106,9 @@ class HexagonTransportChannel : public RPCChannel {
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       std::string session_name = args[0];
+      int remote_stack_size_bytes = args[1];
       HexagonTransportChannel* hexagon_channel =
-          new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN);
+          new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes);
       std::unique_ptr<RPCChannel> channel(hexagon_channel);
       auto ep = RPCEndpoint::Create(std::move(channel), session_name, "", NULL);
       auto sess = CreateClientSession(ep);
