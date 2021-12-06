@@ -1126,6 +1126,48 @@ class LegalizeMean:
         pass
 
 
+class ConcatRewriter(DFPatternCallback):
+    """The newer versions of TFLite converters return a concatenate operator that concatenates
+    tensors with same QNN params (if the QNN params of tensors were initially different,
+    the converter adds a requantize node), so this rewriter replaces the QNN concatenate with
+    "normal" concatenate"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.ConcatParams.composite_name})
+        )(None)
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        # Find the tensors that are inputs to the concat and the scales and zero points
+        concat_args = list()
+        for arg in post.args:
+            if isinstance(arg, tvm.relay.expr.Call):
+                concat_args.append(arg)
+
+        axis = post.op.body.attrs.axis
+        concat = relay.op.concatenate(relay.Tuple(concat_args), axis=axis)
+        return concat
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeConcat:
+    """This is the pass that wraps ConcatRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ConcatRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1153,6 +1195,7 @@ class LegalizeEthosU:
         mod = LegalizeAbs()(mod)
         mod = LegalizeTanh()(mod)
         mod = LegalizeMean()(mod)
+        mod = LegalizeConcat()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

@@ -14,8 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
+from collections import namedtuple
 import numpy as np  # type: ignore
 
 import tvm
@@ -68,6 +69,8 @@ def ReplaceOperators():
     replace_output_pointer = {}
     pointer_to_extents = {}
 
+    ReplaceInfo = namedtuple("ReplaceInfo", ["pointer", "reallocate"])
+
     def _resolve_pointers(stmt):
         """This pass determines information about the pointers present in the IR.
         In particular, it associates pointers with both the operations that
@@ -116,11 +119,13 @@ def ReplaceOperators():
             if stmt.attr_key == "pragma_op" and op_name in op_map:
                 # Get the parameters for the extern call
                 param_func = op_map[op_name]
-                info, output_pointer, replace_pointer = param_func(
+                info, output_pointer, replace_pointer, is_allocator = param_func(
                     stmt, pointer_to_producer, pointer_to_consumer
                 )
                 if replace_pointer is not None:
-                    replace_output_pointer[output_pointer] = replace_pointer
+                    replace_output_pointer[output_pointer] = ReplaceInfo(
+                        replace_pointer, is_allocator
+                    )
                 # Make the extern call
                 irb = tvm.tir.ir_builder.create()
                 irb.emit(tvm.tir.call_extern("handle", op_name, *info))
@@ -164,25 +169,17 @@ def ReplaceOperators():
         if isinstance(stmt, tvm.tir.AttrStmt):
             # If the attribute references a pointer that needs replacing
             if stmt.node in replace_output_pointer:
-                replace_pointer = replace_output_pointer[stmt.node]
-                # If the pointer doesn't have an extent registered to it,
-                # this means the pointer is to a Buffer. In this case, we
-                # just want to delete the memory scope attribute
-                if replace_pointer not in pointer_to_extents:
+                replace_pointer, reallocate = replace_output_pointer[stmt.node]
+                if not reallocate:
                     return stmt.body
                 # Otherwise, rewrite the memory scope attribute with the new pointer
-                return tvm.tir.AttrStmt(
-                    replace_output_pointer[stmt.node], stmt.attr_key, stmt.value, stmt.body
-                )
+                return tvm.tir.AttrStmt(replace_pointer, stmt.attr_key, stmt.value, stmt.body)
 
         if isinstance(stmt, tvm.tir.Allocate):
             # If the allocate allocates a pointer that needs replacing
             if stmt.buffer_var in replace_output_pointer:
-                replace_pointer = replace_output_pointer[stmt.buffer_var]
-                # If the pointer doesn't have an extent registered to it,
-                # this means the pointer is to a Buffer. In this case, we
-                # just want to delete the allocation statement
-                if replace_pointer not in pointer_to_extents:
+                replace_pointer, reallocate = replace_output_pointer[stmt.buffer_var]
+                if not reallocate:
                     return stmt.body
                 # Otherwise, rewrite the allocation statement with the new pointer
                 # and the new extent
@@ -522,4 +519,171 @@ def AnnotateAllocates():
 
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.ethosu.annotate_allocates"
+    )
+
+
+def RemoveConcatenates():
+    """Remove concatenate operators by modifying the input buffers to write directly into
+    the concatenated buffer with the appropriate offset.
+
+    This pass works in two stages. The first finds every concatenate operation (marked by
+    pragma_op = ethosu_concatenate) and it performs the following analysis. For each buffer
+    that is concatenated, the buffer is marked that it is to be replaced with the concat
+    buffer and the axis along which it is concatenated as well as the offset along that
+    axis is recorded in 'ReplaceInfo'. Once this analysis is completed, the concatenate
+    loop nest along with its buffer realization statements are removed.
+
+    In the second stage, the input buffers to the concatenate operators are rewritten
+    to use the concat buffer directly. This means applying the correct offset to the
+    concatenation axis where ever the buffer is loaded or stored. Additionally, as the
+    realization statements for the concat buffers were removed in the first stage, they
+    are rewritten in place of the input buffer realization with the earliest liveness."""
+
+    in_concat = [False]  # Whether the visitor is currently inside a concatenate operator
+    concat_buffers = []  # The buffers produced by concatenate operators
+    buffer_replace_map = {}  # A map of buffers to be replaced with the concat buffer
+    attrs_by_buffer = {}  # AttrStmts by the buffer they reference
+    realizes_by_buffer = {}  # BufferRealize statements by the buffer they reference
+    first_replacements = {}  # The first buffers to be replaced by a given concat buffer
+
+    ReplaceInfo = namedtuple("ReplaceInfo", ["buffer", "axis", "offset"])
+
+    def _get_replace_info(buffer_load, concat_buffer):
+        axis = 0
+        offset = 0
+        dmap = dict()
+
+        for i, index in enumerate(buffer_load.indices):
+            if isinstance(index, tvm.tir.Sub):
+                axis = i
+                dmap = {}
+
+                def _visit(stmt):
+                    if isinstance(stmt, tvm.tir.Var):
+                        dmap[stmt] = tvm.arith.IntervalSet(0, 0)
+
+                tvm.tir.stmt_functor.post_order_visit(index, _visit)
+                offset = abs(int(tvm.arith.Analyzer().int_set(index, dmap).max_value))
+        return ReplaceInfo(concat_buffer, axis, offset)
+
+    def _pre_remove(stmt):
+        if isinstance(stmt, tvm.tir.BufferRealize):
+            # Record the realize statements by buffer as we need to hoist some of these
+            realizes_by_buffer[stmt.buffer] = stmt
+        if isinstance(stmt, tvm.tir.AttrStmt):
+            if stmt.attr_key == "realize_scope" and isinstance(stmt.node, tvm.tir.Buffer):
+                # Record the realize_scope attrs by buffer as we need to hoist some of these
+                attrs_by_buffer[stmt.node] = stmt
+            if stmt.attr_key == "pragma_op" and stmt.value.value == "ethosu_concatenate":
+                # Record that we're entering a concatenate loop nest
+                in_concat[0] = True
+        if isinstance(stmt, tvm.tir.BufferLoad) and in_concat[0]:
+            # Any buffer loaded inside a concat is a buffer we intend to replace with this pass.
+            # The buffer_replace_map keeps track of which buffers need replacing with the
+            # concat buffer.
+            replace_info = _get_replace_info(stmt, concat_buffers[-1])
+            buffer_replace_map[stmt.buffer] = replace_info
+        if isinstance(stmt, tvm.tir.BufferStore) and in_concat[0]:
+            # If we're inside a concat, the BufferStore indicates what the concat buffer is
+            concat_buffers.append(stmt.buffer)
+
+    def _post_remove(stmt):
+        if isinstance(stmt, tvm.tir.AttrStmt):
+            if isinstance(stmt.node, tvm.tir.Buffer) and stmt.node in concat_buffers:
+                return stmt.body
+            if stmt.attr_key == "pragma_op" and stmt.value.value == "ethosu_concatenate":
+                # When we leave a concatenate operator, record it and then remove the loop nest
+                in_concat[0] = False
+                return tvm.tir.Evaluate(0)
+        if isinstance(stmt, tvm.tir.BufferRealize):
+            if stmt.buffer in concat_buffers:
+                return stmt.body
+        return None
+
+    def _pre_replace(stmt):
+        if isinstance(stmt, (tvm.tir.BufferLoad, tvm.tir.BufferStore)):
+            # The first buffer referenced that needs replacing with a concat buffer shall
+            # be the one that the concat buffer realize is hoisted to.
+            if stmt.buffer in buffer_replace_map:
+                concat_buffer = buffer_replace_map[stmt.buffer].buffer
+                if concat_buffer not in first_replacements:
+                    first_replacements[concat_buffer] = stmt.buffer
+
+    def _post_replace(stmt):
+        if isinstance(stmt, tvm.tir.BufferStore):
+            if stmt.buffer in buffer_replace_map:
+                # Replace the original buffer store with a new one into the concat buffer
+                # and adjust the indices accordingly to account for the offset
+                replace_info = buffer_replace_map[stmt.buffer]
+                concat_buffer = replace_info.buffer
+                new_indices = list(stmt.indices)
+                new_indices[replace_info.axis] += replace_info.offset
+                # The new buffer store node that stores the tensor directly into the concat buffer
+                new_store = tvm.tir.BufferStore(concat_buffer, stmt.value, new_indices, stmt.span)
+                return new_store
+        if isinstance(stmt, tvm.tir.BufferLoad):
+            if stmt.buffer in buffer_replace_map:
+                # Replace the original buffer load with a new one into the concat buffer
+                # and adjust the indices accordingly to account for the offset
+                replace_info = buffer_replace_map[stmt.buffer]
+                concat_buffer = replace_info.buffer
+                new_indices = list(stmt.indices)
+                new_indices[replace_info.axis] += replace_info.offset
+                new_load = tvm.tir.BufferLoad(concat_buffer, new_indices, stmt.span)
+                return new_load
+        if isinstance(stmt, tvm.tir.BufferRealize):
+            if stmt.buffer in buffer_replace_map:
+                concat_buffer = buffer_replace_map[stmt.buffer].buffer
+                # If this isn't the first buffer replaced, don't hoist the realize
+                if first_replacements[concat_buffer] != stmt.buffer:
+                    return stmt.body
+                # Otherwise, do hoist it
+                else:
+                    concat_realize = realizes_by_buffer[concat_buffer]
+                    new_realize = tvm.tir.BufferRealize(
+                        concat_realize.buffer,
+                        concat_realize.bounds,
+                        concat_realize.condition,
+                        stmt.body,
+                        stmt.span,
+                    )
+                    return new_realize
+        if isinstance(stmt, tvm.tir.AttrStmt):
+            if isinstance(stmt.node, tvm.tir.Buffer) and stmt.node in buffer_replace_map:
+                concat_buffer = buffer_replace_map[stmt.node].buffer
+                # If this isn't the first buffer replaced, don't hoist the attrstmt
+                if first_replacements[concat_buffer] != stmt.node:
+                    return stmt.body
+                # Otherwise, do hoist it
+                else:
+                    concat_attr = attrs_by_buffer[concat_buffer]
+                    new_attr = tvm.tir.AttrStmt(
+                        concat_attr.node,
+                        concat_attr.attr_key,
+                        concat_attr.value,
+                        stmt.body,
+                        stmt.span,
+                    )
+                    return new_attr
+
+    def _ftransform(f, mod, ctx):
+        f = f.with_body(
+            tvm.tir.stmt_functor.ir_transform(
+                f.body,
+                _pre_remove,
+                _post_remove,
+                ["tir.AttrStmt", "tir.BufferLoad", "tir.BufferStore", "tir.BufferRealize"],
+            )
+        )
+        return f.with_body(
+            tvm.tir.stmt_functor.ir_transform(
+                f.body,
+                _pre_replace,
+                _post_replace,
+                ["tir.AttrStmt", "tir.BufferLoad", "tir.BufferStore", "tir.BufferRealize"],
+            )
+        )
+
+    return tvm.tir.transform.prim_func_pass(
+        _ftransform, opt_level=0, name="tir.ethosu.remove_concatenates"
     )

@@ -198,6 +198,8 @@ def schedule_pragmas(sch):
     """
 
     def _add_pragmas(stage, ax):
+        if stage.op.name == "T_concat":
+            stage.pragma(ax, "op", "ethosu_concatenate")
         if "op" in [attr for attr, val in stage.op.attrs.items()]:
             stage.pragma(ax, "op", stage.op.attrs["op"])
             for attr, val in stage.op.attrs.items():

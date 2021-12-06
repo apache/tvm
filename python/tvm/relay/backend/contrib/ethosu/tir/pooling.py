@@ -50,6 +50,8 @@ def get_pooling_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
@@ -63,7 +65,7 @@ def get_pooling_params(
     output_pointer = stores[0].buffer_var
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -91,4 +93,5 @@ def get_pooling_params(
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )
