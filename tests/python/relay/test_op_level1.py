@@ -682,7 +682,7 @@ def test_bitserial_dense():
 
 if __name__ == "__main__":
     test_concatenate()
-    test_concatenate1() # test for cpu
+    test_concatenate1()  # test for cpu
     test_concatenate2()
     test_bias_add()
     test_bias_add_type_failure()
