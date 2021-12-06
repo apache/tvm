@@ -2820,7 +2820,6 @@ class PyTorchOpConverter:
         return out
 
     def einsum(self, inputs, input_types):
-        print(inputs)
         equation, data = inputs
         return _op.einsum(data, equation)
 
