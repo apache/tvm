@@ -226,10 +226,19 @@ def drive_micro(args):
     args.subcommand_handler(args)
 
 
+def get_project_dir(args: argparse.Namespace) -> str:
+    # Get project directory path
+    if not os.path.isabs(args.project_dir):
+        return os.path.abspath(args.project_dir)
+    return args.project_dir
+
+
 def create_project_handler(args):
     """Creates a new project dir."""
 
-    if os.path.exists(args.project_dir):
+    project_dir = get_project_dir(args)
+
+    if os.path.exists(project_dir):
         if args.force:
             shutil.rmtree(args.project_dir)
         else:
@@ -237,7 +246,6 @@ def create_project_handler(args):
                 "The specified project dir already exists. "
                 "To force overwriting it use '-f' or '--force'."
             )
-    project_dir = args.project_dir
 
     template_dir = str(Path(args.template_dir).resolve())
     if not os.path.exists(template_dir):
@@ -259,19 +267,19 @@ def create_project_handler(args):
 def build_handler(args):
     """Builds a firmware image given a project dir."""
 
-    if not os.path.exists(args.project_dir):
-        raise TVMCException(f"{args.project_dir} doesn't exist.")
+    project_dir = get_project_dir(args)
 
-    if os.path.exists(args.project_dir + "/build"):
+    if not os.path.exists(project_dir):
+        raise TVMCException(f"{project_dir} doesn't exist.")
+
+    if os.path.exists(project_dir + "/build"):
         if args.force:
-            shutil.rmtree(args.project_dir + "/build")
+            shutil.rmtree(project_dir + "/build")
         else:
             raise TVMCException(
                 f"There is already a build in {args.project_dir}. "
                 "To force rebuild it use '-f' or '--force'."
             )
-
-    project_dir = args.project_dir
 
     options = get_and_check_options(args.project_option, args.valid_options)
 
@@ -285,10 +293,11 @@ def build_handler(args):
 
 def flash_handler(args):
     """Flashes a firmware image to a target device given a project dir."""
-    if not os.path.exists(args.project_dir + "/build"):
-        raise TVMCException(f"Could not find a build in {args.project_dir}")
 
-    project_dir = args.project_dir
+    project_dir = get_project_dir(args)
+
+    if not os.path.exists(project_dir + "/build"):
+        raise TVMCException(f"Could not find a build in {project_dir}")
 
     options = get_and_check_options(args.project_option, args.valid_options)
 
