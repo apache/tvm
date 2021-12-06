@@ -106,7 +106,7 @@ def _concat(a_tuple, axis=0):
             name="concatenate_ext",
         )
     inner = get_const_int(int(np.prod(out_shape[:axis])))
-    outer = get_const_int(int(np.prod(out_shape[axis :])))
+    outer = get_const_int(int(np.prod(out_shape[axis:])))
     return te.extern(
         [out_shape],
         list(a_tuple) + [in_outers_tensor],
