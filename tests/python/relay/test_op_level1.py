@@ -358,7 +358,7 @@ def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
     params = varsToConcat
     params.append(t)
     func = relay.Function(params, z)
-    t_data  = np.random.uniform(low=-10,high=10, size=t_shape).astype(dtype)
+    t_data  = np.random.uniform(low=-10, high=10, size=t_shape).astype(dtype)
     ref_res = np.concatenate((tuple(inputData)), axis=axis) + t_data
     mod = tvm.IRModule.from_expr(func)
 
@@ -375,7 +375,8 @@ def do_concat_test(shapes, t_shape, dtype, axis, dev, target):
 @tvm.testing.uses_gpu
 def test_concatenate1():
     for target, dev in tvm.testing.enabled_targets():
-        if target != "llvm": continue
+        if target != "llvm":
+            continue
         np.random.seed(471)
         maxNumDimensions = 6
         shape = [4, 32, 32, 1, 62, 20, 42, 8, 55, 7]  # just randomly selected 10 numbers
@@ -383,7 +384,7 @@ def test_concatenate1():
             for dimsNum in range(1, maxNumDimensions):
                 np.random.shuffle(shape)
                 for axis in range(0, dimsNum):  # range should be (-dimsNum + 1, dimsNum)
-                    numToConcat = np.random.uniform(low=2, high=10,size=(1)).astype("int64")[0]
+                    numToConcat = np.random.uniform(low=2, high=10, size=(1)).astype("int64")[0]
                     shapes = []
                     # the code below to normalize axes index. For some reasons tvm notifies about error if the axis is negative
                     normalizedAxis = axis
@@ -396,8 +397,9 @@ def test_concatenate1():
                         shapes.append(
                             shp[:normalizedAxis]
                             + tuple([shape[(i % len(shape))]])
-                            + shp[normalizedAxis+1 :])
-                    t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis+1:]
+                            + shp[normalizedAxis+1 :]
+                        )
+                    t_shape = shp[:normalizedAxis] + tuple([finalSize]) + shp[normalizedAxis+1 :]
                     do_concat_test(shapes, t_shape, dtype, axis, dev, target)
 
 
@@ -415,7 +417,7 @@ def test_concatenate2():
             for dimsNum in range(2, maxNumDimensions):
                 np.random.shuffle(shape)
                 for axis in range(-dimsNum + 1, dimsNum):  # range should be (-dimsNum + 1, dimsNum)
-                    numToConcat = np.random.uniform(low=2, high=10,size=(1)).astype("int64")[0]
+                    numToConcat = np.random.uniform(low=2, high=10, size=(1)).astype("int64")[0]
                     shapes = []
                     # the code below to normalize axes index. For some reasons tvm notifies about error if the axis is negative
                     normalizedAxis = axis

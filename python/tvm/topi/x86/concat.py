@@ -78,7 +78,7 @@ def _concat(a_tuple, axis=0):
     join_size = int(np.sum(concat_axis_sizes))
     in_outers = [int(np.prod(i.shape[axis:])) for i in a_tuple]
     dtype = a_tuple[0].dtype
-    out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis + 1:]
+    out_shape = a_tuple[0].shape[:axis] + [join_size] + a_tuple[0].shape[axis + 1 :]
     in_outers_tensor = const_vector(in_outers)
     # check if dimensions tail is (... , axis, 1, ... , 1)
     if len(out_shape[axis + 1 :]) == 0:
@@ -106,7 +106,7 @@ def _concat(a_tuple, axis=0):
             name="concatenate_ext",
         )
     inner = get_const_int(int(np.prod(out_shape[:axis])))
-    outer = get_const_int(int(np.prod(out_shape[axis:])))
+    outer = get_const_int(int(np.prod(out_shape[axis :])))
     return te.extern(
         [out_shape],
         list(a_tuple) + [in_outers_tensor],
