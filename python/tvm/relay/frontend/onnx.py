@@ -1493,6 +1493,31 @@ class Split(OnnxOpConverter):
             output = output[0]
         return output
 
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        splits = inputs[1]
+        splits_rank = None
+        if splits is not None:
+            splits_rank = len(infer_shape(splits))
+        if splits is not None and splits_rank > 0:
+            if isinstance(splits, _expr.Constant):
+                splits = splits.data.asnumpy()
+                indices = []
+                index = 0
+                for i in splits[:-1]:
+                    index += i
+                    indices.append(index)
+            else:
+                raise ValueError("Dynamic Split not yet supported")
+        # When splits isnt specified divide evenly over axis.
+        else:
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
 
 class Slice(OnnxOpConverter):
     """Operator converter for Slice."""
