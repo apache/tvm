@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
 from tvm import te
+
 # from tvm.tir import IntImm
 from tvm.topi import tag
 from tvm.topi.generic.injective import schedule_injective_from_existing
