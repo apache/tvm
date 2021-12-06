@@ -24,12 +24,12 @@ About microTVM Project API
 --------------------------
 
 The microTVM Project API allows TVM to automatically run models on
-unconventional platforms. It allows platforms to define a standard function to
-integrate TVM compiler output with boilerplate platform-specific code, producing
-a runnable **Project**. Project API then further defines functions to build that
-project, program compatible devices accessible from the TVM machine, and
-communicate with the running code so that TVM can perform host-driven inference
-and autotuning.
+unconventional or embedded platforms. It allows platforms to define a standard
+function to integrate TVM compiler output with boilerplate platform-specific
+code, producing a runnable **Project**. Project API then further defines
+functions to build that project, program compatible devices accessible from the
+TVM machine, and communicate with the running code so that TVM can perform
+host-driven inference and autotuning.
 
 There are many cases where it might be desirable simply to invoke microTVM as a
 tool from your platform's build process. Indeed, for the average firmware
