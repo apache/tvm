@@ -343,9 +343,7 @@ Function UnCPS(const Function& f) {
     type_args.push_back(tp);
   }
   type_args.push_back(new_ret_type);
-  Call call = Call(f, args, {}, type_args);
-  // How do I fix this?
-  return WithFields(f, std::move(new_params), call, std::move(new_ret_type),
+  return WithFields(f, std::move(new_params), Call(f, args, {}, type_args), std::move(new_ret_type),
                     std::move(new_type_params));
 }
 
