@@ -44,6 +44,7 @@ def _debug_interp(*args):
     print("--------------")
     _debugger_init(ist.current_expr, ist.stack)
 
+
 @pass_instrument
 class PassBisection:
     """Tool to bisect passes.
@@ -77,15 +78,15 @@ class PassBisection:
 
         # Passes required for legality
         if info.run_always:
-            print("{}{} {} (required)".format(self._total_cnt, " "*self._nested, info.name))
+            print("{}{} {} (required)".format(self._total_cnt, " " * self._nested, info.name))
             return True
 
         # Skip once we're passed the limit
         if self._done:
-            print("{}{} {} (skipped)".format(self._total_cnt, " "*self._nested, info.name))
+            print("{}{} {} (skipped)".format(self._total_cnt, " " * self._nested, info.name))
             return False
-        
-        print("{}{} {}".format(self._total_cnt, " "*self._nested, info.name))
+
+        print("{}{} {}".format(self._total_cnt, " " * self._nested, info.name))
         return True
 
     def run_after_pass(self, mod, info):
