@@ -280,21 +280,6 @@ class TVMScriptParser(Transformer):
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list
         internal_args = list()
-        # check the default value of "name" for TypeCall and TypeApply
-        # if none, change it to the variable name
-        # Note that here the variable name will always be the last
-        # item in self.context.func_params. See transform_Function
-        # for more details of adding function parameters in self.context
-        # buf_name: str = self.context.func_params[-1].name
-        # if isinstance(node_call, ast.TypeApply):
-        #     if len(args) == 2:
-        #         args.append(buf_name)
-        #     elif len(args) == 1:
-        #         args.append("float32")  # default value for 'dtype'
-        #         args.append(buf_name)
-        # if isinstance(node_call, ast.TypeCall):
-        #     if "name" not in kw_args:
-        #         kw_args["name"] = buf_name
 
         for i, arg_name in enumerate(pos_only):
             internal_args.append(reader.get_pos_only_arg(i + 1, arg_name))
@@ -1155,21 +1140,17 @@ class TVMScriptParser(Transformer):
     def handle_match_buffer_type(self, node, buffer_name):
         """special function to handle syntax sugar for match buffer.
 
-        This method is for syntax sugar of T.match_buffer()/[]
+        This method is for buffer declarations in the function parameters.
         """
         func = self.transform(node.func_name)
+        assert isinstance(func, SpecialStmt)
 
-        if isinstance(func, SpecialStmt):
-            # parse args and kwargs for TypeCall
-            arg_list = self.parse_arg_list(func, node)
-            if arg_list[2] is None:
-                arg_list[2] = buffer_name
-            buf = func.handle(node, self.context, arg_list, node.func_name.span)
-            return buf
-        self.report_error(
-            "Unsupported TypeCall stmt.",
-            node.span,
-        )
+        # parse args and kwargs for TypeCall
+        arg_list = self.parse_arg_list(func, node)
+        if arg_list[2] is None:
+            arg_list[2] = buffer_name
+        buf = func.handle(node, self.context, arg_list, node.func_name.span)
+        return buf
 
     def transform_Return(self, node):
         self.report_error(
