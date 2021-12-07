@@ -54,6 +54,23 @@ def schedule_conv1d_nwc(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_conv1d_nwc_owi(outs):
+    """Schedule for conv1d_nwc_owi
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv1d_nwc_owi
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn
 
@@ -112,6 +129,23 @@ def schedule_conv2d_nhwc(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_conv2d_nhwc_ohwi(outs):
+    """Schedule for conv2d_nhwc_ohwi
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nhwc_ohwi
           in the format of an array of tensors.
 
     Returns

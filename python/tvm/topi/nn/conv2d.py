@@ -214,9 +214,8 @@ def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layou
         WSTR,
     )
 
-from tvm import autotvm
-@autotvm.register_topi_compute("conv2d_nchw.pulp")
-def conv2d_nchw(cfg, Input, Filter, stride, padding, dilation, out_dtype=None):
+
+def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Convolution operator in NCHW layout.
 
     Parameters

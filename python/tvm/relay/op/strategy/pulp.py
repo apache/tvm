@@ -13,21 +13,21 @@ def conv1d_strategy(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if layout == "NCW":
         strategy.add_implementation(
-            wrap_compute_conv1d(topi.pulp.conv1d_ncw_pulp),
+            wrap_compute_conv1d(topi.pulp.conv1d_ncw),
             wrap_topi_schedule(topi.pulp.schedule_conv1d_ncw),
             name="conv1d_ncw.pulp"
         )
     elif layout == "NWC":
         if kernel_layout == "WIO":
             strategy.add_implementation(
-                wrap_compute_conv1d(topi.pulp.conv1d_nwc_pulp),
-                topi.pulp.schedule_conv1d_nwc,
+                wrap_compute_conv1d(topi.pulp.conv1d_nwc),
+                wrap_topi_schedule(topi.pulp.schedule_conv1d_nwc),
                 name="conv1d_nwc.pulp"
             )
         elif kernel_layout == "OWI":
             strategy.add_implementation(
                 wrap_compute_conv1d(topi.pulp.conv1d_nwc_owi),
-                topi.pulp.schedule_conv1d_nwc_owi,
+                wrap_topi_schedule(topi.pulp.schedule_conv1d_nwc_owi),
                 name="conv1d_nwc_owi.pulp"
             )
     else:
@@ -54,7 +54,7 @@ def conv2d_strategy(attrs, inputs, out_type, target):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.nn.conv2d_nchw),
+                wrap_compute_conv2d(topi.pulp.conv2d_nchw),
                 wrap_topi_schedule(topi.pulp.schedule_conv2d_nchw),
                 name="conv2d_nchw.pulp",
             )
@@ -62,14 +62,14 @@ def conv2d_strategy(attrs, inputs, out_type, target):
             assert kernel_layout == "HWIO" or kernel_layout == "OHWI"
             if kernel_layout == "HWIO":
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc),
-                    topi.pulp.schedule_conv2d_nhwc,
+                    wrap_compute_conv2d(topi.pulp.conv2d_nhwc),
+                    wrap_topi_schedule(topi.pulp.schedule_conv2d_nhwc),
                     name="conv2d_nhwc.pulp",
                 )
             else:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.nn.conv2d_nhwc_ohwi),
-                    topi.pulp.schedule_conv2d_nhwc_ohwi,
+                    wrap_compute_conv2d(topi.pulp.conv2d_nhwc_ohwi),
+                    wrap_topi_schedule(topi.pulp.schedule_conv2d_nhwc_ohwi),
                     name="conv2d_nhwc_ohwi.pulp"
                 )
         elif layout == "HWCN":
