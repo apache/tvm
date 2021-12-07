@@ -1273,8 +1273,9 @@ msgstr ""
 #: ../../../python/tvm/relay/testing/densenet.pydocstring of
 #: tvm.relay.testing.densenet:1
 msgid ""
-"Port of MxNet version of Densenet to Relay. https://github.com/apache"
-"/incubator-mxnet/blob/master/python/mxnet/gluon/model_zoo/vision/densenet.py"
+"Port of MxNet version of Densenet to Relay. "
+"https://github.com/apache/incubator-"
+"mxnet/blob/master/python/mxnet/gluon/model_zoo/vision/densenet.py"
 msgstr ""
 
 #: ../../../python/tvm/relay/testing/densenet.pydocstring of

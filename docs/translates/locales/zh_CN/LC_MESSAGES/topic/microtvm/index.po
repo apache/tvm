@@ -68,11 +68,11 @@ msgstr ""
 
 #: ../../_staging/topic/microtvm/index.rst:44
 msgid ""
-"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-"
-"f746zg.html>`_"
+"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-"
+"tools/nucleo-f746zg.html>`_"
 msgstr ""
-"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-tools/nucleo-"
-"f746zg.html>`_"
+"`STM Nucleo-F746ZG <https://www.st.com/en/evaluation-"
+"tools/nucleo-f746zg.html>`_"
 
 #: ../../_staging/topic/microtvm/index.rst:45
 msgid ""
@@ -84,11 +84,11 @@ msgstr ""
 
 #: ../../_staging/topic/microtvm/index.rst:46
 msgid ""
-"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools"
-"/Development-Kits/nRF5340-DK>`_"
+"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-"
+"tools/Development-Kits/nRF5340-DK>`_"
 msgstr ""
-"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-tools"
-"/Development-Kits/nRF5340-DK>`_"
+"`nRF 5340 Development Kit <https://www.nordicsemi.com/Software-and-"
+"tools/Development-Kits/nRF5340-DK>`_"
 
 #: ../../_staging/topic/microtvm/index.rst:50
 msgid "Getting Started with microTVM"
@@ -116,8 +116,8 @@ msgstr "尝试 :ref:`microTVM TFLite 教程 <microTVM-with-TFLite>`."
 
 #: ../../_staging/topic/microtvm/index.rst:59
 msgid ""
-"Try running a more complex `CIFAR10-CNN model <https://github.com/areusch"
-"/microtvm-blogpost-eval>`_."
+"Try running a more complex `CIFAR10-CNN model "
+"<https://github.com/areusch/microtvm-blogpost-eval>`_."
 msgstr ""
 "教程：使用microTVM运行更复杂的 `CIFAR10-CNN 模型 <https://github.com/areusch/microtvm-"
 "blogpost-eval>`_。"

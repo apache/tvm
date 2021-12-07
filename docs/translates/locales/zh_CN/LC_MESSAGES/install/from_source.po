@@ -228,8 +228,8 @@ msgid ""
 "Unzip to a certain location, modify ``build/config.cmake`` to add "
 "``set(USE_LLVM /path/to/your/llvm/bin/llvm-config)``"
 msgstr ""
-"解压到一个特定的位置，修改``build/config.cmake``以添加``set(USE_LLVM /path/to/your/llvm/bin"
-"/llvm-config)``"
+"解压到一个特定的位置，修改``build/config.cmake``以添加``set(USE_LLVM "
+"/path/to/your/llvm/bin/llvm-config)``"
 
 #: ../../_staging/install/from_source.rst:119
 msgid ""

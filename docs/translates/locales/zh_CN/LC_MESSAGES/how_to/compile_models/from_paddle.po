@@ -46,8 +46,8 @@ msgstr ""
 #: ../../_staging/how_to/compile_models/from_paddle.rst:22
 msgid ""
 "or please refer to official site. "
-"https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip"
-"/linux-pip.html"
+"https://www.paddlepaddle.org.cn/install/quick?docurl=/documentation/docs/zh/install/pip/linux-"
+"pip.html"
 msgstr ""
 
 #: ../../_staging/how_to/compile_models/from_paddle.rst:42
