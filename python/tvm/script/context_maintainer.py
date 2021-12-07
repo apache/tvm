@@ -138,6 +138,10 @@ class ContextMaintainer:
     _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]
     """Callable[[str, Union[Span, synr.ast.Span]], None]: The report error function handle"""
 
+    # root alloc_buffer
+    root_alloc_buffers: List[Buffer] = []
+    """List[Buffer]: The buffers allocated under root block"""
+
     def __init__(self, _report_error: Callable[[str, Union[Span, synr.ast.Span]], None]):
         # scope context
         self.node_stack = []
@@ -152,6 +156,8 @@ class ContextMaintainer:
         # parser and analyzer
         self._report_error = _report_error
         self.analyzer = tvm.arith.Analyzer()
+        # root alloc_buffer
+        self.root_alloc_buffers = []
 
     def enter_scope(self, nodes: Optional[List[synr.ast.Node]] = None):
         """Creates a new scope
@@ -230,4 +236,6 @@ class ContextMaintainer:
         self._report_error(message, span)
 
     def current_block_scope(self) -> BlockInfo:
-        return self.block_info_stack[-1]
+        if self.block_info_stack:
+            return self.block_info_stack[-1]
+        return None

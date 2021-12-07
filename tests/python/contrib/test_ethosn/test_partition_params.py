@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Ethos(TM)-N partition parameter tests"""
+
+"""Arm(R) Ethos(TM)-N partition parameter tests"""
 
 import pytest
 import tvm

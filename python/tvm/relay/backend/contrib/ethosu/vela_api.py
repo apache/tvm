@@ -207,7 +207,7 @@ def compress_weights(
     layout_transform_indices = {"HWIO": (3, 0, 1, 2), "HWOI": (2, 0, 1, 3), "OHWI": (0, 1, 2, 3)}
     assert weights_layout in layout_transform_indices.keys()
     assert isinstance(weights_zp, np.int64)
-    weights = weights.astype(np.int64) - weights_zp
+    weights = weights.astype(np.int16) - weights_zp
     # Vela needs the weights in OHWI layout
     weights_ohwi = np.transpose(weights, layout_transform_indices[weights_layout])
     shape_ohwi = [
@@ -381,7 +381,7 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
     }
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     accel_config_str = compiler_attrs.accelerator_config
     assert accel_config_str in npu_accel_str_map.keys(), f"{accel_config_str} is not supported"
     return npu_accel_str_map[accel_config_str]

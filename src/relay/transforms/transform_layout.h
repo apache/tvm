@@ -32,6 +32,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "infer_layout_utils.h"
@@ -293,12 +294,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     // NOTE: do not support nested tuple
     if (new_arg->IsInstance<TupleNode>()) {
       Tuple tuple_new_arg = Downcast<Tuple>(new_arg);
-      std::vector<Expr> fields;
+      Array<Expr> fields;
+      fields.reserve(tuple_new_arg->fields.size());
       for (auto x : tuple_new_arg->fields) {
         Expr tmp = push_back_one_arg(x);
         fields.push_back(tmp);
       }
-      normal_new_args.push_back(Tuple(fields));
+      normal_new_args.push_back(WithFields(tuple_new_arg, std::move(fields)));
     } else {
       Expr tmp = push_back_one_arg(new_arg);
       normal_new_args.push_back(tmp);
@@ -375,12 +377,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   for (auto arg : new_call->args) {
     if (arg->IsInstance<TupleNode>()) {  // unflatten tuple
       Tuple tuple_arg = Downcast<Tuple>(arg);
-      std::vector<Expr> transformed_tuple_arg;
+      Array<Expr> transformed_tuple_arg;
+      transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
         transformed_tuple_arg.push_back(memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
         pt++;
       }
-      transformed_args.push_back(Tuple(transformed_tuple_arg));
+      transformed_args.push_back(WithFields(tuple_arg, std::move(transformed_tuple_arg)));
     } else {
       transformed_args.push_back(memorizer.Transform(arg, new_in[pt], new_in2[pt]));
       pt++;

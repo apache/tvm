@@ -252,6 +252,11 @@ class Stage : public ObjectRef {
    */
   TVM_DLL Stage& double_buffer();  // NOLINT(*)
   /*!
+   * \brief Compute current stage with rolling buffering.
+   * \return reference to self.
+   */
+  TVM_DLL Stage& rolling_buffer();  // NOLINT(*)
+  /*!
    * \brief whether the stage has been scheduled.
    * \return whether the stage has been scheduled.
    */
@@ -493,6 +498,8 @@ class StageNode : public Object {
   bool is_output{false};
   /*! \brief Whether apply double buffer optimization to this stage */
   bool double_buffer{false};
+  /*! \brief Whether apply rolling buffer optimization to this stage */
+  bool rolling_buffer{false};
   /*!
    * \brief The parent group of the current stage.
    *  The stage cannot be assigned to stages outside the group.

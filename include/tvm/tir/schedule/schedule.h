@@ -194,6 +194,16 @@ class ScheduleNode : public runtime::Object {
    */
   virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                    Optional<Integer> decision = NullOpt) = 0;
+  /*!
+   * \brief Sample the factors to perfect tile a specific loop
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random perfect tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+                                          Optional<Array<Integer>> decision = NullOpt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
@@ -210,6 +220,30 @@ class ScheduleNode : public runtime::Object {
    * \return A list of loops above the given block in its scope, from outer to inner
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of a specific scope
+   * \param block_rv The block where the scope is rooted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of under a specific loop
+   * \param loop_rv The loop under which collecting is conducted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Get the producer of a specific block
+   * \param block_rv The block in the query
+   * \return A list of blocks, the producers of the given block
+   */
+  virtual Array<BlockRV> GetProducers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the consumers of a specific block
+   * \param block_rv The block to be queried
+   * \return A list of blocks, the consumers of the given block
+   */
+  virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:

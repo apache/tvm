@@ -18,7 +18,7 @@
 """Extract information from the pooling operators in TIR."""
 from typing import Dict, Tuple
 import tvm
-from .utils import get_outer_loops, get_op_attrs
+from .utils import get_outer_loops, get_op_attrs, get_loads, get_stores
 from .dma import get_ifm_params, get_ofm_params
 from .spec import SerialKernel, SerialActivation, SerialPooling
 
@@ -50,17 +50,22 @@ def get_pooling_params(
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     rh = inner
     rw = rh.body
-    compute = rw.body.value.b
-    input_pointer = compute.buffer_var
-    output_pointer = rw.body.buffer_var
+    # loads = [output, input, LUT, LUT]
+    loads = get_loads(rw.body)
+    # stores = [output]
+    stores = get_stores(rw.body)
+    input_pointer = loads[1].buffer_var
+    output_pointer = stores[0].buffer_var
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -83,8 +88,10 @@ def get_pooling_params(
             pool_shape=serial_kernel,
             padding=serial_padding,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

@@ -52,7 +52,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           if (need_sep) {
             p->stream << ", ";
           }
-          p->stream << "target='" << node->target << "'";
+          p->stream << "target=" << node->target->ToDebugString();
           need_sep = true;
         }
         if (!node->memory_scope.empty()) {
@@ -62,13 +62,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           p->stream << "memory_scope='" << node->memory_scope << "'";
         }
       }
+#if TVM_LOG_DEBUG
+      // We rely on object identity of SEScopes, so include the object address to help debugging.
+      p->stream << ", id=" << reinterpret_cast<uint64_t>(ref.get());
+#endif
       p->stream << ")";
     });
 
 SEScope::SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
                  MemoryScope memory_scope) {
   ICHECK(!target.defined() || device_type == target->kind->device_type)
-      << "target '" << target << "' has device type " << target->kind->device_type
+      << "target " << target->ToDebugString() << " has device type " << target->kind->device_type
       << " but scope has device type " << device_type;
   auto node = make_object<SEScopeNode>();
   node->device_type_int = device_type;
@@ -173,7 +177,7 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
     cache_.emplace(prototype);
     return prototype;
   } else {
-    VLOG(1) << "reusing '" << *itr << "' for '" << prototype << "'";
+    VLOG(1) << "reusing existing scope " << *itr;
     ICHECK_EQ(prototype->target.defined(), (*itr)->target.defined());
     if (prototype->target.defined()) {
       ICHECK_EQ(prototype->target->host.defined(), (*itr)->target->host.defined());

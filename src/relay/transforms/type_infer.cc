@@ -181,7 +181,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
-    ICHECK(ret.defined());
+    ICHECK(ret.defined()) << "expression:" << std::endl << PrettyPrint(expr);
     KindCheck(ret, mod_, this->diag_ctx);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
@@ -208,14 +208,19 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (mod_->ContainGlobalVar(var->name_hint)) {
       BaseFunc func = mod_->Lookup(var->name_hint);
 
-      if (func->IsInstance<FunctionNode>()) {
-        relay::Function relay_func = Downcast<Function>(func);
-        return relay_func->checked_type();
+      if (const auto* function_node = func.as<FunctionNode>()) {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to Function";
+        return function_node->checked_type();
+      } else {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to PrimFunc";
+        return op->checked_type_;
       }
+    } else {
+      // TODO(mbs): extern function cleanup
+      // Assume the function is extern thus no longer in the IRModule.
+      VLOG(1) << "global var '" << op->name_hint << "' not in module";
+      return op->checked_type_;
     }
-    // Return op->checked_type if the module doesn't contain the GlobalVar or the function is a
-    // PrimFunc (we don't typecheck PrimFuncs)
-    return op->checked_type_;
   }
 
   Type VisitExpr_(const ConstantNode* op) final { return op->tensor_type(); }

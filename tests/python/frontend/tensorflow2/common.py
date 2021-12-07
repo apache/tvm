@@ -51,13 +51,15 @@ def run_tf_code(func, input_):
 
 def compile_graph_executor(mod, params, target="llvm", target_host="llvm", opt_level=3):
     with tvm.transform.PassContext(opt_level):
-        lib = relay.build(mod, target=target, target_host=target_host, params=params)
+        lib = relay.build(mod, target=tvm.target.Target(target, host=target_host), params=params)
     return lib
 
 
 def compile_vm(mod, params, target="llvm", target_host="llvm", opt_level=3, disabled_pass=None):
     with tvm.transform.PassContext(opt_level, disabled_pass=disabled_pass):
-        vm_exec = relay.vm.compile(mod, target, target_host, params=params)
+        vm_exec = relay.vm.compile(
+            mod, target=tvm.target.Target(target, host=target_host), params=params
+        )
     return vm_exec
 
 

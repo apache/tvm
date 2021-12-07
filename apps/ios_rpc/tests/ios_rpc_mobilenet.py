@@ -93,7 +93,9 @@ def test_mobilenet(host, port, key, mode):
 
     def run(mod, target):
         with relay.build_config(opt_level=3):
-            lib = relay.build(mod, target=target, target_host=target_host, params=params)
+            lib = relay.build(
+                mod, target=tvm.target.Target(target, host=target_host), params=params
+            )
         path_dso = temp.relpath("deploy.dylib")
         lib.export_library(path_dso, xcode.create_dylib, arch=arch, sdk=sdk)
 

@@ -61,32 +61,48 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   if (host_target.defined()) {
     CHECK(!host_target->host.defined()) << "Host targets are not expected to have hosts";
     host_device_type = static_cast<DLDeviceType>(host_target->kind->device_type);
-    if (host_device_type != kDLCPU) {
-      LOG(WARNING) << "Using the given host target '" << host_target << "' of non-CPU device type "
-                   << host_device_type << " for all host operations and data";
-    } else {
-      LOG(INFO) << "Using the given host target '" << host_target << "' of device type "
-                << host_device_type << " for all host operations and data";
+    DLOG(INFO) << "Using the given host target " << host_target->ToDebugString()
+               << " of device type " << host_device_type << " for the host target";
+    for (const auto& primitive_target : primitive_targets) {
+      if (primitive_target->host.defined() &&
+          !StructuralEqual()(primitive_target->host, host_target)) {
+        DLOG(WARNING) << "The primitive target " << primitive_target->ToDebugString()
+                      << " already has a host which disagrees with the desired host target. It "
+                      << "will be ignored.";
+      }
     }
+  } else if (primitive_targets.size() == 1 && primitive_targets.front()->host.defined()) {
+    host_target = primitive_targets.front()->GetHost().value();
+    CHECK(!host_target->host.defined()) << "Host targets are not expected to have hosts";
+    host_device_type = static_cast<DLDeviceType>(host_target->kind->device_type);
+    DLOG(INFO) << "Using the host of the unique primitive target, namely "
+               << host_target->ToDebugString() << " of device type " << host_device_type
+               << " for the host target";
   } else if (primitive_targets.size() == 1 &&
              primitive_targets.front()->kind->device_type == kDLCPU) {
     // In the homogenous case without an explicit host target just use the given target so long as
-    // it's a CPU. However make sure we 'forget' any host it may already have.
+    // it's a CPU.
     host_device_type = kDLCPU;
-    host_target = Target(primitive_targets.front());
-    LOG(INFO) << "Using the unique target '" << host_target << "' of device type "
-              << host_device_type << " for all host operations and data";
+    host_target = primitive_targets.front();
+    DLOG(INFO) << "Using the unique primitive target " << host_target->ToDebugString()
+               << " of device type " << host_device_type << " for the host target";
   } else {
     // Fallback.
     host_device_type = kDLCPU;
     // Even if the list of available targets already includes one for kDLCPU we won't use it
-    // since its options may not be appropriate for host code (eg shape functions). Instead,
-    // create a fresh default Target.
+    // in the hetrogeneous case since its options may not be appropriate for host code
+    // (eg shape functions). Instead, create a fresh default Target.
     host_target = MakeDefaultTarget(host_device_type);
-    LOG(WARNING) << "Using the default host target '" << host_target << "' of device type "
-                 << host_device_type << " for all host operations and data";
+    DLOG(WARNING) << "Using the default target " << host_target->ToDebugString()
+                  << " of device type " << host_device_type << " for the host target";
   }
   ICHECK(host_target.defined());
+  ICHECK(!host_target->host.defined());
+
+  if (host_device_type != kDLCPU) {
+    // I think we're on thin ice here until we've audited the code base for assumed kDLCPU.
+    LOG(WARNING) << "The host target is not a CPU.";
+  }
 
   //
   // Establish the host SEScope.
@@ -95,8 +111,7 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
                                                  /*virtual_device_id=*/0, host_target));
 
   //
-  // Now that we've settled on a host, make sure all the primitive Targets agree on it for
-  // their 'host' field. This mutates the primitives.
+  // Now that we've settled on a host, we can set it as the host on all primitive targets.
   //
   Array<Target> new_primitve_targets;
   new_primitve_targets.reserve(primitive_targets.size());
@@ -112,30 +127,25 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   Optional<Integer> opt_fallback_dev = pass_ctx->GetConfig<Integer>("relay.fallback_device_type");
   if (opt_fallback_dev) {
     const int64_t v = opt_fallback_dev.value()->value;
-    if (v <= 0) {
-      LOG(FATAL)
-          << "The 'relay.fallback_device_type' pass attribute is set to an invalid device type "
-          << v;
-      default_primitive_device_type = kDLCPU;
-    } else {
-      default_primitive_device_type = static_cast<DLDeviceType>(v);
-      LOG(INFO) << "Using the 'relay.fallback_device_type' pass attribute "
-                << default_primitive_device_type
-                << " as the default device type for all primitive operations";
-    }
+    CHECK_GT(v, 0)
+        << "The 'relay.fallback_device_type' pass attribute is set to an invalid device type " << v;
+    default_primitive_device_type = static_cast<DLDeviceType>(v);
+    DLOG(INFO) << "Using the 'relay.fallback_device_type' pass attribute "
+               << default_primitive_device_type
+               << " as the default device type for all primitive operations";
   } else if (primitive_targets.size() == 1) {
     // In the homogeneous case there's no free choice.
     default_primitive_device_type =
         static_cast<DLDeviceType>(primitive_targets.front()->kind->device_type);
-    LOG(INFO) << "Using the unique target '" << primitive_targets.front() << "' of device type "
-              << default_primitive_device_type
-              << " as the default device type for all primitive operations";
+    DLOG(INFO) << "Using the device type " << default_primitive_device_type
+               << " of the unique primitive target as the default device type for all primitive "
+               << "operations";
   } else {
     // Fallback. Note that we'll require a primitive Target of kDLCPU device_type to be given
     // and won't manufacture one out of thin air.
     default_primitive_device_type = kDLCPU;
-    LOG(WARNING) << "Using " << default_primitive_device_type
-                 << " as the default device type for all primitive operations";
+    DLOG(WARNING) << "Using " << default_primitive_device_type
+                  << " as the default device type for all primitive operations";
   }
 
   //
@@ -151,9 +161,11 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   if (name == "cpu") {
     if (runtime::Registry::Get("codegen.LLVMModuleCreate")) {
       // LLVM is available.
+      // TODO(mbs): More robust extension mechanism?
       return Target("llvm");
     } else {
       // LLVM is not available.
+      // TODO(mbs): Already deprecated?
       return Target("stackvm");
     }
   } else {
@@ -178,13 +190,13 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   auto node = make_object<CompilationConfigNode>();
 
   for (const auto& pair : legacy_target_map_arg) {
-    VLOG(0) << "Available primitive target " << pair.first << " = '" << pair.second << "'";
+    VLOG(0) << "Available primitive target " << pair.first << " = " << pair.second->ToDebugString();
   }
   if (optional_host_target_arg.defined()) {
-    VLOG(0) << "Available host target '" << optional_host_target_arg << "'";
+    VLOG(0) << "Available host target " << optional_host_target_arg->ToDebugString();
   }
 
-  // Capture the arguments in our representation.
+  // Capture the arguments in our preferred representation.
   for (const auto& pair : legacy_target_map_arg) {
     node->primitive_targets.push_back(pair.second);
   }
@@ -195,7 +207,9 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // all primitive targets will have host target_host.
   node->EstablishDefaultSEScopes(pass_ctx);
 
-  // LEGACY: Reconstruct the target map with all the primitive targets.
+  // LEGACY: Reconstruct the target map from all the primitive targets.
+  // Note that we require pointer equality between targets in legacy_target_map and
+  // primitive_targets.
   for (const auto& primitive_target : node->primitive_targets) {
     node->legacy_target_map.Set(Integer(primitive_target->kind->device_type), primitive_target);
   }
@@ -207,14 +221,14 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // Legacy: Some passes only support homogenous compilation and expect the target to be
   // given by the global target context. Make this easy to detect.
   node->optional_homogeneous_target =
-      node->primitive_targets.size() == 1 ? *node->primitive_targets.begin() : Target();
+      node->legacy_target_map.size() == 1 ? (*node->legacy_target_map.begin()).second : Target();
 
   for (const auto& target : node->primitive_targets) {
-    LOG(INFO) << "Target '" << target << "' of device type " << target->kind->device_type
-              << " is available for primitives";
+    DLOG(INFO) << "Target " << target->ToDebugString() << " of device type "
+               << target->kind->device_type << " is available for primitives";
   }
-  LOG(INFO) << "Using default primitive scope " << node->default_primitive_se_scope;
-  LOG(INFO) << "Using host scope " << node->host_se_scope;
+  DLOG(INFO) << "Using default primitive scope " << node->default_primitive_se_scope;
+  DLOG(INFO) << "Using host scope " << node->host_se_scope;
 
   data_ = std::move(node);
 }

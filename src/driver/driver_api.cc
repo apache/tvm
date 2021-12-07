@@ -24,6 +24,8 @@
 #include <dmlc/thread_local.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relay/executor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
@@ -57,8 +59,9 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnotateEntryFunc(const Target target, const IRModule mod) {
-  const bool aot_executor = (target->GetAttr<String>("executor").value_or("") == "aot");
+bool ShouldAnnotateEntryFunc(const IRModule mod) {
+  Optional<tvm::relay::Executor> executor = mod->GetAttr<tvm::relay::Executor>("executor");
+  const bool aot_executor = executor.defined() && executor.value()->name == "aot";
   const bool single_entry_func = (mod->functions.size() == 1);
   return single_entry_func && !aot_executor;
 }
@@ -166,7 +169,7 @@ transform::Pass BindTarget(Target target) {
 }
 
 static transform::Pass AnnotateEntryFunc(bool b) {
-  auto fpass = [b](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+  auto fpass = [](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tir::attr::kIsEntryFunc, Bool(true));
   };
   return tir::transform::CreatePrimFuncPass(fpass, 0, "AnnotateEntryFunc", {});
@@ -234,6 +237,7 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::InjectPrefetch());
   pass_list.push_back(tir::transform::TextureFlatten());
   pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
+  pass_list.push_back(tir::transform::LowerCrossThreadReduction());
   pass_list.push_back(tir::transform::LowerInitBlock());
   pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
   pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
@@ -450,8 +454,10 @@ runtime::Module PreProcessModuleForBuild(const Map<Target, IRModule>& inputs_arg
   // Update target host for all targets
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
-
+  // Take the attrs from the first module so the eventual modules have them.
+  // Ideally this would just be one unified module all the way through;
+  IRModule first_module = (*inputs.begin()).second;
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
   for (const auto& it : inputs) {
@@ -512,7 +518,10 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   // Update target host for all targets
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
+  // Take the attrs from the first module so the eventual modules have them.
+  // Ideally this would just be one unified module all the way through;
+  IRModule first_module = (*inputs.begin()).second;
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
@@ -591,7 +600,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
-  if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
+  if (ShouldAnnotateEntryFunc(mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
@@ -608,7 +617,11 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  if (target->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+  bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
+                          .value_or(relay::Executor::Create("graph", {}))
+                          ->GetAttr<Bool>("unpacked-api")
+                          .value_or(Bool(false));
+  if (unpacked_api) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));

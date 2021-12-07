@@ -24,7 +24,9 @@ from unittest import mock
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.testing.utils import ethosn_available
+from tvm.relay.backend import Runtime, Executor
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
 
@@ -372,7 +374,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 
 @pytest.mark.skipif(
     not ethosn_available(),
-    reason="--target=Ethos(TM)-N77 is not available. TVM built with 'USE_ETHOSN OFF'",
+    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
 )
 def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
@@ -398,9 +400,11 @@ def test_compile_tflite_module_with_external_codegen_cmsisnn(
 
     output_file_name = f"{output_dir}/file.tar"
 
-    tvmc_package = tvmc.compiler.compile_model(
+    tvmc.compiler.compile_model(
         tvmc_model,
-        target=f"cmsis-nn, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
+        target=f"cmsis-nn, c -mcpu=cortex-m55",
+        runtime=Runtime("crt", {"system-lib": True}),
+        executor=Executor("aot"),
         output_format="mlf",
         package_path=output_file_name,
         pass_context_configs=["tir.disable_vectorize=true"],
@@ -476,9 +480,11 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
     for accel_type in ACCEL_TYPES:
         output_file_name = f"{output_dir}/file_{accel_type}.tar"
 
-        tvmc_package = tvmc.compiler.compile_model(
+        tvmc.compiler.compile_model(
             tvmc_model,
-            target=f"ethos-u -accelerator_config={accel_type}, c -runtime=c --system-lib --link-params -mcpu=cortex-m55 -executor=aot",
+            target=f"ethos-u -accelerator_config={accel_type}, c -mcpu=cortex-m55",
+            runtime=Runtime("crt"),
+            executor=Executor("aot", {"unpacked-api": True}),
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
@@ -518,10 +524,24 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     tvmc_model = tvmc.load("no_file_needed")
     tvmc.compile(tvmc_model, target="mockcodegen -testopt=value, llvm")
 
-    mock_pc.assert_called_once_with(
-        opt_level=3,
+    assert mock_pc.call_count == 2
+    codegen_partition_context = mock.call(
         config={"relay.ext.mock.options": {"testopt": "value"}},
+    )
+    codegen_compile_context = mock.call(
+        config={"relay.ext.mock.options": {"testopt": "value"}},
+        opt_level=3,
         disabled_pass=None,
+    )
+    mock_pc.assert_has_calls(
+        [
+            codegen_partition_context,
+            codegen_partition_context.__enter__(),
+            codegen_partition_context.__exit__(None, None, None),
+            codegen_compile_context,
+            codegen_compile_context.__enter__(),
+            codegen_compile_context.__exit__(None, None, None),
+        ]
     )
 
 

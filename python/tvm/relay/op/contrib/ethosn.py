@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Arm(R) Ethos(TM) -N NPU supported operators."""
+"""Arm(R) Ethos(TM)-N NPU supported operators."""
 from enum import Enum
 
 import tvm.ir
@@ -88,7 +88,7 @@ def partition_for_ethosn77(mod, params=None, **opts):
 
 def partition_for_ethosn78(mod, params=None, **opts):
     """Partition the graph greedily offloading supported
-    operators to Arm Ethos(TM)-N NPU.
+    operators to Arm Ethos-N NPU.
 
     Parameters
     ----------
