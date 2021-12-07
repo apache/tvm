@@ -250,7 +250,7 @@ class TVMScriptParser(Transformer):
         func : Function
             The function that provides the signature
 
-        node_call: ast.Call
+        node_call: Union[ast.Call, ast.TypeApply, ast.TypeCall]
             The AST call node that calls into the function.
 
         Returns
@@ -280,6 +280,22 @@ class TVMScriptParser(Transformer):
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list
         internal_args = list()
+        # check the default value of "name" for TypeCall and TypeApply
+        # if none, change it to the variable name
+        # Note that here the variable name will always be the last
+        # item in self.context.func_params. See transform_Function
+        # for more details of adding function parameters in self.context
+        buf_name: str = self.context.func_params[-1].name
+        if isinstance(node_call, ast.TypeApply):
+            if len(args) == 2:
+                args.append(buf_name)
+            elif len(args) == 1:
+                args.append("float32")  # default value for 'dtype'
+                args.append(buf_name)
+        if isinstance(node_call, ast.TypeCall):
+            if "name" not in kw_args:
+                kw_args["name"] = buf_name
+
         for i, arg_name in enumerate(pos_only):
             internal_args.append(reader.get_pos_only_arg(i + 1, arg_name))
         for i, arg_info in enumerate(kwargs):
@@ -447,6 +463,7 @@ class TVMScriptParser(Transformer):
         # add parameters of function
         for arg in node.params:
             arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
+            self.context.func_params.append(arg_var)
             # Note that this case is for T.match_buffer syntax sugar
             if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)):
                 result = self.transform(arg.ty)
@@ -456,11 +473,13 @@ class TVMScriptParser(Transformer):
                         f" is wrong: {type(result)}. It should be a Buffer",
                         node.span,
                     )
-                self.context.func_buffer_map[arg_var] = result
+                arg_name_with_handle = arg.name + "_handle"
+                new_arg_var = tvm.te.var(arg_name_with_handle, self.parse_type(arg.ty, arg))
+                self.context.func_buffer_map[new_arg_var] = result
                 self.context.update_symbol(arg.name, result, node)
+                self.context.func_params[-1] = new_arg_var
             else:
                 self.context.update_symbol(arg.name, arg_var, node)
-            self.context.func_params.append(arg_var)
 
         if not check_decorator(node.decorators):
             self.report_error(
@@ -1141,7 +1160,6 @@ class TVMScriptParser(Transformer):
 
         This method is for syntax sugar of T.match_buffer()
         """
-
         func = self.transform(node.func_name)
 
         if isinstance(func, SpecialStmt):
