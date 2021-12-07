@@ -103,6 +103,9 @@ class HexagonLauncher:
         rpc_tracker_port : int
             RPC tracker port on host
         """
+        # Create test base directory
+        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", ANDROID_HEXAGON_TEST_BASE_DIR])
+
         # Check size of base directory and cleanup if needed
         while self._get_workspace_size() > self._workspace_max_size_mb:
             self._workspace_remove_latest()
