@@ -1086,8 +1086,11 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   // Invoke external codegen for all Functions in the cache tagged with "Compiler", and
   // annotate the module with the resulting runtime modules.
   // TODO(mbs): runtime modules should be first class rather than attributes.
-  Array<runtime::Module> external_mods =
-      module->GetAttr<Array<runtime::Module>>("external_mods", Array<runtime::Module>()).value();
+
+  Array<runtime::Module> external_mods = Array<runtime::Module>();
+  if (module->external_mods.defined()) {
+    external_mods = module->external_mods;
+  }
   Array<runtime::Module> new_external_mods = compiler->LowerExternalFunctions();
   VLOG(1) << "capturing " << external_mods.size() << " existing and " << new_external_mods.size()
           << " new external modules";
@@ -1109,8 +1112,9 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
     device_contexts.Set(kv.first, kv.second);  // copy-on-write.
   }
 
-  updated_module = WithAttrs(updated_module, {{"external_mods", std::move(external_mods)},
-                                              {"device_contexts", std::move(device_contexts)}});
+  // TODO(@electriclilies): Implement WithFields for IRModules and use here
+  updated_module = WithAttrs(updated_module, {{"device_contexts", std::move(device_contexts)}});
+  updated_module->external_mods = std::move(external_mods);
 
   if (backend::IsAutoSchedulerEnabled()) {
     // Capture all the 'operator weights', ie usage counts for each PrimFunc.

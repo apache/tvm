@@ -45,7 +45,7 @@ namespace tvm {
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
                    std::unordered_set<String> import_set, parser::SourceMap source_map,
-                   DictAttrs attrs) {
+                   DictAttrs attrs, Array<runtime::Module> external_mods) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -55,6 +55,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
   n->attrs = std::move(attrs);
+  n->external_mods = {};
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -305,6 +306,28 @@ String IRModuleNode::GetUniqueName(const String& name) {
     result = os.str();
   }
 }
+
+Bool IRModuleNode::HasExternalModules() { return Bool(this->external_mods.defined()); }
+
+const PackedFunc* IRModuleNode::GetExternalFunction(std::string name) {
+  if (this->HasExternalModules()) {
+    for (auto rt_module : this->external_mods) {
+      // What if name is in multiple modules?
+      if (const PackedFunc* pf = rt_module->GetFuncFromEnv(name)) {
+        return pf;
+      }
+    }
+  }
+}
+
+// change to a set
+/*
+Array<BaseFunc> IRModuleNode::GetExternalFunctions() {
+  Array<BaseFunc> all_base_funcs;
+  for (auto rt_module : this->external_mods) {
+    all_base_funcs.push_back(rt_module);
+  }
+}*/
 
 /*!
  * \brief Renames global type/term variables to prefer the GlobalTypeVar/GlobalVar in the lhs

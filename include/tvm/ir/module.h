@@ -57,6 +57,8 @@ class IRModuleNode : public Object {
   Map<GlobalVar, BaseFunc> functions;
   /*! \brief A map from global type vars to ADT type data. */
   Map<GlobalTypeVar, TypeData> type_definitions;
+  /*! \brief The external module containing the external functions used by this module. */
+  Array<runtime::Module> external_mods;
   /*! \brief The source map for the module. */
   parser::SourceMap source_map;
   /* \brief Additional attributes storing meta-data about the module. */
@@ -123,6 +125,7 @@ class IRModuleNode : public Object {
     v->Visit("global_type_var_map_", &global_type_var_map_);
     v->Visit("source_map", &source_map);
     v->Visit("attrs", &attrs);
+    v->Visit("external_mods", &external_mods);
   }
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
@@ -290,7 +293,7 @@ class IRModuleNode : public Object {
    *
    * \note The path resolution behavior is standard,
    * if abosolute will be the absolute file, if
-   * relative it will be resovled against the current
+   * relative it will be resolved against the current
    * working directory.
    */
   TVM_DLL void Import(const String& path);
@@ -306,6 +309,11 @@ class IRModuleNode : public Object {
    * \return Whether the Executor is configured to execute with linked parameters (Default: false)
    */
   TVM_DLL Bool ShouldLinkParameters() const;
+
+  // TVM_DLL Array<BaseFunc> GetExternalFunctions();
+  TVM_DLL const PackedFunc* GetExternalFunction(std::string name);
+
+  TVM_DLL Bool HasExternalModules();
 
   /*!
    * \brief The set of imported files.
@@ -364,11 +372,12 @@ class IRModule : public ObjectRef {
    * \param import_set Set of imported files in the module.
    * \param map The module source map.
    * \param attrs The module attributes.
+   * \param external_mods An array of the external functions in the module
    */
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {}, parser::SourceMap map = {},
-                            DictAttrs attrs = {});
+                            DictAttrs attrs = {}, Array<runtime::Module> external_mods = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}
@@ -405,7 +414,7 @@ class IRModule : public ObjectRef {
    * \param import_set Set of external modules already imported. Default empty.
    *
    * \returns A module with \p expr set as the main function, and the global var to which
-   * \p expr was bound (typcially 'main').
+   * \p expr was bound (typically 'main').
    *
    * TODO(mbs): Does import_set and the bound global var need to be exposed via ffi?
    */
