@@ -58,7 +58,7 @@ The list of options include:
 We can use :py:func:`tvm.target.Target` to create a tvm.target.Target from the target string.
 We can also use other specific function in this module to create specific targets.
 """
-from .target import Target, create
+from .target import Target, create, TargetKind
 from .target import (
     cuda,
     rocm,

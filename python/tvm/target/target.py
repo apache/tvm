@@ -36,6 +36,11 @@ class TargetKind(Object):
         """Returns the dict of available option names and types"""
         return dict(_ffi_api.ListTargetKindOptions(self))
 
+    @staticmethod
+    def options_from_name(kind_name: str):
+        """Returns the dict of available option names and types from a name of TargetKind"""
+        return dict(_ffi_api.ListTargetKindOptionsFromName(kind_name))
+
 
 @tvm._ffi.register_object
 class Target(Object):
