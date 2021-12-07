@@ -63,6 +63,7 @@ def test_reads_writes_syntax_sugar():
     assert_structural_equal(transformed_matmul_no_syntax_sugar, transformed_matmul_syntax_sugar)
 
 
+@T.prim_func
 def loop_no_syntax_sugar(a: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
     for i in T.serial(0, 128):
