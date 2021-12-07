@@ -51,18 +51,6 @@ def test_on_device_is_fixed():
     assert call.attrs.is_fixed
 
 
-def test_function_on_device():
-    x = relay.Var("x")
-    y = relay.Var("y")
-    f = relay.Function([x, y], relay.add(x, y))
-    func = relay.annotation.function_on_device(f, ["cpu", "cuda"], "cuda")
-    assert isinstance(func, relay.Function)
-    assert len(func.attrs["param_se_scopes"]) == 2
-    assert func.attrs["param_se_scopes"][0].device_type_int == 1  # ie kDLCPU
-    assert func.attrs["param_se_scopes"][1].device_type_int == 2  # ie kDLCUDA
-    assert func.attrs["result_se_scope"].device_type_int == 2  # ie KDLCUDA
-
-
 if __name__ == "__main__":
     import sys
 
