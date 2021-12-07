@@ -456,12 +456,11 @@ class TVMScriptParser(Transformer):
                 arg_name_with_handle = arg.name + "_handle"
                 arg_var = tvm.te.var(arg_name_with_handle, tvm.ir.PrimType("handle"))
                 self.context.func_buffer_map[arg_var] = result
-                self.context.func_params.append(arg_var)
                 self.context.update_symbol(arg.name, result, node)
             else:
                 arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
-                self.context.func_params.append(arg_var)
                 self.context.update_symbol(arg.name, arg_var, node)
+            self.context.func_params.append(arg_var)
 
         if not check_decorator(node.decorators):
             self.report_error(
