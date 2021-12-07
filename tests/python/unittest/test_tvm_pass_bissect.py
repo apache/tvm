@@ -28,9 +28,9 @@ def create_model():
     data = relay.var("data", relay.TensorType((1, 42, 42, 42), "float32"))
     simple_net = relay.nn.conv2d(
         data=data,
-        weight=relay.var("weight"), 
-        kernel_size=(3, 3), 
-        channels=64, 
+        weight=relay.var("weight"),
+        kernel_size=(3, 3),
+        channels=64,
         padding=(1, 1),
         data_layout="NCHW",
         kernel_layout="OIHW",
