@@ -104,7 +104,9 @@ class HexagonLauncher:
             RPC tracker port on host
         """
         # Create test base directory
-        subprocess.check_call(self._adb_device_sub_cmd + ["shell", "mkdir", "-p", ANDROID_HEXAGON_TEST_BASE_DIR])
+        subprocess.check_call(
+            self._adb_device_sub_cmd + ["shell", "mkdir", "-p", ANDROID_HEXAGON_TEST_BASE_DIR]
+        )
 
         # Check size of base directory and cleanup if needed
         while self._get_workspace_size() > self._workspace_max_size_mb:
@@ -235,7 +237,8 @@ class HexagonLauncher:
         Parameters
         ----------
         libmod : tvm.runtime.Module
-            The module of the corresponding function. This library module is for remote hexagon runtime.
+            The module of the corresponding function.
+            This library module is for remote hexagon runtime.
 
         remote_libmod_filename : str
             Module filename on remote. It is assumed this file lives under self._workspace path.
