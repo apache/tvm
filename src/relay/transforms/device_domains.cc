@@ -36,30 +36,6 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-namespace {
-
-/*!
- * \brief As for GetDeviceCopyProps, but for the call to the lowered TIR primitives rather
- * than the original "device_copy" operator.
- *
- * See te_compiler.cc for where this rewriting occurs.
- */
-DeviceCopyProps GetPrimitiveDeviceCopyProps(const CallNode* call_node) {
-  if (call_node->op == CallLoweredOp()) {
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-    if (call_lowered_props.attrs.metadata.count("source_device") == 1 &&
-        call_lowered_props.attrs.metadata.count("dst_device") == 1) {
-      ICHECK_EQ(call_lowered_props.arguments.size(), 1) << "device_copy is of arity 1";
-      return {call_lowered_props.arguments[0],
-              Downcast<SEScope>(call_lowered_props.attrs.metadata["src_se_scope"]),
-              Downcast<SEScope>(call_lowered_props.attrs.metadata["dst_se_scope"])};
-    }
-  }
-  return {};
-}
-
-}  // namespace
-
 DeviceDomains::DeviceDomains(CompilationConfig config) : config_(std::move(config)) {
   host_domain_ = MakeFirstOrderDomain(config_->host_se_scope);
 }
@@ -221,10 +197,7 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
 
   OnDeviceProps on_device_props = GetOnDeviceProps(call.get());
   DeviceCopyProps device_copy_props = GetDeviceCopyProps(call.get());
-  if (!device_copy_props.body.defined()) {
-    // Special case for the TIR-ified version of "device_copy".
-    device_copy_props = GetPrimitiveDeviceCopyProps(call.get());
-  }
+  CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
 
   if (on_device_props.body.defined()) {
     // on_device(expr, se_scope=<t>, is_fixed=false)
@@ -263,17 +236,6 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(free_domain);
-  } else if (call->op == shape_func_op) {
-    ICHECK_EQ(call->args.size(), 3U);
-    // shape_func(func, inputs, outputs, is_inputs=[...])
-    // shape_func: fn(..., <cpu>, <cpu>):<cpu>
-    // where ... is a free domain appropriate for func's type
-    args_and_result.emplace_back(Free(call->args[0]->checked_type()));
-    // TODO(mbs): I think this should be on the cpu only when is_input = [false], but
-    // what do we do when we have multiple arguments with different is_input values?
-    args_and_result.emplace_back(host_domain_);
-    args_and_result.emplace_back(host_domain_);
-    args_and_result.emplace_back(host_domain_);
   } else if (call->op == shape_of_op) {
     ICHECK_EQ(call->args.size(), 1U);
     // shape_of(tensor)
@@ -324,8 +286,7 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
       args_and_result.emplace_back(param_domain);
     }
     args_and_result.emplace_back(result_domain);
-  } else if (call->op == CallLoweredOp()) {
-    CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
+  } else if (call_lowered_props.lowered_func.defined()) {
     return DomainFor(call_lowered_props.lowered_func);
   } else {
     // We still need to handle the case where the function / op is not lowered

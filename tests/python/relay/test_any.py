@@ -17,7 +17,6 @@
 import os
 
 import numpy as np
-import pytest
 import tvm
 import tvm.topi.testing
 from tvm import relay, te
@@ -2118,4 +2117,7 @@ def test_searchsorted():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

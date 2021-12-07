@@ -275,3 +275,38 @@ class IRModule(Node):
         return tvm._ffi.get_global_func("script.AsTVMScript")(
             self, tir_prefix, show_meta
         )  # type: ignore
+
+    def get_attr(self, attr_key):
+        """Get the IRModule attribute.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+
+        Returns
+        -------
+        attr_value : Any
+            Attribute value
+        """
+
+        return _ffi_api.Module_GetAttr(self, attr_key)
+
+    def with_attr(self, attr_key, attr_value):
+        """Copy the IRModule and add an attribute to it.
+
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key.
+
+        attr_value : Object
+            The new attribute value.
+
+        Returns
+        -------
+        mod : IRModule
+            A new copy of the IRModule with the attribute
+        """
+
+        return _ffi_api.Module_WithAttr(self, attr_key, attr_value)

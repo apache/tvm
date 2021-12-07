@@ -24,6 +24,8 @@
 #include <dmlc/thread_local.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
+#include <tvm/relay/executor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
@@ -57,8 +59,9 @@ bool LLVMEnabled() {
   return pf != nullptr;
 }
 
-bool ShouldAnnotateEntryFunc(const Target target, const IRModule mod) {
-  const bool aot_executor = (target->GetAttr<String>("executor").value_or("") == "aot");
+bool ShouldAnnotateEntryFunc(const IRModule mod) {
+  Optional<tvm::relay::Executor> executor = mod->GetAttr<tvm::relay::Executor>("executor");
+  const bool aot_executor = executor.defined() && executor.value()->name == "aot";
   const bool single_entry_func = (mod->functions.size() == 1);
   return single_entry_func && !aot_executor;
 }
@@ -451,8 +454,10 @@ runtime::Module PreProcessModuleForBuild(const Map<Target, IRModule>& inputs_arg
   // Update target host for all targets
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
-
+  // Take the attrs from the first module so the eventual modules have them.
+  // Ideally this would just be one unified module all the way through;
+  IRModule first_module = (*inputs.begin()).second;
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
   for (const auto& it : inputs) {
@@ -513,7 +518,10 @@ runtime::Module build(const Map<Target, IRModule>& inputs_arg, const Target& tar
   // Update target host for all targets
   CheckAndUpdateHostConsistency(&inputs, &target_host);
 
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
+  // Take the attrs from the first module so the eventual modules have them.
+  // Ideally this would just be one unified module all the way through;
+  IRModule first_module = (*inputs.begin()).second;
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
@@ -592,7 +600,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
-  if (ShouldAnnotateEntryFunc(target, mixed_mod)) {
+  if (ShouldAnnotateEntryFunc(mixed_mod)) {
     mixed_pass_list.push_back(AnnotateEntryFunc(true));
   }
 
@@ -609,10 +617,11 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
-  // The host Target contains these parameters at the moment rather than
-  // the specific Target
-  // TODO(Mousius) - Move these to the Executor object rather than Target
-  if (target->GetHost().value()->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
+  bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
+                          .value_or(relay::Executor::Create("graph", {}))
+                          ->GetAttr<Bool>("unpacked-api")
+                          .value_or(Bool(false));
+  if (unpacked_api) {
     mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
   } else {
     mixed_pass_list.push_back(tir::transform::MakePackedAPI(-1));

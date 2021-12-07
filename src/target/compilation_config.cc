@@ -111,8 +111,7 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
                                                  /*virtual_device_id=*/0, host_target));
 
   //
-  // Now that we've settled on a host, make sure all the primitive Targets agree on it for
-  // their 'host' field. This mutates the primitives.
+  // Now that we've settled on a host, we can set it as the host on all primitive targets.
   //
   Array<Target> new_primitve_targets;
   new_primitve_targets.reserve(primitive_targets.size());
@@ -162,6 +161,7 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   if (name == "cpu") {
     if (runtime::Registry::Get("codegen.LLVMModuleCreate")) {
       // LLVM is available.
+      // TODO(mbs): More robust extension mechanism?
       return Target("llvm");
     } else {
       // LLVM is not available.
@@ -196,7 +196,7 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
     VLOG(0) << "Available host target " << optional_host_target_arg->ToDebugString();
   }
 
-  // Capture the arguments in our representation.
+  // Capture the arguments in our preferred representation.
   for (const auto& pair : legacy_target_map_arg) {
     node->primitive_targets.push_back(pair.second);
   }
@@ -207,7 +207,9 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // all primitive targets will have host target_host.
   node->EstablishDefaultSEScopes(pass_ctx);
 
-  // LEGACY: Reconstruct the target map with all the primitive targets.
+  // LEGACY: Reconstruct the target map from all the primitive targets.
+  // Note that we require pointer equality between targets in legacy_target_map and
+  // primitive_targets.
   for (const auto& primitive_target : node->primitive_targets) {
     node->legacy_target_map.Set(Integer(primitive_target->kind->device_type), primitive_target);
   }
@@ -219,7 +221,7 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // Legacy: Some passes only support homogenous compilation and expect the target to be
   // given by the global target context. Make this easy to detect.
   node->optional_homogeneous_target =
-      node->primitive_targets.size() == 1 ? *node->primitive_targets.begin() : Target();
+      node->legacy_target_map.size() == 1 ? (*node->legacy_target_map.begin()).second : Target();
 
   for (const auto& target : node->primitive_targets) {
     DLOG(INFO) << "Target " << target->ToDebugString() << " of device type "

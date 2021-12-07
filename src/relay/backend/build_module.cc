@@ -24,8 +24,10 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/transform.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/compilation_config.h>
@@ -33,6 +35,7 @@
 #include <memory>
 
 #include "../../target/func_registry_generator.h"
+#include "../../target/metadata_module.h"
 #include "../../target/source/codegen_source_base.h"
 #include "te_compiler.h"
 #include "utils.h"
@@ -58,7 +61,9 @@ struct BuildOutput {
 struct ExecutorCodegen {
   void Init(runtime::Module* m, TargetMap targets) { CallFunc("init", m, targets); }
 
-  void Codegen(const Function& func, String mod_name) { CallFunc("codegen", func, mod_name); }
+  void Codegen(IRModule mod, const Function& func, String mod_name) {
+    CallFunc("codegen", mod, func, mod_name);
+  }
 
   virtual void UpdateOutput(BuildOutput* ret) = 0;
 
@@ -181,8 +186,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 5);
-        this->Build(args[0], args[1], args[2], args[3], args[4]);
+        ICHECK_EQ(args.num_args, 6);
+        this->Build(args[0], args[1], args[2], args[3], args[4], args[5]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -285,13 +290,16 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param mod Relay IRModule
    * \param targets Target devices
    * \param target_host Host target device
+   * \param executor Executor to target
+   * \param runtime Runtime to codegen for
+   * \param mod_name Name of the module
    */
   void Build(IRModule mod, const TargetMap& targets, const tvm::Target& target_host,
-             const String executor, const String mod_name) {
+             const Executor& executor, const Runtime& runtime, const String mod_name) {
     VLOG_CONTEXT << "Build";
     executor_ = executor;
+    runtime_ = runtime;
     config_ = CompilationConfig(PassContext::Current(), targets, target_host);
-
     BuildRelay(std::move(mod), mod_name);
   }
 
@@ -394,13 +402,17 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Relay IRModule -> IRModule optimizations.
     relay_module = OptimizeImpl(std::move(relay_module));
 
-    // Get the updated function.
-    auto func = Downcast<Function>(relay_module->Lookup("main"));
+    // Get the updated function and new IRModule to build.
+    // Instead of recreating the IRModule, we should look at the differences between this and the
+    // incoming IRModule to see if we can just pass (IRModule, Function) to the code generator.
+    Function func = Downcast<Function>(relay_module->Lookup("main"));
+    IRModule func_module = WithAttrs(IRModule::FromExpr(func), {{tvm::attr::kExecutor, executor_},
+                                                                {tvm::attr::kRuntime, runtime_}});
 
     // Generate code for the updated function.
-    executor_codegen_ = MakeExecutorCodegen(executor_);
+    executor_codegen_ = MakeExecutorCodegen(executor_->name);
     executor_codegen_->Init(nullptr, config_->legacy_target_map);
-    executor_codegen_->Codegen(func, mod_name);
+    executor_codegen_->Codegen(func_module, func, mod_name);
     executor_codegen_->UpdateOutput(&ret_);
     ret_.params = executor_codegen_->GetParams();
 
@@ -412,12 +424,13 @@ class RelayBuildModule : public runtime::ModuleNode {
       lowered_funcs.Set(ext_dev, IRModule());
     }
 
+    const Target& host_target = config_->host_se_scope->target;
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
 
     // Generate a placeholder function that attaches linked params as its arguments.
-    const Target& host_target = config_->host_se_scope->target;
-    if (host_target->GetAttr<Bool>("link-params").value_or(Bool(false))) {
-      CHECK(pf != nullptr) << "Unable to link-params without llvm codegen.";
+    Bool should_link_params = func_module->ShouldLinkParameters();
+    if (should_link_params) {
+      CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
       auto param_ids = executor_codegen_->GetParamIds();
       auto link_params = Map<String, tir::LinkedParam>();
       for (auto param : ret_.params) {
@@ -431,7 +444,8 @@ class RelayBuildModule : public runtime::ModuleNode {
       auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
                                 Map<tir::Var, tir::Buffer>(), attrs);
       if (lowered_funcs.find(host_target) == lowered_funcs.end()) {
-        lowered_funcs.Set(host_target, IRModule(Map<GlobalVar, BaseFunc>({})));
+        lowered_funcs.Set(host_target,
+                          IRModule(Map<GlobalVar, BaseFunc>({}), {}, {}, {}, func_module->attrs));
       }
       lowered_funcs[host_target]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
                                       prim);
@@ -455,7 +469,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto ext_mods = executor_codegen_->GetExternalModules();
     ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
-                                                  executor_codegen_->GetMetadata());
+                                                  runtime_, executor_codegen_->GetMetadata());
     // Remove external params which were stored in metadata module.
     for (tvm::runtime::Module mod : ext_mods) {
       auto pf_var = mod.GetFunction("get_const_vars");
@@ -473,16 +487,14 @@ class RelayBuildModule : public runtime::ModuleNode {
 
  protected:
   std::unique_ptr<ExecutorCodegen> executor_codegen_;
+  /*! \brief Executor to build for */
+  Executor executor_;
+  /*! \brief Runtime to codegen for */
+  Runtime runtime_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */
   BuildOutput ret_;
-  /*!
-   * \brief Executor used to execute the model:
-   * - graph: use the json graph executor
-   * - aot: use the aot executor
-   */
-  String executor_;
   /*! \brief Collects all the targets and scopes we need during compilation. */
   CompilationConfig config_;
 };

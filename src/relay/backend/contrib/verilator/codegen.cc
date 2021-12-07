@@ -104,6 +104,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relay.ext.verilator.options", VerilatorOptions)
  * compile it into a Verilator runtime module.
  */
 runtime::Module VerilatorBackend(const ObjectRef& ref) {
+  VLOG(0) << "compiling for verilator runtime";
   CHECK(ref->IsInstance<FunctionNode>());
   auto func = Downcast<Function>(ref);
   auto func_name = GetExtSymbol(func);

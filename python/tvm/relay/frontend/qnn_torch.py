@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, import-outside-toplevel
 """ Functions to convert quantized torch models to QNN """
-import logging
 
 import numpy as np
 import tvm
@@ -25,6 +24,7 @@ from tvm.relay import expr as _expr
 from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
+from .common import logger
 from .pytorch_utils import is_version_greater_than
 
 
@@ -776,7 +776,7 @@ def _binop(relay_op, with_relu=False, fp32_piggy_back=False):
         input_zero_point_rhs = _expr.const(inputs[7])
 
         if fp32_piggy_back:
-            logging.info("Piggy backing to FP32 op (PyTorch way)")
+            logger.info("Piggy backing to FP32 op (PyTorch way)")
             return torch_impl(
                 lhs,
                 rhs,

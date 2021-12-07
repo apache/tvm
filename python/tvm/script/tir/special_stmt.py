@@ -26,6 +26,7 @@ from tvm.ir.expr import PrimExpr, Range
 import tvm.tir
 from tvm.runtime import Object
 from tvm import te
+from tvm.target import Target
 from tvm.ir import Span
 from tvm.tir import IntImm, IterVar
 
@@ -300,7 +301,12 @@ class AllocBuffer(SpecialStmt):
 
 @register
 class BlockReads(SpecialStmt):
-    """Special function reads([read_buffer_regions])
+    """Special function reads([read_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    reads syntax sugar like reads(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
@@ -310,7 +316,11 @@ class BlockReads(SpecialStmt):
     """
 
     def __init__(self):
-        def reads(read_regions: Union[BufferSlice, List[BufferSlice]], span: Span = None):
+        def reads(
+            read_regions: Union[BufferSlice, List[BufferSlice]],
+            *other_regions: BufferSlice,
+            span: Span = None,
+        ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope is None:
@@ -327,6 +337,8 @@ class BlockReads(SpecialStmt):
                 )
             if isinstance(read_regions, BufferSlice):
                 read_regions = [read_regions]
+                for region in other_regions:
+                    read_regions.append(region)
             if not isinstance(read_regions, list):
                 self.context.report_error(
                     "Incorrect input type. "
@@ -340,7 +352,12 @@ class BlockReads(SpecialStmt):
 
 @register
 class BlockWrites(SpecialStmt):
-    """Special function writes([write_buffer_regions])
+    """Special function writes([write_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    writes syntax sugar like writes(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
@@ -350,7 +367,11 @@ class BlockWrites(SpecialStmt):
     """
 
     def __init__(self):
-        def writes(write_region: Union[BufferSlice, List[BufferSlice]], span: Span = None):
+        def writes(
+            write_region: Union[BufferSlice, List[BufferSlice]],
+            *other_region: BufferSlice,
+            span: Span = None,
+        ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope is None:
@@ -369,6 +390,8 @@ class BlockWrites(SpecialStmt):
                 pass
             elif isinstance(write_region, BufferSlice):
                 write_region = [write_region]
+                for region in other_region:
+                    write_region.append(region)
             else:
                 self.context.report_error(
                     "Incorrect input type. "
@@ -468,10 +491,12 @@ class BlockAxis(SpecialStmt):
         block_var = tvm.tir.Var(var_name, dtype="int32")
         dom = tvm.runtime.convert(dom)
         if isinstance(dom, PrimExpr):
-            dom = tvm.ir.Range.from_min_extent(0, dom)
+            dom = tvm.ir.Range(dom)
+        elif isinstance(dom, tvm.ir.container.Array) and len(dom) == 2:
+            dom = tvm.ir.Range(dom[0], dom[1])
         elif not isinstance(dom, tvm.ir.Range):
             self.context.report_error(
-                f"Block axis domain expected PrimExpr or Range, but got {type(value)}",
+                f"Block axis domain expected PrimExpr or Range, but got {type(dom)}",
                 self.node.span,
             )
         value = tvm.runtime.convert(value)
@@ -839,3 +864,26 @@ class FuncAttr(SpecialStmt):
             self.context.func_dict_attr = dict_attr
 
         super().__init__(func_attr, def_symbol=False)
+
+
+@register
+class TargetAttrValue(SpecialStmt):
+    """Special Stmt for target attr value.
+    Example
+    -------
+    .. code-block:: python
+        T.target("llvm")
+    """
+
+    def __init__(self):
+        def target(*args, span):
+            self.context.report_error(f"T.target should not appear as a stmt", span)
+
+        super().__init__(target, def_symbol=False)
+
+    def __call__(self, target_config):
+        if not isinstance(target_config, (str, dict)):
+            raise ValueError(
+                f"T.target expected a config dict or string, but got {type(target_config)}"
+            )
+        return Target(target_config)

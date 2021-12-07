@@ -39,7 +39,6 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     decl_stream << "#include <stdio.h>\n";
     decl_stream << "#include <stdlib.h>\n";
     decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <tvm/runtime/crt/module.h>\n";
     decl_stream << "#include <arm_nnfunctions.h>\n";
     decl_stream << "#include <arm_nn_types.h>\n";
     CodeGenCHost::Init(output_ssa, emit_asserts, target_str);
@@ -53,12 +52,54 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
   void AddFunction(const PrimFunc& prim_func) { CodeGenC::AddFunction(prim_func); }
 
  private:
-  /*!  * \brief Emit the CMSIS-NN context buffer */
-  void VisitStmt_(const AllocateNode* op) {
-    context_buffer_name_ = op->buffer_var->name_hint;
-    context_buffer_size_ = op->constant_allocation_size();
-    CodeGenC::VisitStmt_(op);
-  }
+  /*!  * \brief CMSIS-NN context buffer info */
+  struct CMSISNNContextBuffer {
+    std::string name;
+    int size;
+  };
+
+  /*!  * \brief CMSIS-NN buffer dimensions */
+  struct CMSISNNDims {
+    int n;
+    int h;
+    int w;
+    int c;
+  };
+
+  /*!  * \brief CMSIS-NN Conv2D and Depthwise parameters */
+  struct Conv2DParams {
+    int input_offset;
+    int output_offset;
+    int stride_w;
+    int stride_h;
+    int padding_w;
+    int padding_h;
+    int dilation_w;
+    int dilation_h;
+    int clip_min;
+    int clip_max;
+    int depth_multiplier;
+  };
+
+  /*!  * \brief CMSIS-NN Conv2D and Depthwise parameters */
+  struct FCParams {
+    int input_offset;
+    int filter_offset;
+    int output_offset;
+    int clip_min;
+    int clip_max;
+    int multiplier;
+    int shift;
+  };
+
+  struct PoolParams {
+    int stride_h;
+    int stride_w;
+    int padding_h;
+    int padding_w;
+    int clip_min;
+    int clip_max;
+  };
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
   void VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
@@ -70,38 +111,80 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     if (cmsis_func_name == "arm_softmax_s8" || cmsis_func_name == "arm_elementwise_mul_s8" ||
         cmsis_func_name == "arm_elementwise_add_s8") {
       CodeGenC::VisitExpr_(op, os);
-    } else if (cmsis_func_name == "arm_convolve_wrapper_s8") {
+    } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
+               cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
       EmitConv2D(op);
+    } else if (cmsis_func_name == "arm_fully_connected_s8") {
+      EmitFullyConnected(op);
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+      EmitPool2D(op);
     }
     return;
   }
 
   /*!  * \brief Emits cmsis_nn_context struct */
-  std::string EmitCMSISNNContext(std::ostream& os, std::string buf_name, int buf_size) {
+  std::string EmitCMSISNNContext(std::ostream& os, CMSISNNContextBuffer context_buffer) {
     std::string struct_name = "context";
     PrintIndent();
-    os << "cmsis_nn_context " << struct_name << "= {" << buf_name << "," << buf_size << "};\n";
+    os << "cmsis_nn_context " << struct_name << "= {" << context_buffer.name << ","
+       << context_buffer.size << "};\n";
     return struct_name;
   }
 
   /*!  * \brief Emits cmsis_nn_conv_params struct */
-  std::string EmitCMSISNNConvParams(std::ostream& os, int32_t input_offset, int32_t output_offset,
-                                    int32_t stride_w, int32_t stride_h, int32_t padding_w,
-                                    int32_t padding_h, int32_t dilation_w, int32_t dilation_h,
-                                    int32_t clip_min, int32_t clip_max) {
-    std::string struct_name = "conv_params";
+  std::string EmitCMSISNNConvParams(std::ostream& os, Conv2DParams params) {
+    std::string struct_name = "cmsis_nn_conv_params";
+    std::string instance_name = "conv_params";
+    if (params.depth_multiplier != -1) {
+      struct_name = "cmsis_nn_dw_conv_params";
+    }
     PrintIndent();
-    os << "cmsis_nn_tile stride = {" << stride_w << "," << stride_h << "};\n";
+    os << "cmsis_nn_tile stride = {" << params.stride_w << "," << params.stride_h << "};\n";
     PrintIndent();
-    os << "cmsis_nn_tile padding = {" << padding_w << "," << padding_h << "};\n";
+    os << "cmsis_nn_tile padding = {" << params.padding_w << "," << params.padding_h << "};\n";
     PrintIndent();
-    os << "cmsis_nn_tile dilation = {" << dilation_w << "," << dilation_h << "};\n";
+    os << "cmsis_nn_tile dilation = {" << params.dilation_w << "," << params.dilation_h << "};\n";
     PrintIndent();
-    os << "cmsis_nn_activation activation = {" << clip_min << "," << clip_max << "};\n";
+    os << "cmsis_nn_activation activation = {" << params.clip_min << "," << params.clip_max
+       << "};\n";
     PrintIndent();
-    os << "cmsis_nn_conv_params " << struct_name << " = {" << input_offset << ", " << output_offset
-       << ", stride, padding, dilation, activation};\n";
-    return struct_name;
+    os << struct_name << " " << instance_name << " = {" << params.input_offset << ", "
+       << params.output_offset;
+    if (params.depth_multiplier != -1) {
+      os << ", " << params.depth_multiplier;
+    }
+    os << ", stride, padding, dilation, activation};\n";
+    return instance_name;
+  }
+
+  /*!  * \brief Emits cmsis_nn_fc_params struct */
+  std::string EmitCMSISNNFCParams(std::ostream& os, FCParams params) {
+    std::string struct_name = "cmsis_nn_fc_params";
+    std::string instance_name = "fc_params";
+    PrintIndent();
+    os << "cmsis_nn_activation activation = {" << params.clip_min << "," << params.clip_max
+       << "};\n";
+    PrintIndent();
+    os << struct_name << " " << instance_name << " = {" << params.input_offset << ", "
+       << params.filter_offset << ", " << params.output_offset;
+    os << ", activation};\n";
+    return instance_name;
+  }
+
+  /*!  * \brief Emits cmsis_nn_pool_params struct */
+  std::string EmitCMSISNNPoolParams(std::ostream& os, PoolParams params) {
+    std::string struct_name = "cmsis_nn_pool_params";
+    std::string instance_name = "pool_params";
+    PrintIndent();
+    os << "cmsis_nn_tile stride = {" << params.stride_w << "," << params.stride_h << "};\n";
+    PrintIndent();
+    os << "cmsis_nn_tile padding = {" << params.padding_w << "," << params.padding_h << "};\n";
+    PrintIndent();
+    os << "cmsis_nn_activation activation = {" << params.clip_min << "," << params.clip_max
+       << "};\n";
+    PrintIndent();
+    os << struct_name << " " << instance_name << " = {stride, padding, activation};\n";
+    return instance_name;
   }
 
   /*!  * \brief Emits cmsis_nn_per_channel_quant_params struct */
@@ -114,84 +197,144 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     return struct_name;
   }
 
-  /*!  * \brief Emits cmsis_nn_dims struct */
-  std::string EmitCMSISNNDims(std::ostream& os, std::string tensor_type, int32_t n, int32_t h,
-                              int32_t w, int32_t c) {
-    std::string struct_name = tensor_type + "_dims";
+  /*!  * \brief Emits cmsis_nn_per_tensor_quant_params struct */
+  std::string EmitCMSISNNPerTensorQuantParams(std::ostream& os, int multiplier, int shift) {
+    std::string struct_name = "quant_params";
     PrintIndent();
-    os << "cmsis_nn_dims " << struct_name << " = {" << n << "," << h << "," << w << "," << c
-       << "};\n";
+    os << "cmsis_nn_per_tensor_quant_params " << struct_name << " = {" << multiplier << ", "
+       << shift << "};\n";
     return struct_name;
   }
 
-  /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
+  /*!  * \brief Emits cmsis_nn_dims struct */
+  std::string EmitCMSISNNDims(std::ostream& os, std::string tensor_type, CMSISNNDims dims) {
+    std::string struct_name = tensor_type + "_dims";
+    PrintIndent();
+    os << "cmsis_nn_dims " << struct_name << " = {" << dims.n << "," << dims.h << "," << dims.w
+       << "," << dims.c << "};\n";
+    return struct_name;
+  }
+
+  /*!  * \brief Deduces variable name from call_extern argument resting at id */
+  std::string VarNameFromArg(const CallNode* op, int id) {
+    return op->args[id].as<VarNode>()->name_hint.c_str();
+  }
+
+  /*!  * \brief Deduces value from call_extern argument resting at id */
+  int ValueFromArg(const CallNode* op, int id) { return op->args[id].as<IntImmNode>()->value; }
+
+  /*!  * \brief extracts CMSIS-NN context buffer information */
+  CMSISNNContextBuffer extract_context_buffer_info(const CallNode* op, int base_pos) {
+    CMSISNNContextBuffer context_buffer;
+    context_buffer.name = op->args[base_pos].as<StringImmNode>()->value;
+    context_buffer.size = ValueFromArg(op, base_pos + 1);
+    return context_buffer;
+  }
+
+  /*!  * \brief extracts CMSIS-NN conv2d parameters from call_extern */
+  Conv2DParams extract_conv2d_params(const CallNode* op, int base_pos) {
+    Conv2DParams conv2d_params;
+    conv2d_params.input_offset = ValueFromArg(op, base_pos);
+    conv2d_params.output_offset = ValueFromArg(op, ++base_pos);
+    conv2d_params.stride_w = ValueFromArg(op, ++base_pos);
+    conv2d_params.stride_h = ValueFromArg(op, ++base_pos);
+    conv2d_params.padding_w = ValueFromArg(op, ++base_pos);
+    conv2d_params.padding_h = ValueFromArg(op, ++base_pos);
+    conv2d_params.dilation_w = ValueFromArg(op, ++base_pos);
+    conv2d_params.dilation_h = ValueFromArg(op, ++base_pos);
+    conv2d_params.clip_min = ValueFromArg(op, ++base_pos);
+    conv2d_params.clip_max = ValueFromArg(op, ++base_pos);
+    conv2d_params.depth_multiplier = ValueFromArg(op, ++base_pos);
+    return conv2d_params;
+  }
+
+  /*!  * \brief extracts CMSIS-NN FC parameters from call_extern */
+  FCParams extract_fc_params(const CallNode* op, int base_pos) {
+    FCParams fc_params;
+    fc_params.input_offset = ValueFromArg(op, base_pos);
+    fc_params.filter_offset = ValueFromArg(op, ++base_pos);
+    fc_params.output_offset = ValueFromArg(op, ++base_pos);
+    fc_params.clip_min = ValueFromArg(op, ++base_pos);
+    fc_params.clip_max = ValueFromArg(op, ++base_pos);
+    fc_params.multiplier = ValueFromArg(op, ++base_pos);
+    fc_params.shift = ValueFromArg(op, ++base_pos);
+    return fc_params;
+  }
+
+  /*!  * \brief extracts CMSIS-NN Pooling parameters from call_extern */
+  PoolParams extract_pool_params(const CallNode* op, int base_pos) {
+    PoolParams pool_params;
+    pool_params.stride_h = ValueFromArg(op, base_pos);
+    pool_params.stride_w = ValueFromArg(op, ++base_pos);
+    pool_params.padding_h = ValueFromArg(op, ++base_pos);
+    pool_params.padding_w = ValueFromArg(op, ++base_pos);
+    pool_params.clip_min = ValueFromArg(op, ++base_pos);
+    pool_params.clip_max = ValueFromArg(op, ++base_pos);
+    return pool_params;
+  }
+
+  /*!  * \brief extracts CMSIS-NN buffer dimensions from call_extern */
+  CMSISNNDims extract_buffer_dims(const CallNode* op, int base_pos) {
+    CMSISNNDims dims;
+    dims.n = ValueFromArg(op, base_pos);
+    dims.h = ValueFromArg(op, ++base_pos);
+    dims.w = ValueFromArg(op, ++base_pos);
+    dims.c = ValueFromArg(op, ++base_pos);
+    return dims;
+  }
+
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising convolution */
   void EmitConv2D(const CallNode* op) {
-    static const int max_num_args = 35;
+    // Position of various arguments relative to buffers in the call_extern
+    enum CallExternArgPos {
+      CONTEXT_BUFFER_POS = 1,
+      CONV2D_PARAMS_POS = 3,
+      INPUT_DIM_POS = 14,
+      FILTER_DIM_POS = 18,
+      BIAS_DIM_POS = 22,
+      OUTPUT_DIM_POS = 26,
+      MAX_NUM_ARGS = 36
+    };
+
     std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
 
-    bool bias_enabled = false;
-    if (op->args.size() == max_num_args) {
-      bias_enabled = true;
-    }
-
-    auto get_var_name = [](const CallNode* op, int id) {
-      return op->args[id].as<VarNode>()->name_hint.c_str();
-    };
-    auto get_arg_value = [](const CallNode* op, int id) {
-      return op->args[id].as<IntImmNode>()->value;
-    };
+    // extract buffer names from call_extern
     int arg_id = 0;
-    std::string input_data = get_var_name(op, ++arg_id);
-    std::string filter_data = get_var_name(op, ++arg_id);
-    std::string multiplier = get_var_name(op, ++arg_id);
-    std::string bias_data("0x0");
-    if (bias_enabled) {
-      bias_data = get_var_name(op, ++arg_id);
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    std::string filter_data = VarNameFromArg(op, ++arg_id);
+    std::string multiplier = VarNameFromArg(op, ++arg_id);
+    std::string bias_data("NULL");
+    if (op->args.size() == CallExternArgPos::MAX_NUM_ARGS) {
+      bias_data = VarNameFromArg(op, ++arg_id);
     }
-    std::string shift = get_var_name(op, ++arg_id);
-    std::string output_data = get_var_name(op, ++arg_id);
+    std::string shift = VarNameFromArg(op, ++arg_id);
+    std::string output_data = VarNameFromArg(op, ++arg_id);
 
-    std::string context_buffer_name = op->args[++arg_id].as<StringImmNode>()->value;
-    int context_buffer_size = get_arg_value(op, ++arg_id);
-    int input_offset = get_arg_value(op, ++arg_id);
-    int output_offset = get_arg_value(op, ++arg_id);
-    int stride_w = get_arg_value(op, ++arg_id);
-    int stride_h = get_arg_value(op, ++arg_id);
-    int padding_w = get_arg_value(op, ++arg_id);
-    int padding_h = get_arg_value(op, ++arg_id);
-    int dilation_w = get_arg_value(op, ++arg_id);
-    int dilation_h = get_arg_value(op, ++arg_id);
-    int clip_min = get_arg_value(op, ++arg_id);
-    int clip_max = get_arg_value(op, ++arg_id);
-    int input_n = get_arg_value(op, ++arg_id);
-    int input_h = get_arg_value(op, ++arg_id);
-    int input_w = get_arg_value(op, ++arg_id);
-    int input_c = get_arg_value(op, ++arg_id);
-    int filter_n = get_arg_value(op, ++arg_id);
-    int filter_h = get_arg_value(op, ++arg_id);
-    int filter_w = get_arg_value(op, ++arg_id);
-    int filter_c = get_arg_value(op, ++arg_id);
-    int bias_n = get_arg_value(op, ++arg_id);
-    int bias_h = get_arg_value(op, ++arg_id);
-    int bias_w = get_arg_value(op, ++arg_id);
-    int bias_c = get_arg_value(op, ++arg_id);
-    int output_n = get_arg_value(op, ++arg_id);
-    int output_h = get_arg_value(op, ++arg_id);
-    int output_w = get_arg_value(op, ++arg_id);
-    int output_c = get_arg_value(op, ++arg_id);
+    // extract CMSIS-NN API parameters
+    int context_buffer_pos = arg_id + CallExternArgPos::CONTEXT_BUFFER_POS;
+    int conv2d_params_pos = arg_id + CallExternArgPos::CONV2D_PARAMS_POS;
+    int input_dim_pos = arg_id + CallExternArgPos::INPUT_DIM_POS;
+    int filter_dim_pos = arg_id + CallExternArgPos::FILTER_DIM_POS;
+    int bias_dim_pos = arg_id + CallExternArgPos::BIAS_DIM_POS;
+    int output_dim_pos = arg_id + CallExternArgPos::OUTPUT_DIM_POS;
 
-    std::string context = EmitCMSISNNContext(stream, context_buffer_name, context_buffer_size);
-    std::string conv_params =
-        EmitCMSISNNConvParams(stream, input_offset, output_offset, stride_w, stride_h, padding_w,
-                              padding_h, dilation_w, dilation_h, clip_min, clip_max);
+    CMSISNNContextBuffer context_buffer = extract_context_buffer_info(op, context_buffer_pos);
+    Conv2DParams conv2d_params = extract_conv2d_params(op, conv2d_params_pos);
+    CMSISNNDims input_dims = extract_buffer_dims(op, input_dim_pos);
+    CMSISNNDims filter_dims = extract_buffer_dims(op, filter_dim_pos);
+    CMSISNNDims bias_dims = extract_buffer_dims(op, bias_dim_pos);
+    CMSISNNDims output_dims = extract_buffer_dims(op, output_dim_pos);
+
+    // Emit CMSIS-NN API arguments
+    std::string context = EmitCMSISNNContext(stream, context_buffer);
+    std::string conv_params = EmitCMSISNNConvParams(stream, conv2d_params);
     std::string quant_params = EmitCMSISNNPerChannelQuantParams(stream, multiplier, shift);
-    std::string input_dim = EmitCMSISNNDims(stream, "input", input_n, input_h, input_w, input_c);
-    std::string filter_dim =
-        EmitCMSISNNDims(stream, "filter", filter_n, filter_h, filter_w, filter_c);
-    std::string bias_dim = EmitCMSISNNDims(stream, "bias", bias_n, bias_h, bias_w, bias_c);
-    std::string output_dim =
-        EmitCMSISNNDims(stream, "output", output_n, output_h, output_w, output_c);
+    std::string input_dim = EmitCMSISNNDims(stream, "input", input_dims);
+    std::string filter_dim = EmitCMSISNNDims(stream, "filter", filter_dims);
+    std::string bias_dim = EmitCMSISNNDims(stream, "bias", bias_dims);
+    std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
 
+    // Emit CMSIS-NN API
     PrintIndent();
     stream << "arm_status status = ";
     stream << cmsis_func_name << "(";
@@ -211,9 +354,128 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "}\n";
   }
 
- private:
-  std::string context_buffer_name_ = "NULL";
-  int context_buffer_size_ = 0;
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising fully connected */
+  void EmitFullyConnected(const CallNode* op) {
+    // Position of various arguments relative to buffers in the call_extern
+    enum CallExternArgPos {
+      CONTEXT_BUFFER_POS = 1,
+      FC_PARAMS_POS = 3,
+      INPUT_DIM_POS = 10,
+      FILTER_DIM_POS = 14,
+      BIAS_DIM_POS = 18,
+      OUTPUT_DIM_POS = 22,
+      MAX_NUM_ARGS = 30
+    };
+
+    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
+
+    // extract buffer names from call_extern
+    int arg_id = 0;
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    std::string filter_data = VarNameFromArg(op, ++arg_id);
+    std::string bias_data("NULL");
+    if (op->args.size() == CallExternArgPos::MAX_NUM_ARGS) {
+      bias_data = VarNameFromArg(op, ++arg_id);
+    }
+    std::string output_data = VarNameFromArg(op, ++arg_id);
+
+    // extract CMSIS-NN API parameters
+    int context_buffer_pos = arg_id + CallExternArgPos::CONTEXT_BUFFER_POS;
+    int fc_params_pos = arg_id + CallExternArgPos::FC_PARAMS_POS;
+    int input_dim_pos = arg_id + CallExternArgPos::INPUT_DIM_POS;
+    int filter_dim_pos = arg_id + CallExternArgPos::FILTER_DIM_POS;
+    int bias_dim_pos = arg_id + CallExternArgPos::BIAS_DIM_POS;
+    int output_dim_pos = arg_id + CallExternArgPos::OUTPUT_DIM_POS;
+
+    CMSISNNContextBuffer context_buffer = extract_context_buffer_info(op, context_buffer_pos);
+    FCParams fc_params = extract_fc_params(op, fc_params_pos);
+    CMSISNNDims input_dims = extract_buffer_dims(op, input_dim_pos);
+    CMSISNNDims filter_dims = extract_buffer_dims(op, filter_dim_pos);
+    CMSISNNDims bias_dims = extract_buffer_dims(op, bias_dim_pos);
+    CMSISNNDims output_dims = extract_buffer_dims(op, output_dim_pos);
+
+    // Emit CMSIS-NN API arguments
+    std::string context = EmitCMSISNNContext(stream, context_buffer);
+    std::string cmsisnn_fc_params = EmitCMSISNNFCParams(stream, fc_params);
+    std::string quant_params =
+        EmitCMSISNNPerTensorQuantParams(stream, fc_params.multiplier, fc_params.shift);
+    std::string input_dim = EmitCMSISNNDims(stream, "input", input_dims);
+    std::string filter_dim = EmitCMSISNNDims(stream, "filter", filter_dims);
+    std::string bias_dim = EmitCMSISNNDims(stream, "bias", bias_dims);
+    std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
+
+    PrintIndent();
+    stream << "arm_status status = ";
+    stream << cmsis_func_name << "(";
+    stream << "&" << context << ", ";
+    stream << "&" << cmsisnn_fc_params << ", ";
+    stream << "&" << quant_params << ", ";
+    stream << "&" << input_dim << ", " << input_data << ", ";
+    stream << "&" << filter_dim << ", " << filter_data << ", ";
+    stream << "&" << bias_dim << ", " << bias_data << ", ";
+    stream << "&" << output_dim << ", " << output_data << ");\n";
+    PrintIndent();
+    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    PrintIndent();
+    PrintIndent();
+    stream << "return -1;\n";
+    PrintIndent();
+    stream << "}\n";
+  }
+
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising pooling ops */
+  void EmitPool2D(const CallNode* op) {
+    // Position of various arguments relative to buffers in the call_extern
+    enum CallExternArgPos {
+      CONTEXT_BUFFER_POS = 1,
+      POOL_PARAMS_POS = 3,
+      INPUT_DIM_POS = 9,
+      FILTER_DIM_POS = 13,
+      OUTPUT_DIM_POS = 17,
+      MAX_NUM_ARGS = 23
+    };
+    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
+
+    // extract buffer names from call_extern
+    int arg_id = 0;
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    std::string output_data = VarNameFromArg(op, ++arg_id);
+
+    // extract CMSIS-NN API parameters
+    int context_buffer_pos = arg_id + CallExternArgPos::CONTEXT_BUFFER_POS;
+    int pool_params_pos = arg_id + CallExternArgPos::POOL_PARAMS_POS;
+    int input_dim_pos = arg_id + CallExternArgPos::INPUT_DIM_POS;
+    int filter_dim_pos = arg_id + CallExternArgPos::FILTER_DIM_POS;
+    int output_dim_pos = arg_id + CallExternArgPos::OUTPUT_DIM_POS;
+
+    CMSISNNContextBuffer context_buffer = extract_context_buffer_info(op, context_buffer_pos);
+    PoolParams pool_params = extract_pool_params(op, pool_params_pos);
+    CMSISNNDims input_dims = extract_buffer_dims(op, input_dim_pos);
+    CMSISNNDims filter_dims = extract_buffer_dims(op, filter_dim_pos);
+    CMSISNNDims output_dims = extract_buffer_dims(op, output_dim_pos);
+
+    std::string context = EmitCMSISNNContext(stream, context_buffer);
+    std::string cmsisnn_pool_params = EmitCMSISNNPoolParams(stream, pool_params);
+    std::string input_dim = EmitCMSISNNDims(stream, "input", input_dims);
+    std::string filter_dim = EmitCMSISNNDims(stream, "filter", filter_dims);
+    std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
+
+    PrintIndent();
+    stream << "arm_status status = ";
+    stream << cmsis_func_name << "(";
+    stream << "&" << context << ", ";
+    stream << "&" << cmsisnn_pool_params << ", ";
+    stream << "&" << input_dim << ", " << input_data << ", ";
+    stream << "&" << filter_dim << ", ";
+    stream << "&" << output_dim << ", " << output_data << ");\n";
+    PrintIndent();
+    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    PrintIndent();
+    PrintIndent();
+    stream << "return -1;\n";
+    PrintIndent();
+    stream << "}\n";
+  }
 };
 
 runtime::Module TIRToRuntime(IRModule mod, Target target) {

@@ -46,7 +46,7 @@ def _lower(mod, target, params):
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(mod["main"])
+            grc.codegen(mod, mod["main"])
             return
 
     compiler = relay.vm.VMCompiler()

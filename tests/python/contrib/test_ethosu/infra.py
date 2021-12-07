@@ -189,7 +189,7 @@ def deserialize_command_stream(blob):
     return cmms
 
 
-def _create_test_runner(accel):
+def create_test_runner(accel="ethos-u55-256"):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
     ethosu_macs = accel[accel.rfind("-") + 1 :]
@@ -215,14 +215,14 @@ def _create_test_runner(accel):
 
 
 def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
-    test_runner = _create_test_runner(accel)
+    test_runner = create_test_runner(accel)
     return compile_models(
         models=AOTTestModel(
             module=module,
             inputs=inputs,
             outputs=outputs,
             output_tolerance=output_tolerance,
-            extra_memory_in_bytes=16 * 1024 * 1024,
+            extra_memory_in_bytes=0,
         ),
         interface_api="c",
         use_unpacked_api=True,
@@ -239,7 +239,7 @@ def verify_source(
     This method verifies the generated source from an NPU module by building it and running on an FVP.
     """
     interface_api = "c"
-    test_runner = _create_test_runner(accel)
+    test_runner = create_test_runner(accel)
     run_and_check(
         models,
         test_runner,
@@ -312,8 +312,9 @@ def make_partitioned_function(relay_op):
 
     ifm0 = relay.analysis.free_vars(relay_op)
     ifm_shape = ifm0[0].type_annotation.shape
+    ifm_dtype = ifm0[0].type_annotation.dtype
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=ifm_dtype)
 
     glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
 
@@ -410,6 +411,7 @@ def make_ethosu_conv2d(
     padding,
     strides,
     dilation,
+    lut=relay.const([], dtype="int8"),
     activation="NONE",
     ifm_layout="NHWC",
     ofm_layout="NHWC",
@@ -429,7 +431,7 @@ def make_ethosu_conv2d(
         ifm,
         weight,
         scale_bias,
-        lut=relay.const([], dtype="int8"),
+        lut=lut,
         ifm_scale=0.5,
         ifm_zero_point=10,
         weight_zero_point=12,
@@ -623,3 +625,31 @@ def make_ethosu_identity(
         activation=activation,
     )
     return identity
+
+
+def make_ethosu_unary_elementwise(
+    ifm,
+    ofm_channels,
+    operator_type,
+    activation="NONE",
+    ifm_layout="NHWC",
+    ofm_layout="NHWC",
+    rounding_mode="TFL",
+):
+    ethosu_unary_elementwise = ethosu_ops.ethosu_unary_elementwise(
+        ifm=ifm,
+        lut=relay.const([], dtype="int8"),
+        operator_type=operator_type,
+        ifm_scale=1,
+        ifm_zero_point=0,
+        ofm_scale=1,
+        ofm_zero_point=0,
+        ofm_channels=ofm_channels,
+        activation=activation,
+        clip_min=10 if activation == "CLIP" else 0,
+        clip_max=100 if activation == "CLIP" else 0,
+        rounding_mode=rounding_mode,
+        ifm_layout=ifm_layout,
+        ofm_layout=ofm_layout,
+    )
+    return ethosu_unary_elementwise

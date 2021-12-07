@@ -21,9 +21,11 @@
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op_strategy.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/executor_info.h>
@@ -126,7 +128,7 @@ TEST(Relay, BuildModule) {
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
   ICHECK(relay_mod.defined()) << "Module must be defined";
-  build_f(relay_mod, targets, llvm_tgt, runtime::kTvmExecutorGraph, "");
+  build_f(relay_mod, targets, llvm_tgt, Executor::Create("graph"), Runtime::Create("cpp"), "");
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run

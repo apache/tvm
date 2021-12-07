@@ -411,17 +411,6 @@ def test_error_index_with_stop_slice():
     check_error(error_bufferslice_index_with_stop, 8)
 
 
-def mismatch_args() -> None:
-    A = T.alloc_buffer((128, 128), "float32")
-    with T.block():
-        T.reads(A[0, 0], A[1, 1])  # error
-        T.evaluate(1.0)
-
-
-def test_mismatch_args():
-    check_error(mismatch_args, 4)
-
-
 def special_stmt_except() -> None:
     A = T.alloc_buffer("(128, 128)", "float32")  # error
     T.evaluate(1.0)
@@ -612,6 +601,69 @@ def test_fuse_fail_nested_loop_outer():
         "            for j in T.serial(0, 128):\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
+
+
+def load_var_multiple() -> None:
+    d = T.var("float32")
+    d[2] = d[2, 1]  # error cannot provide two indices to load
+
+
+def test_load_var():
+    check_error(load_var_multiple, 3)
+
+
+def store_var_multiple() -> None:
+    d = T.var("float32")
+    d[2, 1] = d[1]  # error cannot provide two indices to store
+
+
+def test_store_var():
+    check_error(store_var_multiple, 3)
+
+
+def load_handle(h: T.handle) -> None:
+    h_ = T.match_buffer(h, [1])
+    h_[0] = h[0]  # error cannot load from handle
+
+
+def test_load_handle():
+    check_error(load_var_multiple, 3)
+
+
+def store_handle(h: T.handle) -> None:
+    h_ = T.match_buffer(h, [1])
+    h[0] = h_[0]  # error cannot store to handle
+
+
+def test_store_handle():
+    check_error(store_var_multiple, 3)
+
+
+def binop_bad_ast_type(h: T.handle):
+    h_ = T.match_buffer(h, [1])
+    h_[0] = h + [2]  # error rhs should be a primexpr
+
+
+def test_binop_bad_ast_type():
+    check_error(binop_bad_ast_type, 3)
+
+
+def binop_bad_type(h: T.handle):
+    h_ = T.match_buffer(h, [1])
+    h_[0] = h + 2  # error lhs and rhs should be the same type
+
+
+def test_binop_bad_type():
+    check_error(binop_bad_type, 3)
+
+
+def floor_dtype(h: T.handle):
+    h_ = T.match_buffer(h, [1])
+    h_[0] = T.floor(2)  # error floor requires a dtype
+
+
+def test_floor_dtype():
+    check_error(floor_dtype, 3)
 
 
 if __name__ == "__main__":

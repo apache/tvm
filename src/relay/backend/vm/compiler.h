@@ -74,18 +74,13 @@ struct VMCompilerContext {
   TagMap tag_map;
   // Map from global var to a unique integer
   GlobalMap global_map;
-  // TEcompiler for lowering
-  tec::TECompiler compiler;
   // List of constants
   std::vector<NDArray> constants;
   // Device indexes  for constants
   std::vector<Index> const_device_indexes;
-  // List of cached functions
-  std::vector<tec::CachedFunc> cached_funcs;
-  // The functions that have been lowered.
-  std::unordered_map<tir::PrimFunc, size_t, ObjectPtrHash, ObjectPtrEqual> seen_funcs;
-  // The SEScopes corresponding to each device index. The first device always corresponds
-  // to the host device, and all remaining devices are for the primitive operations.
+  // Map from names of primitive functions already allocated to their primitive function index.
+  std::unordered_map<std::string, Index> primitive_map;
+  // The SEScopes corresponding to each device index.
   std::vector<SEScope> se_scopes_;
 };
 
@@ -107,7 +102,14 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Lower the functions in a Module
+   * \brief Lower the functions in a Module.
+   *
+   * ----------------------------------------------------------------------------------
+   * | This is the main entry point for the VM compilation flow.                      |
+   * |  - Preceded by \p SetParam for the global params.                             |
+   * |  - Followed by \p Codegen() to finalize the executable.                        |
+   * |  - Then the result runtime::Module can be constructed from the internal exec_. |
+   * ----------------------------------------------------------------------------------
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating device type
@@ -134,11 +136,14 @@ class VMCompiler : public runtime::ModuleNode {
 
   IRModule OptimizeModuleImpl(IRModule mod);
 
+  transform::Sequential MemoryOpt(const SEScope& host_se_scope);
+  transform::Sequential FuseAndLowerOperators(const SEScope& host_se_scope);
+
   /*!
    * \brief Populate the global function names in a map where the value is used
-   *        as the index by the VMFunctions.
+   *        as the index by the VMFunctions. Returns the number of functions.
    */
-  void PopulateGlobalMap();
+  size_t PopulateGlobalMap();
 
  protected:
   /*! \brief Targets and scopes needed for compilation. */

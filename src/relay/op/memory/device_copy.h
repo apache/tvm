@@ -30,6 +30,8 @@
 
 #include <utility>
 
+#include "../call/call.h"
+
 namespace tvm {
 namespace relay {
 

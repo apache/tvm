@@ -62,11 +62,23 @@ struct CallLoweredProps {
 };
 
 /*!
- * \brief Helper to extract the lowered function and its arguments from Call("call_lowered", ...).
- * Will fail if called on a Call whose op is not "call_lowered" \param call_node CallNode that we
- * want to get the function and its arguments from.
+ * \brief Helper to extract the lowered function and its arguments from a Call("call_lowered", ...).
+ * Returns the null/empty \p CallLoweredProps if \p call_node is not in that form.
  */
 CallLoweredProps GetCallLoweredProps(const CallNode* call_node);
+
+/*!
+ * \brief Returns \p call_node in 'standard' Relay form. Ie if \p call_node is a call_lowered
+ * then returns it in un-lowered form, otherwise returns \p call_node directly.
+ *
+ * Useful for passes which can act uniformly on calls irrespective of their form.
+ */
+Call GetAnyCall(const CallNode* call_node);
+
+/*!
+ * \brief Returns true if lowered call described by \p props is to a reshape primitive.
+ */
+bool IsReshapeOnly(const CallLoweredProps& props);
 
 }  // namespace relay
 }  // namespace tvm

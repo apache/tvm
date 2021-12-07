@@ -32,7 +32,7 @@ namespace tvm {
 
 /*!
  * \brief Gathers the \p Targets and distinguished \p SEScopes in canonical form needed to
- * compile a Relay module. All centralizes any setup and validation logic needed to transition
+ * compile a Relay module. Centralizes any setup and validation logic needed to transition
  * from configuration options conveyed implicitly (eg in \p PassContexts) or explicitly
  * (eg a a list of \p Targets) to the configuration.
  *
@@ -49,9 +49,12 @@ namespace tvm {
 class CompilationConfigNode : public Object {
  public:
   /*!
-   * \brief The legacy targets map, mapping device type to \p Targets. Does not include any
-   * entry for the host target. Intended to give a unique \p Target for every \p DLDeviceType,
-   * though we want to get rid of that limitation.
+   * \brief The legacy targets map, mapping device type to the corresponding \p Target to use
+   * when compiling primitive functions. Does not include an entry for the host target, however
+   * each \p Target in this map will have it's \p host field set to the \p host_target.
+   *
+   * Currently we require at most one \p Target per \p DLDeviceType, though we want to get rid of
+   * that limitation.
    *
    * CAUTION: Since keys are \p Integers they are compared by object equality not integer
    * value.
@@ -63,13 +66,18 @@ class CompilationConfigNode : public Object {
   /*!
    * \brief The host target. Used for 'scalar' data and code (such as shapes and shape
    * functions) and residual Relay expressions and data (such as conditionals and ADTs).
+   *
+   * Note that it is possible for a \p Target used for primitive operations to be structurally
+   * equal to the host \p Target (up to the \p host field.) However the \p Target objects will
+   * be distinct, and can be used as keys within a \p Map without collision.
    */
   Target host_target;
 
   /*!
-   * \brief Vector of all available targets for primitive operators. May contain a \p Target
-   * for the same device type as for the \p host_target, however the \p host_target should
-   * be preferred for all host computations and data.
+   * \brief Vector of all available \p Targets for compiling primitive operators. May contain
+   * a \p Target for the same device type as for the \p host_target, however the \p host_target
+   * should be used for all host computations and data. Each \p Target will have \p host_target
+   * as its host.
    */
   Array<Target> primitive_targets;
 

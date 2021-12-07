@@ -347,9 +347,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     //
     // TODO(tvm-team) Update checks of flat memory enablement when we support
     // opaque-nd memory planning to skip this path.
-
-    if (IsReshape(call_node)) {
-      ICHECK_EQ(args.size(), 1U);
+    // TODO(mbs): "reshape" cleanup.
+    CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
+    if (call_lowered_props.lowered_func.defined() && IsReshapeOnly(call_lowered_props)) {
+      ICHECK_EQ(call_lowered_props.arguments.size(), 1U);
       ReuseInputToken(call_node, args[0]);
     } else {
       // create token for the call node.
@@ -373,25 +374,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   static int64_t DivRoundUp(int64_t size, int64_t word_size) {
     return (size + word_size - 1) / word_size;
   }
-  /*!
-   * \brief The call is an reshape only op
-   * \param call The call to be checked.
-   * \return the check result.
-   */
-  static bool IsReshape(const CallNode* call) {
-    if (const auto* fn = call->op.as<FunctionNode>()) {
-      return fn->HasNonzeroAttr(attr::kReshapeOnly);
-    }
 
-    if (call->op == CallLoweredOp()) {
-      CallLoweredProps call_lowered_props = GetCallLoweredProps(call);
-      Map<String, ObjectRef> metadata = call_lowered_props.attrs.metadata;
-      return metadata.count(attr::kReshapeOnly) &&
-             (Downcast<tvm::Integer>(metadata[attr::kReshapeOnly])->value == 1);
-    }
-
-    return false;
-  }
   /*!
    * \brief Get the memory requirement.
    * \param prototype The prototype token.

@@ -248,13 +248,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
 
-  Expr VisitExpr_(const TupleNode* t, const Var& v) final {
-    Expr e = GetRef<Expr>(t);
-    std::vector<Expr> fields;
-    for (const auto& a : t->fields) {
+  Expr VisitExpr_(const TupleNode* tuple_node, const Var& v) final {
+    Expr e = GetRef<Expr>(tuple_node);
+    Array<Expr> fields;
+    fields.reserve(tuple_node->fields.size());
+    for (const auto& a : tuple_node->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, Tuple(fields), v);
+    return Compound(e, WithFields(GetRef<Tuple>(tuple_node), std::move(fields)), v);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
