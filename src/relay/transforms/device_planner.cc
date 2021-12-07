@@ -818,8 +818,8 @@ class DeviceCapturer : public ExprMutator {
         /*expected_se_scope=*/result_se_scope,
         /*child_se_scope=*/GetSEScope(function_node->body), function_node->body);
 
-    return WithFields(GetRef<Function>(function_node), std::move(new_params),
-                               std::move(body), {}, {}, {}, std::move(result_se_scope));
+    return WithFields(GetRef<Function>(function_node), std::move(new_params), std::move(body), {},
+                      {}, {}, std::move(result_se_scope));
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
