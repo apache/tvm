@@ -411,17 +411,6 @@ def test_error_index_with_stop_slice():
     check_error(error_bufferslice_index_with_stop, 8)
 
 
-def mismatch_args() -> None:
-    A = T.alloc_buffer((128, 128), "float32")
-    with T.block():
-        T.reads(A[0, 0], A[1, 1])  # error
-        T.evaluate(1.0)
-
-
-def test_mismatch_args():
-    check_error(mismatch_args, 4)
-
-
 def special_stmt_except() -> None:
     A = T.alloc_buffer("(128, 128)", "float32")  # error
     T.evaluate(1.0)
