@@ -35,6 +35,8 @@ from tvm.contrib.nvcc import have_fp16
 import pytest
 
 sys.setrecursionlimit(10000)
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
 
 
 def list_ops(expr):
