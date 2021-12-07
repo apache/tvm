@@ -1144,8 +1144,10 @@ class TVMScriptParser(Transformer):
         func = self.transform(node.func_name)
         assert isinstance(func, SpecialStmt)
 
-        # parse args and kwargs for TypeCall
+        # parse args and kwargs for TypeCall and TypeApply
         arg_list = self.parse_arg_list(func, node)
+        # Note that the third element in arg_list would always be the 'name'
+        # TODO: This index is hardcoded as a workaround. Better to make it programmatic
         if arg_list[2] is None:
             arg_list[2] = buffer_name
         buf = func.handle(node, self.context, arg_list, node.func_name.span)
