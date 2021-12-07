@@ -113,12 +113,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
   return props.body.as<NodeType>();
 }
 
-/*!
- * \brief Returns \p function annotated with "param_se_scopes" and "result_se_scope"
- * attributes capturing parameter and result \p SEScopes respectively.
- */
-Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes, SEScope body_se_scope);
-
 }  // namespace relay
 }  // namespace tvm
 

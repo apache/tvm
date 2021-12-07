@@ -803,12 +803,12 @@ class DeviceCapturer : public ExprMutator {
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
     SEScope result_se_scope = domains_->ResultSEScope(func_domain);
     ICHECK(!result_se_scope->IsFullyUnconstrained());
-    Array<SEScope> param_se_scopes;
-    param_se_scopes.reserve(function_node->params.size());
+    Array<Var> new_params;
+    new_params.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
       ICHECK(!param_se_scope->IsFullyUnconstrained());
-      param_se_scopes.push_back(param_se_scope);
+      new_params.push_back(WithFields(function_node->params[i], {}, {}, std::move(param_se_scope)));
     }
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
@@ -818,9 +818,8 @@ class DeviceCapturer : public ExprMutator {
         /*expected_se_scope=*/result_se_scope,
         /*child_se_scope=*/GetSEScope(function_node->body), function_node->body);
 
-    Function func = WithFields(GetRef<Function>(function_node), std::move(function_node->params),
-                               std::move(body));
-    return FunctionOnDevice(func, std::move(param_se_scopes), std::move(result_se_scope));
+    return WithFields(GetRef<Function>(function_node), std::move(new_params),
+                               std::move(body), {}, {}, {}, std::move(result_se_scope));
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
