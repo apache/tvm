@@ -2045,7 +2045,7 @@ def batch_norm(
     result = _make.batch_norm(
         data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale
     )
-    return expr.TupleWrapper(result, 5)
+    return expr.TupleWrapper(result, 3)
 
 
 def instance_norm(data, gamma, beta, axis=1, epsilon=1e-5, center=True, scale=True):

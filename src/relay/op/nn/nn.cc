@@ -752,8 +752,6 @@ bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   fields.push_back(TensorType(data->shape, data->dtype));
   fields.push_back(vec_ty);
   fields.push_back(vec_ty);
-  fields.push_back(vec_ty);
-  fields.push_back(vec_ty);
   reporter->Assign(types[5], TupleType(Array<Type>(fields)));
   return true;
 }

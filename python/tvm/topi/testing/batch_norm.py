@@ -22,6 +22,8 @@ def batch_norm(
     x: np.ndarray,
     gamma: np.ndarray,
     beta: np.ndarray,
+    moving_mean: np.ndarray,
+    moving_var: np.ndarray,
     axis: int,
     epsilon: float,
     center: bool,
@@ -39,6 +41,12 @@ def batch_norm(
 
     beta : np.ndarray
         Offset to be applied to the normalized tensor.
+
+    moving_mean : np.ndarray
+        Running mean of input.
+
+    moving_var : np.ndarray
+        Running variance of input.
 
     axis : int
         Specify along which shape axis the normalization should occur.
@@ -58,18 +66,24 @@ def batch_norm(
     -------
     output : np.ndarray
         Normalized data with same shape as input
-    """
-    mean = x.mean(axis=axis, keepdims=True)
-    var = x.var(axis=axis, keepdims=True)
-    std = np.sqrt(var + epsilon)
-    out = (x - mean) / std
 
+    moving_mean : np.ndarray
+        Running mean of input.
+
+    moving_var : np.ndarray
+        Running variance of input.
+    """
     shape = [1] * len(x.shape)
     shape[axis] = x.shape[axis]
+
+    moving_mean_rs = moving_mean.reshape(shape)
+    moving_var_rs = moving_var.reshape(shape)
+
+    out = (x - moving_mean_rs) / np.sqrt(moving_var_rs + epsilon)
 
     if scale:
         out = out * gamma.reshape(shape)
     if center:
         out = out + beta.reshape(shape)
 
-    return out
+    return [out, moving_mean, moving_var]

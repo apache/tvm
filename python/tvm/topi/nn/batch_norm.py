@@ -92,24 +92,19 @@ def batch_norm(
     if scale is None:
         scale = True
 
-    mean = topi.reduction.sum(data, axis=axis, keepdims=True) / data.shape[axis]
-    var_summands = topi.broadcast.power(topi.broadcast.subtract(data, mean), 2.0)
-    var = topi.reduction.sum(var_summands, axis=axis, keepdims=True) / data.shape[axis]
-    std = topi.math.sqrt(var + epsilon)
-    out = (data - mean) / std
-
     shape = [1] * len(data.shape)
     shape[axis] = data.shape[axis]
+
+    moving_mean_rs = topi.reshape(moving_mean, shape)
+    moving_var_rs = topi.reshape(moving_var, shape)
+
+    out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     if scale:
         out = out * topi.reshape(gamma, shape)
     if center:
         out = out + topi.reshape(beta, shape)
 
-    moving_mean = moving_mean * 1 #+ mean * (1 - 1)
-    moving_var = moving_var * 1 #+ var * (1 - 1)
-
-    saved_mean = topi.reshape(mean, moving_mean.shape)
-    saved_var = topi.reshape(var, moving_var.shape)
-
-    return [out, moving_mean, moving_var, saved_mean, saved_var]
+    # Moving mean and var aren't updated during test. To avoid
+    # placeholder reuse, we multiply by 1 and return them.
+    return [out, moving_mean * 1, moving_var * 1]
