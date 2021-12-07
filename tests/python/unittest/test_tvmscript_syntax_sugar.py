@@ -143,7 +143,7 @@ def test_match_buffer_syntax_sugar():
     # with kwargs
     assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
     # without kwargs
-    assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
+    assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
 
 
 if __name__ == "__main__":

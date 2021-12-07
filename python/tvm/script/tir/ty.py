@@ -112,7 +112,8 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
     def __call__(
         self,
         shape,
-        dtype: str = "float32",
+        dtype="float32",
+        *,
         name: str = None,
         data=None,
         strides=None,
@@ -134,9 +135,6 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         Note that args is the list of all arguments
         """
         pass  # pylint: disable=unnecessary-pass
-
-    def evaluate(self):
-        return tvm.ir.PrimType(self.type)
 
 
 int8 = ConcreteType("int8")
