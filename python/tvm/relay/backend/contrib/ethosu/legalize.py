@@ -1040,7 +1040,7 @@ class MeanRewriter(DFPatternCallback):
             n = int(filter_height * filter_width)
             eps = 1 / (256 * (n + 1)) if n % 2 == 0 else 0
 
-            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="uint8"), dtype="uint8")
+            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int16"), dtype="int16")
 
             reduced_op = ethosu_ops.ethosu_binary_elementwise(
                 ifm=reduced_op,
