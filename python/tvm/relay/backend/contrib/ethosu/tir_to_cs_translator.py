@@ -110,12 +110,11 @@ def translate(tir_module, params):
     _npu_ops = list()
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
-    _npu_ops, constant_tensor, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
     payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
-    hex_value = "" if constant_tensor is None else constant_tensor.tobytes().hex()
-    return payload.hex(), hex_value, scratch_size
+    return payload.hex(), constant_data, scratch_size
 
 
 def extract_call_extern_list(mod):
@@ -277,27 +276,24 @@ def assign_addresses(buffer_info, npu_ops):
         raise ValueError(f"Unused IO : {buffer} in tir module.")
 
     scratch_size = 0
-    constant_tensor = None
+    constant_hex_data = []
+    total_constant_len = 0
     buffer_addresses = dict()
     for _buffer, info in buffer_info.items():
         if info.values is not None:
-            assert np.dtype(info.dtype) == np.uint8
             assert info.btype == BufferType.constant
             assert len(info.shape) == 1
-            if constant_tensor is None:
-                buffer_addresses[_buffer] = (0, info.btype)
-                assert info.values.dtype == np.uint8
-                size_in_bytes = info.values.size
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
-                constant_tensor = np.resize(info.values, size_in_bytes)
-            else:
-                buffer_addresses[_buffer] = (constant_tensor.size, info.btype)
-                assert info.values.dtype == np.uint8
-                size_in_bytes = info.values.size
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
-                constant_tensor = np.append(constant_tensor, np.resize(info.values, size_in_bytes))
+            buffer_addresses[_buffer] = (
+                (total_constant_len, info.btype) if constant_hex_data else (0, info.btype)
+            )
+            dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
+            size_in_bytes = dtype_bytes * np.prod(list(info.shape))
+            # Every memory address the NPU access have to be 16 byte aligned
+            size_in_bytes = util.round_up(size_in_bytes, 16)
+            constant_tensor = np.resize(info.values, size_in_bytes // dtype_bytes)
+            constant_tensor = constant_tensor.tobytes().hex()
+            constant_hex_data.append(constant_tensor)
+            total_constant_len += len(constant_tensor) // 2
         else:
             if info.btype == BufferType.input_or_output:
                 buffer_type = classify_io(_buffer)
@@ -310,9 +306,8 @@ def assign_addresses(buffer_info, npu_ops):
                 address = arch_config.lut_start_address
                 buffer_addresses[_buffer] = (address, info.btype)
             else:
-                size_in_bytes = int(
-                    (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
-                )
+                dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
+                size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
                 # Every memory address the NPU access have to be 16 byte aligned
                 size_in_bytes = util.round_up(size_in_bytes, 16)
                 assert info.btype == BufferType.scratch
@@ -330,7 +325,12 @@ def assign_addresses(buffer_info, npu_ops):
             else:
                 setattr(npu_op, attr_name, replace_tir_loads(attr))
 
-    return npu_ops, constant_tensor, scratch_size
+    constant_data = "".join(constant_hex_data)
+    return (
+        npu_ops,
+        constant_data,
+        scratch_size,
+    )
 
 
 def translate_ethosu_tir_call_extern(tir_call_extern):

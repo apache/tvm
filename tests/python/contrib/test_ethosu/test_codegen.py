@@ -520,8 +520,8 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-def test_binary_add_from_constant_scalar(accel_type):
-    dtype = "uint8"
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+def test_elementwise_add_from_constant_scalar(accel_type, dtype):
     ifm_shape = (1, 4, 4, 8)
 
     def create_relay_graph():
@@ -543,7 +543,11 @@ def test_binary_add_from_constant_scalar(accel_type):
     ethosu_mod = partition_for_ethosu(cpu_mod)
 
     # Generate reference data
-    input_data = {"input": np.random.randint(low=0, high=255, size=ifm_shape, dtype=dtype)}
+    input_data = {
+        "input": np.random.randint(
+            low=np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=ifm_shape, dtype=dtype
+        ),
+    }
     output_data = generate_ref_data(cpu_mod, input_data)
 
     _compare_ethosu_with_reference(
