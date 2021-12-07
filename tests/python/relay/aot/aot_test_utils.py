@@ -784,14 +784,15 @@ def compile_and_run(
     test_dir: str = None,
     verbose: bool = False,
 ):
-    """
-    Compiles the AOTTestModel and runs using AOT test runner
+    """This is a wrapper API to compile and run models as test for AoT
+
     Parameters
     ----------
-    test_dir : This path will contain build, codegen, include directories
-    verbose: Prints commands to build and run AOT test runner
+    test_dir : str
+        This path will contain build, codegen, include directories
+    verbose: bool
+        Prints commands to build and run AOT test runner
     """
-    """This is a wrapper API to compile and run models as test for AoT"""
     compiled_test_mods = compile_models(
         models=models,
         interface_api=interface_api,
