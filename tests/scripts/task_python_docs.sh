@@ -70,7 +70,7 @@ if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
 fi
 
 # C++ doc
-make doc
+make cppdoc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
 # Java doc
