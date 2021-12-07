@@ -63,7 +63,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
     // Pushing a scope info for the initial body of the main function
     scope_stack_.push(ScopeInfo());
   }
-  Map<BufferInfo, tir::Stmt> operator()(const PrimFunc& func);
+  BufferInfoAnalysis operator()(const PrimFunc& func);
 
  private:
   void VisitStmt(const Stmt& n) override;
@@ -400,7 +400,7 @@ void BufferInfoExtractor::VisitExpr_(const CallNode* op) {
   StmtExprVisitor::VisitExpr_(op);
 }
 
-Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_func) {
+BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   VisitPrimFunc(main_func, Call());
 
   // Create a vector of liveness events
@@ -454,33 +454,32 @@ Map<BufferInfo, tir::Stmt> BufferInfoExtractor::operator()(const PrimFunc& main_
 
   // Traverse the liveness events using a open set to track what
   // is live while updating the conflicts through out the linear traversal
-  std::unordered_map<BufferInfo, int, ObjectPtrHash, ObjectPtrEqual> open_set;
+
+  int open_set_size = 0;
+  int max_open_set_size = 0;
+  std::unordered_set<BufferInfo, ObjectPtrHash, ObjectPtrEqual> open_set;
   for (const auto& le_event : le_events_timeline) {
     if (le_event.le_type == START) {
-      for (const auto& kv : open_set) {
-        BufferInfo open_buffer_info = kv.first;
+      for (const BufferInfo& open_buffer_info : open_set) {
         open_buffer_info->conflicts.push_back(le_event.buffer_info);
         if (le_event.buffer_info != open_buffer_info) {
           le_event.buffer_info->conflicts.push_back(open_buffer_info);
         }
       }
-      if (open_set.find(le_event.buffer_info) == open_set.end()) {
-        open_set[le_event.buffer_info] = 1;
-      } else {
-        open_set[le_event.buffer_info] += 1;
+      open_set_size += le_event.buffer_info->size_bytes;
+      if (open_set_size > max_open_set_size) {
+        max_open_set_size = open_set_size;
       }
+      open_set.insert(le_event.buffer_info);
     } else {
-      if (open_set[le_event.buffer_info] == 1) {
-        open_set.erase(le_event.buffer_info);
-      } else {
-        open_set[le_event.buffer_info] -= 1;
-      }
+      open_set_size -= le_event.buffer_info->size_bytes;
+      open_set.erase(le_event.buffer_info);
     }
   }
-  return this->buffer_info_map_;
+  return BufferInfoAnalysis(this->buffer_info_map_, max_open_set_size);
 }
 
-Map<BufferInfo, tir::Stmt> ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {
+BufferInfoAnalysis ExtractBufferInfo(const PrimFunc& main_func, const IRModule& mod) {
   return BufferInfoExtractor(mod)(main_func);
 }
 
