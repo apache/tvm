@@ -119,12 +119,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
  */
 Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes, SEScope body_se_scope);
 
-/*!
- * \brief Returns the \p SEScope for the \p i'th parameter of \p function_node, or
- * the unconstrained \p SEScope if function does not have the "param_se_scopes" annotation.
- */
-SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i);
-
 }  // namespace relay
 }  // namespace tvm
 
