@@ -320,7 +320,8 @@ class PassInfo : public ObjectRef {
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool run_always = false);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required,
+                   bool run_always = false);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -435,9 +436,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass
-CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, String name, Array<runtime::String> required, bool run_always = false);
+TVM_DLL Pass CreateModulePass(
+    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
+    String name, Array<runtime::String> required, bool run_always = false);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).

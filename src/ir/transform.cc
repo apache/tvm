@@ -375,7 +375,8 @@ class SequentialNode : public PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required, bool run_always) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required,
+                   bool run_always) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
