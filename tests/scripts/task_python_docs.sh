@@ -25,6 +25,8 @@ source tests/scripts/setup-pytest-env.sh
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=4
+IS_LOCAL=${IS_LOCAL:-0}
+PYTHON_DOCS_ONLY=${PYTHON_DOCS_ONLY:-0}
 
 cleanup()
 {

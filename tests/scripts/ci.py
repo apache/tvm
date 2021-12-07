@@ -107,7 +107,10 @@ def docs(
     cpu -- Use CMake defaults for building TVM (useful for building docs on a CPU machine.)
     """
     config = "./tests/scripts/task_config_build_gpu.sh"
-    if not cpu:
+    if cpu and full:
+        clean_exit("--full cannot be used with --cpu")
+
+    if cpu:
         # The docs import tvm.micro, so it has to be enabled in the build
         config = "cd build && cp ../cmake/config.cmake . && echo set\(USE_MICRO ON\) >> config.cmake && cd .."
 
