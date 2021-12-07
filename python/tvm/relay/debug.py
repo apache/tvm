@@ -70,6 +70,7 @@ class PassBisection:
         self._nested += 1
 
     def should_run(self, mod, info):
+        """Determine if the pass should run depending on limit and run_always."""
         self._total_cnt += 1
 
         if self._limit > 0 and self._pass_cnt >= self._limit:
