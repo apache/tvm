@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type
+from typing import List, Type, Callable
 import math
 
 import numpy as np  # type: ignore
@@ -125,7 +125,9 @@ class LegalizeSplit:
         pass
 
 
-def get_lut_from_func(ifm_scale, ifm_zp, ofm_scale, ofm_zp, func):
+def get_lut_from_func(
+    ifm_scale: float, ifm_zp: int, ofm_scale: float, ofm_zp: int, func: Callable[[float], float]
+) -> List[int]:
     """Method to calculate the values of the lookup table based on the calculation function"""
     lut_values = list()
     # Only int8 is currently supported
@@ -144,13 +146,15 @@ def get_lut_from_func(ifm_scale, ifm_zp, ofm_scale, ofm_zp, func):
 class LutActivationRewriter(DFPatternCallback):
     """A class to create an identity operator with the LUT"""
 
-    def __init__(self, params_class, activation_type, calc_func):
+    def __init__(
+        self, params_class: Type, activation_type: str, calc_func: Callable[[float], float]
+    ):
         super().__init__(require_type=True, rewrite_once=True)
         self.pattern = (wildcard().has_attr({"Composite": params_class.composite_name}))(wildcard())
         self.activation_type = activation_type
         self.calc_func = calc_func
 
-    def callback(self, pre, post, node_map):
+    def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
         id_input = post.args[0]
 
         quantize_args = post.op.body.args
@@ -205,7 +209,7 @@ class LegalizeTanh:
         pass
 
 
-def sigmoid_calc_func(x):
+def sigmoid_calc_func(x: float) -> float:
     """Function to calculate the values for sigmoid"""
     # Thse limits are inherited from TFLite
     upper_limit = 8.0
