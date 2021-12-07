@@ -91,7 +91,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
 
     for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
-      if (auto op = new_field.as<ConstantNode>()) {
+      if (const ConstantNode* op = new_field.as<ConstantNode>()) {
         DataType dtype = DataType(op->data->dtype);
         bool is_simple_const = (dtype == DataType::Int(32) || dtype == DataType::Int(64) ||
                                 dtype == DataType::Float(32) || dtype == DataType::Float(64) ||
