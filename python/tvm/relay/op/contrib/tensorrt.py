@@ -145,7 +145,7 @@ def partition_for_tensorrt(
                     "nn.conv1d": ["NCW", "default"],
                     "nn.conv2d": ["NCHW", "default"],
                     "nn.conv3d": ["NCDHW", "default"],
-                    "nn.conv2d_transpose": ["NCHW", "default"],
+                    "nn.conv2d_transpose": ["NCHW", "IOHW"],
                 }
             ),
             transform.FoldConstant(),
