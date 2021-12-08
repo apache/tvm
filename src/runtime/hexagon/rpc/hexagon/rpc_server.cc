@@ -40,6 +40,7 @@ extern "C" {
 #include "../../hexagon/hexagon_common.h"
 #include "hexagon_rpc.h"
 
+// TODO(mehrdadh): make this configurable.
 #define TVM_HEXAGON_RPC_BUFF_SIZE_BYTES 2 * 1024 * 1024
 
 #define TVM_LOG_CUSTOMIZE 1
