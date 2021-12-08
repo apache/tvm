@@ -213,13 +213,13 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << run_func << "(";
-    for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
+    for (unsigned int i = 0; i < metadata_->num_inputs(); ++i) {
       code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
     }
-    for (int i = 0; i < metadata_->num_outputs; ++i) {
-      int j = metadata_->inputs.size() + i;
+    for (int i = 0; i < metadata_->num_outputs(); ++i) {
+      int j = metadata_->num_inputs() + i;
       code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
-      if (i + 1 != metadata_->num_outputs) {
+      if (i + 1 != metadata_->num_outputs()) {
         code_ << ",";
       }
     }

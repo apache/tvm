@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "../../runtime/meta_data.h"
+#include "../../target/metadata.h"
 
 namespace tvm {
 namespace relay {

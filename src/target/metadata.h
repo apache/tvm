@@ -45,7 +45,7 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     auto inputs_accessor = inputs();
     inputs_array.reserve(num_inputs());
     for (int64_t i = 0; i < num_inputs(); ++i) {
-      inputs_array.push_back(TensorInfo{inputs_accessor[i]});
+      inputs_array.push_back(::tvm::runtime::metadata::TensorInfo{inputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{inputs_array, "struct TVMTensorInfo"};
     v->Visit("inputs", &inputs_metadata_array);
@@ -53,7 +53,7 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     auto outputs_accessor = outputs();
     outputs_array.reserve(num_outputs());
     for (int64_t i = 0; i < num_outputs(); ++i) {
-      outputs_array.push_back(TensorInfo{outputs_accessor[i]});
+      outputs_array.push_back(::tvm::runtime::metadata::TensorInfo{outputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray outputs_metadata_array{outputs_array, "struct TVMTensorInfo"};
     v->Visit("outputs", &outputs_metadata_array);
@@ -90,14 +90,15 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
     ) {}
   InMemoryMetadataNode(
         int64_t version,
-        const ::std::vector<TensorInfo>& inputs,
-        const ::std::vector<TensorInfo>& outputs,
+        const ::std::vector<::tvm::runtime::metadata::TensorInfo>& inputs,
+        const ::std::vector<::tvm::runtime::metadata::TensorInfo>& outputs,
         const ::std::vector<::std::string>& devices,
         const ::tvm::runtime::String executor,
         const ::tvm::runtime::String mod_name,
         const ::tvm::runtime::String interface_api,
         bool use_unpacked_api
       ) :
+      VisitableMetadataNode{&storage_},
       inputs_{new struct TVMTensorInfo[inputs.size()]()},
       inputs_objs_{inputs},
       outputs_{new struct TVMTensorInfo[outputs.size()]()},
@@ -108,37 +109,36 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
       interface_api_{interface_api},
       storage_{
           version,
-          NULL, NULL,
-          NULL, NULL,
-          NULL, NULL,
+          nullptr, 0,
+          nullptr, 0,
+          nullptr, 0,
           executor_.c_str(),
           mod_name_.c_str(),
           interface_api_.c_str(),
           use_unpacked_api
-      },
-      VisitableMetadataNode{&storage_} {
+      } {
     storage_.inputs = inputs_.get();
     storage_.num_inputs = inputs.size();
-    for (int i = 0; i < inputs.size(); ++i) {
+    for (unsigned int i = 0; i < inputs.size(); ++i) {
       inputs_.get()[i] = *inputs[i]->data();
     }
     storage_.outputs = outputs_.get();
     storage_.num_outputs = outputs.size();
-    for (int i = 0; i < outputs.size(); ++i) {
+    for (unsigned int i = 0; i < outputs.size(); ++i) {
       outputs_.get()[i] = *outputs[i]->data();
     }
     storage_.devices = devices_.get();
     storage_.num_devices = devices.size();
-    for (int i = 0; i < devices.size(); ++i) {
+    for (unsigned int i = 0; i < devices.size(); ++i) {
       devices_.get()[i] = devices[i].c_str();
     }
   }
 
  private:
   ::std::unique_ptr<struct TVMTensorInfo> inputs_;
-  std::vector<TensorInfo> inputs_objs_;
+  std::vector<::tvm::runtime::metadata::TensorInfo> inputs_objs_;
   ::std::unique_ptr<struct TVMTensorInfo> outputs_;
-  std::vector<TensorInfo> outputs_objs_;
+  std::vector<::tvm::runtime::metadata::TensorInfo> outputs_objs_;
   ::std::unique_ptr<const char*> devices_;
   ::std::string executor_;
   ::std::string mod_name_;
@@ -158,7 +158,7 @@ class VisitableTensorInfoNode : public ::tvm::runtime::metadata::TensorInfoNode 
     auto shape_accessor = shape();
     shape_array.reserve(num_shape());
     for (int64_t i = 0; i < num_shape(); ++i) {
-      shape_array.push_back(::tvm::Integer{shape_accessor[i]});
+      shape_array.push_back(::tvm::Integer{int(shape_accessor[i])});
     }
     ::tvm::runtime::metadata::MetadataArray shape_metadata_array{shape_array, "int64_t"};
     v->Visit("shape", &shape_metadata_array);
@@ -179,17 +179,17 @@ class InMemoryTensorInfoNode : public ::tvm::target::metadata::VisitableTensorIn
         const ::std::vector<int64_t>& shape,
         ::tvm::runtime::DataType dtype
       ) :
+      VisitableTensorInfoNode{&storage_},
       name_{name},
       shape_{new int64_t[shape.size()]()},
       storage_{
           name_.c_str(),
-          NULL, NULL,
+          nullptr, 0,
           dtype
-      },
-      VisitableTensorInfoNode{&storage_} {
+      } {
     storage_.shape = shape_.get();
     storage_.num_shape = shape.size();
-    for (int i = 0; i < shape.size(); ++i) {
+    for (unsigned int i = 0; i < shape.size(); ++i) {
       shape_.get()[i] = shape[i];
     }
   }
