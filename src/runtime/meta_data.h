@@ -36,6 +36,8 @@
 #include <utility>
 #include <vector>
 
+#include <tvm/runtime/metadata.h>
+
 #include "runtime_base.h"
 
 namespace tvm {
@@ -48,6 +50,15 @@ inline String get_name_mangled(const String& module_name, const String& name) {
   ss << module_name << "_" << name;
   return ss.str();
 }
+
+/*!
+ * \brief Create a metadata module object.
+ *
+ * \param metadata Exported metadata structure.
+ *
+ * \return The created metadata module.
+ */
+Module MetadataModuleCreate(metadata::Metadata metadata);
 
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
