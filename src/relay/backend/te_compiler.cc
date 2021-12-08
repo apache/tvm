@@ -746,6 +746,9 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       target = Target("ext_dev");
     } else {
       // The target corresponding to the call_node expression's annotation.
+      // TODO(@electriclilies): The call node here should always be wrapped in OnDevice I think? Not sure why it's not getting put in.
+      
+      // SEScope se_scope = call_node->op->virtual_device();
       SEScope se_scope = GetSEScope(GetRef<Call>(call_node));
       ICHECK(!se_scope->IsFullyUnconstrained());
       target = se_scope->target;

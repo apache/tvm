@@ -22,11 +22,6 @@ from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.testing import run_infer_type, create_workload
 
 
-def annot_func(f):
-    """Returns f with arg/result device attributes for the argument and result."""
-    return relay.op.annotation.function_on_device(f, [tvm.cpu()], tvm.cpu())
-
-
 def annot_expr(e):
     """Returns e wrapped with an on_device annotation."""
     return relay.op.annotation.on_device(e, tvm.cpu(), is_fixed=True)

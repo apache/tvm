@@ -48,10 +48,14 @@ LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) 
 }
 
 SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
+  VLOG(1) << "GetSEScope for " << expr;
   OnDeviceProps props = GetOnDeviceProps(expr);
+  VLOG(1) << "props.body.defined(): " << props.body.defined();
   if (props.body.defined() && props.is_fixed) {
+    VLOG(1) << "OnDeviceProps SEScope";
     return props.se_scope;
   } else if (const auto* var_node = expr.as<VarNode>()) {
+    VLOG(1) << "VarNode SEScope";
     // Lookup variable binding.
     auto itr = var_se_scopes_.find(GetRef<Var>(var_node));
     if (itr != var_se_scopes_.end()) {
@@ -59,6 +63,7 @@ SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
     }
     // else: fallthrough to unconstrained
   } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
+    VLOG(1) << "GlobalVarNode SEScope";
     // Lookup global variable.
     auto itr = global_var_se_scopes_.find(GetRef<GlobalVar>(global_var_node));
     if (itr != global_var_se_scopes_.end()) {
@@ -66,6 +71,7 @@ SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
     }
     // else: fallthrough to unconstrained
   } else if (const auto* function_node = expr.as<FunctionNode>()) {
+    VLOG(1) << "FunctionNode SEScope";
     if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
       if (!expr_se_scopes_.empty()) {
         // Use the currently in-scope device type.
@@ -82,6 +88,7 @@ SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
     }
     // else: fallthrough to unconstrained
   }
+  VLOG(1) << "Falling back to FullyUnconstrained SEScope";
   return SEScope::FullyUnconstrained();
 }
 

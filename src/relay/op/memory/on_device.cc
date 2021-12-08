@@ -58,6 +58,7 @@ Expr OnDevice(Expr expr, SEScope se_scope, bool is_fixed) {
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.OnDevice").set_body_typed(OnDevice);
 
 Expr MaybeOnDevice(Expr expr, SEScope se_scope, bool is_fixed) {
+  VLOG(1) << "MaybeOnDevice";
   if (se_scope->IsFullyUnconstrained()) {
     // Nothing to annotate with.
     return expr;
@@ -101,7 +102,10 @@ RELAY_REGISTER_OP("on_device")
     .set_attr<TNonComputational>("TNonComputational", true);
 
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node) {
+  // This needs to extract the correct se scope from the function.
+  std::cout << "GetOnDeviceProps for: " << call_node;
   if (call_node->op == OnDeviceOp()) {
+    std::cout << "Is OnDevice op" << std::endl;
     ICHECK_EQ(call_node->args.size(), 1) << "on_device expects one argument";
     ICHECK(call_node->attrs.defined()) << "on_device requires attributes";
     const auto* on_device_attrs = call_node->attrs.as<OnDeviceAttrs>();

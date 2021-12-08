@@ -56,30 +56,6 @@ def on_device(data, device, is_fixed=False):
     return _make.OnDevice(data, _make_se_scope(device), is_fixed)
 
 
-def function_on_device(function, param_devices, result_device):
-    """Annotates a Relay function with the device types on which its parameters and result should
-    be stored.
-
-    Parameters
-    ----------
-    function : tvm.relay.Function
-        The function to be annotated.
-
-    param_devices : Array[Union[:py:class:`Device`, str]]
-        The devices for each parameter.
-
-    result_device: Union[:py:class:`Device`, str]
-        The device for the function result.
-
-    Returns
-    -------
-    result : tvm.relay.Function
-        The annotated function.
-    """
-    return _make.FunctionOnDevice(
-        function, [_make_se_scope(d) for d in param_devices], _make_se_scope(result_device)
-    )
-
 
 def stop_fusion(data):
     """Annotate an expression to prevent it being fused with following expressions.
