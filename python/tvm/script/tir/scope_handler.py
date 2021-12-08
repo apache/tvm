@@ -110,6 +110,7 @@ class Allocate(WithScopeHandler):
         def allocate(extents, dtype, scope, condition=True, annotations=None, span=None):
             condition = tvm.runtime.convert(condition)
             scope = tvm.runtime.convert(scope)
+
             return tvm.tir.Allocate(
                 self.buffer_var,
                 dtype,
@@ -499,9 +500,12 @@ class Serial(ForScopeHandler):
     def __init__(self):
         def serial(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             self.create_loop_info(begin, end, ForKind.SERIAL, annotations=annotations)
 
         super().__init__(serial)
@@ -514,9 +518,12 @@ class Parallel(ForScopeHandler):
     def __init__(self):
         def parallel(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             self.create_loop_info(begin, end, ForKind.PARALLEL, annotations=annotations)
 
         super().__init__(parallel)
@@ -529,9 +536,12 @@ class Vectorized(ForScopeHandler):
     def __init__(self):
         def vectorized(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             self.create_loop_info(begin, end, ForKind.VECTORIZED, annotations=annotations)
 
         super().__init__(vectorized)
@@ -544,9 +554,12 @@ class Unroll(ForScopeHandler):
     def __init__(self):
         def unroll(
             begin: PrimExpr,
-            end: PrimExpr,
+            end: PrimExpr = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
+            if end is None:
+                end = begin
+                begin = 0
             self.create_loop_info(begin, end, ForKind.UNROLLED, annotations=annotations)
 
         super().__init__(unroll)
@@ -559,10 +572,19 @@ class ThreadBinding(ForScopeHandler):
     def __init__(self):
         def thread_binding(
             begin: PrimExpr,
-            end: PrimExpr,
-            thread: str,
+            end: PrimExpr = None,
+            thread: str = None,
             annotations: Optional[Mapping[str, Object]] = None,
         ):
+            if thread is None:
+                if isinstance(end, str):  # handle case like thread_binding(128, "threadIdx.x")
+                    thread = end
+                    end = None
+                else:
+                    raise ValueError("Thread cannot be None for thread_binding")
+            if end is None:
+                end = begin
+                begin = 0
             thread_iter_var = IterVar(None, None, IterVar.ThreadIndex, thread)
             self.create_loop_info(
                 begin,

@@ -36,6 +36,6 @@ pip3 install \
     pytest-xdist \
     requests \
     scipy \
-    synr==0.5.0 \
+    synr==0.6.0 \
     six \
     tornado

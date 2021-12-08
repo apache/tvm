@@ -216,6 +216,77 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def matmul_out_dtype(inputs, out_dtype):
+    """Common function to handle MatMul and MatMulInteger16"""
+    a_shape = shape_of(inputs[0])
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(inputs[1])
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+
+        def flatten_to_nd(x, x_shape, nd=3):
+            ndims = infer_shape(x_shape)[0]
+            if ndims == nd:
+                return x
+            newshape = _op.concatenate(
+                [
+                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+                ],
+                0,
+            )
+            out = _op.reshape(x, fold_constant(newshape))
+            return out
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(inputs[0], a_shape, 3)
+            b = flatten_to_nd(inputs[1], b_shape, 3)
+            # Perform a NN batch matmul.
+            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
+        # Determine the output batch dimension.
+        if a_rank > b_rank:
+            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
+        elif a_rank < b_rank:
+            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
+        # If its unclear how broadcasting should be applied, the output
+        # shape is determined by choosing the maximum value from each input.
+        else:
+            out_batch = _op.concatenate(
+                [
+                    _op.maximum(
+                        _op.strided_slice(a_shape, [i], [i + 1]),
+                        _op.strided_slice(b_shape, [i], [i + 1]),
+                    )
+                    for i in range(a_rank - 2)
+                ],
+                0,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(
+                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                ),
+                _op.strided_slice(
+                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                ),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+    # Otherwise a simple dense op will get the job done.
+    input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+    return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -398,8 +469,10 @@ class BatchNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
+        # TODO(vvchernov): 'training_mode' (onnx tag) is not correctly handled, ignore for now
         out = AttrCvt(
-            op_name="batch_norm", ignores=["spatial", "is_test", "consumed_inputs", "momentum"]
+            op_name="batch_norm",
+            ignores=["spatial", "is_test", "consumed_inputs", "momentum", "training_mode"],
         )(inputs, attr, params)
         return out[0]
 
@@ -735,80 +808,24 @@ class MatMul(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         # Need to check input shape as batch matmul must be supported.
-        a_shape = shape_of(inputs[0])
-        a_rank = infer_shape(a_shape)[0]
-        b_shape = shape_of(inputs[1])
-        b_rank = infer_shape(b_shape)[0]
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if a_rank > 2 or b_rank > 2:
+        return matmul_out_dtype(inputs, out_dtype=infer_type(inputs[0]).checked_type.dtype)
 
-            def flatten_to_nd(x, x_shape, nd=3):
-                ndims = infer_shape(x_shape)[0]
-                if ndims == nd:
-                    return x
-                newshape = _op.concatenate(
-                    [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                    ],
-                    0,
-                )
-                out = _op.reshape(x, fold_constant(newshape))
-                return out
 
-            b_type = infer_type(inputs[1])
-            # Convert to dense if the second matrix is 2d and non-dynamic
-            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-                a = flatten_to_nd(inputs[0], a_shape, 2)
-                b = _op.transpose(inputs[1])
-                output = _op.nn.dense(a, b)
-            else:
-                # Convert a and b into 3 dimensional tensors.
-                a = flatten_to_nd(inputs[0], a_shape, 3)
-                b = flatten_to_nd(inputs[1], b_shape, 3)
-                if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
-                    # Transpose matrix dimensions of b.
-                    b = _op.transpose(b, [0, 2, 1])
-                    # Perform a NT batch matmul.
-                    output = _op.nn.batch_matmul(a, b)
-                else:
-                    # Perform a NN batch matmul.
-                    output = _op.nn.batch_matmul(a, b, transpose_b=False)
-            # Determine the output batch dimension.
-            if a_rank > b_rank:
-                out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-            elif a_rank < b_rank:
-                out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-            # If its unclear how broadcasting should be applied, the output
-            # shape is determined by choosing the maximum value from each input.
-            else:
-                out_batch = _op.concatenate(
-                    [
-                        _op.maximum(
-                            _op.strided_slice(a_shape, [i], [i + 1]),
-                            _op.strided_slice(b_shape, [i], [i + 1]),
-                        )
-                        for i in range(a_rank - 2)
-                    ],
-                    0,
-                )
-            # Reshape output to original dimensions.
-            final_shape = _op.concatenate(
-                [
-                    out_batch,
-                    _op.strided_slice(
-                        a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
-                    ),
-                    _op.strided_slice(
-                        b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
-                    ),
-                ],
-                0,
-            )
-            return _op.reshape(output, fold_constant(final_shape))
-        # Otherwise a simple dense op will get the job done.
-        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-        return _op.nn.dense(inputs[0], input_1_t)
+class MatMulInteger16(OnnxOpConverter):
+    """Operator converter for MatMulInteger16 from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        assert len(inputs) == 2, "MatMulInteger16 op take 2 inputs, {} given".format(len(inputs))
+        a_dtype = infer_type(inputs[0]).checked_type.dtype
+        b_dtype = infer_type(inputs[1]).checked_type.dtype
+        # Check input data types
+        assert a_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for first input"
+        assert b_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for second input"
+        out_dtype = "int32"
+        if a_dtype == "uint16" and b_dtype == "uint16":
+            out_dtype = "uint32"
+        return matmul_out_dtype(inputs, out_dtype)
 
 
 class Mod(OnnxOpConverter):
@@ -1461,13 +1478,37 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         splits = attr.get("split", None)
-        if splits is not None:
+        if splits is not None and len(splits) > 1:
             indices = []
-            attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
                 indices.append(index)
+        # When splits isnt specified divide evenly over axis.
+        else:
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        splits = inputs[1]
+        splits_rank = None
+        if splits is not None:
+            splits_rank = len(infer_shape(splits))
+        if splits is not None and splits_rank > 0:
+            if isinstance(splits, _expr.Constant):
+                splits = splits.data.asnumpy()
+                indices = []
+                index = 0
+                for i in splits[:-1]:
+                    index += i
+                    indices.append(index)
+            else:
+                raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
@@ -1523,6 +1564,15 @@ class Slice(OnnxOpConverter):
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 
+        if axes is not None:
+            # Normalize for negative axes
+            axes_dtype = infer_type(axes).checked_type.dtype
+            axes = fold_constant(
+                _op.where(
+                    axes < _op.const(0, axes_dtype), axes + _op.const(data_rank, axes_dtype), axes
+                )
+            )
+
         def has_static_axes():
             return (
                 isinstance(axes, _expr.Constant)
@@ -1539,7 +1589,6 @@ class Slice(OnnxOpConverter):
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
                 strides_np = steps.data.numpy().astype("int64")
-
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
                     inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
@@ -2611,13 +2660,13 @@ class Resize(OnnxOpConverter):
         out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+            out = _op.image.resize1d(inputs[0], out_size, None, "NCW", method, "asymmetric")
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+            out = _op.image.resize2d(inputs[0], out_size, None, "NCHW", method, "asymmetric")
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+            out = _op.image.resize3d(inputs[0], out_size, None, "NCDHW", method, "asymmetric")
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
         return out
@@ -2640,6 +2689,12 @@ class Resize(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         scale = inputs[2]
         size = inputs[3]
+
+        # Some versions of onnx exporters produce an opset 13 model with the opset 11
+        # resize op, handle that edge case
+        if scale is not None and size is not None:
+            return cls._impl_v11(inputs, attr, params)
+
         if size is not None:
             assert scale is None, "One of scale or size should be passed, not both."
         else:
@@ -2658,6 +2713,9 @@ class Resize(OnnxOpConverter):
         they handle the passing of scale and size. This utility
         provides the implementation for both
         """
+        roi = inputs[1]
+        if roi is not None and infer_shape(roi)[0] == 0:
+            roi = None
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2675,23 +2733,60 @@ class Resize(OnnxOpConverter):
         nearest_mode = attr.get("nearest_mode", b"round_prefer_floor").decode("ascii")
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
+        extrapolation_value = attr.get("extrapolation_value", 0.0)
 
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+        if roi is not None:
+            roi = fold_constant(
+                _op.concatenate(
+                    [
+                        _op.strided_slice(roi, [2], [ndims]),
+                        _op.strided_slice(roi, [ndims + 2], [2 * ndims]),
+                    ],
+                    axis=0,
+                )
+            )
+
+        out_size = fold_constant(_op.strided_slice(size, [2], [ndims]))
+
         out = None
         if ndims == 3:
-            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
             out = _op.image.resize1d(
-                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 4:
-            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
             out = _op.image.resize2d(
-                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 5:
-            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
             out = _op.image.resize3d(
-                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCDHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
@@ -3819,9 +3914,9 @@ class Unique(OnnxOpConverter):
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = trim_unique_lambda(unique[1])
-        inverse_indices = unique[2]
-        counts = trim_unique_lambda(unique[4])
+        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
+        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
+        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
@@ -3833,6 +3928,62 @@ class Einsum(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         equation = attr["equation"].decode("utf-8")
         return _op.einsum(inputs, equation)
+
+
+class RandomNormal(OnnxOpConverter):
+    """Operator converter for random_normal"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = get_type(attr.get("dtype", 1))
+        mean = attr.get("mean", 0.0)
+        scale = attr.get("scale", 1.0)
+        seed = attr.get("seed", None)
+        shape = attr["shape"]
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomNormalLike(OnnxOpConverter):
+    """Operator converter for random_normal_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        scale = attr.get("scale", 1.0)
+        mean = attr.get("mean", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
 
 
 class RandomUniform(OnnxOpConverter):
@@ -3853,6 +4004,38 @@ class RandomUniform(OnnxOpConverter):
 
         if seed is None:
             seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomUniformLike(OnnxOpConverter):
+    """Operator converter for random_uniform_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        high = attr.get("high", 1.0)
+        low = attr.get("low", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
         key = _random.threefry_key(seed)
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
@@ -4245,6 +4428,7 @@ def _get_convert_map(opset):
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
+        "MatMulInteger16": MatMulInteger16.get_converter(opset),
         "Mod": Mod.get_converter(opset),
         "Xor": Renamer("logical_xor"),
         # defs/nn
@@ -4343,7 +4527,10 @@ def _get_convert_map(opset):
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
+        "RandomNormal": RandomNormal.get_converter(opset),
+        "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
+        "RandomUniformLike": RandomUniformLike.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),

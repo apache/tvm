@@ -87,8 +87,8 @@ def test_cnn_small():
         tflite_model_buf = f.read()
 
     input_shape = (1, 490)
-    in_min, in_max = get_range_for_dtype_str("int8")
-    input_data = np.random.randint(in_min, high=in_max, size=input_shape).astype(np.float32)
+    rng = np.random.default_rng(12345)
+    input_data = rng.random(input_shape, dtype=np.float32)
 
     orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
@@ -101,7 +101,13 @@ def test_cnn_small():
     params = {}
     output_list = generate_ref_data(orig_mod["main"], inputs, params)
     compile_and_run(
-        AOTTestModel(module=cmsisnn_mod, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,

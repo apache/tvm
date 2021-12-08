@@ -268,7 +268,7 @@ def get_shape(shape):
                 assert val <= np.iinfo(np.int32).max
                 ret.append(tvm.tir.IntImm("int32", val))
         elif isinstance(dim, tvm.tir.Any):
-            ret.append(te.var("any_dim", "int32"))
+            ret.append(te.size_var("any_dim", "int32"))
         else:
             ret.append(dim)
     return ret

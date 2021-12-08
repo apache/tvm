@@ -47,20 +47,17 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  /*!
-   * \brief Sample an integer given the probability distribution
-   * \param candidates The candidates
-   * \param probs The probability distribution of the candidates
-   * \param decision The sampling decision, if it's given we would validate the decision, otherwise
-   *  we would sample a decision from the distribution and set the decision accordingly.
-   * \return The random variable sampled from candidates
-   */
   ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                            Optional<Integer> decision = NullOpt) final;
-
+  Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+                                  Optional<Array<Integer>> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
+  Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) final;
+  Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) final;
+  Array<BlockRV> GetProducers(const BlockRV& block_rv) final;
+  Array<BlockRV> GetConsumers(const BlockRV& block_rv) final;
   /******** Schedule: Transform loops ********/
   LoopRV Fuse(const Array<LoopRV>& loop_rvs) final;
   Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factor_rvs) final;

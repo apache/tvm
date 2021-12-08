@@ -1090,6 +1090,19 @@ def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_ohwi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & ohwi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 1] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
     """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
@@ -1103,6 +1116,8 @@ def conv_shape_func(attrs, inputs, _):
         shape_func = _conv_shape_func_nhwc_hwio
     elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
         shape_func = _conv_shape_func_nhwc_hwoi
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "OHWI":
+        shape_func = _conv_shape_func_nhwc_ohwi
     else:
         raise ValueError(
             "Unsupported data/kernel layout: %s, %s"

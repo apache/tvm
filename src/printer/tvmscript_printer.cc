@@ -25,6 +25,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -211,6 +212,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintMatchBufferRegion(const MatchBufferRegionNode* op);
   Doc PrintCommReducer(const CommReducerNode* op);
   Doc PrintAnnotations(const Map<String, ObjectRef>& annotations);
+  Doc PrintTarget(const TargetNode* target);
   static Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
 
   Doc GetUniqueName(std::string prefix);
@@ -228,12 +230,26 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief Print all simple loops in stack into one line using tir_prefix_.grid(). */
   Doc PrintLoopStack();
   /*!
-   * \brief Print all simple loops in stack into one line using tir_prefix_.grid().
+   * \brief Check whether a loop satisfies:
+   * 1. the loop is serial;
+   * 2. the loop has no annotation;
+   * 3. the loop starts from 0;
+   * 4. there is no optional information.
    * \param for_op the for node to be checked
+   * \return A boolean indicating whether the input loop satisfies the above conditions
    */
   bool IsSimpleLoop(const ForNode* for_op) {
     return for_op->kind == ForKind::kSerial && for_op->annotations.empty() &&
            is_zero(for_op->min) && !ContainsOptionalInfo(GetRef<Stmt>(for_op));
+  }
+  /*!
+   * \brief Check whether the `min` or `extent` of a loop depends on previous loops
+   * \param for_op The loop to be checked
+   * \return A boolean indicating whether the input loop depends on previous loops
+   */
+  bool DependOnPrevLoops(const ForNode* for_op) {
+    auto f_check = [&var_map = this->loop_var_map_](const VarNode* v) { return var_map.count(v); };
+    return UsesVar(for_op->min, f_check) || UsesVar(for_op->extent, f_check);
   }
 
   /*!
@@ -309,6 +325,17 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
           << ")";
     }
     return doc;
+  }
+
+ public:
+  static Doc PrintHeader(const std::string& tir_prefix) {
+    Doc header;
+    if (tir_prefix != "tir") {
+      header << "# from tvm.script import tir as " << tir_prefix << Doc::NewLine();
+    } else {
+      header << "# from tvm.script import tir" << Doc::NewLine();
+    }
+    return header;
   }
 };
 
@@ -506,6 +533,8 @@ Doc TVMScriptPrinter::Print(const ObjectRef& node) {
     return PrintMatchBufferRegion(node.as<MatchBufferRegionNode>());
   } else if (node->IsInstance<CommReducerNode>()) {
     return PrintCommReducer(node.as<CommReducerNode>());
+  } else if (node->IsInstance<TargetNode>()) {
+    return PrintTarget(node.as<TargetNode>());
   } else {
     LOG(FATAL) << "Do not know how to print " << node->GetTypeKey();
     return Doc();
@@ -578,7 +607,8 @@ Doc TVMScriptPrinter::VisitExpr_(const VarNode* op, ExprPrecedence* out_preceden
 
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(MulNode, " * ", ExprPrecedence::kMultiplicationDivision)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(DivNode, " / ", ExprPrecedence::kMultiplicationDivision)
-TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(ModNode, " % ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorDivNode, " // ", ExprPrecedence::kMultiplicationDivision)
+TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(FloorModNode, " % ", ExprPrecedence::kMultiplicationDivision)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AddNode, " + ", ExprPrecedence::kAdditionSubtraction)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(SubNode, " - ", ExprPrecedence::kAdditionSubtraction)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(LTNode, " < ", ExprPrecedence::kRelational)
@@ -590,17 +620,10 @@ TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(NENode, " != ", ExprPrecedence::kEquality)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(AndNode, " and ", ExprPrecedence::kAnd)
 TVM_DECLARE_TVMSCRIPT_PRINTER_BINOP(OrNode, " or ", ExprPrecedence::kOr)
 
-Doc TVMScriptPrinter::VisitExpr_(const FloorDivNode* op, ExprPrecedence* out_precedence) {
+Doc TVMScriptPrinter::VisitExpr_(const ModNode* op, ExprPrecedence* out_precedence) {
   *out_precedence = ExprPrecedence::kIdentity;
   Doc doc;
-  doc << tir_prefix_ << ".floordiv(" << Print(op->a) << ", " << Print(op->b) << ")";
-  return doc;
-}
-
-Doc TVMScriptPrinter::VisitExpr_(const FloorModNode* op, ExprPrecedence* out_precedence) {
-  *out_precedence = ExprPrecedence::kIdentity;
-  Doc doc;
-  doc << tir_prefix_ << ".floormod(" << Print(op->a) << ", " << Print(op->b) << ")";
+  doc << tir_prefix_ << ".truncmod(" << Print(op->a) << ", " << Print(op->b) << ")";
   return doc;
 }
 
@@ -890,7 +913,7 @@ Doc TVMScriptPrinter::VisitStmt_(const ForNode* op) {
   bool simple_loop = IsSimpleLoop(op);
   if (simple_loop) simple_loop_stack_.push_back(GetRef<For>(op));
   // It is a loop that can be compressed, let the loops below print it out
-  if (simple_loop && body != nullptr && IsSimpleLoop(body)) {
+  if (simple_loop && body != nullptr && IsSimpleLoop(body) && !DependOnPrevLoops(body)) {
     doc << Print(GetRef<For>(body));
     TryDeallocVar(op->loop_var);
     loop_var_map_.erase(op->loop_var.get());
@@ -1215,10 +1238,14 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   body << "# body" << Doc::NewLine();
   if (op->body->IsInstance<BlockRealizeNode>() &&
       op->body.as<BlockRealizeNode>()->iter_values.empty()) {
-    // Skip print root block
-    body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
     const BlockNode* block = op->body.as<BlockRealizeNode>()->block.get();
-    body << PrintBlockBody(block);
+    if (block->annotations.empty()) {
+      // Skip print root block
+      body << "# with " << tir_prefix_ << ".block(\"root\")" << Doc::NewLine();
+      body << PrintBlockBody(block);
+    } else {
+      body << PrintBody(op->body);
+    }
   } else {
     body << PrintBody(op->body);
   }
@@ -1396,6 +1423,20 @@ Doc TVMScriptPrinter::PrintLoopStack() {
   return res;
 }
 
+Doc TVMScriptPrinter::PrintTarget(const TargetNode* target) {
+  Doc res;
+  res << tir_prefix_ << ".target({";
+  Map<String, ObjectRef> config = target->Export();
+  for (auto it = config.begin(); it != config.end(); ++it) {
+    if (it != config.begin()) {
+      res << ", ";
+    }
+    res << "\"" << (*it).first << "\":" << Print((*it).second);
+  }
+  res << "})";
+  return res;
+}
+
 /*!
  * \brief The printer for TVMScript with diagnostic
  * \details The printer obtain the precedence of the top-level operation when printing each
@@ -1437,7 +1478,10 @@ Doc TVMScriptPrinterWithDiagnostic::PrintLoop(const For& loop) {
 
 String AsTVMScript(const ObjectRef& mod, const String& tir_prefix, bool show_meta) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinter(tir_prefix, show_meta).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinter(tir_prefix, show_meta).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
@@ -1445,7 +1489,10 @@ TVM_REGISTER_GLOBAL("script.AsTVMScript").set_body_typed(AsTVMScript);
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate) {
   ICHECK(mod->IsInstance<PrimFuncNode>() || mod->IsInstance<IRModuleNode>());
-  return TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod).str() + "\n";
+  Doc doc;
+  doc << TVMScriptPrinter::PrintHeader(tir_prefix)
+      << TVMScriptPrinterWithDiagnostic(tir_prefix, show_meta, annotate).Print(mod);
+  return doc.str() + "\n";
 }
 
 TVM_REGISTER_GLOBAL("script.AsTVMScriptWithDiagnostic").set_body_typed(AsTVMScriptWithDiagnostic);

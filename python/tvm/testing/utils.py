@@ -674,6 +674,18 @@ def requires_opencl(*args):
     return _compose(args, _requires_opencl)
 
 
+def requires_corstone300(*args):
+    """Mark a test as requiring the corstone300 FVP
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_corstone300 = [pytest.mark.corstone300]
+    return _compose(args, _requires_corstone300)
+
+
 def requires_rocm(*args):
     """Mark a test as requiring the rocm runtime.
 
@@ -799,7 +811,7 @@ def requires_rpc(*args):
 
 
 def requires_ethosn(*args):
-    """Mark a test as requiring ethosn to run.
+    """Mark a test as requiring Arm(R) Ethos(TM)-N to run.
 
     Parameters
     ----------
@@ -811,7 +823,7 @@ def requires_ethosn(*args):
         pytest.mark.skipif(
             not ethosn_available(),
             reason=(
-                "Ethos-N support not enabled.  "
+                "Arm(R) Ethos(TM)-N support not enabled.  "
                 "Set USE_ETHOSN=ON in config.cmake to enable, "
                 "and ensure that hardware support is present."
             ),

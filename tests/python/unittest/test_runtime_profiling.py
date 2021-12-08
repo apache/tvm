@@ -69,7 +69,22 @@ def test_vm(target, dev):
 
     csv = read_csv(report)
     assert "Hash" in csv.keys()
-    assert all([float(x) > 0 for x in csv["Duration (us)"]])
+    # Ops should have a duration greater than zero.
+    assert all(
+        [
+            float(dur) > 0
+            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            if name[:5] == "fused"
+        ]
+    )
+    # AllocTensor or AllocStorage may be cached, so their duration could be 0.
+    assert all(
+        [
+            float(dur) >= 0
+            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            if name[:5] != "fused"
+        ]
+    )
 
 
 @tvm.testing.parametrize_targets
@@ -196,4 +211,7 @@ def test_report_serialization():
 
 
 if __name__ == "__main__":
-    test_papi("llvm", tvm.cpu())
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

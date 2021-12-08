@@ -35,11 +35,11 @@ import tvm
 from tvm import relay
 from tvm import te
 from tvm.contrib import utils, graph_executor
-from tvm.relay.backend import te_compiler
+from tvm.relay.backend import te_compiler, Executor, Runtime
 from tvm.relay.backend.te_compiler import TECompiler
 from tvm.relay.backend.utils import mangle_module_name
 from tvm.micro import export_model_library_format
-
+from tvm.micro.testing import mlf_extract_workspace_size_bytes
 
 _LOG = logging.getLogger(__name__)
 
@@ -116,6 +116,8 @@ class AOTTestRunner(NamedTuple):
         Premade Makefile to use from the AOT test folder
     prologue: str
         Code to prepend to the main function
+    epilogue: str
+        Code to append to the main function
     includes: List[str]
         Additional includes required to run the AOT test runner
     parameters: Dict[str, str]
@@ -126,6 +128,7 @@ class AOTTestRunner(NamedTuple):
 
     makefile: str = "default"
     prologue: str = ""
+    epilogue: str = ""
     includes: List[str] = []
     parameters: Dict[str, str] = {}
     pass_config: Dict[str, Any] = {}
@@ -274,11 +277,17 @@ def emit_data_linkage(output_file, data_linkage):
         )
 
 
-def emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage):
+def emit_main_prologue(
+    main_file, custom_prologue, workspace_bytes, data_linkage, compiled_models, interface_api
+):
     # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
-    main_file.write(
-        f"#define WORKSPACE_SIZE ({workspace_bytes} + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
-    )
+    workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
+    if interface_api == "c":
+        for compiled_model in compiled_models:
+            model = compiled_model.model
+            workspace_define += f" + TVMGEN_{model.name.upper()}_WORKSPACE_SIZE"
+    workspace_define += " + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
+    main_file.write(workspace_define)
     emit_data_linkage(main_file, data_linkage)
     main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
     main_file.write("tvm_workspace_t app_workspace;\n")
@@ -320,6 +329,16 @@ def emit_main_data(main_file, input_map, output_list, mod_name):
         main_file.write(f'#include "{mangle_name(mod_name,"output_data")}{i}.h"\n')
 
 
+def emit_main_device_structs(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f"struct {mangle_name(mod_name, 'devices')} {mangle_name(mod_name, 'devices')} = {{"
+        )
+        for device in devices:
+            main_file.write(f"\t.{device} = {device},\n")
+        main_file.write("};\n")
+
+
 def emit_main_data_structs(main_file, input_map, output_list, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
@@ -359,10 +378,20 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
     main_file.write("};\n")
 
 
-def emit_main_c_interface_call(main_file, mod_name):
-    main_file.write(
-        f'{mangle_name(mod_name,"run")}(&{mangle_name(mod_name,"inputs")}, &{mangle_name(mod_name,"outputs")});\n'
-    )
+def emit_main_c_interface_call(main_file, devices, mod_name):
+    if devices:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")}, '
+            f'&{mangle_name(mod_name,"devices")});\n'
+        )
+    else:
+        main_file.write(
+            f'{mangle_name(mod_name,"run")}('
+            f'&{mangle_name(mod_name,"inputs")}, '
+            f'&{mangle_name(mod_name,"outputs")});\n'
+        )
 
 
 def emit_main_fake_packed_values(main_file):
@@ -446,7 +475,8 @@ def emit_main_init_memory_manager(main_file):
     main_file.write("\n")
 
 
-def emit_main_epilogue(main_file):
+def emit_main_epilogue(main_file, custom_epilogue):
+    main_file.write(custom_epilogue)
     main_file.write(f'printf("{AOT_SUCCESS_TOKEN}\\n");')
     main_file.write("return 0;")
     main_file.write("}\n")
@@ -469,10 +499,11 @@ def emit_main_micro_include(main_file, mod_name):
 
 def create_main(
     test_name,
-    models,
+    compiled_models,
     output_path,
     custom_includes,
     custom_prologue,
+    custom_epilogue,
     data_linkage,
     interface_api,
     workspace_bytes,
@@ -484,27 +515,41 @@ def create_main(
         emit_main_common_includes(main_file, custom_includes)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_micro_include(main_file, model.name)
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_data(main_file, model.inputs, model.outputs, model.name)
 
-        emit_main_prologue(main_file, custom_prologue, workspace_bytes, data_linkage)
+        emit_main_prologue(
+            main_file,
+            custom_prologue,
+            workspace_bytes,
+            data_linkage,
+            compiled_models,
+            interface_api,
+        )
         emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
+                devices = compiled_model.executor_factory.get_devices()
+                emit_main_device_structs(main_file, devices, model.name)
                 emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
-                emit_main_c_interface_call(main_file, model.name)
+                emit_main_c_interface_call(main_file, devices, model.name)
         else:
             emit_main_fake_packed_values(main_file)
-            for model in models:
+            for compiled_model in compiled_models:
+                model = compiled_model.model
                 emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
                 emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
 
-        for model in models:
+        for compiled_model in compiled_models:
+            model = compiled_model.model
             emit_main_compare(main_file, model.outputs, model.output_tolerance, model.name)
-        emit_main_epilogue(main_file)
+        emit_main_epilogue(main_file, custom_epilogue)
 
 
 def create_header_file(tensor_name, npy_data, output_path, data_linkage):
@@ -513,6 +558,15 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
     It is used to capture the tensor data (for both inputs and expected outputs) to be bundled into the standalone application.
     """
     file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
+    np_type_to_c = {
+        "int8": "int8_t",
+        "uint8": "uint8_t",
+        "int16": "int16_t",
+        "uint16": "uint16_t",
+        "int32": "int32_t",
+        "uint32": "uint32_t",
+        "float32": "float",
+    }
     # create header file
     raw_path = file_path.with_suffix(".h").resolve()
     with open(raw_path, "w") as header_file:
@@ -523,25 +577,12 @@ def create_header_file(tensor_name, npy_data, output_path, data_linkage):
 
         emit_data_linkage(header_file, data_linkage)
 
-        if npy_data.dtype == "int8":
-            header_file.write(f"int8_t {tensor_name}[] =")
-        elif npy_data.dtype == "int32":
-            header_file.write(f"int32_t {tensor_name}[] = ")
-        elif npy_data.dtype == "uint8":
-            header_file.write(f"uint8_t {tensor_name}[] = ")
-        elif npy_data.dtype == "float32":
-            header_file.write(f"float {tensor_name}[] = ")
+        header_file.write(f"{np_type_to_c[str(npy_data.dtype)]} {tensor_name}[] =")
 
         header_file.write("{")
         for i in np.ndindex(npy_data.shape):
             header_file.write(f"{npy_data[i]}, ")
         header_file.write("};\n\n")
-
-
-def extract_main_workspace_size_bytes(extract_dir):
-    with open(os.path.join(extract_dir, "metadata.json")) as json_f:
-        metadata = json.load(json_f)
-        return metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"]
 
 
 def compile_models(
@@ -551,6 +592,9 @@ def compile_models(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
+    use_runtime_executor: bool = True,
+    target: str = "c",
+    target_opts: Dict = None,
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -558,9 +602,18 @@ def compile_models(
     if not isinstance(models, list):
         models = [models]
 
-    base_target = "c -runtime=c --link-params --executor=aot"
-    extra_target = f"--workspace-byte-alignment={workspace_byte_alignment} --interface-api={interface_api} --unpacked-api={int(use_unpacked_api)}"
-    target = f"{base_target} {extra_target}"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+            "interface-api": interface_api,
+            "unpacked-api": use_unpacked_api,
+        },
+    )
+    if target_opts:
+        for key, val in target_opts.items():
+            target += f" {key}={val}"
 
     config = {"tir.disable_vectorize": True}
     if pass_config:
@@ -571,16 +624,29 @@ def compile_models(
     compiled_mods = list()
     for model in models:
         with tvm.transform.PassContext(opt_level=3, config=config):
-            executor_factory = tvm.relay.build(
-                model.module,
-                target,
-                target_host=target,
-                params=model.params,
-                mod_name=model.name,
-            )
-            compiled_mods.append(
-                AOTCompiledTestModel(model=model, executor_factory=executor_factory)
-            )
+            # TODO(Mousius) - Remove once executor/runtime are fully removed from Target
+            if use_runtime_executor:
+                executor_factory = tvm.relay.build(
+                    model.module,
+                    tvm.target.Target(target, host=target),
+                    executor=executor,
+                    runtime=runtime,
+                    params=model.params,
+                    mod_name=model.name,
+                )
+                compiled_mods.append(
+                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                )
+            else:
+                executor_factory = tvm.relay.build(
+                    model.module,
+                    tvm.target.Target(target, host=target),
+                    params=model.params,
+                    mod_name=model.name,
+                )
+                compiled_mods.append(
+                    AOTCompiledTestModel(model=model, executor_factory=executor_factory)
+                )
     return compiled_mods
 
 
@@ -591,21 +657,26 @@ def run_and_check(
     debug_calculated_workspaces=False,
     workspace_byte_alignment=8,
     data_linkage: AOTDataLinkage = None,
+    test_dir: str = None,
+    verbose: bool = False,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
     to run in the test runner to verify the results.
     """
 
-    tmp_path = utils.tempdir()
-    tmp_dir = tmp_path.temp_dir
+    base_path = test_dir
+    if test_dir is None:
+        tmp_path = utils.tempdir()
+        tmp_dir = tmp_path.temp_dir
+        base_path = os.path.join(tmp_dir, "test")
 
     cflags = f"-DTVM_RUNTIME_ALLOC_ALIGNMENT_BYTES={workspace_byte_alignment} "
     # The calculated workspaces will not account for stack allocator tags used for debugging
     if debug_calculated_workspaces:
         cflags += "-DTVM_CRT_STACK_ALLOCATOR_ENABLE_LIFO_CHECK "
 
-    base_path = os.path.join(tmp_dir, "test")
+    base_path = os.path.abspath(base_path)
     build_path = os.path.join(base_path, "build")
     os.makedirs(build_path, exist_ok=True)
 
@@ -626,7 +697,8 @@ def run_and_check(
         t.extractall(base_path)
 
         workspace_bytes += model.extra_memory_in_bytes
-        workspace_bytes += extract_main_workspace_size_bytes(base_path)
+        if interface_api == "packed":
+            workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
@@ -653,10 +725,11 @@ def run_and_check(
 
     create_main(
         "test.c",
-        [compiled_model.model for compiled_model in models],
+        models,
         build_path,
         runner.includes,
         runner.prologue,
+        runner.epilogue,
         data_linkage,
         interface_api,
         workspace_bytes,
@@ -666,6 +739,10 @@ def run_and_check(
     file_dir = os.path.dirname(os.path.abspath(__file__))
     codegen_path = os.path.join(base_path, "codegen")
     makefile = os.path.join(file_dir, f"{runner.makefile}.mk")
+    fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
+    # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
+    if not os.path.isdir(fvp_dir):
+        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
     custom_params = " ".join([f" {param}='{value}'" for param, value in runner.parameters.items()])
     make_command = (
         f"make -f {makefile} build_dir={build_path}"
@@ -674,17 +751,22 @@ def run_and_check(
         + f" AOT_TEST_ROOT={file_dir}"
         + f" CODEGEN_ROOT={codegen_path}"
         + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
+        + f" FVP_DIR={fvp_dir}"
         + custom_params
     )
 
     compile_log_path = os.path.join(build_path, "test_compile.log")
     compile_command = f"{make_command} aot_test_runner"
+    if verbose:
+        print("Compile command:\n", compile_command)
     ret = subprocess_log_output(compile_command, ".", compile_log_path)
     assert ret == 0
 
     # Verify that runs fine
     run_log_path = os.path.join(build_path, "test_run.log")
     run_command = f"{make_command} run"
+    if verbose:
+        print("Run command:\n", run_command)
     ret = subprocess_log_output(run_command, build_path, run_log_path)
     assert ret == 0
 
@@ -701,8 +783,21 @@ def compile_and_run(
     workspace_byte_alignment: int = 8,
     enable_op_fusion: bool = True,
     data_linkage: AOTDataLinkage = None,
+    use_runtime_executor: bool = True,
+    target: str = "c",
+    target_opts: Dict = None,
+    test_dir: str = None,
+    verbose: bool = False,
 ):
-    """This is a wrapper API to compile and run models as test for AoT"""
+    """This is a wrapper API to compile and run models as test for AoT
+
+    Parameters
+    ----------
+    test_dir : str
+        This path will contain build, codegen, include directories
+    verbose: bool
+        Prints commands to build and run AOT test runner
+    """
     compiled_test_mods = compile_models(
         models=models,
         interface_api=interface_api,
@@ -710,6 +805,9 @@ def compile_and_run(
         workspace_byte_alignment=workspace_byte_alignment,
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
+        use_runtime_executor=use_runtime_executor,
+        target=target,
+        target_opts=target_opts,
     )
     run_and_check(
         models=compiled_test_mods,
@@ -718,6 +816,8 @@ def compile_and_run(
         debug_calculated_workspaces=debug_calculated_workspaces,
         workspace_byte_alignment=workspace_byte_alignment,
         data_linkage=data_linkage,
+        test_dir=test_dir,
+        verbose=verbose,
     )
 
 

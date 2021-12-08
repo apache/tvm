@@ -1305,19 +1305,23 @@ def test_alter_op_with_global_var():
 
 def test_alter_op_dense():
     def before():
-        x = relay.var("x", shape=(32, 64))
+        x = relay.var("x", shape=(32, 1, 128))
         weight = relay.var("weight", shape=(48, 64))
-        y = relay.nn.dense(x, weight)
+        avg1d = relay.nn.adaptive_avg_pool1d(x, [64])
+        squeeze = relay.squeeze(avg1d, axis=[1])
+        y = relay.nn.dense(squeeze, weight)
         y = relay.Function(analysis.free_vars(y), y)
         return y
 
     def expected():
-        x = relay.var("x", shape=(32, 64))
+        x = relay.var("x", shape=(32, 1, 128))
         weight = relay.var("weight", shape=(48, 64))
         target_layout = "NC16n"
         weight_transform = relay.layout_transform(weight, "NC", target_layout)
+        avg1d = relay.nn.adaptive_avg_pool1d(x, [64])
+        squeeze = relay.squeeze(avg1d, axis=[1])
         y = relay.nn.contrib_dense_pack(
-            x, weight_transform, target_layout, units=None, out_dtype="float32"
+            squeeze, weight_transform, target_layout, units=None, out_dtype="float32"
         )
         y = relay.Function(analysis.free_vars(y), y)
         return y

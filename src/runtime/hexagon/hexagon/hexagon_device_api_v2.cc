@@ -20,6 +20,7 @@
 /*!
  * \file hexagon_device_api_v2.cc
  */
+#define TVM_LOG_CUSTOMIZE 1
 
 #include "hexagon_device_api_v2.h"
 

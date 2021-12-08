@@ -88,6 +88,12 @@ class TaskSchedulerNode : public runtime::Object {
   virtual void Tune();
 
   /*!
+   * \brief Initialize modules of the given task.
+   * \param task_id The task id to be initialized.
+   */
+  virtual void InitializeTask(int task_id);
+
+  /*!
    * \brief Set specific task to be stopped.
    * \param task_id The task id to be stopped.
    */
@@ -116,11 +122,16 @@ class TaskSchedulerNode : public runtime::Object {
   TVM_DECLARE_BASE_OBJECT_INFO(TaskSchedulerNode, Object);
 };
 
+class TaskScheduler;
+
 /*! \brief The task scheduler with customized methods on the python-side. */
 class PyTaskSchedulerNode : public TaskSchedulerNode {
  public:
   /*! \brief The function type of `Tune` method. */
   using FTune = runtime::TypedPackedFunc<void()>;
+
+  /*! \brief The function type of `InitializeTask` method. */
+  using FInitializeTask = runtime::TypedPackedFunc<void(int)>;
 
   /*!
    * \brief The function type of `SetTaskStopped` method.
@@ -149,6 +160,8 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
 
   /*! \brief The packed function to the `Tune` funcion. */
   FTune f_tune;
+  /*! \brief The packed function to the `InitializeTask` funcion. */
+  FInitializeTask f_initialize_task;
   /*! \brief The packed function to the `SetTaskStopped` function. */
   FSetTaskStopped f_set_task_stopped;
   /*! \brief The packed function to the `IsTaskRunning` function. */
@@ -160,29 +173,55 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `f_tune` is not visited
+    // `f_initialize_task` is not visited
     // `f_set_task_stopped` is not visited
     // `f_is_task_running` is not visited
     // `f_join_running_task` is not visited
     // `f_next_task_id` is not visited
   }
 
-  void Tune() final {  //
-    f_tune();
+  void Tune() final {
+    if (f_tune == nullptr) {
+      TaskSchedulerNode::Tune();
+    } else {
+      f_tune();
+    }
   }
 
-  void SetTaskStopped(int task_id) final {  //
-    f_set_task_stopped(task_id);
+  void InitializeTask(int task_id) final {
+    if (f_initialize_task == nullptr) {
+      TaskSchedulerNode::InitializeTask(task_id);
+    } else {
+      f_initialize_task(task_id);
+    }
   }
 
-  bool IsTaskRunning(int task_id) final {  //
-    return f_is_task_running(task_id);
+  void SetTaskStopped(int task_id) final {
+    if (f_set_task_stopped == nullptr) {
+      TaskSchedulerNode::SetTaskStopped(task_id);
+    } else {
+      f_set_task_stopped(task_id);
+    }
   }
 
-  void JoinRunningTask(int task_id) final {  //
-    f_join_running_task(task_id);
+  bool IsTaskRunning(int task_id) final {
+    if (f_is_task_running == nullptr) {
+      return TaskSchedulerNode::IsTaskRunning(task_id);
+    } else {
+      return f_is_task_running(task_id);
+    }
   }
 
-  int NextTaskId() final {  //
+  void JoinRunningTask(int task_id) final {
+    if (f_join_running_task == nullptr) {
+      return TaskSchedulerNode::JoinRunningTask(task_id);
+    } else {
+      return f_join_running_task(task_id);
+    }
+  }
+
+  int NextTaskId() final {
+    ICHECK(f_next_task_id != nullptr) << "PyTaskScheduler's NextTaskId method not implemented!";
     return f_next_task_id();
   }
 
@@ -203,10 +242,17 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param runner The runner of the scheduler.
    * \param database The database of the scheduler.
    */
-  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks, Builder builder, Runner runner,
-                                          Database database);
+  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,  //
+                                          Builder builder,           //
+                                          Runner runner,             //
+                                          Database database);        //
   TVM_DLL static TaskScheduler PyTaskScheduler(
+      Array<TuneContext> tasks,                                   //
+      Builder builder,                                            //
+      Runner runner,                                              //
+      Database database,                                          //
       PyTaskSchedulerNode::FTune f_tune,                          //
+      PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
       PyTaskSchedulerNode::FSetTaskStopped f_set_task_stopped,    //
       PyTaskSchedulerNode::FIsTaskRunning f_is_task_running,      //
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task,  //

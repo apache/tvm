@@ -98,7 +98,7 @@ def main(model_str, output_path):
         pass
     print("building...")
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(net, target, target_host=target_host, params=params)
+        graph, lib, params = relay.build(net, tvm.target.Target(target, target_host), params=params)
     print("dumping lib...")
     lib.export_library(output_path_str + "/" + "deploy_lib_cpu.so", ndk.create_shared)
     print("dumping graph...")
