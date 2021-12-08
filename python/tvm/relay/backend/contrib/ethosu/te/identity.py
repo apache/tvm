@@ -61,11 +61,13 @@ def identity_compute(
     dmaed_ifm = read_compute(ifm, ifm_zero_point, ifm_scale)
     id_attrs = {"op": "ethosu_identity", "activation": activation}
 
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
     # This is a trick to insert the LUT tensor into the TE graph if LUT is present
-    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if activation in ("TANH", "LUT") else 0
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
 
     # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
-    if activation in ("TANH", "LUT"):
+    if has_lut:
         id_attrs["lut"] = lut
 
     identity = te.compute(

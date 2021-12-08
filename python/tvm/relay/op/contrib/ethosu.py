@@ -918,13 +918,11 @@ def abs_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return pattern
 
 
-class TanhParams:
+class LutActivationParams:
     """
-    This class will parse a call to a ethos-u.tanh composite function
-    and extract the parameter information.
+    A parent class for LUT based activation functions that extract the input and
+    output tensors and check whether they are valid.
     """
-
-    composite_name = "ethos-u.tanh"
 
     def __init__(self, func_body: Call):
         self.ofm = TensorParams(func_body)
@@ -932,11 +930,16 @@ class TanhParams:
 
     def is_valid(self):
         """
-        This function checks whether reshape has compatible attributes with the NPU
+        This function checks whether activation has compatible attributes with the NPU
         """
         if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
             return False
         return True
+
+
+class TanhParams(LutActivationParams):
+
+    composite_name = "ethos-u.tanh"
 
 
 def tanh_pattern():
@@ -944,6 +947,23 @@ def tanh_pattern():
     dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
     tanh = is_op("tanh")(dequant)
     quant = is_op("qnn.quantize")(tanh, is_constant(), is_constant())
+    return quant
+
+
+class SigmoidParams(LutActivationParams):
+    """
+    This class will parse a call to a ethos-u.sigmoid composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.sigmoid"
+
+
+def sigmoid_pattern():
+    """Create pattern for sigmoid"""
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    sigmoid = is_op("sigmoid")(dequant)
+    quant = is_op("qnn.quantize")(sigmoid, is_constant(), is_constant())
     return quant
 
 
@@ -1162,6 +1182,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             lambda pat: MeanParams(pat).is_valid(),
         ),
         (ConcatParams.composite_name, concat_pattern(), lambda pat: ConcatParams(pat).is_valid()),
+        (
+            SigmoidParams.composite_name,
+            sigmoid_pattern(),
+            lambda pat: SigmoidParams(pat).is_valid(),
+        ),
     ]
 
 
