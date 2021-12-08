@@ -25,7 +25,7 @@
 
 #include "hexagon_common.h"
 
-#ifdef BUILD_FOR_HEXAGON
+#if defined(__hexagon__)
 #include "HAP_compute_res.h"
 #endif
 
@@ -68,19 +68,18 @@ struct DDRAllocation : public Allocation {
   }
 };
 
-#ifdef BUILD_FOR_HEXAGON
+#if defined(__hexagon__)
 struct VTCMAllocation : public Allocation {
   VTCMAllocation(size_t nbytes, size_t alignment) : Allocation(nbytes, alignment) {
-    // TODO(Straw): Alignment not used when allocating VTCM
     compute_res_attr_t res_info;
     HEXAGON_SAFE_CALL(HAP_compute_res_attr_init(&res_info));
-    // TODO(Straw): Magic number 1
-    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, nbytes, 1));
-    // TODO(Straw): HEXAGON_SAFE_CALL?
-    // TODO(Straw): Magic number 10000
-    context_id_ = HAP_compute_res_acquire(&res_info, 10000);
+
+    // allocate nbytes of vtcm on a single page
+    HEXAGON_SAFE_CALL(HAP_compute_res_attr_set_vtcm_param(&res_info, /*vtcm_size = */ nbytes,
+                                                          /*b_single_page = */ 1));
+    context_id_ = HAP_compute_res_acquire(&res_info, /*timeout = */ 10000);
+
     if (context_id_) {
-      // TODO(Straw): HEXAGON_SAFE_CALL?
       data_ = HAP_compute_res_attr_get_vtcm_ptr(&res_info);
       if (!data_) {
         HEXAGON_PRINT(ERROR, "ERROR: Allocated VTCM ptr is null.");
@@ -96,11 +95,8 @@ struct VTCMAllocation : public Allocation {
   ~VTCMAllocation() {
     // HEXAGON_PRINT(ALWAYS, "~VTCMAllocation() - Context ID: %u, VTCM ptr: %p", context_id_,
     // data_);
-    // TODO(Straw): Need to handle the else case(s) here
-    if (context_id_ && data_) {
-      HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
-      data_ = nullptr;
-    }
+    HEXAGON_SAFE_CALL(HAP_compute_res_release(context_id_));
+    data_ = nullptr;
   }
   unsigned int context_id_{0};
 };

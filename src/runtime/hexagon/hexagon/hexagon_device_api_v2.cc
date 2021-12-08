@@ -106,7 +106,7 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
 void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
   auto it = workspace_allocations_.find(data);
-  ICHECK(it != workspace_allocations_.end())
+  CHECK(it != workspace_allocations_.end())
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, it->second);
   workspace_allocations_.erase(it);
