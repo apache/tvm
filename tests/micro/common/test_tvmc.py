@@ -23,6 +23,7 @@ import tempfile
 import pathlib
 import sys
 import os
+import shutil
 
 import tvm
 from tvm.contrib.download import download_testdata
@@ -66,13 +67,22 @@ def test_tvmc_exist(board):
 
 
 @tvm.testing.requires_micro
-def test_tvmc_model_build_only(board):
+@pytest.mark.parametrize(
+    "output_dir,",
+    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+)
+def test_tvmc_model_build_only(board, output_dir):
     target, platform = _get_target_and_platform(board)
 
+    if not os.path.isabs(output_dir):
+        out_dir_temp = os.path.abspath(output_dir)
+        if os.path.isdir(out_dir_temp):
+            shutil.rmtree(out_dir_temp)
+        os.mkdir(out_dir_temp)
+
     model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
-    temp_dir = pathlib.Path(tempfile.mkdtemp())
-    tar_path = str(temp_dir / "model.tar")
-    project_dir = str(temp_dir / "project")
+    tar_path = str(output_dir / "model.tar")
+    project_dir = str(output_dir / "project")
 
     runtime = "crt"
     executor = "graph"
@@ -118,17 +128,27 @@ def test_tvmc_model_build_only(board):
         ["micro", "build", project_dir, platform, "--project-option", f"{platform}_board={board}"]
     )
     assert cmd_result == 0, "tvmc micro failed in step: build"
+    shutil.rmtree(output_dir)
 
 
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
-def test_tvmc_model_run(board):
+@pytest.mark.parametrize(
+    "output_dir,",
+    [pathlib.Path("./tvmc_relative_path_test"), pathlib.Path(tempfile.mkdtemp())],
+)
+def test_tvmc_model_run(board, output_dir):
     target, platform = _get_target_and_platform(board)
 
+    if not os.path.isabs(output_dir):
+        out_dir_temp = os.path.abspath(output_dir)
+        if os.path.isdir(out_dir_temp):
+            shutil.rmtree(out_dir_temp)
+        os.mkdir(out_dir_temp)
+
     model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
-    temp_dir = pathlib.Path(tempfile.mkdtemp())
-    tar_path = str(temp_dir / "model.tar")
-    project_dir = str(temp_dir / "project")
+    tar_path = str(output_dir / "model.tar")
+    project_dir = str(output_dir / "project")
 
     runtime = "crt"
     executor = "graph"
@@ -193,6 +213,7 @@ def test_tvmc_model_run(board):
         ]
     )
     assert cmd_result == 0, "tvmc micro failed in step: run"
+    shutil.rmtree(output_dir)
 
 
 if __name__ == "__main__":
