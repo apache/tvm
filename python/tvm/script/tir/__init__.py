@@ -18,6 +18,6 @@
 
 # Type system
 from .ty import int8, int16, int32, int64, float16, float32, float64
-from .ty import boolean, handle, Ptr, Tuple
+from .ty import boolean, handle, Ptr, Tuple, Buffer
 
 from .prim_func import prim_func

@@ -101,5 +101,50 @@ def test_syntax_sugar_fail():
     check_error(loop_syntax_sugar_fail, 3)
 
 
+# match buffer - use kwargs
+@T.prim_func
+def elementwise_handle(
+    a: T.handle,
+    b: T.handle,
+) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    B = T.match_buffer(b, (128, 128, 128, 128))
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
+
+
+# match buffer - use buffer with kwargs
+@T.prim_func
+def elementwise_buffer_kwargs(
+    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=None),
+    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=None),
+) -> None:
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
+# match buffer - use buffer without kwargs
+@T.prim_func
+def elementwise_buffer_no_kwargs(
+    a: T.Buffer[(128, 128, 128, 128), "float32"],
+    b: T.Buffer[(128, 128, 128, 128), "float32"],
+) -> None:
+    for i, j, k, l in T.grid(128, 128, 128, 128):
+        with T.block("B"):
+            vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+            b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
+
+
+def test_match_buffer_syntax_sugar():
+    # with kwargs
+    assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
+    # without kwargs
+    assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
