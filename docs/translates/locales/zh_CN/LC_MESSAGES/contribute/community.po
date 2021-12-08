@@ -52,8 +52,8 @@ msgid ""
 "archivable channels such as issues, discuss forum and mailing-list, so that "
 "everyone in the community can participate and review the process later."
 msgstr ""
-"欢迎社区中的每个人发送补丁、文档，并为项目提出新的方向。本社区的主要指导方针是让社区中的每个人都能参与决策和发展。当提出重大变更时，应发送RFC以便于社区进行讨论。我们鼓励大家通过如issues,、讨论论坛和mailing-"
-"list等渠道讨论，以便社区中的每个人都可以参与并在以后审查该过程。"
+"欢迎社区中的每个人发送补丁、文档，并为项目提出新的方向。本社区的主要指导方针是让社区中的每个人都能参与决策和发展。当提出重大变更时，应发送RFC以便于社区进行讨论。我们鼓励大家通过如issues"
+",、讨论论坛和mailing-list等渠道讨论，以便社区中的每个人都可以参与并在以后审查该过程。"
 
 #: ../../_staging/contribute/community.rst:31
 msgid ""
