@@ -206,6 +206,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBlockVarRemaps();
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
+  Doc PrintBlockAttrArray(const ArrayNode* op);
   Doc PrintBlockBody(const BlockNode* op);
   virtual Doc PrintBlockName(const BlockNode* block_op);
   Doc PrintBufferRegion(const BufferRegionNode* op);
@@ -1095,14 +1096,29 @@ Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
   if (!is_one(op->predicate)) {
     block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
   }
-  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads(" << Print(block_op->reads) << ")";
-  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes(" << Print(block_op->writes) << ")";
+  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
+                 << PrintBlockAttrArray(block_op->reads.as<ArrayNode>()) << ")";
+  block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
+                 << PrintBlockAttrArray(block_op->writes.as<ArrayNode>()) << ")";
   if (!block_op->annotations.empty()) {
     block_attr_doc << Doc::NewLine() << tir_prefix_ << ".block_attr({";
     block_attr_doc << PrintAnnotations(block_op->annotations);
     block_attr_doc << "})";
   }
   return block_attr_doc;
+}
+
+// This function is to make sure arguments of T.reads() and T.writes() is not parsed by printer as a
+// List. Therefore the brackets are removed before and after printing arguments out
+Doc TVMScriptPrinter::PrintBlockAttrArray(const ArrayNode* op) {
+  Doc doc;
+  for (size_t i = 0; i < op->size(); ++i) {
+    if (i != 0) {
+      doc << ", ";
+    }
+    doc << Print(op->at(i));
+  }
+  return doc;
 }
 
 Doc TVMScriptPrinter::PrintBlockBody(const BlockNode* op) {
