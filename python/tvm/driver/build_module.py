@@ -142,7 +142,7 @@ def build(
     runtime: Optional[
         "tvm.relay.backend.Runtime"
     ] = None,  # Type is annotated this way to avoid cyclic dependency
-    name: Optional[str] = "default_function",
+    name: Optional[str] = None,
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ):
     """Build a function with arguments as signature. Code will be generated
@@ -232,7 +232,7 @@ def build(
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
         if name is not None:
-            warnings.warn("Specifying name with IRModule input is useless")
+            raise ValueError("Specifying name with IRModule input is useless")
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
