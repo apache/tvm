@@ -93,7 +93,7 @@ def schedule_to_module(
 def lower(
     inp: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
-    name: str = "main",
+    name: str = None,
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
     simple_mode: bool = False,
 ) -> IRModule:
@@ -125,6 +125,7 @@ def lower(
     m : IRModule
        The result IRModule
     """
+    if name is None: name = "main"
     if isinstance(inp, IRModule):
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
