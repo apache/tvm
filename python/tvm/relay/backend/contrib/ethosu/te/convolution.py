@@ -140,11 +140,13 @@ def conv2d_compute(
         "dilation_w": dilation_w,
     }
 
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
     # This is a trick to insert the LUT tensor into the TE graph if LUT is present
-    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if activation in ("TANH", "LUT") else 0
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
 
     # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
-    if activation in ("TANH", "LUT"):
+    if has_lut:
         conv2d_attrs["lut"] = lut
 
     conv = te.compute(
