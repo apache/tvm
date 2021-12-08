@@ -69,10 +69,16 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     """
     Invoke a set of bash scripts through docker/bash.sh
     """
-    # Check that the user is in the docker group before running
-    group = grp.getgrnam("docker")
-    if getpass.getuser() not in group.gr_mem:
-        print_color(col.YELLOW, f"Note: User '{getpass.getuser()}' is not in the 'docker' group")
+    if sys.platform == "linux":
+        # Check that the user is in the docker group before running
+        try:
+            group = grp.getgrnam("docker")
+            if getpass.getuser() not in group.gr_mem:
+                print_color(
+                    col.YELLOW, f"Note: User '{getpass.getuser()}' is not in the 'docker' group"
+                )
+        except KeyError:
+            print_color(col.YELLOW, f"Note: 'docker' group does not exist")
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
     command = [docker_bash, "--name", name]
