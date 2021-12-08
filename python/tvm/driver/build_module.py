@@ -126,7 +126,7 @@ def lower(
        The result IRModule
     """
     if name is None:
-        name = "main"
+        name = "default_function"
     if isinstance(inp, IRModule):
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
