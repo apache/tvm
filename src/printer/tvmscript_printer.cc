@@ -1408,8 +1408,12 @@ Doc TVMScriptPrinter::PrintAnnotations(const Map<String, ObjectRef>& annotations
 Doc TVMScriptPrinter::PrintLoop(const For& loop) {
   Doc res;
   res << "for " << Print(loop->loop_var) << " in " << tir_prefix_
-      << "." + std::string(ForKind2String(loop->kind)) + "(" << Print(loop->min) << ", "
-      << Print(loop->min + loop->extent);
+      << "." + std::string(ForKind2String(loop->kind)) + "(";
+  if (is_zero(loop->min)) {
+    res << Print(loop->extent);
+  } else {
+    res << Print(loop->min) << ", " << Print(loop->min + loop->extent);
+  }
   if (loop->thread_binding.defined()) {
     res << ", thread=";
     res << Print(loop->thread_binding.value()->thread_tag);
