@@ -128,21 +128,6 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
 
 TVM_REGISTER_NODE_TYPE(EthosuBinaryElementwiseAttrs);
 
-bool IsScalarTensor(const Array<PrimExpr>& ifm_shape, const DataType& ifm_dtype) {
-  if (ifm_dtype != DataType::UInt(8)) {
-    return false;
-  }
-
-  for (const auto& expr : ifm_shape) {
-    const auto& dim_int_node = expr.as<IntImmNode>();
-    CHECK(dim_int_node) << "Expected IntImmNode for shape dimensions.";
-    int dim = dim_int_node->value;
-    if (dim != 1) return false;
-  }
-
-  return true;
-}
-
 bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                 const TypeReporter& reporter) {
   const int ifm_index = 0;
@@ -167,11 +152,13 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
     ofm_dtype = DataType::Int(8);
   } else if (param->ofm_dtype == "uint8") {
     ofm_dtype = DataType::UInt(8);
+  } else if (param->ofm_dtype == "int16") {
+    ofm_dtype = DataType::Int(16);
   } else if (param->ofm_dtype == "int32") {
     ofm_dtype = DataType::Int(32);
   }
 
-  if (ifm_dtype != ifm2_dtype && !IsScalarTensor(ifm2->shape, ifm2_dtype)) {
+  if (ifm_dtype != ifm2_dtype) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "Invalid operator: expected ethosu_binary_elementwise "
                                      << "type for ifm2 be the same of ifm but was " << ifm2_dtype
@@ -189,11 +176,11 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
       return false;
     }
     if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-        ofm_dtype != DataType::Int(32)) {
+        ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
       reporter->GetDiagCtx().EmitFatal(
           Diagnostic::Error(reporter->GetSpan())
           << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ofm but was " << ofm_dtype);
+          << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
       return false;
     }
   } else if (operator_type == "MIN" || operator_type == "MAX") {

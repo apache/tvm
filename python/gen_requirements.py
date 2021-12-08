@@ -109,6 +109,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             [
                 "future",  # Hidden dependency of torch.
                 "onnx",
+                "onnxoptimizer",
                 "onnxruntime",
                 "torch",
                 "torchvision",
@@ -146,6 +147,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "ethos-u-vela",
                 "future",  # Hidden dependency of torch.
                 "onnx",
+                "onnxoptimizer",
                 "onnxruntime",
                 "paddlepaddle",
                 "tensorflow",
@@ -233,13 +235,14 @@ CONSTRAINTS = [
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==2.1.1"),
+    ("ethos-u-vela", "==3.2.0"),
     ("future", None),
     ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
     ("numpy", None),
     ("onnx", None),
+    ("onnxoptimizer", None),
     ("onnxruntime", None),
     ("opencv-python", None),
     ("paddlepaddle", None),

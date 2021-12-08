@@ -209,22 +209,24 @@ class GreedyConflicts : public GreedyBase {
   }
 };
 
-Map<BufferInfo, PoolAllocation> GreedyBySize(const Array<BufferInfo>& buffer_info_arr) {
+Map<BufferInfo, PoolAllocation> GreedyBySize(const Array<BufferInfo>& buffer_info_arr,
+                                             const Integer& memory_pressure) {
   return GreedySize().PlanMemory(buffer_info_arr);
 }
 
-Map<BufferInfo, PoolAllocation> GreedyByConflicts(const Array<BufferInfo>& buffer_info_arr) {
+Map<BufferInfo, PoolAllocation> GreedyByConflicts(const Array<BufferInfo>& buffer_info_arr,
+                                                  const Integer& memory_pressure) {
   return GreedyConflicts().PlanMemory(buffer_info_arr);
 }
 
 TVM_REGISTER_GLOBAL("tir.usmp.algo.greedy_by_size")
-    .set_body_typed([](Array<BufferInfo> buffer_info_arr) {
-      return GreedyBySize(buffer_info_arr);
+    .set_body_typed([](Array<BufferInfo> buffer_info_arr, Integer memory_pressure) {
+      return GreedyBySize(buffer_info_arr, memory_pressure);
     });
 
 TVM_REGISTER_GLOBAL("tir.usmp.algo.greedy_by_conflicts")
-    .set_body_typed([](Array<BufferInfo> buffer_info_arr) {
-      return GreedyByConflicts(buffer_info_arr);
+    .set_body_typed([](Array<BufferInfo> buffer_info_arr, Integer memory_pressure) {
+      return GreedyByConflicts(buffer_info_arr, memory_pressure);
     });
 
 }  // namespace algo
