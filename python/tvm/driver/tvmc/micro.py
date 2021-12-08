@@ -29,6 +29,7 @@ from .common import (
     TVMCSuppressedArgumentParser,
     get_project_options,
     get_and_check_options,
+    get_project_dir,
 )
 
 try:
@@ -236,21 +237,13 @@ def drive_micro(args):
     args.subcommand_handler(args)
 
 
-def get_project_dir(args: argparse.Namespace) -> str:
-    # Get project directory path
-    if not os.path.isabs(args.project_dir):
-        return os.path.abspath(args.project_dir)
-    return args.project_dir
-
-
 def create_project_handler(args):
     """Creates a new project dir."""
-
-    project_dir = get_project_dir(args)
+    project_dir = get_project_dir(args.project_dir)
 
     if os.path.exists(project_dir):
         if args.force:
-            shutil.rmtree(args.project_dir)
+            shutil.rmtree(project_dir)
         else:
             raise TVMCException(
                 "The specified project dir already exists. "
@@ -276,8 +269,7 @@ def create_project_handler(args):
 
 def build_handler(args):
     """Builds a firmware image given a project dir."""
-
-    project_dir = get_project_dir(args)
+    project_dir = get_project_dir(args.project_dir)
 
     if not os.path.exists(project_dir):
         raise TVMCException(f"{project_dir} doesn't exist.")
@@ -287,7 +279,7 @@ def build_handler(args):
             shutil.rmtree(project_dir + "/build")
         else:
             raise TVMCException(
-                f"There is already a build in {args.project_dir}. "
+                f"There is already a build in {project_dir}. "
                 "To force rebuild it use '-f' or '--force'."
             )
 
@@ -304,7 +296,7 @@ def build_handler(args):
 def flash_handler(args):
     """Flashes a firmware image to a target device given a project dir."""
 
-    project_dir = get_project_dir(args)
+    project_dir = get_project_dir(args.project_dir)
 
     if not os.path.exists(project_dir + "/build"):
         raise TVMCException(f"Could not find a build in {project_dir}")

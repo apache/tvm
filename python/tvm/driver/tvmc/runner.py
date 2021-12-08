@@ -40,6 +40,7 @@ from .common import (
     TVMCSuppressedArgumentParser,
     get_project_options,
     get_and_check_options,
+    get_project_dir,
 )
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
@@ -147,7 +148,7 @@ def add_run_parser(subparsers, main_parser):
             "Please build TVM with micro support (USE_MICRO ON)!"
         )
 
-    project_dir = known_args.PATH
+    project_dir = get_project_dir(known_args.PATH)
 
     try:
         project_ = project.GeneratedProject.from_directory(project_dir, None)
@@ -496,7 +497,8 @@ def run_module(
             if tvmc_package.type != "mlf":
                 raise TVMCException(f"Model {tvmc_package.package_path} is not a MLF archive.")
 
-            project_dir = os.path.dirname(tvmc_package.package_path)
+            project_dir = get_project_dir(tvmc_package.package_path)
+            project_dir = os.path.dirname(project_dir)
 
             # This is guaranteed to work since project_dir was already checked when
             # building the dynamic parser to accommodate the project options, so no

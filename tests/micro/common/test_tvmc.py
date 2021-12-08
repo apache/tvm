@@ -75,8 +75,10 @@ def test_tvmc_model_build_only(board, output_dir):
     target, platform = _get_target_and_platform(board)
 
     if not os.path.isabs(output_dir):
-        output_dir = pathlib.Path(os.path.abspath(output_dir))
-        os.mkdir(output_dir)
+        out_dir_temp = os.path.abspath(output_dir)
+        if os.path.isdir(out_dir_temp):
+            shutil.rmtree(out_dir_temp)
+        os.mkdir(out_dir_temp)
 
     model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
     tar_path = str(output_dir / "model.tar")
@@ -139,8 +141,10 @@ def test_tvmc_model_run(board, output_dir):
     target, platform = _get_target_and_platform(board)
 
     if not os.path.isabs(output_dir):
-        output_dir = pathlib.Path(os.path.abspath(output_dir))
-        os.mkdir(output_dir)
+        out_dir_temp = os.path.abspath(output_dir)
+        if os.path.isdir(out_dir_temp):
+            shutil.rmtree(out_dir_temp)
+        os.mkdir(out_dir_temp)
 
     model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
     tar_path = str(output_dir / "model.tar")
