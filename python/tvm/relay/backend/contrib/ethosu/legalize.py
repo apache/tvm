@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type
+from typing import List, Type, Callable
 import math
 
 import numpy as np  # type: ignore
@@ -124,15 +124,17 @@ class LegalizeSplit:
         pass
 
 
-def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
-    """Method to calculate the values of the tanh lookup table"""
+def get_lut_from_func(
+    ifm_scale: float, ifm_zp: int, ofm_scale: float, ofm_zp: int, func: Callable[[float], float]
+) -> List[int]:
+    """Method to calculate the values of the lookup table based on the calculation function"""
     lut_values = list()
     # Only int8 is currently supported
     dtype = np.int8
     qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
     for x in range(qmin, qmax + 1):
         x_real = ifm_scale * (x - ifm_zp)
-        out_real = math.tanh(x_real)
+        out_real = func(x_real)
         lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
         lut_result = min(qmax, max(qmin, lut_result))
         lut_values.append(lut_result)
@@ -140,16 +142,18 @@ def find_tanh_values(ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     return lut_values
 
 
-class TanhRewriter(DFPatternCallback):
-    """This pass adds tanh as a LUT to the identity operator"""
+class LutActivationRewriter(DFPatternCallback):
+    """A class to create an identity operator with the LUT"""
 
-    def __init__(self):
+    def __init__(
+        self, params_class: Type, activation_type: str, calc_func: Callable[[float], float]
+    ):
         super().__init__(require_type=True, rewrite_once=True)
-        self.pattern = (
-            wildcard().has_attr({"Composite": ethosu_patterns.TanhParams.composite_name})
-        )(wildcard())
+        self.pattern = (wildcard().has_attr({"Composite": params_class.composite_name}))(wildcard())
+        self.activation_type = activation_type
+        self.calc_func = calc_func
 
-    def callback(self, pre, post, node_map):
+    def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
         id_input = post.args[0]
 
         quantize_args = post.op.body.args
@@ -160,7 +164,9 @@ class TanhRewriter(DFPatternCallback):
         input_scale = float(dequantize_args[1].data.asnumpy())
         input_zp = int(dequantize_args[2].data.asnumpy())
 
-        lut_values = find_tanh_values(input_scale, input_zp, output_scale, output_zp)
+        lut_values = get_lut_from_func(
+            input_scale, input_zp, output_scale, output_zp, self.calc_func
+        )
         lut = relay.const(lut_values, dtype="uint8")
 
         # We baked the requantization into the LUT, so we don't requantize the identity operator
@@ -171,10 +177,19 @@ class TanhRewriter(DFPatternCallback):
             ifm_zero_point=input_zp,
             ofm_scale=input_scale,
             ofm_zero_point=input_zp,
-            activation="TANH",
+            activation=self.activation_type,
         )
 
         return identity
+
+
+class TanhRewriter(LutActivationRewriter):
+    """This pass adds tanh as a LUT to the identity operator"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.TanhParams, activation_type="TANH", calc_func=math.tanh
+        )
 
 
 @ir.transform.module_pass(opt_level=1)
@@ -186,6 +201,48 @@ class LegalizeTanh:
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(TanhRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def sigmoid_calc_func(x: float) -> float:
+    """Function to calculate the values for sigmoid"""
+    # Thse limits are inherited from TFLite
+    upper_limit = 8.0
+    lower_limit = -8.0
+
+    if x <= lower_limit:
+        y = 0.0
+    elif x >= upper_limit:
+        y = 1.0
+    else:
+        y = 1 / (1 + math.exp(-x))
+    return y
+
+
+class SigmoidRewriter(LutActivationRewriter):
+    """This pass adds sigmoid as a LUT for identity op"""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.SigmoidParams,
+            activation_type="SIGMOID",
+            calc_func=sigmoid_calc_func,
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeSigmoid:
+    """This is the pass that wraps SigmoidRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(SigmoidRewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -1037,7 +1094,7 @@ class MeanRewriter(DFPatternCallback):
             n = int(filter_height * filter_width)
             eps = 1 / (256 * (n + 1)) if n % 2 == 0 else 0
 
-            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="uint8"), dtype="uint8")
+            scalar_tensor = relay.const(np.ones([1, 1, 1, 1], dtype="int16"), dtype="int16")
 
             reduced_op = ethosu_ops.ethosu_binary_elementwise(
                 ifm=reduced_op,
@@ -1123,6 +1180,48 @@ class LegalizeMean:
         pass
 
 
+class ConcatRewriter(DFPatternCallback):
+    """The newer versions of TFLite converters return a concatenate operator that concatenates
+    tensors with same QNN params (if the QNN params of tensors were initially different,
+    the converter adds a requantize node), so this rewriter replaces the QNN concatenate with
+    "normal" concatenate"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.ConcatParams.composite_name})
+        )(None)
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        # Find the tensors that are inputs to the concat and the scales and zero points
+        concat_args = list()
+        for arg in post.args:
+            if isinstance(arg, tvm.relay.expr.Call):
+                concat_args.append(arg)
+
+        axis = post.op.body.attrs.axis
+        concat = relay.op.concatenate(relay.Tuple(concat_args), axis=axis)
+        return concat
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeConcat:
+    """This is the pass that wraps ConcatRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ConcatRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1150,6 +1249,8 @@ class LegalizeEthosU:
         mod = LegalizeAbs()(mod)
         mod = LegalizeTanh()(mod)
         mod = LegalizeMean()(mod)
+        mod = LegalizeConcat()(mod)
+        mod = LegalizeSigmoid()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

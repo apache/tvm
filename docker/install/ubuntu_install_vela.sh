@@ -20,7 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-# In a refactor between v2.1.1 and v3.0.0, find_block_configs <appropriate function name> was removed from Vela.
-# Since this is still required for the TVM port, it will be reinstated in Vela in a future release.
-# Until then, it needs to be pinned to v2.1.1.
-pip3 install ethos-u-vela==2.1.1
+pip3 install ethos-u-vela==3.2.0

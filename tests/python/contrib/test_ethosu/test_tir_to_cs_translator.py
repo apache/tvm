@@ -651,6 +651,31 @@ def test_translate_ethosu_copy():
             assert npu_dma_op.dest.length == test_case["ref"][idx]["length"]
 
 
+# fmt: off
+@tvm.script.ir_module
+class MixedConstantDatatypes:
+    @T.prim_func
+    def main(placeholder: T.handle, placeholder_1: T.handle, placeholder_2: T.handle, ethosu_write: T.handle, placeholder_3: T.handle) -> None:
+        # function attr dict
+        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        placeholder_4 = T.match_buffer(placeholder, [1, 8, 16, 16], dtype="int8")
+        buffer = T.match_buffer(placeholder_1, [160], dtype="uint8")
+        placeholder_5 = T.match_buffer(placeholder_2, [1, 1, 1, 1], dtype="int16")
+        ethosu_write_1 = T.match_buffer(ethosu_write, [1, 1, 1, 16], dtype="int8")
+        buffer_1 = T.match_buffer(placeholder_3, [272], dtype="uint8")
+        # body
+        placeholder_global = T.allocate([272], "uint8", "global")
+        placeholder_d_global = T.allocate([160], "uint8", "global")
+        ethosu_write_2 = T.allocate([16], "int16", "global")
+        placeholder_d_global_1 = T.allocate([1], "int16", "global")
+        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer_1.data, 0), 272, T.load("uint8", placeholder_global, 0), dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_copy", T.load("uint8", buffer.data, 0), 160, T.load("uint8", placeholder_d_global, 0), dtype="uint8"))
+        T.evaluate(T.call_extern("ethosu_depthwise_conv2d", "int8", 8, 16, 16, 8, 0, 16, T.load("int8", placeholder_4.data, 0), 0, 0, 0, T.float32(0.0039215548895299435), -128, "NHWC", 256, 16, 1, "int16", 1, 1, 16, 1, 0, 1, T.load("int16", ethosu_write_2, 0), 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, 16, 8, 1, 1, 1, 1, T.load("uint8", placeholder_global, 0), 272, 0, T.load("uint8", placeholder_d_global, 0), 160, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", dtype="int16"))
+        T.evaluate(T.call_extern("ethosu_copy", T.load("int16", placeholder_5.data, 0), 1, T.load("int16", placeholder_d_global_1, 0), dtype="int16"))
+        T.evaluate(T.call_extern("ethosu_binary_elementwise", "int16", 1, 1, 16, 1, 0, 1, T.load("int16", ethosu_write_2, 0), 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, "int16", 1, 1, 1, 1, 0, 1, T.load("int16", placeholder_d_global_1, 0), 0, 0, 0, T.float32(0.0078125018482064768), 0, "NHWC", 1, 1, 1, "int8", 1, 1, 16, 1, 0, 1, T.load("int8", ethosu_write_1.data, 0), 0, 0, 0, T.float32(0.0023205536417663097), -128, "NHWC", 1, 1, 1, "MUL", 0, "NONE", 0, 0, "NATURAL", dtype="int8"))
+# fmt: on
+
+
 def test_assign_addresses():
     test_cases = [
         {
@@ -681,6 +706,15 @@ def test_assign_addresses():
                 9: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
                 10: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [80], "uint8"),
                 11: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [20], "uint8"),
+            },
+        },
+        {
+            # Stimulus
+            "tir_module": MixedConstantDatatypes,
+            "param_dict": {
+                1: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [160], "uint8"),
+                2: np.random.randint(np.iinfo("int16").min, np.iinfo("int16").max, [1], "int16"),
+                4: np.random.randint(np.iinfo("uint8").min, np.iinfo("uint8").max, [272], "uint8"),
             },
         },
     ]
@@ -747,24 +781,36 @@ def test_assign_addresses():
             4: tir_to_cs_translator.BufferType.output,
         }
         buffer_type = inverse_region_map[region]
+        buffer_dtype = buffer_var.type_annotation.element_type.dtype
+        dtype_bytes = np.iinfo(np.dtype(buffer_dtype)).bits // 8
         if buffer_type == tir_to_cs_translator.BufferType.constant:
             ref = buffer_info[buffer_var].values
-            assert (constant_tensor[address : address + length] == ref).all()
+            hex_from = address * dtype_bytes * 2
+            hex_to = hex_from + length * dtype_bytes * 2
+            constant_hex = constant_hex_string[hex_from:hex_to]
+            constant_tensor = np.frombuffer(bytearray.fromhex(constant_hex), dtype=buffer_dtype)
+            np.array_equal(constant_tensor, ref)
             # Every buffer is adjusted to align to 16 bytes
             length = util.round_up(length, 16)
             # Mark these constants are read at least once
-            constant_tensor_read_mask[address : address + length] = np.ones(length, dtype="uint8")
+            constant_tensor_read_mask[address : address + length] = np.ones(
+                length, dtype=buffer_dtype
+            )
         elif buffer_type == tir_to_cs_translator.BufferType.scratch:
             shape = list(buffer_info[buffer_var].shape)
             assert length == np.prod(shape)
             assert address < scratch_size
+
+            size_in_bytes = int(np.prod(shape)) * dtype_bytes
             # Every buffer is adjusted to align to 16 bytes
-            length = util.round_up(length, 16)
-            assert address + length <= scratch_size
+            size_in_bytes = util.round_up(size_in_bytes, 16)
+            assert address + size_in_bytes <= scratch_size
             # The scratch area should not be used by anyother buffer
-            assert not scratch_allocation_mask[address : address + length].any()
+            assert not scratch_allocation_mask[address : address + size_in_bytes].any()
             # The scratch area is marked as used
-            scratch_allocation_mask[address : address + length] = np.ones(length, dtype="uint8")
+            scratch_allocation_mask[address : address + size_in_bytes] = np.ones(
+                size_in_bytes, dtype="uint8"
+            )
         elif buffer_type == tir_to_cs_translator.BufferType.input:
             assert address == 0
         else:
@@ -841,11 +887,11 @@ def test_assign_addresses():
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
-        _npu_ops, constant_tensor, scratch_size = tir_to_cs_translator.assign_addresses(
+        _npu_ops, constant_hex_string, scratch_size = tir_to_cs_translator.assign_addresses(
             buffer_info, _npu_ops
         )
         scratch_allocation_mask = np.zeros(scratch_size, dtype="uint8")
-        constant_tensor_read_mask = np.zeros(constant_tensor.size, dtype="uint8")
+        constant_tensor_read_mask = np.zeros(len(constant_hex_string) // 2, dtype="uint8")
         verify(_npu_ops)
         # This will be only 1 if all allocated scratch is used.
         assert np.prod(scratch_allocation_mask) == 1

@@ -39,7 +39,7 @@ def test_merge_lut_into_conv():
         conv1 = infra.make_ethosu_conv2d(ifm, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1))
         id1 = infra.make_ethosu_identity(conv1, lut=lut1, activation="TANH")
         conv2 = infra.make_ethosu_conv2d(id1, 4, 7, (2, 2), (1, 1), (1, 1), (1, 1))
-        id2 = infra.make_ethosu_identity(conv2, lut=lut2, activation="TANH")
+        id2 = infra.make_ethosu_identity(conv2, lut=lut2, activation="SIGMOID")
 
         func = relay.Function(relay.analysis.free_vars(id2), id2)
         mod = tvm.IRModule.from_expr(func)
@@ -50,7 +50,7 @@ def test_merge_lut_into_conv():
             ifm, 4, 4, (3, 3), (1, 1), (1, 1), (1, 1), lut=lut1, activation="TANH"
         )
         conv2 = infra.make_ethosu_conv2d(
-            conv1, 4, 7, (2, 2), (1, 1), (1, 1), (1, 1), lut=lut2, activation="TANH"
+            conv1, 4, 7, (2, 2), (1, 1), (1, 1), (1, 1), lut=lut2, activation="SIGMOID"
         )
 
         func = relay.Function(relay.analysis.free_vars(conv2), conv2)

@@ -301,7 +301,12 @@ class AllocBuffer(SpecialStmt):
 
 @register
 class BlockReads(SpecialStmt):
-    """Special function reads([read_buffer_regions])
+    """Special function reads([read_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    reads syntax sugar like reads(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
@@ -311,7 +316,11 @@ class BlockReads(SpecialStmt):
     """
 
     def __init__(self):
-        def reads(read_regions: Union[BufferSlice, List[BufferSlice]], span: Span = None):
+        def reads(
+            read_regions: Union[BufferSlice, List[BufferSlice]],
+            *other_regions: BufferSlice,
+            span: Span = None,
+        ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope is None:
@@ -328,6 +337,8 @@ class BlockReads(SpecialStmt):
                 )
             if isinstance(read_regions, BufferSlice):
                 read_regions = [read_regions]
+                for region in other_regions:
+                    read_regions.append(region)
             if not isinstance(read_regions, list):
                 self.context.report_error(
                     "Incorrect input type. "
@@ -341,7 +352,12 @@ class BlockReads(SpecialStmt):
 
 @register
 class BlockWrites(SpecialStmt):
-    """Special function writes([write_buffer_regions])
+    """Special function writes([write_regions], *other_regions)
+
+    Note
+    ----
+    *other_region is an unpackable list of BufferSlice to support
+    writes syntax sugar like writes(BufferRegion1, BufferRegion2, ...)
 
     Example
     -------
@@ -351,7 +367,11 @@ class BlockWrites(SpecialStmt):
     """
 
     def __init__(self):
-        def writes(write_region: Union[BufferSlice, List[BufferSlice]], span: Span = None):
+        def writes(
+            write_region: Union[BufferSlice, List[BufferSlice]],
+            *other_region: BufferSlice,
+            span: Span = None,
+        ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
             block_scope = self.context.current_block_scope()
             if block_scope is None:
@@ -370,6 +390,8 @@ class BlockWrites(SpecialStmt):
                 pass
             elif isinstance(write_region, BufferSlice):
                 write_region = [write_region]
+                for region in other_region:
+                    write_region.append(region)
             else:
                 self.context.report_error(
                     "Incorrect input type. "

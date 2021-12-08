@@ -134,10 +134,10 @@ class GenerateConstantsMutator : public MixedModeMutator {
     int32_t* multiplier = static_cast<int32_t*>(multiplier_nda->data);
     int32_t* shift = static_cast<int32_t*>(shift_nda->data);
     for (int i = 0; i < out_channels; ++i) {
-      double effective_output_scale =
+      double quantized_multiplier =
           static_cast<double>(input_scales[i]) / static_cast<double>(output_scale);
       std::tie(*(multiplier + i), *(shift + i)) =
-          tvm::relay::qnn::GetFixedPointMultiplierShift(effective_output_scale);
+          tvm::relay::qnn::GetFixedPointMultiplierShift(quantized_multiplier);
     }
 
     // Create constants from requantization multiplier and shift

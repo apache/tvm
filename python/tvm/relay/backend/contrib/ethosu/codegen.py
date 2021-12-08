@@ -89,7 +89,7 @@ class OptimizeLUTs(ExprMutator):
             not refer to an Op. Else, a new call node with a new operator.
         """
         new_call = call
-        lut_activations = ["TANH", "LUT"]
+        lut_activations = ["TANH", "LUT", "SIGMOID"]
 
         if isinstance(call.op, tvm.ir.Op) and isinstance(call.args[0], tvm.relay.expr.Call):
             producer_op = call.args[0]
