@@ -246,11 +246,12 @@ class Var : public Expr {
  * \param opt_type_annotation The (optional) type_annotation for the copied var. If none,
  * ret_var->type_annotation = var->type_annotation.
  * \param opt_virtual_device The (optional) virtual_device for the copied tuple. If none,
- * ret_tuple->virtual_device = tuple->virtual_device. \param opt_span The (optional) span for the
- * copied var. If none, ret_var->span = var->span. \return If all properties are null or the same as
- * the property in the input var (i.e., opt_vid is null or opt_vid.value() == var->vid, etc.), then
- * we return var. Otherwise, we return a copy of call with the different fields overwritten. (i.e.,
- * if opt_vid.value() != var->vid, then ret_var->vid = opt_.value()).
+ * ret_tuple->virtual_device = tuple->virtual_device.
+ * \param opt_span The (optional) span for the copied var. If none, ret_var->span = var->span.
+ * \return If all properties are null or the same as the property in the input var (i.e., opt_vid is
+ * null or opt_vid.value() == var->vid, etc.), then we return var. Otherwise, we return a copy of
+ * call with the different fields overwritten. (i.e., if opt_vid.value() != var->vid, then
+ * ret_var->vid = opt_.value()).
  */
 Var WithFields(Var var, Optional<Id> opt_vid = Optional<Id>(),
                Optional<Type> opt_type_annotation = Optional<Type>(),
@@ -370,11 +371,12 @@ class Call : public Expr {
  * \param opt_type_args The (optional) type args for the copied call. If none,
  * ret_call->type_args = call->type_args.
  * \param opt_virtual_device The (optional) virtual_device for the copied call. If none,
- * ret_call->virtual_device = call->virtual_device. \param opt_span The (optional) span for the
- * copied call. If none, ret_call->span = call->span. \return If all properties are null or the same
- * as the property in the input call (i.e., opt_op is null or opt_op.value() == call->op, etc.),
- * then we return call. Otherwise, we return a copy of call with the different fields overwritten.
- * (i.e., if opt_op.value() != call->op, then ret_call->op = opt_op.value()).
+ * ret_call->virtual_device = call->virtual_device.
+ * \param opt_span The (optional) span for the copied call. If none, ret_call->span = call->span.
+ * \return If all properties are null or the same as the property in the input call (i.e., opt_op is
+ * null or opt_op.value() == call->op, etc.), then we return call. Otherwise, we return a copy of
+ * call with the different fields overwritten. (i.e., if opt_op.value() != call->op, then
+ * ret_call->op = opt_op.value()).
  */
 Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
@@ -466,11 +468,12 @@ class Let : public Expr {
  * \param opt_value The (optional) value for the copied let. If none, ret_let->args = let->args.
  * \param opt_body The (optional) body for the copied let. If none, ret_let->attrs = let->attrs.
  * \param opt_virtual_device The (optional) virtual_device for the copied let. If none,
- * ret_let->virtual_device = let->virtual_device. \param opt_span The (optional) span for the copied
- * let. If none, ret_let->span = let->span. \return If all properties are null or the same as the
- * property in the input let (i.e., opt_var is null or opt_var.value() == let->var, etc.), then we
- * return let. Otherwise, we return a copy of let with the different fields overwritten. (i.e., if
- * opt_var.value() != let->var, then ret_let->var = opt_var.value()).
+ * ret_let->virtual_device = let->virtual_device.
+ * \param opt_span The (optional) span for the copied let. If none, ret_let->span = let->span.
+ * \return If all properties are null or the same as the property in the input let (i.e., opt_var is
+ * null or opt_var.value() == let->var, etc.), then we return let. Otherwise, we return a copy of
+ * let with the different fields overwritten. (i.e., if opt_var.value() != let->var, then
+ * ret_let->var = opt_var.value()).
  */
 Let WithFields(Let let, Optional<Var> opt_var = Optional<Var>(),
                Optional<Expr> opt_value = Optional<Expr>(),
@@ -740,12 +743,13 @@ class RefRead : public Expr {
  * ref_read->ref.
  * \param opt_virtual_device
  * The (optional) virtual_device for the copied ref_read. If none, ret_ref_read->virtual_device =
- * ref_read->virtual_device. \param opt_span The (optional) span for the copied ref_read. If none,
- * ret_ref_read->span = ref_read->span. \return If all properties are null or the same as the
- * property in the input ref_read (i.e., opt_ref is null or opt_ref.value() == ref_read->ref, etc.),
- * then we return ref_read. Otherwise, we return a copy of ref_read with the different fields
- * overwritten. (i.e., if opt_ref.value() != ref_read->ref, then ret_ref_read->ref =
- * opt_ref.value()).
+ * ref_read->virtual_device.
+ * \param opt_span The (optional) span for the copied ref_read. If none, ret_ref_read->span =
+ * ref_read->span.
+ * \return If all properties are null or the same as the property in the input
+ * ref_read (i.e., opt_ref is null or opt_ref.value() == ref_read->ref, etc.), then we return
+ * ref_read. Otherwise, we return a copy of ref_read with the different fields overwritten. (i.e.,
+ * if opt_ref.value() != ref_read->ref, then ret_ref_read->ref = opt_ref.value()).
  */
 RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref = Optional<Expr>(),
                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
@@ -806,12 +810,13 @@ class RefWrite : public Expr {
  * ret_ref_write->value = ref_write->value.
  * \param opt_virtual_device
  * The (optional) virtual_device for the copied ref_write. If none, ret_ref_write->virtual_device =
- * ref_write->virtual_device. \param opt_span The (optional) span for the copied ref_write. If none,
- * ret_ref_write->span = ref_write->span. \return If all properties are null or the same as the
- * property in the input ref_write (i.e., opt_ref is null or opt_ref.value() == ref_write->ref,
- * etc.), then we return ref_write. Otherwise, we return a copy of ref_write with the different
- * fields overwritten. (i.e., if ref_write.value() != ref_write->ref, then ret_ref_write->ref =
- * opt_ref.value()).
+ * ref_write->virtual_device.
+ * \param opt_span The (optional) span for the copied ref_write. If none, ret_ref_write->span =
+ * ref_write->span.
+ * \return If all properties are null or the same as the property in the input ref_write (i.e.,
+ * opt_ref is null or opt_ref.value() == ref_write->ref, etc.), then we return ref_write. Otherwise,
+ * we return a copy of ref_write with the different fields overwritten. (i.e., if ref_write.value()
+ * != ref_write->ref, then ret_ref_write->ref = opt_ref.value()).
  */
 RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref = Optional<Expr>(),
                     Optional<Expr> opt_value = Optional<Expr>(),

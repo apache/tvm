@@ -181,8 +181,7 @@ class RelayExprNode : public BaseExprNode {
    * The SEScope's Target field describes how the body of the function should be compiled.
    *
    * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
-   * import. We can forward-declare the SEScope type for the getter function, but not for the field
-   *       itself.
+   * import.
    */
   mutable ObjectRef virtual_device_;
 
