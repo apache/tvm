@@ -72,15 +72,17 @@ def test_conv1d_infer_type():
 
 
 @tvm.testing.uses_gpu
-def test_conv1d_run():
+def test_grouped_conv1d_run():
+    # TODO(AndrewZhaoLuo): support ground truth function to have grouped support
+    # and then combine with test_conv1d_run
     def run_test_conv1d(
         dtype,
-        out_dtype,
         scale,
         dshape,
         kshape,
         padding=(1, 1),
         fref=None,
+        groups=1,
         dilation=1,
         except_targets=None,
         **attrs,
@@ -90,7 +92,61 @@ def test_conv1d_run():
 
         x = relay.var("x", shape=dshape, dtype=dtype)
         w = relay.var("w", dtype=dtype)
-        y = relay.nn.conv1d(x, w, padding=padding, dilation=dilation, **attrs)
+        y = relay.nn.conv1d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
+        func = relay.Function([x, w], y)
+        data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
+        kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
+
+        for target, dev in tvm.testing.enabled_targets():
+            if target in except_targets:
+                continue
+            dev = tvm.device(target, 0)
+            relay.create_executor("graph", device=dev, target=target).evaluate(func)(data, kernel)
+
+    dshape = (1, 6, 224)
+    run_test_conv1d(
+        "float32",
+        1,
+        dshape,
+        kshape=(10, 1, 3),
+        padding=(1, 1),
+        channels=10,
+        kernel_size=3,
+        groups=6,
+    )
+    run_test_conv1d(
+        "float32",
+        1,
+        dshape,
+        kshape=(10, 2, 3),
+        padding=(1, 1),
+        channels=10,
+        kernel_size=3,
+        groups=3,
+    )
+
+
+@tvm.testing.uses_gpu
+def test_conv1d_run():
+    def run_test_conv1d(
+        dtype,
+        out_dtype,
+        scale,
+        dshape,
+        kshape,
+        padding=(1, 1),
+        fref=None,
+        groups=1,
+        dilation=1,
+        except_targets=None,
+        **attrs,
+    ):
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", dtype=dtype)
+        y = relay.nn.conv1d(x, w, padding=padding, dilation=dilation, groups=groups, **attrs)
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
