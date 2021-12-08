@@ -48,8 +48,7 @@ def test_tuple_object():
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
     mod = tvm.IRModule.from_expr(fn)
 
-    exe = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm")
-    f = exe.evaluate()
+    f = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm").evaluate()
     value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
     # pass an ADT object to evaluate
     out = f(value_tuple)

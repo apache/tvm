@@ -404,7 +404,7 @@ TVM_REGISTER_GLOBAL("micro._rpc_connect").set_body([](TVMArgs args, TVMRetValue*
     throw std::runtime_error(ss.str());
   }
   std::unique_ptr<RPCChannel> channel(micro_channel);
-  auto ep = RPCEndpoint::Create(std::move(channel), args[0], "");
+  auto ep = RPCEndpoint::Create(std::move(channel), args[0], "", args[6]);
   auto sess = CreateClientSession(ep);
   *rv = CreateRPCSessionModule(sess);
 });

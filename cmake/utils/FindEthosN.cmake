@@ -16,7 +16,7 @@
 # under the License.
 
 #######################################################
-# Find Arm Ethos-N libraries
+# Find Arm(R) Ethos(TM)-N libraries
 #
 # Usage:
 #   find_ethosn(${USE_ETHOSN})
@@ -38,10 +38,10 @@ macro(find_ethosn use_ethosn)
   set(__use_ethosn ${use_ethosn})
   if(IS_DIRECTORY ${__use_ethosn})
     set(__ethosn_stack ${__use_ethosn})
-    message(STATUS "Arm Ethos-N driver stack PATH=" ${__use_ethosn})
+    message(STATUS "Arm(R) Ethos(TM)-N driver stack PATH=" ${__use_ethosn})
   elseif(IS_DIRECTORY $ENV{ETHOSN_STACK})
      set(__ethosn_stack $ENV{ETHOSN_STACK})
-    message(STATUS "Arm Ethos-N driver stack from env=" ${__use_ethosn})
+    message(STATUS "Arm(R) Ethos(TM)-N driver stack from env=" ${__use_ethosn})
   else()
      set(__ethosn_stack "")
   endif()
@@ -61,19 +61,22 @@ macro(find_ethosn use_ethosn)
     set(ETHOSN_PACKAGE_VERSION "0.1.1")
     set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
 
+    # Runtime hardware support. Driver library also needed for
+    # test support.
+    find_path(_DL_DIR NAMES Network.hpp
+      PATHS ${__ethosn_stack}/include/ethosn_driver_library)
+    string(REGEX REPLACE "/ethosn_driver_library" "" _DL_DIR2 ${_DL_DIR})
+    list(APPEND ETHOSN_INCLUDE_DIRS "${_DL_DIR2}")
+
+    find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver
+      PATHS ${__ethosn_stack}/lib)
+    find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver)
     if(${USE_ETHOSN_HW} MATCHES ${IS_TRUE_PATTERN})
-      # Runtime hardware support
-      find_path(_DL_DIR NAMES Network.hpp
-        PATHS ${__ethosn_stack}/include/ethosn_driver_library)
-      string(REGEX REPLACE "/ethosn_driver_library" "" _DL_DIR2 ${_DL_DIR})
-      list(APPEND ETHOSN_INCLUDE_DIRS "${_DL_DIR2}")
-
-      find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver
-        PATHS ${__ethosn_stack}/lib)
-      find_library(ETHOSN_RUNTIME_LIBRARY NAMES EthosNDriver)
       set(ETHOSN_DEFINITIONS -DETHOSN_HW -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
-    endif ()
-
+    else()
+      set(ETHOSN_DEFINITIONS -DETHOSN_API_VERSION=${USE_ETHOSN_API_VERSION})
+    endif()
+  
     if(ETHOSN_COMPILER_LIBRARY)
       set(ETHOSN_FOUND TRUE)
     endif()
@@ -81,7 +84,7 @@ macro(find_ethosn use_ethosn)
 
   if(NOT ETHOSN_FOUND)
     if(${__use_ethosn} MATCHES ${IS_TRUE_PATTERN})
-      message(WARNING "No cmake find_package available for Arm Ethos-N")
+      message(WARNING "No cmake find_package available for Arm(R) Ethos(TM)-N")
     endif()
 
   # additional libraries

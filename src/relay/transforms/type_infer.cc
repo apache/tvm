@@ -181,7 +181,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
-    ICHECK(ret.defined());
+    ICHECK(ret.defined()) << "expression:" << std::endl << PrettyPrint(expr);
     KindCheck(ret, mod_, this->diag_ctx);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
@@ -205,11 +205,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       this->EmitFatal(Diagnostic::Error(op->span) << "Cannot do type inference on global variables "
                                                   << "without a module");
     }
-
     if (mod_->ContainGlobalVar(var->name_hint)) {
-      relay::Function e = Downcast<Function>(mod_->Lookup(var));
-      return e->checked_type();
+      BaseFunc func = mod_->Lookup(var->name_hint);
+
+      if (const auto* function_node = func.as<FunctionNode>()) {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to Function";
+        return function_node->checked_type();
+      } else {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to PrimFunc";
+        return op->checked_type_;
+      }
     } else {
+      // TODO(mbs): extern function cleanup
+      // Assume the function is extern thus no longer in the IRModule.
+      VLOG(1) << "global var '" << op->name_hint << "' not in module";
       return op->checked_type_;
     }
   }
@@ -482,8 +491,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (type_args.size() > fn_ty_node->type_params.size()) {
       this->EmitFatal(Diagnostic::Error(call->span)
                       << "Incorrect number of type args in " << call->span << ": "
-                      << "Expected " << fn_ty_node->type_params.size() << "but got "
-                      << type_args.size());
+                      << "Expected " << fn_ty_node->type_params.size() << " but got "
+                      << type_args.size() << " for call:\n"
+                      << PrettyPrint(GetRef<Call>(call)));
     }
     for (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
       type_args.push_back(IncompleteType(TypeKind::kType));
@@ -661,7 +671,7 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
     Type checked_type = solver_->Resolve(it->second.checked_type);
 
     if (checked_type.as<IncompleteTypeNode>() != nullptr) {
-      this->solver_->diag_ctx_.Emit(
+      this->solver_->Emit(
           Diagnostic::Error(op->span)
           << "The type inference pass was unable to infer a type for this expression.\n"
           << "This usually occurs when an operator call is under constrained in some way,"
@@ -820,10 +830,8 @@ Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::InferType";
         // Execute the pass function and return a new module.
-        IRModule updated_mod =
-            IRModule(mod->functions, mod->type_definitions, mod->Imports(), mod->source_map);
+        IRModule updated_mod = mod->ShallowCopy();
 
         pass_ctx->diag_ctx = DiagnosticContext::Default(updated_mod);
 

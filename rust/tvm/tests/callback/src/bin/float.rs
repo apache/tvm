@@ -27,7 +27,7 @@ use tvm::{
 };
 
 fn main() {
-    fn sum(args: Vec<ArgValue<'static>>) -> Result<RetValue, Error> {
+    fn sum<'a>(args: Vec<ArgValue<'a>>) -> Result<RetValue, Error> {
         let mut ret = 0.0;
         for arg in args.into_iter() {
             let val: f64 = arg.try_into()?;

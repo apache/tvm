@@ -31,4 +31,3 @@ from .measure_methods import (
     request_remote,
 )
 from .executor import Executor
-from .local_executor import LocalExecutor

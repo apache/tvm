@@ -281,13 +281,19 @@ def conv2d_transpose_strategy_cpu(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.x86",
-    )
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.x86.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.x86.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.x86",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw, has_groups=True),
+            wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),
+            name="group_conv2d_transpose_nchw.x86",
+        )
     return strategy
 
 
@@ -562,6 +568,31 @@ def sparse_dense_strategy_cpu(attrs, inputs, out_type, target):
         name="sparse_dense.x86",
         plevel=10,
     )
+    return strategy
+
+
+@sparse_conv2d_strategy.register("cpu")
+def sparse_conv2d_strategy_cpu(attrs, inputs, out_type, target):
+    """sparse conv2d x86 strategy"""
+    strategy = _op.OpStrategy()
+    if attrs["kernel_size"][0] == 1:
+        strategy.add_implementation(
+            wrap_compute_sparse_conv2d(topi.nn.sparse_conv2d),
+            wrap_topi_schedule(topi.generic.schedule_sparse_conv2d),
+            name="sparse_conv2d.generic",
+        )
+    elif attrs["kernel_size"][0] == 3:
+        if attrs["layout"] == "NHWC":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nhwc),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nhwc),
+                name="conv3x3_spNHWC.x86",
+            )
+        elif attrs["layout"] == "NCHW":
+            strategy.add_implementation(
+                wrap_compute_sparse_conv2d(topi.x86.spconv2d_3x3_nchw),
+                wrap_topi_schedule(topi.x86.schedule_spconv2d_3x3_nchw),
+            )
     return strategy
 
 

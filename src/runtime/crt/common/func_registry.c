@@ -99,7 +99,6 @@ tvm_crt_error_t TVMMutableFuncRegistry_Create(TVMMutableFuncRegistry* reg, uint8
     return kTvmErrorBufferTooSmall;
   }
 
-  memset(reg, 0, sizeof(*reg));
   reg->registry.names = (const char*)buffer;
   buffer[0] = 0;  // number of functions present in buffer.
   buffer[1] = 0;  // end of names list marker.

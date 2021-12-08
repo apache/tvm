@@ -17,7 +17,6 @@
 
 import random
 import re
-import sys
 import threading
 
 import numpy as np
@@ -220,8 +219,7 @@ def test_vulkan_bool_load(target, dev):
 
 
 def check_mod(target, dev, mod, x_np, res_np):
-    ex = relay.create_executor("vm", mod=mod, device=dev, target=target)
-    res = ex.evaluate()(x_np).numpy()
+    res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x_np).numpy()
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
@@ -558,4 +556,6 @@ def test_shared_mem_alloc(target, dev):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

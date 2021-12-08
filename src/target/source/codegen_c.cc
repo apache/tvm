@@ -106,8 +106,8 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
         }
       }
 
-      if (no_alias && restrict_keyword_.length() != 0) {
-        stream << ' ' << restrict_keyword_;
+      if (no_alias) {
+        PrintRestrict(v, stream);
       }
     } else {
       PrintType(GetType(v), stream);
@@ -1021,6 +1021,12 @@ void CodeGenC::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
     os << "))";
   }
   return;
+}
+
+void CodeGenC::PrintRestrict(const Var& v, std::ostream& os) {
+  if (restrict_keyword_.length() != 0) {
+    os << ' ' << restrict_keyword_;
+  }
 }
 
 static bool CheckOutermostBracketMatch(const std::string& s) {

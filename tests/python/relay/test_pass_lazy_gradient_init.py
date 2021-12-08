@@ -22,7 +22,6 @@ from tvm.relay import create_executor, transform
 from tvm.relay.testing import rand, run_infer_type
 import tvm.testing
 from tvm.testing import assert_allclose
-import pytest
 
 
 def test_tc():
@@ -65,9 +64,8 @@ def test_add():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy() + x.numpy())
 
 
@@ -92,9 +90,8 @@ def test_add_tuple():
 
     assert mod["main"].checked_type == relay.FuncType([t], tensor_type)
 
-    ex = create_executor(mod=mod)
     x = (rand(dtype, *shape), rand(dtype, *shape))
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x[0].numpy() + x[1].numpy())
 
 
@@ -117,9 +114,8 @@ def test_mult():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy() * x.numpy())
 
 
@@ -143,9 +139,8 @@ def test_ret_tuple():
 
     assert mod["main"].checked_type == relay.FuncType([t], relay.TupleType([t, t]))
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(func)(x)
+    y = create_executor(mod=mod).evaluate(func)(x)
     assert_allclose(y[0].numpy(), x.numpy())
     assert_allclose(y[1].numpy(), x.numpy() * 2.0)
 
@@ -177,8 +172,7 @@ def test_add_broadcast():
     expected_forward_type = relay.TensorType(expected_forward.shape, dtype)
     assert mod["main"].checked_type == relay.FuncType([t1, t2], expected_forward_type)
 
-    ex = create_executor(mod=mod)
-    forward = ex.evaluate(func)(x1_np, x2_np)
+    forward = create_executor(mod=mod).evaluate(func)(x1_np, x2_np)
 
     assert_allclose(forward.numpy(), expected_forward)
 
@@ -208,9 +202,8 @@ def test_reverse_ad_identity():
         [t], relay.TupleType([t, relay.TupleType([t])])
     )
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    (forward), (grad,) = ex.evaluate(back_func)(x)
+    (forward), (grad,) = create_executor(mod=mod).evaluate(back_func)(x)
     assert_allclose(forward.numpy(), x.numpy())
     assert_allclose(grad.numpy(), np.ones_like(x.numpy()))
 
@@ -240,10 +233,9 @@ def test_multivar_reverse_ad():
         [t, t], relay.TupleType([t, relay.TupleType([t, t])])
     )
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
     y = rand(dtype, *shape)
-    (forward), (grad_x, grad_y,) = ex.evaluate(
+    (forward), (grad_x, grad_y,) = create_executor(mod=mod).evaluate(
         back_func
     )(x, y)
     assert_allclose(forward.numpy(), x.numpy() * y.numpy())
@@ -295,7 +287,9 @@ def test_after_partial_eval():
             transform.PartialEvaluate(),
             transform.InferType(),
             transform.LazyGradientInit(),
+            transform.InferType(),
             transform.DeadCodeElimination(),
+            transform.InferType(),
         ]
     )
 
@@ -305,10 +299,9 @@ def test_after_partial_eval():
         [t, t], relay.TupleType([t, relay.TupleType([t, t])])
     )
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
     y = rand(dtype, *shape)
-    (forward), (grad_x, grad_y,) = ex.evaluate(
+    (forward), (grad_x, grad_y,) = create_executor(mod=mod).evaluate(
         back_func
     )(x, y)
     assert_allclose(forward.numpy(), x.numpy() * y.numpy())
@@ -334,7 +327,13 @@ def test_before_partial_eval():
 
     mod["main"] = back_func
     seq = tvm.transform.Sequential(
-        [transform.LazyGradientInit(), transform.PartialEvaluate(), transform.DeadCodeElimination()]
+        [
+            transform.LazyGradientInit(),
+            transform.PartialEvaluate(),
+            transform.InferType(),
+            transform.DeadCodeElimination(),
+            transform.InferType(),
+        ]
     )
     mod = seq(mod)
     back_func = mod["main"]
@@ -343,10 +342,9 @@ def test_before_partial_eval():
         [t, t], relay.TupleType([t, relay.TupleType([t, t])])
     )
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
     y = rand(dtype, *shape)
-    (forward), (grad_x, grad_y,) = ex.evaluate(
+    (forward), (grad_x, grad_y,) = create_executor(mod=mod).evaluate(
         back_func
     )(x, y)
     assert_allclose(forward.numpy(), x.numpy() * y.numpy())
@@ -372,9 +370,8 @@ def test_zeros():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy())
 
 
@@ -396,9 +393,8 @@ def test_ones():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy() + np.ones_like(x.numpy()))
 
 
@@ -420,9 +416,8 @@ def test_zeros_like():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy())
 
 
@@ -444,11 +439,13 @@ def test_ones_like():
 
     assert mod["main"].checked_type == relay.FuncType([t], t)
 
-    ex = create_executor(mod=mod)
     x = rand(dtype, *shape)
-    y = ex.evaluate(y)(x)
+    y = create_executor(mod=mod).evaluate(y)(x)
     assert_allclose(y.numpy(), x.numpy() + np.ones_like(x.numpy()))
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

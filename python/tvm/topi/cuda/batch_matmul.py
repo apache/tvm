@@ -93,6 +93,8 @@ def schedule_batch_matmul(cfg, outs):
     def _schedule(cfg, op):
         C = op.output(0)
         A, B = s[C].op.input_tensors
+        if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
+            s[B].compute_inline()
         _, M, N = get_const_tuple(C.shape)
         AA = s.cache_read(A, "shared", [C])
         AL = s.cache_read(AA, "local", [C])
@@ -237,7 +239,9 @@ def schedule_batch_matmul_cublas(_, outs):
 
 
 @autotvm.register_topi_compute("batch_matmul_int8.cuda")
-def batch_matmul_int8(cfg, x, y, out_shape=None, out_dtype=None):
+def batch_matmul_int8(
+    cfg, x, y, out_shape=None, out_dtype=None, transpose_a=False, transpose_b=True
+):
     """Batch Matmul operator for int8 on CUDA.
 
     Parameters
@@ -258,11 +262,20 @@ def batch_matmul_int8(cfg, x, y, out_shape=None, out_dtype=None):
     out_dtype : Optional[str]
         Specifies the output data type for mixed precision batch matmul.
 
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
+
     Returns
     -------
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
+    del out_shape
+    # TODO(jcf94): Deal with different transpose combinations
+    assert not transpose_a and transpose_b
     if out_dtype is None:
         out_dtype = x.dtype
 
@@ -325,6 +338,8 @@ _dp4a = dp4a("shared", "shared", "local")
 
 def _schedule_batch_matmul_int8(cfg, s, output):
     input_x, input_y = s[output].op.input_tensors
+    if len(input_y.op.input_tensors) == 1 and input_y.op.input_tensors[0] == input_x:
+        s[input_y].compute_inline()
 
     B, M, K = get_const_tuple(input_x.shape)
     _, N, _ = get_const_tuple(input_y.shape)

@@ -194,9 +194,10 @@ def lower_vtcm_(get_alloc, get_free, def_align, func, mod, ctx):  # pylint: disa
         if isinstance(stmt, tvm.tir.Allocate):
             var = stmt.buffer_var
             scope = var.type_annotation.storage_scope
+            is_vtcm = var in vtcm_buffers
             if scope == "local.vtcm":
                 vtcm_buffers.pop()
-            if var in vtcm_buffers:
+            if is_vtcm:
                 is_null = tvm.tir.call_intrin("bool", tvm.ir.Op.get("tir.isnullptr"), var)
                 throw_error = tvm.tir.call_intrin(
                     "int32", tvm.ir.Op.get("tir.tvm_throw_last_error")

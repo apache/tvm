@@ -191,7 +191,7 @@ with autotvm.tophub.context(target):
                 env.WGT_WIDTH,
                 start_name=pack_dict[model][0],
                 stop_name=pack_dict[model][1],
-                device_annot=(env.TARGET == "intelfocl" or env.TARGET == "sim"),
+                device_annot=(env.TARGET == "intelfocl"),
             )
     else:
         relay_prog = mod["main"]
@@ -200,15 +200,15 @@ with autotvm.tophub.context(target):
     if target.device_name != "vta":
         with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=target, params=params, target_host=env.target_host
+                relay_prog, target=tvm.target.Target(target, host=env.target_host), params=params
             )
     else:
-        if env.TARGET == "intelfocl" or env.TARGET == "sim":
+        if env.TARGET == "intelfocl":
             # multiple targets to run both on cpu and vta
             target = {"cpu": env.target_vta_cpu, "ext_dev": target}
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             graph, lib, params = relay.build(
-                relay_prog, target=target, params=params, target_host=env.target_host
+                relay_prog, target=tvm.target.Target(target, host=env.target_host), params=params
             )
 
     # Measure Relay build time
@@ -221,7 +221,7 @@ with autotvm.tophub.context(target):
     remote.upload(temp.relpath("graphlib.tar"))
     lib = remote.load_module("graphlib.tar")
 
-    if env.TARGET == "intelfocl" or env.TARGET == "sim":
+    if env.TARGET == "intelfocl":
         ctxes = [remote.ext_dev(0), remote.cpu(0)]
         m = graph_executor.create(graph, lib, ctxes)
     else:

@@ -66,6 +66,11 @@ RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
 # Arduino deps
+# NOTE: override Arduino directories so packages are installed in a
+# CI-accessible location.
+ENV ARDUINO_DIRECTORIES_DATA=/arduino15-data
+ENV ARDUINO_DIRECTORIES_DOWNLOADS=/arduino15-downloads
+ENV ARDUINO_DIRECTORIES_USER=/arduino15-user
 COPY install/ubuntu_install_arduino.sh /install/ubuntu_install_arduino.sh
 RUN bash /install/ubuntu_install_arduino.sh
 

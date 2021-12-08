@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotation operations."""
+from tvm import target
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 
@@ -22,8 +23,16 @@ from . import _make
 from .. import op as reg
 
 
-def on_device(data, device):
-    """Annotate an expression with a certain device type.
+def _make_se_scope(device):
+    if isinstance(device, _Device):
+        return target.make_se_scope(device)
+    if isinstance(device, str):
+        return target.make_se_scope(_nd.device(device))
+    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
+
+
+def on_device(data, device, is_fixed=False):
+    """Annotates an expression with the device type on which its result should be stored.
 
     Parameters
     ----------
@@ -31,23 +40,45 @@ def on_device(data, device):
         The expression to be annotated.
 
     device : Union[:py:class:`Device`, str]
-        The device type to annotate.
+        The device to annotate with.
+
+    is_fixed : bool
+        If false (the default), a device_copy
+        If true, the annotation does not imply a device_copy may be inserted to
+        reconcile the device of the data argument with the device for the context of the
+        annotated expression.
 
     Returns
     -------
     result : tvm.relay.Expr
         The annotated expression.
     """
-    if isinstance(device, _Device):
-        device = device.device_type
-    elif isinstance(device, str):
-        device = _nd.device(device).device_type
-    else:
-        raise ValueError(
-            "device is expected to be the type of Device or "
-            "str, but received %s" % (type(device))
-        )
-    return _make.on_device(data, device)
+    return _make.OnDevice(data, _make_se_scope(device), is_fixed)
+
+
+def function_on_device(function, param_devices, result_device):
+    """Annotates a Relay function with the device types on which its parameters and result should
+    be stored.
+
+    Parameters
+    ----------
+    function : tvm.relay.Function
+        The function to be annotated.
+
+    param_devices : Array[Union[:py:class:`Device`, str]]
+        The devices for each parameter.
+
+    result_device: Union[:py:class:`Device`, str]
+        The device for the function result.
+
+    Returns
+    -------
+    result : tvm.relay.Function
+        The annotated function.
+    """
+    return _make.FunctionOnDevice(
+        function, [_make_se_scope(d) for d in param_devices], _make_se_scope(result_device)
+    )
 
 
 def stop_fusion(data):

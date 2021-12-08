@@ -41,6 +41,10 @@ register_shape_func("argsort", False, elemwise_shape_func)
 register_strategy("topk", strategy.topk_strategy)
 register_pattern("topk", OpPattern.OPAQUE)
 
+# searchsorted
+register_strategy("searchsorted", strategy.searchsorted_strategy)
+register_pattern("searchsorted", OpPattern.OPAQUE)
+
 
 @script
 def _topk_shape_func_input_shape(data_shape, k, axis):
@@ -80,3 +84,28 @@ def topk_shape_func(attrs, inputs, _):
         ret = [indices_out]
 
     return ret
+
+
+@script
+def _searchsorted_shape(sorted_sequence_shape, values_shape):
+    out_shape = output_tensor((values_shape.shape[0],), "int64")
+    if sorted_sequence_shape.shape[0] > 1:
+        assert (
+            sorted_sequence_shape.shape[0] == values_shape.shape[0]
+        ), "Ranks of `sorted_sequence` and values must be the same if `sorted_sequence` is not 1-D."
+    for i in range(values_shape.shape[0]):
+        if sorted_sequence_shape.shape[0] > 1 and i < values_shape.shape[0] - 1:
+            assert (
+                sorted_sequence_shape[i] == values_shape[i]
+            ), "`sorted_sequence and `values` do not have the same shape along outer axes."
+
+        out_shape[i] = values_shape[i]
+    return out_shape
+
+
+@_reg.register_shape_func("searchsorted", False)
+def searchsorted_shape_func(attrs, inputs, _):
+    """
+    Shape func for searchsorted operator.
+    """
+    return [_searchsorted_shape(inputs[0], inputs[1])]

@@ -246,41 +246,41 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
-  PrimExpr base = n->elem_offset;
+PrimExpr BufferNode::ElemOffset(Array<PrimExpr> index) const {
+  PrimExpr base = this->elem_offset;
   arith::Analyzer ana;
-  if (n->strides.size() == 0) {
+  if (this->strides.size() == 0) {
     // Scalar case
-    if (n->shape.size() == 0 && index.size() == 1) {
+    if (this->shape.size() == 0 && index.size() == 1) {
       auto is_int = index[0].as<IntImmNode>();
       ICHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {
-      ICHECK_EQ(n->shape.size(), index.size());
+      ICHECK_EQ(this->shape.size(), index.size());
       if (index.size() > 0) {
         PrimExpr offset = index[0];
         for (size_t i = 1; i < index.size(); ++i) {
-          offset = MergeMulMod(&ana, offset * n->shape[i] + index[i]);
+          offset = MergeMulMod(&ana, offset * this->shape[i] + index[i]);
         }
         base = base + offset;
       }
     }
   } else {
-    ICHECK_EQ(n->strides.size(), index.size());
+    ICHECK_EQ(this->strides.size(), index.size());
     if (is_zero(base)) {
-      base = MergeMulMod(&ana, index[0] * n->strides[0]);
+      base = MergeMulMod(&ana, index[0] * this->strides[0]);
     } else {
-      base = MergeMulMod(&ana, base + index[0] * n->strides[0]);
+      base = MergeMulMod(&ana, base + index[0] * this->strides[0]);
     }
     for (size_t i = 1; i < index.size(); ++i) {
-      base = MergeMulMod(&ana, base + index[i] * n->strides[i]);
+      base = MergeMulMod(&ana, base + index[i] * this->strides[i]);
     }
   }
   return base;
 }
 
 inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
-  PrimExpr offset = ElemOffset(n, index);
+  PrimExpr offset = n->ElemOffset(index);
   if (n->dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
@@ -294,6 +294,7 @@ inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataTyp
 PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype << " from buffer of " << n->dtype;
   if (dtype == DataType::Bool()) {
@@ -308,6 +309,7 @@ PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType dtype) const {
 Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   DataType dtype = value.dtype();
   ICHECK(dtype.element_of() == n->dtype.element_of() && dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot store " << dtype << " to buffer of " << n->dtype;
@@ -332,7 +334,9 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<PrimExpr> temp;
-  auto n = make_object<BufferNode>(*operator->());
+  const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
+  auto n = make_object<BufferNode>(*self);
   PrimExpr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0; --i) {
     temp.push_back(acc);
@@ -346,9 +350,10 @@ Buffer Buffer::MakeStrideView() const {
 
 Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const {
   const BufferNode* n = operator->();
+  ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  PrimExpr elem_offset = ana.Simplify(ElemOffset(n, begins));
+  PrimExpr elem_offset = ana.Simplify(n->ElemOffset(begins));
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;
@@ -374,6 +379,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
 PrimExpr Buffer::access_ptr(int access_mask, DataType ptr_type, int content_lanes,
                             PrimExpr offset) const {
   const BufferNode* self = operator->();
+  ICHECK(self != nullptr);
   PrimExpr e_dtype;
   PrimExpr extent;
   if (self->shape.size() == 0) {

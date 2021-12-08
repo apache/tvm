@@ -35,7 +35,7 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
 
-    impl, outs = relay.backend.compile_engine.select_implementation(
+    impl, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.dense"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
@@ -47,7 +47,7 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
             if cfg.is_fallback:
                 _default_dense_pack_config(cfg, M, N, K)
             packw_bn = cfg["tile_x"].size[-1]
-            weight_layout = "NK%dn" % packw_bn
+            weight_layout = "NC%dn" % packw_bn
             new_weight = te.placeholder(
                 (N // packw_bn, K, packw_bn),
                 dtype=weight_tensor.dtype,

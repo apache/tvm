@@ -74,6 +74,11 @@ class DenseAttrs(Attrs):
     """Attributes for nn.dense"""
 
 
+@tvm._ffi.register_object("relay.attrs.DensePackAttrs")
+class DensePackAttrs(Attrs):
+    """Attributes for nn.contrib_dense_pack"""
+
+
 @tvm._ffi.register_object("relay.attrs.BatchMatmulAttrs")
 class BatchMatmulAttrs(Attrs):
     """Attributes for nn.batch_matmul"""
@@ -504,6 +509,11 @@ class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
 
 
+@tvm._ffi.register_object("relay.attrs.ArgReduceAttrs")
+class ArgReduceAttrs(Attrs):
+    """Attributes used in reduction operators (e.g. argmin/argmax)"""
+
+
 @tvm._ffi.register_object("relay.attrs.VarianceAttrs")
 class VarianceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
@@ -557,6 +567,11 @@ class SparseConv2DAttrs(Attrs):
 @tvm._ffi.register_object("relay.attrs.TopkAttrs")
 class TopkAttrs(Attrs):
     """Attributes used in topk operators"""
+
+
+@tvm._ffi.register_object("relay.attrs.SearchSortedAttrs")
+class SearchSortedAttrs(Attrs):
+    """Attributes used in searchsorted operators"""
 
 
 @tvm._ffi.register_object("relay.attrs.TupleGetItemAttrs")

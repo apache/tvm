@@ -42,7 +42,7 @@ import tvm._ffi
 from tvm.runtime import Object, module, ndarray
 from tvm.driver import build_module
 from tvm.ir import transform
-from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
+from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
 from tvm.contrib import tar, ndk
 from tvm.contrib.popen_pool import PopenWorker, PopenPoolExecutor, StatusKind
 from tvm.target import Target
@@ -549,10 +549,6 @@ class LocalRPCMeasureContext:
         from tvm.rpc.tracker import Tracker
         from tvm.rpc.server import Server
 
-        dev = tvm.device("cuda", 0)
-        if dev.exist:
-            cuda_arch = "sm_" + "".join(dev.compute_version.split("."))
-            set_cuda_target_arch(cuda_arch)
         self.tracker = Tracker(port=9000, port_end=10000, silent=True)
         device_key = "$local$device$%d" % self.tracker.port
         self.server = Server(
@@ -651,29 +647,17 @@ def local_build_worker(args):
 
     Parameters
     ----------
-    args: Tuple[MeasureInput, str, int, int]
-        inputs, build-func, time, verbose args passed to local_builder_build
+    args: Tuple[MeasureInput, callable, int]
+        inputs, build-func, verbose args passed to local_builder_build
 
     Returns
     -------
     res : BuildResult
         The build result of this Builder thread.
     """
-    inp, build_func, timeout, verbose = args
-    assert build_func == BuildFunc.name, (
-        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
-    )
-    build_func = BuildFunc.build_func
+    inp, build_func, verbose = args
 
-    try:
-        res = _local_build_worker(inp, build_func, verbose)
-    # pylint: disable=broad-except
-    except Exception:
-        if verbose >= 1:
-            print(".E", end="", flush=True)  # Build error
-        res = None, [], MeasureErrorNo.COMPILE_HOST, make_traceback_info(), timeout
-
-    return res
+    return _local_build_worker(inp, build_func, verbose)
 
 
 @tvm._ffi.register_func("auto_scheduler.local_builder.build")
@@ -700,14 +684,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     res : List[BuildResult]
         The build results of these MeasureInputs.
     """
-    executor = PopenPoolExecutor(n_parallel, timeout)
+    assert build_func == BuildFunc.name, (
+        "BuildFunc.name: " + BuildFunc.name + ", but args is: " + build_func
+    )
+    executor = PopenPoolExecutor(
+        n_parallel, timeout, reset_global_scope, (AutotvmGlobalScope.current,)
+    )
     tuple_res = executor.map_with_error_catching(
         local_build_worker,
         [
             (
                 i.serialize(),
-                build_func,
-                timeout,
+                BuildFunc.build_func,
                 verbose,
             )
             for i in inputs
@@ -718,11 +706,18 @@ def local_builder_build(inputs, timeout, n_parallel, build_func="default", verbo
     for res in tuple_res:
         if res.status == StatusKind.COMPLETE:
             results.append(BuildResult(*res.value))
-        else:
-            assert res.status == StatusKind.TIMEOUT
+        elif res.status == StatusKind.TIMEOUT:
             if verbose >= 1:
                 print(".T", end="", flush=True)  # Build timeout
             results.append(BuildResult(None, [], MeasureErrorNo.BUILD_TIMEOUT, None, timeout))
+        elif res.status == StatusKind.EXCEPTION:
+            if verbose >= 1:
+                print(".E", end="", flush=True)  # Build error
+            results.append(
+                BuildResult(None, [], MeasureErrorNo.COMPILE_HOST, repr(res.value), timeout)
+            )
+        else:
+            raise ValueError("Result status is not expected. Unreachable branch")
 
     return results
 
@@ -909,6 +904,7 @@ def _timed_eval_func(
             random_fill = tvm.get_global_func("tvm.contrib.random.random_fill", True)
             assert random_fill, "Please make sure USE_RANDOM is ON in the config.cmake"
             assert len(args) == len(build_res.args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
                 if args[idx] is None:
@@ -917,11 +913,11 @@ def _timed_eval_func(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    args[idx] = ndarray.array(args[idx], dev)
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
-            costs = time_f(*args).results
+            costs = time_f(*loc_args).results
         # pylint: disable=broad-except
         except Exception:
             costs = (MAX_FLOAT,)
@@ -1112,6 +1108,7 @@ def _rpc_run(
             ), "Please make sure USE_RANDOM is ON in the config.cmake on the remote devices"
 
             assert len(args) == len(build_res.args)
+            loc_args = []
             # pylint: disable=consider-using-enumerate
             for idx in range(len(args)):
                 if args[idx] is None:
@@ -1120,16 +1117,16 @@ def _rpc_run(
                         get_const_tuple(build_res_arg.shape), build_res_arg.dtype, dev
                     )
                     random_fill(empty_array)
-                    args[idx] = empty_array
+                    loc_args.append(empty_array)
                 else:
-                    args[idx] = ndarray.array(args[idx], dev)
+                    loc_args.append(ndarray.array(args[idx], dev))
             dev.sync()
 
             # First run for check that the kernel is correct
-            func.entry_func(*args)
+            func.entry_func(*loc_args)
             dev.sync()
 
-            costs = time_f(*args).results
+            costs = time_f(*loc_args).results
 
             # clean up remote files
             remote.remove(build_res.filename)

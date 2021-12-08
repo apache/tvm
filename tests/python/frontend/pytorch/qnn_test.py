@@ -40,9 +40,15 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name, ishape):
+def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False):
     input_shapes = [(input_name, ishape)]
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+    mod, params = relay.frontend.from_pytorch(
+        script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
+    )
+
+    if keep_quantized_weight:
+        for p in params.values():
+            assert p.dtype in ["int8", "int32"]
 
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
@@ -90,6 +96,20 @@ class ConvBn(nn.Module):
         if self.with_relu:
             indices.append("2")
         fuse_modules(self.conv, indices, inplace=True)
+
+
+class ConvTranspose(nn.Module):
+    def __init__(self):
+        super().__init__()
+        layers = [nn.ConvTranspose2d(3, 32, 3, bias=True)]
+        self.conv = nn.Sequential(*layers)
+        self.quant_wrap = QuantWrapper(self.conv)
+
+    def forward(self, x):
+        return self.quant_wrap(x)
+
+    def fuse_model(self):
+        pass
 
 
 class Linear(nn.Module):
@@ -270,6 +290,7 @@ def test_quantized_modules():
             ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
             ("linear" + postfix, (16, 16), Linear(), per_channel),
             ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel),
+            ("conv_transpose", imagenet_ishape, ConvTranspose(), False),
             ("hsigmoid", imagenet_ishape, Hsigmoid(add_stub=True), False),
             ("hswish", imagenet_ishape, Hswish(add_stub=True), False),
             ("semodule", (1, 16, 64, 64), SqueezeExcite(16, add_stub=True), False),
@@ -281,7 +302,15 @@ def test_quantized_modules():
         raw_module.eval()
         inp = torch.rand(ishape)
 
-        quantize_model(raw_module, inp, per_channel=per_channel)
+        # quantized conv_transpose2d is supported only with qnnpack engine before torch v1.8.0.
+        if module_name == "conv_transpose" and not is_version_greater_than("1.7.1"):
+            prev_engine = torch.backends.quantized.engine
+            torch.backends.quantized.engine = "qnnpack"
+            quantize_model(raw_module, inp, per_channel=per_channel)
+            torch.backends.quantized.engine = prev_engine
+        else:
+            quantize_model(raw_module, inp, per_channel=per_channel)
+
         script_module = torch.jit.trace(raw_module, inp).eval()
 
         with torch.no_grad():
@@ -308,6 +337,7 @@ def test_quantized_modules():
         conv_bn_relu 0.3700896 0.010921672 0.7489366477964451
         linear 0.15987062 0.009231662 0.794921875
         linear_relu 0.14180502 0.0053220326 0.8828125
+        conv_transpose 0.0033792555 4.4658788e-07 0.9998678439971806
         conv_bn, per_channel 0.01654929 2.9486866e-06 0.9998218235127019
         conv_bn_relu, per_channel 0.009089053 1.4926576e-06 0.9998357732732732
         linear, per_channel 0.0 0.0 1.0
@@ -609,3 +639,36 @@ def test_qnn_mergecomposite():
 
     input_name = "image"
     run_qnn_mergecomposite(script_module, input_name, inp.shape)
+
+
+def test_keep_quantized_weight():
+    qmodules = []
+
+    for per_channel in [False, True]:
+        qmodules += [
+            ((1, 3, 224, 224), ConvBn(), per_channel),
+            ((16, 16), Linear(), per_channel),
+        ]
+
+    for (ishape, raw_module, per_channel) in qmodules:
+        raw_module.eval()
+        inp = torch.rand(ishape)
+
+        quantize_model(raw_module, inp, per_channel=per_channel)
+        script_module = torch.jit.trace(raw_module, inp).eval()
+
+        input_name = "input"
+
+        runtime = get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False)
+        runtime.set_input(input_name, inp.numpy().copy())
+        runtime.run()
+        tvm_result = runtime.get_output(0).numpy()
+
+        runtime_int8_weight = get_tvm_runtime(
+            script_module, input_name, ishape, keep_quantized_weight=True
+        )
+        runtime_int8_weight.set_input(input_name, inp.numpy().copy())
+        runtime_int8_weight.run()
+        tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
+
+        tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)

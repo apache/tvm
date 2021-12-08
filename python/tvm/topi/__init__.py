@@ -45,6 +45,7 @@ from .argwhere import *
 from .scan import *
 from .einsum import *
 from .unique import *
+from .searchsorted import *
 from . import generic
 from . import nn
 from . import x86
@@ -62,6 +63,7 @@ from . import sparse
 from . import hls
 from . import random
 from . import pulp
+from . import hexagon
 
 # error reporting
 from .utils import InvalidShapeError

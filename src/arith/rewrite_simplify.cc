@@ -474,6 +474,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
     if ((div(ramp(b1, c1, lanes), broadcast(c2, lanes))).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
@@ -644,6 +645,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
     if (truncmod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(truncmod(b1, c2), lanes).Eval();
       }
@@ -723,6 +725,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     if (floordiv(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
@@ -851,6 +854,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     if (floormod(ramp(b1, c1, lanes), broadcast(c2, lanes)).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
       int64_t c2val = c2.Eval()->value;
+      ICHECK(c2val != 0) << "division by zero";
       if (c1val % c2val == 0) {
         return broadcast(floormod(b1, c2), lanes).Eval();
       }
@@ -858,14 +862,18 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
       int64_t ramp_min = floordiv(bmod->base, c2val);
       int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (bmod->coeff % c2val == 0) {
-        if (ramp_min == ramp_max) {
+      if (ramp_min == ramp_max) {
+        // If b1 can devide c2
+        if (bmod->coeff % c2val == 0) {
           return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
-        } else {
-          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-      } else if (c2val % bmod->coeff == 0 && ramp_min == ramp_max) {
-        return ramp(floormod(b1, c2), c1, lanes).Eval();
+        // If all indices can be guaranteed to settle inside a coeff range
+        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
+          return ramp(floormod(b1, c2), c1, lanes).Eval();
+        }
+      }
+      if (bmod->coeff % c2val == 0) {
+        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }

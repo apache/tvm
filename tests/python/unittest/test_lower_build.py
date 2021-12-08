@@ -18,9 +18,9 @@
 import numpy as np
 
 import tvm
-from tvm import te, tir
+from tvm import te
 from tvm.ir.module import IRModule
-from tvm.script import ty
+from tvm.script import tir as T
 import tvm.testing
 
 
@@ -35,53 +35,55 @@ def _check_module_with_numpy(mod, shape=(128, 128, 128)):
 
 
 # pylint: disable=no-self-argument, missing-class-docstring, missing-function-docstring
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "init") as [vi, vj]:
-            C[vi, vj] = tir.float32(0)
-        for k in range(0, 128):
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = T.float32(0)
+        for k in range(128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class LoweredModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         # function attr dict
-        tir.func_attr(
-            {"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True}
-        )
-        A = tir.match_buffer(a, [128, 128])
-        B = tir.match_buffer(b, [128, 128])
-        C = tir.match_buffer(c, [128, 128])
+        T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
         # body
-        for x, y in tir.grid(128, 128):
+        for x, y in T.grid(128, 128):
             C.data[x * 128 + y] = 0.0
-            for k in tir.serial(0, 128):
-                C.data[x * 128 + y] = tir.load("float32", C.data, x * 128 + y) + tir.load(
+            for k in T.serial(0, 128):
+                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
                     "float32", A.data, x * 128 + k
-                ) * tir.load("float32", B.data, y * 128 + k)
+                ) * T.load("float32", B.data, y * 128 + k)
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class LoweredTIRModule:
-    def main(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         # function attr dict
-        tir.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = tir.match_buffer(a, [128, 128])
-        B = tir.match_buffer(b, [128, 128])
-        C = tir.match_buffer(c, [128, 128])
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        A = T.match_buffer(a, [128, 128])
+        B = T.match_buffer(b, [128, 128])
+        C = T.match_buffer(c, [128, 128])
         # body
-        for x, y in tir.grid(128, 128):
+        for x, y in T.grid(128, 128):
             C.data[x * 128 + y] = 0.0
-            for k in tir.serial(0, 128):
-                C.data[x * 128 + y] = tir.load("float32", C.data, x * 128 + y) + tir.load(
+            for k in T.serial(0, 128):
+                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
                     "float32", A.data, x * 128 + k
-                ) * tir.load("float32", B.data, y * 128 + k)
+                ) * T.load("float32", B.data, y * 128 + k)
 
 
 def test_lower_build_te_schedule():
@@ -93,7 +95,7 @@ def test_lower_build_te_schedule():
     s = te.create_schedule(C.op)
     # check lowering
     ir_mod = tvm.lower(s, [A, B, C])
-    tvm.ir.assert_structural_equal(ir_mod, LoweredModule())
+    tvm.ir.assert_structural_equal(ir_mod, LoweredModule)
     # check building
     mod = tvm.build(s, [A, B, C], target="llvm")
     _check_module_with_numpy(mod)
@@ -102,7 +104,7 @@ def test_lower_build_te_schedule():
 def test_lower_build_tir_func():
     # check lowering
     ir_mod = tvm.lower(matmul)
-    tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule())
+    tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(matmul, target="llvm")
     _check_module_with_numpy(mod)
@@ -114,7 +116,7 @@ def test_lower_build_tir_module():
     ir_mod = IRModule({"main": func})
     # check lowering
     lowered_mod = tvm.lower(ir_mod)
-    tvm.ir.assert_structural_equal(lowered_mod, LoweredTIRModule())
+    tvm.ir.assert_structural_equal(lowered_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")
     _check_module_with_numpy(mod)
@@ -122,8 +124,8 @@ def test_lower_build_tir_module():
 
 def test_lower_build_lowered_module():
     # check lowering
-    ir_mod = tvm.lower(LoweredTIRModule())
-    tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule())
+    ir_mod = tvm.lower(LoweredTIRModule)
+    tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")
     _check_module_with_numpy(mod)

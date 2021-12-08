@@ -30,9 +30,7 @@ export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
-# Remove existing testcases
-rm -f build/*_test
-
+# Build cpptest suite
 make cpptest -j2
 
 # "make crttest" requires USE_MICRO to be enabled, which is not always the case.
@@ -40,12 +38,18 @@ if grep crttest build/Makefile > /dev/null; then
     make crttest  # NOTE: don't parallelize, due to issue with build deps.
 fi
 
-for test in build/*_test; do
-    ./$test
-done
+cd build && ctest --gtest_death_test_style=threadsafe && cd ..
 
 # Test MISRA-C runtime
 cd apps/bundle_deploy
 rm -rf build
 make test_dynamic test_static
 cd ../..
+
+# Test Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU demo app
+FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
+if test -d $FVP_PATH && pip3 list | grep vela; then
+    cd apps/microtvm/ethosu
+    ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake
+    cd ../../..
+fi

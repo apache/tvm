@@ -136,7 +136,29 @@ def get_block_access_region(
             - second: write regions
             - third: opaque regions
     """
-    return _ffi_api.get_block_access_region(block, buffer_var_map)  # type: ignore
+    return _ffi_api.GetBlockAccessRegion(block, buffer_var_map)  # type: ignore
+
+
+def get_block_read_write_region(
+    block: Block, buffer_var_map: Dict[Var, Buffer]
+) -> List[List[BufferRegion]]:
+    """Auto detect the block read/write region according to its body stmt.
+       An opaque access will be counted as both a read and a write access
+
+    Parameters
+    ----------
+    block: tvm.tir.Block
+        The block in which we are detecting read/write regions.
+
+    buffer_var_map : Dict[Var, Buffer]
+        The outside buffers which may access the block. Mapping from buffer var to the buffer
+
+    Returns
+    -------
+    result : List[List[BufferRegion]]
+        An array only consisting of the read regions and write regions of the input block
+    """
+    return _ffi_api.GetBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
 
 
 def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> int:

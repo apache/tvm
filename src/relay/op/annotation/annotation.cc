@@ -20,8 +20,10 @@
 /*!
  *
  * \file src/relay/op/annotation/annotation.cc
- * \brief Registration of annotation operators.
+ * \brief Helpers for working with various 'annotations' attributes.
  */
+
+#include "./annotation.h"
 
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
@@ -35,32 +37,6 @@
 
 namespace tvm {
 namespace relay {
-
-// relay.annotation.on_device
-TVM_REGISTER_NODE_TYPE(OnDeviceAttrs);
-
-TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
-    .set_body_typed([](Expr data, int device_type) {
-      auto attrs = make_object<OnDeviceAttrs>();
-      attrs->device_type = device_type;
-      static const Op& op = Op::Get("on_device");
-      return Call(op, {data}, Attrs(attrs), {});
-    });
-
-RELAY_REGISTER_OP("on_device")
-    .describe(R"code(Annotate an expression with device type)code" TVM_ADD_FILELINE)
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input data.")
-    .set_support_level(10)
-    .add_type_rel("Identity", IdentityRel)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
-    .set_attr<FTVMCompute>("FTVMCompute",
-                           [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                              const Type& out_type) -> Array<te::Tensor> {
-                             return {topi::identity(inputs[0])};
-                           });
 
 Expr StopFusion(Expr data) {
   static const Op& op = Op::Get("annotation.stop_fusion");

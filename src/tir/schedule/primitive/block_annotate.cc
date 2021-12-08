@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../transform.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -237,7 +236,8 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index, int axis,
                   int factor, int offset) {
   const BlockNode* block_ptr = TVM_SREF_TO_BLOCK(block_ptr, block_sref);
-  Buffer buffer = GetNthWriteBuffer(self, GetRef<Block>(block_ptr), buffer_index);
+  Buffer buffer =
+      GetNthAccessBuffer(self, GetRef<Block>(block_ptr), buffer_index, /*is_write=*/true);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
   NonAllocatedBufferError::CheckBufferAllocated(self->mod, block_sref, buffer);
@@ -248,7 +248,6 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
                                                                 GetRef<Block>(block_ptr));
 
   // Step 2: Update the annotation value
-  // Array<Array<Integer>> buffer_storage_align = storage_align_annotation[buffer_index];
   bool found = false;
   StorageAlignTuple new_storage_align_tuple{Integer(buffer_index), Integer(axis), Integer(factor),
                                             Integer(offset)};
@@ -270,7 +269,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   self->Replace(block_sref, new_block, {{GetRef<Block>(block_ptr), new_block}});
 }
 
-/******** Instruction Registration ********/
+/******** InstructionKind Registration ********/
 
 struct StorageAlignTraits : public UnpackedInstTraits<StorageAlignTraits> {
   static constexpr const char* kName = "StorageAlign";

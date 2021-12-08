@@ -14,11 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""
+Project API client.
+"""
 import base64
 import io
 import json
 import logging
+import platform
 import os
 import pathlib
 import subprocess
@@ -56,6 +59,7 @@ class UnsupportedProtocolVersionError(ProjectAPIErrorBase):
 
 class RPCError(ProjectAPIErrorBase):
     def __init__(self, request, error):
+        ProjectAPIErrorBase.__init__()
         self.request = request
         self.error = error
 
@@ -129,7 +133,8 @@ class ProjectAPIClient:
 
         if "error" in reply:
             raise server.JSONRPCError.from_json(f"calling method {method}", reply["error"])
-        elif "result" not in reply:
+
+        if "result" not in reply:
             raise MalformedReplyError(f"Expected 'result' key in server reply, got {reply!r}")
 
         return reply["result"]
@@ -189,7 +194,7 @@ class ProjectAPIClient:
 
 # NOTE: windows support untested
 SERVER_LAUNCH_SCRIPT_FILENAME = (
-    f"launch_microtvm_api_server.{'sh' if os.system != 'win32' else '.bat'}"
+    f"launch_microtvm_api_server.{'sh' if platform.system() != 'Windows' else '.bat'}"
 )
 
 
@@ -197,9 +202,9 @@ SERVER_PYTHON_FILENAME = "microtvm_api_server.py"
 
 
 def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bool = False):
-    """Launch server located in project_dir, and instantiate a Project API Client connected to it."""
+    """Launch server located in project_dir, and instantiate a Project API Client
+    connected to it."""
     args = None
-
     project_dir = pathlib.Path(project_dir)
 
     python_script = project_dir / SERVER_PYTHON_FILENAME
@@ -224,7 +229,7 @@ def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bo
     if debug:
         args.append("--debug")
 
-    api_server_proc = subprocess.Popen(
+    api_server_proc = subprocess.Popen(  # pylint: disable=unused-variable
         args, bufsize=0, pass_fds=(api_server_read_fd, api_server_write_fd), cwd=project_dir
     )
     os.close(api_server_read_fd)

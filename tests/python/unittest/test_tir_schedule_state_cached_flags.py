@@ -20,247 +20,297 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.state import CachedFlags
 from tvm.tir.stmt_functor import post_order_visit
 
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    C = tir.match_buffer(c, (128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "init") as [vi, vj]:
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = 0.0
         for k in range(0, 128):
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@tvm.script.tir
-def block_in_opaque_block(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    B = tir.match_buffer(b, (128, 128), "float32")
-    with tir.block([128], "B") as vi:
-        tir.reads([A[0:128, 0:128]])
-        tir.writes([B[0:128, 0:128]])
-        B[vi, 0] = A[vi, 0]
-        if A[vi, 0] == 0.0:
-            with tir.block([], "C"):
-                tir.reads([A[0:128, 0:128]])
-                tir.writes([B[0:128, 0:128]])
-                with tir.block([128], "D") as vj:
-                    B[vi, vj] = A[vi, vj] * 3.0
-        else:
-            with tir.block([], "E"):
-                tir.reads([A[0:128, 0:128]])
-                tir.writes([B[0:128, 0:128]])
-                with tir.block([128], "F") as vj:
-                    B[vi, vj] = A[vi, vj] * 2.0
+@T.prim_func
+def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    B = T.match_buffer(b, (128, 128), "float32")
+    for i in range(128):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            T.reads([A[0:128, 0:128]])
+            T.writes([B[0:128, 0:128]])
+            B[vi, 0] = A[vi, 0]
+            if A[vi, 0] == 0.0:
+                with T.block("C"):
+                    T.reads([A[0:128, 0:128]])
+                    T.writes([B[0:128, 0:128]])
+                    for j in range(128):
+                        with T.block("D"):
+                            vj = T.axis.S(128, j)
+                            B[vi, vj] = A[vi, vj] * 3.0
+            else:
+                with T.block("E"):
+                    T.reads([A[0:128, 0:128]])
+                    T.writes([B[0:128, 0:128]])
+                    for j in range(128):
+                        with T.block("F"):
+                            vj = T.axis.S(128, j)
+                            B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def write_after_read(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
+@T.prim_func
+def write_after_read(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def loop_carried_dependency(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128,))
-    B = tir.match_buffer(b, (128,))
-    C = tir.match_buffer(c, (128,))
+@T.prim_func
+def loop_carried_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    B = T.match_buffer(b, (128,))
+    C = T.match_buffer(c, (128,))
     for i in range(0, 128):
-        with tir.block([128], "B") as vi:
+        with T.block("B"):
+            vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with tir.block([128], "C") as vi:
-            C[vi] = tir.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
+        with T.block("C"):
+            vi = T.axis.S(128, i)
+            C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
 
 
-@tvm.script.tir
-def concatenate_multi_producer(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128,))
-    B = tir.match_buffer(b, (128,))
+@T.prim_func
+def concatenate_multi_producer(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with tir.block([64], "A_0") as vi:
+        with T.block("A_0"):
+            vi = T.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with tir.block([64], "A_1") as vi:
-            tir.bind(vi, i + 64)
+        with T.block("A_1"):
+            vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
-    with tir.block([128], "B") as vi:
-        B[vi] = A[vi] * 2.0
+    for i in range(0, 128):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            B[vi] = A[vi] * 2.0
 
 
-@tvm.script.tir
-def concatenate_multi_producer_uncovered(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128,))
-    B = tir.match_buffer(b, (128,))
+@T.prim_func
+def concatenate_multi_producer_uncovered(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    B = T.match_buffer(b, (128,))
     for i in range(0, 63):
-        with tir.block([63], "A_0") as vi:
+        with T.block("A_0"):
+            vi = T.axis.S(63, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with tir.block([64], "A_1") as vi:
-            tir.bind(vi, i + 64)
+        with T.block("A_1"):
+            vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
-    with tir.block([128], "B") as vi:
-        B[vi] = A[vi] * 2.0
-
-
-@tvm.script.tir
-def lca_at_loop(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128,))
-    B = tir.match_buffer(b, (128,))
-    C = tir.match_buffer(c, (128,))
     for i in range(0, 128):
-        with tir.block([128], "B") as vi:
+        with T.block("B"):
+            vi = T.axis.S(128, i)
             B[vi] = A[vi] * 2.0
-        with tir.block([128], "C") as vi:
+
+
+@T.prim_func
+def lca_at_loop(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    B = T.match_buffer(b, (128,))
+    C = T.match_buffer(c, (128,))
+    for i in range(0, 128):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            B[vi] = A[vi] * 2.0
+        with T.block("C"):
+            vi = T.axis.S(128, i)
             C[vi] = B[vi] + 1.0
 
 
-@tvm.script.tir
-def multi_producer_consumer(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128,))
-    B = tir.match_buffer(b, (128,))
+@T.prim_func
+def multi_producer_consumer(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    B = T.match_buffer(b, (128,))
     for i in range(0, 64):
-        with tir.block([64], "A_0") as vi:
+        with T.block("A_0"):
+            vi = T.axis.S(64, i)
             A[vi] = vi + 1
     for i in range(0, 64):
-        with tir.block([64], "A_1") as vi:
-            tir.bind(vi, i + 64)
+        with T.block("A_1"):
+            vi = T.axis.S(64, i + 64)
             A[vi] = vi + 2
     for i in range(0, 64):
-        with tir.block([64], "B_0") as vi:
+        with T.block("B_0"):
+            vi = T.axis.S(64, i)
             B[vi] = A[vi] + 2.0
     for i in range(0, 64):
-        with tir.block([64], "B_1") as vi:
-            tir.bind(vi, i + 64)
+        with T.block("B_1"):
+            vi = T.axis.S(64, i + 64)
             B[vi] = A[vi] + 3.0
 
 
-@tvm.script.tir
-def elementwise_affine_producer(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    C = tir.match_buffer(c, (128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    for i, j, k, l in tir.grid(16, 2, 32, 16):
-        with tir.block([128, 128], "B") as [vi, vj]:
-            tir.bind(vi, i * 8 + j * 4 + k // 8)
-            tir.bind(vj, k % 8 * 16 + l)
+@T.prim_func
+def elementwise_affine_producer(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    for i, j, k, l in T.grid(16, 2, 32, 16):
+        with T.block("B"):
+            vi = T.axis.S(128, i * 8 + j * 4 + k // 8)
+            vj = T.axis.S(128, k % 8 * 16 + l)
             B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def elementwise_subblock(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    C = tir.match_buffer(c, (128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([32, 32], "B") as [vi, vj]:
-        tir.reads([A[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
-        tir.writes([B[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
-        with tir.block([4, 4], "B_sub") as [vi_i, vj_i]:
-            B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise_subblock(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    for i, j in T.grid(32, 32):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([A[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
+            T.writes([B[vi * 4 : vi * 4 + 4, vj * 4 : vj * 4 + 4]])
+            for ii, jj in T.grid(4, 4):
+                with T.block("B_sub"):
+                    vi_i, vj_i = T.axis.remap("SS", [ii, jj])
+                    B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def elementwise_subblock_uncovered(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128), "float32")
-    C = tir.match_buffer(c, (128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([32, 32], "B") as [vi, vj]:
-        tir.reads([A[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
-        tir.writes([B[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
-        with tir.block([2, 2], "B_sub") as [vi_i, vj_i]:
-            B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
+@T.prim_func
+def elementwise_subblock_uncovered(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    for i, j in T.grid(32, 32):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([A[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
+            T.writes([B[vi * 4 : vi * 4 + 2, vj * 4 : vj * 4 + 2]])
+            for ii, jj in T.grid(2, 2):
+                with T.block("B_sub"):
+                    vi_i, vj_i = T.axis.remap("SS", [ii, jj])
+                    B[vi * 4 + vi_i, vj * 4 + vj_i] = A[vi * 4 + vi_i, vj * 4 + vj_i] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def bound_to_thread(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    B = tir.alloc_buffer([128, 128], scope="shared")
-    for i in tir.thread_binding(0, 128, thread="threadIdx.x"):
-        for j in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
+@T.prim_func
+def bound_to_thread(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    B = T.alloc_buffer([128, 128], scope="shared")
+    for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for j in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
-        for j in tir.serial(0, 128):
-            with tir.block([128, 128], "C") as [vi, vj]:
+        for j in T.serial(0, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
                 C[vj, vi] = B[vj, vi] + 1.0
 
 
-@tvm.script.tir
-def equal_ranked_threads(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    B = tir.alloc_buffer([128, 128], scope="shared")
-    for i_o in tir.thread_binding(0, 16, thread="threadIdx.x"):
-        for i_i in tir.thread_binding(0, 8, thread="threadIdx.y"):
-            for j in tir.serial(0, 128):
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.bind(vi, i_o * 8 + i_i)
-                    tir.bind(vj, j)
+@T.prim_func
+def equal_ranked_threads(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    B = T.alloc_buffer([128, 128], scope="shared")
+    for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
+        for i_i in T.thread_binding(0, 8, thread="threadIdx.y"):
+            for j in T.serial(0, 128):
+                with T.block("B"):
+                    vi = T.axis.S(128, i_o * 8 + i_i)
+                    vj = T.axis.S(128, j)
                     B[vi, vj] = A[vi, vj] * 2.0
-            for j in tir.serial(0, 128):
-                with tir.block([128, 128], "C") as [vi, vj]:
-                    tir.bind(vi, i_o * 8 + i_i)
-                    tir.bind(vj, j)
+            for j in T.serial(0, 128):
+                with T.block("C"):
+                    vi = T.axis.S(128, i_o * 8 + i_i)
+                    vj = T.axis.S(128, j)
                     C[vj, vi] = B[vj, vi] + 1.0
 
 
-@tvm.script.tir
-def warp_memory(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    B = tir.alloc_buffer([128, 4, 32], scope="warp")
-    for i_o in tir.thread_binding(0, 4, thread="threadIdx.y"):
-        for i_i in tir.thread_binding(0, 32, thread="threadIdx.x"):
-            for j in tir.serial(0, 128):
-                with tir.block([4, 32, 128], "B") as [warp_id, lane_id, vj]:
+@T.prim_func
+def warp_memory(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    B = T.alloc_buffer([128, 4, 32], scope="warp")
+    for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
+        for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for j in T.serial(0, 128):
+                with T.block("B"):
+                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
-            for j in tir.serial(0, 128):
-                with tir.block([4, 32, 128], "C") as [warp_id, lane_id, vj]:
+            for j in T.serial(0, 128):
+                with T.block("C"):
+                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 
-@tvm.script.tir
-def warp_memory_negative(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    B = tir.alloc_buffer([128, 4, 32], scope="warp")
-    for i_o in tir.thread_binding(0, 4, thread="threadIdx.y"):
-        for i_i in tir.thread_binding(0, 32, thread="threadIdx.x"):
-            for j in tir.serial(0, 128):
-                with tir.block([4, 32, 128], "B") as [warp_id, lane_id, vj]:
+@T.prim_func
+def warp_memory_negative(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    B = T.alloc_buffer([128, 4, 32], scope="warp")
+    for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
+        for i_i in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for j in T.serial(0, 128):
+                with T.block("B"):
+                    warp_id, lane_id, vj = T.axis.remap("SSS", [i_o, i_i, j])
                     B[vj, warp_id, lane_id] = A[warp_id * 32 + lane_id, vj] * 2.0
-            for i_o_prime in tir.thread_binding(0, 4, thread="threadIdx.y"):
-                for j in tir.serial(0, 128):
-                    with tir.block([4, 32, 4, 128], "C") as [_warp_id, lane_id, warp_id, vj]:
+            for i_o_prime in T.thread_binding(0, 4, thread="threadIdx.y"):
+                for j in T.serial(0, 128):
+                    with T.block("C"):
+                        _warp_id, warp_id, lane_id, vj = T.axis.remap(
+                            "SSSS", [i_o, i_i, i_o_prime, j]
+                        )
                         C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 

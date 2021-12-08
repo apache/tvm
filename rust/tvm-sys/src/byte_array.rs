@@ -17,10 +17,9 @@
  * under the License.
  */
 use std::convert::TryFrom;
-use std::os::raw::c_char;
 
 use crate::errors::ValueDowncastError;
-use crate::ffi::TVMByteArray;
+use crate::ffi::{TVMByteArray, TVMByteArrayFree};
 use crate::{ArgValue, RetValue};
 
 /// A newtype wrapping a raw TVM byte-array.
@@ -33,20 +32,45 @@ use crate::{ArgValue, RetValue};
 /// assert_eq!(barr.len(), v.len());
 /// assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
 /// ```
-pub struct ByteArray {
-    /// The raw FFI ByteArray.
-    array: TVMByteArray,
+pub enum ByteArray {
+    Rust(TVMByteArray),
+    External(TVMByteArray),
+}
+
+impl Drop for ByteArray {
+    fn drop(&mut self) {
+        match self {
+            ByteArray::Rust(bytes) => {
+                let ptr = bytes.data;
+                let len = bytes.size as _;
+                let cap = bytes.size as _;
+                let data: Vec<u8> = unsafe { Vec::from_raw_parts(ptr as _, len, cap) };
+                drop(data);
+            }
+            ByteArray::External(byte_array) => unsafe {
+                if TVMByteArrayFree(byte_array as _) != 0 {
+                    panic!("error");
+                }
+            },
+        }
+    }
 }
 
 impl ByteArray {
     /// Gets the underlying byte-array
-    pub fn data(&self) -> &'static [u8] {
-        unsafe { std::slice::from_raw_parts(self.array.data as *const u8, self.array.size as _) }
+    pub fn data(&self) -> &[u8] {
+        match self {
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => unsafe {
+                std::slice::from_raw_parts(byte_array.data as *const u8, byte_array.size as _)
+            },
+        }
     }
 
     /// Gets the length of the underlying byte-array
     pub fn len(&self) -> usize {
-        self.array.size as _
+        match self {
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => byte_array.size as _,
+        }
     }
 
     /// Converts the underlying byte-array to `Vec<u8>`
@@ -59,50 +83,49 @@ impl ByteArray {
     }
 }
 
-// Needs AsRef for Vec
-impl<T: AsRef<[u8]>> From<T> for ByteArray {
+impl<T: Into<Vec<u8>>> From<T> for ByteArray {
     fn from(arg: T) -> Self {
-        let arg = arg.as_ref();
-        ByteArray {
-            array: TVMByteArray {
-                data: arg.as_ptr() as *const c_char,
-                size: arg.len() as _,
-            },
-        }
+        let mut incoming_bytes: Vec<u8> = arg.into();
+        let mut bytes = Vec::with_capacity(incoming_bytes.len());
+        bytes.append(&mut incoming_bytes);
+
+        let mut bytes = std::mem::ManuallyDrop::new(bytes);
+        let ptr = bytes.as_mut_ptr();
+        assert_eq!(bytes.len(), bytes.capacity());
+        ByteArray::Rust(TVMByteArray {
+            data: ptr as _,
+            size: bytes.len() as _,
+        })
     }
 }
 
 impl<'a> From<&'a ByteArray> for ArgValue<'a> {
     fn from(val: &'a ByteArray) -> ArgValue<'a> {
-        ArgValue::Bytes(&val.array)
-    }
-}
-
-impl TryFrom<ArgValue<'static>> for ByteArray {
-    type Error = ValueDowncastError;
-
-    fn try_from(val: ArgValue<'static>) -> Result<ByteArray, Self::Error> {
         match val {
-            ArgValue::Bytes(array) => Ok(ByteArray { array: *array }),
-            _ => Err(ValueDowncastError {
-                expected_type: "ByteArray",
-                actual_type: format!("{:?}", val),
-            }),
+            ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => {
+                ArgValue::Bytes(byte_array)
+            }
         }
     }
 }
 
-impl From<ByteArray> for RetValue {
-    fn from(val: ByteArray) -> RetValue {
-        RetValue::Bytes(val.array)
-    }
-}
+// todo(@jroesch): #8800 Follow up with ByteArray RetValue ownership.
+// impl From<ByteArray> for RetValue {
+//     fn from(val: ByteArray) -> RetValue {
+//         match val {
+//             ByteArray::Rust(byte_array) | ByteArray::External(byte_array) => {
+//                 // TODO(@jroesch): This requires a little more work, going to land narratives
+//                 RetValue::Bytes(byte_array)
+//             }
+//         }
+//     }
+// }
 
 impl TryFrom<RetValue> for ByteArray {
     type Error = ValueDowncastError;
     fn try_from(val: RetValue) -> Result<ByteArray, Self::Error> {
         match val {
-            RetValue::Bytes(array) => Ok(ByteArray { array }),
+            RetValue::Bytes(array) => Ok(ByteArray::External(array)),
             _ => Err(ValueDowncastError {
                 expected_type: "ByteArray",
                 actual_type: format!("{:?}", val),
@@ -118,11 +141,11 @@ mod tests {
     #[test]
     fn convert() {
         let v = vec![1u8, 2, 3];
-        let barr = ByteArray::from(&v);
+        let barr = ByteArray::from(v.to_vec());
         assert_eq!(barr.len(), v.len());
         assert_eq!(barr.to_vec(), vec![1u8, 2, 3]);
         let v = b"hello";
-        let barr = ByteArray::from(&v);
+        let barr = ByteArray::from(v.to_vec());
         assert_eq!(barr.len(), v.len());
         assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
     }

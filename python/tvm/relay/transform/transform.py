@@ -209,20 +209,22 @@ def CanonicalizeOps():
     return _ffi_api.CanonicalizeOps()
 
 
-def DeadCodeElimination(inline_once=False):
+def DeadCodeElimination(inline_once=False, ignore_impurity=False):
     """Remove expressions that do not have any users (dead code).
 
     Parameters
     ----------
     inline_once: Optional[Bool]
-        Whether to inline binding that occurs only once.
+        Whether to inline a binding that is referenced exactly once.
+    ignore_impurity: Optional[Bool]
+        Whether to ignore possible side-effects in let-bound expressions.
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _ffi_api.DeadCodeElimination(inline_once)
+    return _ffi_api.DeadCodeElimination(inline_once, ignore_impurity)
 
 
 def LazyGradientInit():
@@ -542,27 +544,6 @@ def MergeCompilerRegions():
         The registered pass that merges compiler regions.
     """
     return _ffi_api.MergeCompilerRegions()
-
-
-def RewriteAnnotatedOps(fallback_device):
-    """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, mark which device an expression should be scheduled to.
-    This pass helps heterogeneous execution where different operators may need
-    to be allocated on various devices.
-
-    Parameters
-    ----------
-    fallback_device : int
-        The fallback device type. It is also used as the default device for
-        operators with no annotated device.
-
-    Returns
-    -------
-    ret: tvm.transform.Pass
-        The registered pass that rewrites an expression with annotated
-        `on_device` operators.
-    """
-    return _ffi_api.RewriteDeviceAnnotation(fallback_device)
 
 
 def ToANormalForm():
@@ -912,6 +893,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(func, mod, ctx):
@@ -1093,7 +1075,7 @@ def DenseToSparse(weight_name, weight_shape):
     return _ffi_api.DenseToSparse(weight_name, weight_shape)
 
 
-def Conv2dToSparse(weight_name, weight_shape, layout):
+def Conv2dToSparse(weight_name, weight_shape, layout, kernel_size):
     """
     Rewrite qualified ```nn.conv2d operation``` to ```nn.sparse_conv2d```
 
@@ -1113,7 +1095,27 @@ def Conv2dToSparse(weight_name, weight_shape, layout):
     ret : tvm.transform.Pass
         The registered DenseToSparse pass.
     """
-    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout)
+    return _ffi_api.Conv2dToSparse(weight_name, weight_shape, layout, kernel_size)
+
+
+def Conv2dToSparse2(layout, kernel_size, blocksize, sparsity_threshold):
+    """
+    Rewrite freezed ```nn.conv2d``` operation to ```nn.sparse_conv2d```
+
+    Parameters
+    ----------
+    layout : str
+        layout of data
+
+    kernel_size : int
+        kernel size of conv2d
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered DenseToSparse pass.
+    """
+    return _ffi_api.Conv2dToSparse2(layout, kernel_size, *blocksize, sparsity_threshold)
 
 
 def SimplifyFCTranspose(target_weight_name):
@@ -1145,6 +1147,28 @@ def SimplifyExpr():
         The registered SimplifyExpr pass.
     """
     return _ffi_api.SimplifyExpr()
+
+
+def PlanDevices(config):
+    """
+    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    every Relay sub-expression should run and the result stored. Captures the result of that
+    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
+    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
+    computations which must be hosted on a CPU (such as shapes and shape functions) use the
+    cpu_se_scope.
+
+    Parameters
+    ----------
+    config : tvm.CompilationConfig
+        The compilation configuration, specifying available targets and default devices.
+
+    Returns
+    -------
+    ret : tvm.transforms.Pass
+        The pass.
+    """
+    return _ffi_api.PlanDevices(config)
 
 
 def FoldExplicitPadding():
@@ -1184,7 +1208,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2

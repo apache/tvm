@@ -30,6 +30,8 @@ tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
+tvm_option(USE_HEXAGON_LAUNCHER "Build the Hexagon graph launcher application" OFF)
+tvm_option(USE_HEXAGON_PROXY_RPC "Build the Hexagon Proxy RPC server application" OFF)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -45,12 +47,15 @@ tvm_option(USE_MICRO "Build with Micro TVM support" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
 tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
+tvm_option(USE_PT_TVMDSOOP "Build with PyTorch TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
-tvm_option(USE_ETHOSN "Build with Arm Ethos-N" OFF)
+tvm_option(USE_ETHOSN "Build with Arm(R) Ethos(TM)-N" OFF)
+tvm_option(USE_CMSISNN "Build with Arm CMSIS-NN" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Build libbacktrace to supply linenumbers on stack traces" AUTO)
 tvm_option(BUILD_STATIC_RUNTIME "Build static version of libtvm_runtime" OFF)
 tvm_option(USE_PAPI "Use Performance Application Programming Interface (PAPI) to read performance counters" OFF)
+tvm_option(USE_GTEST "Use GoogleTest for C++ sanity tests" AUTO)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -67,6 +72,7 @@ tvm_option(USE_MKLDNN "Build with MKLDNN" OFF)
 tvm_option(USE_DNNL_CODEGEN "Enable MKLDNN (DNNL) codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
+tvm_option(USE_CUTLASS "Build with CUTLASS" OFF)
 tvm_option(USE_THRUST "Build with Thrust" OFF)
 tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
 tvm_option(USE_ROCBLAS "Build with ROCM:RoCBLAS" OFF)
@@ -239,6 +245,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 # Source file lists
 file(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
+    src/meta_schedule/*.cc
     src/node/*.cc
     src/ir/*.cc
     src/arith/*.cc
@@ -304,9 +311,12 @@ if(BUILD_FOR_HEXAGON)
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    # Allow undefined symbols (there will be some from libc).
+    set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
 
   add_definitions(-D_MACH_I32=int)
+  add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
 # Package runtime rules
@@ -342,11 +352,11 @@ if(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
 endif(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
 
 # NOTE(areusch): USE_GRAPH_RUNTIME_DEBUG will be deleted in a future release
-if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
-  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_GRAPH_EXECUTOR_DEBUG. Please update your config.cmake")
-  set(USE_GRAPH_EXECUTOR_DEBUG ${USE_GRAPH_RUNTIME_DEBUG})
+if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
+  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
+  set(USE_PROFILER ${USE_GRAPH_RUNTIME_DEBUG})
   unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
-endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_GRAPH_EXECUTOR_DEBUG)
+endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
 
 if(USE_GRAPH_EXECUTOR)
   message(STATUS "Build with Graph Executor support...")
@@ -357,10 +367,12 @@ endif(USE_GRAPH_EXECUTOR)
 
 # convert old options for profiler
 if(USE_GRAPH_EXECUTOR_DEBUG)
+  message(WARNING "USE_GRAPH_EXECUTOR_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
   set(USE_PROFILER ON)
 endif()
 if(USE_VM_PROFILER)
+  message(WARNING "USE_VM_PROFILER renamed to USE_PROFILER. Please update your config.cmake")
   unset(USE_VM_PROFILER CACHE)
   set(USE_PROFILER ON)
 endif()
@@ -377,9 +389,36 @@ if(USE_PROFILER)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
 
+# Enable ctest if gtest is available
+if(USE_GTEST)
+  # Check env var for backward compatibility. A better way to specify package
+  # locations is to use CMAKE_PREFIX_PATH or other standard cmake mechanism
+  # (see cmake documentation for `find_package`).
+  set(GTEST_ROOT "$ENV{GTEST_LIB}")
+  if("${USE_GTEST}" STREQUAL "AUTO")
+    # If USE_GTEST is AUTO, treat GTest as optional: enable if found.
+    find_package(GTest)
+  elseif("${USE_GTEST}" MATCHES ${IS_TRUE_PATTERN})
+    # USE_GTEST is set to ON, TRUE, etc. Treat GTest as a required package.
+    find_package(GTest REQUIRED)
+  endif()
+  if(GTEST_FOUND)
+    enable_testing()
+    include(CTest)
+  endif()
+endif()
+
+if(USE_PIPELINE_EXECUTOR)
+  message(STATUS "Build with Pipeline Executor support...")
+  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
+endif(USE_PIPELINE_EXECUTOR)
+
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
+include(cmake/modules/Zephyr.cmake)
+include(cmake/modules/Arduino.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/Hexagon.cmake)
 include(cmake/modules/OpenCL.cmake)
@@ -390,9 +429,14 @@ include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/Micro.cmake)
 include(cmake/modules/contrib/EthosN.cmake)
+include(cmake/modules/contrib/CMSISNN.cmake)
+include(cmake/modules/contrib/EthosU.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
 include(cmake/modules/contrib/CODEGENC.cmake)
+include(cmake/modules/contrib/Custom_Target.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
+include(cmake/modules/contrib/CUTLASS.cmake)
+include(cmake/modules/contrib/ExampleTargetHooks.cmake)
 include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Posit.cmake)
 include(cmake/modules/contrib/MicroStandaloneRuntime.cmake)
@@ -401,6 +445,7 @@ include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
+include(cmake/modules/contrib/PT_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/BNNS.cmake)
 include(cmake/modules/contrib/ONNX.cmake)
@@ -435,7 +480,7 @@ add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_o
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
-  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs>)
+  add_library(tvm_runtime STATIC $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set(NOTICE_MULTILINE
     "You have build static version of the TVM runtime library. Make "
     "sure to use --whole-archive when linking it into your project.")
@@ -443,7 +488,7 @@ if(BUILD_STATIC_RUNTIME)
   add_custom_command(TARGET tvm_runtime POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E cmake_echo_color --yellow --bold ${NOTICE})
 else()
-  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs>)
+  add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
@@ -464,6 +509,8 @@ if(USE_MICRO)
   # Unix Makefiles generator, need to add these explicit target-level dependency)
   add_dependencies(tvm host_standalone_crt)
   add_dependencies(tvm_runtime host_standalone_crt)
+  add_dependencies(tvm_runtime zephyr)
+  add_dependencies(tvm_runtime arduino)
 endif()
 
 if(USE_CPP_RPC)
@@ -558,34 +605,15 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_compile_definitions(tvm_allvisible PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 endif()
 
-# Tests
-set(TEST_EXECS "")
-file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
-if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-  foreach(__srcpath ${TEST_SRCS})
-    get_filename_component(__srcname ${__srcpath} NAME)
-    string(REPLACE ".cc" "" __execname ${__srcname})
-    add_executable(${__execname} ${__srcpath})
-    list(APPEND TEST_EXECS ${__execname})
-    target_include_directories(${__execname} SYSTEM PUBLIC ${GTEST_INCLUDE_DIR})
-    target_link_libraries(${__execname} PRIVATE ${TVM_TEST_LIBRARY_NAME} ${GTEST_LIB} pthread dl)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-    set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  endforeach()
-  add_custom_target(cpptest DEPENDS ${TEST_EXECS})
-elseif(NOT GTEST_INCLUDE_DIR)
-  add_custom_target(cpptest
-      COMMAND echo "Missing Google Test headers in include path"
-      COMMAND exit 1)
-elseif(NOT GTEST_LIB)
-  add_custom_target(cpptest
-      COMMAND echo "Missing Google Test library"
-      COMMAND exit 1)
+if(GTEST_FOUND)
+  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
+  add_executable(cpptest ${TEST_SRCS})
+  target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
+  set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+  gtest_discover_tests(cpptest)
 endif()
 
 # Custom targets
@@ -676,7 +704,7 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
       message(STATUS "Found the path to ccache, enabling ccache")
       set(PATH_TO_CCACHE ccache)
     else()
-      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE")
+      message(FATAL_ERROR "Cannot find ccache. Set USE_CCACHE mode to AUTO or OFF to build without ccache. USE_CCACHE=" "${USE_CCACHE}")
     endif(CCACHE_FOUND)
   else() # /path/to/ccache
     set(PATH_TO_CCACHE USE_CCACHE)

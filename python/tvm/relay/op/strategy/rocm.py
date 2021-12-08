@@ -27,13 +27,6 @@ from .. import op as _op
 from .cuda import judge_winograd, naive_schedule
 
 
-@schedule_lrn.register("rocm")
-def schedule_lrn_rocm(attrs, outs, target):
-    """schedule LRN for rocm"""
-    with target:
-        return topi.rocm.schedule_lrn(outs)
-
-
 @conv2d_strategy.register("rocm")
 def conv2d_strategy_rocm(attrs, inputs, out_type, target):
     """conv2d rocm strategy"""
@@ -76,9 +69,9 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         elif layout == "NHWC":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nhwc),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc),
-                name="conv2d_nhwc.cuda",
+                wrap_compute_conv2d(topi.gpu.conv2d_nhwc),
+                wrap_topi_schedule(topi.gpu.schedule_conv2d_nhwc),
+                name="conv2d_nhwc.gpu",
             )
             N, H, W, _ = get_const_tuple(data.shape)
             KH, KW, CI, CO = get_const_tuple(kernel.shape)

@@ -26,7 +26,7 @@ from tvm.contrib import cblas
 from tvm.contrib import mkl
 from tvm.contrib import mkldnn
 
-from .utils import get_fp32_len
+from .utils import get_simd_32bit_lanes
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
 
@@ -107,7 +107,7 @@ def _default_dense_pack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_fp32_len()
+    vec_width = get_simd_32bit_lanes()
     tilex_ii = 1
     for bn in range(vec_width * 2, 0, -1):
         if N % bn == 0:
@@ -145,7 +145,7 @@ def _default_dense_nopack_config(cfg, M, N, K):
     if isinstance(K, (tvm.tir.Var, tvm.tir.Any)):
         K = 16
 
-    vec_width = get_fp32_len()
+    vec_width = get_simd_32bit_lanes()
     tilek_bn = 1
     for bn in range(vec_width * 2, 0, -1):
         if K % bn == 0:

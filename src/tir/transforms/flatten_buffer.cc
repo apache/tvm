@@ -34,6 +34,10 @@ namespace tvm {
 namespace tir {
 
 PrimExpr BufferArea(const Buffer& buffer) {
+  if (buffer->strides.size()) {
+    ICHECK(buffer->shape.size() == buffer->strides.size());
+    return buffer->strides[0] * buffer->shape[0];
+  }
   PrimExpr area = Integer(1);
   for (const PrimExpr& dim : buffer->shape) {
     area = area * dim;
@@ -140,7 +144,10 @@ class BufferFlattener : public StmtExprMutator {
                      /*var=*/std::move(var),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
-    String attr_key = thread_tag == "vthread" ? attr::virtual_thread : attr::thread_extent;
+    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
+                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
+                          ? attr::virtual_thread
+                          : attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),

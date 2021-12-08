@@ -144,7 +144,7 @@ tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
   return kTvmErrorNoError;
 }
 
-#define MILLIS_TIL_EXPIRY 200
+#define MILLIS_TIL_EXPIRY 500
 #define TIME_TIL_EXPIRY (K_MSEC(MILLIS_TIL_EXPIRY))
 K_TIMER_DEFINE(g_microtvm_timer, /* expiry func */ NULL, /* stop func */ NULL);
 
@@ -260,11 +260,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-  // TODO (mehrdadh): Update this when zephyr version has updated to 2.6.
-  // Update zephyr to latest version to use with qemu_riscv32.
-#ifdef CONFIG_BOARD_QEMU_RISCV32
-  k_float_enable(_current, 0);
-#endif
 
 #ifdef CONFIG_LED
   int ret;

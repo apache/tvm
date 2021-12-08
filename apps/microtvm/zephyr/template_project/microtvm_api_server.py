@@ -35,6 +35,7 @@ import tarfile
 import tempfile
 import threading
 import time
+import json
 
 import serial
 import serial.tools.list_ports
@@ -56,6 +57,26 @@ MODEL_LIBRARY_FORMAT_RELPATH = "model.tar"
 
 
 IS_TEMPLATE = not (API_SERVER_DIR / MODEL_LIBRARY_FORMAT_RELPATH).exists()
+
+
+BOARDS = API_SERVER_DIR / "boards.json"
+
+# Used to check Zephyr version installed on the host.
+# We only check two levels of the version.
+ZEPHYR_VERSION = 2.5
+
+
+WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
+
+ZEPHYR_BASE = os.getenv("ZEPHYR_BASE")
+
+# Data structure to hold the information microtvm_api_server.py needs
+# to communicate with each of these boards.
+try:
+    with open(BOARDS) as boards:
+        BOARD_PROPERTIES = json.load(boards)
+except FileNotFoundError:
+    raise FileNotFoundError(f"Board file {{{BOARDS}}} does not exist.")
 
 
 def check_call(cmd_args, *args, **kwargs):
@@ -151,6 +172,7 @@ BOARD_USB_FIND_KW = {
     "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
     "stm32f429i_disc1": {"idVendor": 0x0483, "idProduct": 0x374B},
+    "mimxrt1050_evk": {"idVendor": 0x1366, "idProduct": 0x0105},
 }
 
 
@@ -216,38 +238,93 @@ if IS_TEMPLATE:
 
 PROJECT_OPTIONS = [
     server.ProjectOption(
-        "extra_files",
-        help="If given, during generate_project, uncompress the tarball at this path into the project dir",
+        "extra_files_tar",
+        optional=["generate_project"],
+        type="str",
+        help="If given, during generate_project, uncompress the tarball at this path into the project dir.",
     ),
     server.ProjectOption(
-        "gdbserver_port", help=("If given, port number to use when running the local gdbserver")
+        "gdbserver_port",
+        help=("If given, port number to use when running the local gdbserver."),
+        optional=["open_transport"],
+        type="int",
     ),
     server.ProjectOption(
         "nrfjprog_snr",
-        help=(
-            "When used with nRF targets, serial # of the " "attached board to use, from nrfjprog"
-        ),
+        optional=["open_transport"],
+        type="int",
+        help=("When used with nRF targets, serial # of the attached board to use, from nrfjprog."),
     ),
     server.ProjectOption(
         "openocd_serial",
-        help=("When used with OpenOCD targets, serial # of the " "attached board to use"),
+        optional=["open_transport"],
+        type="int",
+        help=("When used with OpenOCD targets, serial # of the attached board to use."),
     ),
     server.ProjectOption(
         "project_type",
-        help="Type of project to generate.",
         choices=tuple(PROJECT_TYPES),
+        required=["generate_project"],
+        type="str",
+        help="Type of project to generate.",
     ),
-    server.ProjectOption("verbose", help="Run build with verbose output"),
+    server.ProjectOption(
+        "verbose",
+        optional=["build"],
+        type="bool",
+        help="Run build with verbose output.",
+    ),
     server.ProjectOption(
         "west_cmd",
+        optional=["build"],
+        default=WEST_CMD,
+        type="str",
         help=(
             "Path to the west tool. If given, supersedes both the zephyr_base "
             "option and ZEPHYR_BASE environment variable."
         ),
     ),
-    server.ProjectOption("zephyr_base", help="Path to the zephyr base directory."),
-    server.ProjectOption("zephyr_board", help="Name of the Zephyr board to build for"),
+    server.ProjectOption(
+        "zephyr_base",
+        required=(["generate_project", "open_transport"] if not ZEPHYR_BASE else None),
+        optional=(["generate_project", "open_transport", "build"] if ZEPHYR_BASE else ["build"]),
+        default=ZEPHYR_BASE,
+        type="str",
+        help="Path to the zephyr base directory.",
+    ),
+    server.ProjectOption(
+        "zephyr_board",
+        required=["generate_project", "build", "flash", "open_transport"],
+        choices=list(BOARD_PROPERTIES),
+        type="str",
+        help="Name of the Zephyr board to build for.",
+    ),
+    server.ProjectOption(
+        "config_main_stack_size",
+        optional=["generate_project"],
+        type="int",
+        help="Sets CONFIG_MAIN_STACK_SIZE for Zephyr board.",
+    ),
+    server.ProjectOption(
+        "warning_as_error",
+        optional=["generate_project"],
+        type="bool",
+        help="Treat warnings as errors and raise an Exception.",
+    ),
+    server.ProjectOption(
+        "compile_definitions",
+        optional=["generate_project"],
+        type="str",
+        help="Extra definitions added project compile.",
+    ),
 ]
+
+
+def get_zephyr_base(options: dict):
+    """Returns Zephyr base path"""
+    zephyr_base = options.get("zephyr_base", ZEPHYR_BASE)
+    assert zephyr_base, "'zephyr_base' option not passed and not found by default!"
+    return zephyr_base
 
 
 class Handler(server.ProjectAPIHandler):
@@ -305,13 +382,9 @@ class Handler(server.ProjectAPIHandler):
             if self._has_fpu(options["zephyr_board"]):
                 f.write("# For models with floating point.\n" "CONFIG_FPU=y\n" "\n")
 
-            main_stack_size = None
-            if self._is_qemu(options) and options["project_type"] == "host_driven":
-                main_stack_size = 1536
-
             # Set main stack size, if needed.
-            if main_stack_size is not None:
-                f.write(f"CONFIG_MAIN_STACK_SIZE={main_stack_size}\n")
+            if options.get("config_main_stack_size") is not None:
+                f.write(f"CONFIG_MAIN_STACK_SIZE={options['config_main_stack_size']}\n")
 
             f.write("# For random number generation.\n" "CONFIG_TEST_RANDOM_GENERATOR=y\n")
 
@@ -326,10 +399,30 @@ class Handler(server.ProjectAPIHandler):
 
     CRT_LIBS_BY_PROJECT_TYPE = {
         "host_driven": "microtvm_rpc_server microtvm_rpc_common common",
-        "aot_demo": "aot_executor memory microtvm_rpc_common common",
+        "aot_demo": "memory microtvm_rpc_common common",
     }
 
+    def _get_platform_version(self, zephyr_base: str) -> float:
+        with open(pathlib.Path(zephyr_base) / "VERSION", "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                line = line.replace(" ", "").replace("\n", "").replace("\r", "")
+                if "VERSION_MAJOR" in line:
+                    version_major = line.split("=")[1]
+                if "VERSION_MINOR" in line:
+                    version_minor = line.split("=")[1]
+
+        return float(f"{version_major}.{version_minor}")
+
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
+        # Check Zephyr version
+        version = self._get_platform_version(get_zephyr_base(options))
+        if version != ZEPHYR_VERSION:
+            message = f"Zephyr version found is not supported: found {version}, expected {ZEPHYR_VERSION}."
+            if options.get("warning_as_error") is not None and options["warning_as_error"]:
+                raise server.ServerError(message=message)
+            _LOG.warning(message)
+
         project_dir = pathlib.Path(project_dir)
         # Make project directory.
         project_dir.mkdir()
@@ -337,6 +430,9 @@ class Handler(server.ProjectAPIHandler):
         # Copy ourselves to the generated project. TVM may perform further build steps on the generated project
         # by launching the copy.
         shutil.copy2(__file__, project_dir / os.path.basename(__file__))
+
+        # Copy boards.json file to generated project.
+        shutil.copy2(BOARDS, project_dir / BOARDS.name)
 
         # Place Model Library Format tarball in the special location, which this script uses to decide
         # whether it's being invoked in a template or generated project.
@@ -373,6 +469,11 @@ class Handler(server.ProjectAPIHandler):
 
                     cmake_f.write(line)
 
+                if options.get("compile_definitions"):
+                    flags = options.get("compile_definitions")
+                    for item in flags:
+                        cmake_f.write(f"target_compile_definitions(app PUBLIC {item})\n")
+
         self._create_prj_conf(project_dir, options)
 
         # Populate crt-config.h
@@ -401,6 +502,9 @@ class Handler(server.ProjectAPIHandler):
         if options.get("zephyr_base"):
             cmake_args.append(f"-DZEPHYR_BASE:STRING={options['zephyr_base']}")
 
+        if options.get("west_cmd"):
+            cmake_args.append(f"-DWEST={options['west_cmd']}")
+
         cmake_args.append(f"-DBOARD:STRING={options['zephyr_board']}")
 
         check_call(cmake_args, cwd=BUILD_DIR)
@@ -422,21 +526,10 @@ class Handler(server.ProjectAPIHandler):
             or options["zephyr_board"] in cls._KNOWN_QEMU_ZEPHYR_BOARDS
         )
 
-    _KNOWN_FPU_ZEPHYR_BOARDS = (
-        "nucleo_f746zg",
-        "nucleo_l4r5zi",
-        "nrf5340dk_nrf5340_cpuapp",
-        "qemu_cortex_r5",
-        "qemu_riscv32",
-        "qemu_riscv64",
-        "qemu_x86",
-        "stm32f746g_disco",
-        "stm32f429i_disc1"
-    )
-
     @classmethod
     def _has_fpu(cls, zephyr_board):
-        return zephyr_board in cls._KNOWN_FPU_ZEPHYR_BOARDS
+        fpu_boards = [name for name, board in BOARD_PROPERTIES.items() if board["fpu"]]
+        return zephyr_board in fpu_boards
 
     def flash(self, options):
         if self._is_qemu(options):
@@ -495,8 +588,7 @@ def _set_nonblock(fd):
 class ZephyrSerialTransport:
     @classmethod
     def _lookup_baud_rate(cls, options):
-        zephyr_base = options.get("zephyr_base", os.environ["ZEPHYR_BASE"])
-        sys.path.insert(0, os.path.join(zephyr_base, "scripts", "dts"))
+        sys.path.insert(0, os.path.join(get_zephyr_base(options), "scripts", "dts"))
         try:
             import dtlib  # pylint: disable=import-outside-toplevel
         finally:
@@ -539,6 +631,10 @@ class ZephyrSerialTransport:
         return ports[0].device
 
     @classmethod
+    def _find_jlink_serial_port(cls, options):
+        return cls._find_openocd_serial_port(options)
+
+    @classmethod
     def _find_serial_port(cls, options):
         flash_runner = _get_flash_runner()
 
@@ -548,9 +644,10 @@ class ZephyrSerialTransport:
         if flash_runner == "openocd":
             return cls._find_openocd_serial_port(options)
 
-        raise FlashRunnerNotSupported(
-            f"Don't know how to deduce serial port for flash runner {flash_runner}"
-        )
+        if flash_runner == "jlink":
+            return cls._find_jlink_serial_port(options)
+
+        raise RuntimeError(f"Don't know how to deduce serial port for flash runner {flash_runner}")
 
     def __init__(self, options):
         self._options = options
@@ -636,8 +733,8 @@ class ZephyrQemuTransport:
 
         return server.TransportTimeouts(
             session_start_retry_timeout_sec=2.0,
-            session_start_timeout_sec=5.0,
-            session_established_timeout_sec=5.0,
+            session_start_timeout_sec=10.0,
+            session_established_timeout_sec=10.0,
         )
 
     def close(self):
@@ -681,9 +778,9 @@ class ZephyrQemuTransport:
                 escape_pos.append(i)
             to_write.append(b)
 
-        num_written = server.write_with_timeout(self.write_fd, to_write, timeout_sec)
-        num_written -= sum(1 if x < num_written else 0 for x in escape_pos)
-        return num_written
+        while to_write:
+            num_written = server.write_with_timeout(self.write_fd, to_write, timeout_sec)
+            to_write = to_write[num_written:]
 
     def _qemu_check_stdout(self):
         for line in self.proc.stdout:

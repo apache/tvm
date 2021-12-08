@@ -339,7 +339,7 @@ struct Tokenizer {
     int line = this->line;
     int col = this->col;
     auto next = Peek();
-    DLOG(INFO) << "tvm::parser::TokenizeOnce: next=" << next;
+    VLOG(9) << "tvm::parser::TokenizeOnce: next=" << next;
     if (next == '\n') {
       auto token = NewToken(TokenType::kNewline);
       Next();
@@ -550,7 +550,7 @@ struct Tokenizer {
   }
 
   void Tokenize() {
-    DLOG(INFO) << "tvm::parser::Tokenize";
+    VLOG(9) << "tvm::parser::Tokenize";
     while (this->More()) {
       auto token = TokenizeOnce();
       ICHECK(token.defined());

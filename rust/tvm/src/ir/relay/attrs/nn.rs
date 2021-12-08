@@ -94,6 +94,7 @@ pub struct MaxPool2DAttrsNode {
     pub pool_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
     pub layout: TString,
     pub ceil_mode: bool,
 }

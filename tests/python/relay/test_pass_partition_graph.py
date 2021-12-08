@@ -22,14 +22,15 @@ import sys
 import numpy as np
 
 import tvm
+from tvm.relay.backend import te_compiler
+from tvm.relay.backend.runtime import Runtime
 import tvm.relay.testing
 import tvm.relay.op as reg
 from tvm import relay
-from tvm import runtime
+from tvm import runtime as tvm_runtime
 from tvm.relay import transform
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
-from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.op.contrib.register import get_pattern_table
@@ -121,7 +122,15 @@ class MobileNetAnnotator(ExprMutator):
 
 
 def check_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
+    mod,
+    map_inputs,
+    out_shape,
+    result,
+    tol=1e-5,
+    target="llvm",
+    device=tvm.cpu(),
+    params=None,
+    runtime=Runtime("cpp"),
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -138,28 +147,28 @@ def check_result(
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = runtime.load_module(lib_path)
+        lib = tvm_runtime.load_module(lib_path)
 
         return lib
 
     def check_vm_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, device)
+        exe = tvm_runtime.vm.Executable.load_exec(code, lib)
+        vm = tvm_runtime.vm.VirtualMachine(exe, device)
         outs = vm.run(**map_inputs)
-        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
+        outs = outs if isinstance(outs, tvm_runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.numpy(), ref, rtol=tol, atol=tol)
 
     def check_graph_executor_result():
-        compile_engine.get().clear()
+        te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params)
+            json, lib, param = relay.build(mod, target=target, params=params, runtime=runtime)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
@@ -222,8 +231,8 @@ def test_multi_node_compiler():
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
 
-    targets = ["llvm", "c -runtime=c --system-lib"]
-    for tgt in targets:
+    targets = [("llvm", Runtime("cpp")), ("c", Runtime("crt", {"system-lib": True}))]
+    for tgt, rt in targets:
         check_result(
             mod,
             map_inputs,
@@ -237,6 +246,7 @@ def test_multi_node_compiler():
                 axis=0,
             ),
             target=tgt,
+            runtime=rt,
         )
 
 
@@ -324,6 +334,49 @@ def test_extern_ccompiler_default_ops():
     np_add = x_data + y_data
     res = np.concatenate([np.log(np_add), np.exp(np_add)])
     check_result(mod, {"x": x_data, "y": y_data}, (16, 8), res)
+
+
+def test_extern_compiler_sanitized_ops():
+    def expected():
+        mod = tvm.IRModule()
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([x0, y0], add)
+        func = set_func_attr(func, "unsanitary-name++", "tvmgen_default_unsanitary_name___main_0")
+        glb_0 = relay.GlobalVar("tvmgen_default_unsanitary_name___main_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [x, y])
+        # Function that uses default compiler. Ops are fused in this function.
+        p0 = relay.var("p0", shape=(8, 8))
+        log = relay.log(p0)
+        exp = relay.exp(p0)
+        concat = relay.concatenate([log, exp], axis=0)
+        fused_func = relay.Function([p0], concat)
+        fused_func = fused_func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        fused_call = relay.Call(fused_func, [add_call])
+        main = relay.Function([x, y], fused_call)
+        mod["main"] = main
+        mod = transform.InferType()(mod)
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    exp = relay.exp(add)
+    concat = relay.concatenate([log, exp], axis=0)
+    f = relay.Function([x, y], concat)
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = WhiteListAnnotator(["add", "subtract", "multiply"], "unsanitary-name++")(mod)
+    mod = transform.PartitionGraph()(mod)
+    fused_mod = transform.FuseOps(2)(mod)
+    expected_mod = expected()
+    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
 
 def test_extern_ccompiler_multiple_functions():
@@ -484,8 +537,9 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w1_data)
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu()).evaluate()(
+        i_data, w1_data
+    )
     check_result(
         mod, {"data": i_data, "weight1": w1_data}, (1, 32, 14, 14), ref_res.numpy(), tol=1e-5
     )
@@ -504,9 +558,10 @@ def test_extern_dnnl_mobilenet():
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0))
-    ref_res = ref_ex.evaluate()(i_data, **params)
-    compile_engine.get().clear()
+    ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
+        i_data, **params
+    )
+    te_compiler.get().clear()
 
     check_result(mod, {"data": i_data}, (1, 1000), ref_res.numpy(), tol=1e-5, params=params)
 
@@ -945,9 +1000,10 @@ def test_dnnl_fuse():
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)
         i_data = np.random.randn(*ishape).astype(np.float32)
-        ref_ex = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0))
-        ref_res = ref_ex.evaluate()(i_data, **ref_params)
-        compile_engine.get().clear()
+        ref_res = relay.create_executor("graph", mod=ref_mod, device=tvm.cpu(0)).evaluate()(
+            i_data, **ref_params
+        )
+        te_compiler.get().clear()
 
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
 
