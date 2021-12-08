@@ -739,6 +739,10 @@ def run_and_check(
     file_dir = os.path.dirname(os.path.abspath(__file__))
     codegen_path = os.path.join(base_path, "codegen")
     makefile = os.path.join(file_dir, f"{runner.makefile}.mk")
+    fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
+    # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
+    if not os.path.isdir(fvp_dir):
+        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
     custom_params = " ".join([f" {param}='{value}'" for param, value in runner.parameters.items()])
     make_command = (
         f"make -f {makefile} build_dir={build_path}"
@@ -747,6 +751,7 @@ def run_and_check(
         + f" AOT_TEST_ROOT={file_dir}"
         + f" CODEGEN_ROOT={codegen_path}"
         + f" STANDALONE_CRT_DIR={tvm.micro.get_standalone_crt_dir()}"
+        + f" FVP_DIR={fvp_dir}"
         + custom_params
     )
 
