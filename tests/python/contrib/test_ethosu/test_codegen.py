@@ -52,7 +52,7 @@ def get_shape_expr(in_expr, out_expr):
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-@pytest.mark.parametrize("activation", None, "RELU")
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_single(
     ifm_shape,
     kernel_shape,
@@ -69,15 +69,15 @@ def test_ethosu_conv2d_single(
             @tf.function
             def tf_function(self, x):
                 # Use tf.nn API to create the model
+                tf_strides = [1, strides[0], strides[1], 1]
                 op = tf.nn.conv2d(
                     x,
                     filters=tf.constant(
-                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
+                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
                         dtype=tf.float32,
                     ),
-                    strides=strides,
+                    strides=tf_strides,
                     padding=padding,
-                    data_format="NHWC",
                     dilations=dilation,
                 )
                 if activation:
@@ -104,34 +104,35 @@ def test_ethosu_conv2d_single(
         tflite_model = converter.convert()
         return tflite_model
 
-    tflite_graph_single = create_tflite_graph_single()
-    tflite_model_single = tflite.Model.Model.GetRootAsModel(tflite_graph_single, 0)
+    tflite_graph = create_tflite_graph_single()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
-    relay_module_single, params_single = relay.frontend.from_tflite(
-        tflite_model_single,
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod = partition_for_ethosu(relay_module_single, params_single)
+    mod = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
-    input_data_single, output_data_single = infra.generate_ref_data_tflite(tflite_graph_single)
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
 
-    compiled_models_single = infra.build_source(
-        mod, input_data_single, output_data_single, accel_type
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
     )
 
-    # Single offload module
-    imported_modules_single = compiled_models_single[0].executor_factory.lib.imported_modules
-    assert len(imported_modules_single) == 2
-    ethosu_module_single = imported_modules_single[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
-    # Verify C source generated
-    get_cs = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
-    cmms = bytes.fromhex(get_cs(ethosu_module_single))
-
+    # Verify generated C source
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
-    infra.verify_source(compiled_models_single, accel_type)
+    infra.verify_source(compiled_models, accel_type)
 
 
 @pytest.mark.parametrize("ifm_shape", [(1, 214, 227, 3), (1, 27, 42, 3)])
@@ -139,7 +140,7 @@ def test_ethosu_conv2d_single(
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
-@pytest.mark.parametrize("activation", None, "RELU")
+@pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_double(
     ifm_shape,
     kernel_shape,
@@ -159,7 +160,7 @@ def test_ethosu_conv2d_double(
                 op = tf.nn.conv2d(
                     x,
                     filters=tf.constant(
-                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
+                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
                         dtype=tf.float32,
                     ),
                     strides=strides,
@@ -203,33 +204,35 @@ def test_ethosu_conv2d_double(
         tflite_model = converter.convert()
         return tflite_model
 
-    tflite_graph_double = create_tflite_graph_double()
-    tflite_model_double = tflite.Model.Model.GetRootAsModel(tflite_graph_double, 0)
+    tflite_graph = create_tflite_graph_double()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
 
-    relay_module_double, params_double = relay.frontend.from_tflite(
-        tflite_model_double,
+    relay_module, params = relay.frontend.from_tflite(
+        tflite_model,
         shape_dict={"input": ifm_shape},
         dtype_dict={"input": dtype},
     )
-    mod_double = partition_for_ethosu(relay_module_double, params_double)
+    mod = partition_for_ethosu(relay_module, params)
 
     # Generate reference data
-    input_data_double, output_data_double = infra.generate_ref_data_tflite(tflite_graph_double)
-    compiled_models_double = infra.build_source(
-        mod_double, input_data_double, output_data_double, accel_type
+    input_data, output_data = infra.generate_ref_data_tflite(tflite_graph)
+
+    compiled_models = infra.build_source(
+        mod,
+        input_data,
+        output_data,
+        accel_type,
     )
 
-    # Double offload module
-    imported_modules_double = compiled_models_double[0].executor_factory.lib.imported_modules
-    assert len(imported_modules_double) == 2
-    ethosu_module_double = imported_modules_double[0]
+    # Assumes only two runtime.Modules are created -- i.e. single offload module
+    ethosu_module = compiled_models[0].executor_factory.lib.imported_modules[0].imported_modules[0]
 
-    # Verify C source generated
-    get_cs_double = tvm._ffi.get_global_func("runtime.module.ethosu.getcs")
-    cmms_double = bytes.fromhex(get_cs_double(ethosu_module_double))
-
-    infra.print_payload(cmms_double)
-    infra.verify_source(compiled_models_double, accel_type)
+    # Verify generated C source
+    get_artifacts = tvm._ffi.get_global_func("runtime.module.ethos-u.get_artifacts")
+    compilation_artifacts = get_artifacts(ethosu_module)
+    cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
+    infra.print_payload(cmms)
+    infra.verify_source(compiled_models, accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)

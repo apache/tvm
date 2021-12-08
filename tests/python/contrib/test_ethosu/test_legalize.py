@@ -340,11 +340,11 @@ def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilat
     mod["main"] = bind_params_by_name(mod["main"], conv_params)
     mod = partition_ethosu_by_table(mod, conv2d_pattern_table)
 
-    mod["tvmgen_default_ethosu_main_0"] = dataflow_pattern.rewrite(
-        legalize.EthosUConv2DRewriter(), mod["tvmgen_default_ethosu_main_0"]
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.Conv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
 
-    verify(mod["tvmgen_default_ethosu_main_0"])
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 3), (1, 123, 17, 7)])
