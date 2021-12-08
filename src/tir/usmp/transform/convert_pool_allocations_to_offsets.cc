@@ -40,7 +40,7 @@ namespace usmp {
  * \brief The StmtExpr mutator class to replace allocate nodes
  * with offsets within memory pools
  *
- * This mutator class with add Pool variables recursively to every PrimFunc
+ * This mutator class will add Pool variables recursively to every PrimFunc
  * starting from the main PrimFunc. For all allocate nodes, that have been
  * memory planned, will be mutated into an offset using a Let binding.
  */
@@ -88,7 +88,6 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
  private:
   PrimExpr VisitExpr_(const CallNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
-  //  PrimExpr VisitExpr_(const VarNode* op) override;
   PrimExpr VisitExpr_(const LoadNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
 
@@ -270,7 +269,6 @@ Stmt PoolAllocationToOffsetConverter::VisitStmt_(const AllocateNode* op) {
     PoolAllocation pool_allocation = pool_allocations_[GetRef<Allocate>(op)];
     Var param = scope_info.pools_to_params[pool_allocation->pool_info];
     Buffer buffer_var = scope_info.buffer_map[param];
-    ICHECK(pool_allocation->byte_offset < all_pools_sizes_[pool_allocation->pool_info]);
     Load load_node =
         Load(DataType::UInt(8), buffer_var->data, pool_allocation->byte_offset, op->condition);
     Call address_of_load = Call(DataType::Handle(8), builtin::address_of(), {load_node});

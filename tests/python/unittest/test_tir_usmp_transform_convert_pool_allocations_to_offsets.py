@@ -218,12 +218,15 @@ def test_mobilenet_subgraph():
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_map = buffer_analysis.buffer_info_stmts
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
     fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
-    buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo_greedy_by_size(
+        buffer_info_arr, buffer_analysis.memory_pressure
+    )
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
     tir_mod_with_offsets = tvm.tir.usmp.transform.convert_pool_allocations_to_offsets(
@@ -489,12 +492,15 @@ def test_resnet_subgraph():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_workspace_pool])
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_map = buffer_analysis.buffer_info_stmts
 
     fcreate_array_bi = tvm.get_global_func("tir.usmp.CreateArrayBufferInfo")
     buffer_info_arr = fcreate_array_bi(buffer_info_map)
     fusmp_algo_greedy_by_size = tvm.get_global_func("tir.usmp.algo.greedy_by_size")
-    buffer_pool_allocations = fusmp_algo_greedy_by_size(buffer_info_arr)
+    buffer_pool_allocations = fusmp_algo_greedy_by_size(
+        buffer_info_arr, buffer_analysis.memory_pressure
+    )
     fassign_stmt_pool_allocations = tvm.get_global_func("tir.usmp.AssignStmtPoolAllocations")
     pool_allocations = fassign_stmt_pool_allocations(buffer_info_map, buffer_pool_allocations)
     tir_mod_with_offsets = tvm.tir.usmp.transform.convert_pool_allocations_to_offsets(

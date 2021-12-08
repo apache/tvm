@@ -19,14 +19,15 @@
 
 from typing import Dict
 
+import tvm
+from tvm.tir import Stmt
+from tvm.tir.usmp.utils import PoolAllocation
 from . import _ffi_api
-from ....tir import Stmt
-from ..utils import PoolAllocation
 
 
 def convert_pool_allocations_to_offsets(
     pool_allocations: Dict[Stmt, PoolAllocation], emit_tvmscript_printable: bool = False
-):
+) -> tvm.transform.Pass:
     """Convert pool allocations to Load nodes with offsets from pools.
 
     Parameters
