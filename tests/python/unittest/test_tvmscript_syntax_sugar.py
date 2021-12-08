@@ -20,6 +20,7 @@ import sys
 import pytest
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
+from tvm.testing import check_error
 
 
 @T.prim_func
@@ -60,6 +61,44 @@ def transformed_matmul_syntax_sugar(a: T.handle, b: T.handle, c: T.handle) -> No
 
 def test_reads_writes_syntax_sugar():
     assert_structural_equal(transformed_matmul_no_syntax_sugar, transformed_matmul_syntax_sugar)
+
+
+@T.prim_func
+def loop_no_syntax_sugar(a: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    for i in T.serial(0, 128):
+        for j in T.parallel(0, 128):
+            for k in T.vectorized(0, 128):
+                for x in T.unroll(0, 128):
+                    for y in T.thread_binding(0, 128, thread="threadIdx.x"):
+                        for z in T.thread_binding(0, 128, thread="threadIdx.x"):
+                            A[i, j, k, x] = A[i, j, k, x] * 2.0
+
+
+@T.prim_func
+def loop_syntax_sugar(a: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128, 128, 128))
+    for i in T.serial(128):
+        for j in T.parallel(128):
+            for k in T.vectorized(128):
+                for x in T.unroll(128):
+                    for y in T.thread_binding(128, "threadIdx.x"):
+                        for z in T.thread_binding(128, thread="threadIdx.x"):
+                            A[i, j, k, x] = A[i, j, k, x] * 2.0
+
+
+def loop_syntax_sugar_fail(a: T.handle) -> None:
+    A = T.match_buffer(a, (128,))
+    for i in T.thread_binding(128, 128):
+        A[i] = A[i] * 2.0
+
+
+def test_loop_syntax_sugar():
+    assert_structural_equal(loop_no_syntax_sugar, loop_syntax_sugar)
+
+
+def test_syntax_sugar_fail():
+    check_error(loop_syntax_sugar_fail, 3)
 
 
 if __name__ == "__main__":
