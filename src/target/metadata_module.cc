@@ -27,6 +27,7 @@
 
 #include <vector>
 
+#include "../runtime/const_loader_module.h"
 #include "../runtime/meta_data.h"
 #include "llvm/llvm_module.h"
 #include "source/source_module.h"
@@ -34,6 +35,88 @@
 namespace tvm {
 namespace codegen {
 
+
+static runtime::Module CreateCrtMetadataModule(runtime::Module target_module, Target target,
+                                               relay::Runtime runtime,
+                                               runtime::metadata::Metadata metadata,
+                                               Array<runtime::Module> non_crt_exportable_modules,
+                                               Array<runtime::Module> crt_exportable_modules,
+                                               const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
+
+  if (!non_crt_exportable_modules.empty()) {
+    std::string non_exportable_modules;
+    for (unsigned int i = 0; i < non_crt_exportable_modules.size(); i++) {
+      if (i > 0) {
+        non_exportable_modules += ", ";
+      }
+      auto mod = non_crt_exportable_modules[i];
+      auto pf_sym = mod.GetFunction("get_symbol");
+      if (pf_sym != nullptr) {
+        non_exportable_modules += pf_sym().operator std::string();
+      } else {
+        non_exportable_modules +=
+          std::string{"(module type_key="} + mod->type_key() + std::string{")"};
+      }
+    }
+    CHECK(false) << "These " << non_crt_exportable_modules.size()
+                 << " modules are not exportable to C-runtime: " << non_exportable_modules;
+  }
+
+  if (target->kind->name == "c") {
+    crt_exportable_modules.push_back(target_module);
+    target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
+  } else if (target->kind->name == "llvm") {
+#ifdef TVM_LLVM_VERSION
+    crt_exportable_modules.push_back(target_module);
+    target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target, runtime);
+#else   // TVM_LLVM_VERSION
+    LOG(FATAL) << "TVM was not built with LLVM enabled.";
+#endif  // TVM_LLVM_VERSION
+  }
+
+  return target_module;
+}
+
+static runtime::Module CreateCppMetadataModule(
+  runtime::Module target_module, Target target, relay::Runtime runtime,
+  runtime::metadata::Metadata metadata,
+    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol,
+    Array<runtime::Module> non_crt_exportable_modules,
+    Array<runtime::Module> crt_exportable_modules,
+    const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
+  if (!non_crt_exportable_modules.empty()) {
+    runtime::Module const_loader_mod = runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+    const_loader_mod.Import(target_module);
+    for (const auto& it : non_crt_exportable_modules) {
+      const_loader_mod.Import(it);
+    }
+    target_module = const_loader_mod;
+  }
+
+  if (metadata->executor() == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
+    if (target->kind->name == "c") {
+      auto metadata_module = CreateCSourceCppMetadataModule(metadata);
+      metadata_module->Import(target_module);
+      target_module = metadata_module;
+    } else {
+      CHECK(false) << "Don't know how to create MetadataModule for target type " << target->str();
+    }
+  }
+
+  return target_module;
+}
+
+/*!
+ * \brief Create a metadata module wrapper. The helper is used by different
+ *        codegens, such as graph executor codegen and the vm compiler.
+ *
+ * \param params The metadata for initialization of all modules.
+ * \param target_module the internal module that is compiled by tvm.
+ * \param ext_modules The external modules that needs to be imported inside the metadata
+ * module(s).
+ * \param target The target that all the modules are compiled for
+ * \return The created metadata module that manages initialization of metadata.
+ */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
@@ -83,49 +166,15 @@ runtime::Module CreateMetadataModule(
   }
 
   if (is_targeting_crt) {
-    if (!non_crt_exportable_modules.empty()) {
-      std::string non_exportable_modules;
-      for (unsigned int i = 0; i < non_crt_exportable_modules.size(); i++) {
-        if (i > 0) {
-          non_exportable_modules += ", ";
-        }
-        auto mod = non_crt_exportable_modules[i];
-        auto pf_sym = mod.GetFunction("get_symbol");
-        if (pf_sym != nullptr) {
-          non_exportable_modules += pf_sym().operator std::string();
-        } else {
-          non_exportable_modules +=
-              std::string{"(module type_key="} + mod->type_key() + std::string{")"};
-        }
-      }
-      CHECK(false) << "These " << non_crt_exportable_modules.size()
-                   << " modules are not exportable to C-runtime: " << non_exportable_modules;
-    }
-
-    if (target->kind->name == "c") {
-      crt_exportable_modules.push_back(target_module);
-      target_module =
-          CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
-    } else if (target->kind->name == "llvm") {
-#ifdef TVM_LLVM_VERSION
-      crt_exportable_modules.push_back(target_module);
-      target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target, runtime);
-#else   // TVM_LLVM_VERSION
-      LOG(FATAL) << "TVM was not built with LLVM enabled.";
-#endif  // TVM_LLVM_VERSION
-    }
+    return CreateCrtMetadataModule(target_module, target, runtime, metadata, non_crt_exportable_modules, crt_exportable_modules, const_var_ndarray);
   } else {
-    if (!non_crt_exportable_modules.empty()) {
-      runtime::Module binary_const_loader_mod = runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
-      binary_const_loader_mod.Import(target_module);
-      for (const auto& it : non_crt_exportable_modules) {
-        binary_const_loader_mod.Import(it);
-      }
-      return binary_const_loader_mod;
-    }
+    return CreateCppMetadataModule(target_module, target, runtime, metadata, const_vars_by_symbol,
+                                   non_crt_exportable_modules, crt_exportable_modules,
+                                   const_var_ndarray);
   }
-  return target_module;
 }
 
+
 }  // namespace codegen
+
 }  // namespace tvm
