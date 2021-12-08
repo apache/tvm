@@ -32,7 +32,7 @@ def _get_primfuncs_from_module(module):
 
 
 def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
-    """helper to assing poolinfos to allocate nodes in a tir.PrimFunc"""
+    """Helper to assign poolinfos to allocate nodes in a tir.PrimFunc"""
 
     def set_poolinfos(stmt):
         if isinstance(stmt, tvm.tir.Allocate):
@@ -49,7 +49,7 @@ def assign_poolinfos_to_allocates_in_primfunc(primfunc, pool_infos):
 
 
 def assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
-    """helper to assing poolinfos to allocate nodes in a IRModule"""
+    """Helper to assign poolinfos to allocate nodes in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
@@ -58,7 +58,7 @@ def assign_poolinfos_to_allocates_in_irmodule(mod, pool_infos):
 
 
 def _assign_targets_to_primfuncs_irmodule(mod, target):
-    """helper to assign target for PrimFunc in a IRModule"""
+    """Helper to assign target for PrimFunc in a IRModule"""
     ret = tvm.IRModule()
     for global_var, basefunc in mod.functions.items():
         if isinstance(basefunc, tvm.tir.PrimFunc):
