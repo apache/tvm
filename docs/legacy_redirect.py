@@ -104,6 +104,7 @@ legacy_redirects = [
     ["vta/dev/index.html", "../../topic/vta/dev/index.html"],
     ["vta/index.html", "../topic/vta/index.html"],
     ["vta/install.html", "../topic/vta/install.html"],
+    ["tutorials/index.html", "../tutorial/index.html"],
     ["tutorials/frontend/from_caffe2.html", "../../how_to/compile_models/from_caffe2.html"],
     ["tutorials/frontend/from_coreml.html", "../../how_to/compile_models/from_coreml.html"],
     ["tutorials/frontend/from_darknet.html", "../../how_to/compile_models/from_darknet.html"],
