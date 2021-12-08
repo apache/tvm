@@ -6,6 +6,8 @@ set(TVM_RPC_SOURCES
   rpc_server.cc
 )
 
+set(TVM_RPC_LINKER_LIBS "")
+
 if(WIN32)
   list(APPEND TVM_RPC_SOURCES win32_process.cc)
 endif()
@@ -43,4 +45,12 @@ target_include_directories(
   PUBLIC DMLC_PATH
 )
 
-target_link_libraries(tvm_rpc tvm_runtime)
+if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+  link_directories(${HEXAGON_REMOTE_ROOT})
+  list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
+endif()
+
+list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
+ 
+target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

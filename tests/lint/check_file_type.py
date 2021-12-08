@@ -150,6 +150,8 @@ ALLOW_SPECIFIC_FILE = {
     "apps/microtvm/reference-vm/arduino/base-box/Vagrantfile.packer-template",
     "apps/microtvm/reference-vm/zephyr/Vagrantfile",
     "apps/microtvm/reference-vm/zephyr/base-box/Vagrantfile.packer-template",
+    # Hexagon
+    "src/runtime/hexagon/rpc/android_bash.sh.template",
 }
 
 
