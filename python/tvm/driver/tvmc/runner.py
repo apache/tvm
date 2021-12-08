@@ -52,7 +52,7 @@ try:
     from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 
     SUPPORT_MICRO = True
-except ImportError:
+except (ImportError, AttributeError) as exception:
     SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
