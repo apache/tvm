@@ -53,7 +53,6 @@ if(BUILD_FOR_HEXAGON)
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
 
-
 if (NOT USE_HEXAGON_SDK STREQUAL "" AND
     NOT USE_HEXAGON_SDK STREQUAL "/path/to/sdk")
   set(HEXAGON_SDK_PATH_DEFINED ${USE_HEXAGON_SDK})
@@ -73,10 +72,12 @@ endif()
 # e.g. when compiling the TVM runtime for Hexagon.
 if (NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
   if(USE_HEXAGON_LAUNCHER STREQUAL "OFF" AND
-      USE_HEXAGON_PROXY_RPC STREQUAL "OFF")
+      USE_HEXAGON_PROXY_RPC STREQUAL "OFF" AND NOT USE_HEXAGON_RPC)
     if(USE_HEXAGON_DEVICE STREQUAL "OFF")
       list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-      return()
+      if (NOT USE_HEXAGON_RPC)
+        return()
+      endif()
     elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
         NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
       set(ERROR_MSG
@@ -202,6 +203,103 @@ if(USE_HEXAGON_PROXY_RPC STREQUAL "ON")
   set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${RPC_BINARY_DIR}")
 endif()
 
+if(USE_HEXAGON_RPC)
+  if(DEFINED USE_ANDROID_TOOLCHAIN)
+    if(NOT DEFINED ANDROID_PLATFORM)
+      message(SEND_ERROR "Please set ANDROID_PLATFORM "
+        "when providing an Android cmake toolchain.")
+    endif()
+    if(NOT DEFINED ANDROID_ABI)
+      message(SEND_ERROR "Please set ANDROID_ABI "
+        "when providing an Android cmake toolchain.")
+    endif()
+  else()
+    message(SEND_ERROR "Please set USE_ANDROID_TOOLCHAIN to build the android "
+      "RPC server for Hexagon.")
+  endif()
+
+  if(NOT DEFINED USE_HEXAGON_SDK)
+    message(SEND_ERROR "Please set USE_HEXAGON_SDK to build the android "
+      "RPC server for Hexagon RPC.")
+  endif()
+  if(NOT DEFINED USE_HEXAGON_ARCH)
+    message(SEND_ERROR "Please set USE_HEXAGON_ARCH to build the android "
+      "RPC server for Hexagon RPC.")
+  endif()
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+
+  set(HEXAGON_RPC_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/hexagon_rpc")
+  file(MAKE_DIRECTORY ${HEXAGON_RPC_OUTPUT})
+
+  # Android Part
+  ExternalProject_Add(android_runtime_rpc
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}"
+    BUILD_COMMAND $(MAKE) runtime tvm_rpc
+    CMAKE_ARGS
+    "-DCMAKE_TOOLCHAIN_FILE=${USE_ANDROID_TOOLCHAIN}"
+    "-DUSE_ANDROID_TOOLCHAIN=${USE_ANDROID_TOOLCHAIN}"
+    "-DANDROID_PLATFORM=${ANDROID_PLATFORM}"
+    "-DANDROID_ABI=${ANDROID_ABI}"
+    "-DCMAKE_CXX_STANDARD=14"
+    "-DUSE_LIBBACKTRACE=OFF"
+    "-DUSE_LLVM=OFF"
+    "-DUSE_RPC=ON"
+    "-DUSE_CPP_RPC=ON"
+    "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
+    "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
+    "-DCMAKE_VERBOSE_MAKEFILE=ON"
+    INSTALL_COMMAND ""
+    BUILD_ALWAYS ON
+  )
+  ExternalProject_Get_Property(android_runtime_rpc BINARY_DIR)
+  ExternalProject_Add_Step(android_runtime_rpc copy_binary_runtime
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${BINARY_DIR}/libtvm_runtime.so
+      ${HEXAGON_RPC_OUTPUT}/libtvm_runtime.so
+    DEPENDEES install
+  )
+  ExternalProject_Add_Step(android_runtime_rpc copy_binary_rpc
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${BINARY_DIR}/tvm_rpc
+      ${HEXAGON_RPC_OUTPUT}/tvm_rpc_android
+    DEPENDEES install
+  )
+
+  if("${USE_HEXAGON_TOOLCHAIN}" STREQUAL "")
+    message(SEND_ERROR "Please set USE_HEXAGON_TOOLCHAIN to build the hexagon "
+      "RPC SKEL.")
+  endif()
+  find_hexagon_toolchain()
+  message(STATUS "HEXAGON_TOOLCHAIN: ${HEXAGON_TOOLCHAIN}")
+
+  # Hexagon Part
+  ExternalProject_Add(hexagon_rpc_skel
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/cmake/libs/hexagon_rpc_skel"
+    INSTALL_DIR "${LAUNCHER_BINARY_DIR}"
+    CMAKE_ARGS
+    "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
+    "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
+    "-DFASTRPC_LIBS=SKEL"
+    "-DUSE_HEXAGON_ARCH=${USE_HEXAGON_ARCH}"
+    "-DUSE_HEXAGON_SDK=${USE_HEXAGON_SDK}"
+    INSTALL_COMMAND ""
+    BUILD_ALWAYS ON
+  )
+  ExternalProject_Get_Property(hexagon_rpc_skel BINARY_DIR)
+  ExternalProject_Add_Step(hexagon_rpc_skel copy_hexagon_skel
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      ${BINARY_DIR}/libhexagon_rpc_skel.so
+      ${HEXAGON_RPC_OUTPUT}/libhexagon_rpc_skel.so
+    DEPENDEES install
+  )
+
+  # copy android_bash template file
+  configure_file("${CMAKE_SOURCE_DIR}/src/runtime/hexagon/rpc/android_bash.sh.template" 
+    ${HEXAGON_RPC_OUTPUT} COPYONLY)
+
+  set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${HEXAGON_RPC_OUTPUT}")
+endif()
+
 if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
   find_hexagon_toolchain()
   message(STATUS "Hexagon toolchain: ${HEXAGON_TOOLCHAIN}")
@@ -227,6 +325,7 @@ elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
     ${HEXAGON_RPCMEM_ROOT}/inc
     ${HEXAGON_REMOTE_ROOT}
   )
+
   list(APPEND TVM_RUNTIME_LINKER_LIBS "dl")
   if(BUILD_FOR_ANDROID)
     # Hexagon runtime uses __android_log_print, which is in liblog.
@@ -241,10 +340,39 @@ if (USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
   elseif(BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
     list(APPEND RUNTIME_HEXAGON_SRCS src/runtime/hexagon/proxy_rpc/device_api.cc)
   else()
-    file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
+  file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
   endif()
 else()
   file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/android/*.cc)
 endif()
+
+if(USE_HEXAGON_RPC)
+  file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
+endif()
+
+if(USE_HEXAGON_SDK AND BUILD_FOR_ANDROID)
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+  include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_REMOTE_ROOT})
+
+  set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
+  foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
+    list(APPEND QAIC_FLAGS "-I${INCDIR}")
+  endforeach()
+
+  set(HEXAGON_RPC_DIR "${CMAKE_SOURCE_DIR}/src/runtime/hexagon/rpc")
+  set(RPC_IDL "hexagon_rpc.idl")
+  set(RPC_H "hexagon_rpc.h")
+  set(RPC_STUB_C "hexagon_rpc_stub.c")
+  
+  add_custom_command(
+    OUTPUT "${HEXAGON_RPC_DIR}/${RPC_STUB_C}" "${HEXAGON_RPC_DIR}/${RPC_H}"
+    COMMAND ${QAIC_EXE} ${QAIC_FLAGS} "${HEXAGON_RPC_DIR}/${RPC_IDL}" -o ${HEXAGON_RPC_DIR}
+    MAIN_DEPENDENCY "${HEXAGON_RPC_DIR}/${RPC_IDL}"
+  )
+  file(GLOB HEXAGON_RPC_CPP "${HEXAGON_RPC_DIR}/android/*.cc")
+  set(HEXAGON_RPC_STUB_C "${HEXAGON_RPC_DIR}/${RPC_STUB_C}")
+endif()
+
 list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${RUNTIME_HEXAGON_SIM_SRCS}
-                         ${RUNTIME_HEXAGON_DEVICE_SRCS} ${RUNTIME_HEXAGON_COMMON_SRCS})
+                         ${RUNTIME_HEXAGON_DEVICE_SRCS} ${HEXAGON_RPC_CPP} ${HEXAGON_RPC_STUB_C} 
+                         ${RUNTIME_HEXAGON_COMMON_SRCS})
