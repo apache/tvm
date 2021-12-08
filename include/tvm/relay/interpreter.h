@@ -187,7 +187,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
  * @return The object representing the result.
  */
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
-               std::unordered_set<String> import_set, Device device, Target target, Map<String, ObjectRef> attrs = {});
+               std::unordered_set<String> import_set, Device device, Target target,
+               Map<String, ObjectRef> attrs = {});
 
 }  // namespace relay
 }  // namespace tvm

@@ -653,6 +653,7 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   std::string symbol_name = op->buffer_var->name_hint;
   int64_t num_elements = 1;
   const auto& data = op->data.value();
+
   for (int64_t dim : data.Shape()) {
     num_elements *= dim;
   }
@@ -666,7 +667,9 @@ void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
   PrintType(data.DataType(), decl_stream);
 
   // Allocate the global static variable
-  decl_stream << " " << symbol_name << "[" << num_elements << "] = {\n";
+  decl_stream << " __attribute__((section(\".rodata.tvm\"), "
+              << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
+              << num_elements << "] = {\n";
   NDArrayDataToC(data, 4, decl_stream);
 
   decl_stream << "};\n"

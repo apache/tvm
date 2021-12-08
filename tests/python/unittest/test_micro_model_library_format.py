@@ -304,7 +304,11 @@ def test_export_model_library_format_workspace(executor, runtime):
             """
         )
         factory = tvm.relay.build(
-            relay_mod, target, executor=executor, runtime=runtime, mod_name="qnn_conv2d",
+            relay_mod,
+            target,
+            executor=executor,
+            runtime=runtime,
+            mod_name="qnn_conv2d",
         )
 
     temp_dir = utils.tempdir()

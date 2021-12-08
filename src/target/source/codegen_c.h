@@ -193,6 +193,10 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
 
+  virtual void SetConstantsByteAlignment(Integer constants_byte_alignment) {
+    constants_byte_alignment_ = constants_byte_alignment;
+  }
+
  protected:
   // Print reference to struct location
   std::string GetStructRef(DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
@@ -263,6 +267,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // cache commonly used ops
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  Integer constants_byte_alignment_ = 16;
 
  private:
   /*! \brief whether to print in SSA form */

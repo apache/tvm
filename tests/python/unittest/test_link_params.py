@@ -257,16 +257,13 @@ def test_c_link_params(linkable_dtype):
     executor = Executor("graph", {"link-params": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lib = tvm.relay.build(mod, target, executor=executor, params=param_init)
-        # assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
         assert len(lib.params.keys()) == 0  # NOTE: params became tir.constants
 
         src = lib.lib.get_source()
         lib.lib.save(temp_dir.relpath("test.c"), "c")
         c_dtype = _get_c_datatype(linkable_dtype)
         src_lines = src.split("\n")
-        # param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
         param = param_init[f"{linkable_dtype}_a"].reshape(np.prod(KERNEL_SHAPE))
-        # param_def = f'static const {c_dtype} __attribute__((section(".rodata.tvm"), aligned(16))) __tvm_param__p0[{np.prod(param.shape)}] = {{'
         param_def = rf"^static const {c_dtype} __attribute__((section(\".rodata.tvm\"), aligned(16))) constant_\d+\[{np.prod(param.shape)}\] = {{$"
 
         for i, line in enumerate(src_lines):

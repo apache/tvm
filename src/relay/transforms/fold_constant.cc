@@ -253,8 +253,10 @@ class ConstantFolder : public MixedModeMutator {
     // Use a fresh build context in case we are already in a build context.
     // needed for both execution and creation(due to JIT)
     With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+    Map<String, ObjectRef> dict =
+        (module_->attrs.defined()) ? module_->attrs->dict : Map<String, ObjectRef>();
     Expr result = ObjectToExpr(Eval(expr, module_->type_definitions, module_->Imports(),
-                                    eval_cpu_dev_, eval_cpu_target_, {module_->attrs->dict}));
+                                    eval_cpu_dev_, eval_cpu_target_, dict));
     VLOG(1) << "Evaluated to constant:" << std::endl << PrettyPrint(result);
     return result;
   }

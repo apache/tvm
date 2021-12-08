@@ -1066,8 +1066,11 @@ Pass FuseOps(int fuse_opt_level) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         bool link_params = false;
-        Executor executor = m->GetAttr<Executor>(tvm::attr::kExecutor).value();
-        link_params = executor->attrs.GetAttr<Bool>("link-params").value_or(Bool(link_params));
+        Executor executor =
+            m->GetAttr<Executor>(tvm::attr::kExecutor).value_or(NullValue<Executor>());
+        link_params = executor.defined()
+                          ? executor->attrs.GetAttr<Bool>("link-params").value_or(Bool(link_params))
+                          : link_params;
         link_params = pc->GetConfig("relay.FuseOps.link_params", Bool(link_params)).value();
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relay.FuseOps.max_depth", Integer(kMaxFusedOps));

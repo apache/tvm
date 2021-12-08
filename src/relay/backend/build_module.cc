@@ -409,8 +409,8 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   void BuildRelay(IRModule relay_module, const String& mod_name) {
     // Relay IRModule -> IRModule optimizations.
-    IRModule module = WithAttrs(relay_module, {{tvm::attr::kExecutor, executor_},
-                                               {tvm::attr::kRuntime, runtime_}});
+    IRModule module = WithAttrs(
+        relay_module, {{tvm::attr::kExecutor, executor_}, {tvm::attr::kRuntime, runtime_}});
     relay_module = OptimizeImpl(std::move(module));
 
     // Get the updated function and new IRModule to build.
