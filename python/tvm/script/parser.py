@@ -32,6 +32,7 @@ from tvm import IRModule
 from tvm._ffi.base import TVMError
 from tvm.ir import GlobalVar
 from tvm.ir.function import BaseFunc
+from tvm.tir import buffer
 from tvm.tir.function import PrimFunc
 from . import _ffi_api
 from . import tir
@@ -154,10 +155,10 @@ class TVMScriptParser(Transformer):
         ast.BuiltinOp.Not: tvm.tir.Not,
     }
 
-    def __init__(self, base_lienno, tir_namespace):
+    def __init__(self, base_lineno, tir_namespace):
         self.context = None
 
-        self.base_lineno = base_lienno
+        self.base_lineno = base_lineno
         self.current_lineno = 0
         self.current_col_offset = 0
         self.tir_namespace = tir_namespace
@@ -249,7 +250,7 @@ class TVMScriptParser(Transformer):
         func : Function
             The function that provides the signature
 
-        node_call: ast.Call
+        node_call: Union[ast.Call, ast.TypeApply, ast.TypeCall]
             The AST call node that calls into the function.
 
         Returns
@@ -257,12 +258,15 @@ class TVMScriptParser(Transformer):
         arg_list : list
             The parsed positional argument.
         """
-        assert isinstance(node_call, ast.Call)
+        assert isinstance(node_call, (ast.Call, ast.TypeApply, ast.TypeCall))
         # collect arguments
         args = [self.transform(arg) for arg in node_call.params]
-        kw_args = {
-            self.transform(k): self.transform(v) for k, v in node_call.keyword_params.items()
-        }
+        if isinstance(node_call, ast.TypeApply):
+            kw_args = {}  # TypeApply (e.g. foo[bar]) doesn't have kwargs defined in synr
+        else:
+            kw_args = {
+                self.transform(k): self.transform(v) for k, v in node_call.keyword_params.items()
+            }
         # get the name and parameter list of func
         if isinstance(func, (Intrin, ScopeHandler, SpecialStmt)):
             func_name, param_list = func.signature()
@@ -276,6 +280,7 @@ class TVMScriptParser(Transformer):
         reader = CallArgumentReader(func_name, args, kw_args, self, node_call)
         pos_only, kwargs, varargs = param_list
         internal_args = list()
+
         for i, arg_name in enumerate(pos_only):
             internal_args.append(reader.get_pos_only_arg(i + 1, arg_name))
         for i, arg_info in enumerate(kwargs):
@@ -439,8 +444,22 @@ class TVMScriptParser(Transformer):
 
         # add parameters of function
         for arg in node.params:
-            arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
-            self.context.update_symbol(arg.name, arg_var, node)
+            # Note that this case is for T.match_buffer syntax sugar
+            if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)):
+                result = self.handle_match_buffer_type(arg.ty, arg.name)
+                if not isinstance(result, buffer.Buffer):
+                    self.report_error(
+                        "The result type of evaluating TypeCall and TypeApply stmt"
+                        f" is wrong: {type(result)}. It should be a Buffer",
+                        node.span,
+                    )
+                arg_name_with_handle = arg.name + "_handle"
+                arg_var = tvm.te.var(arg_name_with_handle, tvm.ir.PrimType("handle"))
+                self.context.func_buffer_map[arg_var] = result
+                self.context.update_symbol(arg.name, result, node)
+            else:
+                arg_var = tvm.te.var(arg.name, self.parse_type(arg.ty, arg))
+                self.context.update_symbol(arg.name, arg_var, node)
             self.context.func_params.append(arg_var)
 
         if not check_decorator(node.decorators):
@@ -1109,6 +1128,30 @@ class TVMScriptParser(Transformer):
         See `transform_Constant`.
         """
         return node.value
+
+    def transform_TypeTuple(self, node):
+        """Tuple value visitor for types.
+
+        Mostly used in `transform_TypeCall` and `transform_TypeApply`.
+        """
+        return [self.transform(value) for value in node.values]
+
+    def handle_match_buffer_type(self, node, buffer_name):
+        """special function to handle syntax sugar for match buffer.
+
+        This method is for buffer declarations in the function parameters.
+        """
+        func = self.transform(node.func_name)
+        assert isinstance(func, SpecialStmt)
+
+        # parse args and kwargs for TypeCall and TypeApply
+        arg_list = self.parse_arg_list(func, node)
+        # Note that the third element in arg_list would always be the 'name'
+        # TODO: This index is hardcoded as a workaround. Better to make it programmatic
+        if arg_list[2] is None:
+            arg_list[2] = buffer_name
+        buf = func.handle(node, self.context, arg_list, node.func_name.span)
+        return buf
 
     def transform_Return(self, node):
         self.report_error(
