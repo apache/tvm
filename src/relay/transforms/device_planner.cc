@@ -398,9 +398,6 @@ class DeviceAnalyzer : public ExprVisitor {
         VLOG(2) << "collecting constraints from Relay Function '" << kv.first->name_hint << "'";
         domains_->UnifyExprExact(kv.first, kv.second);
         VisitExpr(GetRef<Function>(function_node));
-      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
-        VLOG(2) << "skipping TIR PrimFunc '" << kv.first->name_hint << "'";
-        // TODO(mbs): Handle PrimFuncs
       } else {
         VLOG(2) << "skipping '" << kv.first->name_hint << "'";
       }
@@ -852,9 +849,6 @@ class DeviceCapturer : public ExprMutator {
       if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         VLOG(2) << "capturing devices for Relay Function '" << kv.first->name_hint << "'";
         result->Add(kv.first, Downcast<Function>(Mutate(GetRef<Function>(function_node))));
-      } else if (const auto* prim_func_node = kv.second.as<tir::PrimFuncNode>()) {
-        VLOG(2) << "skipping TIR PrimFunc '" << kv.first->name_hint << "'";
-        // TODO(mbs): Handle PrimFuncs.
       } else {
         VLOG(2) << "skipping '" << kv.first->name_hint << "'";
         result->Add(kv.first, kv.second);
