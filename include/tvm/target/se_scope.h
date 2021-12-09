@@ -170,7 +170,7 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
    *
    * kInvalidDeviceType denotes unconstrained.
    */
-  int device_type_int;
+  int /* actually DLDeviceType */ device_type_int;
 
   DLDeviceType device_type() const { return static_cast<DLDeviceType>(device_type_int); }
 
@@ -301,6 +301,11 @@ class SEScope : public ObjectRef {
   static SEScope ForTarget(Target target) {
     DLDeviceType device_type = static_cast<DLDeviceType>(target->kind->device_type);
     return SEScope(device_type, /*virtual_device_id=*/0, std::move(target));
+  }
+
+  /*! \brief Returns the \p SEScope for \p memory_scope alone. */
+  static SEScope ForMemoryScope(MemoryScope memory_scope) {
+    return SEScope(kInvalidDeviceType, -1, {}, std::move(memory_scope));
   }
 
   /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */

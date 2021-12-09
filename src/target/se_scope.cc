@@ -62,10 +62,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           p->stream << "memory_scope='" << node->memory_scope << "'";
         }
       }
-#if TVM_LOG_DEBUG
-      // We rely on object identity of SEScopes, so include the object address to help debugging.
-      p->stream << ", id=" << reinterpret_cast<uint64_t>(ref.get());
-#endif
       p->stream << ")";
     });
 
@@ -173,11 +169,9 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
   SEScope prototype(device_type, virtual_device_id, std::move(target), std::move(memory_scope));
   auto itr = cache_.find(prototype);
   if (itr == cache_.end()) {
-    VLOG(1) << "added new scope " << prototype;
     cache_.emplace(prototype);
     return prototype;
   } else {
-    VLOG(1) << "reusing existing scope " << *itr;
     ICHECK_EQ(prototype->target.defined(), (*itr)->target.defined());
     if (prototype->target.defined()) {
       ICHECK_EQ(prototype->target->host.defined(), (*itr)->target->host.defined());
