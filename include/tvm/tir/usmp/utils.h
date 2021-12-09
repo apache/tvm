@@ -226,6 +226,44 @@ class PoolAllocation : public ObjectRef {
 };
 
 /*!
+ * \brief This object contains information post-allocation for PoolInfo objects
+ */
+struct AllocatedPoolInfoNode : public Object {
+  /*! \brief The assigned PoolInfo object */
+  PoolInfo pool_info;
+  /*! \brief The allocated size into this pool */
+  Integer allocated_size;
+  /*! \brief An optional associated pool Var*/
+  Optional<Var> pool_var;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pool_info", &pool_info);
+    v->Visit("allocated_size", &allocated_size);
+    v->Visit("pool_var", &pool_var);
+  }
+
+  bool SEqualReduce(const AllocatedPoolInfoNode* other, SEqualReducer equal) const {
+    return equal(pool_info, other->pool_info) && equal(allocated_size, other->allocated_size) &&
+           equal(pool_var, other->pool_var);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(pool_info);
+    hash_reduce(allocated_size);
+    hash_reduce(pool_var);
+  }
+
+  static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocatedPoolInfoNode, Object);
+};
+
+class AllocatedPoolInfo : public ObjectRef {
+ public:
+  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var = Var());
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AllocatedPoolInfo, ObjectRef, AllocatedPoolInfoNode);
+};
+
+/*!
  * \brief Convert the IR-bound BufferInfo map to an array of BufferInfo
  *
  * \param buffer_info_map IR-bound BufferInfo map
@@ -248,6 +286,16 @@ Integer CalculateExtentsSize(const AllocateNode* op);
 
 }  // namespace usmp
 }  // namespace tir
+
+namespace attr {
+/*!
+ * \brief This is a BaseFunc attribute to indicate which input var represent
+ * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
+ */
+static constexpr const char* kPoolArgs = "pool_args";
+
+}  // namespace attr
+
 }  // namespace tvm
 
 #endif  // TVM_TIR_USMP_UTILS_H_
