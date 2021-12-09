@@ -367,8 +367,8 @@ stage('Build') {
   }
 }
 
-stage('Unit Test') {
-    parallel 'python3: GPU': {
+stage('Test') {
+    parallel 'unittest: GPU': {
       if (is_docs_only_build != 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
@@ -388,15 +388,19 @@ stage('Unit Test') {
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
                 label: "Run Python GPU integration tests",
               )
+                sh (
+                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                  label: "Run Java unit tests",
+                )
               junit "build/pytest-results/*.xml"
             }
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: GPU')
+        Utils.markStageSkippedForConditional('unittest: GPU')
       }
     },
-    'python3: CPU': {
+    'unittest: CPU': {
       if (is_docs_only_build != 1) {
         node('CPU') {
           ws(per_exec_ws("tvm/ut-python-cpu")) {
@@ -413,10 +417,10 @@ stage('Unit Test') {
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: CPU')
+        Utils.markStageSkippedForConditional('unittest: CPU')
       }
     },
-    'python3: i386': {
+    'unittest: i386': {
       if (is_docs_only_build != 1) {
         node('CPU') {
           ws(per_exec_ws('tvm/ut-python-i386')) {
@@ -435,10 +439,10 @@ stage('Unit Test') {
           }
         }
      } else {
-        Utils.markStageSkippedForConditional('python3: i386')
+        Utils.markStageSkippedForConditional('unittest: i386')
       }
     },
-    'python3: arm': {
+    'unittest: arm': {
       if (is_docs_only_build != 1) {
         node('ARM') {
           ws(per_exec_ws('tvm/ut-python-arm')) {
@@ -457,32 +461,10 @@ stage('Unit Test') {
           }
         }
       } else {
-         Utils.markStageSkippedForConditional('python3: arm')
+         Utils.markStageSkippedForConditional('unittest: arm')
       }
     },
-    'java: GPU': {
-      if (is_docs_only_build != 1 ) {
-        node('GPU') {
-          ws(per_exec_ws('tvm/ut-java')) {
-            init_git()
-              unpack_lib('gpu', tvm_multilib)
-              timeout(time: max_time, unit: 'MINUTES') {
-                ci_setup(ci_gpu)
-                sh (
-                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                  label: "Run Java unit tests",
-                )
-              }
-          }
-        }
-      } else {
-         Utils.markStageSkippedForConditional('java: GPU')
-      }
-    }
-}
-
-stage('Integration Test') {
-  parallel 'topi: GPU': {
+  'topi: GPU': {
   if (is_docs_only_build != 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
