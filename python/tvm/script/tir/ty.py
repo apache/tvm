@@ -137,6 +137,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         pass  # pylint: disable=unnecessary-pass
 
 
+uint8 = ConcreteType("uint8")
 int8 = ConcreteType("int8")
 int16 = ConcreteType("int16")
 int32 = ConcreteType("int32")
