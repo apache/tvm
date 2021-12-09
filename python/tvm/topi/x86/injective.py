@@ -23,7 +23,7 @@ from tvm.topi.generic.injective import schedule_injective_from_existing
 from ..utils import is_empty_shape
 
 
-def schedule_injective_from_existing(sch, out):
+def schedule_injective_from_existing_ref(sch, out):
     """Schedule for injective op from existing schedule.
 
     Parameters
@@ -81,7 +81,7 @@ def schedule_injective(outs):
     te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
-        schedule_injective_from_existing(s, x)
+        schedule_injective_from_existing_ref(s, x)
     return s
 
 
@@ -134,7 +134,7 @@ def schedule_concatenate(outs):
     return s
 
 
-def schedule_concatenate(outs):
+def schedule_concatenate_cpu(outs):
     """X86 schedule for concatenate op.
 
     Parameters
