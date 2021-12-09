@@ -19,19 +19,19 @@
 from __future__ import absolute_import
 import re
 
-from tvm import topi, relay
-from tvm.topi.utils import get_const_tuple
-
+from tvm import relay, topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from .. import op as reg
-from .. import strategy
-from ..op import OpPattern
-from .._tensor import elemwise_shape_func
-from ..strategy.generic import is_depthwise_conv2d
-from ...transform import LayoutConfig
+from tvm.topi.utils import get_const_tuple
+
 from ....ir import container
 from ....tir import expr
+from ...transform import LayoutConfig
+from .. import op as reg
+from .. import strategy
+from .._tensor import elemwise_shape_func
+from ..op import OpPattern
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -383,7 +383,7 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
     # Handle default kernel layouts
     if desired_data_layout == "NCHW":
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
