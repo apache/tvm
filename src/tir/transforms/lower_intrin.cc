@@ -305,7 +305,7 @@ Pass LowerIntrin() {
         IntrinInjecter(&analyzer, target.value()->kind->name, mtriple.value())(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {}, true);
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.LowerIntrin").set_body_typed(LowerIntrin);

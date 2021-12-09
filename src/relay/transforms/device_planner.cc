@@ -1073,7 +1073,7 @@ tvm::transform::Pass PlanDevicesCore(CompilationConfig config) {
         // attributes to all function definitions.
         return DeviceCapturer(mod, std::move(domains)).Capture();
       },
-      /*opt_level=*/0, "PlanDevicesCore", {}, true);
+      /*opt_level=*/0, "PlanDevicesCore", {});
 }
 
 }  // namespace

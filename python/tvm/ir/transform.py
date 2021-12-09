@@ -45,10 +45,8 @@ class PassInfo(tvm.runtime.Object):
         The list of passes that are required by a certain pass.
     """
 
-    def __init__(self, opt_level, name, required=None, run_always=False):
-        self.__init_handle_by_constructor__(
-            _ffi_transform_api.PassInfo, opt_level, name, required, run_always
-        )
+    def __init__(self, opt_level, name, required=None):
+        self.__init_handle_by_constructor__(_ffi_transform_api.PassInfo, opt_level, name, required)
 
 
 @tvm._ffi.register_object("transform.PassContext")

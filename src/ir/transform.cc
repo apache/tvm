@@ -375,13 +375,11 @@ class SequentialNode : public PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required,
-                   bool run_always) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
   pass_info->required = std::move(required);
-  pass_info->run_always = run_always;
   data_ = std::move(pass_info);
 }
 
@@ -440,7 +438,7 @@ Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
 Sequential::Sequential(tvm::Array<Pass> passes, String name) {
   auto n = make_object<SequentialNode>();
   n->passes = std::move(passes);
-  PassInfo pass_info = PassInfo(0, std::move(name), {}, true);
+  PassInfo pass_info = PassInfo(0, std::move(name), {});
   n->pass_info = std::move(pass_info);
   data_ = std::move(n);
 }
@@ -492,16 +490,16 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
 }
 
 Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, String name, tvm::Array<String> required, bool run_always) {
-  PassInfo pass_info = PassInfo(opt_level, name, required, run_always);
+                      int opt_level, String name, tvm::Array<String> required) {
+  PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-    .set_body_typed([](int opt_level, String name, tvm::Array<String> required, bool run_always) {
-      return PassInfo(opt_level, name, required, run_always);
+    .set_body_typed([](int opt_level, String name, tvm::Array<String> required) {
+      return PassInfo(opt_level, name, required);
     });
 
 TVM_REGISTER_GLOBAL("transform.Info").set_body([](TVMArgs args, TVMRetValue* ret) {
