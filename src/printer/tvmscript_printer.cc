@@ -206,7 +206,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBlockVarRemaps();
   Doc PrintBlockVars(const BlockRealizeNode* op);
   Doc PrintBlockAttr(const BlockRealizeNode* op);
-  Doc PrintBlockAttrArray(const ArrayNode* op);
+  Doc PrintExpandedArray(const ArrayNode* op);
   Doc PrintBlockBody(const BlockNode* op);
   virtual Doc PrintBlockName(const BlockNode* block_op);
   Doc PrintBufferRegion(const BufferRegionNode* op);
@@ -221,6 +221,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc AllocBuf(const Buffer& buffer);
   void TryDeallocVar(const Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
+  /*! Helper function for match buffer printing */
+  /*!
+   * @brief check if a T.match_buffer decl is syntax sugarred
+   * \param buffer The match buffer to be checked
+   */
+  bool IsMatchBufferSugarred(const Buffer& buffer);
+  Doc MatchBufferDeclaration(const Buffer& buffer);
 
   /*! Helper functions for loop printing. */
   /*!
@@ -469,6 +476,47 @@ Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
 
   Doc doc = Print(op->buffer) << " = " << tir_prefix_ << ".match_buffer(" << Print(op->source)
                               << ", " << memo_buf_decl_[op->buffer] << ")";
+  return doc;
+}
+
+// check if all arguments, except the first two, are specified for T.match_buffer
+// if not, then this match buffer is printed out as syntax sugar
+bool TVMScriptPrinter::IsMatchBufferSugarred(const Buffer& buf) {
+  if (memo_var_.find(buf->data) != memo_var_.end()) {
+    return false;
+  }
+  if (!buf->strides.empty()) {
+    return false;
+  }
+  if (buf->elem_offset->IsInstance<VarNode>()) {
+    Var elem_offset = Downcast<Var>(buf->elem_offset);
+    if (memo_var_.find(elem_offset) != memo_var_.end()) {
+      return false;
+    }
+  } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
+    IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
+    if (elem_offset->value != 0) {
+      return false;
+    }
+  }
+  if (buf.scope() != "global") {
+    return false;
+  }
+  if (buf->data_alignment != runtime::kAllocAlignment) {
+    return false;
+  }
+  if (buf->offset_factor != 1) {
+    return false;
+  }
+  if (buf->buffer_type != 1) {
+    return false;
+  }
+  return true;
+}
+
+Doc TVMScriptPrinter::MatchBufferDeclaration(const Buffer& buffer) {
+  Doc doc = Print(buffer->shape);
+  doc << ", dtype=" << PrintDType(buffer->dtype);
   return doc;
 }
 
@@ -1097,9 +1145,9 @@ Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
     block_attr_doc << Doc::NewLine() << tir_prefix_ << ".where(" << Print(op->predicate) << ")";
   }
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".reads("
-                 << PrintBlockAttrArray(block_op->reads.as<ArrayNode>()) << ")";
+                 << PrintExpandedArray(block_op->reads.as<ArrayNode>()) << ")";
   block_attr_doc << Doc::NewLine() << tir_prefix_ << ".writes("
-                 << PrintBlockAttrArray(block_op->writes.as<ArrayNode>()) << ")";
+                 << PrintExpandedArray(block_op->writes.as<ArrayNode>()) << ")";
   if (!block_op->annotations.empty()) {
     block_attr_doc << Doc::NewLine() << tir_prefix_ << ".block_attr({";
     block_attr_doc << PrintAnnotations(block_op->annotations);
@@ -1110,7 +1158,7 @@ Doc TVMScriptPrinter::PrintBlockAttr(const BlockRealizeNode* op) {
 
 // This function is to make sure arguments of T.reads() and T.writes() is not parsed by printer as a
 // List. Therefore the brackets are removed before and after printing arguments out
-Doc TVMScriptPrinter::PrintBlockAttrArray(const ArrayNode* op) {
+Doc TVMScriptPrinter::PrintExpandedArray(const ArrayNode* op) {
   Doc doc;
   for (size_t i = 0; i < op->size(); ++i) {
     if (i != 0) {
@@ -1236,6 +1284,19 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   std::vector<Doc> params;
   for (const auto& param : op->params) {
     var_not_in_headers_.insert(param.get());
+    auto it = op->buffer_map.find(param);
+    // check if this param is a T.handle
+    if (it != op->buffer_map.end()) {
+      // check if this match_buffer has only the first two arguments specified
+      const auto buf = (*it).second;
+      if (IsMatchBufferSugarred(buf)) {
+        buf_not_in_headers_.insert(buf.get());
+        Doc buf_param_doc = Print(param) << ": " << tir_prefix_ << ".Buffer(";
+        buf_param_doc << MatchBufferDeclaration(buf) << ")";
+        params.push_back(buf_param_doc);
+        continue;
+      }
+    }
     params.push_back(Print(param) << ": " << Print(GetType(param)));
   }
   doc << PrintSep(params, Doc::Text(", ")) << ") -> " << Print(primFunc->ret_type) << ":";
@@ -1245,6 +1306,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   for (const auto& param : op->params) {
     auto it = op->buffer_map.find(param);
     if (it == op->buffer_map.end()) continue;
+    if (IsMatchBufferSugarred((*it).second)) continue;
     buf_not_in_headers_.insert((*it).second.get());
     body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
     body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
