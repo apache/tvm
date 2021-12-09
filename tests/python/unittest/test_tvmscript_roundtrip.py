@@ -3242,5 +3242,18 @@ def test_func_with_target_spec_by_str():
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
 
+@T.prim_func
+def func_root_attr():
+    with T.block("root"):
+        T.block_attr({"a": "0"})
+        T.evaluate(0)
+
+
+def test_root_attr():
+    func = func_root_attr
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

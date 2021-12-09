@@ -14,22 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=super-init-not-called
-"""This module defines all error types associated with the Arm(R) Ethos(TM)-U NPU code generator."""
+# pylint: disable=unused-import, redefined-builtin
+"""Namespace for Unified Static Memory Planner"""
 
-
-class EthosUCodegenError(Exception):
-    """Base class for all exceptions related to code generation"""
-
-    def __init__(self, data):
-        self.message = "EthosUCodegenError:" + data
-
-    def __str__(self):
-        return self.message
-
-
-class UnsupportedLayout(EthosUCodegenError):
-    """Raised when unsupported layout is encountered during code generation."""
-
-    def __init__(self, layout):
-        super().__init__(f"Unsupported Layout {layout}")
+from .transform import convert_pool_allocations_to_offsets

@@ -19,7 +19,7 @@ This file contains functions for processing target inputs for the TVMC CLI
 """
 
 from tvm.driver import tvmc
-from tvm.target import Target
+from tvm.target import Target, TargetKind
 
 # We can't tell the type inside an Array but all current options are strings so
 # it can default to that. Bool is used alongside Integer but aren't distinguished
@@ -33,14 +33,14 @@ def _valid_target_kinds():
     return filter(lambda target: target not in codegen_names, Target.list_kinds())
 
 
-def _generate_target_kind_args(parser, kind):
-    target_group = parser.add_argument_group(f"target {kind.name}")
-    for target_option, target_type in kind.options.items():
+def _generate_target_kind_args(parser, kind_name):
+    target_group = parser.add_argument_group(f"target {kind_name}")
+    for target_option, target_type in TargetKind.options_from_name(kind_name).items():
         if target_type in INTERNAL_TO_NATIVE_TYPE:
             target_group.add_argument(
-                f"--target-{kind.name}-{target_option}",
+                f"--target-{kind_name}-{target_option}",
                 type=INTERNAL_TO_NATIVE_TYPE[target_type],
-                help=f"target {kind.name} {target_option}{INTERNAL_TO_HELP[target_type]}",
+                help=f"target {kind_name} {target_option}{INTERNAL_TO_HELP[target_type]}",
             )
 
 
@@ -52,15 +52,14 @@ def generate_target_args(parser):
         required=True,
     )
     for target_kind in _valid_target_kinds():
-        target = Target(target_kind)
-        _generate_target_kind_args(parser, target.kind)
+        _generate_target_kind_args(parser, target_kind)
 
 
-def _reconstruct_target_kind_args(args, kind):
+def _reconstruct_target_kind_args(args, kind_name):
     kind_options = {}
-    for target_option, target_type in kind.options.items():
+    for target_option, target_type in TargetKind.options_from_name(kind_name).items():
         if target_type in INTERNAL_TO_NATIVE_TYPE:
-            var_name = f"target_{kind.name.replace('-', '_')}_{target_option.replace('-', '_')}"
+            var_name = f"target_{kind_name.replace('-', '_')}_{target_option.replace('-', '_')}"
             option_value = getattr(args, var_name)
             if option_value is not None:
                 kind_options[target_option] = getattr(args, var_name)
@@ -71,8 +70,7 @@ def reconstruct_target_args(args):
     """Reconstructs the target options from the arguments"""
     reconstructed = {}
     for target_kind in _valid_target_kinds():
-        target = Target(target_kind)
-        kind_options = _reconstruct_target_kind_args(args, target.kind)
+        kind_options = _reconstruct_target_kind_args(args, target_kind)
         if kind_options:
-            reconstructed[target.kind.name] = kind_options
+            reconstructed[target_kind] = kind_options
     return reconstructed

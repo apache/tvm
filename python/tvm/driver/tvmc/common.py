@@ -22,12 +22,12 @@ import json
 import logging
 import os.path
 import argparse
-
+import pathlib
+from typing import Union
 from collections import defaultdict
 from urllib.parse import urlparse
 
 import tvm
-
 from tvm.driver import tvmc
 from tvm import relay
 from tvm import transform
@@ -786,3 +786,10 @@ def get_and_check_options(passed_options, valid_options):
     check_options_choices(opts, valid_options)
 
     return opts
+
+
+def get_project_dir(project_dir: Union[pathlib.Path, str]) -> str:
+    """Get project directory path"""
+    if not os.path.isabs(project_dir):
+        return os.path.abspath(project_dir)
+    return project_dir

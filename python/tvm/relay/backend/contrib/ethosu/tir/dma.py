@@ -272,7 +272,7 @@ def get_ifm_params(pointer, producers):
     return serial_ifm, serial_padding
 
 
-def get_ofm_params(pointer, consumers):
+def get_ofm_params(pointer, consumers, producers):
     """Get the parameters associated with the DMA capabilities for an OFM.
 
     Parameters
@@ -282,6 +282,9 @@ def get_ofm_params(pointer, consumers):
     consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
         A dictionary to associate pointers with the loop nest
         that consumes their values.
+    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
+        A dictionary to associate pointers with the loop nest
+        that produces their values.
 
     Returns
     -------
@@ -289,11 +292,18 @@ def get_ofm_params(pointer, consumers):
         The serializable OFM.
     output_pointer : tvm.tir.Var
         The pointer that the OFM DMA pipeline produces.
+    is_allocator : bool
+        Whether this operator allocates its output.
 
     """
     convert_to_nhcwb16 = consumers[pointer]
     out_channels, _, output_pointer = get_convert_to_nhcwb16_params(convert_to_nhcwb16)
     write = consumers[output_pointer]
     serial_ofm, _, output_pointer = get_write_params(write)
+    is_allocator = True
+    if output_pointer not in producers:
+        is_allocator = False
+    elif producers[output_pointer] != write:
+        is_allocator = False
     serial_ofm.channels = out_channels
-    return serial_ofm, output_pointer
+    return serial_ofm, output_pointer, is_allocator
