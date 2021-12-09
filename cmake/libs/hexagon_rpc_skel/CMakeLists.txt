@@ -79,7 +79,7 @@ set(MINRPC_SRCS
   "${TVM_SRC_DIR}/runtime/minrpc/rpc_reference.h"
 )
 
-set(TVM_RPC_SRC
+set(TVM_RPC_SRC 
   "${TVM_SRC_DIR}/runtime/rpc/rpc_module.cc"
   "${TVM_SRC_DIR}/runtime/rpc/rpc_endpoint.cc"
   "${TVM_SRC_DIR}/runtime/rpc/rpc_session.cc"
