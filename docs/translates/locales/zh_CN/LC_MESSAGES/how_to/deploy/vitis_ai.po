@@ -258,9 +258,8 @@ msgstr ""
 msgid ""
 "On this page you will find information on how to `setup <#setup-"
 "instructions>`__ TVM with Vitis AI on different platforms (Zynq, Alveo, "
-"Versal) and on how to get started with `Compiling a Model "
-"<#compiling-a-model>`__ and executing on different platforms: `Inference "
-"<#inference>`__."
+"Versal) and on how to get started with `Compiling a Model <#compiling-a-"
+"model>`__ and executing on different platforms: `Inference <#inference>`__."
 msgstr ""
 
 #: ../../_staging/how_to/deploy/vitis_ai.rst:74
@@ -601,9 +600,9 @@ msgstr ""
 
 #: ../../_staging/how_to/deploy/vitis_ai.rst:413
 msgid ""
-"After having followed the steps in the `Compiling a Model "
-"<#compiling-a-model>`__ section, you can continue running on new inputs "
-"inside the docker for accelerated inference:"
+"After having followed the steps in the `Compiling a Model <#compiling-a-"
+"model>`__ section, you can continue running on new inputs inside the docker "
+"for accelerated inference:"
 msgstr ""
 
 #: ../../_staging/how_to/deploy/vitis_ai.rst:422

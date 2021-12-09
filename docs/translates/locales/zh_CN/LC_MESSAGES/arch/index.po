@@ -207,8 +207,7 @@ msgid ""
 "conv2d-relu) segments. We call these segments of functions. This process "
 "helps us to divide the original problem into two sub-problems:"
 msgstr ""
-"在relay优化pipeline的末尾，我们会运行一个pass（FuseOps）来将端到端函数（例如：MobileNet）拆分为子函数（例如"
-"：conv2d-relu）段。我们把这些称为函数段。这个过程帮助我们将原始的问题分为两个子问题。"
+"在relay优化pipeline的末尾，我们会运行一个pass（FuseOps）来将端到端函数（例如：MobileNet）拆分为子函数（例如：conv2d-relu）段。我们把这些称为函数段。这个过程帮助我们将原始的问题分为两个子问题。"
 
 #: ../../_staging/arch/index.rst:97
 msgid "Compilation and optimization for each sub-function."
@@ -239,8 +238,7 @@ msgid ""
 " by a unified **runtime.Module** interface, which we will discuss in the "
 "latter part of the guide."
 msgstr ""
-"有几种不同的方法（在relay/backend）里来处理对整个执行问题的调用。对于具有已知形状且没有控制流的简单模型，我们可以底层化为一个将执行结构存储在图像里的图像执行器。我们也支持用于动态执行的虚拟机后端。最后，我们计划支持提前编译，将高层执行结构编译为可执行的和被生成的原语函数。所有的这些执行模式都被封装在一个同意的"
-" **runtime.Module** 接口，我们将在这个指南的后半部分讨论这个接口。"
+"有几种不同的方法（在relay/backend）里来处理对整个执行问题的调用。对于具有已知形状且没有控制流的简单模型，我们可以底层化为一个将执行结构存储在图像里的图像执行器。我们也支持用于动态执行的虚拟机后端。最后，我们计划支持提前编译，将高层执行结构编译为可执行的和被生成的原语函数。所有的这些执行模式都被封装在一个同意的 **runtime.Module** 接口，我们将在这个指南的后半部分讨论这个接口。"
 
 #: ../../_staging/arch/index.rst:105
 msgid ""

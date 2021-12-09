@@ -101,8 +101,8 @@ msgid ""
 "Improve performance with custom targets In order for TVM to take full "
 "advantage of specific hardware platforms, you will want to manuall specify "
 "your CPU capabilities. For example: - replace \"llvm\" below with \"llvm "
-"-mcpu=core-avx2\" to enable AVX2 - replace \"llvm\" below with \"llvm -mcpu"
-"=skylake-avx512\" to enable AVX-512"
+"-mcpu=core-avx2\" to enable AVX2 - replace \"llvm\" below with \"llvm "
+"-mcpu=skylake-avx512\" to enable AVX-512"
 msgstr ""
 
 #: ../../_staging/tutorial/auto_scheduler_matmul_x86.rst:116

@@ -130,8 +130,9 @@ msgstr ""
 #: ../../_staging/tutorial/autotvm_relay_x86.rst:83
 msgid ""
 "TVM supports many popular model formats. A list can be found in the `Compile"
-" Deep Learning Models <https://tvm.apache.org/docs/tutorials/index.html"
-"#compile-deep-learning-models>`_ section of the TVM Documentation."
+" Deep Learning Models "
+"<https://tvm.apache.org/docs/tutorials/index.html#compile-deep-learning-"
+"models>`_ section of the TVM Documentation."
 msgstr ""
 
 #: ../../_staging/tutorial/autotvm_relay_x86.rst:110
@@ -183,8 +184,9 @@ msgid ""
 "<https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html#define-"
 "network>`_. We recommend identifying which CPU you are running, along with "
 "optional features, and set the target appropriately. For example, for some "
-"processors ``target = \"llvm -mcpu=skylake\"``, or ``target = \"llvm -mcpu"
-"=skylake-avx512\"`` for processors with the AVX-512 vector instruction set."
+"processors ``target = \"llvm -mcpu=skylake\"``, or ``target = \"llvm "
+"-mcpu=skylake-avx512\"`` for processors with the AVX-512 vector instruction "
+"set."
 msgstr ""
 
 #: ../../_staging/tutorial/autotvm_relay_x86.rst:212

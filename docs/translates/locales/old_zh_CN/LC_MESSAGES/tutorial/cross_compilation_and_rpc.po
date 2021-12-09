@@ -125,10 +125,10 @@ msgstr ""
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:106
 msgid ""
-"Then we cross compile the kernel. The target should be 'llvm -mtriple"
-"=armv7l-linux-gnueabihf' for Raspberry Pi 3B, but we use 'llvm' here to make"
-" this tutorial runnable on our webpage building server. See the detailed "
-"note in the following block."
+"Then we cross compile the kernel. The target should be 'llvm "
+"-mtriple=armv7l-linux-gnueabihf' for Raspberry Pi 3B, but we use 'llvm' here"
+" to make this tutorial runnable on our webpage building server. See the "
+"detailed note in the following block."
 msgstr ""
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:136
@@ -136,9 +136,9 @@ msgid ""
 "To run this tutorial with a real remote device, change :code:`local_demo` to"
 " False and replace :code:`target` in :code:`build` with the appropriate "
 "target triple for your device. The target triple which might be different "
-"for different devices. For example, it is :code:`'llvm -mtriple=armv7l-"
-"linux-gnueabihf'` for Raspberry Pi 3B and :code:`'llvm -mtriple=aarch64"
-"-linux-gnu'` for RK3399."
+"for different devices. For example, it is :code:`'llvm "
+"-mtriple=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and :code:`'llvm "
+"-mtriple=aarch64-linux-gnu'` for RK3399."
 msgstr ""
 
 #: ../../_staging/tutorial/cross_compilation_and_rpc.rst:143
