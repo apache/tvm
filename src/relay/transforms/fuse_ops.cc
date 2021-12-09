@@ -1062,7 +1062,6 @@ Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, bool l
 namespace transform {
 
 Pass FuseOps(int fuse_opt_level) {
-  LOG(INFO) << "=====================Calling fuse OPS=========================";
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         bool link_params = false;
