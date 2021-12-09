@@ -259,6 +259,7 @@
 #include "../op/memory/device_copy.h"
 #include "../op/memory/on_device.h"
 #include "./device_domains.h"
+#include "./virtual_device_check.h"
 
 namespace tvm {
 namespace relay {
@@ -1086,6 +1087,7 @@ tvm::transform::Pass PlanDevices(CompilationConfig config) {
   std::vector<Pass> passes;
   passes.emplace_back(Rewrite());
   passes.emplace_back(PlanDevicesCore(std::move(config)));
+  passes.emplace_back(VirtualDeviceCheck());
   return tvm::transform::Sequential(passes, "PlanDevices");
 }
 

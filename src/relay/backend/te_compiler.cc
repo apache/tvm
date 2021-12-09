@@ -47,6 +47,7 @@
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
+#include "../transforms/virtual_device_check.h"
 #include "./te_compiler_cache.h"
 #include "./utils.h"
 
@@ -100,6 +101,7 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   IRModule GetLoweredFunctions() {
+    VLOG(1) << "GetLoweredFunctions";
     IRModule mod;
     // Extract lowered functions from the cache
     for (const auto& it : cache_) {
@@ -631,7 +633,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       }
       call_lowered_attrs->metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
     }
-
+    // What if the "function" is a prim_fn
     return CallLowered(cfunc->prim_fn_var, std::move(visited_args), Attrs(call_lowered_attrs),
                        type_args, std::move(span));
   }
@@ -1063,9 +1065,12 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   //    GlobalVar, and calls updated (sticking with regular Relay Call).
   //  - Calls to functions tagged with "Primitive" are compiled to PrimFuncs, and calls updated
   //    (using call_lowered convention).
+  relay::VirtualDeviceCheck()(module);
+
   IRModule updated_module = LowerTensorExpr(module_name, compiler, std::move(process_fn),
                                             std::move(host_se_scope))(module);
-
+  VLOG(1) << "Updated module: " << updated_module;
+  relay::VirtualDeviceCheck()(updated_module);
   // The Functions tagged with "Compiler" are now residing in the cache ready to be
   // compiled by LowerExternalFunctions. However we still need a record of them in the
   // IRModule so that the various executors can see which function names need to be
@@ -1074,6 +1079,9 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
 
   // Add the lowered functions.
   IRModule lowered_module = compiler->GetLoweredFunctions();
+  VLOG(1) << "Got lowered functions";
+  relay::VirtualDeviceCheck()(lowered_module);
+
   VLOG(1) << "capturing " << lowered_module->functions.size() << " new lowered functions";
   for (const auto& kv : lowered_module->functions) {
     if (updated_module->ContainGlobalVar(kv.first->name_hint)) {
@@ -1085,6 +1093,8 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
     }
     updated_module->Add(kv.first, kv.second);
   }
+  relay::VirtualDeviceCheck()(updated_module);
+
 
   // Invoke external codegen for all Functions in the cache tagged with "Compiler", and
   // annotate the module with the resulting runtime modules.
@@ -1128,7 +1138,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
     }
     updated_module = WithAttr(updated_module, "op_weights", std::move(op_weights));
   }
-
+  relay::VirtualDeviceCheck()(lowered_module);
   return updated_module;
 }
 
@@ -1171,7 +1181,9 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_s
   };
 
   return tvm::transform::Sequential(
-      {tvm::relay::transform::RelayToTIRTargetHook(),
+      {relay::VirtualDeviceCheck(),
+       tvm::relay::transform::RelayToTIRTargetHook(),
+       relay::VirtualDeviceCheck(),
        tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
 }
 }  // namespace tec

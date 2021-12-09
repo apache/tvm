@@ -103,7 +103,6 @@ RELAY_REGISTER_OP("on_device")
 
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node) {
   // This needs to extract the correct se scope from the function.
-  std::cout << "GetOnDeviceProps for: " << call_node;
   if (call_node->op == OnDeviceOp()) {
     std::cout << "Is OnDevice op" << std::endl;
     ICHECK_EQ(call_node->args.size(), 1) << "on_device expects one argument";

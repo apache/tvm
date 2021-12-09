@@ -18,15 +18,22 @@
  */
 
 #include "./virtual_device_check.h"
+
 #include <tvm/relay/transform.h>
 
 namespace tvm {
+namespace relay {
+
 using tvm::relay::transform::CreateFunctionPass;
 using tvm::transform::PassContext;
 
+void DeviceChecker::VisitExpr(const Expr& e) {
+    ExprVisitor::VisitExpr(e);
+}
+
 // TODO(@jroesch, @junru): we need to deal with unique spans for global/var.
 void DeviceChecker::VisitExpr_(const VarNode* op) {
-    ICHECK((op->virtual_device_.defined())) << "VarNode's virtual device should not be null";
+    // ICHECK((op->virtual_device_.defined())) << "VarNode's virtual device should not be null";
 }
 void DeviceChecker::VisitExpr_(const GlobalVarNode* op) {}
 void DeviceChecker::VisitExpr_(const ConstantNode* op) {}
@@ -34,7 +41,10 @@ void DeviceChecker::VisitExpr_(const ConstantNode* op) {}
 void DeviceChecker::VisitExpr_(const TupleNode* op) { ExprVisitor::VisitExpr_(op); }
 
 void DeviceChecker::VisitExpr_(const FunctionNode* op) { 
-    ICHECK(op->virtual_device_.defined());
+    ICHECK(!op->virtual_device()->IsFullyConstrained());
+    for (auto var : op->params) {
+        ICHECK(!op->virtual_device()->IsFullyConstrained());
+    }
     ExprVisitor::VisitExpr_(op); }
 
 void DeviceChecker::VisitExpr_(const CallNode* op) { ExprVisitor::VisitExpr_(op); }
@@ -62,7 +72,7 @@ void DeviceChecker::VisitType(const Type& t) {}
 void DeviceChecker::VisitClause(const Clause& c) {}
 void DeviceChecker::VisitPattern(const Pattern& c) {}
 
-Pass VirtualDeviceCheck() {
+tvm::transform::Pass VirtualDeviceCheck() {
   return CreateFunctionPass(
       [](const Function& func, const IRModule& mod, const PassContext& ctx) {
         ICHECK(ctx->diag_ctx) << "Diagnostic context must be set.";
@@ -75,4 +85,5 @@ Pass VirtualDeviceCheck() {
 
 TVM_REGISTER_GLOBAL("VirtualDeviceCheck").set_body_typed([]() { return VirtualDeviceCheck(); });
 
+} // namespace relay
 } // namespace tvm

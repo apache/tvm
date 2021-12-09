@@ -293,6 +293,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     } else {
       // Keep track of expression and bound variable device types for lexically enclosing
       // sub-expressions.
+      ICHECK(f->virtual_device_.defined()) << "Virtual device should be defined for function " << PrettyPrint(GetRef<Function>(f));
       PushSEScope(f->virtual_device());
       for (const Var param : f->params) {
         PushBoundVar(param, param->virtual_device());

@@ -41,6 +41,7 @@
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
 #include "../transforms/device_aware_visitors.h"
+#include "../transforms/virtual_device_check.h"
 #include "./te_compiler.h"
 #include "./utils.h"
 
@@ -201,6 +202,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
+
+    relay::VirtualDeviceCheck()(mod);
     mod_name_ = mod_name;
     VLOG_CONTEXT << "GraphExecutorCodegen";
     VLOG(1) << "compiling:" << std::endl << PrettyPrint(func);
@@ -229,7 +232,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // TODO(mbs): Plumb instead of reconstruct
     CompilationConfig config(transform::PassContext::Current(), targets_,
                              /*optional_host_target_arg=*/{});
-
+    relay::VirtualDeviceCheck()(mod);
+    VLOG(1) << "Virtual devices intact before entering LowerTEPass";
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name_,
         [this](BaseFunc func) {
@@ -246,6 +250,7 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
           tec::UpdateFunctionMetadata(func, this->function_metadata_);
         },
         config->host_se_scope)(mod);
+    relay::VirtualDeviceCheck()(lowered_mod);
 
     Optional<backend::FunctionInfo> main_func_info =
         lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info");

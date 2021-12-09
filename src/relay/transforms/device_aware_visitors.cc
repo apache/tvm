@@ -48,7 +48,7 @@ LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) 
 }
 
 SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
-  VLOG(1) << "GetSEScope for " << expr;
+  VLOG(1) << "GetSEScope for " << PrettyPrint(expr);
   OnDeviceProps props = GetOnDeviceProps(expr);
   VLOG(1) << "props.body.defined(): " << props.body.defined();
   if (props.body.defined() && props.is_fixed) {
@@ -82,6 +82,7 @@ SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
       return function_node->virtual_device();
     }
   } else {
+    VLOG(1) << "Checking expr_se_scopes_";
     if (!expr_se_scopes_.empty()) {
       // Use the currently in-scope device type.
       return expr_se_scopes_.back();
@@ -101,6 +102,7 @@ void LexicalOnDeviceMixin::ExitFunctionBody() {
 
 void LexicalOnDeviceMixin::PushSEScope(const SEScope& se_scope) {
   if (se_scope->IsFullyUnconstrained()) {
+    // ICHECK(false) << "Should be fully constrained";
     return;
   }
   expr_se_scopes_.emplace_back(se_scope);

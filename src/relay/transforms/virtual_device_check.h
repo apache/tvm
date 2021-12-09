@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file span_check.h
+ * \file virtual_device_check.h
  * \brief Check that the Relay IR has correctly attached span information.
  */
 
@@ -32,15 +32,8 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 
-#include <fstream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 namespace tvm {
-
-using namespace tvm::relay;
-using tvm::transform::Pass;
+namespace relay {
 
 struct DeviceChecker : ExprVisitor {
 
@@ -63,10 +56,10 @@ struct DeviceChecker : ExprVisitor {
   void VisitType(const Type& t) override;
   void VisitClause(const Clause& c) override;
   void VisitPattern(const Pattern& c) override;
-  void VisitSpan(const Span& span) override;
 };
 
-Pass VirtualDeviceCheck();
 
+tvm::transform::Pass VirtualDeviceCheck();
+} // namespace relay
 } // namespace tvm
 #endif  // TVM_VIRTUAL_DEVICE_CHECK_H_
