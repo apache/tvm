@@ -93,7 +93,7 @@ def schedule_to_module(
 def lower(
     inp: Union[schedule.Schedule, PrimFunc, IRModule],
     args: Optional[List[Union[Buffer, tensor.Tensor, Var]]] = None,
-    name: str = None,
+    name: str = "main",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
     simple_mode: bool = False,
 ) -> IRModule:
@@ -125,8 +125,6 @@ def lower(
     m : IRModule
        The result IRModule
     """
-    if name is None:
-        name = "default_function"
     if isinstance(inp, IRModule):
         return ffi.lower_module(inp, simple_mode)
     if isinstance(inp, PrimFunc):
@@ -144,7 +142,7 @@ def build(
     runtime: Optional[
         "tvm.relay.backend.Runtime"
     ] = None,  # Type is annotated this way to avoid cyclic dependency
-    name: Optional[str] = None,
+    name: Optional[str] = "default_function",
     binds: Optional[Mapping[tensor.Tensor, Buffer]] = None,
 ):
     """Build a function with arguments as signature. Code will be generated
@@ -233,8 +231,6 @@ def build(
     elif isinstance(inputs, PrimFunc):
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
-        if name is not None:
-            raise ValueError("Specifying name with IRModule input is useless")
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
