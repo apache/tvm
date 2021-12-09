@@ -59,8 +59,12 @@ inline String get_name_mangled(const String& module_name, const String& name) {
  */
 Module MetadataModuleCreate(metadata::Metadata metadata);
 
+namespace launch_param {
+
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
+
+}  // namespace launch_param
 
 /*! \brief function information needed by device */
 struct FunctionInfo {
