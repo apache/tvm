@@ -79,6 +79,7 @@ class Module1:
 
 def test_opt_gemm_normalize():
     mod = Module1
+    print(mod.script(show_meta=True))
     rt_mod = tvm.script.from_source(mod.script(show_meta=True))
     tvm.ir.assert_structural_equal(mod, rt_mod, True)
 

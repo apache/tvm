@@ -413,7 +413,7 @@ Doc TVMScriptPrinter::AllocBufferDeclaration(const Buffer& buf) {
   if (buf->offset_factor != 1 || print_factor_explicitly) {
     doc << ", offset_factor=" << buf->offset_factor;
   }
-  if (buf->buffer_type != 1) {
+  if (buf->buffer_type != BufferType::kDefault) {
     doc << ", type=" << Doc::StrLiteral("auto");
   }
   return doc;
@@ -509,7 +509,7 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (buf->offset_factor != 1) {
     return false;
   }
-  if (buf->buffer_type != 1) {
+  if (buf->buffer_type != BufferType::kDefault) {
     return false;
   }
   return true;
@@ -1307,7 +1307,8 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       const auto buf = (*it).second;
       if (IsSimpleBuffer(buf)) {
         buf_not_in_headers_.insert(buf.get());
-        Doc buf_param_doc = Print(param) << ": " << MatchBufferDeclaration(buf);
+        Doc buf_param_doc;
+        buf_param_doc << buf->name << ": " << MatchBufferDeclaration(buf);
         params.push_back(buf_param_doc);
         continue;
       }

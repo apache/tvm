@@ -141,7 +141,6 @@ def elementwise_buffer_no_kwargs(
 
 def test_match_buffer_syntax_sugar():
     # with kwargs
-    print(elementwise_buffer_kwargs.script())
     assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
     # without kwargs
     assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
