@@ -53,9 +53,7 @@ def run_pass(net):
 
 
 def execute():
-    program = (
-        "from test_tvm_pass_count import create_model, run_pass; run_pass(create_model());"
-    )
+    program = "from test_tvm_pass_count import create_model, run_pass; run_pass(create_model());"
     f = open("file.py", "w")
     f.write(program)
     f.close()
