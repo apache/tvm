@@ -379,7 +379,7 @@ def test_concatenate1():
             continue
         np.random.seed(471)
         maxNumDimensions = 6
-        shape = [4, 32, 32, 1, 62, 20, 42, 8, 55, 7]  # just randomly selected 10 numbers
+        shape = [4, 32, 16, 1, 31, 20, 21, 8, 28, 7]  # just randomly selected 10 numbers
         for dtype in ["float32"]:
             for dimsNum in range(1, maxNumDimensions):
                 np.random.shuffle(shape)

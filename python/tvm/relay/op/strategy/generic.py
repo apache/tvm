@@ -1685,7 +1685,7 @@ def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     else:
         strategy.add_implementation(
             wrap_compute_concat(topi.x86.concatenate),
-            wrap_topi_schedule(topi.x86.schedule_concatenate),
+            wrap_topi_schedule(topi.x86.schedule_concatenate_cpu),
             name="concatenate.cpu",
         )
     return strategy
