@@ -16,7 +16,7 @@
 # under the License.
 """Wrapping existing analysis utils."""
 # pylint: disable=invalid-name
-from typing import Dict, List, AnyStr
+from typing import Dict, List
 
 from tvm import Object
 from tvm.tir.stmt import Block, BufferRegion
@@ -205,7 +205,7 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
 
 def get_prim_func_arg_and_result_memory_constraints(
     func: PrimFunc, relay_func_type: Object
-) -> List[AnyStr]:
+) -> List[str]:
     """Returns the memory (aka storage) scope constraints for all the arguments and result
     of func. However the result will be w.r.t. the func's representation as a Relay Function
     of relay_func_type before lowering and conversion to DPS.
@@ -232,7 +232,7 @@ def get_prim_func_arg_and_result_memory_constraints(
 
 
 def apply_prim_func_arg_and_result_memory_constraints(
-    func: PrimFunc, relay_func_type: Object, arg_and_result_memory_scopes: List[AnyStr]
+    func: PrimFunc, relay_func_type: Object, arg_and_result_memory_scopes: List[str]
 ) -> PrimFunc:
     """Returns func written to capture the memory (aka storage) scope constraints
     for each of the func's parameters given by arg_and_result_memory_scopes. However,

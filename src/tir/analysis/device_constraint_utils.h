@@ -43,7 +43,7 @@
 namespace tvm {
 namespace tir {
 
-/*
+/*!
  * A Relay Function with type:
  * \code
  *   fn((Tensor[...], Tensor[...]), Tensor[...]) -> (Tensor[...], Tensor[...])
@@ -51,10 +51,23 @@ namespace tir {
  *       a            b             c                d            e
  * \endcode
  * will be represented by a TIR PrimFunc in flattened and DPS form with at least 5 argument a..e.
- * Each such PrimFunc argument will have a type annotation for a PointerType to the underlying
- * tensor's buffer. The PrimFunc may have additional non-pointer arguments, for example to represent
- * device contexts or other non-tensor arguments, and those should be ignored here since they have
- * no counterpart in the Relay Function.
+ * \code
+ *   primfn(a: handle, b: handle, c: handle, d: handle, e: handle) {
+ *     buffers = { ... }
+ *     buffer_map = { ... }
+ *     ...
+ *   }
+ * \endcode
+ *
+ * Each such PrimFunc argument will me mapped to a \p Buffer who's underlying \p data \p Var
+ * has a \p PointerType.
+ *
+ * The PrimFunc may have additional non-pointer arguments, eg for:
+ *  - scalar inputs and tensor dimensions
+ *  - device contexts
+ * Those should be ignored here since they have no counterpart in the Relay Function.
+ *
+ * We'll need helpers to map on-the-fly between the Relay and TIR view of functions.
  */
 
 /*!

@@ -373,17 +373,8 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
   template <typename T>
   Array<T> VisitItems(Array<T> items) {
-    bool any_change = false;
-    Array<T> new_items;
-    new_items.reserve(items.size());
-    for (const auto& item : items) {
-      T new_item = VisitItem(item.get());
-      if (!new_item.same_as(item)) {
-        any_change = true;
-      }
-      new_items.push_back(new_item);
-    }
-    return any_change ? new_items : items;
+    items.MutateByApply([this](const T& item) { return VisitItem(item.get()); });  // copy-on-write
+    return items;
   }
 
   Stmt VisitStmt_(const BlockNode* block_node) final {

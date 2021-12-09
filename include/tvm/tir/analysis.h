@@ -26,14 +26,12 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
-#include <tvm/target/se_scope.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
 
 #include <string>
-#include <unordered_map>
 
 namespace tvm {
 namespace tir {
@@ -244,5 +242,4 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm
-
 #endif  // TVM_TIR_ANALYSIS_H_
