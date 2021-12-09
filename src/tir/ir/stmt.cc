@@ -35,7 +35,14 @@ namespace tir {
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   ICHECK(value.defined());
   ICHECK(body.defined());
-  ICHECK_EQ(value.dtype(), var.dtype());
+  auto vdtype = value.dtype();
+  // It is still valid to bind a pointer type
+  // var to a value that is of type handle.
+  if (var->type_annotation.as<PointerTypeNode>()) {
+    ICHECK(vdtype.is_handle());
+  } else {
+    ICHECK_EQ(value.dtype(), var.dtype());
+  }
 
   ObjectPtr<LetStmtNode> node = make_object<LetStmtNode>();
   node->var = std::move(var);
