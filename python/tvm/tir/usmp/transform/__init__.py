@@ -17,6 +17,4 @@
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Unified Static Memory Planner"""
 
-from . import analysis
-from . import transform
-from .utils import BufferInfo
+from .transform import convert_pool_allocations_to_offsets
