@@ -135,11 +135,48 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+  auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
+  allocated_poolinfo_node->pool_info = pool_info;
+  allocated_poolinfo_node->allocated_size = allocated_size;
+  if (pool_var.defined()) {
+    allocated_poolinfo_node->pool_var = pool_var;
+  }
+  data_ = std::move(allocated_poolinfo_node);
+}
+
+TVM_REGISTER_NODE_TYPE(AllocatedPoolInfoNode);
+TVM_REGISTER_GLOBAL("tir.usmp.AllocatedPoolInfo")
+    .set_body_typed([](PoolInfo pool_info, Integer allocated_size) {
+      return AllocatedPoolInfo(pool_info, allocated_size);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AllocatedPoolInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AllocatedPoolInfoNode*>(ref.get());
+      p->stream << "AllocatedPoolInfoNode(\n"
+                << "pool_info=" << node->pool_info << ",\n  allocated_size=" << node->allocated_size
+                << ")";
+    });
+
 Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map) {
   Array<BufferInfo> ret;
   for (const auto& kv : buffer_info_map) {
     auto buffer_info = kv.first;
     ret.push_back(buffer_info);
+  }
+  return ret;
+}
+
+Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
+    const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {
+  Map<Stmt, PoolAllocation> ret;
+  for (const auto& kv : buffer_info_to_pool_allocation) {
+    BufferInfo bi = kv.first;
+    Stmt stmt_ = buffer_info_to_stmt[bi];
+    PoolAllocation pa = kv.second;
+    ret.Set(stmt_, pa);
   }
   return ret;
 }
@@ -162,6 +199,8 @@ TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")
     .set_body_typed([](Map<BufferInfo, Stmt> buffer_info_map) {
       return (CreateArrayBufferInfo(buffer_info_map));
     });
+
+TVM_REGISTER_GLOBAL("tir.usmp.AssignStmtPoolAllocations").set_body_typed(AssignStmtPoolAllocations);
 
 }  // namespace usmp
 }  // namespace tir
