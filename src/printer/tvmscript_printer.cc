@@ -226,8 +226,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * @brief check if a T.match_buffer decl is syntax sugarred
    * \param buffer The match buffer to be checked
    */
-  bool IsMatchBufferSugarred(const Buffer& buffer);
+  bool IsSimpleBuffer(const Buffer& buffer);
   Doc MatchBufferDeclaration(const Buffer& buffer);
+  Doc PrintTuple(const ArrayNode* op);
 
   /*! Helper functions for loop printing. */
   /*!
@@ -480,8 +481,8 @@ Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
 }
 
 // check if all arguments, except the first two, are specified for T.match_buffer
-// if not, then this match buffer is printed out as syntax sugar
-bool TVMScriptPrinter::IsMatchBufferSugarred(const Buffer& buf) {
+// if not, then this match buffer is printed out as T.buffer in prim_func arguments
+bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (memo_var_.find(buf->data) != memo_var_.end()) {
     return false;
   }
@@ -515,8 +516,23 @@ bool TVMScriptPrinter::IsMatchBufferSugarred(const Buffer& buf) {
 }
 
 Doc TVMScriptPrinter::MatchBufferDeclaration(const Buffer& buffer) {
-  Doc doc = Print(buffer->shape);
-  doc << ", dtype=" << PrintDType(buffer->dtype);
+  Doc doc;
+  doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
+  doc << ", " << PrintDType(buffer->dtype) << "]";
+  return doc;
+}
+
+// print array out as tuple with parentheses
+Doc TVMScriptPrinter::PrintTuple(const ArrayNode* op) {
+  Doc doc;
+  doc << '(';
+  for (size_t i = 0; i < op->size(); ++i) {
+    if (i != 0) {
+      doc << ", ";
+    }
+    doc << Print(op->at(i));
+  }
+  doc << ')';
   return doc;
 }
 
@@ -1289,10 +1305,9 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     if (it != op->buffer_map.end()) {
       // check if this match_buffer has only the first two arguments specified
       const auto buf = (*it).second;
-      if (IsMatchBufferSugarred(buf)) {
+      if (IsSimpleBuffer(buf)) {
         buf_not_in_headers_.insert(buf.get());
-        Doc buf_param_doc = Print(param) << ": " << tir_prefix_ << ".Buffer(";
-        buf_param_doc << MatchBufferDeclaration(buf) << ")";
+        Doc buf_param_doc = Print(param) << ": " << MatchBufferDeclaration(buf);
         params.push_back(buf_param_doc);
         continue;
       }
@@ -1306,7 +1321,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   for (const auto& param : op->params) {
     auto it = op->buffer_map.find(param);
     if (it == op->buffer_map.end()) continue;
-    if (IsMatchBufferSugarred((*it).second)) continue;
+    if (IsSimpleBuffer((*it).second)) continue;
     buf_not_in_headers_.insert((*it).second.get());
     body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
     body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
