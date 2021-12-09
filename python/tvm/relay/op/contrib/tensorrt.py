@@ -17,13 +17,14 @@
 # pylint: disable=invalid-name, unused-argument
 """TensorRT supported operators."""
 import logging
+
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.ir import Op
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
-from tvm.relay.expr import Call, Constant, Tuple, GlobalVar, Var, TupleGetItem
-from tvm.ir import Op
+from tvm.relay.expr import Call, Constant, GlobalVar, Tuple, TupleGetItem, Var
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 logger = logging.getLogger("TensorRT")
@@ -145,7 +146,7 @@ def partition_for_tensorrt(
                     "nn.conv1d": ["NCW", "default"],
                     "nn.conv2d": ["NCHW", "default"],
                     "nn.conv3d": ["NCDHW", "default"],
-                    "nn.conv2d_transpose": ["NCHW", "IOHW"],
+                    "nn.conv2d_transpose": ["NCHW", "default"],
                 }
             ),
             transform.FoldConstant(),
