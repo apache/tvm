@@ -52,5 +52,5 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
 endif()
 
 list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
- 
+
 target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

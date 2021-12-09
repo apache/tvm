@@ -38,7 +38,7 @@ cmake -DUSE_HEXAGON_RPC=ON \
         -DUSE_HEXAGON_TOOLCHAIN=/path/to/Hexagon/toolchain/ \
         -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
         -DUSE_CPP_RPC=ON \
-        -DCMAKE_CXX_COMPILER=/path/to/clang++ \    
+        -DCMAKE_CXX_COMPILER=/path/to/clang++ \
         -DCMAKE_CXX_FLAGS='-stdlib=libc++' ..
 ```
 
@@ -63,7 +63,7 @@ launcher = HexagonLauncher(serial_number="Serial number taken from `adb devices`
 # Create a workspace directory for this test on Android.
 # Upload required Android artifacts including TVMRuntime library and RPC server to Android workspace.
 # Uses port `forward` and `reverse` to open connection on certain ports that TVM uses to connect to RPC tracker.
-# Execute `android_bash.sh` on Android which creates two RPC servers and connects them to RPC tracker running on host machine. 
+# Execute `android_bash.sh` on Android which creates two RPC servers and connects them to RPC tracker running on host machine.
 launcher.android_run_rpc(rpc_tracker_host="TVM_TRACKER_HOST", rpc_tracker_port="TVM_TRACKER_PORT")
 
 # Upload Hexagon RPC libraries to Android workspace.

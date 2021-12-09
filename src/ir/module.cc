@@ -320,15 +320,6 @@ const PackedFunc* IRModuleNode::GetExternalFunction(std::string name) {
   }
 }
 
-// change to a set
-/*
-Array<BaseFunc> IRModuleNode::GetExternalFunctions() {
-  Array<BaseFunc> all_base_funcs;
-  for (auto rt_module : this->external_mods) {
-    all_base_funcs.push_back(rt_module);
-  }
-}*/
-
 /*!
  * \brief Renames global type/term variables to prefer the GlobalTypeVar/GlobalVar in the lhs
  * ('one') side above the rhs ('two').

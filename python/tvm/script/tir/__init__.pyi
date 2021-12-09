@@ -130,7 +130,7 @@ def store(
 def comm_reducer(lambda_io: Callable[[Any, Any], Any], identities: List[PrimExpr]) -> PrimExpr: ...
 
 """
-Intrinsics - tvm builtin 
+Intrinsics - tvm builtin
 """
 
 def tvm_thread_allreduce(
