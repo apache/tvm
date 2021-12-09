@@ -851,6 +851,7 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
 # batch_norm
 def wrap_compute_batch_norm(topi_compute):
     """wrap batch_norm topi compute"""
+
     def _compute_batch_norm(attrs, inputs, out_type):
         return topi_compute(*inputs, attrs.axis, attrs.epsilon, attrs.center, attrs.scale)
 

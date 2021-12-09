@@ -51,7 +51,9 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
     gamma_np = np.random.random(shape[axis]).astype("float32")
     beta_np = np.random.random(shape[axis]).astype("float32")
 
-    out_x_np, out_moving_mean_np, out_moving_var_np = tvm.topi.testing.batch_norm(x_np, moving_mean_np, moving_var_np, gamma_np, beta_np, axis, epsilon, center, scale)
+    out_x_np, out_moving_mean_np, out_moving_var_np = tvm.topi.testing.batch_norm(
+        x_np, moving_mean_np, moving_var_np, gamma_np, beta_np, axis, epsilon, center, scale
+    )
 
     x_te = te.placeholder(shape, name="x", dtype="float32")
     moving_mean_te = te.placeholder((shape[axis],), name="moving_mean", dtype="float32")
@@ -61,7 +63,9 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
 
     with tvm.target.Target(_DEVICE):
         fcompute, fschedule = tvm.topi.testing.dispatch(_DEVICE, _BATCH_NORM_IMPLEMENT)
-        out_x, out_moving_mean, out_moving_var = fcompute(x_te, moving_mean_te, moving_var_te, gamma_te, beta_te, axis, epsilon, center, scale)
+        out_x, out_moving_mean, out_moving_var = fcompute(
+            x_te, moving_mean_te, moving_var_te, gamma_te, beta_te, axis, epsilon, center, scale
+        )
         s = fschedule([out_x, out_moving_mean, out_moving_var])
 
         dev = tvm.device(_DEVICE, 0)
@@ -72,11 +76,35 @@ def test_batch_norm(shape, axis, epsilon, center, scale):
         gamma_tvm = tvm.nd.array(gamma_np, dev)
         beta_tvm = tvm.nd.array(beta_np, dev)
         out_x_tvm = tvm.nd.array(np.zeros(shape, dtype=out_x.dtype), dev)
-        out_moving_mean_tvm = tvm.nd.array(np.zeros((shape[axis],), dtype=out_moving_mean.dtype), dev)
+        out_moving_mean_tvm = tvm.nd.array(
+            np.zeros((shape[axis],), dtype=out_moving_mean.dtype), dev
+        )
         out_moving_var_tvm = tvm.nd.array(np.zeros((shape[axis],), dtype=out_moving_var.dtype), dev)
 
-        f = tvm.build(s, [x_te, moving_mean_te, moving_var_te, gamma_te, beta_te, out_x, out_moving_mean, out_moving_var], _DEVICE)
-        f(x_tvm, moving_mean_tvm, moving_var_tvm, gamma_tvm, beta_tvm, out_x_tvm, out_moving_mean_tvm, out_moving_var_tvm)
+        f = tvm.build(
+            s,
+            [
+                x_te,
+                moving_mean_te,
+                moving_var_te,
+                gamma_te,
+                beta_te,
+                out_x,
+                out_moving_mean,
+                out_moving_var,
+            ],
+            _DEVICE,
+        )
+        f(
+            x_tvm,
+            moving_mean_tvm,
+            moving_var_tvm,
+            gamma_tvm,
+            beta_tvm,
+            out_x_tvm,
+            out_moving_mean_tvm,
+            out_moving_var_tvm,
+        )
 
         tvm.testing.assert_allclose(out_x_tvm.numpy(), out_x_np, rtol=1e-3)
         tvm.testing.assert_allclose(out_moving_mean_tvm.numpy(), out_moving_mean_np, rtol=1e-3)
