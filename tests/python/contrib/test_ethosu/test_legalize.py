@@ -19,6 +19,8 @@
 import pytest
 
 pytest.importorskip("ethosu.vela")
+
+import math
 import numpy as np
 import tensorflow as tf
 import tflite.Model
@@ -31,7 +33,6 @@ from tvm.relay.op.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.build_module import bind_params_by_name
 
-from . import relay_ir_builder
 from . import infra
 
 
@@ -229,128 +230,121 @@ INVERSE_LAYOUT_TRANSFORM_OHWI_MAP = {
 }
 
 
-def test_ethosu_conv2d_legalize():
-    def create_graph_single(input_tensor_name, input_tensor_shape, input_tensor_dtype):
-        c1_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
-        c1_params.ifm.shape = input_tensor_shape
-        c1_params.kernel.shape = (3, 3, c1_params.ifm.shape[3], 32)
-        c1_params.strides = (1, 1)
-        c1_params.pad = "VALID"
-        c1_params.activation = "CLIP"
-        c1_params.clip_min = 23
-        c1_params.clip_max = 180
-        input0 = relay.var(input_tensor_name, shape=c1_params.ifm.shape, dtype=c1_params.ifm.dtype)
-        c1, new_params = relay_ir_builder.create_qnn_conv2d(c1_params, input0)
-        c1_params.ofm.shape = get_shape_expr(input0, c1)
+@pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 3), (1, 55, 55, 3)])
+@pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
+@pytest.mark.parametrize("activation", [None, "RELU"])
+def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilation, activation):
+    dtype = "int8"
 
-        f = relay.Function([input0], c1)
-        mod = tvm.IRModule()
-        mod["main"] = f
-        return mod, [c1_params]
+    def create_tflite_graph_single():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, input_shape):
+                op = tf.nn.conv2d(
+                    input_shape,
+                    filters=tf.constant(
+                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
+                        dtype=tf.float32,
+                    ),
+                    strides=strides,
+                    padding=padding,
+                    data_format="NHWC",
+                    dilations=dilation,
+                )
+                if activation:
+                    op = tf.nn.relu(op)
+                return op
 
-    def create_graph_double(input_tensor_name, input_tensor_shape, input_tensor_dtype):
-        c1_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
-        c1_params.ifm.shape = input_tensor_shape
-        c1_params.kernel.shape = (7, 7, c1_params.ifm.shape[3], 8)
-        c1_params.strides = (2, 2)
-        c1_params.pad = "VALID"
-        c1_params.activation = "CLIP"
-        c1_params.clip_min = 10
-        c1_params.clip_max = 240
-        input0 = relay.var(input_tensor_name, shape=c1_params.ifm.shape, dtype=c1_params.ifm.dtype)
-        c1, new_params = relay_ir_builder.create_qnn_conv2d(c1_params, input0)
-        c1_params.ofm.shape = get_shape_expr(input0, c1)
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
 
-        c2_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
-        c2_params.ifm.shape = c1_params.ofm.shape
-        c2_params.kernel.shape = (5, 5, c2_params.ifm.shape[3], 16)
-        c2_params.strides = (1, 1)
-        c2_params.pad = "SAME"
-        c2, new_params = relay_ir_builder.create_qnn_conv2d(c2_params, c1)
-        c2_params.ofm.shape = get_shape_expr(input0, c2)
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
 
-        f = relay.Function([input0], c2)
-        mod = tvm.IRModule()
-        mod["main"] = f
-        return mod, [c2_params, c1_params]
-
-    def verify_tensor(tensor_type, expr):
-        assert list(tensor_type.shape) == list(expr.checked_type.shape)
-        assert str(tensor_type.dtype) == str(expr.checked_type.dtype)
-
-    def verify_linear(ext_func, conv2d_params):
+    def verify(ext_func):
         op = ext_func.body
-        for param in conv2d_params:
-            verify_tensor(param.ifm, op.args[0])
-            verify_tensor(param.ofm, op)
+        ofm_channels = op.attrs.ofm_channels
 
-            # This will be in OHWI layout
-            weights_ohwi = op.args[1].data.asnumpy()
-            weights_layout = str(param.kernel.layout)
-            weights = np.transpose(weights_ohwi, INVERSE_LAYOUT_TRANSFORM_OHWI_MAP[weights_layout])
-            assert weights.shape == param.kernel.shape
-            assert weights.dtype == param.kernel.dtype
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ofm_channels
 
-            assert list(op.args[2].checked_type.shape)[0] == weights_ohwi.shape[0]
+        # check OFM
+        ofm = op.checked_type
+        expected_ofm_shape = infra.compute_ofm_shape(
+            ifm_shape, padding, kernel_shape, strides, dilation
+        )
+        assert list(ofm.shape) == list(expected_ofm_shape)
+        assert str(ofm.dtype) == dtype
+        assert ofm.shape[3] == ofm_channels
 
-            assert float(op.attrs.ifm_scale) == float(param.ifm.sc.data.asnumpy())
-            assert int(op.attrs.ifm_zero_point) == int(param.ifm.zp.data.asnumpy())
-            assert int(op.attrs.weight_zero_point) == int(param.kernel.zp.data.asnumpy())
-            assert float(op.attrs.ofm_scale) == float(param.ofm.sc.data.asnumpy())
-            assert int(op.attrs.ofm_zero_point) == int(param.ofm.zp.data.asnumpy())
-            assert int(op.attrs.ofm_channels) == int(weights_ohwi.shape[0])
-            assert list(op.attrs.padding) == list(param.pad)
-            assert list(op.attrs.strides) == list(param.strides)
-            assert list(op.attrs.dilation) == list(param.dilation)
-            assert str(op.attrs.activation) == str(param.activation)
-            assert int(op.attrs.clip_min) == int(param.clip_min)
-            assert int(op.attrs.clip_max) == int(param.clip_max)
-            op = op.args[0]
+        # check weights
+        weights_ohwi = op.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert weights_ohwi.shape[0] == ofm_channels
+        assert weights_ohwi.shape[1] == kernel_shape[0]
+        assert weights_ohwi.shape[2] == kernel_shape[1]
+        assert weights_ohwi.shape[3] == 3
 
-    test_cases = [
-        (create_graph_single, ["input", (1, 299, 299, 3), "uint8"]),
-        (create_graph_double, ["input", (1, 128, 256, 4), "uint8"]),
-    ]
-    for test_case in test_cases:
-        mod, conv_params = test_case[0](*test_case[1])
-        mod = ethosu.partition_for_ethosu(mod)
-        mod = legalize.LegalizeConv2D()(mod)
-        verify_linear(mod["tvmgen_default_ethos_u_main_0"], conv_params)
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
 
+        expected_padding = infra.compute_padding_shape(
+            ifm_shape,
+            expected_ofm_shape,
+            padding,
+            (kernel_shape[0], kernel_shape[1]),
+            strides,
+            dilation,
+        )
+        assert list(op.attrs.padding) == list(expected_padding)
+        assert list(op.attrs.strides) == list(strides)
+        assert list(op.attrs.dilation) == list(dilation)
+        if activation == "RELU":
+            assert str(op.attrs.activation) == "CLIP"
 
-def test_ethosu_conv2d_legalize_errors():
-    def create_graph_single_unsupported_ifm_layout(
-        input_tensor_name, input_tensor_shape, input_tensor_dtype
-    ):
-        c1_params = relay_ir_builder.QnnConv2DParams(input_tensor_dtype)
-        c1_params.ifm.shape = input_tensor_shape
-        c1_params.ifm.layout = "NCHW"
-        c1_params.kernel.shape = (3, 3, c1_params.ifm.shape[1], 32)
-        c1_params.strides = (1, 1)
-        c1_params.pad = "VALID"
-        c1_params.activation = "CLIP"
-        c1_params.clip_min = 23
-        c1_params.clip_max = 180
-        input0 = relay.var(input_tensor_name, shape=c1_params.ifm.shape, dtype=c1_params.ifm.dtype)
-        c1, new_params = relay_ir_builder.create_qnn_conv2d(c1_params, input0)
-        c1_params.ofm.shape = get_shape_expr(input0, c1)
-
-        f = relay.Function([input0], c1)
-        mod = tvm.IRModule()
-        mod["main"] = f
-        return mod, [c1_params]
-
-    test_cases = [
-        (create_graph_single_unsupported_ifm_layout, ["input", (1, 3, 299, 299), "uint8"]),
+    conv2d_pattern_table = [
+        (
+            ethosu.QnnConv2DParams.composite_name,
+            ethosu.qnn_conv2d_pattern(),
+            lambda pat: ethosu.QnnConv2DParams(pat).is_valid(),
+        )
     ]
 
-    for test_case in test_cases:
-        mod, conv_params = test_case[0](*test_case[1])
-        mod = ethosu.partition_for_ethosu(mod)
-        with pytest.raises(
-            tvm._ffi.base.TVMError, match="EthosUCodegenError: Unsupported Layout NCHW"
-        ):
-            mod = legalize.LegalizeConv2D()(mod)
+    tflite_graph = create_tflite_graph_single()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, conv_params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], conv_params)
+    mod = partition_ethosu_by_table(mod, conv2d_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.Conv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 3), (1, 123, 17, 7)])
