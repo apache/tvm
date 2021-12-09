@@ -17,6 +17,7 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
+import re
 
 from tvm import topi, relay
 from tvm.topi.utils import get_const_tuple
@@ -283,8 +284,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
+    need_tile = re.match(r"NCHW(\d*)c", desired_data_layout)
 
-    if desired_kernel_layout != "default":
+    if desired_kernel_layout != "default" and not need_tile:
         new_attrs["kernel_layout"] = desired_kernel_layout
         return relay.nn.conv2d(data, weight, **new_attrs)
 
@@ -309,6 +311,14 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
+    elif need_tile:
+        assert desired_kernel_layout != "default", "Kernel layout cannot be default."
+        tile = int(need_tile.group(1))
+        if isinstance(data, relay.expr.Var) and data.checked_type.shape[1] % tile != 0:
+            return relay.nn.conv2d(data, weight, **attrs)
+        else:
+            new_attrs["kernel_layout"] = desired_kernel_layout
+            return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
