@@ -1,6 +1,5 @@
 # TVM Tutorial
 
-
 ## TVM Inference End2End
     - Torch/Tflite model execution 
     - relay.testing models
