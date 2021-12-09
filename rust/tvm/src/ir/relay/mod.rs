@@ -40,6 +40,7 @@ pub mod attrs;
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub checked_type: Type,
+    pub virtual_device: ObjectRef,
 }
 
 impl ExprNode {
@@ -47,6 +48,7 @@ impl ExprNode {
         ExprNode {
             base: BaseExprNode::base::<T>(span.clone()),
             checked_type: Type::null(),
+            virtual_device: ObjectRef::null(),
         }
     }
 }
