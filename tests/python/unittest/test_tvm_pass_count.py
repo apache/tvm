@@ -26,6 +26,7 @@ import subprocess
 from os import remove
 import re
 
+
 def create_model():
     data = relay.var("data", relay.TensorType((1, 42, 42, 42), "float32"))
     simple_net = relay.nn.conv2d(
@@ -42,6 +43,7 @@ def create_model():
     simple_net = relay.Function(relay.analysis.free_vars(simple_net), simple_net)
     return simple_net
 
+
 def run_pass(net):
     net, params = testing.create_workload(net)
     with tvm.target.create("llvm"):
@@ -51,8 +53,9 @@ def run_pass(net):
 
 
 def execute():
-    program ="from test_tvm_pass_count import create_model, run_pass;" + \
-             "run_pass(create_model());"
+    program = (
+        "from test_tvm_pass_count import create_model, run_pass; run_pass(create_model());"
+    )
     f = open("file.py", "w")
     f.write(program)
     f.close()
