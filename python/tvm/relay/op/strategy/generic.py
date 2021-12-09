@@ -1675,11 +1675,19 @@ def concatenate_strategy(attrs, inputs, out_type, target):
 def concatenate_strategy_cpu(attrs, inputs, out_type, target):
     """concatenate x86 strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_concat(topi.x86.concatenate),
-        wrap_topi_schedule(topi.x86.schedule_concatenate),
-        name="concatenate.cpu",
-    )
+    use_old_concat = True
+    if use_old_concat:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.transform.concatenate),
+            wrap_topi_schedule(topi.x86.injective.schedule_concatenate),
+            name="concatenate.generic",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_concat(topi.x86.concatenate),
+            wrap_topi_schedule(topi.x86.schedule_concatenate),
+            name="concatenate.cpu",
+        )
     return strategy
 
 
