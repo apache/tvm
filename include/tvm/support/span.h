@@ -32,31 +32,23 @@
 namespace tvm {
 namespace support {
 
-template<class T, class W> //, std::enable_if_t<std::is_constructible<W, std::add_rvalue_reference<T>::value>::value> = true>
+template <class T, class W>
 class Span {
  public:
   class iterator : public std::iterator<std::input_iterator_tag, W> {
    public:
-    inline iterator(T* ptr, T* end) : ptr_{ptr}, end_{end} {
-      CHECK_GE(end, ptr);
-    }
+    inline iterator(T* ptr, T* end) : ptr_{ptr}, end_{end} { CHECK_GE(end, ptr); }
 
-    inline W operator*() {
-      return W(*ptr_);
-    }
+    inline W operator*() { return W(*ptr_); }
 
     inline iterator& operator++() {
       if (ptr_ != end_) ptr_++;
       return *this;
     }
 
-    inline bool operator==(iterator other) {
-      return ptr_ == other.ptr_ && end_ == other.end_;
-    }
+    inline bool operator==(iterator other) { return ptr_ == other.ptr_ && end_ == other.end_; }
 
-    inline bool operator!=(iterator other) {
-      return !(*this == other);
-    }
+    inline bool operator!=(iterator other) { return !(*this == other); }
 
    private:
     T* ptr_;
@@ -66,13 +58,9 @@ class Span {
   inline Span(T* begin, int num_elements) : begin_{begin}, end_{begin + num_elements} {}
   inline Span(T* begin, T* end) : begin_{begin}, end_{end} {}
 
-  inline iterator begin() {
-    return iterator(begin_, end_);
-  }
+  inline iterator begin() { return iterator(begin_, end_); }
 
-  inline iterator end() {
-    return iterator(end_, end_);
-  }
+  inline iterator end() { return iterator(end_, end_); }
 
   inline W operator[](int i) {
     T* to_return = begin_ + i;
@@ -80,9 +68,7 @@ class Span {
     return W(*to_return);
   }
 
-  inline operator std::vector<W>() {
-    return std::vector<W>(begin(), end());
-  }
+  inline operator std::vector<W>() { return std::vector<W>(begin(), end()); }
 
  protected:
   T* begin_;

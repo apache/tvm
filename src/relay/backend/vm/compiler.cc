@@ -1162,8 +1162,9 @@ void VMCompiler::Codegen() {
     lib = tvm::build(per_tvm_target_modules, config_->host_target);
   }
 
-  lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"), runtime::metadata::Metadata(make_object<target::metadata::InMemoryMetadataNode>()));
+  lib = codegen::CreateMetadataModule(
+      params_, lib, ext_mods, config_->host_target, Runtime::Create("cpp"),
+      runtime::metadata::Metadata(make_object<target::metadata::InMemoryMetadataNode>()));
   exec_->SetLib(lib);
 }
 

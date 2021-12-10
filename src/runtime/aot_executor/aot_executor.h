@@ -25,19 +25,18 @@
 #ifndef TVM_RUNTIME_AOT_EXECUTOR_AOT_EXECUTOR_H_
 #define TVM_RUNTIME_AOT_EXECUTOR_AOT_EXECUTOR_H_
 
-#include <string>
-#include <vector>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
 
 class TVM_DLL AotExecutor : public ModuleNode {
-
  public:
   /*!
    * \brief Implements member function lookup for this Module for the frontend.

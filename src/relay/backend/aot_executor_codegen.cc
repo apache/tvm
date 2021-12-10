@@ -42,10 +42,10 @@
 #include <string>
 #include <vector>
 
+#include "../../target/metadata.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
-#include "../../target/metadata.h"
 #include "../transforms/device_aware_visitors.h"
 #include "./name_transforms.h"
 #include "./te_compiler.h"
@@ -338,27 +338,21 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         return data;
       }
     }
-    return data; /*tvm::tir::Call(
-      DataType::Handle(),
-      tvm::tir::builtin::tvm_stack_make_array(),
-      Array<PrimExpr>({data, tvm::tir::Call(DataType::Handle(),
-                                tvm::tir::builtin::tvm_stack_make_shape(),
-                                {ttype->shape}),
-           tvm::Integer(0),
-           tvm::Integer(ttype->shape.size()),
-           tvm::tir::make_const(ttype->dtype, 0),
-           tvm::Integer(0)})); */
+    return data;
   }
 
   void PushTuple(Tuple tuple, std::vector<tir::Var> sids, Array<PrimExpr> args) {
     CHECK_EQ(sids.size(), tuple->fields.size())
-      << "Relay tuple does not map 1:1 into TIR; AOT can't handle this type of Relay Expr in a CallNode.";
+        << "Relay tuple does not map 1:1 into TIR; AOT can't handle this type of Relay Expr in a "
+           "CallNode.";
     StorageInfo& sinfo = storage_device_map_[tuple];
     for (unsigned int i = 0; i < sids.size(); ++i) {
-      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[i]) != return_sid_.end()) {
+      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[i]) !=
+          return_sid_.end()) {
         args.push_back(sids[i]);
       } else {
-        args.push_back(MakeDLTensor(tuple->fields[i], Downcast<TensorType>(tuple->fields[i]->checked_type()), sids[i]));
+        args.push_back(MakeDLTensor(
+            tuple->fields[i], Downcast<TensorType>(tuple->fields[i]->checked_type()), sids[i]));
       }
     }
   }
@@ -377,10 +371,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Pack the inputs
     for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
-        args.push_back(MakeDLTensor(arg, Downcast<TensorType>(arg->checked_type()),
-                                    tir::Cast(runtime::DataType(DataType::TypeCode::kHandle, 32, 1),
-                                              tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                                             {tir::StringImm(params_by_expr_[arg])}))));
+        args.push_back(MakeDLTensor(
+            arg, Downcast<TensorType>(arg->checked_type()),
+            tir::Cast(runtime::DataType(DataType::TypeCode::kHandle, 32, 1),
+                      tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
+                                     {tir::StringImm(params_by_expr_[arg])}))));
       } else {
         auto sids = FindExpr(arg);
         if (sids.size() > 1) {
@@ -388,7 +383,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           PushTuple(tuple, sids, args);
         } else {
           StorageInfo& sinfo = storage_device_map_[arg];
-          if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) != return_sid_.end()) {
+          if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) !=
+              return_sid_.end()) {
             args.push_back(sids[0]);
           } else {
             args.push_back(MakeDLTensor(arg, Downcast<TensorType>(arg->checked_type()), sids[0]));
@@ -404,10 +400,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       PushTuple(tuple, result_expr_sid, args);
     } else {
       StorageInfo& sinfo = storage_device_map_[result_expr];
-      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) != return_sid_.end()) {
+      if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) !=
+          return_sid_.end()) {
         args.push_back(result_expr_sid[0]);
       } else {
-        args.push_back(MakeDLTensor(result_expr, Downcast<TensorType>(result_expr->checked_type()), result_expr_sid[0]));
+        args.push_back(MakeDLTensor(result_expr, Downcast<TensorType>(result_expr->checked_type()),
+                                    result_expr_sid[0]));
       }
     }
 
@@ -802,7 +800,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)),
+      : mod_(mod),
+        targets_(targets),
+        target_host_(target_host),
+        use_unpacked_api_(Bool(false)),
         use_call_cpacked_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
@@ -823,12 +824,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
-      CHECK(interface_api == "c" || bool(use_unpacked_api_) == false)
+      CHECK(interface_api == "c" || use_unpacked_api_ == false)
           << "Either need interface_api == \"c\" (got: " << interface_api
           << ") or unpacked-api == false (got: " << use_unpacked_api_
           << ") when targeting c runtime";
     } else if (runtime_config->name == kTvmRuntimeCpp) {
-      CHECK(bool(use_unpacked_api_) == false && bool(use_call_cpacked_) == true)
+      CHECK(use_unpacked_api_ == false && static_cast<bool>(use_call_cpacked_) == true)
         << "Need unpacked-api == false (got: " << use_unpacked_api_
         << ") and interface-api == \"c\" (got: " << interface_api
         << ") when targeting c++ runtime";
@@ -971,9 +972,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     for (auto v : input_vars_) {
       auto ttype = Downcast<TensorType>(v->type_annotation);
       inputs.push_back(
-        runtime::metadata::TensorInfo(
-          make_object<target::metadata::InMemoryTensorInfoNode>(
-            v->name_hint(), ShapeToJSON(ttype->shape), ttype->dtype)));
+          runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+              v->name_hint(), ShapeToJSON(ttype->shape), ttype->dtype)));
     }
 
     LOG(INFO) << "MAKE METADATA? ";
@@ -984,9 +984,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       std::stringstream name;
       name << "output" << i;
       outputs.push_back(
-        runtime::metadata::TensorInfo(
-          make_object<target::metadata::InMemoryTensorInfoNode>(
-            name.str(), ShapeToJSON(ttype->shape), ttype->dtype)));
+          runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+              name.str(), ShapeToJSON(ttype->shape), ttype->dtype)));
     }
     auto devices = ListDevices();
     std::vector<std::string> devices_vector;
@@ -994,7 +993,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       devices_vector.push_back(d.operator std::string());
     }
     auto n = make_object<target::metadata::InMemoryMetadataNode>(
-      kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_);
+        kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot, mod_name,
+        interface_api, use_unpacked_api_);
     ret.metadata = runtime::metadata::Metadata(std::move(n));
     LOG(INFO) << "MAKE METADATA: " << ret.metadata;
     return ret;

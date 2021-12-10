@@ -35,14 +35,11 @@
 namespace tvm {
 namespace codegen {
 
-
-static runtime::Module CreateCrtMetadataModule(runtime::Module target_module, Target target,
-                                               relay::Runtime runtime,
-                                               runtime::metadata::Metadata metadata,
-                                               Array<runtime::Module> non_crt_exportable_modules,
-                                               Array<runtime::Module> crt_exportable_modules,
-                                               const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
-
+static runtime::Module CreateCrtMetadataModule(
+    runtime::Module target_module, Target target, relay::Runtime runtime,
+    runtime::metadata::Metadata metadata, Array<runtime::Module> non_crt_exportable_modules,
+    Array<runtime::Module> crt_exportable_modules,
+    const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
   if (!non_crt_exportable_modules.empty()) {
     std::string non_exportable_modules;
     for (unsigned int i = 0; i < non_crt_exportable_modules.size(); i++) {
@@ -55,7 +52,7 @@ static runtime::Module CreateCrtMetadataModule(runtime::Module target_module, Ta
         non_exportable_modules += pf_sym().operator std::string();
       } else {
         non_exportable_modules +=
-          std::string{"(module type_key="} + mod->type_key() + std::string{")"};
+            std::string{"(module type_key="} + mod->type_key() + std::string{")"};
       }
     }
     CHECK(false) << "These " << non_crt_exportable_modules.size()
@@ -64,7 +61,8 @@ static runtime::Module CreateCrtMetadataModule(runtime::Module target_module, Ta
 
   if (target->kind->name == "c") {
     crt_exportable_modules.push_back(target_module);
-    target_module = CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
+    target_module =
+        CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
   } else if (target->kind->name == "llvm") {
 #ifdef TVM_LLVM_VERSION
     crt_exportable_modules.push_back(target_module);
@@ -78,14 +76,15 @@ static runtime::Module CreateCrtMetadataModule(runtime::Module target_module, Ta
 }
 
 static runtime::Module CreateCppMetadataModule(
-  runtime::Module target_module, Target target, relay::Runtime runtime,
-  runtime::metadata::Metadata metadata,
+    runtime::Module target_module, Target target, relay::Runtime runtime,
+    runtime::metadata::Metadata metadata,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol,
     Array<runtime::Module> non_crt_exportable_modules,
     Array<runtime::Module> crt_exportable_modules,
     const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
   if (!non_crt_exportable_modules.empty()) {
-    runtime::Module const_loader_mod = runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+    runtime::Module const_loader_mod =
+        runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
     const_loader_mod.Import(target_module);
     for (const auto& it : non_crt_exportable_modules) {
       const_loader_mod.Import(it);
@@ -166,14 +165,15 @@ runtime::Module CreateMetadataModule(
   }
 
   if (is_targeting_crt) {
-    return CreateCrtMetadataModule(target_module, target, runtime, metadata, non_crt_exportable_modules, crt_exportable_modules, const_var_ndarray);
+    return CreateCrtMetadataModule(target_module, target, runtime, metadata,
+                                   non_crt_exportable_modules, crt_exportable_modules,
+                                   const_var_ndarray);
   } else {
     return CreateCppMetadataModule(target_module, target, runtime, metadata, const_vars_by_symbol,
                                    non_crt_exportable_modules, crt_exportable_modules,
                                    const_var_ndarray);
   }
 }
-
 
 }  // namespace codegen
 

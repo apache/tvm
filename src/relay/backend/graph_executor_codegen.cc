@@ -302,7 +302,6 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   }
 
  protected:
-
   /*!
    * \brief Add node to graph
    *

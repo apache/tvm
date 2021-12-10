@@ -103,7 +103,9 @@ struct ExecutorCodegen {
 
   Array<String> ListDevices() { return CallFunc<Array<String>>("get_devices"); }
 
-  runtime::metadata::Metadata GetMetadata() { return CallFunc<runtime::metadata::Metadata>("get_metadata"); }
+  runtime::metadata::Metadata GetMetadata() {
+    return CallFunc<runtime::metadata::Metadata>("get_metadata");
+  }
   virtual ~ExecutorCodegen() {}
 
  protected:

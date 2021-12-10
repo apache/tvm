@@ -278,8 +278,8 @@ void UpdateAutoSchedulerOpWeights(const IRModule& module) {
 std::vector<int64_t> ShapeToJSON(tvm::Array<IndexExpr> shape) {
   std::vector<int64_t> ret;
   for (IndexExpr dim : shape) {
-      const int64_t* pval = tir::as_const_int(dim);
-      ret.push_back(*pval);
+    const int64_t* pval = tir::as_const_int(dim);
+    ret.push_back(*pval);
   }
   return ret;
 }

@@ -116,4 +116,4 @@ class TVM_DLL AotExecutorFactory : public runtime::ModuleNode {
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_GRAPH_EXECUTOR_GRAPH_EXECUTOR_FACTORY_H_
+#endif  // TVM_RUNTIME_AOT_EXECUTOR_AOT_EXECUTOR_FACTORY_H_

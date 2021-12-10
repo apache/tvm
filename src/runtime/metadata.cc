@@ -22,17 +22,19 @@
  * \brief Defines implementations of TVM metadata which can exist in the runtime.
  */
 
-#include <string>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/registry.h>
 
+#include <string>
+
 namespace tvm {
 namespace runtime {
 namespace metadata {
 
-MetadataArray::MetadataArray(Array<ObjectRef> array, const char* c_type) : MetadataBase{make_object<MetadataArrayNode>(array, c_type)} {}
+MetadataArray::MetadataArray(Array<ObjectRef> array, const char* c_type)
+    : MetadataBase{make_object<MetadataArrayNode>(array, c_type)} {}
 
 std::string MetadataArrayNode::get_name() { return "MetadataArray"; }
 
@@ -40,35 +42,45 @@ TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);
 TVM_REGISTER_OBJECT_TYPE(MetadataArrayNode);
 
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::inputs() {
-  if (inputs_refs_.get() == nullptr) { inputs_refs_.reset(new ::std::vector<TensorInfo>()); }
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->inputs, data_->num_inputs, inputs_refs_);
+  if (inputs_refs_.get() == nullptr) {
+    inputs_refs_.reset(new ::std::vector<TensorInfo>());
+  }
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->inputs, data_->num_inputs,
+                                                         inputs_refs_);
 }
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
-  if (outputs_refs_.get() == nullptr) { outputs_refs_.reset(new ::std::vector<TensorInfo>()); }
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs, outputs_refs_);
+  if (outputs_refs_.get() == nullptr) {
+    outputs_refs_.reset(new ::std::vector<TensorInfo>());
+  }
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs,
+                                                         outputs_refs_);
 }
 ArrayAccessor<const char*, ::tvm::runtime::String> MetadataNode::devices() {
-  if (devices_refs_.get() == nullptr) { devices_refs_.reset(new ::std::vector<::tvm::runtime::String>()); }
-  return ArrayAccessor<const char*, ::tvm::runtime::String>(data_->devices, data_->num_devices, devices_refs_);
+  if (devices_refs_.get() == nullptr) {
+    devices_refs_.reset(new ::std::vector<::tvm::runtime::String>());
+  }
+  return ArrayAccessor<const char*, ::tvm::runtime::String>(data_->devices, data_->num_devices,
+                                                            devices_refs_);
 }
-Metadata::Metadata(const struct ::TVMMetadata* data) :
-    MetadataBase{make_object<MetadataNode>(data)} {}
+Metadata::Metadata(const struct ::TVMMetadata* data)
+    : MetadataBase{make_object<MetadataNode>(data)} {}
 std::string MetadataNode::get_name() { return std::string{"Metadata"}; }
 TVM_REGISTER_OBJECT_TYPE(MetadataNode);
-TensorInfo::TensorInfo(const struct ::TVMTensorInfo* data) :
-    MetadataBase{make_object<TensorInfoNode>(data)} {}
+TensorInfo::TensorInfo(const struct ::TVMTensorInfo* data)
+    : MetadataBase{make_object<TensorInfoNode>(data)} {}
 std::string TensorInfoNode::get_name() { return std::string{"TensorInfo"}; }
 
 }  // namespace metadata
 
 class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
  public:
-  MetadataModuleNode(runtime::metadata::Metadata metadata) {
+  explicit MetadataModuleNode(runtime::metadata::Metadata metadata) {
     // CHECK((metadata.defined() && code.size() > 0) || (!metadata.defined() && code.size() == 0))
-    //   << "metadata and code must both be either defined (when passed from compiler) or undefined "
+    //   << "metadata and code must both be either defined (when passed from compiler) or undefined
+    //   "
     //   << "(when passed from runtime)";
     metadata_ = metadata;
-//    code_ = code;
+    //    code_ = code;
   }
 
   const char* type_key() const { return "metadata_module"; }
@@ -92,10 +104,12 @@ class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
           ret_code = TVMFuncCall(f_handle, nullptr, nullptr, 0, &ret_value, &ret_type_code);
           CHECK_EQ(ret_code, 0) << "Invoking get_c_metadata: TVMFuncCall returned " << ret_code;
 
-          CHECK_EQ(ret_type_code, kTVMOpaqueHandle) << "Expected kOpaqueHandle returned; got " << ret_type_code;
+          CHECK_EQ(ret_type_code, kTVMOpaqueHandle)
+              << "Expected kOpaqueHandle returned; got " << ret_type_code;
           CHECK(ret_value.v_handle != nullptr) << "get_c_metadata returned nullptr";
 
-          metadata_ = runtime::metadata::Metadata(static_cast<const struct ::TVMMetadata*>(ret_value.v_handle));
+          metadata_ = runtime::metadata::Metadata(
+              static_cast<const struct ::TVMMetadata*>(ret_value.v_handle));
         }
 
         *rv = metadata_;
@@ -115,7 +129,7 @@ Module MetadataModuleCreate(metadata::Metadata metadata) {
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata_module")
-.set_body([](TVMArgs args, TVMRetValue* rv) { *rv = MetadataModuleNode::LoadFromBinary(); });
+    .set_body([](TVMArgs args, TVMRetValue* rv) { *rv = MetadataModuleNode::LoadFromBinary(); });
 
 }  // namespace runtime
 }  // namespace tvm

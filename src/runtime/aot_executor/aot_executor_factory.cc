@@ -107,24 +107,23 @@ Module AotExecutorFactoryModuleLoadBinary(void* strm) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.aot_executor_factory.create")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      ICHECK_GE(args.num_args, 2) << "The expected number of arguments for "
-                                     "aot_executor_factory.create needs at least 2, "
-                                     "but it has "
-                                  << args.num_args;
-      // The argument order is module, module_name, param0_name, param0_tensor,
-      // [param1_name, param1_tensor], ...
-      ICHECK_EQ((args.size() - 2) % 2, 0);
-      std::unordered_map<std::string, tvm::runtime::NDArray> params;
-      for (size_t i = 2; i < static_cast<size_t>(args.size()); i += 2) {
-        std::string name = args[i].operator String();
-        params[name] = args[i + 1].operator tvm::runtime::NDArray();
-      }
-      auto exec = make_object<AotExecutorFactory>(params, args[1]);
-      exec->Import(args[0]);
-      *rv = Module(exec);
-    });
+TVM_REGISTER_GLOBAL("tvm.aot_executor_factory.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ICHECK_GE(args.num_args, 2) << "The expected number of arguments for "
+                                 "aot_executor_factory.create needs at least 2, "
+                                 "but it has "
+                              << args.num_args;
+  // The argument order is module, module_name, param0_name, param0_tensor,
+  // [param1_name, param1_tensor], ...
+  ICHECK_EQ((args.size() - 2) % 2, 0);
+  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  for (size_t i = 2; i < static_cast<size_t>(args.size()); i += 2) {
+    std::string name = args[i].operator String();
+    params[name] = args[i + 1].operator tvm::runtime::NDArray();
+  }
+  auto exec = make_object<AotExecutorFactory>(params, args[1]);
+  exec->Import(args[0]);
+  *rv = Module(exec);
+});
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_AotExecutorFactory")
     .set_body_typed(AotExecutorFactoryModuleLoadBinary);

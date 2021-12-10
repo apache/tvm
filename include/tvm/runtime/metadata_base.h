@@ -24,9 +24,13 @@
 #ifndef TVM_RUNTIME_METADATA_BASE_H_
 #define TVM_RUNTIME_METADATA_BASE_H_
 
-#include <string>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/object.h>
+
+#include <memory>
+#include <string>
+#include <vector>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -53,9 +57,7 @@ class ArrayIterator {
  public:
   ArrayIterator(size_t index, ArrayAccessor<C, Ref>* parent) : index_{index}, parent_{parent} {}
 
-  inline Ref operator*() {
-    return (*parent_)[index_];
-  }
+  inline Ref operator*() { return (*parent_)[index_]; }
 
   inline ArrayIterator<C, Ref>& operator++() {
     if (index_ < parent_->size()) {
@@ -69,9 +71,7 @@ class ArrayIterator {
     return parent_ == other.parent_ && index_ == other.index_;
   }
 
-  inline bool operator!=(const ArrayIterator<C, Ref>& other) {
-    return !operator==(other);
-  }
+  inline bool operator!=(const ArrayIterator<C, Ref>& other) { return !operator==(other); }
 
  private:
   size_t index_;
@@ -81,9 +81,9 @@ class ArrayIterator {
 template <typename C, class Ref>
 class ArrayAccessor {
  public:
-
-  template <typename T=typename std::enable_if<std::is_base_of<ObjectRef, Ref>::value>::type>
-  ArrayAccessor(const C* data, size_t num_data, ::std::shared_ptr<::std::vector<Ref>> refs) : data_{data}, num_data_{num_data}, refs_{refs} {}
+  template <typename T = typename std::enable_if<std::is_base_of<ObjectRef, Ref>::value>::type>
+  ArrayAccessor(const C* data, size_t num_data, ::std::shared_ptr<::std::vector<Ref>> refs)
+      : data_{data}, num_data_{num_data}, refs_{refs} {}
 
   inline size_t size() { return num_data_; }
 
@@ -103,13 +103,9 @@ class ArrayAccessor {
     return (*refs_)[index];
   }
 
-  inline ArrayIterator<C, Ref> begin() {
-    return ArrayIterator<C, Ref>{0, this};
-  }
+  inline ArrayIterator<C, Ref> begin() { return ArrayIterator<C, Ref>{0, this}; }
 
-  inline ArrayIterator<C, Ref> end() {
-    return ArrayIterator<C, Ref>{num_data_, this};
-  }
+  inline ArrayIterator<C, Ref> end() { return ArrayIterator<C, Ref>{num_data_, this}; }
 
  private:
   const C* data_;
@@ -120,7 +116,9 @@ class ArrayAccessor {
 template <>
 class ArrayAccessor<const char*, ::tvm::runtime::String> {
  public:
-  ArrayAccessor(const char** data, size_t num_data, ::std::shared_ptr<std::vector<::tvm::runtime::String>> refs) : data_{data}, num_data_{num_data}, refs_{refs} {}
+  ArrayAccessor(const char** data, size_t num_data,
+                ::std::shared_ptr<std::vector<::tvm::runtime::String>> refs)
+      : data_{data}, num_data_{num_data}, refs_{refs} {}
 
   inline size_t size() { return num_data_; }
 
@@ -160,13 +158,14 @@ enum MetadataTypeIndex : uint8_t {
   kBool = 2,
   kString = 3,
   kHandle = 4,
-
 };
 
 class MetadataArrayNode : public MetadataBaseNode {
  public:
-//  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index) : array{array}, type_index{type_index} {}
-  MetadataArrayNode(Array<ObjectRef> array, const char* c_type) : array(std::move(array)), c_type{c_type} {}
+  //  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index) : array{array},
+  //  type_index{type_index} {}
+  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
+      : array(std::move(array)), c_type{c_type} {}
 
   std::string get_name() override;
 
@@ -178,7 +177,7 @@ class MetadataArrayNode : public MetadataBaseNode {
 
 class MetadataArray : public MetadataBase {
  public:
-//  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index);
+  //  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index);
   MetadataArray(Array<ObjectRef> array, const char* c_type);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetadataArray, MetadataBase, MetadataArrayNode);
 };

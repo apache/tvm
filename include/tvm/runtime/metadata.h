@@ -17,12 +17,19 @@
  * under the License.
  */
 
+// NOTE: This file is intended to be compileable in C++ and C build processes.
+// NOLINT(build/include_order)
+
 /*!
  * \file tvm/runtime/metadata.h
  * \brief Defines types which can be used in Metadata.
  */
 #ifndef TVM_RUNTIME_METADATA_H_
 #define TVM_RUNTIME_METADATA_H_
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include <inttypes.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -67,7 +74,7 @@ class TensorInfo;
 
 class MetadataNode : public MetadataBaseNode {
  public:
-  MetadataNode(const struct ::TVMMetadata* data) : data_{data} {}
+  explicit MetadataNode(const struct ::TVMMetadata* data) : data_{data} {}
   static constexpr const char* _type_key = "metadata.MetadataNode";
   std::string get_name() override;
   inline int64_t version() const { return int64_t(data_->version); }
@@ -79,10 +86,13 @@ class MetadataNode : public MetadataBaseNode {
   ArrayAccessor<const char*, ::tvm::runtime::String> devices();
   inline ::tvm::runtime::String executor() const { return ::tvm::runtime::String(data_->executor); }
   inline ::tvm::runtime::String mod_name() const { return ::tvm::runtime::String(data_->mod_name); }
-  inline ::tvm::runtime::String interface_api() const { return ::tvm::runtime::String(data_->interface_api); }
-  inline bool use_unpacked_api() const { return bool(data_->use_unpacked_api); }
+  inline ::tvm::runtime::String interface_api() const {
+    return ::tvm::runtime::String(data_->interface_api);
+  }
+  inline bool use_unpacked_api() const { return static_cast<bool>(data_->use_unpacked_api); }
   const struct ::TVMMetadata* data() const { return data_; }
   TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, MetadataBaseNode);
+
  private:
   const struct ::TVMMetadata* data_;
   ::std::shared_ptr<::std::vector<TensorInfo>> inputs_refs_;
@@ -92,30 +102,32 @@ class MetadataNode : public MetadataBaseNode {
 
 class Metadata : public MetadataBase {
  public:
-  Metadata(const struct ::TVMMetadata* data);
+  explicit Metadata(const struct ::TVMMetadata* data);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Metadata, MetadataBase, MetadataNode);
 };
 
 class TensorInfoNode : public MetadataBaseNode {
  public:
-  TensorInfoNode(const struct ::TVMTensorInfo* data) : data_{data} {}
+  explicit TensorInfoNode(const struct ::TVMTensorInfo* data) : data_{data} {}
   static constexpr const char* _type_key = "metadata.TensorInfoNode";
   std::string get_name() override;
   inline ::tvm::runtime::String name() const { return ::tvm::runtime::String(data_->name); }
   inline int64_t num_shape() const { return data_->num_shape; }
   inline ::tvm::support::Span<const int64_t, const int64_t> shape() const {
-    return ::tvm::support::Span<const int64_t, const int64_t>(data_->shape, data_->shape + data_->num_shape);
+    return ::tvm::support::Span<const int64_t, const int64_t>(data_->shape,
+                                                              data_->shape + data_->num_shape);
   }
   inline ::tvm::runtime::DataType dtype() const { return ::tvm::runtime::DataType(data_->dtype); }
   const struct ::TVMTensorInfo* data() const { return data_; }
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, MetadataBaseNode);
+
  private:
   const struct ::TVMTensorInfo* data_;
 };
 
 class TensorInfo : public MetadataBase {
  public:
-  TensorInfo(const struct ::TVMTensorInfo* data);
+  explicit TensorInfo(const struct ::TVMTensorInfo* data);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorInfo, MetadataBase, TensorInfoNode);
 };
 

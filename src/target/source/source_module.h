@@ -44,7 +44,8 @@ namespace codegen {
  * \return The wrapped module.
  */
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               relay::Runtime runtime, runtime::metadata::Metadata metadata);
+                                               relay::Runtime runtime,
+                                               runtime::metadata::Metadata metadata);
 
 /*!
  * \brief Create C++-runtime targeted metadata module for "c" backend.

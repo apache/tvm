@@ -27,6 +27,7 @@
 #include <dmlc/io.h>
 #include <dmlc/json.h>
 #include <tvm/runtime/executor_info.h>
+#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -35,8 +36,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include <tvm/runtime/metadata.h>
 
 #include "runtime_base.h"
 
@@ -65,7 +64,7 @@ namespace launch_param {
 /*! \brief A tag to specify whether or not dynamic shared memory is used */
 constexpr const char* kUseDynamicSharedMemoryTag = "tir.use_dyn_shared_memory";
 
-}
+}  // namespace launch_param
 
 /*! \brief function information needed by device */
 struct FunctionInfo {

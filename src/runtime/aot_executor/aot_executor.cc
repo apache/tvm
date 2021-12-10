@@ -25,14 +25,15 @@
 
 #include "aot_executor.h"
 
+#include <memory>
+
 #include <tvm/runtime/c_runtime_api.h>
 
 namespace tvm {
 namespace runtime {
 
-AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>& devs) :
-    module_{module}, devices_{devs} {
-
+AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>& devs)
+    : module_{module}, devices_{devs} {
   auto fmetadata = module->GetFunction("get_metadata");
   CHECK(fmetadata != nullptr) << "Expected a module with PackedFunc get_metadata";
   auto ret_value = fmetadata();
@@ -40,15 +41,18 @@ AotExecutor::AotExecutor(tvm::runtime::Module module, const std::vector<Device>&
 
   for (auto input : metadata_->inputs()) {
     // TODO(areusch): Encode device information in Metadata.
-    args_.emplace_back(NDArray::Empty(ShapeTuple(input->shape().begin(), input->shape().end()), input->dtype(), devices_[0]));
+    args_.emplace_back(NDArray::Empty(ShapeTuple(input->shape().begin(), input->shape().end()),
+                                      input->dtype(), devices_[0]));
   }
 
   for (auto output : metadata_->outputs()) {
-    args_.emplace_back(NDArray::Empty(ShapeTuple(output->shape().begin(), output->shape().end()), output->dtype(), devices_[0]));
+    args_.emplace_back(NDArray::Empty(ShapeTuple(output->shape().begin(), output->shape().end()),
+                                      output->dtype(), devices_[0]));
   }
 }
 
-PackedFunc AotExecutor::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
+PackedFunc AotExecutor::GetFunction(const std::string& name,
+                                    const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -129,7 +133,7 @@ void AotExecutor::Run() {
     call_type_codes.get()[i] = kTVMDLTensorHandle;
   }
 
-  TVMArgs args{call_values, call_type_codes, num_args};
+  TVMArgs args{call_values.get(), call_type_codes.get(), num_args};
   TVMRetValue rv;
   pf.CallPacked(args, &rv);
 }
@@ -154,9 +158,7 @@ int AotExecutor::GetOutputIndex(const std::string& name) {
   return -1;
 }
 
-void AotExecutor::SetInput(int index, DLTensor* data_ref) {
-  args_[index].CopyFrom(data_ref);
-}
+void AotExecutor::SetInput(int index, DLTensor* data_ref) { args_[index].CopyFrom(data_ref); }
 
 void AotExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK(false) << "not implemented";
@@ -166,25 +168,15 @@ void AotExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   ICHECK(false) << "not implemented";
 }
 
-int AotExecutor::NumOutputs() const {
-  return metadata_->num_outputs();
-}
+int AotExecutor::NumOutputs() const { return metadata_->num_outputs(); }
 
-int AotExecutor::NumInputs() const {
-  return metadata_->num_inputs();
-}
+int AotExecutor::NumInputs() const { return metadata_->num_inputs(); }
 
-NDArray AotExecutor::GetInput(int index) const {
-  return args_[index];
-}
+NDArray AotExecutor::GetInput(int index) const { return args_[index]; }
 
-NDArray AotExecutor::GetOutput(int index) const {
-  return args_[metadata_->num_inputs() + index];
-}
+NDArray AotExecutor::GetOutput(int index) const { return args_[metadata_->num_inputs() + index]; }
 
-void AotExecutor::CopyOutputTo(int index, DLTensor* data_out) {
-  GetOutput(index).CopyTo(data_out);
-}
+void AotExecutor::CopyOutputTo(int index, DLTensor* data_out) { GetOutput(index).CopyTo(data_out); }
 
 }  // namespace runtime
 }  // namespace tvm

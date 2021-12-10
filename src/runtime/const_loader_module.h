@@ -25,10 +25,11 @@
 #ifndef TVM_RUNTIME_CONST_LOADER_MODULE_H_
 #define TVM_RUNTIME_CONST_LOADER_MODULE_H_
 
+#include <tvm/runtime/ndarray.h>
+
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <tvm/runtime/ndarray.h>
 
 namespace tvm {
 namespace runtime {

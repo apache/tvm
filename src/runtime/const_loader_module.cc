@@ -47,8 +47,9 @@ namespace runtime {
  */
 class ConstLoaderModuleNode : public ModuleNode {
  public:
-  ConstLoaderModuleNode(const std::unordered_map<std::string, NDArray>& const_var_ndarray,
-                        const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
+  ConstLoaderModuleNode(
+      const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+      const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
       : const_var_ndarray_(const_var_ndarray), const_vars_by_symbol_(const_vars_by_symbol) {
     // Only the related submodules are cached to reduce the number of runtime
     // symbol lookup for initialization. Otherwise, symbols/primitives in the

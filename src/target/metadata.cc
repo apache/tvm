@@ -23,21 +23,24 @@
  */
 
 #include "metadata.h"
+
 #include <tvm/node/reflection.h>
 
 namespace tvm {
 namespace target {
 namespace metadata {
 
-TVM_REGISTER_REFLECTION_VTABLE(VisitableMetadataNode, ::tvm::detail::ReflectionTrait<VisitableMetadataNode>)
-.set_creator([](const std::string&) -> ObjectPtr<Object> {
-    return ::tvm::runtime::make_object<VisitableMetadataNode>();
-});
+TVM_REGISTER_REFLECTION_VTABLE(VisitableMetadataNode,
+                               ::tvm::detail::ReflectionTrait<VisitableMetadataNode>)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> {
+      return ::tvm::runtime::make_object<VisitableMetadataNode>();
+    });
 
-TVM_REGISTER_REFLECTION_VTABLE(VisitableTensorInfoNode, ::tvm::detail::ReflectionTrait<VisitableTensorInfoNode>)
-.set_creator([](const std::string&) -> ObjectPtr<Object> {
-    return ::tvm::runtime::make_object<VisitableTensorInfoNode>();
-});
+TVM_REGISTER_REFLECTION_VTABLE(VisitableTensorInfoNode,
+                               ::tvm::detail::ReflectionTrait<VisitableTensorInfoNode>)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> {
+      return ::tvm::runtime::make_object<VisitableTensorInfoNode>();
+    });
 
 }  // namespace metadata
 }  // namespace target
