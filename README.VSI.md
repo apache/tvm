@@ -46,7 +46,7 @@ just add toolchain configuration for cmake.
     # 1.Config llvm by set USE_LLVM to the llvm-config; (For example: llvm-config-10 on Ubuntu 20.04)
     # 2.Add set(USE_VSI_NPU ON) to config.cmake;
     # 3.Disable other backend to speed up build, if you wish.
-    cmake -DCMAKE_BUILD_TYPE=Debug -DTIM_VX_INSTALL_DIR=<full_path_to_tim_vx_install> ..
+    cmake -DTIM_VX_INSTALL_DIR=<full_path_to_tim_vx_install> ..
     make tvm -j12
 ```
 
@@ -59,7 +59,7 @@ Usually, NBG runtime will be deployed to embedded device. We need to prepare cro
     cd target_runtime_build
     cp ../cmake/config.cmake ./
     # add set(USE_VSI_NPU ON) to config.cmake, you can do it with cmake command option too
-    cmake -DCMAKE_BUILD_TYPE=Debug -DTIM_VX_INSTALL_DIR=<full_path_to_tim_vx_target_build_install_dir> \
+    cmake -DTIM_VX_INSTALL_DIR=<full_path_to_tim_vx_target_build_install_dir> \
          -DCMAKE_TOOLCHAIN_FILE=<path_to_cross_compile_toolchain.make> ..
     make runtime -j12
 ```
@@ -92,7 +92,7 @@ We need copy or map the while TVM source code(python part and target_runtime_bui
     export VSIMULATOR_CONFIG=PID_0x99
     # 1. Set up testcase, please refer model list from tests/python/contrib/test_vsi_npu/test_vsi_tflite_model_all.py
     export TFLITE_MODEL="<full/path/to/mobilenet_v1_1.0_224_quant.tflite>"
-    # 2. Setup corss compile toolchain configuration 
+    # 2. Setup cross compile toolchain configuration 
     export PATH=<cross-compiler-path>:$PATH
     export CROSS_CC=<cross-compiler-binary-name>
     export ROOTFS=<rootfs-for-cross-compile>
@@ -107,3 +107,56 @@ We need copy or map the while TVM source code(python part and target_runtime_bui
     # 5. Execute test
     python3 tests/python/contrib/test_vsi_npu/test_vsi_tflite_model_all.py
 ```
+
+# TVMC Guide
+
+TVMC is also supported.
+
+```bash
+    export TVM_HOME=<tvm path>
+    export PYTHONPATH=$TVM_HOME/python
+    export TVM_LIBRARY_PATH=$TVM_HOME/host_compiler_build
+    export VIVANTE_SDK_DIR=<VSI NPU driver sdk path>
+    export LD_LIBRARY_PATH=<TIM-VX build path>/install/lib:$TVM_LIBRARY_PATH:$VIVANTE_SDK_DIR/drivers:$LD_LIBRARY_PATH
+    export VSIMULATOR_CONFIG=VIP8000NANOSI_PLUS_PID0X9F
+    export TARGET="vsi_npu, llvm -device=arm_cpu -mtriple=aarch64-linux-gnu"
+    export CC=<cross compile toolchain>
+    export CC_OPTIONS=<cc option>
+    python3 -m tvm.driver.tvmc compile ./mobilenet_v1_0.25_224_quant.tflite --target "$TARGET" -o tvmc.tar \
+      --cross-compiler "$CC" --cross-compiler-options "$CC_OPTIONS"
+```
+
+# Operator support
+
+| Relay Node | Remarks |
+| :------ | :------ |
+| nn.relu |  |
+| nn.leaky_relu |  |
+| sigmoid |  |
+| logical_and |  |
+| logical_or |  |
+| nn.batch_norm |  |
+| clip |  |
+| nn.softmax |  |
+| nn.conv2d |  |
+| add |  |
+| maximum |  |
+| minimum |  |
+| sigmoid |  |
+| nn.max_pool2d |  |
+| nn.avg_pool2d |  |
+| squeeze |  |
+| nn.conv2d_transpose |  |
+| transpose |  |
+| reshape |  |
+| nn.pad |  |
+| mean |  |
+| nn.adaptive_avg_pool2d |  |
+| qnn.add |  |
+| qnn.subtract |  |
+| qnn.mul |  |
+| qnn.quantize |  |
+| qnn.dequantize |  |
+| qnn.requantize |  |
+| qnn.concatenate |  |
+| image.resize2d |  |
