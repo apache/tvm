@@ -200,6 +200,7 @@ def test_fake_transpose_quantize_conv_bias_add_per_channel():
     one = relay.const(1.0)
     zero = relay.const(0)
     w_scale = (np.random.random([16]).astype("float32") - 0.5) / 10 + 0.5
+    noise = (np.random.random([16]).astype("float32") - 0.5) * 1e-15
     w_zp = relay.const([0] * 16)
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
@@ -208,7 +209,7 @@ def test_fake_transpose_quantize_conv_bias_add_per_channel():
         x, relay.qnn.op.dequantize(w, relay.const(w_scale), w_zp, axis=0), kernel_size=[5, 5]
     )
     op = relay.op.nn.bias_add(
-        op, relay.qnn.op.dequantize(bias, relay.const(2.0 * w_scale), w_zp, axis=0)
+        op, relay.qnn.op.dequantize(bias, relay.const(2.0 * w_scale + noise), w_zp, axis=0)
     )
     op = relay.qnn.op.quantize(op, one, zero)
 
