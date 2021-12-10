@@ -459,10 +459,11 @@ def test_batch_norm_fold_const():
 
     # Build the module with constants to have FoldConstant transform batch_norm.
     mod_const = tvm.IRModule.from_expr(func_const)
-    lib_const = relay.build(mod_const, tvm.target.create("llvm"))
-    const_data_out = lib_const.params["p0"]
-    const_moving_mean_out = lib_const.params["p1"]
-    const_moving_var_out = lib_const.params["p2"]
+    mod_const = relay.transform.FoldConstant()(mod_const)
+
+    const_data_out = mod_const["main"].body[0].data
+    const_moving_mean_out = mod_const["main"].body[1].data
+    const_moving_var_out = mod_const["main"].body[2].data
 
     # Run the Relay func without constants. This will use SimplyInference instead.
     vm_data_out, vm_moving_mean_out, vm_moving_var_out = relay.create_executor(
