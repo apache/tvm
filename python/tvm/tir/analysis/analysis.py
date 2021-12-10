@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name
 from typing import Dict, List
 
+from tvm import Object
 from tvm.tir.stmt import Block, BufferRegion
 from tvm.tir.stmt import PrimExpr
 from tvm.tir.expr import Var
@@ -196,3 +197,70 @@ def detect_buffer_access_lca(func: PrimFunc) -> Dict[Buffer, Stmt]:
         Map from buffer to the LCA of all access to it.
     """
     return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member
+
+
+# NOTE: relay_func_type in the following two functions should be relay.FuncType however that would
+# introduce a cycling dependency. We make do with Object.
+
+
+def get_prim_func_arg_and_result_memory_constraints(
+    func: PrimFunc, relay_func_type: Object
+) -> List[str]:
+    """Returns the memory (aka storage) scope constraints for all the arguments and result
+    of func. However the result will be w.r.t. the func's representation as a Relay Function
+    of relay_func_type before lowering and conversion to DPS.
+
+    Visible for testing.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to retrieve constraints from.
+
+    relay_func_type: tvm.relay.FuncType
+        The type of the Relay Function from which the func was derived.
+
+    Returns
+    -------
+    result: List[AnyStr]
+        Memory scope constraints for funcs args and result in Relay form. The empty string
+        denotes 'no constraint'.
+    """
+    return _ffi_api.GetPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
+        func, relay_func_type
+    )
+
+
+def apply_prim_func_arg_and_result_memory_constraints(
+    func: PrimFunc, relay_func_type: Object, arg_and_result_memory_scopes: List[str]
+) -> PrimFunc:
+    """Returns func written to capture the memory (aka storage) scope constraints
+    for each of the func's parameters given by arg_and_result_memory_scopes. However,
+    arg_and_result_memory_scopes should be w.r.t. the func's representation as a Relay
+    Function of relay_func_type before lowering and conversion to DPS.
+
+    Visible for testing.
+
+    CAUTION: This is experimental. The resulting PrimFunc may not have fully accounted
+    for all new memory scopes.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The function to retrieve constraints from.
+
+    relay_func_type: tvm.relay.FuncType
+        The type of the Relay Function from which the func was derived.
+
+    arg_and_result_memory_scopes: Array[AnyStr]
+        Memory constraints for funcs args and result in Relay form. The empty string denotes
+        'no constraint'.
+
+    Returns
+    -------
+    result: tvm.tir.PrimFunc
+        The rewritten func.
+    """
+    return _ffi_api.ApplyPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
+        func, relay_func_type, arg_and_result_memory_scopes
+    )
