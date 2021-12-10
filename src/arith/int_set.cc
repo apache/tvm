@@ -835,12 +835,13 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     for (const Range& range : region) {
       affine_indices.push_back(range->min);
     }
+    DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
     iter_sum_exprs = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
-        /*predicate=*/predicate, /*require_bijective=*/false, analyzer);
-  }
-  if (iter_sum_exprs.empty()) {
-    return NullOpt;
+        /*predicate=*/predicate, /*require_bijective=*/false, analyzer, diag_ctx);
+    if (iter_sum_exprs.empty()) {
+      return NullOpt;
+    }
   }
   ICHECK_EQ(iter_sum_exprs.size(), ndim);
   Array<IntSet> result;
@@ -857,6 +858,7 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     if (!analyzer->CanProve(range->extent >= split->scale)) {
       return NullOpt;
     }
+
     const PrimExpr& base = sum_expr->base;
     // IterSplitExpr: (source // lower_factor) % extent * scale
     // where `(source // lower_factor) % extent` is within [0, extent - 1]

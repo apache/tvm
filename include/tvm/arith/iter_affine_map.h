@@ -49,6 +49,7 @@
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tir/var.h>
 
@@ -82,7 +83,7 @@ class IterMapExpr : public PrimExpr {
 };
 
 /*!
- * \brief Mark the source as an iterator in [0, extent).
+ * \brief Mark the source as an iterator in [min, extent).
  *
  *  IterMark is used to mark source expression as a valid
  *  iterator to make future analysis easy.
@@ -95,6 +96,10 @@ class IterMarkNode : public Object {
    */
   PrimExpr source;
   /*!
+   * \brief The min of the iteration.
+   */
+  PrimExpr min;
+  /*!
    * \brief The extent of the iteration.
    */
   PrimExpr extent;
@@ -102,17 +107,19 @@ class IterMarkNode : public Object {
   // overrides
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source", &source);
+    v->Visit("min", &min);
     v->Visit("extent", &extent);
   }
 
   bool SEqualReduce(const IterMarkNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(source, other->source) && equal(extent, other->extent);
+    return equal(source, other->source) && equal(extent, other->extent) && equal(min, other->min);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce->MarkGraphNode();
     hash_reduce(source);
+    hash_reduce(min);
     hash_reduce(extent);
   }
 
@@ -131,9 +138,10 @@ class IterMark : public ObjectRef {
   /*!
    * \brief constructor.
    * \param source The source expression.
+   * \param min The min of the iterator.
    * \param extent The extent of the iterator.
    */
-  TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
+  TVM_DLL IterMark(PrimExpr source, PrimExpr min, PrimExpr extent);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IterMark, ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
@@ -281,7 +289,7 @@ class IterSumExpr : public IterMapExpr {
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer);
+                                 arith::Analyzer* analyzer, DiagnosticContext diag_ctx);
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
@@ -289,6 +297,7 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
+ * \param diag_ctx Diagnostic context.
  *
  * \return The indices after rewrite
  */
@@ -333,6 +342,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
+ * \param diag_ctx Diagnostic context.
  *
  * \return The result list has length len(bindings) + 1
         [0, len(bindings)): The iter map matching result. The inner list is of length 2.
@@ -344,7 +354,8 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer);
+                                      bool require_bijective, arith::Analyzer* analyzer,
+                                      DiagnosticContext diag_ctx);
 
 }  // namespace arith
 }  // namespace tvm

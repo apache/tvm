@@ -44,7 +44,7 @@ def var_dom(iters):
     return {var: tvm.ir.Range(0, ext) for var, ext in iters}
 
 
-def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
+def assert_iter_sum_pattern(sum_expr, extent, base, scale=1, min=0):
     """Check the sum expr have the right pattern."""
     assert isinstance(sum_expr, tvm.arith.IterSumExpr)
     if extent == 1:
@@ -53,6 +53,7 @@ def assert_iter_sum_pattern(sum_expr, extent, base, scale=1):
         assert len(sum_expr.args) == 1
         tvm.testing.assert_prim_expr_equal(sum_expr.args[0].extent, extent)
         tvm.testing.assert_prim_expr_equal(sum_expr.args[0].scale, scale)
+        tvm.testing.assert_prim_expr_equal(sum_expr.args[0].source.min, min)
     tvm.testing.assert_prim_expr_equal(sum_expr.base, base)
 
 
@@ -178,8 +179,8 @@ def test_compound():
     assert_iter_sum_pattern(res[0], 18, 0)
     assert_iter_sum_pattern(res[1], 5, 0)
     # reconstruct the pattern manually
-    mx = tvm.arith.IterMark(x[0], 10)
-    my = tvm.arith.IterMark(y[0], 9)
+    mx = tvm.arith.IterMark(x[0], 0, 10)
+    my = tvm.arith.IterMark(y[0], 0, 9)
 
     xoscale = 3
     xiscale = 1
@@ -190,7 +191,7 @@ def test_compound():
     myo = tvm.arith.IterSplitExpr(my, 3, 3, yoscale)
     myi = tvm.arith.IterSplitExpr(my, 1, 3, yiscale)
 
-    mz = tvm.arith.IterMark(tvm.arith.IterSumExpr([myo, mxo, myi], 0), 18)
+    mz = tvm.arith.IterMark(tvm.arith.IterSumExpr([myo, mxo, myi], 0), 0, 18)
     sz = tvm.arith.IterSumExpr([tvm.arith.IterSplitExpr(mz, 1, 18, 1)], 0)
     tvm.ir.assert_structural_equal(sz, res[0])
 
@@ -199,8 +200,41 @@ def test_predicate():
     x = tvm.tir.Var("x", "int32"), 13
     y = tvm.tir.Var("y", "int32"), 10
 
+    # available contraints
+    # upper bound only
     res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] < 128)
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 128, 0)
+    res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] <= 127)
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 128, 0)
 
+    # lower bound only
+    res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] > 5)
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 124, 0, min=6)
+    res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] >= 6)
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 124, 0, min=6)
+
+    # lower bound + upper bound
+    res = tvm.arith.detect_iter_map(
+        [x[0] * 10 + y[0]],
+        var_dom([x, y]),
+        tvm.tir.And(x[0] * 10 + y[0] > 5, x[0] * 10 + y[0] < 128),
+    )
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 122, 0, min=6)
+    res = tvm.arith.detect_iter_map(
+        [x[0] * 10 + y[0]],
+        var_dom([x, y]),
+        tvm.tir.And(x[0] * 10 + y[0] >= 6, x[0] * 10 + y[0] <= 127),
+    )
+    assert len(res) == 1
+    assert_iter_sum_pattern(res[0], 122, 0, min=6)
+
+    # non-standard form of predicate
+    res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 < 128 - y[0])
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 128, 0)
 
@@ -541,12 +575,12 @@ def test_complex():
     )
     assert len(res) == 2
 
-    n0_mark = tvm.arith.IterMark(n0[0], n0[1])
-    n1_mark = tvm.arith.IterMark(n1[0], n1[1])
-    l0_mark = tvm.arith.IterMark(l0[0], l0[1])
-    l1_mark = tvm.arith.IterMark(l1[0], l1[1])
-    m1_mark = tvm.arith.IterMark(m1[0], m1[1])
-    l3_mark = tvm.arith.IterMark(l3[0], l3[1])
+    n0_mark = tvm.arith.IterMark(n0[0], 0, n0[1])
+    n1_mark = tvm.arith.IterMark(n1[0], 0, n1[1])
+    l0_mark = tvm.arith.IterMark(l0[0], 0, l0[1])
+    l1_mark = tvm.arith.IterMark(l1[0], 0, l1[1])
+    m1_mark = tvm.arith.IterMark(m1[0], 0, m1[1])
+    l3_mark = tvm.arith.IterMark(l3[0], 0, l3[1])
 
     m0_expr = tvm.arith.IterSumExpr(
         [
@@ -555,12 +589,12 @@ def test_complex():
         ],
         0,
     )
-    m0_mark = tvm.arith.IterMark(m0_expr, 6)
+    m0_mark = tvm.arith.IterMark(m0_expr, 0, 6)
     l2_expr = tvm.arith.IterSumExpr(
         [tvm.arith.IterSplitExpr(m0_mark, 1, 6, 3), tvm.arith.IterSplitExpr(m1_mark, 1, m1[1], 1)],
         0,
     )
-    l2_mark = tvm.arith.IterMark(l2_expr, 16)
+    l2_mark = tvm.arith.IterMark(l2_expr, 0, 16)
     k0_expr = tvm.arith.IterSplitExpr(l0_mark, 2, 2, 4)
     k1_expr = tvm.arith.IterSplitExpr(l1_mark, 2, 4, 1)
     k2_expr = tvm.arith.IterSplitExpr(l2_mark, 4, 4, 8)
@@ -571,19 +605,19 @@ def test_complex():
     k7_expr = tvm.arith.IterSplitExpr(l3_mark, 1, 4, 1)
 
     j0_expr = tvm.arith.IterSumExpr([k0_expr, k1_expr], 0)
-    j0_mark = tvm.arith.IterMark(j0_expr, 7)
+    j0_mark = tvm.arith.IterMark(j0_expr, 0, 7)
     i0_expr = tvm.arith.IterSumExpr(
         [tvm.arith.IterSplitExpr(j0_mark, 1, 7, 32), k2_expr, k3_expr], 0
     )
 
     j3_expr = tvm.arith.IterSumExpr([k6_expr, k7_expr], 0)
-    j3_mark = tvm.arith.IterMark(j3_expr, 15)
+    j3_mark = tvm.arith.IterMark(j3_expr, 0, 15)
     i1_expr = tvm.arith.IterSumExpr(
         [k4_expr, k5_expr, tvm.arith.IterSplitExpr(j3_mark, 1, 15, 1)], 0
     )
 
-    i0_mark = tvm.arith.IterMark(i0_expr, i0[1])
-    i1_mark = tvm.arith.IterMark(i1_expr, i1[1])
+    i0_mark = tvm.arith.IterMark(i0_expr, 0, i0[1])
+    i1_mark = tvm.arith.IterMark(i1_expr, 0, i1[1])
 
     i0_final = tvm.arith.IterSumExpr([tvm.arith.IterSplitExpr(i0_mark, 1, i0[1], 1)], 0)
     i1_final = tvm.arith.IterSumExpr([tvm.arith.IterSplitExpr(i1_mark, 1, i1[1], 1)], 0)
@@ -651,6 +685,10 @@ def test_normalize_iter_map_to_expr():
     )
     tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(res[1]), flm(x[0], 5))
 
+    # iter mark wrap a complex expr
+    split = tvm.arith.IterSplitExpr(tvm.arith.IterMark(x[0] * y[0] + 1, 0, 1024), 1, 1024, 1)
+    tvm.ir.assert_structural_equal(tvm.arith.normalize_iter_map_to_expr(split), x[0] * y[0] + 1)
+
 
 def test_inverse_affine_iter_map():
     analyzer = tvm.arith.Analyzer()
@@ -712,6 +750,38 @@ def test_inverse_affine_iter_map():
     assert analyzer.simplify(res[l0[0]] - l0_inverse) == 0
 
 
+def test_free_variables():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.Var("z", "int32")
+
+    # illegal iter if z is within dom
+    res = tvm.arith.detect_iter_map([z * 19 + y * 3 + x], var_dom([(x, 3), (y, 3), (z, 3)]))
+    assert len(res) == 0
+
+    # iter is valid if z is free, even there are linear forms of z
+    res = tvm.arith.detect_iter_map(
+        [z * 19 + y * 3 + x],
+        var_dom(
+            [
+                (x, 3),
+                (y, 3),
+            ]
+        ),
+    )
+    assert_iter_sum_pattern(res[0], 9, z * 19)
+    res = tvm.arith.detect_iter_map(
+        [z * z + y * 3 + x],
+        var_dom(
+            [
+                (x, 3),
+                (y, 3),
+            ]
+        ),
+    )
+    assert_iter_sum_pattern(res[0], 9, z * z)
+
+
 if __name__ == "__main__":
     test_split()
     test_trivial()
@@ -722,3 +792,4 @@ if __name__ == "__main__":
     test_subspace_division()
     test_complex()
     test_inverse_affine_iter_map()
+    test_free_variables()
