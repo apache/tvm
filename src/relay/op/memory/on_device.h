@@ -39,14 +39,50 @@ namespace relay {
 const Op& OnDeviceOp();
 
 /*!
- * \brief Wraps \p expr in an "on_device" CallNode for \p se_scope and \p is_fixed.
+ * \brief Wraps \p body in an "on_device" CallNode for \p se_scope.
  *
  * See \p OnDeviceAttrs for an overview.
  */
-Expr OnDevice(Expr expr, SEScope se_scope, bool is_fixed);
+Call OnDevice(Expr body, SEScope se_scope, bool constrain_result = false,
+              bool constrain_body = true);
+
+/*! \brief Result of \p GetOnDeviceProps. */
+struct OnDeviceProps {
+  Expr body;  // = null
+  SEScope se_scope = SEScope::FullyUnconstrained();
+  bool constrain_result = false;
+  bool constrain_body = false;
+
+  OnDeviceProps() = default;
+
+  OnDeviceProps(Expr body, SEScope se_scope, bool constrain_result, bool constrain_body)
+      : body(std::move(body)),
+        se_scope(std::move(se_scope)),
+        constrain_result(constrain_result),
+        constrain_body(constrain_body) {}
+
+  bool is_fixed() const { return constrain_result && constrain_body; }
+  bool is_normal() const { return !constrain_result && constrain_body; }
+};
 
 /*!
- * \brief Wraps \p expr in an "on_device" CallNode for \p se_scope and \p is_fixed if the
+ * \brief As for OnDevice, but taking all fields other than \p body from \p props.
+ */
+inline Call OnDeviceWithProps(Expr body, const OnDeviceProps& props) {
+  return OnDevice(std::move(body), props.se_scope, props.constrain_result, props.constrain_body);
+}
+
+/*!
+ * \brief As for OnDevice, but don't constrain the body or result to any particular virtual device.
+ * This allows a "device_copy" when required.
+ */
+inline Call OnDeviceCopyOk(Expr body) {
+  return OnDevice(std::move(body), SEScope::FullyUnconstrained(),
+                  /*constrain_result=*/false, /*constrain_body=*/false);
+}
+
+/*!
+ * \brief Wraps \p expr in an "on_device" CallNode for \p se_scope and \p constraint if the
  * \p SEScope for \p expr cannot otherwise be recovered by the lexical scoping convention.
  * This means we will NOT wrap if:
  *  - \p se_scope is full unconstrained, which signals there are no device annotations
@@ -57,33 +93,34 @@ Expr OnDevice(Expr expr, SEScope se_scope, bool is_fixed);
  *  - \p expr is a global var. The device is on the function attributes the global is bound to.
  *  - \p expr is a local var. The device is tracked by the device aware visitors for us.
  *  - \p expr is a constructor. These are device polymorphic.
- *
+ * Nested on_device calls will never be constructed, they are instead merged on-the-fly.
  */
-Expr MaybeOnDevice(Expr expr, SEScope se_scope, bool is_fixed);
+Expr MaybeOnDevice(Expr body, SEScope se_scope, bool constrain_result = false,
+                   bool constrain_body = true);
 
-/*! \brief Result of \p GetOnDeviceProps. */
-struct OnDeviceProps {
-  Expr body;  // = null
-  SEScope se_scope = SEScope::FullyUnconstrained();
-  bool is_fixed = false;
+/*! \brief As for MaybeOnDevice, but with both body and result constrained. */
+inline Expr MaybeOnDeviceFixed(Expr body, SEScope se_scope) {
+  return MaybeOnDevice(std::move(body), std::move(se_scope), /*constrain_result=*/true,
+                       /*constrain_body=*/true);
+}
 
-  OnDeviceProps() = default;
-
-  OnDeviceProps(Expr body, SEScope se_scope, bool isFixed)
-      : body(std::move(body)), se_scope(std::move(se_scope)), is_fixed(isFixed) {}
-};
+/*! \brief As for MaybeOnDevice, but with fields other than body taken from \p props. */
+inline Expr MaybeOnDeviceWithProps(Expr body, const OnDeviceProps& props) {
+  return MaybeOnDevice(std::move(body), props.se_scope, props.constrain_result,
+                       props.constrain_body);
+}
 
 /*!
- * \brief Returns the body expression, \p SEScope, and is_fixed field for \p call_node if it
+ * \brief Returns the body expression, \p SEScope, and constraint field for \p call_node if it
  * is an "on_device" CallNode. Otherwise returns the null expression, the unconstrained
- * \p SEScope, and false.
+ * \p SEScope, and \p kBody.
  */
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node);
 
 /*!
- * \brief Returns the body expression, \p SEScope, and is_fixed field for \p expr if it is an
+ * \brief Returns the body expression, \p SEScope, and constraint field for \p expr if it is an
  * "on_device" CallNode. Otherwise returns the null expression, the unconstrained \p SEScope,
- * and \p false.
+ * and \p kBody.
  */
 OnDeviceProps GetOnDeviceProps(const Expr& expr);
 

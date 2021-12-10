@@ -301,7 +301,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   size_t NewRegister() { return registers_num_++; }
 
   inline void Emit(const Instruction& instr) {
-    VLOG(2) << "VMCompiler::Emit: instr=" << instr;
+    size_t instruction_index = instructions_.size();
+    VLOG(2) << "instruction[" << instruction_index << "] = " << instr;
     ICHECK((int)instr.op < 100) << "Invalid opcode " << (int)instr.op;
     switch (instr.op) {
       case Opcode::AllocADT:
@@ -336,10 +337,9 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
    * in emitted code. Note that the host device is always at index 0.
    */
   Index GetDeviceIndex(const SEScope& se_scope) {
-    VLOG(2) << "getting device index for " << se_scope;
+    ICHECK(!se_scope->IsFullyUnconstrained());
     auto itr = std::find(context_->se_scopes_.begin(), context_->se_scopes_.end(), se_scope);
     if (itr != context_->se_scopes_.end()) {
-      VLOG(2) << "reusing existing scope";
       return std::distance(context_->se_scopes_.begin(), itr);
     }
 
@@ -367,7 +367,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
 
     ICHECK(se_scope != host_se_scope_);
     Index index = context_->se_scopes_.size();
-    VLOG(2) << "adding new scope";
+    VLOG(2) << "se_scope[" << index << "] = " << se_scope;
     context_->se_scopes_.push_back(se_scope);
 
     return index;
@@ -378,11 +378,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   void VisitExpr_(const ConstantNode* const_node) final {
     // Check the shape is valid
     NDArray data = const_node->data;
-    size_t konst_idx = context_->constants.size();
+    size_t const_index = context_->constants.size();
     auto con = GetRef<Constant>(const_node);
-    context_->const_device_indexes.push_back(GetDeviceIndex(GetSEScope(con)));
+    Index device_index = GetDeviceIndex(GetSEScope(con));
+    VLOG(2) << "constant[" << const_index << "] on device[" << device_index << "]";
+    context_->const_device_indexes.push_back(device_index);
     context_->constants.push_back(const_node->data);
-    Emit(Instruction::LoadConst(konst_idx, NewRegister()));
+    Emit(Instruction::LoadConst(const_index, NewRegister()));
   }
 
   void VisitExpr_(const VarNode* var_node) final {
@@ -872,6 +874,7 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
 
   // The first device is always for the host.
   CHECK(context_.se_scopes_.empty());
+  VLOG(2) << "se_scope[0] = " << config_->host_se_scope << " (host)";
   context_.se_scopes_.push_back(config_->host_se_scope);
 
   // Run the optimizations necessary to target the VM.
