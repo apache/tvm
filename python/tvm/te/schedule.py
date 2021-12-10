@@ -527,9 +527,15 @@ class Stage(Object):
         """Defines the layout transformation for the current stage's tensor.
 
         The map from initial_indices to final_indices must be an
-        invertible affine transformation.
+        invertible affine transformation.  This method may be called
+        more than once for a given tensor, in which case each
+        transformation is applied sequentially.
 
-        This method may be called more than once for a given tensor, in which case each
+        If the stage is a ComputeOp, then the iteration order of the
+        compute stage is rewritten to be a row-major traversal of the
+        tensor, and the new loop iteration variables are returned.
+        For all other stages, the loop iteration order is unmodified,
+        and the return value is None.
 
         Parameters
         ----------
@@ -542,6 +548,17 @@ class Stage(Object):
             value of the function gives the location of that value in
             the current stage's tensor, using the post-transformation
             layout.
+
+        Returns
+        -------
+        new_iter_vars : Optional[List[tvm.tir.IterVar]]
+
+            If the stage is a ComputeOp, then the return will be the
+            updated loop iteration variables over the data array, in
+            the same order as the output values from the
+            `mapping_function`.
+
+            Otherwise, the return value is None.
 
         Examples
         --------
@@ -557,14 +574,28 @@ class Stage(Object):
 
         .. code-block:: python
 
-            # ``A`` is a tensor whose compute definition is in format,
-            # and should be transformed such that the last index is
-            # split, with the slower-chan index of the split placed at the
-            # slowest changing dimension.
+            # ``A`` is a tensor whose compute definition is in an
+            # arbitrary format, and should be transformed such that
+            # the last index is split, with the slower-changing index
+            # of the split placed at the slowest changing dimension.
 
             s[A].transform_layout(
                 lambda *indices, i: [i//4, *indices, i%4]
             )
+
+        .. code-block:: python
+
+            # ``B`` is a tensor defined by te.compute to be a copy of
+            # ``A`, and should be transformed such that ``B``'s layout
+            # is a transpose of ``A``'s layout.  The loop iteration
+            # that computes ``B`` will correspond to ``B``'s memory
+            # layout.
+
+            A = te.placeholder([n,m])
+            B = te.compute(A.shape, lambda i,j: A[i,j])
+            s = te.create_schedule(B.op)
+
+            s[B].transform_layout(lambda i,j: [j,i])
 
         """
 
@@ -626,9 +657,10 @@ class Stage(Object):
                     "Instead received {val} of type {type(val)}."
                 )
 
-        _ffi_api.StageTransformLayout(self, initial_indices, final_indices)
+        new_iter_vars = _ffi_api.StageTransformLayout(self, initial_indices, final_indices)
         _ffi_api.StageSetAxisSeparators(self, axis_separators)
 
+        return new_iter_vars or None
 
 
 @tvm._ffi.register_object

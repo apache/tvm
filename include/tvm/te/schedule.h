@@ -276,10 +276,14 @@ class Stage : public ObjectRef {
    * Expressions should be in terms of the variables given in
    * initial_indices.
    *
+   * \param out_iter_vars An optional output location for the updated
+   * loop iteration variables.
+   *
    * \return reference to self
    */
   TVM_DLL Stage& transform_layout(const Array<Var>& initial_indices,
-                                  const Array<PrimExpr>& final_indices);
+                                  const Array<PrimExpr>& final_indices,
+                                  Array<IterVar>* out_iter_vars = nullptr);
   /*! \brief Defines separators between groups of axes.
    *
    * Used to define `BufferNode::axis_separators`, which has

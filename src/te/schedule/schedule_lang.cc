@@ -432,7 +432,8 @@ Stage& Stage::rolling_buffer() {
   return *this;
 }
 Stage& Stage::transform_layout(const Array<Var>& initial_indices,
-                               const Array<PrimExpr>& final_indices) {
+                               const Array<PrimExpr>& final_indices,
+                               Array<IterVar>* out_iter_vars) {
   StageNode* self = operator->();
   IndexMap map(initial_indices, final_indices);
   self->layout_transforms.push_back(map);
@@ -490,6 +491,11 @@ Stage& Stage::transform_layout(const Array<Var>& initial_indices,
 
   // Define a relationship for each new axis
   self->relations.push_back(Transform(compute->axis, final_indices_iter, map, inverse));
+
+  // Return the iteration variables as an output.
+  if (out_iter_vars) {
+    *out_iter_vars = final_indices_iter;
+  }
 
   return *this;
 }
@@ -975,7 +981,13 @@ TVM_REGISTER_GLOBAL("te.StageDoubleBuffer").set_body_method(&Stage::double_buffe
 
 TVM_REGISTER_GLOBAL("te.StageRollingBuffer").set_body_method(&Stage::rolling_buffer);
 
-TVM_REGISTER_GLOBAL("te.StageTransformLayout").set_body_method(&Stage::transform_layout);
+TVM_REGISTER_GLOBAL("te.StageTransformLayout")
+    .set_body_typed([](Stage stage, const Array<Var>& initial_indices,
+                       const Array<PrimExpr>& final_indices) {
+      Array<IterVar> new_iter_vars;
+      stage.transform_layout(initial_indices, final_indices, &new_iter_vars);
+      return new_iter_vars;
+    });
 
 TVM_REGISTER_GLOBAL("te.StageSetAxisSeparators").set_body_method(&Stage::set_axis_separators);
 
