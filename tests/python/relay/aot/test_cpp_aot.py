@@ -45,7 +45,8 @@ def print_mod_tree(m, indent=0):
       print_mod_tree(i, indent + 2)
 
 def test_conv2d():
-    RELAY_MODEL = textwrap.dedent("""\
+    RELAY_MODEL = textwrap.dedent(
+        """\
         #[version = "0.0.5"]
         def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
             %1 = nn.conv2d(
@@ -59,7 +60,8 @@ def test_conv2d():
                  out_dtype="int32");
           %1
         }
-    """)
+    """
+    )
     ir_mod = tvm.parser.fromtext(RELAY_MODEL)
 
     main_func = ir_mod["main"]
