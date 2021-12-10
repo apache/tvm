@@ -118,8 +118,8 @@ def elementwise_handle(
 # match buffer - use buffer with kwargs
 @T.prim_func
 def elementwise_buffer_kwargs(
-    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=None),
-    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32", elem_offset=None),
+    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
+    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):
         with T.block("B"):
