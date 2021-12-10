@@ -276,10 +276,14 @@ class Stage : public ObjectRef {
    * Expressions should be in terms of the variables given in
    * initial_indices.
    *
+   * \param out_iter_vars An optional output location for the updated
+   * loop iteration variables.
+   *
    * \return reference to self
    */
   TVM_DLL Stage& transform_layout(const Array<Var>& initial_indices,
-                                  const Array<PrimExpr>& final_indices);
+                                  const Array<PrimExpr>& final_indices,
+                                  Array<IterVar>* out_iter_vars = nullptr);
   /*! \brief Defines separators between groups of axes.
    *
    * Used to define `BufferNode::axis_separators`, which has
@@ -498,9 +502,27 @@ class StageNode : public Object {
    *  while origin_op remains fixed.
    */
   Operation origin_op;
-  /*! \brief All the nodes in the iter var */
+  /*! \brief All the nodes in the iter var
+   *
+   * Each element of all_iter_vars represents an iteration variable
+   * that may appear within this stage's computation.  Any element
+   * of `all_iter_vars` that is in `leaf_iter_vars` represents a
+   * variable that is directly defined and usable within the stage's
+   * computation.  All other elements of `all_iter_vars` represent
+   * variables whose value must be computed from the variables in
+   * `leaf_iter_vars`.  (e.g. Support index k has been split by
+   * ``ko, ki = s.split(k, factor=4)``.  ko and ki will appear in
+   * `leaf_iter_vars`, while k will not, and must be computed as
+   * `4*ko + ki`.
+   */
   Array<IterVar> all_iter_vars;
-  /*! \brief The current active leaf iter vars in the stage. */
+  /*! \brief The current active leaf iter vars in the stage.
+   *
+   * Each element of leaf_iter_vars will either be replaced with the
+   * bound index (e.g. threadIdx.x), or will be expanded into a loop
+   * over the variable's extent.  `leaf_iter_vars` is a subset of
+   * `all_iter_vars`.
+   */
   Array<IterVar> leaf_iter_vars;
   /*!
    * \brief Specify threads to be launched at the stage.
@@ -811,6 +833,36 @@ class Singleton : public IterVarRelation {
   TVM_DLL explicit Singleton(IterVar iter);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Singleton, IterVarRelation, SingletonNode);
+};
+
+/*!
+ * \brief Transform iterator according to some arbitrary expression.
+ */
+class TransformNode : public IterVarRelationNode {
+ public:
+  Array<IterVar> original_variables;
+  Array<IterVar> transformed_variables;
+  IndexMap forward_transformation;
+  IndexMap inverse_transformation;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("original_variables", &original_variables);
+    v->Visit("transformed_variables", &transformed_variables);
+    v->Visit("forward_transformation", &forward_transformation);
+    v->Visit("inverse_transformation", &inverse_transformation);
+  }
+
+  static constexpr const char* _type_key = "Transform";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TransformNode, IterVarRelationNode);
+};
+
+class Transform : public IterVarRelation {
+ public:
+  TVM_DLL explicit Transform(Array<IterVar> original_variables,
+                             Array<IterVar> transformed_variables, IndexMap forward_transformation,
+                             IndexMap inverse_transformation);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(Transform, IterVarRelation, TransformNode);
 };
 
 /*! \brief Container for specialization conditions. */
