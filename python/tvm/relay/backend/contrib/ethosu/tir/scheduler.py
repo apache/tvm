@@ -132,7 +132,7 @@ def copy_constants():
         planned = set()  # type: ignore
 
         def _visit(tensor, reader, lut):
-            if tensor is not planned:
+            if tensor not in planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor != lut:
                     index = list(cached_func.inputs).index(tensor)
@@ -164,7 +164,7 @@ def copy_luts():
         planned = set()  # type: ignore
 
         def _visit(tensor, reader, lut):
-            if tensor is not planned:
+            if tensor not in planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor == lut:
                     index = list(te_graph.inputs).index(tensor)
