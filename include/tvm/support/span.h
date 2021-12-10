@@ -19,7 +19,7 @@
 
 /*!
  *
- * \file span.h
+ * \file tvm/support/span.h
  * \brief Reimplementation of part of C++-20 style span.
  */
 #ifndef TVM_SUPPORT_SPAN_H_
