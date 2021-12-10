@@ -338,8 +338,8 @@ class BlockReads(SpecialStmt):
                 for read_region in read_regions:
                     if not isinstance(read_region, BufferSlice):
                         self.context.report_error(
-                            "Incorrect input type. "
-                            + f"Expected *BufferSlice or List[BufferSlice], but got {type(read_regions)}",
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(read_regions)}",
                             span,
                         )
             elif len(read_regions) == 1:
@@ -390,8 +390,8 @@ class BlockWrites(SpecialStmt):
                 for write_region in write_regions:
                     if not isinstance(write_region, BufferSlice):
                         self.context.report_error(
-                            "Incorrect input type. "
-                            + f"Expected *BufferSlice or List[BufferSlice], but got {type(write_regions)}",
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(write_regions)}",
                             span,
                         )
             elif len(write_regions) == 1:
