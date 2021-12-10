@@ -42,12 +42,14 @@ Function::Function(tvm::Array<Var> params, Expr body, Type ret_type,
 
 Function WithFields(Function function, Optional<Array<Var>> opt_params, Optional<Expr> opt_body,
                     Optional<Type> opt_ret_type, Optional<Array<TypeVar>> opt_ty_params,
-                    Optional<DictAttrs> opt_attrs, Optional<Span> opt_span) {
+                    Optional<DictAttrs> opt_attrs, Optional<SEScope> opt_virtual_device,
+                    Optional<Span> opt_span) {
   Array<Var> params = opt_params.value_or(function->params);
   Expr body = opt_body.value_or(function->body);
   Type ret_type = opt_ret_type.value_or(function->ret_type);
   Array<TypeVar> ty_params = opt_ty_params.value_or(function->type_params);
   DictAttrs attrs = opt_attrs.value_or(function->attrs);
+  SEScope virtual_device = opt_virtual_device.value_or(function->virtual_device());
   Span span = opt_span.value_or(function->span);
 
   bool unchanged = body.same_as(function->body) && ret_type.same_as(function->ret_type) &&
@@ -86,6 +88,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params, Optional
     cow_function_node->ret_type = ret_type;
     cow_function_node->type_params = ty_params;
     cow_function_node->attrs = attrs;
+    cow_function_node->virtual_device_ = virtual_device;
     cow_function_node->span = span;
   }
   return std::move(function);
