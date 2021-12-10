@@ -30,7 +30,8 @@ def test_on_device_via_string():
     assert call.attrs.se_scope.virtual_device_id == 0
     assert call.attrs.se_scope.target is None
     assert call.attrs.se_scope.memory_scope == ""
-    assert not call.attrs.is_fixed
+    assert call.attrs.constrain_body
+    assert not call.attrs.constrain_result
 
 
 def test_on_device_via_device():
@@ -44,11 +45,20 @@ def test_on_device_invalid_device():
     pytest.raises(ValueError, lambda: relay.annotation.on_device(x, "bogus"))
 
 
-def test_on_device_is_fixed():
+def test_on_device_fixed():
     x = relay.Var("x")
-    call = relay.annotation.on_device(x, "cuda", True)
+    call = relay.annotation.on_device(x, "cuda", constrain_result=True)
     assert call.attrs.se_scope.device_type_int == 2  # ie kDLCUDA
-    assert call.attrs.is_fixed
+    assert call.attrs.constrain_body
+    assert call.attrs.constrain_result
+
+
+def test_on_device_free():
+    x = relay.Var("x")
+    call = relay.annotation.on_device(x, "cuda", constrain_result=False, constrain_body=False)
+    assert call.attrs.se_scope.device_type_int == -1  # ie kInvalidDeviceType
+    assert not call.attrs.constrain_body
+    assert not call.attrs.constrain_result
 
 
 def test_function_on_device():

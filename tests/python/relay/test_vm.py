@@ -1040,8 +1040,8 @@ def test_storage_size_and_offset_on_cpu():
     # - The offset of the tensor within the storage (second arg) to alloc_tensor
     # Both should be on the CPU
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Constant[0]: has shape int64[] on device index 0" in exe.constants
-    assert "Constant[1]: has shape int64[] on device index 0" in exe.constants
+    assert "Const[0]: has shape int64[] on device index 0" in exe.constants
+    assert "Const[1]: has shape int64[] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
@@ -1073,7 +1073,7 @@ def test_reshape_shape_on_cpu():
 
     # The newshape annotation should have been turned into a constant on the CPU.
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Constant[0]: has shape int64[3] on device index 0" in exe.constants
+    assert "Const[0]: has shape int64[3] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda

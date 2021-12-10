@@ -62,6 +62,16 @@ class DeviceDomains;
  *   result_domain(<se_scope>)         = <se_scope>
  *   result_domain(fn(D1, ..., Dn):Dr) = result_domain(Dr)
  * \endcode
+ *
+ * TODO(mbs): We currently don't allow sub-SEScope constraints. Eg for a function we can
+ * express that the argument and result SEScopes must be exactly equal, but we cannot express
+ * that though the devices and targets for arguments and results must be equal, it is ok for
+ * memory scopes to differ. At the moment we can get away with this since we run PlanDevices
+ * twice: once with all memory scopes unconstrained, then again with just memory scopes as
+ * the new property to flow. However we're on thin ice here and better would be to allow
+ * constraints on SEScopes to be exploded into their device/target component and their
+ * memory scope component. Should we fold layout constraints into SEScopes then they would
+ * probably be grouped with memory scopes.
  */
 class DeviceDomain {
  public:
@@ -177,7 +187,8 @@ class DeviceDomains {
 
   /*!
    * \brief Unifies \p lhs and \p rhs, returning the most-bound of the two. Returns null if
-   * \p lhs and \p rhs are not unifiable.
+   * \p lhs and \p rhs are not unifiable, in which case the constraint system may be left in
+   * a partially modified state.
    */
   // TODO(mbs): I don't think we need an occurs check since the program is well-typed, but
   // given we have refs to functions I'm prepared to be surprised.
@@ -236,6 +247,12 @@ class DeviceDomains {
    * Aborts if unification fails.
    */
   void UnifyExprExact(const Expr& lhs, const Expr& rhs);
+
+  /*!
+   * \brief Attempts to unify the domains for expressions \p lhs and \p rhs, however if they
+   * cannot be unified then returns with no change to the unification system.
+   */
+  void OptionalUnifyExprExact(const Expr& lhs, const Expr& rhs);
 
   /*!
    * \brief Unifies the domain for \p expr with \p expected_domain.
