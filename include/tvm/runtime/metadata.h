@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_METADATA_H_
 
 #include <inttypes.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -32,7 +33,7 @@
 // TODO(areusch): idk what's up here.
 #include <tvm/runtime/c_runtime_api.h>  // NOLINT(build/include_order)
 #include <tvm/runtime/metadata_base.h>  // NOLINT(build/include_order)
-#include <tvm/support/span.h>  // NOLINT(build/include_order)
+#include <tvm/support/span.h>           // NOLINT(build/include_order)
 
 #define TVM_METADATA_VERSION 1
 static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;

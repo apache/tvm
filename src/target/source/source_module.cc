@@ -23,17 +23,17 @@
  */
 #include "source_module.h"
 
-#include <tuple>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 // TODO(areusch): idk what's up here...
-#include <tvm/runtime/ndarray.h>  // NOLINT(build/include_order)
+#include <tvm/runtime/ndarray.h>      // NOLINT(build/include_order)
 #include <tvm/runtime/packed_func.h>  // NOLINT(build/include_order)
-#include <tvm/runtime/registry.h>  // NOLINT(build/include_order)
+#include <tvm/runtime/registry.h>     // NOLINT(build/include_order)
 
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
