@@ -55,16 +55,16 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
   CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
-  CHECK(ndim == 1 || ndim == 2);
 
-  size_t typesize = (dtype.bits / 8) * dtype.lanes;
-
+  // Forcing contiguous allocation, for now
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
   size_t nallocs = 1;
-  size_t nbytes = shape[0] * typesize;
-  if (ndim == 2) {
-    nallocs = shape[0];
-    nbytes = shape[1] * typesize;
+  size_t nbytes = 1;
+  for (int i = 0; i < ndim; ++i) {
+    nbytes *= shape[i];
   }
+  size_t typesize = (dtype.bits / 8) * dtype.lanes;
+  nbytes *= typesize;
 
   size_t alignment = typesize;
   if (alignment < kHexagonAllocAlignment) {
@@ -98,6 +98,8 @@ void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType typ
   auto* hexbuf = static_cast<HexagonBuffer*>(
       dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size));
 
+  // Assumes a single contiguous allocation
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
   void* ptr = hexbuf->GetPointer()[0];
   workspace_allocations_.insert({ptr, hexbuf});
   return ptr;

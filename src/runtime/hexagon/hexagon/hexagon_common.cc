@@ -87,6 +87,8 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
+        // Assumes a single contiguous allocation
+        // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
         tensor->data = buffer_args.back().second->GetPointer()[0];
       }
     }
