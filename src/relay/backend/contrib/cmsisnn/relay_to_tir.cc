@@ -156,10 +156,12 @@ class RelayToTIRVisitor : public MixedModeMutator {
                                         ToArg(dilation_w),   ToArg(dilation_h),    ToArg(clip_min),
                                         ToArg(clip_max)};
 
-    // layout NHWC
+    // CMSIS-NN data structure "cmsis_nn_dims" for ifm expects input layout as NHWC
+    // This is the same layout we expect in Relay
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
 
-    // OHWI for Conv2D and IHWO for depthwise
+    // CMSIS-NN data structure "cmsis_nn_dims" for weights expects following layouts
+    // OHWI for Conv2D and IHWO for Depthwise convolutions
     Array<PrimExpr> filter_shape = conv2d_call->args[1]->type_as<TensorTypeNode>()->shape;
 
     Array<PrimExpr> bias_shape{1, 1, 1, out_channels};
@@ -179,7 +181,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
     std::string cmsisnn_api = "arm_convolve_wrapper_s8";
     if (depth_multiplier != -1) {
       cmsisnn_api = "arm_depthwise_conv_wrapper_s8";
-      Array<PrimExpr> depthwise_filter_shape{1, filter_shape[0], filter_shape[1], out_channels};
+      int filter_pos_h = kernel_layout.find("H");
+      int filter_pos_w = kernel_layout.find("W");
+      Array<PrimExpr> depthwise_filter_shape{1, filter_shape[filter_pos_h],
+                                             filter_shape[filter_pos_w], out_channels};
       filter_shape = depthwise_filter_shape;
     }
 
