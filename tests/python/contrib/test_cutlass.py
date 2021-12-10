@@ -386,7 +386,7 @@ def test_conv2d():
             sm=80,
             atol=1e-5,
             rtol=1e-5,
-            use_cudnn_ref=IC == 3,
+            use_cudnn_ref=(IC == 3),  # The autotvm kernel has an accuracy issue with IC == 3 case
             run_benchmark=False,
         )
 
