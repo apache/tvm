@@ -87,7 +87,7 @@ def check_batch_matmul(call):
     rhs = batch_matmul.args[1].checked_type
     transpose_a = batch_matmul.attrs.transpose_a
     transpose_b = batch_matmul.attrs.transpose_b
-    return check_dtype(lhs, rhs) and transpose_a == False and transpose_b == True
+    return check_dtype(lhs, rhs) and not transpose_a and transpose_b
 
 
 def check_conv2d(call):

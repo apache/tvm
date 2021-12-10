@@ -128,7 +128,7 @@ class CutlassConv2DProfiler:
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
-        B, H, W, IC = d_shape
+        B, _, _, IC = d_shape
         OC, R, S, _ = w_shape
         _, P, Q, _ = out_shape
 

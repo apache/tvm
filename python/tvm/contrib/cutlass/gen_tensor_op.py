@@ -136,7 +136,6 @@ def generate_sm80_tensor_op_16816(out_dtype, op_creator):
             TileDescription([128, 256, 32], 3, [2, 4, 1], math_inst, min_cc, max_cc),
             TileDescription([256, 64, 32], 4, [4, 1, 1], math_inst, min_cc, max_cc),
             TileDescription([64, 256, 32], 4, [1, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
             TileDescription([128, 128, 32], 3, [2, 2, 1], math_inst, min_cc, max_cc),
             TileDescription([128, 128, 32], 4, [2, 2, 1], math_inst, min_cc, max_cc),
             TileDescription([128, 128, 32], 5, [2, 2, 1], math_inst, min_cc, max_cc),
