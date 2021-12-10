@@ -108,6 +108,25 @@ class SplitRewriter(DFPatternCallback):
         return relay.Tuple(strided_slices)
 
 
+class PartitionedSplitRewriter(DFPatternCallback):
+    """This pass brings the split out of the partitioned function"""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.SplitParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        split_input = post.args[0]
+        split_params = ethosu_patterns.SplitParams(post.op.body)
+        indices_or_sections = split_params.indices_or_sections
+        axis = split_params.axis
+        return relay.op.split(split_input, indices_or_sections, axis=axis).astuple()
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeSplit:
     """This is the pass that wraps SplitRewriter"""
@@ -116,6 +135,7 @@ class LegalizeSplit:
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
+            func = rewrite(PartitionedSplitRewriter(), func)
             func = rewrite(SplitRewriter(), func)
             mod.update_func(global_var, func)
         return mod
