@@ -75,7 +75,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
   n->dtype = source->source->dtype;
   n->source = std::move(source);
   n->extent = n->source->extent;
-  if (is_zero(n->source->min)) {
+  if (!is_zero(n->source->min)) {
     n->extent = n->extent + n->source->min;
   }
   n->lower_factor = one;
@@ -233,13 +233,20 @@ class IterMapRewriter : public ExprMutator {
     collector.Collect(bindings);
     for (const IterMark& mark : collector.visited_) {
       if (TryNormalizeSplits(mark, collector.mark2splits_[mark], require_bijective).empty()) {
+        diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
+                       << "Fail to normalize iter mark splits: " << mark);
         return false;
       }
     }
     if (require_bijective) {
       // all input marks must be visited
       for (const IterMark& mark : input_marks_) {
-        if (collector.visited_.count(mark) == 0) return false;
+        if (collector.visited_.count(mark) == 0) {
+          diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
+                         << "The mapping is not bijective because input iter mark " << mark
+                         << " is not covered, ");
+          return false;
+        }
       }
     }
     return true;
@@ -425,26 +432,48 @@ class IterMapRewriter : public ExprMutator {
       }
       if (j == splits.size()) {
         // we do not allow incomplete split if the bindings should be bijective
-        if (require_bijective) return Array<IterSplitExpr>();
+        if (require_bijective) {
+          diag_ctx_.Emit(
+              Diagnostic::Error(mark->source->span)
+              << "Do not allow incomplete split in bijective checking, expected_lower_factor="
+              << expected_lower_factor);
+          return Array<IterSplitExpr>();
+        }
         // look for the next split skipping this lower factor
         // For example, y \in [0, 24) has 3 splits [y / 6, (y / 2) % 6, y % 2]
         // It is valid to only have [y / 6, y % 2] if bijective is not required
         // We can skip (y / 2) % 6
         j = SearchSkipLowerFactor(splits, used, expected_lower_factor);
         // split not found
-        if (j == splits.size()) return Array<IterSplitExpr>();
+        if (j == splits.size()) {
+          diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
+                         << "Fail to find split skipping the lower factor in bijective-free "
+                            "checking, expected_lower_factor="
+                         << expected_lower_factor);
+          return Array<IterSplitExpr>();
+        }
       }
       used[j] = true;
       iters.push_back(splits[j]);
       expected_lower_factor = splits[j]->lower_factor * splits[j]->extent;
     }
+
     // Case 1. bijective is required.
     //         We check the extent we calculate is consistent with the extent of the mark
     // Case 2. bijective is not required.
-    //         We check the extent we calculate is a factor of the extent of the mark
+    //         We check either
+    //         (1) the extent we calculate is a factor of the extent of the mark
     //         For example, y \in [0, 24) [(y / 2) % 6, y % 2] is valid, but y \in [0, 25) is not.
-    if ((require_bijective && !analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) ||
-        (!require_bijective && !CanProveDivisible(mark->extent, expected_lower_factor))) {
+    //         (2) the extent we calculate is larger than the max of the mark
+    //         For example, y \in [1, 8] [y / 18, y % 18] is valid.
+    if ((require_bijective &&
+         !(analyzer_->CanProveEqual(expected_lower_factor, mark->extent) && is_zero(mark->min))) ||
+        (!require_bijective &&
+         !(CanProveDivisible(mark->extent, expected_lower_factor) ||
+           analyzer_->CanProve(mark->min + mark->extent <= expected_lower_factor)))) {
+      diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
+                     << "Mark extent of " << mark
+                     << " is not compatible with expected_lower_factor=" << expected_lower_factor);
       return Array<IterSplitExpr>();
     }
     return Array<IterSplitExpr>(iters.rbegin(), iters.rend());

@@ -271,7 +271,7 @@ def test_region_lower_bound_for_non_perfect_tile():
             tvm.tir.max(h3 * 8, 1) - tvm.tir.max(h3 * 8, 214) - tvm.tir.max(1 + h3 * -8, 0) + 223,
         ),
     )
-    # shoud fail on incompatible predicates
+    # should fail on incompatible predicates
     do_test_point_access(
         point=h3 * 8 + h2 * 5 + h1,
         predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224],

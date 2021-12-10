@@ -283,6 +283,7 @@ class IterSumExpr : public IterMapExpr {
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
+ * \param diag_ctx Diagnostic context.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
@@ -297,7 +298,6 @@ Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, 
  * \param input_iters Map from variable to iterator's range.
  * \param input_pred The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
- * \param diag_ctx Diagnostic context.
  *
  * \return The indices after rewrite
  */

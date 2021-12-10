@@ -44,7 +44,7 @@ def var_dom(iters):
     return {var: tvm.ir.Range(0, ext) for var, ext in iters}
 
 
-def assert_iter_sum_pattern(sum_expr, extent, base, scale=1, min=0):
+def assert_iter_sum_pattern(sum_expr, extent, base, scale=1, mark_min=0, mark_extent=None):
     """Check the sum expr have the right pattern."""
     assert isinstance(sum_expr, tvm.arith.IterSumExpr)
     if extent == 1:
@@ -53,7 +53,9 @@ def assert_iter_sum_pattern(sum_expr, extent, base, scale=1, min=0):
         assert len(sum_expr.args) == 1
         tvm.testing.assert_prim_expr_equal(sum_expr.args[0].extent, extent)
         tvm.testing.assert_prim_expr_equal(sum_expr.args[0].scale, scale)
-        tvm.testing.assert_prim_expr_equal(sum_expr.args[0].source.min, min)
+        tvm.testing.assert_prim_expr_equal(sum_expr.args[0].source.min, mark_min)
+        if mark_extent:
+            tvm.testing.assert_prim_expr_equal(sum_expr.args[0].source.extent, mark_extent)
     tvm.testing.assert_prim_expr_equal(sum_expr.base, base)
 
 
@@ -212,10 +214,10 @@ def test_predicate():
     # lower bound only
     res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] > 5)
     assert len(res) == 1
-    assert_iter_sum_pattern(res[0], 124, 0, min=6)
+    assert_iter_sum_pattern(res[0], 130, 0, mark_min=6, mark_extent=124)
     res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 + y[0] >= 6)
     assert len(res) == 1
-    assert_iter_sum_pattern(res[0], 124, 0, min=6)
+    assert_iter_sum_pattern(res[0], 130, 0, mark_min=6, mark_extent=124)
 
     # lower bound + upper bound
     res = tvm.arith.detect_iter_map(
@@ -224,14 +226,14 @@ def test_predicate():
         tvm.tir.And(x[0] * 10 + y[0] > 5, x[0] * 10 + y[0] < 128),
     )
     assert len(res) == 1
-    assert_iter_sum_pattern(res[0], 122, 0, min=6)
+    assert_iter_sum_pattern(res[0], 128, 0, mark_min=6, mark_extent=122)
     res = tvm.arith.detect_iter_map(
         [x[0] * 10 + y[0]],
         var_dom([x, y]),
         tvm.tir.And(x[0] * 10 + y[0] >= 6, x[0] * 10 + y[0] <= 127),
     )
     assert len(res) == 1
-    assert_iter_sum_pattern(res[0], 122, 0, min=6)
+    assert_iter_sum_pattern(res[0], 128, 0, mark_min=6, mark_extent=122)
 
     # non-standard form of predicate
     res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 < 128 - y[0])

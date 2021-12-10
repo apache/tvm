@@ -315,7 +315,7 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def non_uniform_tiling_cache(a: T.handle, b: T.handle) -> None:
+def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
     X = T.match_buffer(a, [224, 224], dtype="float32")
     Y = T.match_buffer(b, [224, 224], dtype="float32")
     cache = T.alloc_buffer([224, 224], dtype="float32")
@@ -325,6 +325,12 @@ def non_uniform_tiling_cache(a: T.handle, b: T.handle) -> None:
                 with T.block("cache"):
                     h = T.axis.spatial(224, T.max(hh_0 * 8 - 1, 0) + ax0)
                     w = T.axis.spatial(224, T.max(ww_0 * 8 - 1, 0) + ax1)
+                    T.where(
+                        1 <= hh_0 * 8 + ax0
+                        and hh_0 * 8 + ax0 < 225
+                        and 1 <= ww_0 * 8 + ax1
+                        and ww_0 * 8 + ax1 < 225
+                    )
                     cache[h, w] = X[h, w]
         for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
             with T.block("compute"):
@@ -735,8 +741,8 @@ def test_warp_memory_negative():
     # pylint: enable=protected-access
 
 
-def test_non_uniform_tiling():
-    s = tir.ScheduleState(non_uniform_tiling_cache, debug_mask="all")
+def test_non_perfect_tiling_cache():
+    s = tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
     # pylint: disable=protected-access
     assert s._get_cached_flags(_get_block(s, "cache")) == CachedFlags(
         affine_binding=False,
