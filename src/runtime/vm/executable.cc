@@ -178,7 +178,7 @@ std::string Executable::GetConstants() const {
   for (size_t i = 0; i < constants.size(); ++i) {
     const auto& constant = constants[i];
     auto ndarray = Downcast<NDArray>(constant);
-    oss << "VM Constant[" << i << "]: has shape " << ShapeString(ndarray.Shape(), ndarray->dtype)
+    oss << "VM Const[" << i << "]: has shape " << ShapeString(ndarray.Shape(), ndarray->dtype)
         << " on device index " << const_device_indexes[i] << std::endl;
   }
   return oss.str();

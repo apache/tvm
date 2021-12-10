@@ -116,10 +116,10 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
         // Since we are replacing the Relay function with a call to a TIR function, we must use the
         // call_lowered op.
-        auto call_lowered_attrs = make_object<CallLoweredAttrs>();
-        call_lowered_attrs->metadata.Set("relay_attrs", call->attrs);
-        return CallLowered(std::move(new_global_var), call->args,
-                           std::move(Attrs(call_lowered_attrs)), call->type_args, call->span);
+        CallLoweredAttrs attrs;
+        attrs.metadata.Set("relay_attrs", call->attrs);
+        ICHECK(call->type_args.empty()) << "lowered functions cannot be polymorphic";
+        return CallLowered(std::move(new_global_var), call->args, std::move(attrs), call->span);
       }
     }
 
@@ -144,5 +144,4 @@ transform::Pass RelayToTIR() {
 }  // namespace example_target_hooks
 }  // namespace contrib
 }  // namespace relay
-
 }  // namespace tvm
