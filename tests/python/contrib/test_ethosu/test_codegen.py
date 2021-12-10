@@ -929,5 +929,27 @@ def test_tflite_sigmoid(accel_type):
     _compare_tvm_with_tflite(sigmoid_function, [ifm_shape], accel_type)
 
 
+# This codegen test checks both, split and split_v
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape, num_or_size_splits, axis",
+    [
+        ((1, 4, 6, 8), (1, 3, 4), 3),
+        ((4, 6, 8), 2, 0),
+        ((50,), 25, 0),
+        ((5, 11), 1, 1),
+        ((13,), (13,), 0),
+        ((22, 7), (4, -1), 1),
+    ],
+)
+def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
+    @tf.function
+    def split_func(x):
+        op = tf.split(x, num_or_size_splits, axis=axis)
+        return op
+
+    _compare_tvm_with_tflite(split_func, [ifm_shape], accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

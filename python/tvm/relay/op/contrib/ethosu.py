@@ -1107,6 +1107,44 @@ def concat_pattern():
     return concat
 
 
+class SplitParams:
+    """
+    This class will parse a call to a ethos-u.split composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.split"
+
+    def __init__(self, func_body):
+        self.split = func_body
+        self.input = TensorParams(func_body.args[0])
+        self.axis = func_body.attrs.axis
+        self.indices_or_sections = self.convert_indices_or_sections(
+            func_body.attrs.indices_or_sections
+        )
+
+    def convert_indices_or_sections(self, indices_or_sections):
+        # split_v
+        if isinstance(indices_or_sections, tvm.ir.container.Array):
+            values = [i.value for i in indices_or_sections]
+        # split
+        else:
+            values = indices_or_sections.value
+        return values
+
+    def is_valid(self):
+        """Checks whether split has compatible attributes with the hardware"""
+        if not check_valid_dtypes([self.input], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def split_pattern():
+    "Create the pattern for split"
+    split = is_op("split")(wildcard())
+    return split
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1186,6 +1224,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SigmoidParams.composite_name,
             sigmoid_pattern(),
             lambda pat: SigmoidParams(pat).is_valid(),
+        ),
+        (
+            SplitParams.composite_name,
+            split_pattern(),
+            lambda pat: SplitParams(pat).is_valid(),
         ),
     ]
 
