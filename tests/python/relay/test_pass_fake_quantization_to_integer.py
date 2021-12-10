@@ -528,3 +528,29 @@ def test_fake_quantize_depth_to_space():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fq_hard_fail():
+    @tvm.ir.register_op_attr("nn.conv2d", "FTVMFakeQuantizationToInteger", level=11)
+    def conv2d(expr, type_map):  # pylint: disable=unused-variable
+        raise NotImplementedError
+
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+    w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
+    one = relay.const(1.0)
+    zero = relay.const(0)
+
+    op = relay.op.nn.conv2d(
+        relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+        relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+        kernel_size=[5, 5],
+    )
+    op = relay.qnn.op.quantize(op, one, zero, out_dtype="int8")
+    mod = tvm.IRModule.from_expr(op)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=False)(mod)
+    assert tvm.ir.structural_equal(mod_int, mod)
+    # Catch a generic exception because the tvm FFI eats the python exception type
+    with pytest.raises(Exception):
+        mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
