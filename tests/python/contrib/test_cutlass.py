@@ -242,6 +242,8 @@ K = 768
 def test_dense():
     verify_dense(get_dense(M, N, K), M, N, K)
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
+    # Test align1 case
+    verify_dense(get_dense_bias(M, N + 1, K), M, N + 1, K)
 
 
 def test_dense_bias():

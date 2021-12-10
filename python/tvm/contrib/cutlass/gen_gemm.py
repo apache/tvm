@@ -161,7 +161,7 @@ class CutlassGemmProfiler:
         self.sm = sm
         self.cache = {}
 
-    def check_align(self, op_name, M, K):
+    def check_align(self, op_name, M, N, K):
         """Filter out kernels that cannot be supported."""
         aligns = re.findall(r"align[1|2|4|8]", op_name)
         assert len(aligns) == 1
@@ -170,7 +170,7 @@ class CutlassGemmProfiler:
         # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
         # See https://github.com/NVIDIA/cutlass/issues/362.
         # When the above issue is resolved, we can remove the alignment check on M below.
-        return M % align == 0 and K % align == 0
+        return all([dim % align == 0 for dim in [M, N, K]])
 
     def get_default(self, out_dtype, batched=False):
         """Return the default kernel for the requested architecture.
@@ -197,7 +197,7 @@ class CutlassGemmProfiler:
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
         )
-        ops = list(filter(lambda op: self.check_align(op["name"], M, K), ops))
+        ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
         for op in ops:
             op["runtime"] = -1
