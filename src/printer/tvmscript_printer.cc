@@ -221,16 +221,13 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc AllocBuf(const Buffer& buffer);
   void TryDeallocVar(const Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
-  /*! Helper function for match buffer printing */
   /*!
-   * @brief check if a T.match_buffer decl is syntax sugarred
+   * @brief check if a T.match_buffer decl has only first two arguments specified
    * \param buffer The match buffer to be checked
    */
   bool IsSimpleBuffer(const Buffer& buffer);
   Doc MatchBufferDeclaration(const Buffer& buffer);
   Doc PrintTuple(const ArrayNode* op);
-
-  /*! Helper functions for loop printing. */
   /*!
    * \brief Print a single for loop
    * \param loop The for loop to be printed
@@ -532,6 +529,7 @@ Doc TVMScriptPrinter::PrintTuple(const ArrayNode* op) {
     }
     doc << Print(op->at(i));
   }
+  if (op->size() == 1) doc << ",";
   doc << ')';
   return doc;
 }
@@ -1298,6 +1296,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   doc << "def " << (func2var_.find(op) == func2var_.end() ? "func" : func2var_[op]->name_hint)
       << "(";
   std::vector<Doc> params;
+  std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> simple_buf;
   for (const auto& param : op->params) {
     var_not_in_headers_.insert(param.get());
     auto it = op->buffer_map.find(param);
@@ -1306,10 +1305,9 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
       // check if this match_buffer has only the first two arguments specified
       const auto buf = (*it).second;
       if (IsSimpleBuffer(buf)) {
+        simple_buf.insert(buf);
         buf_not_in_headers_.insert(buf.get());
-        Doc buf_param_doc;
-        buf_param_doc << buf->name << ": " << MatchBufferDeclaration(buf);
-        params.push_back(buf_param_doc);
+        params.push_back(Print(buf) << ": " << MatchBufferDeclaration(buf));
         continue;
       }
     }
@@ -1322,10 +1320,12 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   for (const auto& param : op->params) {
     auto it = op->buffer_map.find(param);
     if (it == op->buffer_map.end()) continue;
-    if (IsSimpleBuffer((*it).second)) continue;
-    buf_not_in_headers_.insert((*it).second.get());
-    body << Print((*it).second) << " = " << tir_prefix_ << ".match_buffer(";
-    body << Print((*it).first) << ", " << memo_buf_decl_[(*it).second];
+    auto buf = (*it).second;
+    auto search = simple_buf.find(buf);
+    if (search != simple_buf.end()) continue;
+    buf_not_in_headers_.insert(buf.get());
+    body << Print(buf) << " = " << tir_prefix_ << ".match_buffer(";
+    body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
   }
   // print body
