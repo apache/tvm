@@ -187,6 +187,7 @@ def tflite_compile_model(tmpdir_factory):
         args = {"target": "llvm", **overrides}
         return tvmc.compiler.compile_model(tvmc_model, package_path=package_path, **args)
 
+    # Returns a TVMCPackage
     return model_compiler
 
 
