@@ -27,7 +27,8 @@
 
 #include <memory>
 
-#include <tvm/runtime/c_runtime_api.h>
+// TODO(areusch): idk what's up here...
+#include <tvm/runtime/c_runtime_api.h>  // NOLINT(build/include_order)
 
 namespace tvm {
 namespace runtime {

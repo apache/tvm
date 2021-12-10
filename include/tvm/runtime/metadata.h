@@ -17,9 +17,6 @@
  * under the License.
  */
 
-// NOTE: This file is intended to be compileable in C++ and C build processes.
-// NOLINT(build/include_order)
-
 /*!
  * \file tvm/runtime/metadata.h
  * \brief Defines types which can be used in Metadata.
@@ -27,14 +24,15 @@
 #ifndef TVM_RUNTIME_METADATA_H_
 #define TVM_RUNTIME_METADATA_H_
 
+#include <inttypes.h>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <inttypes.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/metadata_base.h>
-#include <tvm/support/span.h>
+// TODO(areusch): idk what's up here.
+#include <tvm/runtime/c_runtime_api.h>  // NOLINT(build/include_order)
+#include <tvm/runtime/metadata_base.h>  // NOLINT(build/include_order)
+#include <tvm/support/span.h>  // NOLINT(build/include_order)
 
 #define TVM_METADATA_VERSION 1
 static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
