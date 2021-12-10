@@ -222,12 +222,14 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   void TryDeallocVar(const Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
   /*!
-   * @brief check if a T.match_buffer decl has only first two arguments specified
+   * \brief check if a buffer declaration has only 'shape' and 'dtype' arguments specified
    * \param buffer The match buffer to be checked
    */
   bool IsSimpleBuffer(const Buffer& buffer);
-  Doc MatchBufferDeclaration(const Buffer& buffer);
+  Doc PrintInlineBufferBind(const Buffer& buffer);
   Doc PrintTuple(const ArrayNode* op);
+
+  /*! Helper functions for loop printing. */
   /*!
    * \brief Print a single for loop
    * \param loop The for loop to be printed
@@ -487,10 +489,7 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
     return false;
   }
   if (buf->elem_offset->IsInstance<VarNode>()) {
-    Var elem_offset = Downcast<Var>(buf->elem_offset);
-    if (memo_var_.find(elem_offset) != memo_var_.end()) {
-      return false;
-    }
+    return false;
   } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
     IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
     if (elem_offset->value != 0) {
@@ -512,7 +511,7 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   return true;
 }
 
-Doc TVMScriptPrinter::MatchBufferDeclaration(const Buffer& buffer) {
+Doc TVMScriptPrinter::PrintInlineBufferBind(const Buffer& buffer) {
   Doc doc;
   doc << tir_prefix_ << ".Buffer[" << PrintTuple(buffer->shape.as<ArrayNode>());
   doc << ", " << PrintDType(buffer->dtype) << "]";
@@ -1303,11 +1302,11 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     // check if this param is a T.handle
     if (it != op->buffer_map.end()) {
       // check if this match_buffer has only the first two arguments specified
-      const auto buf = (*it).second;
+      const Buffer& buf = (*it).second;
       if (IsSimpleBuffer(buf)) {
         simple_buf.insert(buf);
         buf_not_in_headers_.insert(buf.get());
-        params.push_back(Print(buf) << ": " << MatchBufferDeclaration(buf));
+        params.push_back(Print(buf) << ": " << PrintInlineBufferBind(buf));
         continue;
       }
     }
@@ -1320,9 +1319,8 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
   for (const auto& param : op->params) {
     auto it = op->buffer_map.find(param);
     if (it == op->buffer_map.end()) continue;
-    auto buf = (*it).second;
-    auto search = simple_buf.find(buf);
-    if (search != simple_buf.end()) continue;
+    const Buffer& buf = (*it).second;
+    if (simple_buf.count(buf)) continue;
     buf_not_in_headers_.insert(buf.get());
     body << Print(buf) << " = " << tir_prefix_ << ".match_buffer(";
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
