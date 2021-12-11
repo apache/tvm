@@ -279,5 +279,142 @@ class Test2DPhysicalLayout:
         post_order_visit(mod["main"].body, callback)
 
 
+class TestTransformedSchedules:
+    logical_shape = tvm.testing.parameter((4, 6, 40))
+
+    transform_names = [
+        None,
+        "reverse",
+        "flatten_all",
+        "factor_last_by_4",
+    ]
+
+    transform_A = tvm.testing.parameter(by_dict={f"A_{t}": t for t in transform_names})
+    transform_B = tvm.testing.parameter(
+        by_dict={f"B_{t}": t for t in transform_names if t is not None}
+    )
+
+    after_transform = tvm.testing.parameter(None)
+
+    def make_transform(self, logical_shape, transform_name):
+        if transform_name is None:
+            return lambda *indices: indices
+        elif transform_name == "reverse":
+            return lambda *indices: indices[::-1]
+        elif transform_name == "flatten_all":
+            return flatten_all_indices(logical_shape)
+        elif transform_name == "factor_last_by_4":
+            return lambda *indices, n: [*indices, n // 4, n % 4]
+        else:
+            raise NotImplementedError(f"Unknown transformation {transform_name}")
+
+    def make_transformed_shape(self, logical_shape, transform_name):
+        if transform_name is None:
+            return logical_shape
+        elif transform_name == "reverse":
+            return logical_shape[::-1]
+        elif transform_name == "flatten_all":
+            num_elements = functools.reduce(lambda x, y: x * y, logical_shape, 1)
+            return [num_elements]
+        elif transform_name == "factor_last_by_4":
+            *indices, n = logical_shape
+            return [*indices, n // 4, 4]
+        else:
+            raise NotImplementedError(f"Unknown transformation {transform_name}")
+
+    @tvm.testing.fixture
+    def expected_loop_order(self, logical_shape, transform_B, after_transform):
+        shape = self.make_transformed_shape(logical_shape, transform_B)
+
+        if after_transform == "reorder":
+            shape = shape[::-1]
+
+        elif after_transform == "split":
+            shape = [
+                *shape[:-1],
+                2,
+                shape[-1] // 2,
+            ]
+
+        elif after_transform == "fuse":
+            fused_size = shape[0] if transform_B == "flatten_all" else shape[0] * shape[1]
+            shape = [fused_size, *shape[2:]]
+
+        return shape
+
+    @tvm.testing.fixture
+    def schedule(self, logical_shape, dtype, transform_A, transform_B, after_transform):
+        A = te.placeholder(shape=logical_shape, dtype=dtype, name="A")
+        B = te.compute(shape=A.shape, fcompute=lambda i, j, k: A[i, j, k], name="B")
+
+        s = te.create_schedule(B.op)
+
+        if transform_A:
+            s[A].transform_layout(self.make_transform(logical_shape, transform_A))
+
+        iter_vars = s[B].transform_layout(self.make_transform(logical_shape, transform_B))
+        iter_vars = list(iter_vars)
+
+        if after_transform == "reorder":
+            s[B].reorder(*iter_vars[::-1])
+
+        elif after_transform == "split":
+            s[B].split(iter_vars[-1], nparts=2)
+
+        elif after_transform == "fuse":
+            to_fuse = iter_vars[:2]
+            s[B].fuse(*iter_vars[:2])
+
+        return {
+            "schedule": s,
+            "tensors": [A, B],
+            "iter_vars": iter_vars,
+        }
+
+    def compare_tir_loop_order(self, stmt, expected_loop_order):
+        def collect_loops(node):
+            output = []
+
+            def callback(node):
+                if isinstance(node, tvm.tir.For):
+                    output.append(node)
+
+            post_order_visit(node, callback)
+            return output[::-1]
+
+        loops = collect_loops(stmt)
+        loop_order = [loop.extent for loop in loops]
+
+        np.testing.assert_array_equal(loop_order, expected_loop_order)
+
+    def test_tir_loop_order(self, schedule, expected_loop_order):
+        func = tvm.lower(schedule["schedule"], schedule["tensors"])["main"]
+        self.compare_tir_loop_order(func.body, expected_loop_order)
+
+    def test_te_loop_order(self, schedule, expected_loop_order):
+        s = schedule["schedule"]
+        A, B = schedule["tensors"]
+        iter_vars = schedule["iter_vars"]
+
+        # No reduction axis, so all leaf_iter_vars are over the data
+        # array, and should have the new iteration variables.
+        extents = [int(iter_var.dom.extent) for iter_var in s[B].leaf_iter_vars]
+        np.testing.assert_array_equal(extents, expected_loop_order)
+
+        # layout_transform should return the new iteration variables.
+        extents = [int(iter_var.dom.extent) for iter_var in iter_vars]
+        np.testing.assert_array_equal(extents, expected_loop_order)
+
+    @pytest.mark.parametrize("after_transform", ["reorder", "split", "fuse"])
+    def test_use_transformed_axes(
+        self, schedule, expected_loop_order, transform_A, transform_B, after_transform
+    ):
+        s = schedule["schedule"]
+        A, B = schedule["tensors"]
+
+        func = tvm.lower(s, [A, B])["main"]
+        self.compare_tir_loop_order(func.body, expected_loop_order)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
