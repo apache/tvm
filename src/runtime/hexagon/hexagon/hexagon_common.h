@@ -62,4 +62,6 @@ inline bool IsHexagonDevice(DLDevice dev) {
   return TVMDeviceExtType(dev.device_type) == kDLHexagon;
 }
 
+constexpr int kHexagonAllocAlignment = 2048;
+
 #endif  // TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_COMMON_H_

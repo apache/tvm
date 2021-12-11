@@ -76,6 +76,54 @@ def test_add(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     launcher.close()
 
 
+@requires_rpc_tracker
+@requires_hexagon_toolchain
+def test_add_vtcm(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+    dtype = "int8"
+    A = tvm.te.placeholder((2,), dtype=dtype)
+    B = tvm.te.placeholder((1,), dtype=dtype)
+    C = tvm.te.compute(A.shape, lambda i: A[i] + B[0], name="C")
+    sched = tvm.te.create_schedule(C.op)
+
+    target_hexagon = tvm.target.hexagon("v68", link_params=True)
+    func = tvm.build(
+        sched, [A, B, C], tvm.target.Target(target_hexagon, host=target_hexagon), name="add"
+    )
+
+    temp = utils.tempdir()
+    dso_binary = "test_binary.so"
+    dso_binary_path = temp.relpath(dso_binary)
+    func.save(dso_binary_path)
+
+    launcher = HexagonLauncher(serial_number=android_serial_number)
+    launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
+    launcher.hexagon_setup()
+    remote_kw = {
+        "host": tvm_tracker_host,
+        "port": tvm_tracker_port,
+        "priority": 0,
+        "timeout": 60,
+    }
+    launcher.hexagon_session_setup(remote_kw)
+    launcher.upload(dso_binary_path, dso_binary)
+
+    with launcher.session as sess:
+        mod = launcher.get_module(dso_binary)
+        A_data = tvm.nd.empty(A.shape, A.dtype, sess.device, "global.vtcm")
+        A_data.copyfrom(np.array([2, 3]))
+
+        B_data = tvm.nd.empty(B.shape, B.dtype, sess.device, "global.vtcm")
+        B_data.copyfrom(np.array([4]))
+
+        C_data = tvm.nd.empty(C.shape, C.dtype, sess.device, "global.vtcm")
+        C_data.copyfrom(np.array([0, 0]))
+
+        mod["add"](A_data, B_data, C_data)
+        result = C_data.numpy()
+        assert (result == np.array([6, 7])).all()
+    launcher.close()
+
+
 class TestMatMul:
     M = tvm.testing.parameter(32)
     N = tvm.testing.parameter(32)
