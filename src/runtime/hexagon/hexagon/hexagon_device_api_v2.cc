@@ -51,63 +51,90 @@ void HexagonDeviceAPIv2::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* r
   }
 }
 
+// DataSpace: static allocations for Hexagon
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, int ndim, const int64_t* shape,
                                          DLDataType dtype, Optional<String> mem_scope) {
-  return new HexagonBuffer(ndim, shape, dtype, mem_scope.defined() ? mem_scope : String("global"));
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+
+  // Forcing contiguous allocation, for now
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  size_t nallocs = 1;
+  size_t nbytes = 1;
+  for (int i = 0; i < ndim; ++i) {
+    nbytes *= shape[i];
+  }
+  size_t typesize = (dtype.bits / 8) * dtype.lanes;
+  nbytes *= typesize;
+
+  size_t alignment = typesize;
+  if (alignment < kHexagonAllocAlignment) {
+    alignment = kHexagonAllocAlignment;
+  }
+  return new HexagonBuffer(nallocs, nbytes, alignment, mem_scope);
 }
 
 void* HexagonDeviceAPIv2::AllocDataSpace(Device dev, size_t nbytes, size_t alignment,
                                          DLDataType type_hint) {
+  if (alignment < kHexagonAllocAlignment) {
+    alignment = kHexagonAllocAlignment;
+  }
   return new HexagonBuffer(nbytes, alignment, String("global"));
 }
 
 void HexagonDeviceAPIv2::FreeDataSpace(Device dev, void* ptr) {
-  auto* pbuf = static_cast<HexagonBuffer*>(ptr);
-  delete pbuf;
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  auto* hexbuf = static_cast<HexagonBuffer*>(ptr);
+  CHECK(hexbuf != nullptr);
+  delete hexbuf;
 }
 
+// WorkSpace: runtime allocations for Hexagon
 struct HexagonWorkspacePool : public WorkspacePool {
   HexagonWorkspacePool() : WorkspacePool(kDLCPU, HexagonDeviceAPIv2::Global()) {}
 };
 
 void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  auto* buffer = static_cast<HexagonBuffer*>(
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
+  auto* hexbuf = static_cast<HexagonBuffer*>(
       dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->AllocWorkspace(dev, size));
-  void* ptr = buffer->GetPointer();
-  workspace_allocations_.insert({ptr, buffer});
+
+  // Assumes a single contiguous allocation
+  // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+  void* ptr = hexbuf->GetPointer()[0];
+  workspace_allocations_.insert({ptr, hexbuf});
   return ptr;
 }
 
 void HexagonDeviceAPIv2::FreeWorkspace(Device dev, void* data) {
+  CHECK(TVMDeviceExtType(dev.device_type) == kDLHexagon);
   auto it = workspace_allocations_.find(data);
-  ICHECK(it != workspace_allocations_.end())
+  CHECK(it != workspace_allocations_.end())
       << "Attempt made to free unknown or already freed workspace allocation";
   dmlc::ThreadLocalStore<HexagonWorkspacePool>::Get()->FreeWorkspace(dev, it->second);
   workspace_allocations_.erase(it);
 }
 
 void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
-  if (IsHexagonDevice(from->device) && IsHexagonDevice(to->device)) {
-    HexagonBuffer* buffer_src = static_cast<HexagonBuffer*>(from->data);
-    HexagonBuffer* buffer_dst = static_cast<HexagonBuffer*>(to->data);
-    // Check storage scopes
-    if (buffer_src->GetStorageScope() == HexagonBuffer::StorageScope::kDDR &&
-        buffer_dst->GetStorageScope() == HexagonBuffer::StorageScope::kDDR) {
-      memcpy(static_cast<char*>(buffer_dst->GetPointer()) + to->byte_offset,
-             static_cast<const char*>(buffer_src->GetPointer()) + from->byte_offset,
-             GetDataSize(*from));
-    } else {
-      ICHECK(false) << "Currently only copying between DDR storage is supported.";
-    }
-  } else if (IsHexagonDevice(from->device) && to->device.device_type == kDLCPU) {
-    HexagonBuffer* buffer_src = static_cast<HexagonBuffer*>(from->data);
-    memcpy(static_cast<char*>(to->data) + to->byte_offset,
-           static_cast<const char*>(buffer_src->GetPointer()) + from->byte_offset,
-           GetDataSize(*from));
-  } else if (from->device.device_type == kDLCPU && IsHexagonDevice(to->device)) {
-    HexagonBuffer* buffer_dst = static_cast<HexagonBuffer*>(to->data);
-    memcpy(static_cast<char*>(buffer_dst->GetPointer()) + to->byte_offset,
-           static_cast<const char*>(from->data) + from->byte_offset, GetDataSize(*from));
+  CHECK_EQ(from->byte_offset, 0);
+  CHECK_EQ(to->byte_offset, 0);
+  CHECK_EQ(GetDataSize(*from), GetDataSize(*to));
+
+  HexagonBuffer* hex_from_buf = static_cast<HexagonBuffer*>(from->data);
+  HexagonBuffer* hex_to_buf = static_cast<HexagonBuffer*>(to->data);
+
+  if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
+      TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
+    CHECK(hex_from_buf != nullptr);
+    CHECK(hex_to_buf != nullptr);
+    hex_to_buf->CopyFrom(*hex_from_buf);
+  } else if (from->device.device_type == kDLCPU &&
+             TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
+    CHECK(hex_to_buf != nullptr);
+    hex_to_buf->CopyFrom(from->data, GetDataSize(*from));
+  } else if (TVMDeviceExtType(from->device.device_type) == kDLHexagon &&
+             to->device.device_type == kDLCPU) {
+    CHECK(hex_from_buf != nullptr);
+    hex_from_buf->CopyTo(to->data, GetDataSize(*to));
   } else {
     CHECK(false)
         << "Expect copy between DLTensor devices of types kDLHexagon and kDLCPU (external) only.";
