@@ -296,15 +296,13 @@ def _init_api(namespace, target_module_name=None):
 
 
 def _init_api_prefix(module_name, prefix):
-    module = sys.modules[module_name]
+    target_module = sys.modules[module_name]
 
     for name in list_global_func_names():
         if not name.startswith(prefix):
             continue
 
         fname = name[len(prefix) + 1 :]
-        target_module = module
-
         if fname.find(".") != -1:
             continue
         f = get_global_func(name)
