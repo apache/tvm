@@ -135,8 +135,8 @@ def pattern_table():
 
         return (
             conv2d.attrs.out_dtype == "int32"
-            and conv2d.attrs.padding[2] == 0
-            and conv2d.attrs.padding[3] == 0
+            and int(conv2d.attrs.padding[2]) == 0
+            and int(conv2d.attrs.padding[3]) == 0
             and conv2d_input.checked_type.dtype == "int8"
             and conv2d_weight.checked_type.dtype == "int8"
             and pattern.checked_type.dtype == "int8"
