@@ -737,7 +737,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::vector<PrimFunc> funcs;
   std::string entry_func;
   Map<String, LinkedParam> linked_params;
-  bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+  bool could_have_linked_params = mod->ShouldLinkParameters();
 
   for (auto kv : mod->functions) {
     if (could_have_linked_params &&
