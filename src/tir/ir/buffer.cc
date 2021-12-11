@@ -508,6 +508,8 @@ TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
 
+TVM_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer").set_body_method(&Buffer::GetFlattenedBuffer);
+
 TVM_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
 
 TVM_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
