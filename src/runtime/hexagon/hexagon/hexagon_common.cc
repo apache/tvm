@@ -59,7 +59,9 @@ void HexagonLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   std::vector<int64_t> shape_vec{template_tensor->shape,
                                  template_tensor->shape + template_tensor->ndim};
 
-  auto* param_buffer = new HexagonBuffer(static_cast<void*>(opaque_handle));
+  Optional<String> scope("global");
+  auto* param_buffer =
+      new HexagonBuffer(static_cast<void*>(opaque_handle), GetDataSize(*template_tensor), scope);
   auto* container = new NDArray::Container(static_cast<void*>(param_buffer), shape_vec,
                                            template_tensor->dtype, dev);
   container->SetDeleter([](Object* container) {
@@ -85,7 +87,9 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
-        tensor->data = buffer_args.back().second->GetPointer();
+        // Assumes a single contiguous allocation
+        // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+        tensor->data = buffer_args.back().second->GetPointer()[0];
       }
     }
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
