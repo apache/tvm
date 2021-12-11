@@ -388,7 +388,7 @@ class IRBuilder(object):
         self.emit(lambda x: _stmt.LetStmt(var, value, x))
         return var
 
-    def allocate(self, dtype, shape, name="buf", scope=""):
+    def allocate(self, dtype, shape, name="buf", axis_separators=None, scope=""):
         """Create a allocate statement.
 
         Parameters
@@ -402,6 +402,12 @@ class IRBuilder(object):
         name : str, optional
             The name of the buffer.
 
+        axis_separators : list of int, optional
+
+            If passed, a list of separators between groups of axes,
+            each of which is flattened to an output axis.  For flat
+            memory spaces, should either be None, or an empty list.
+
         scope : str, optional
             The scope of the buffer.
 
@@ -410,11 +416,14 @@ class IRBuilder(object):
         -------
         buffer : BufferVar
             The buffer var representing the buffer.
+
         """
         if not isinstance(shape, (list, tuple, _container.Array)):
             shape = [shape]
 
-        buffer = _buffer.decl_buffer(shape, dtype, name, scope=scope)
+        buffer = _buffer.decl_buffer(
+            shape, dtype, name, scope=scope, axis_separators=axis_separators
+        )
 
         buffer_var = buffer.data
         self.emit(lambda x: _stmt.Allocate(buffer_var, dtype, shape, const(1, dtype="uint1"), x))
