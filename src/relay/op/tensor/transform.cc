@@ -3891,7 +3891,8 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   Array<IndexExpr> oshape;
   TensorType broadcast_type = Downcast<TensorType>(inputs->fields[1]);
   for (size_t i = 2; i < inputs->fields.size(); ++i) {
-    broadcast_type = ConcreteBroadcast(broadcast_type, Downcast<TensorType>(inputs->fields[i]), data->dtype);
+    broadcast_type =
+        ConcreteBroadcast(broadcast_type, Downcast<TensorType>(inputs->fields[i]), data->dtype);
   }
 
   for (const auto& dim : broadcast_type->shape) {
