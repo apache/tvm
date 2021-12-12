@@ -218,7 +218,6 @@ class Device(ctypes.Structure):
         "c": 1,
         "hybrid": 1,
         "composite": 1,
-        "example_target_hook": 1,
         "cuda": 2,
         "nvptx": 2,
         "cl": 4,
