@@ -400,7 +400,8 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
+    .add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 
