@@ -1825,6 +1825,7 @@ def test_adv_index(target, dev, executor_kind):
         tvm.testing.assert_allclose(op_res.numpy(), np_out, rtol=1e-5)
 
     verify_adv_index((10, 5), [(3, 4), (3, 1)])
+    verify_adv_index((10, 5), [(1, 4), (3, 1)])
     verify_adv_index(
         (10, 5),
         [
