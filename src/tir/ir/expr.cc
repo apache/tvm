@@ -707,8 +707,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, int lanes, Span span) {
   ICHECK(base.dtype().is_scalar());
   ICHECK(stride.dtype().is_scalar());
   ICHECK_GT(lanes, 1);
-  ICHECK(base.dtype().is_int());
-  ICHECK(stride.dtype().is_int());
+  ICHECK_EQ(stride.dtype(), base.dtype());
 
   ObjectPtr<RampNode> node = make_object<RampNode>();
   node->dtype = base.dtype().with_lanes(lanes);
