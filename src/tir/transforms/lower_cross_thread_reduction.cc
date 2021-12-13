@@ -117,7 +117,7 @@ bool IsReductionBlock(const BlockRealize& realize, const Map<Var, Range>& loop_r
  * \return The created buffer
  */
 Buffer MakeScratchpad(String name, const DataType& dtype) {
-  return Buffer(/*ptr=*/Var(std::move(name), PointerType(PrimType(dtype), "local")),
+  return Buffer(/*ptr=*/Var(name, PointerType(PrimType(dtype), "local")),
                 /*dtype=*/dtype,
                 /*shape=*/{Integer(1)},
                 /*strides=*/{Integer(1)},
