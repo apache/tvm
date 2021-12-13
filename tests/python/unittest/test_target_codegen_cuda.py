@@ -22,6 +22,7 @@ import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
 from tvm.contrib import nvcc
 import tvm.testing
+import pytest
 
 tx = te.thread_axis("threadIdx.x")
 bx = te.thread_axis("blockIdx.x")
@@ -995,29 +996,30 @@ def test_unrolled_vectorization():
     tvm.testing.assert_allclose(c_np, N * np.ones((N, N)))
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_try_unaligned_vector_load():
+    N = 3
+    C_N = N - 1
+    A = te.placeholder((N,), name="A", dtype='float16')
+    C = te.compute((C_N,), lambda i: A[i+1], name="C")
+
+    s = te.create_schedule(C.op)
+    oi, ii = s[C].split(C.op.axis[0], factor=2)
+    s[C].bind(oi, te.thread_axis("threadIdx.x"))
+    s[C].vectorize(ii) # BUG: misalignment
+
+    tgt = tvm.target.Target(target="cuda", host="llvm")
+    foo = tvm.build(s, [A, C], tgt, name="foo")
+    dev = tvm.device(tgt.kind.name, 0)
+
+    a_data = np.arange(0, N).astype(A.dtype)
+    a = tvm.nd.array(a_data, dev)
+    c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
+    foo(a, c)
+    expected = a_data[1:C_N+1]
+    assert np.allclose(c.numpy(), expected), f"expected={expected}\nactual={c}"
+
+
 if __name__ == "__main__":
-    test_cuda_vectorize_add()
-    test_cuda_bf16_vectorize_add()
-    test_cuda_multiply_add()
-    test_cuda_vectorize_load()
-    test_cuda_make_int4()
-    test_cuda_make_int8()
-    test_cuda_inf_nan()
-    test_cuda_shuffle()
-    test_vectorized_casts()
-    test_cuda_reduction_binding()
-    test_crossthread_reduction1()
-    test_crossthread_reduction2()
-    test_rfactor_predicates()
-    test_cuda_const_float_to_half()
-    test_cuda_reduction()
-    test_cuda_mix_threaded_and_normal_reduction()
-    test_cuda_floordiv_with_vectorization()
-    test_cuda_floormod_with_vectorization()
-    test_vectorized_intrin1()
-    test_vectorized_intrin2()
-    test_vectorized_popcount()
-    test_cuda_vectorize_load_permute_pad()
-    test_vectorized_cooperative_fetching_x()
-    test_vectorized_cooperative_fetching_xy()
-    test_unrolled_vectorization()
+    pytest.main([__file__])

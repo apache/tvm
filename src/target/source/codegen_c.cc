@@ -710,8 +710,19 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     ICHECK(is_one(op->predicate)) << "predicated load is not supported";
 
+    bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
+      const RampNode* ramp = op->index.as<RampNode>();
+      ICHECK(ramp);
+      auto* base_int = ramp->base.as<IntImmNode>();
+      auto access_bytes = op->dtype.lanes() * op->dtype.bytes();
+      if (base_int && (base_int->value % access_bytes == 0)) {
+        can_vector_load = true;
+      }
+    }
+
+    if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
