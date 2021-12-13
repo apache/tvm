@@ -1001,13 +1001,13 @@ def test_unrolled_vectorization():
 def test_try_unaligned_vector_load():
     N = 3
     C_N = N - 1
-    A = te.placeholder((N,), name="A", dtype='float16')
-    C = te.compute((C_N,), lambda i: A[i+1], name="C")
+    A = te.placeholder((N,), name="A", dtype="float16")
+    C = te.compute((C_N,), lambda i: A[i + 1], name="C")
 
     s = te.create_schedule(C.op)
     oi, ii = s[C].split(C.op.axis[0], factor=2)
     s[C].bind(oi, te.thread_axis("threadIdx.x"))
-    s[C].vectorize(ii) # BUG: misalignment
+    s[C].vectorize(ii)  # BUG: misalignment
 
     tgt = tvm.target.Target(target="cuda", host="llvm")
     foo = tvm.build(s, [A, C], tgt, name="foo")
@@ -1017,7 +1017,7 @@ def test_try_unaligned_vector_load():
     a = tvm.nd.array(a_data, dev)
     c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
     foo(a, c)
-    expected = a_data[1:C_N+1]
+    expected = a_data[1 : C_N + 1]
     assert np.allclose(c.numpy(), expected), f"expected={expected}\nactual={c}"
 
 
