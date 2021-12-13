@@ -1113,6 +1113,8 @@ def test_multi_targets():
 
 
 def test_dialect_rewriter():
+    """Tests dialect rewriter for tuple node."""
+
     x = relay.var("x", shape=(3,), dtype="int32")
     y = relay.take(x, relay.const(0))
     z = relay.const(1)
