@@ -42,7 +42,8 @@ from aot_test_utils import (
 def print_mod_tree(m, indent=0):
     print(f"{' ' * indent} - {m!r}")
     for i in m.imported_modules:
-      print_mod_tree(i, indent + 2)
+        print_mod_tree(i, indent + 2)
+
 
 def test_conv2d():
     RELAY_MODEL = textwrap.dedent(
@@ -76,8 +77,12 @@ def test_conv2d():
     output_list = generate_ref_data(ir_mod, inputs, params)
 
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, params=params, target="c",
-                              executor=backend.Executor("aot", {"interface-api": "c"}))
+        mod = tvm.relay.build(
+            ir_mod,
+            params=params,
+            target="c",
+            executor=backend.Executor("aot", {"interface-api": "c"}),
+        )
 
     print_mod_tree(mod.module)
 
