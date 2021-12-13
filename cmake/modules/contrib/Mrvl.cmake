@@ -46,11 +46,15 @@ if(USE_MRVL)
   # FIXME: find_livrary(MRVL_LIB Mrvl)
   # FIXME: find_livrary(MRVL_RUNTIME_LIB Mrvl_runtime)
   file(GLOB RUNTIME_MRVL_SRCS
-    src/relay/backend/contrib/mrvl/graph_executor_codegen_mrvl.cc
-    src/relay/backend/contrib/mrvl/codegen.cc
-    src/relay/backend/contrib/mrvl/drop_noop_transpose.cc
     src/runtime/contrib/mrvl/mrvl_runtime.cc
   )
   list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})
+
+  file(GLOB COMPILER_MRVL_SRCS
+    src/relay/backend/contrib/mrvl/graph_executor_codegen_mrvl.cc
+    src/relay/backend/contrib/mrvl/codegen.cc
+    src/relay/backend/contrib/mrvl/drop_noop_transpose.cc
+  )
+  list(APPEND COMPILER_SRCS ${COMPILER_MRVL_SRCS})
 
 endif(USE_MRVL)
