@@ -18,9 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import topi
-import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
-from tvm.contrib import nvcc
 import tvm.testing
 import pytest
 
@@ -999,26 +997,50 @@ def test_unrolled_vectorization():
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
 def test_try_unaligned_vector_load():
-    N = 3
-    C_N = N - 1
-    A = te.placeholder((N,), name="A", dtype="float16")
-    C = te.compute((C_N,), lambda i: A[i + 1], name="C")
+    def get_compute(N, C_N, offset):
+        A = te.placeholder((N,), name="A", dtype="float16")
+        C = te.compute((C_N,), lambda i: A[i + offset], name="C")
+        return N, C_N, A, C
 
-    s = te.create_schedule(C.op)
-    oi, ii = s[C].split(C.op.axis[0], factor=2)
-    s[C].bind(oi, te.thread_axis("threadIdx.x"))
-    s[C].vectorize(ii)  # BUG: misalignment
+    def get_compute_unaligned():
+        return get_compute(3, 2, 1)
 
-    tgt = tvm.target.Target(target="cuda", host="llvm")
-    foo = tvm.build(s, [A, C], tgt, name="foo")
-    dev = tvm.device(tgt.kind.name, 0)
+    def get_compute_aligned():
+        return get_compute(4, 2, 2)
 
-    a_data = np.arange(0, N).astype(A.dtype)
-    a = tvm.nd.array(a_data, dev)
-    c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
-    foo(a, c)
+    def build(A, C, N, C_N):
+        s = te.create_schedule(C.op)
+        oi, ii = s[C].split(C.op.axis[0], factor=2)
+        s[C].bind(oi, te.thread_axis("threadIdx.x"))
+        s[C].vectorize(ii)  # BUG: misalignment
+
+        tgt = tvm.target.Target(target="cuda", host="llvm")
+        dev = tvm.device(tgt.kind.name, 0)
+        f = tvm.build(s, [A, C], tgt, name="foo")
+        kernel_source = f.imported_modules[0].get_source()
+
+        a_data = np.arange(0, N).astype(A.dtype)
+        a = tvm.nd.array(a_data, dev)
+        c = tvm.nd.array(np.zeros(C_N, dtype=C.dtype), dev)
+        f(a, c)
+
+        return a_data, c.numpy(), kernel_source
+
+    N, C_N, A, C = get_compute_unaligned()
+    a_data, c, kernel_source = build(A, C, N, C_N)
+    # (uint1*)(A + (1)) is invalid
+    assert "A + (1)" not in kernel_source
+
     expected = a_data[1 : C_N + 1]
-    assert np.allclose(c.numpy(), expected), f"expected={expected}\nactual={c}"
+    assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
+
+    N, C_N, A, C = get_compute_aligned()
+    a_data, c, kernel_source = build(A, C, N, C_N)
+    # (uint1*)(A + (2)) is a valid vector load
+    assert "A + (2)" in kernel_source
+
+    expected = a_data[2 : C_N + 2]
+    assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
 
 
 if __name__ == "__main__":
