@@ -389,12 +389,21 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  return doc << ")";
+  doc << ")";
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  return doc << Print(op->tuple) << "." << op->index;
+  doc << Print(op->tuple) << "." << op->index;
+
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {

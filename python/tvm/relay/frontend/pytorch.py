@@ -44,6 +44,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
+from .common import set_span
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -3302,6 +3303,9 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
+                span_str = self._get_torch_span(op_node.__repr__())
+                relay_out = set_span(relay_out, span_str)
+
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
@@ -3314,6 +3318,21 @@ class PyTorchOpConverter:
                     outputs[node_name] = relay_out
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+
+    def _get_torch_span(self, node_repr):
+        # torch span looks like
+        # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
+        scope_part = ''
+        aten_part = ''
+        scope_str = ', scope:'
+        aten_str =  'aten::'
+        if scope_str in node_repr:
+            scope_part = node_repr.split(scope_str)[1]
+            scope_part = scope_part.split('#')[0].strip()
+        if aten_str in node_repr:
+            aten_part = node_repr.split(aten_str)[1]
+            aten_part = aten_str + aten_part.split('(')[0]
+        return 'C.graph: {}, , jit._trace.TopLevelTracedModule: {}'.format(aten_part, scope_part)
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
