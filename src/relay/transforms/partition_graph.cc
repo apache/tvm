@@ -608,7 +608,7 @@ Pass PartitionGraph(String mod_name, bool bind_constants) {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph")
-    .set_body_typed([](String mod_name, bool bind_constants = false) {
+    .set_body_typed([](String mod_name, bool bind_constants) {
       return transform::PartitionGraph(mod_name, bind_constants);
     });
 
