@@ -310,6 +310,12 @@ within_subsection_order = {
         "use_pass_instrument.py",
         "bring_your_own_datatypes.py",
     ],
+    "micro": [
+        "micro_autotune.py",
+        "micro_reference_vm.py",
+        "micro_tflite.py",
+        "micro_ethosu.py",
+    ],
 }
 
 

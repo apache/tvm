@@ -17,7 +17,7 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import tvm
 from tvm.script import tir as T
-from tvm import te, tir
+from tvm import te, tir, topi
 import numpy as np
 import tvm.testing
 
@@ -135,7 +135,7 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
         with T.block("Apad"):
             nn, cc, yy, xx = T.axis.remap("SSSS", [n, c, y, x])
             Apad[nn, cc, yy, xx] = T.if_then_else(
-                yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
+                1 <= yy and yy < 15 and 1 <= xx and xx < 15,
                 A[nn, cc, yy - 1, xx - 1],
                 0.0,
                 dtype="float32",
@@ -327,6 +327,17 @@ def test_data_dependent_access():
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
+def test_select_simplify():
+    placeholder = te.placeholder([1, 128, 10, 10, 4], dtype="float32")
+    tensor = topi.nn.adaptive_pool(placeholder, [1, 1], "avg", "NCHW4c")
+    result = te.create_prim_func([placeholder, tensor])
+    script_func = result.script()
+    # There should be no Select
+    assert script_func.find("Select") == -1
+    # There should be no undefined vars
+    assert script_func.find("Var") == -1
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -337,3 +348,4 @@ if __name__ == "__main__":
     test_arg_order()
     test_error_reporting()
     test_constant()
+    test_select_simplify()

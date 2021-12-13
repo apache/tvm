@@ -18,4 +18,5 @@
 """Namespace for Unified Static Memory Planner"""
 
 from . import analysis
+from . import transform
 from .utils import BufferInfo

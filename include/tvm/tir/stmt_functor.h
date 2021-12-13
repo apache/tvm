@@ -280,6 +280,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
    */
   Stmt VisitSeqStmt_(const SeqStmtNode* op, bool flatten_before_visit,
                      std::function<Stmt(const Stmt&)> fmutate = nullptr);
+
   // internal helper.
   class Internal;
 };

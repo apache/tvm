@@ -317,8 +317,7 @@ class BlockReads(SpecialStmt):
 
     def __init__(self):
         def reads(
-            read_regions: Union[BufferSlice, List[BufferSlice]],
-            *other_regions: BufferSlice,
+            *read_regions: Union[BufferSlice, List[BufferSlice]],
             span: Span = None,
         ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
@@ -335,16 +334,18 @@ class BlockReads(SpecialStmt):
                     + str(", ".join(str(x) for x in block_scope.reads)),
                     span,
                 )
-            if isinstance(read_regions, BufferSlice):
-                read_regions = [read_regions]
-                for region in other_regions:
-                    read_regions.append(region)
-            if not isinstance(read_regions, list):
-                self.context.report_error(
-                    "Incorrect input type. "
-                    + f"Expected BufferSlice or List[BufferSlice], but got {type(read_regions)}",
-                    span,
-                )
+            if len(read_regions) > 1:
+                for read_region in read_regions:
+                    if not isinstance(read_region, BufferSlice):
+                        self.context.report_error(
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(read_regions)}",
+                            span,
+                        )
+            elif len(read_regions) == 1:
+                if isinstance(read_regions[0], list):
+                    read_regions = read_regions[0]
+
             block_scope.reads = read_regions
 
         super().__init__(reads, def_symbol=False)
@@ -368,8 +369,7 @@ class BlockWrites(SpecialStmt):
 
     def __init__(self):
         def writes(
-            write_region: Union[BufferSlice, List[BufferSlice]],
-            *other_region: BufferSlice,
+            *write_regions: Union[BufferSlice, List[BufferSlice]],
             span: Span = None,
         ):
             assert self.context, "call 'exit_scope' before 'enter_scope'"
@@ -386,19 +386,18 @@ class BlockWrites(SpecialStmt):
                     + str(", ".join(str(x) for x in block_scope.writes)),
                     span,
                 )
-            if isinstance(write_region, list):
-                pass
-            elif isinstance(write_region, BufferSlice):
-                write_region = [write_region]
-                for region in other_region:
-                    write_region.append(region)
-            else:
-                self.context.report_error(
-                    "Incorrect input type. "
-                    + f"Expected BufferSlice or List[BufferSlice], but got {type(write_region)}",
-                    span,
-                )
-            block_scope.writes = write_region
+            if len(write_regions) > 1:
+                for write_region in write_regions:
+                    if not isinstance(write_region, BufferSlice):
+                        self.context.report_error(
+                            "Incorrect input type. Expected *BufferSlice or List[BufferSlice],"
+                            + f" but got {type(write_regions)}",
+                            span,
+                        )
+            elif len(write_regions) == 1:
+                if isinstance(write_regions[0], list):
+                    write_regions = write_regions[0]
+            block_scope.writes = write_regions
 
         super().__init__(writes, def_symbol=False)
 

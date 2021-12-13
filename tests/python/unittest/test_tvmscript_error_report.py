@@ -19,6 +19,7 @@ import pytest
 import sys
 import tvm
 from tvm import tir
+from tvm.testing import check_error
 from tvm.script import tir as T
 from tvm.ir.diagnostics import override_renderer
 import inspect
@@ -30,20 +31,6 @@ def buffer_bind_missing_args(a: T.handle) -> None:
 
 def test_buffer_bind():
     check_error(buffer_bind_missing_args, 2)
-
-
-def range_missing_args(a: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-
-    T.attr(A, "realize_scope", "")
-    T.realize(A[0:16, 0:16], "")
-    for i in T.serial(16):  # error
-        for j in T.serial(0, 16):
-            A[i, j] = 0.0
-
-
-def test_range_missing_args():
-    check_error(range_missing_args, 6)
 
 
 def undefined_buffer(a: T.handle) -> None:
@@ -509,29 +496,6 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_axes, 2)
 
 
-def check_error(func, rel_lineno):
-    # Override the default renderer to accumulate errors
-    errors = []
-
-    def render(e):
-        for d in e.diagnostics:
-            errors.append(d)
-
-    override_renderer(render)
-    # The diagnostic context throws an exception when it gets an error
-    try:
-        source_code = inspect.getsource(func)
-        source_code = "@T.prim_func\n" + source_code
-        tvm.script.from_source(source_code)
-    except tvm.error.DiagnosticError as e:
-        pass
-    assert len(errors) == 1, errors
-    for d in errors:
-        assert (
-            d.span.line - 1 == rel_lineno
-        ), f"Expected error to be on line {rel_lineno}, but it was on {d.span.line - 1}"
-
-
 @T.prim_func
 def elementwise_not_affine(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (128, 128, 128, 128))
@@ -580,10 +544,10 @@ def test_reorder_fail_nested_loop_inner():
     with pytest.raises(tvm.tir.ScheduleError) as execinfo:
         sch.reorder(k, i)
     expected_sub_error_message = (
-        "        for i in T.serial(0, 128):\n"
+        "        for i in T.serial(128):\n"
         "            # tir.For#0\n"
-        "            for j in T.serial(0, 128):\n"
-        "            ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(128):\n"
+        "            ^^^^^^^^^^^^^^^^^^^^^^^\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 
@@ -596,9 +560,9 @@ def test_fuse_fail_nested_loop_outer():
         sch.fuse(k, i)
     expected_sub_error_message = (
         "        # tir.For#1\n"
-        "        for i in T.serial(0, 128):\n"
-        "        ^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
-        "            for j in T.serial(0, 128):\n"
+        "        for i in T.serial(128):\n"
+        "        ^^^^^^^^^^^^^^^^^^^^^^^\n"
+        "            for j in T.serial(128):\n"
     )
     assert expected_sub_error_message in str(execinfo.value)
 

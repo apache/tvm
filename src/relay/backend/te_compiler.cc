@@ -560,8 +560,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
    * to the TIR implementation, and attributes to attach to the call to identify it as
    * a TIR call.
    */
-  Expr MakeLoweredCall(Function func, Array<Expr> visited_args, Array<Type> type_args, Span span,
-                       Target target) {
+  Expr MakeLoweredCall(Function func, Array<Expr> visited_args, Span span, Target target) {
     CCacheKey key = CCacheKey(func, target);
     CachedFunc cfunc = compiler_->Lower(key, module_name_);
     ICHECK(cfunc.defined());
@@ -594,16 +593,16 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
     func_with_metadata = WithAttr(func_with_metadata, tvm::attr::kTarget, cfunc->target);
     this->process_fn_(func_with_metadata);
 
-    auto call_lowered_attrs = make_object<CallLoweredAttrs>();
+    CallLoweredAttrs call_lowered_attrs;
 
     // Non-External Relay Function
     // TODO(mbs): "reshape" cleanup.
     if (!opt_compiler && func->HasNonzeroAttr(attr::kReshapeOnly)) {
-      call_lowered_attrs->metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
+      call_lowered_attrs.metadata.Set(attr::kReshapeOnly, tvm::Integer(1));
     }
 
-    call_lowered_attrs->metadata.Set("relay_attrs", func->attrs);
-    call_lowered_attrs->metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
+    call_lowered_attrs.metadata.Set("relay_attrs", func->attrs);
+    call_lowered_attrs.metadata.Set("all_prim_fn_vars", all_prim_fn_vars);
 
     if (IsDynamic(func->ret_type)) {
       // Also lower the companion dynamic shape function.
@@ -616,12 +615,12 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       // Capture the shape function's global var and parameters 'states' in call
       // annotations so calling convention can be recovered.
       // TODO(mbs): Shape cleanup.
-      call_lowered_attrs->metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
-      call_lowered_attrs->metadata.Set("prim_shape_fn_states",
-                                       lowered_shape_func->shape_func_param_states);
-      call_lowered_attrs->metadata.Set(
-          "prim_shape_fn_num_inputs", Integer(static_cast<int>(lowered_shape_func->inputs.size())));
-      call_lowered_attrs->metadata.Set(
+      call_lowered_attrs.metadata.Set("prim_shape_fn_var", lowered_shape_func->prim_fn_var);
+      call_lowered_attrs.metadata.Set("prim_shape_fn_states",
+                                      lowered_shape_func->shape_func_param_states);
+      call_lowered_attrs.metadata.Set("prim_shape_fn_num_inputs",
+                                      Integer(static_cast<int>(lowered_shape_func->inputs.size())));
+      call_lowered_attrs.metadata.Set(
           "prim_shape_fn_num_outputs",
           Integer(static_cast<int>(lowered_shape_func->outputs.size())));
       Array<GlobalVar> all_prim_shape_fn_vars;
@@ -629,11 +628,11 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
         CHECK(kv.second.as<tir::PrimFuncNode>()) << "must be a prim fn";
         all_prim_shape_fn_vars.push_back(kv.first);
       }
-      call_lowered_attrs->metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
+      call_lowered_attrs.metadata.Set("all_prim_shape_fn_vars", all_prim_shape_fn_vars);
     }
 
-    return CallLowered(cfunc->prim_fn_var, std::move(visited_args), Attrs(call_lowered_attrs),
-                       type_args, std::move(span));
+    return CallLowered(cfunc->prim_fn_var, std::move(visited_args), std::move(call_lowered_attrs),
+                       std::move(span));
   }
 
   std::pair<Var, Expr> PreVisitLetBinding_(const Var& var, const Expr& value) final {
@@ -729,12 +728,13 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
                                                               });
 
       ICHECK(!IsDynamic(call_node->checked_type()));
-      auto call_lowered_attrs = make_object<CallLoweredAttrs>();
-      call_lowered_attrs->metadata.Set("relay_attrs", primitive_func->attrs);
+      CallLoweredAttrs call_lowered_attrs;
+      call_lowered_attrs.metadata.Set("relay_attrs", primitive_func->attrs);
 
       process_fn_(func_with_metadata);
-      return CallLowered(call_node->op, std::move(new_args), Attrs(std::move(call_lowered_attrs)),
-                         call_node->type_args, call_node->span);
+      ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
+      return CallLowered(prim_func_var, std::move(new_args), std::move(call_lowered_attrs),
+                         call_node->span);
     }
 
     // Typical case: call to fused primitive Relay Function.
@@ -754,8 +754,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
 
     // Lower the primitive function for that target.
     Function function = Downcast<Function>(primitive_func);
-    return MakeLoweredCall(function, std::move(new_args), call_node->type_args, call_node->span,
-                           target);
+    ICHECK(call_node->type_args.empty()) << "lowered functions cannot be polymorphic";
+    return MakeLoweredCall(function, std::move(new_args), call_node->span, target);
   }
 
   IRModule module_;

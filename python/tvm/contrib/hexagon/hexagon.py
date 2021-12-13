@@ -22,7 +22,7 @@ import os
 import tvm
 import tvm.ir
 import tvm.contrib.cc as cc
-from .._ffi.registry import register_func
+from ..._ffi.registry import register_func
 
 
 # Linking Hexagon shared libraries.
@@ -47,16 +47,16 @@ hexagon_link_main = os.path.join(  # pylint: disable=invalid-name
 
 def register_linker(f):
     """Register a function that will return the path to the Hexagon linker."""
-    return register_func("tvm.contrib.hexagon.hexagon_link", f, True)
+    return register_func("tvm.contrib.hexagon.hexagon.hexagon_link", f, True)
 
 
-@register_func("tvm.contrib.hexagon.hexagon_link")
+@register_func("tvm.contrib.hexagon.hexagon.hexagon_link")
 def hexagon_link():
     """Return path to the Hexagon linker."""
     return hexagon_link_main
 
 
-@register_func("tvm.contrib.hexagon.link_shared")
+@register_func("tvm.contrib.hexagon.hexagon.link_shared")
 def link_shared(so_name, objs, **kwargs):
     """Link shared library on Hexagon using the registered Hexagon linker.
 
@@ -83,9 +83,9 @@ def link_shared(so_name, objs, **kwargs):
 
     objs = [to_str(s) for s in objs]
 
-    linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon_link")()
+    linker = tvm.get_global_func("tvm.contrib.hexagon.hexagon.hexagon_link")()
     if kwargs.get("verbose"):
-        print("tvm.contrib.hexagon.link_shared:")
+        print("tvm.contrib.hexagon.hexagon.link_shared:")
         print("  Using linker:", linker)
         print("  Library name:", so_name)
         print("  Object files:", objs)

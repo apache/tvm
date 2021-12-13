@@ -134,6 +134,8 @@ class Function : public BaseFunc {
  * \param opt_attrs
  * The (optional) attributes for the copied function. If none,
  * ret_function->attrs = function->attrs.
+ * \param opt_virtual_device The (optional) virtual_device for the copied function. If none,
+ * ret_function->virtual_device = function->virtual_device.
  * \param opt_span The (optional) span for the copied function. If none,
  * ret_function->span = function->span.
  * \return If all properties are null or the same as the property in the input function
@@ -146,6 +148,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<Type> opt_ret_type = Optional<Type>(),
                     Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
+                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*

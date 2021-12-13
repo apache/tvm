@@ -322,36 +322,72 @@ def Assert(condition: Union[PrimExpr, builtins.bool], message: str) -> PrimExpr:
 """
 Scope handler - Loops
 """
-
+@overload
 def serial(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def serial(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def parallel(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def parallel(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def vectorized(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def vectorized(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def unroll(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def unroll(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def thread_binding(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     thread: str,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def thread_binding(
+    end: Union[PrimExpr, int],
+    thread: str,
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def for_range(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int] = None,
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
+def for_range(
+    end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def grid(*extents: Union[PrimExpr, int]) -> Iterable[Sequence[IterVar]]: ...

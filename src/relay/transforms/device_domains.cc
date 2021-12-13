@@ -199,16 +199,23 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
   DeviceCopyProps device_copy_props = GetDeviceCopyProps(call.get());
   CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
 
+  // TODO(mbs): Support call_lowered to PrimFuncs.
+  ICHECK(!call_lowered_props.lowered_func.defined());
   if (on_device_props.body.defined()) {
-    // on_device(expr, se_scope=<t>, is_fixed=false)
-    // on_device : fn(<t>):?x?
-    //
-    // on_device(expr, se_scope=<t>, is_fixed=true)
-    // on_device: fn(<t>):<t>
-    args_and_result.emplace_back(
-        ForSEScope(on_device_props.body->checked_type(), on_device_props.se_scope));
-    if (on_device_props.is_fixed) {
-      args_and_result.emplace_back(args_and_result.front());
+    // By default:
+    //   on_device(expr, se_scope=<t>)
+    //   on_device : fn(<t>):?x?
+    // However we'll interpret the constrain_body and constrain_result fields to decide
+    // on free vs constrained domains for the argument and result respectively.
+    if (on_device_props.constrain_body) {
+      args_and_result.emplace_back(
+          ForSEScope(on_device_props.body->checked_type(), on_device_props.se_scope));
+    } else {
+      args_and_result.emplace_back(Free(on_device_props.body->checked_type()));
+    }
+    if (on_device_props.constrain_result) {
+      args_and_result.emplace_back(
+          ForSEScope(on_device_props.body->checked_type(), on_device_props.se_scope));
     } else {
       args_and_result.emplace_back(Free(on_device_props.body->checked_type()));
     }
@@ -286,11 +293,9 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
       args_and_result.emplace_back(param_domain);
     }
     args_and_result.emplace_back(result_domain);
-  } else if (call_lowered_props.lowered_func.defined()) {
-    return DomainFor(call_lowered_props.lowered_func);
   } else {
     // We still need to handle the case where the function / op is not lowered
-    // because the device planner runs before and after lowering.
+    // because the device planner runs both before and after lowering.
     return DomainFor(call->op);
   }
   auto domain = MakeHigherOrderDomain(std::move(args_and_result));
@@ -310,6 +315,33 @@ void DeviceDomains::UnifyExprExact(const Expr& lhs, const Expr& rhs) {
                << PrettyPrint(rhs) << std::endl
                << "with scope:" << std::endl
                << ToString(rhs_domain);
+  }
+}
+
+void DeviceDomains::OptionalUnifyExprExact(const Expr& lhs, const Expr& rhs) {
+  auto lhs_domain = DomainFor(lhs);
+  auto rhs_domain = DomainFor(rhs);
+  // Snapshot
+  std::unordered_map<DeviceDomainPtr, DeviceDomainPtr> domain_to_equiv_snapshot = domain_to_equiv_;
+  if (UnifyOrNull(lhs_domain, rhs_domain) == nullptr) {
+    // Rollback
+    domain_to_equiv_ = domain_to_equiv_snapshot;
+    VLOG(2) << "Unable to unify SEScopes for expression:" << std::endl
+            << PrettyPrint(lhs) << std::endl
+            << "with scope:" << std::endl
+            << ToString(lhs_domain) << std::endl
+            << "and expression:" << std::endl
+            << PrettyPrint(rhs) << std::endl
+            << "with scope:" << std::endl
+            << ToString(rhs_domain) << std::endl
+            << ". Leaving scopes non-unified.";
+  } else {
+    VLOG(2) << "Unified SEScopes for expression:" << std::endl
+            << PrettyPrint(lhs) << std::endl
+            << "and expression:" << std::endl
+            << PrettyPrint(rhs) << std::endl
+            << "to scope:" << std::endl
+            << ToString(lhs_domain);
   }
 }
 
