@@ -48,7 +48,7 @@ namespace relay {
 static constexpr const char* kTvmRuntimeCpp = "cpp";
 
 /*! \brief Value used with Runtime::name to indicate the C runtime. */
-static constexpr const char* kTvmRuntimeCrt = "c";
+static constexpr const char* kTvmRuntimeCrt = "crt";
 
 /*!
  * \brief Runtime information.
