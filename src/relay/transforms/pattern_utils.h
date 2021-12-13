@@ -451,6 +451,23 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
 }
 
 /*!
+ * \brief Convert a NDArray with type int or float to Array<FloatImm>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<FloatImm> ToFloatVector(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  ICHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
+  size_t len = array.Shape().front();
+  Array<FloatImm> out;
+  for (size_t i = 0; i < len; ++i) {
+    long double elem_val = ToScalar(array, i);
+    out.push_back(FloatImm(DataType::Float(32), static_cast<float>(elem_val)));
+  }
+  return out;
+}
+
+/*!
  * \brief Convert a NDArray with type int or float to Array<Array<Integer>>.
  * \param array Input NDArray
  * \return Converted Array.

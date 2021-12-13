@@ -14,22 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=super-init-not-called
-"""This module defines all error types associated with the Arm(R) Ethos(TM)-U NPU code generator."""
+"""The NPU cascading planner.
 
-
-class EthosUCodegenError(Exception):
-    """Base class for all exceptions related to code generation"""
-
-    def __init__(self, data):
-        self.message = "EthosUCodegenError:" + data
-
-    def __str__(self):
-        return self.message
-
-
-class UnsupportedLayout(EthosUCodegenError):
-    """Raised when unsupported layout is encountered during code generation."""
-
-    def __init__(self, layout):
-        super().__init__(f"Unsupported Layout {layout}")
+This component performs inter-operator scheduling to optimize
+for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
+"""
+from .stripe_config import StripeConfig
+from .propagator import Propagator

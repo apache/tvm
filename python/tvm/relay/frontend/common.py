@@ -31,8 +31,21 @@ from .. import op as _op
 from .. import ty as _ty
 from .. import analysis
 
+
+class DuplicateFilter:
+    """A log filter that only prints the same message once."""
+
+    def __init__(self):
+        self.msgs = set()
+
+    def filter(self, record):
+        self.msgs.add(record.msg)
+        return record.msg not in self.msgs
+
+
 # pylint: disable=invalid-name
-logger = logging.getLogger("Common")
+logger = logging.getLogger("Frontend")
+logger.addFilter(DuplicateFilter())
 # Uncomment below line to print all debug msgs
 # logger.setLevel(logging.DEBUG)
 

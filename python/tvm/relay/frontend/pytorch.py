@@ -21,7 +21,6 @@
 """PT: PyTorch frontend."""
 import functools
 import itertools
-import logging
 import math
 import sys
 
@@ -40,7 +39,7 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, gru_cell
+from .common import AttrCvt, get_relay_op, gru_cell, logger
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
@@ -409,11 +408,16 @@ class PyTorchOpConverter:
         ):
             return data
 
+        if target_begin is None and target_end is None:
+            return data
+
         # Process begin
         begin = [0] * ndim
-        begin[dim] = target_begin
 
-        if not isinstance(begin[dim], int):
+        if target_begin is not None:
+            begin[dim] = target_begin
+
+        if target_begin is not None and not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
                 if isinstance(b, int):
@@ -456,7 +460,7 @@ class PyTorchOpConverter:
                     )
         else:
             end = _op.cast(_op.shape_of(data), axis_dtype)
-            if not isinstance(target_end, tvm.tir.Any):
+            if target_end is not None and not isinstance(target_end, tvm.tir.Any):
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
@@ -746,7 +750,13 @@ class PyTorchOpConverter:
         else:
             stop = start + step
 
-        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
+        if inputs[3] is None:
+            import torch
+
+            dtype = _convert_data_type(str(torch.get_default_dtype()))
+        else:
+            dtype = _convert_dtype_value(inputs[3])
+
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
@@ -1822,7 +1832,7 @@ class PyTorchOpConverter:
 
             def func(x):
                 return _op.image.resize2d(
-                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                    x, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
                 )
 
             if self.is_quantized_tensor(data):
@@ -1854,7 +1864,7 @@ class PyTorchOpConverter:
             else:
                 coord_trans = "half_pixel"
 
-            return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+            return _op.image.resize3d(data, out_size, None, "NCDHW", method, coord_trans)
 
         return upsample3d
 
@@ -2066,16 +2076,25 @@ class PyTorchOpConverter:
         data = inputs[0]
         weight = inputs[1]
         offset = inputs[2]
-        strides = (inputs[4], inputs[5])
-        padding = (inputs[6], inputs[7])
-        dilation = (inputs[8], inputs[9])
-        groups = inputs[10]
-        deformable_groups = inputs[11]
+
+        if len(inputs) > 12:
+            strides_offset = 5
+            bias = inputs[4]
+            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+        else:
+            strides_offset = 4
+            bias = inputs[3]
+
+        strides = (inputs[strides_offset], inputs[strides_offset + 1])
+        padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
+        dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
+        groups = inputs[strides_offset + 6]
+        deformable_groups = inputs[strides_offset + 7]
         weight_shape = self.infer_shape(weight)
         output_channels = weight_shape[0]
         kernel_size = (weight_shape[2], weight_shape[3])
 
-        return _op.nn.deformable_conv2d(
+        conv_out = _op.nn.deformable_conv2d(
             data,
             offset,
             weight,
@@ -2087,6 +2106,8 @@ class PyTorchOpConverter:
             output_channels,
             kernel_size,
         )
+
+        return _op.nn.bias_add(conv_out, bias)
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
@@ -2186,7 +2207,9 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
+        return _op.image.resize2d(
+            data, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
+        )
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2200,7 +2223,7 @@ class PyTorchOpConverter:
         weights = inputs[1]
         input_type = self.infer_type(data).dtype
         if input_type == "int64":
-            logging.warning(
+            logger.warning(
                 "Casting an int64 input to int32, since we do not have int64 atomic add"
                 "needed for bincount yet."
             )
@@ -2278,7 +2301,7 @@ class PyTorchOpConverter:
         assert len(inputs) == 4
         [data, is_sorted, return_inverse, return_counts] = inputs
         if not is_sorted:
-            logging.warning("TVM always assumes sorted=True for torch.unique")
+            logger.warning("TVM always assumes sorted=True for torch.unique")
             is_sorted = True
         if return_counts:
             [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
@@ -2818,6 +2841,10 @@ class PyTorchOpConverter:
 
         return out
 
+    def einsum(self, inputs, input_types):
+        equation, data = inputs
+        return _op.einsum(data, equation)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3054,6 +3081,7 @@ class PyTorchOpConverter:
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::nll_loss_nd": self.nll_loss,
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
@@ -3062,6 +3090,7 @@ class PyTorchOpConverter:
             "aten::searchsorted": self.searchsorted,
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
+            "aten::einsum": self.einsum,
         }
 
     def update_convert_map(self, custom_map):
@@ -3258,7 +3287,7 @@ class PyTorchOpConverter:
                     unpacked = _unpack_tuple(inputs[0])
                 outputs.update(zip(_get_output_names(op_node), unpacked))
             elif operator == "prim::prim::RaiseException":
-                logging.warning("raising exceptions is ignored")
+                logger.warning("raising exceptions is ignored")
                 outputs[node_name] = None
             elif operator == "prim::If":
                 if_out = self.convert_if(op_node, outputs)
@@ -3486,7 +3515,7 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         if typ.scalarType() is None:
             # Tensor's type can be unknown if we use torch.jit.script(...)
             # Defaults can be passed in, if not it is float32
-            logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
+            logger.warning("Untyped Tensor found, assume it is %s", default_dtype)
             return default_dtype
         else:
             return _convert_data_type(typ.scalarType())

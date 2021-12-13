@@ -488,6 +488,7 @@ GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor>&
   } else if (param.func_name == "__copy") {
     // Perform cross device data copy.
     // Directly copy data from the input to the output.
+    // TODO(mbs): device_copy cleanup.
     auto fexec = [arg_ptr]() {
       DLTensor* from = static_cast<DLTensor*>(arg_ptr->arg_values[0].v_handle);
       DLTensor* to = static_cast<DLTensor*>(arg_ptr->arg_values[1].v_handle);

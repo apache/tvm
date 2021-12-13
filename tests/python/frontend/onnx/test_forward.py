@@ -61,7 +61,6 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-
     mod, params = relay.frontend.from_onnx(
         graph_def,
         shape_dict,
@@ -167,7 +166,6 @@ def verify_with_ort_with_inputs(
         model.opset_import[0].version = opset
 
     ort_out = get_onnxruntime_output(model, inputs)
-
     if use_vm:
         tvm_out = get_tvm_output_with_vm(
             model,
@@ -894,6 +892,7 @@ def test_slice(target, dev):
     _test_slice_iteration_v10(x, x[:, :, 3:4], starts=(0, 0, 3), ends=(20, 10, 4))
     _test_slice_iteration_v10(x, x[:, 1:1000], starts=(1,), ends=(1000,), axes=(1,))
     _test_slice_iteration_v10(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(1,))
+    _test_slice_iteration_v10(x, x[:, 0:-1], starts=(0,), ends=(-1,), axes=(-1,))
     _test_slice_iteration_v10(
         x,
         x[0:3, 0:10],
@@ -1280,6 +1279,47 @@ def test_batch_matmul(target, dev):
         (2, 3, 4, 4),
         convert_config={"use_nt_batch_matmul": False},
     )
+
+
+@tvm.testing.parametrize_targets
+def test_matmulinteger16(target, dev):
+    def verify_matmulinteger16(a_shape, b_shape, out_shape):
+        a_dtype = "int16"
+        b_dtype = "int16"
+        low = np.iinfo(np.int16).min
+        high = np.iinfo(np.int16).max
+
+        a_proto = TensorProto.INT16
+        b_proto = TensorProto.INT16
+        out_proto = TensorProto.INT32
+        a_array = np.random.randint(low, high, size=a_shape).astype(a_dtype)
+        b_array = np.random.randint(low, high, size=b_shape).astype(b_dtype)
+
+        mul_node = helper.make_node("MatMulInteger16", ["a", "b"], ["out"], domain="com.microsoft")
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmuli16_test",
+            inputs=[
+                helper.make_tensor_value_info("a", a_proto, list(a_shape)),
+                helper.make_tensor_value_info("b", b_proto, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", out_proto, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmuli16_test")
+        verify_with_ort_with_inputs(model, [a_array, b_array], target=target, dev=dev)
+
+    # 2D computation to verify matmul op
+    verify_matmulinteger16((4, 3), (3, 4), (4, 4))
+    verify_matmulinteger16((5, 7), (7, 8), (5, 8))
+    # Verify 3D matmul using batch_matmul op
+    verify_matmulinteger16((2, 4, 3), (1, 3, 4), (2, 4, 4))
+    verify_matmulinteger16((1, 4, 3), (2, 3, 4), (2, 4, 4))
+    # Test implicit broadcasting
+    verify_matmulinteger16((2, 3, 5, 3), (2, 3, 3, 5), (2, 3, 5, 5))
+    verify_matmulinteger16((2, 7, 3), (3, 7), (2, 7, 7))
+    verify_matmulinteger16((2, 3, 4, 3), (3, 4), (2, 3, 4, 4))
 
 
 def verify_simple_dynamic_model(a_shape, b_shape, target, dev):
@@ -1912,7 +1952,9 @@ def test_split(target, dev):
                 inputs.append(
                     helper.make_tensor_value_info("split", TensorProto.INT64, list(np_split.shape))
                 )
-                indata = [indata, np_split]
+                # TODO(mbrookhart): Support dynamic split, edit this test case to remove split from
+                # the initializer and add it back to the input data
+                indata = [indata]  # , np_split]
                 initializer.append(
                     helper.make_tensor("split", TensorProto.INT64, list(np_split.shape), np_split)
                 )
@@ -1947,6 +1989,8 @@ def test_split(target, dev):
             opset=opset,
             target=target,
             dev=dev,
+            use_vm=True,
+            freeze_params=(opset >= 13),
         )
 
     # 1D
@@ -1955,12 +1999,22 @@ def test_split(target, dev):
         [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], [2, 2, 2], 0, False
     )
     verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0)
+    verify_split(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0, opset=13
+    )
     # 2D
     verify_split(
         [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
         [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
         [2, 2],
         1,
+    )
+    verify_split(
+        [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
+        [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
+        [2, 2],
+        1,
+        opset=13,
     )
     # Split evenly (unstack)
     verify_split([1, 2, 3], [[1], [2], [3]], False, 0, False)
@@ -4913,11 +4967,38 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
+    "test_basic_convinteger",
+    "test_batchnorm_epsilon_training_mode",
+    "test_batchnorm_example_training_mode",
+    "test_bernoulli",
+    "test_bernoulli_expanded",
+    "test_bernoulli_double",
+    "test_bernoulli_double_expanded",
+    "test_bernoulli_seed",
+    "test_bernoulli_seed_expanded",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
+    "test_castlike_BFLOAT16_to_FLOAT",
+    "test_castlike_BFLOAT16_to_FLOAT_expanded",
+    "test_castlike_DOUBLE_to_FLOAT",
+    "test_castlike_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16_expanded",
+    "test_castlike_FLOAT16_to_DOUBLE",
+    "test_castlike_FLOAT16_to_FLOAT",
+    "test_castlike_FLOAT_to_BFLOAT16",
+    "test_castlike_FLOAT_to_BFLOAT16_expanded",
+    "test_castlike_FLOAT_to_DOUBLE",
+    "test_castlike_FLOAT_to_FLOAT16",
+    "test_castlike_FLOAT_to_STRING",
+    "test_castlike_FLOAT_to_STRING_expanded",
+    "test_castlike_STRING_to_FLOAT",
+    "test_castlike_STRING_to_FLOAT_expanded",
+    "test_convinteger_with_padding",
+    "test_convinteger_without_padding",
+    "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_convtranspose_output_shape",
     "test_cumsum_1d",
@@ -4933,9 +5014,13 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
+    "test_gru_batchwise",
+    "test_hardswish",
+    "test_identity_sequence",
     "test_if_seq",
     "test_loop11",
     "test_loop13_seq",
+    "test_lstm_batchwise",
     "test_matmulinteger",
     "test_maxpool_2d_same_lower",
     "test_maxpool_2d_same_upper",
@@ -4945,6 +5030,10 @@ unsupported_onnx_tests = [
     "test_mvn",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
+    "test_optional_has_element",
+    "test_optional_get_element",
+    "test_optional_get_element_sequence",
+    "test_optional_has_element_empty",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -4958,13 +5047,17 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
-    "test_resize_tf_crop_and_resize",
     "test_rnn_seq_length",
     "test_round",
-    "test_scan9_sum",
-    "test_scan_sum",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
+    "test_shape_end_1",
+    "test_shape_end_negative_1",
+    "test_shape_start_1",
+    "test_shape_start_1_end_2",
+    "test_shape_start_1_end_negative_1",
+    "test_shape_start_negative_1",
+    "test_simple_rnn_batchwise",
     "test_simple_rnn_defaults",
     "test_simple_rnn_with_initial_bias",
     "test_split_variable_parts_1d",
@@ -4990,6 +5083,24 @@ unsupported_onnx_tests = [
     "test_training_dropout_mask",
     "test_training_dropout_zero_ratio",
     "test_training_dropout_zero_ratio_mask",
+    "test_tril",
+    "test_tril_pos",
+    "test_tril_square",
+    "test_tril_square_neg",
+    "test_tril_neg",
+    "test_tril_one_row_neg",
+    "test_tril_out_neg",
+    "test_tril_out_pos",
+    "test_tril_zero",
+    "test_triu",
+    "test_triu_one_row",
+    "test_triu_out_neg_out",
+    "test_triu_out_pos",
+    "test_triu_neg",
+    "test_triu_pos",
+    "test_triu_square",
+    "test_triu_square_neg",
+    "test_triu_zero",
     # These unsqueeze tests work, but take 2+ hrs to run
     "test_unsqueeze_three_axes",
     "test_unsqueeze_two_axes",
@@ -5597,7 +5708,7 @@ def test_random_uniform(target, dev):
     assert list(vals.shape) == [1, 3, 100, 100]
 
     # Check that bounds aren't exceeded.
-    vals = get_random_uniform(shape=[100], high=100, low=-100)
+    vals = get_random_uniform(shape=[100], high=100.0, low=-100.0)
     assert list(vals.shape) == [100]
     assert all(vals >= -100) and all(vals <= 100)
 
@@ -5607,7 +5718,7 @@ def test_random_uniform(target, dev):
     assert all(vals_1 == vals_2)
 
     # Test against an expected output with a fixed seed.
-    real = get_random_uniform(shape=[10], seed=5)
+    real = get_random_uniform(shape=[10], seed=5.0)
     expected = np.asarray(
         [
             0.043976,
@@ -5623,6 +5734,149 @@ def test_random_uniform(target, dev):
         ]
     )
     tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
+
+@tvm.testing.parametrize_targets
+def test_random_uniform_like(target, dev):
+    def get_random_uniform_like(input, shape, dtype=None, high=1.0, low=0.0, seed=None):
+        node = helper.make_node("RandomUniformLike", ["in"], ["out"], high=high, low=low)
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        ONNX_DTYPE = None
+        if dtype is not None:
+            ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+            dtype_attr = helper.make_attribute("dtype", ONNX_DTYPE)
+            node.attribute.append(dtype_attr)
+        else:
+            dtype = input.dtype
+            ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+
+        graph = helper.make_graph(
+            [node],
+            "random_uniform_test",
+            inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, shape)],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_uniform_like_test")
+        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+
+    # Check that function runs and produces proper shape and dtype.
+    shape = [10]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_uniform_like(input, shape, dtype="float32")
+    assert list(vals.shape) == [10]
+    assert vals.dtype == "float32"
+
+    # Test N-D tensor generation.
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_uniform_like(input, shape, dtype="float64")
+    assert list(vals.shape) == shape
+    assert vals.dtype == "float64"
+
+    # Check that bounds aren't exceeded.
+    shape = [100]
+    input = np.random.random(shape).astype("float64")
+    vals = get_random_uniform_like(input, shape, high=100.0, low=-100.0)
+    assert list(vals.shape) == shape
+    assert all(vals >= -100) and all(vals <= 100)
+
+    # Test against an expected output with a fixed seed.
+    shape = [10]
+    input = np.random.random(shape).astype("float32")
+    real = get_random_uniform_like(input, shape=[10], seed=5.0)
+    expected = np.asarray(
+        [
+            0.043976,
+            0.96656,
+            0.292199,
+            0.904297,
+            0.25167,
+            0.521778,
+            0.778985,
+            0.085463,
+            0.939846,
+            0.194201,
+        ]
+    )
+    tvm.testing.assert_allclose(real, expected, rtol=1e-5)
+
+
+@tvm.testing.parametrize_targets
+def test_random_normal(target, dev):
+    def get_random_normal(shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+        node = helper.make_node(
+            "RandomNormal", [], ["out"], shape=shape, dtype=ONNX_DTYPE, scale=scale, mean=mean
+        )
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "random_normal_test",
+            inputs=[],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_normal_test")
+        return get_tvm_output_with_vm(model, [], target=target, dev=dev)
+
+    # Test N-D tensor generation.
+    vals = get_random_normal([1, 3, 100, 100], dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 0.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 1.0, rtol=0.1, atol=0.1)
+
+    # Test mean=2.0 scale=10.0
+    vals = get_random_normal([1, 3, 100, 100], mean=2.0, scale=10.0, dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 2.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 10.0, rtol=0.1, atol=0.1)
+
+    # Check that a fixed seed produces the same values when run twice.
+    vals_1 = get_random_normal(shape=[10], seed=1.0)
+    vals_2 = get_random_normal(shape=[10], seed=1.0)
+    assert all(vals_1 == vals_2)
+
+
+@tvm.testing.parametrize_targets
+def test_random_normal_like(target, dev):
+    def get_random_normal_like(input, shape, dtype="float32", scale=1.0, mean=0.0, seed=None):
+        ONNX_DTYPE = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
+        node = helper.make_node(
+            "RandomNormalLike", ["in"], ["out"], dtype=ONNX_DTYPE, scale=scale, mean=mean
+        )
+        if seed is not None:
+            seed_attr = helper.make_attribute("seed", seed)
+            node.attribute.append(seed_attr)
+
+        graph = helper.make_graph(
+            [node],
+            "random_normal_like_test",
+            inputs=[helper.make_tensor_value_info("in", ONNX_DTYPE, shape)],
+            outputs=[helper.make_tensor_value_info("out", ONNX_DTYPE, shape)],
+        )
+        model = helper.make_model(graph, producer_name="random_normal_like_test")
+        return get_tvm_output_with_vm(model, [input], target=target, dev=dev)
+
+    # Test N-D tensor generation.
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_normal_like(input, [1, 3, 100, 100], dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 0.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 1.0, rtol=0.1, atol=0.1)
+
+    # Test mean=2.0 scale=10.0
+    shape = [1, 3, 100, 100]
+    input = np.random.random(shape).astype("float32")
+    vals = get_random_normal_like(input, [1, 3, 100, 100], mean=2.0, scale=10.0, dtype="float32")
+    assert list(vals.shape) == [1, 3, 100, 100]
+    tvm.testing.assert_allclose(vals.mean(), 2.0, rtol=0.1, atol=0.1)
+    tvm.testing.assert_allclose(np.std(vals), 10.0, rtol=0.1, atol=0.1)
 
 
 @tvm.testing.parametrize_targets
@@ -5777,6 +6031,172 @@ def test_convinteger(target, dev):
     )
 
 
+@tvm.testing.parametrize_targets
+def test_scan(target, dev):
+    def verify_scan(
+        input_shapes,
+        output_shapes,
+        num_scan_inputs,
+        scan_input_axes,
+        scan_input_directions,
+        scan_output_axes,
+        scan_output_directions,
+        opset,
+    ):
+        import copy
+
+        body_input_shapes = copy.deepcopy(input_shapes)
+        num_state_inputs = len(input_shapes) - num_scan_inputs
+
+        if opset == 8:
+            for i in range(len(input_shapes)):
+                body_input_shapes[i].pop(0)
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(0)
+        else:
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(scan_input_axes[i - num_state_inputs])
+
+        initial0 = onnx.helper.make_tensor_value_info(
+            "initial0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        initial1 = onnx.helper.make_tensor_value_info(
+            "initial1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        input0 = onnx.helper.make_tensor_value_info(
+            "input0", onnx.TensorProto.FLOAT, body_input_shapes[2]
+        )
+        input1 = onnx.helper.make_tensor_value_info(
+            "input1", onnx.TensorProto.FLOAT, body_input_shapes[3]
+        )
+        input2 = onnx.helper.make_tensor_value_info(
+            "input2", onnx.TensorProto.FLOAT, body_input_shapes[4]
+        )
+        state0 = onnx.helper.make_tensor_value_info(
+            "state0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        scan_out0 = onnx.helper.make_tensor_value_info(
+            "scan_out0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        matmul_out = onnx.helper.make_tensor_value_info(
+            "matmul_out", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        state1 = onnx.helper.make_tensor_value_info(
+            "state1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        scan_out1 = onnx.helper.make_tensor_value_info(
+            "scan_out1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        add_node = onnx.helper.make_node(
+            "Add",
+            inputs=["initial0", "input0"],
+            outputs=["state0"],
+        )
+        id_node_0 = onnx.helper.make_node(
+            "Identity",
+            inputs=["state0"],
+            outputs=["scan_out0"],
+        )
+        matmul_node = onnx.helper.make_node(
+            "MatMul",
+            inputs=["input1", "input2"],
+            outputs=["matmul_out"],
+        )
+        sub_node = onnx.helper.make_node(
+            "Sub",
+            inputs=["initial1", "matmul_out"],
+            outputs=["state1"],
+        )
+        id_node_1 = onnx.helper.make_node(
+            "Identity",
+            inputs=["state1"],
+            outputs=["scan_out1"],
+        )
+        scan_body = onnx.helper.make_graph(
+            [add_node, id_node_0, matmul_node, sub_node, id_node_1],
+            "scan_body",
+            [initial0, initial1, input0, input1, input2],
+            [state0, state1, scan_out0, scan_out1],
+        )
+        # create scan op node
+        scan_node = None
+        if opset == 8:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["", "init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+            )
+        else:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+                scan_input_axes=scan_input_axes,
+                scan_input_directions=scan_input_directions,
+                scan_output_axes=scan_output_axes,
+                scan_output_directions=scan_output_directions,
+            )
+        input_info = [
+            helper.make_tensor_value_info("init0", TensorProto.FLOAT, input_shapes[0]),
+            helper.make_tensor_value_info("init1", TensorProto.FLOAT, input_shapes[1]),
+            helper.make_tensor_value_info("in0", TensorProto.FLOAT, input_shapes[2]),
+            helper.make_tensor_value_info("in1", TensorProto.FLOAT, input_shapes[3]),
+            helper.make_tensor_value_info("in2", TensorProto.FLOAT, input_shapes[4]),
+        ]
+        out_info = [
+            helper.make_tensor_value_info("s0", TensorProto.FLOAT, output_shapes[0]),
+            helper.make_tensor_value_info("s1", TensorProto.FLOAT, output_shapes[1]),
+            helper.make_tensor_value_info("scan0", TensorProto.FLOAT, output_shapes[2]),
+            helper.make_tensor_value_info("scan1", TensorProto.FLOAT, output_shapes[3]),
+        ]
+        graph = helper.make_graph(
+            nodes=[scan_node],
+            name="scan_test",
+            inputs=input_info,
+            outputs=out_info,
+        )
+        model = onnx.helper.make_model(graph, producer_name="scan-test")
+        init0 = np.random.uniform(low=0, high=255, size=input_shapes[0]).astype(np.float32)
+        init1 = np.random.uniform(low=0, high=255, size=input_shapes[1]).astype(np.float32)
+        in0 = np.random.uniform(low=0, high=255, size=input_shapes[2]).astype(np.float32)
+        in1 = np.random.uniform(low=0, high=255, size=input_shapes[3]).astype(np.float32)
+        in2 = np.random.uniform(low=0, high=255, size=input_shapes[4]).astype(np.float32)
+        input_values = [init0, init1, in0, in1, in2]
+
+        verify_with_ort_with_inputs(
+            model,
+            input_values,
+            target=target,
+            dev=dev,
+            opt_level=2,
+            use_vm=True,
+            opset=opset,
+        )
+
+    # opset 8
+    input_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 4], [2, 5, 4, 3]]
+    output_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 3]]
+    # input_shapes, output_shapes, num_scan_inputs, scan_input_axes, scan_input_directions,
+    # scan_output_axes, scan_output_directions, opset
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 8)
+    # opset 9
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 4], [5, 4, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 9)
+
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [6, 5, 7, 8], [3, 5, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [0, 2, 1], [1] * 3, [1] * 2, [1] * 2, 9)
+    # Negative axes
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [6, 5, 7, 8], [3, 5, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [-4, -1, -2], [1] * 3, [-3, -2], [1] * 2, 9)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -5796,6 +6216,7 @@ if __name__ == "__main__":
     test_onehot()
     test_gemm()
     test_matmul()
+    test_matmulinteger16()
     test_gather()
     test_gatherelements()
     test_gather_nd()
@@ -5867,3 +6288,7 @@ if __name__ == "__main__":
     test_convinteger()
     test_batch_matmul()
     test_global_lppool()
+    test_scan()
+    test_random_uniform_like()
+    test_random_normal()
+    test_random_normal_like()

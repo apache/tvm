@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N test functions"""
+"""Arm(R) Ethos(TM)-N test functions"""
 
 from __future__ import absolute_import, print_function
 import tvm
@@ -334,4 +334,4 @@ def get_ethosn_api_version():
 
 
 def get_ethosn_variant():
-    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N77")
+    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N78_1TOPS_2PLE_RATIO")

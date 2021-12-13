@@ -36,11 +36,12 @@ namespace transform {
 
 LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) {
   if (maybe_mod) {
-    for (const auto& pair : maybe_mod.value()->functions) {
-      if (const auto* function_node = pair.second.as<FunctionNode>()) {
+    for (const auto& kv : maybe_mod.value()->functions) {
+      if (const auto* function_node = kv.second.as<FunctionNode>()) {
         SEScope se_scope = GetFunctionResultSEScope(function_node);
         if (!se_scope->IsFullyUnconstrained()) {
-          global_var_se_scopes_.emplace(pair.first, se_scope);
+          VLOG(2) << "global '" << kv.first->name_hint << "' has scope " << se_scope;
+          global_var_se_scopes_.emplace(kv.first, se_scope);
         }
       }
     }
@@ -49,7 +50,7 @@ LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) 
 
 SEScope LexicalOnDeviceMixin::GetSEScope(const Expr& expr) const {
   OnDeviceProps props = GetOnDeviceProps(expr);
-  if (props.body.defined() && props.is_fixed) {
+  if (props.body.defined() && props.is_fixed()) {
     return props.se_scope;
   } else if (const auto* var_node = expr.as<VarNode>()) {
     // Lookup variable binding.
@@ -175,7 +176,7 @@ void DeviceAwareExprVisitor::VisitExpr_(const LetNode* let_node) {
 
 void DeviceAwareExprVisitor::VisitExpr_(const CallNode* call_node) {
   OnDeviceProps props = GetOnDeviceProps(call_node);
-  if (props.body.defined() && props.is_fixed) {
+  if (props.body.defined() && props.is_fixed()) {
     // Entering lexical scope of fixed "on_device" call.
     PushSEScope(props.se_scope);
     VisitExpr(props.body);
@@ -266,13 +267,13 @@ Expr DeviceAwareExprMutator::VisitExpr_(const LetNode* let_node) {
 
 Expr DeviceAwareExprMutator::VisitExpr_(const CallNode* call_node) {
   OnDeviceProps props = GetOnDeviceProps(call_node);
-  if (props.body.defined() && props.is_fixed) {
+  if (props.body.defined() && props.is_fixed()) {
     // Entering lexical scope of fixed "on_device" call.
     PushSEScope(props.se_scope);
     Expr expr = VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
     PopSEScope();
-    return MaybeOnDevice(expr, props.se_scope, props.is_fixed);
+    return MaybeOnDeviceWithProps(expr, props);
   } else {
     return DeviceAwareVisitExpr_(call_node);
   }

@@ -206,13 +206,9 @@ def default_build(mod: IRModule, target: Target) -> Module:
         The built Module.
     """
     # pylint: disable=import-outside-toplevel
-    from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
     from tvm.driver import build as tvm_build
 
     # pylint: enable=import-outside-toplevel
-
-    if target.kind.name == "cuda":
-        set_cuda_target_arch(target.attrs["arch"])
 
     return tvm_build(mod, target=target)
 

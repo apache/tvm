@@ -35,6 +35,8 @@ namespace tvm {
 namespace relay {
 
 Expr AllocStorage(Expr size, Expr alignment, SEScope se_scope, DataType dtype_hint);
+/*! \brief Returns the "memory.alloc_tensor" operator. */
+const Op& MemoryAllocTensorOp();
 Expr AllocTensor(Expr storage, Expr offset, tvm::relay::Expr shape, DataType dtype,
                  Array<IndexExpr> assert_shape);
 Expr ToTupleType(const Type& ty, const std::vector<Expr>& exprs);

@@ -50,10 +50,6 @@ namespace tec {
 class TECompiler;
 }
 
-namespace transform {
-Pass InlinePrimitives();
-}
-
 namespace backend {
 using Pass = tvm::transform::Pass;
 
@@ -190,7 +186,7 @@ struct ConstantUpdater : public ExprVisitor {
  * \param func The function from which to get the constant params.
  * \param params The params to update with the constants.
  */
-inline void UpdateConstants(Function func,
+inline void UpdateConstants(BaseFunc func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
   VLOG_CONTEXT << "UpdateConstants";
   VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
@@ -510,9 +506,9 @@ Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
  * lowering back to the auto scheduler.
  * Op weights refer to the number of times each distinct op/workload appears in a given module.
  * It is called "use_count" in TECompiler.
- * \param TECompiler used in the Relay module lowering step.
+ * \param IRModule after lowering by LowerTEPass.
  */
-void UpdateAutoSchedulerOpWeights(tec::TECompiler compiler);
+void UpdateAutoSchedulerOpWeights(const IRModule& module);
 
 }  // namespace backend
 }  // namespace relay

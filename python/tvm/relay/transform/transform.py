@@ -209,20 +209,22 @@ def CanonicalizeOps():
     return _ffi_api.CanonicalizeOps()
 
 
-def DeadCodeElimination(inline_once=False):
+def DeadCodeElimination(inline_once=False, ignore_impurity=False):
     """Remove expressions that do not have any users (dead code).
 
     Parameters
     ----------
     inline_once: Optional[Bool]
-        Whether to inline binding that occurs only once.
+        Whether to inline a binding that is referenced exactly once.
+    ignore_impurity: Optional[Bool]
+        Whether to ignore possible side-effects in let-bound expressions.
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _ffi_api.DeadCodeElimination(inline_once)
+    return _ffi_api.DeadCodeElimination(inline_once, ignore_impurity)
 
 
 def LazyGradientInit():
@@ -1196,7 +1198,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger():
+def FakeQuantizationToInteger(hard_fail=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1218,12 +1220,19 @@ def FakeQuantizationToInteger():
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
+    Parameters
+    ----------
+    hard_fail : boolean
+        How do deal with errors during graph rewriting.
+        If true, raise an error.
+        If false, skip rewriting the subgraph.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered SimplifyExpr pass.
     """
-    return _ffi_api.FakeQuantizationToInteger()
+    return _ffi_api.FakeQuantizationToInteger(hard_fail)
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

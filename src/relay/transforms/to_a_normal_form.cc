@@ -211,14 +211,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   }
 
   Expr Atomic(const Expr& e, const Var& v) {
-    Expr annotated_expr = MaybeOnDevice(e, GetSEScope(e), /*is_fixed=*/true);
+    Expr annotated_expr = MaybeOnDeviceFixed(e, GetSEScope(e));
     return v.defined() ? GetScope(e)->let_list->Push(v, annotated_expr) : annotated_expr;
   }
 
   // Bind expression `now` to var `v` if the original expression is in the include set, or if
   // v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Expr annotated_expr = MaybeOnDevice(now, GetSEScope(orig), /*is_fixed=*/true);
+    Expr annotated_expr = MaybeOnDeviceFixed(now, GetSEScope(orig));
     Var var = v.defined() ? v : Var(String("x"), Type());
     bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
     if (!v.defined() && not_included) {
@@ -230,14 +230,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
 
   Expr VisitExpr_(const CallNode* c, const Var& v) final {
     OnDeviceProps props = GetOnDeviceProps(c);
-    if (props.body.defined() && props.is_fixed) {
+    if (props.body.defined() && props.is_fixed()) {
       // Keep track of expression device type for lexically enclosing sub-expressions.
       PushSEScope(props.se_scope);
       Expr body = VisitExpr(props.body, v);
       // We are done with this sub-expression.
       PopSEScope();
       // Preserve the "on_device" annotations.
-      return OnDevice(body, props.se_scope, props.is_fixed);
+      return OnDeviceWithProps(body, props);
     }
 
     Expr e = GetRef<Expr>(c);
@@ -248,13 +248,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
 
-  Expr VisitExpr_(const TupleNode* t, const Var& v) final {
-    Expr e = GetRef<Expr>(t);
-    std::vector<Expr> fields;
-    for (const auto& a : t->fields) {
+  Expr VisitExpr_(const TupleNode* tuple_node, const Var& v) final {
+    Expr e = GetRef<Expr>(tuple_node);
+    Array<Expr> fields;
+    fields.reserve(tuple_node->fields.size());
+    for (const auto& a : tuple_node->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, Tuple(fields), v);
+    return Compound(e, WithFields(GetRef<Tuple>(tuple_node), std::move(fields)), v);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {

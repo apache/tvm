@@ -23,10 +23,11 @@ import numpy as np
 
 import tvm
 from tvm.relay.backend import te_compiler
+from tvm.relay.backend.runtime import Runtime
 import tvm.relay.testing
 import tvm.relay.op as reg
 from tvm import relay
-from tvm import runtime
+from tvm import runtime as tvm_runtime
 from tvm.relay import transform
 from tvm.relay.testing import byoc
 from tvm.contrib import utils
@@ -121,7 +122,15 @@ class MobileNetAnnotator(ExprMutator):
 
 
 def check_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
+    mod,
+    map_inputs,
+    out_shape,
+    result,
+    tol=1e-5,
+    target="llvm",
+    device=tvm.cpu(),
+    params=None,
+    runtime=Runtime("cpp"),
 ):
     if sys.platform == "win32":
         print("Skip test on Windows for now")
@@ -138,7 +147,7 @@ def check_result(
         lib_name = "lib.so"
         lib_path = tmp_path.relpath(lib_name)
         lib.export_library(lib_path, fcompile=False, **kwargs)
-        lib = runtime.load_module(lib_path)
+        lib = tvm_runtime.load_module(lib_path)
 
         return lib
 
@@ -148,10 +157,10 @@ def check_result(
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
-        exe = runtime.vm.Executable.load_exec(code, lib)
-        vm = runtime.vm.VirtualMachine(exe, device)
+        exe = tvm_runtime.vm.Executable.load_exec(code, lib)
+        vm = tvm_runtime.vm.VirtualMachine(exe, device)
         outs = vm.run(**map_inputs)
-        outs = outs if isinstance(outs, runtime.container.ADT) else [outs]
+        outs = outs if isinstance(outs, tvm_runtime.container.ADT) else [outs]
         results = result if isinstance(result, list) else [result]
         for out, ref in zip(outs, results):
             tvm.testing.assert_allclose(out.numpy(), ref, rtol=tol, atol=tol)
@@ -159,7 +168,7 @@ def check_result(
     def check_graph_executor_result():
         te_compiler.get().clear()
         with tvm.transform.PassContext(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params)
+            json, lib, param = relay.build(mod, target=target, params=params, runtime=runtime)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
 
@@ -222,8 +231,8 @@ def test_multi_node_compiler():
     map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
     map_inputs["x"] = x_data
 
-    targets = ["llvm", "c -runtime=c --system-lib"]
-    for tgt in targets:
+    targets = [("llvm", Runtime("cpp")), ("c", Runtime("crt", {"system-lib": True}))]
+    for tgt, rt in targets:
         check_result(
             mod,
             map_inputs,
@@ -237,6 +246,7 @@ def test_multi_node_compiler():
                 axis=0,
             ),
             target=tgt,
+            runtime=rt,
         )
 
 

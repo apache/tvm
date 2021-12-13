@@ -38,6 +38,7 @@ def conv2d_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
@@ -81,11 +82,17 @@ def conv2d_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
             "NEAREST" - upscale using nearest neighbour.
             "ZEROS" - upscale using zeros.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     ifm_layout : str
         The layout of the Input Feature Map tensor. Can be "NHWC" or "NHCWB16".
     ofm_layout : str
@@ -126,11 +133,21 @@ def conv2d_compute(
         "upscale": upscale,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
         "stride_h": stride_h,
         "stride_w": stride_w,
         "dilation_h": dilation_h,
         "dilation_w": dilation_w,
     }
+
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if has_lut:
+        conv2d_attrs["lut"] = lut
 
     conv = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
@@ -140,7 +157,7 @@ def conv2d_compute(
             ).astype(ifm.dtype)
             * weight[cc, rh, rw, rc].astype(ifm.dtype)
             # This is a trick to load 10 elements of the scale_bias at once, not accurate maths
-            + (scale_bias[cc, 0] * scale_bias[cc, 9]).astype(ifm.dtype),
+            + (scale_bias[cc, 0] * scale_bias[cc, 9] + lut_expr).astype(ifm.dtype),
             axis=[rh, rw, rc],
         ),
         name="ethosu_conv2d",

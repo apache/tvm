@@ -23,13 +23,13 @@ import os
 import warnings
 
 import tvm._ffi
-from tvm.runtime import ndarray as nd
+from tvm.target import Target
 
 from . import utils
 from .._ffi.base import py_str
 
 
-def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
+def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -37,14 +37,14 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     code : str
         The cuda code.
 
-    target : str
-        The target format
+    target_format : str
+        The target format of nvcc compiler.
 
     arch : str
-        The architecture
+        The cuda architecture.
 
     options : str or list of str
-        The additional options
+        The additional options.
 
     path_target : str, optional
         Output file.
@@ -54,28 +54,33 @@ def compile_cuda(code, target="ptx", arch=None, options=None, path_target=None):
     cubin : bytearray
         The bytearray of the cubin
     """
+    if arch is None:
+        # If None, then it will use `tvm.target.Target.current().arch`.
+        # Target arch could be a str like "sm_xx", or a list, such as
+        # [
+        #   "-gencode", "arch=compute_52,code=sm_52",
+        #   "-gencode", "arch=compute_70,code=sm_70"
+        # ]
+        compute_version = "".join(
+            get_target_compute_version(Target.current(allow_none=True)).split(".")
+        )
+        arch = ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+
     temp = utils.tempdir()
-    if target not in ["cubin", "ptx", "fatbin"]:
-        raise ValueError("target must be in cubin, ptx, fatbin")
+    if target_format not in ["cubin", "ptx", "fatbin"]:
+        raise ValueError("target_format must be in cubin, ptx, fatbin")
     temp_code = temp.relpath("my_kernel.cu")
-    temp_target = temp.relpath("my_kernel.%s" % target)
+    temp_target = temp.relpath("my_kernel.%s" % target_format)
 
     with open(temp_code, "w") as out_file:
         out_file.write(code)
 
-    if arch is None:
-        if nd.cuda(0).exist:
-            # auto detect the compute arch argument
-            arch = "sm_" + "".join(nd.cuda(0).compute_version.split("."))
-        else:
-            raise ValueError("arch(sm_xy) is not passed, and we cannot detect it from env")
-
     file_target = path_target if path_target else temp_target
     cmd = ["nvcc"]
-    cmd += ["--%s" % target, "-O3"]
+    cmd += ["--%s" % target_format, "-O3"]
     if isinstance(arch, list):
         cmd += arch
-    else:
+    elif isinstance(arch, str):
         cmd += ["-arch", arch]
 
     if options:
@@ -172,6 +177,13 @@ def get_cuda_version(cuda_path):
     raise RuntimeError("Cannot read cuda version file")
 
 
+@tvm._ffi.register_func
+def tvm_callback_cuda_compile(code):
+    """use nvcc to generate fatbin code for better optimization"""
+    ptx = compile_cuda(code, target_format="fatbin")
+    return ptx
+
+
 @tvm._ffi.register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
@@ -221,8 +233,8 @@ def callback_libdevice_path(arch):
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
-    Looks for the arch in three different places, first in the target attributes, then the global
-    scope, and finally the GPU device (if it exists).
+    Looks for the target arch in three different places, first in the target input, then the
+    Target.current() scope, and finally the GPU device (if it exists).
 
     Parameters
     ----------
@@ -232,31 +244,23 @@ def get_target_compute_version(target=None):
     Returns
     -------
     compute_version : str
-        compute capability of a GPU (e.g. "8.0")
+        compute capability of a GPU (e.g. "8.6")
     """
-    # 1. Target
-    if target:
-        if "arch" in target.attrs:
-            compute_version = target.attrs["arch"]
-            major, minor = compute_version.split("_")[1]
-            return major + "." + minor
-
-    # 2. Global scope
-    from tvm.autotvm.env import AutotvmGlobalScope  # pylint: disable=import-outside-toplevel
-
-    if AutotvmGlobalScope.current.cuda_target_arch:
-        major, minor = AutotvmGlobalScope.current.cuda_target_arch.split("_")[1]
+    # 1. input target object
+    # 2. Target.current()
+    target = target or Target.current()
+    if target and target.arch:
+        major, minor = target.arch.split("_")[1]
         return major + "." + minor
 
-    # 3. GPU
+    # 3. GPU compute version
     if tvm.cuda(0).exist:
         return tvm.cuda(0).compute_version
 
-    warnings.warn(
+    raise ValueError(
         "No CUDA architecture was specified or GPU detected."
         "Try specifying it by adding '-arch=sm_xx' to your target."
     )
-    return None
 
 
 def parse_compute_version(compute_version):

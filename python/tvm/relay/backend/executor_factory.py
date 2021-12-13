@@ -75,8 +75,12 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
     ----------
     ir_mod : :py:class:`~tvm.IRModule`
         The IR module to build.
+    lowered_ir_mods : dict[Target, IRModule]
+        The IR modules lowered per Target.
     target : tvm.Target
         The Target used to build this module.
+    executor : tvm.relay.backend.Executor
+        Internal representation of the Executor
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -89,9 +93,22 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         List of devices used in the module
     """
 
-    def __init__(self, ir_mod, target, libmod, libmod_name, params, function_metadata, devices):
+    def __init__(
+        self,
+        ir_mod,
+        lowered_ir_mods,
+        target,
+        executor,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
+        devices,
+    ):
         self.ir_mod = ir_mod
+        self.lowered_ir_mods = lowered_ir_mods
         self.target = target
+        self.executor = executor
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
@@ -122,6 +139,8 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         The IR module to build.
     target : tvm.Target
         The Target used to build this module.
+    executor : tvm.relay.backend.Executor
+        Internal representation of the Executor
     graph_json_str : the json graph to be deployed in json format output by graph compiler.
         The graph can contain operator(tvm_op) that points to the name of
         PackedFunc in the libmod.
@@ -136,7 +155,15 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
     """
 
     def __init__(
-        self, ir_mod, target, graph_json_str, libmod, libmod_name, params, function_metadata
+        self,
+        ir_mod,
+        target,
+        executor,
+        graph_json_str,
+        libmod,
+        libmod_name,
+        params,
+        function_metadata,
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
@@ -147,6 +174,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
         self.ir_mod = ir_mod
         self.target = target
+        self.executor = executor
         self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
         self.graph_json = graph_json_str
         self.lib = libmod

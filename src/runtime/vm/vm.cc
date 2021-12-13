@@ -67,7 +67,9 @@ std::ostream& operator<<(std::ostream& os, const VMFunction& vm_func) {
 inline ObjectRef CopyTo(ObjectRef src, const DLDevice& dev) {
   if (src->IsInstance<NDArray::ContainerType>()) {
     auto nd_array = Downcast<NDArray>(src);
+    // TODO(mbs): Should respect device id also.
     if (nd_array->device.device_type != dev.device_type) {
+      VLOG(2) << "copying from " << nd_array->device.device_type << " to " << dev.device_type;
       return nd_array.CopyTo(dev);
     }
     return src;
@@ -313,9 +315,9 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
   ICHECK(exec_) << "The executable has not been created yet.";
   auto it = exec_->global_map.find(name);
   ICHECK(it != exec_->global_map.end()) << "Cannot find function " << name << " in the executable";
-  auto func_index_ = it->second;
-  VLOG(2) << "Invoke Global " << name << " at index " << func_index_;
-  return Invoke(exec_->functions[func_index_], args);
+  Index func_index = it->second;
+  VLOG(2) << "Invoke Global " << name << " at index " << func_index;
+  return Invoke(exec_->functions[func_index], args);
 }
 
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count,
@@ -370,7 +372,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
   runtime::Module lib = exec_->GetLib();
 
   ICHECK(exec->primitive_map.empty() || lib.operator->())
-      << "If the executable has declared primitive functions, the"
+      << "If the executable has declared primitive functions, the "
       << "generated kernel library must non-be null.";
 
   for (const auto& it : exec_->primitive_map) {
@@ -379,7 +381,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     if (packed_funcs_.size() <= packed_index) {
       packed_funcs_.resize(packed_index + 1);
     }
-    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
+    tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, /*query_imports=*/true);
     ICHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
     packed_funcs_[packed_index] = pf;
   }
@@ -712,6 +714,17 @@ void VirtualMachine::RunLoop() {
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);
         // Reshape the input tensor
+#if TVM_LOG_DEBUG
+        std::ostringstream os;
+        os << "ReshapeTensor: ";
+        os << "shape=[";
+        for (auto i : shape) {
+          os << i << ",";
+        }
+        os << "]";
+        os << ", dtype=" << DLDataType2String(tensor_arr->dtype);
+        VLOG(2) << os.str();
+#endif
         auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
         WriteRegister(instr.dst, out_tensor);
         OpStopHook();

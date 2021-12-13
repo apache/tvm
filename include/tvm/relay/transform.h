@@ -62,21 +62,31 @@ TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
-/*! \brief Remove expressions which does not effect the program result.
+/*! \brief Remove let-bound expressions which do not effect the program result.
  *
- * It will remove let bindings which are not referenced,
- * and inline let bindings that are only used once.
+ * This pass will remove let bindings which are not referenced. If inline_once is True,
+ * let bindings which are only referenced once will also be inlined.
  *
- * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * For example, this pass should turn `let a = 1; 2` into `2`,
  * as the value of the expression does not depend on a.
  *
- * As another example, `let a = 1 in a` will be optimized into 1.
+ * As another example, `let a = 1; a` will be optimized into 1 if inline_once is True.
  *
- * \param inline_once whether or not to inline binding used one.
+ * If ignore_purity is False, possibly side-effecting expressions (such as memory allocation,
+ * random number generation, reading/writing references, or calls to primitive or external
+ * functions) are never elided or inlined. This is sound, but ignore_purity can be set to True
+ * to suppress this check.
+ *
+ * The analysis is fairly conservative, for example it assumes all local functions
+ * may be called more than once, any functions passed as arguments have side effects,
+ * and so on.
+ *
+ * \param inline_once whether or not to inline bindings used exactly once.
+ * \param ignore_purity whether to ignore whether expressions have side-effects
  *
  * \return the pass.
  */
-TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
+TVM_DLL Pass DeadCodeElimination(bool inline_once = false, bool ignore_purity = false);
 
 /*!
  * \brief Convert all expressions of TensorType into GradCell,

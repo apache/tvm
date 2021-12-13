@@ -38,6 +38,21 @@ def test_basic(dev, target):
     assert "softmax" in str(res)
 
 
+def test_vm_reshape_and_copy():
+    target = "llvm"
+    dev = tvm.gpu()
+    x_np = np.random.uniform(size=(8, 16)).astype("float32")
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reshape(x, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "reshape_tensor" in exec.bytecode
+    vm = profiler_vm.VirtualMachineProfiler(exec, dev)
+    vm.profile(tvm.nd.array(x_np))
+
+
 if __name__ == "__main__":
     import sys
     import pytest

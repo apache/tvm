@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/backend/contrib/ethosn/codegen.cc
- * \brief The Relay -> Ethos-N command stream compiler.
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/module.h>
@@ -568,7 +568,7 @@ runtime::ethosn::OrderedCompiledNetwork EthosnCompiler::CompileEthosnFunc(const 
   // the inputs/outputs from the TVM runtime to the inputs/outputs of the compiled network
   runtime::ethosn::OrderedCompiledNetwork ordered_network;
   ordered_network.name = gvar->name_hint;
-  ordered_network.cmm = std::move(compiled_network);
+  ordered_network.compiled_cmm = std::move(compiled_network);
   ordered_network.inputs = input_output_order.first;
   ordered_network.outputs = input_output_order.second;
   return ordered_network;
@@ -629,11 +629,10 @@ EthosnError EthosnCompiler::SupportedSetup() {
     auto cfg = ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options").defined()
                    ? ctx->GetConfig<EthosnCompilerConfig>("relay.ext.ethos-n.options")
                    : AttrsWithDefaultValues<EthosnCompilerConfig>();
-    m_Queries = std::make_unique<sl::SupportQueries>(
-        sl::GetFwAndHwCapabilities(sl::EthosNVariantFromString(cfg.value()->variant.c_str()),
-                                   std::stoul(cfg.value()->sram_size)));
+    m_Queries = std::make_unique<sl::SupportQueries>(sl::GetFwAndHwCapabilities(
+        sl::EthosNVariantFromString(MakeVariant(cfg).c_str()), std::stoul(cfg.value()->sram_size)));
     if (m_Queries == nullptr) {
-      return EthosnError("Could not initialise Ethos-N compiler isSupported");
+      return EthosnError("Could not initialise Arm(R) Ethos(TM)-N compiler isSupported");
     }
   }
   return EthosnError();

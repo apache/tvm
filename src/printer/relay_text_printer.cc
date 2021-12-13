@@ -499,7 +499,11 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
+  Doc doc;
+  doc << "@" << op->name_hint;
+  return doc;
+}
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
@@ -511,6 +515,11 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
+#if TVM_LOG_DEBUG
+  for (const Type& type_arg : op->type_args) {
+    args.push_back(Print(type_arg));
+  }
+#endif
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }

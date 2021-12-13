@@ -46,6 +46,7 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
   String activation;
   int clip_min;
   int clip_max;
+  String rounding_mode;
   String ifm_layout;
   String ifm2_layout;
   String ofm_layout;
@@ -95,6 +96,13 @@ struct EthosuBinaryElementwiseAttrs : public tvm::AttrsNode<EthosuBinaryElementw
     TVM_ATTR_FIELD(clip_max)
         .describe("The maximum clipping value if activation = 'CLIP'.")
         .set_default(0);
+    TVM_ATTR_FIELD(rounding_mode)
+        .describe(
+            "The rounding mode to apply to the Output Feature Map tensor. "
+            "'TFL' - Tensorflow Lite rounding scheme. "
+            "'TRUNCATE' - Truncate towards zero."
+            "'NATURAL' - Round to nearest value, with x.5 rounded up towards +infinity.")
+        .set_default("TFL");
     TVM_ATTR_FIELD(ifm_layout)
         .describe("The layout of the Input Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.")
         .set_default("NHWC");
@@ -144,6 +152,8 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
     ofm_dtype = DataType::Int(8);
   } else if (param->ofm_dtype == "uint8") {
     ofm_dtype = DataType::UInt(8);
+  } else if (param->ofm_dtype == "int16") {
+    ofm_dtype = DataType::Int(16);
   } else if (param->ofm_dtype == "int32") {
     ofm_dtype = DataType::Int(32);
   }
@@ -158,19 +168,19 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
 
   if (operator_type == "ADD" || operator_type == "SUB" || operator_type == "MUL") {
     if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8) &&
-        ifm_dtype != DataType::Int(32)) {
+        ifm_dtype != DataType::Int(16) && ifm_dtype != DataType::Int(32)) {
       reporter->GetDiagCtx().EmitFatal(
           Diagnostic::Error(reporter->GetSpan())
           << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ifm but was " << ifm_dtype);
+          << " type(uint8), type(int8), type(int16) or type(int32) for ifm but was " << ifm_dtype);
       return false;
     }
     if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-        ofm_dtype != DataType::Int(32)) {
+        ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
       reporter->GetDiagCtx().EmitFatal(
           Diagnostic::Error(reporter->GetSpan())
           << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ofm but was " << ofm_dtype);
+          << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
       return false;
     }
   } else if (operator_type == "MIN" || operator_type == "MAX") {
@@ -230,8 +240,8 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
   }
 
   // Assign ofm type
-  auto ofm_shape = EthosuInferBinaryElementwiseOutputShape(ifm->shape, param->ifm_layout,
-                                                           param->ofm_layout, param->ifm_channels);
+  auto ofm_shape = EthosuInferElementwiseOutputShape(ifm->shape, param->ifm_layout,
+                                                     param->ofm_layout, param->ifm_channels);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ofm_dtype));
   return true;
 }
@@ -241,8 +251,8 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
                                  int ifm2_zero_point, double ofm_scale, int ofm_zero_point,
                                  IndexExpr ifm_channels, IndexExpr ifm2_channels,
                                  bool reversed_operands, String activation, int clip_min,
-                                 int clip_max, String ifm_layout, String ifm2_layout,
-                                 String ofm_layout, String ofm_dtype) {
+                                 int clip_max, String rounding_mode, String ifm_layout,
+                                 String ifm2_layout, String ofm_layout, String ofm_dtype) {
   auto attrs = make_object<EthosuBinaryElementwiseAttrs>();
 
   attrs->operator_type = std::move(operator_type);
@@ -258,6 +268,7 @@ Expr MakeEthosuBinaryElementwise(Expr ifm, Expr ifm2, Expr lut, String operator_
   attrs->activation = std::move(activation);
   attrs->clip_min = clip_min;
   attrs->clip_max = clip_max;
+  attrs->rounding_mode = std::move(rounding_mode);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ifm2_layout = std::move(ifm2_layout);
   attrs->ofm_layout = std::move(ofm_layout);

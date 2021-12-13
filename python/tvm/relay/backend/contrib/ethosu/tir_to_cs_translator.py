@@ -39,6 +39,7 @@ class BufferType(Enum):
     scratch = auto()
     input = auto()
     output = auto()
+    shram = auto()
 
 
 _REGION_MAP = {
@@ -46,6 +47,7 @@ _REGION_MAP = {
     BufferType.scratch: 1,
     BufferType.input: 3,
     BufferType.output: 4,
+    BufferType.shram: int((1 << 8) | (3 << 0)),
 }
 
 
@@ -57,6 +59,25 @@ class BufferInfo(NamedTuple):
     shape: tvm.ir.container.Array
     dtype: np.dtype
     btype: BufferType
+
+
+class AcceleratorArchConfig:
+    def __init__(self, total_shram_banks):
+        self.shram_bank_size = 1024
+        self.total_shram_banks = total_shram_banks
+        self.shram_size_bytes = self.shram_bank_size * self.total_shram_banks
+        self.lut_size_bytes = 2048
+        self.lut_start_address = self.shram_size_bytes - self.lut_size_bytes
+
+
+def get_accelerator_arch_config(accel_type):
+    accel_config_str_map = {
+        "ethos-u55-256": AcceleratorArchConfig(48),
+        "ethos-u55-128": AcceleratorArchConfig(24),
+        "ethos-u55-64": AcceleratorArchConfig(16),
+        "ethos-u55-32": AcceleratorArchConfig(16),
+    }
+    return accel_config_str_map[accel_type]
 
 
 def translate(tir_module, params):
@@ -89,12 +110,11 @@ def translate(tir_module, params):
     _npu_ops = list()
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
-    _npu_ops, constant_tensor, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
     payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
-    hex_value = "" if constant_tensor is None else constant_tensor.tobytes().hex()
-    return payload.hex(), hex_value, scratch_size
+    return payload.hex(), constant_data, scratch_size
 
 
 def extract_call_extern_list(mod):
@@ -152,27 +172,36 @@ def extract_buffer_info(
     primfunc = mod.functions.items()[0][1]
     for idx, const_data in param_dict.items():
         param = primfunc.params[idx]
-        buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
 
     for param in primfunc.params:
-        if primfunc.buffer_map[param].data not in buffer_info.keys():
-            buffer_info[primfunc.buffer_map[param].data] = BufferInfo(
+        if param not in buffer_info.keys():
+            buffer_info[param] = BufferInfo(
                 None,
-                primfunc.buffer_map[param].shape,
-                primfunc.buffer_map[param].dtype,
+                None,
+                None,
                 BufferType.input_or_output,
             )
 
     def populate_allocate_buffer_info(stmt):
         if isinstance(stmt, tvm.tir.stmt.Allocate):
             allocate = stmt
+            if "placeholder" in allocate.buffer_var.name:
+                storage_scope = allocate.buffer_var.name.split(".")[-1]
+            else:
+                storage_scope = "global"
+
+            if storage_scope == "local":
+                buffer_type = BufferType.shram
+            else:
+                buffer_type = BufferType.scratch
             buffer_info[allocate.buffer_var] = BufferInfo(
                 None,
                 allocate.extents,
                 allocate.dtype,
-                BufferType.scratch,
+                buffer_type,
             )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
@@ -223,7 +252,7 @@ def assign_addresses(buffer_info, npu_ops):
     def replace_npu_address_range_with_address(npu_addr_range):
         assert isinstance(npu_addr_range.address, tvm.tir.Load)
         buffer = npu_addr_range.address.buffer_var
-        assert buffer in buffer_addresses.keys()
+        assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
         return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
 
@@ -247,39 +276,40 @@ def assign_addresses(buffer_info, npu_ops):
         raise ValueError(f"Unused IO : {buffer} in tir module.")
 
     scratch_size = 0
-    constant_tensor = None
+    constant_hex_data = []
+    total_constant_len = 0
     buffer_addresses = dict()
     for _buffer, info in buffer_info.items():
         if info.values is not None:
-            assert np.dtype(info.dtype) == np.uint8
             assert info.btype == BufferType.constant
             assert len(info.shape) == 1
-            if constant_tensor is None:
-                buffer_addresses[_buffer] = (0, info.btype)
-                assert info.values.dtype == np.uint8
-                size_in_bytes = info.values.size
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
-                constant_tensor = np.resize(info.values, size_in_bytes)
-            else:
-                buffer_addresses[_buffer] = (constant_tensor.size, info.btype)
-                assert info.values.dtype == np.uint8
-                size_in_bytes = info.values.size
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
-                constant_tensor = np.append(constant_tensor, np.resize(info.values, size_in_bytes))
-        else:
-            size_in_bytes = int(
-                (np.iinfo(np.dtype(info.dtype)).bits // 8) * np.prod(list(info.shape))
+            buffer_addresses[_buffer] = (
+                (total_constant_len, info.btype) if constant_hex_data else (0, info.btype)
             )
+            dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
+            size_in_bytes = dtype_bytes * np.prod(list(info.shape))
             # Every memory address the NPU access have to be 16 byte aligned
             size_in_bytes = util.round_up(size_in_bytes, 16)
+            constant_tensor = np.resize(info.values, size_in_bytes // dtype_bytes)
+            constant_tensor = constant_tensor.tobytes().hex()
+            constant_hex_data.append(constant_tensor)
+            total_constant_len += len(constant_tensor) // 2
+        else:
             if info.btype == BufferType.input_or_output:
                 buffer_type = classify_io(_buffer)
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
+            elif info.btype == BufferType.shram:
+                accl_config = util.get_accelerator_config()
+                arch_config = get_accelerator_arch_config(accl_config)
+                address = arch_config.lut_start_address
+                buffer_addresses[_buffer] = (address, info.btype)
             else:
+                dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
+                size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
+                # Every memory address the NPU access have to be 16 byte aligned
+                size_in_bytes = util.round_up(size_in_bytes, 16)
                 assert info.btype == BufferType.scratch
                 address = scratch_size
                 scratch_size += size_in_bytes
@@ -295,7 +325,12 @@ def assign_addresses(buffer_info, npu_ops):
             else:
                 setattr(npu_op, attr_name, replace_tir_loads(attr))
 
-    return npu_ops, constant_tensor, scratch_size
+    constant_data = "".join(constant_hex_data)
+    return (
+        npu_ops,
+        constant_data,
+        scratch_size,
+    )
 
 
 def translate_ethosu_tir_call_extern(tir_call_extern):
@@ -308,6 +343,8 @@ def translate_ethosu_tir_call_extern(tir_call_extern):
         "ethosu_depthwise_conv2d": translate_ethosu_depthwise_conv2d,
         "ethosu_pooling": translate_ethosu_pooling,
         "ethosu_binary_elementwise": translate_ethosu_binary_elementwise,
+        "ethosu_identity": translate_ethosu_pooling,
+        "ethosu_unary_elementwise": translate_ethosu_unary_elementwise,
     }
     ext_call_type = tir_call_extern.args[0].value
     assert ext_call_type in supported_call_extern.keys(), f"{ext_call_type} is not yet supported"
@@ -404,10 +441,9 @@ def _create_npu_op_conv2d(
     ):
         _convert_clip_bounds(npu_conv2d_op)
 
+    npu_conv2d_op.rounding_mode = _create_npu_rounding_mode(serial_2d_convolution.rounding_mode)
     npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
     accel_config = vela_api.get_accelerator_config()
-    block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
-    npu_conv2d_op.block_config = block_config
     weights_shape_ohwi = [
         npu_conv2d_op.ofm.shape.depth,
         npu_conv2d_op.kernel.height,
@@ -419,6 +455,8 @@ def _create_npu_op_conv2d(
         weights_shape_ohwi=weights_shape_ohwi,
         ifm_bitdepth=npu_conv2d_op.ifm.data_type.size_in_bits(),
     )
+    block_config = vela_api.get_optimal_block_config(npu_conv2d_op, accel_config)
+    npu_conv2d_op.block_config = block_config
     return npu_conv2d_op, weights_zero_point
 
 
@@ -464,6 +502,9 @@ def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
     ):
         _convert_clip_bounds(npu_depthwise_conv2d_op)
 
+    npu_depthwise_conv2d_op.rounding_mode = _create_npu_rounding_mode(
+        serial_2d_depthwise.rounding_mode
+    )
     npu_depthwise_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_config)
@@ -591,14 +632,18 @@ def _create_npu_activation(serial_activation: spec.SerialActivation) -> vapi.Npu
         return None
     op_map = {
         "CLIP": vapi.NpuActivationOp.NONE_OR_RELU,
-        "TANH": vapi.NpuActivationOp.TANH,
-        "SIGMOID": vapi.NpuActivationOp.SIGMOID,
+        "TANH": vapi.NpuActivationOp.TABLE_LOOKUP,
+        "SIGMOID": vapi.NpuActivationOp.TABLE_LOOKUP,
+        "LUT": vapi.NpuActivationOp.TABLE_LOOKUP,
     }
     op = str(serial_activation.op.value)
     assert op in op_map.keys()
     act_op = vapi.NpuActivation(op_map[op])
-    act_op.min = int(serial_activation.clip_min)
-    act_op.max = int(serial_activation.clip_max)
+    if serial_activation.op == "CLIP":
+        act_op.min = int(serial_activation.clip_min.value)
+        act_op.max = int(serial_activation.clip_max.value)
+    if op_map[op] == vapi.NpuActivationOp.TABLE_LOOKUP:
+        act_op.lookup_table_index = 0
     return act_op
 
 
@@ -611,6 +656,21 @@ def _create_npu_resampling_mode(
         "NONE": vapi.NpuResamplingMode.NONE,
         "NEAREST": vapi.NpuResamplingMode.NEAREST,
         "TRANSPOSE": vapi.NpuResamplingMode.TRANSPOSE,
+    }
+    mode = str(mode.value)
+    assert mode in mode_map.keys()
+    return mode_map[mode]
+
+
+def _create_npu_rounding_mode(
+    mode: str,
+) -> vapi.NpuRoundingMode:
+    """This is a helper function to capture a list
+    of arguments to create Vela NpuRoundingMode object."""
+    mode_map = {
+        "TFL": vapi.NpuRoundingMode.TFL,
+        "TRUNCATE": vapi.NpuRoundingMode.TRUNCATE,
+        "NATURAL": vapi.NpuRoundingMode.NATURAL,
     }
     mode = str(mode.value)
     assert mode in mode_map.keys()
@@ -675,6 +735,7 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
     ):
         _convert_clip_bounds(npu_pooling_op)
 
+    npu_pooling_op.rounding_mode = _create_npu_rounding_mode(serial_pooling.rounding_mode)
     npu_pooling_op.upscale = _create_npu_resampling_mode(serial_pooling.upscale)
 
     target_accel_config = vela_api.get_accelerator_config()
@@ -740,8 +801,64 @@ def _create_npu_op_binary_elementwise(serial_binary_elementwise: spec.SerialBina
     ):
         _convert_clip_bounds(npu_binary_elementwise_op)
 
+    npu_binary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
+        serial_binary_elementwise.rounding_mode
+    )
+
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_binary_elementwise_op, target_accel_config)
     npu_binary_elementwise_op.block_config = block_config
 
     return npu_binary_elementwise_op
+
+
+def translate_ethosu_unary_elementwise(
+    tir_extern_call: tvm.tir.Call,
+) -> vapi.NpuElementWiseOperation:
+
+    """This function will translate a tir extern_call
+    as produced by Relay to TIR compilation.
+    Parameters
+    ----------
+    tir_extern_call : tvm.tir.Call
+        This should be a tir external call that has a agreed upon ordering
+        for the NPU TIR Compiler. See SerialUnaryElementwise in
+        tvm/relay/backend/contrib/ethosu/tir/spec.py for the ordering.
+
+    Returns
+    -------
+    ethosu.vela.api.NpuElementWiseOperation
+        The vela object containing the params of ethosu_unary_elementwise
+    """
+    serial_object = spec.create_serial_object(spec.SerialUnaryElementwise, tir_extern_call.args[1:])
+    return _create_npu_op_unary_elementwise(serial_object)
+
+
+def _create_npu_op_unary_elementwise(serial_unary_elementwise):
+    operator_type = serial_unary_elementwise.operator_type
+    if operator_type == "ABS":
+        op = vapi.NpuElementWiseOp.ABS
+    if operator_type == "CLZ":
+        op = vapi.NpuElementWiseOp.CLZ
+
+    npu_unary_elementwise_op = vapi.NpuElementWiseOperation(op)
+    npu_unary_elementwise_op.ifm = _create_npu_feature_map(serial_unary_elementwise.ifm)
+    npu_unary_elementwise_op.ofm = _create_npu_feature_map(serial_unary_elementwise.ofm)
+
+    npu_unary_elementwise_op.activation = _create_npu_activation(
+        serial_unary_elementwise.activation
+    )
+    if (
+        npu_unary_elementwise_op.activation
+        and npu_unary_elementwise_op.activation.op_type == vapi.NpuActivationOp.NONE_OR_RELU
+    ):
+        _convert_clip_bounds(npu_unary_elementwise_op)
+
+    npu_unary_elementwise_op.rounding_mode = _create_npu_rounding_mode(
+        serial_unary_elementwise.rounding_mode
+    )
+    target_accel_type = vela_api.get_accelerator_config()
+    block_config = vela_api.get_optimal_block_config(npu_unary_elementwise_op, target_accel_type)
+    npu_unary_elementwise_op.block_config = block_config
+
+    return npu_unary_elementwise_op

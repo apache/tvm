@@ -40,9 +40,8 @@ namespace ethosu {
  * \param ofm_channels The number of Output Feature Map channels.
  * \return The shape of the output tensor.
  */
-Array<IndexExpr> EthosuInferBinaryElementwiseOutputShape(Array<IndexExpr> ifm_shape,
-                                                         String ifm_layout, String ofm_layout,
-                                                         IndexExpr ofm_channels);
+Array<IndexExpr> EthosuInferElementwiseOutputShape(Array<IndexExpr> ifm_shape, String ifm_layout,
+                                                   String ofm_layout, IndexExpr ofm_channels);
 
 /*! \brief Infer the output tensor shape for convolution and pooling operators.
  * \param ifm_shape The shape of Input Feature Map.

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relay functions for rewriting fake quantized ops."""
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
@@ -34,6 +36,16 @@ def infer_shape(expr):
     return relay.transform.InferType()(tvm.IRModule.from_expr(expr))["main"].body.checked_type.shape
 
 
+def approx_equal(x, y):
+    x = fold_constant(x)
+    y = fold_constant(y)
+    if isinstance(x, relay.Constant) and isinstance(y, relay.Constant):
+        equal = np.allclose(x.data.asnumpy(), y.data.asnumpy())
+    else:
+        equal = tvm.ir.structural_equal(x, y)
+    return equal
+
+
 @register_fake_quantization_to_integer("qnn.dequantize")
 def dequantize(expr, type_map):
     """Remove dequantize op"""
@@ -50,8 +62,8 @@ def quantize(expr, type_map):
     in_scale = fold_constant(t.scale)
     in_zero_point = fold_constant(t.zero_point)
     if not (
-        tvm.ir.structural_equal(in_scale, expr.args[1])
-        and tvm.ir.structural_equal(in_zero_point, expr.args[2])
+        approx_equal(in_scale, expr.args[1])
+        and approx_equal(in_zero_point, expr.args[2])
         and tvm.ir.structural_equal(t.dtype, expr.attrs.out_dtype)
     ):
         out = relay.qnn.op.requantize(
@@ -121,8 +133,8 @@ def bias_add(expr, type_map):
     in_scale = fold_constant(x_t.scale)
     in_zero_point = fold_constant(x_t.zero_point)
     if not (
-        tvm.ir.structural_equal(x_t.scale, b_t.scale)
-        and tvm.ir.structural_equal(x_t.zero_point, b_t.zero_point)
+        approx_equal(x_t.scale, b_t.scale)
+        and approx_equal(x_t.zero_point, b_t.zero_point)
         and tvm.ir.structural_equal(x_t.dtype, b_t.dtype)
     ):
         b = relay.qnn.op.requantize(

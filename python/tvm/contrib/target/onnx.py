@@ -59,7 +59,7 @@ def run_onnx_optimizer(onnx_model):
     else:
         return onnxoptimizer.optimize(onnx_model)
 
-    return model
+    return onnx_model
 
 
 def tvm_array_to_list(arr):

@@ -145,7 +145,7 @@ class ConstantFolder : public MixedModeMutator {
   Expr Rewrite_(const CallNode* pre_call_node, const Expr& post) final {
     Call pre_call = GetRef<Call>(pre_call_node);
     if (inside_primitive_) {
-      return pre_call;
+      return std::move(pre_call);
     }
 
     Call post_call = Downcast<Call>(post);
@@ -215,12 +215,12 @@ class ConstantFolder : public MixedModeMutator {
       OnDeviceProps props = GetOnDeviceProps(post_tuple_get_item_node->tuple);
       if (props.body.defined()) {
         // (on_device((x, y, z), se_scope=D).1 ==> on_device(y, se_scope=D)
-        return MaybeOnDevice(result, props.se_scope, props.is_fixed);
+        return MaybeOnDeviceWithProps(result, props);
       } else {
         return result;
       }
     }
-    return std::move(post_tuple_get_item);
+    return post_tuple_get_item;
   }
 
   // Convert value to expression.
