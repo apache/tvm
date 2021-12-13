@@ -463,11 +463,8 @@ stage('Unit Test') {
       } else {
          Utils.markStageSkippedForConditional('python3: arm')
       }
-    }
-}
-
-stage('Integration Test') {
-  parallel 'topi: GPU': {
+    },
+  'topi: GPU': {
   if (is_docs_only_build != 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
