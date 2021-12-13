@@ -125,7 +125,7 @@ Var::Var(Id vid, Type type_annotation, Span span) {
 }
 
 /* static */ Var Var::GenSym(Type type_annotation, Span span) {
-  static size_t next_id = 0;
+  static size_t next_id = std::atomic<size_t>(0);
   std::ostringstream os;
   os << "x_" << next_id++;
   return Var(os.str(), std::move(type_annotation), std::move(span));
