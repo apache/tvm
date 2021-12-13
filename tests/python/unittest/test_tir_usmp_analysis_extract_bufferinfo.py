@@ -176,8 +176,9 @@ def test_linear():
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(
         tir_mod, [fast_memory_pool, slow_memory_pool]
     )
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(tir_mod["run_model"], tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(tir_mod["run_model"], tir_mod)
+    assert buffer_info_analysis.memory_pressure == 1117718
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts("PaddedInput_7", ["sid_9", "sid_8", "Conv2dOutput_7"], buffer_info_map)
@@ -293,8 +294,9 @@ def test_parallel_serial_mixed_for_loops():
         all_serial_tir_mod, [global_ws_pool]
     )
     main_func = all_serial_tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, all_serial_tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, all_serial_tir_mod)
+    assert buffer_info_analysis.memory_pressure == 430848
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # When all loops are serial all allocates are touched by USMP
     assert len(buffer_info_map) == 3
@@ -309,10 +311,11 @@ def test_parallel_serial_mixed_for_loops():
         parallel_serial_mixed_tir_mod, [global_ws_pool]
     )
     main_func = parallel_serial_mixed_tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(
         main_func, parallel_serial_mixed_tir_mod
     )
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    assert buffer_info_analysis.memory_pressure == 430848
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # USMP will not touch (yet) the allocates inside parallel for loops
     assert len(buffer_info_map) == 2
@@ -656,25 +659,25 @@ def test_inception_structure():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 1117718
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts(
-        "PaddedInput_8",
+        "sid_3",
         [
-            "sid_6",
-            "Conv2dOutput_8",
-            "sid_5",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_26",
-        [
+            "sid_4",
+            "PaddedInput_2",
+            "sid_2",
+            "Conv2dOutput_2",
+            "PaddedInput_1",
+            "Conv2dOutput_1",
+            "sid_20",
+            "PaddedInput_6",
+            "Conv2dOutput_6",
+            "sid_19",
             "PaddedInput_4",
-            "Conv2dOutput_4",
-            "PaddedInput_5",
         ],
         buffer_info_map,
     )
@@ -687,95 +690,111 @@ def test_inception_structure():
         buffer_info_map,
     )
     _verify_conflicts(
+        "Conv2dOutput_7",
+        [
+            "PaddedInput_7",
+            "sid_8",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
         "sid_4",
         [
             "sid_5",
             "sid_3",
+            "PaddedInput_2",
+            "sid_2",
+            "Conv2dOutput_2",
+            "PaddedInput_1",
+            "Conv2dOutput_1",
+            "sid_20",
+            "PaddedInput_6",
+            "Conv2dOutput_6",
+            "sid_19",
+            "PaddedInput_4",
+            "Conv2dOutput_4",
+            "sid_26",
+            "PaddedInput_5",
+            "Conv2dOutput_5",
+            "sid_25",
             "tensor_3",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "tensor_2",
-        [
-            "sid_8",
-            "sid_7",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_7",
-        [
-            "sid_8",
-            "PaddedInput_7",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_1",
-        [
-            "sid_20",
-            "PaddedInput_1",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_4",
-        [
-            "sid_26",
-            "PaddedInput_4",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_2",
+        "sid_2",
         [
             "PaddedInput_2",
-            "sid_2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_3",
-        [
-            "sid_32",
-            "sid_31",
-            "Conv2dOutput_3",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_3",
-        [
+            "sid_3",
             "sid_4",
-            "PaddedInput_2",
+            "Conv2dOutput_2",
             "PaddedInput_1",
+            "Conv2dOutput_1",
+            "sid_20",
+            "PaddedInput_6",
+            "Conv2dOutput_6",
+            "sid_19",
             "PaddedInput_4",
+            "Conv2dOutput_4",
+            "sid_26",
+            "PaddedInput_5",
+            "Conv2dOutput_5",
+            "sid_25",
+            "tensor_3",
+            "sid_32",
+            "PaddedInput_3",
+            "Conv2dOutput_3",
+            "sid_31",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_19",
+        [
+            "Conv2dOutput_6",
+            "sid_2",
+            "PaddedInput_6",
+            "sid_3",
+            "sid_4",
+            "PaddedInput_4",
+            "Conv2dOutput_4",
+            "sid_26",
+            "PaddedInput_5",
+            "Conv2dOutput_5",
+            "sid_25",
+            "tensor_3",
+            "sid_32",
+            "PaddedInput_3",
+            "Conv2dOutput_3",
+            "sid_31",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_2",
+        [
+            "sid_3",
+            "sid_4",
+            "sid_2",
+            "Conv2dOutput_2",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
         "Conv2dOutput_6",
         [
+            "sid_2",
             "PaddedInput_6",
+            "sid_3",
+            "sid_4",
             "sid_19",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "Conv2dOutput_5",
+        "sid_9",
         [
-            "PaddedInput_5",
-            "sid_25",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_7",
-        [
-            "sid_9",
-            "sid_8",
-            "Conv2dOutput_7",
+            "PaddedInput_7",
         ],
         buffer_info_map,
     )
@@ -788,65 +807,46 @@ def test_inception_structure():
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_31",
+        "PaddedInput_4",
         [
-            "PaddedInput_3",
-            "Conv2dOutput_3",
-            "sid_25",
             "sid_2",
             "sid_19",
+            "sid_3",
+            "sid_4",
+            "Conv2dOutput_4",
+            "sid_26",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_3",
+        [
+            "sid_2",
+            "sid_32",
+            "sid_25",
+            "sid_19",
+            "Conv2dOutput_3",
+            "sid_31",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
         "sid_5",
         [
-            "Conv2dOutput_8",
             "PaddedInput_8",
+            "Conv2dOutput_8",
             "sid_4",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_6",
+        "sid_31",
         [
-            "PaddedInput",
-            "Conv2dOutput",
-            "PaddedInput_8",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_20",
-        [
-            "PaddedInput_1",
-            "Conv2dOutput_1",
-            "PaddedInput_6",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_8",
-        [
-            "PaddedInput_8",
-            "sid_5",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_1",
-        [
-            "sid_3",
-            "sid_20",
-            "Conv2dOutput_1",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "Conv2dOutput_3",
-        [
-            "sid_31",
+            "Conv2dOutput_3",
             "PaddedInput_3",
+            "sid_2",
+            "sid_25",
+            "sid_19",
         ],
         buffer_info_map,
     )
@@ -860,68 +860,12 @@ def test_inception_structure():
         buffer_info_map,
     )
     _verify_conflicts(
-        "PaddedInput_2",
+        "Conv2dOutput_2",
         [
+            "sid_2",
+            "PaddedInput_2",
             "sid_3",
-            "Conv2dOutput_2",
-            "sid_2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_19",
-        [
-            "Conv2dOutput_6",
-            "PaddedInput_6",
-            "sid_31",
-            "sid_2",
-            "sid_25",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_4",
-        [
-            "sid_3",
-            "sid_26",
-            "Conv2dOutput_4",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_5",
-        [
-            "sid_26",
-            "Conv2dOutput_5",
-            "sid_25",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "PaddedInput_6",
-        [
-            "sid_20",
-            "Conv2dOutput_6",
-            "sid_19",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_25",
-        [
-            "Conv2dOutput_5",
-            "PaddedInput_5",
-            "sid_31",
-            "sid_2",
-            "sid_19",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "tensor_3",
-        [
             "sid_4",
-            "sid_32",
         ],
         buffer_info_map,
     )
@@ -929,34 +873,192 @@ def test_inception_structure():
         "sid_32",
         [
             "tensor_3",
+            "sid_2",
+            "sid_25",
+            "sid_19",
             "PaddedInput_3",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_9",
+        "tensor_2",
         [
-            "PaddedInput_7",
+            "sid_8",
+            "sid_7",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_2",
+        "sid_26",
         [
-            "Conv2dOutput_2",
-            "PaddedInput_2",
-            "sid_31",
+            "Conv2dOutput_4",
+            "PaddedInput_4",
+            "sid_2",
+            "sid_19",
+            "sid_4",
+            "PaddedInput_5",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_3",
+        [
+            "PaddedInput_3",
+            "sid_2",
             "sid_25",
             "sid_19",
+            "sid_31",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_6",
+        [
+            "sid_2",
+            "sid_3",
+            "sid_20",
+            "sid_4",
+            "Conv2dOutput_6",
+            "sid_19",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_6",
+        [
+            "PaddedInput",
+            "Conv2dOutput",
+            "PaddedInput_8",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_8",
+        [
+            "sid_6",
+            "sid_5",
+            "Conv2dOutput_8",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_5",
+        [
+            "PaddedInput_5",
+            "sid_2",
+            "sid_19",
+            "sid_4",
+            "sid_25",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_1",
+        [
+            "PaddedInput_1",
+            "sid_2",
+            "sid_3",
+            "sid_4",
+            "sid_20",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "tensor_3",
+        [
+            "sid_2",
+            "sid_25",
+            "sid_19",
+            "sid_4",
+            "sid_32",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
         "sid_8",
         [
-            "PaddedInput_7",
             "Conv2dOutput_7",
+            "PaddedInput_7",
             "tensor_2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_20",
+        [
+            "Conv2dOutput_1",
+            "PaddedInput_1",
+            "sid_2",
+            "sid_3",
+            "sid_4",
+            "PaddedInput_6",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_8",
+        [
+            "sid_5",
+            "PaddedInput_8",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_1",
+        [
+            "sid_2",
+            "sid_3",
+            "sid_4",
+            "Conv2dOutput_1",
+            "sid_20",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "Conv2dOutput_4",
+        [
+            "PaddedInput_4",
+            "sid_2",
+            "sid_19",
+            "sid_4",
+            "sid_26",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_25",
+        [
+            "PaddedInput_5",
+            "Conv2dOutput_5",
+            "sid_2",
+            "sid_19",
+            "sid_4",
+            "tensor_3",
+            "sid_32",
+            "PaddedInput_3",
+            "Conv2dOutput_3",
+            "sid_31",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_7",
+        [
+            "sid_9",
+            "Conv2dOutput_7",
+            "sid_8",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "PaddedInput_5",
+        [
+            "sid_2",
+            "sid_19",
+            "sid_26",
+            "sid_4",
+            "Conv2dOutput_5",
+            "sid_25",
         ],
         buffer_info_map,
     )
@@ -1271,61 +1373,76 @@ def test_multiple_calls_to_same_primfunc():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
-    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    assert buffer_info_analysis.memory_pressure == 11424
+    buffer_info_map = _replace_stmt_with_buf_var_names(buffer_info_analysis.buffer_info_stmts)
 
     # check conflicts
     _verify_conflicts(
-        "sid_18",
+        "sid_6",
         [
-            "sid_19",
-            "sid_2",
-            "T_softmax_exp2",
-            "T_softmax_maxelem2",
-            "T_softmax_expsum2",
-            "T_softmax_norm2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_3",
-        [
-            "data_pad",
-            "conv2d_NCHWc_global",
-            "sid_2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "T_softmax_norm",
-        [
-            "T_softmax_expsum",
+            "sid_7",
+            "sid_12",
+            "compute",
+            "compute_global",
+            "sid_11",
+            "sid_10",
             "T_softmax_exp",
+            "T_softmax_maxelem",
             "sid_5",
+            "T_softmax_norm",
+            "T_softmax_expsum",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_exp",
+        [
+            "sid_10",
             "sid_6",
             "T_softmax_maxelem",
-            "sid_10",
+            "sid_5",
+            "T_softmax_norm",
+            "T_softmax_expsum",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "T_softmax_norm2",
+        "T_softmax_expsum2",
         [
-            "T_softmax_expsum2",
-            "T_softmax_maxelem2",
             "T_softmax_exp2",
+            "T_softmax_norm2",
             "sid_18",
+            "T_softmax_maxelem2",
             "sid_2",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_11",
+        "compute",
+        [
+            "sid_12",
+            "sid_6",
+            "compute_global",
+            "sid_11",
+            "sid_19",
+            "sid_20",
+            "sid_2",
+            "compute_global",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "compute_global",
         [
             "compute",
             "sid_12",
-            "compute_global",
-            "sid_10",
+            "sid_6",
+            "sid_11",
+            "compute",
+            "sid_19",
+            "sid_20",
+            "sid_2",
         ],
         buffer_info_map,
     )
@@ -1334,75 +1451,93 @@ def test_multiple_calls_to_same_primfunc():
         [
             "sid_11",
             "sid_6",
+            "T_softmax_exp",
+            "T_softmax_maxelem",
             "sid_5",
             "T_softmax_norm",
             "T_softmax_expsum",
-            "T_softmax_maxelem",
-            "T_softmax_exp",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_2",
+        [
+            "sid_3",
+            "sid_5",
+            "sid_20",
+            "sid_19",
+            "compute",
+            "compute_global",
+            "sid_18",
+            "T_softmax_norm2",
+            "T_softmax_exp2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
         "sid_5",
         [
-            "T_softmax_norm",
-            "T_softmax_expsum",
-            "T_softmax_exp",
-            "sid_6",
             "T_softmax_maxelem",
             "sid_10",
+            "T_softmax_exp",
+            "sid_6",
+            "T_softmax_norm",
+            "T_softmax_expsum",
             "sid_4",
+            "data_pad",
+            "sid_3",
+            "conv2d_NCHWc_global",
+            "sid_2",
             "sid_20",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_norm2",
+        [
+            "sid_18",
+            "sid_2",
+            "T_softmax_exp2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_20",
+        [
+            "sid_2",
+            "sid_5",
+            "sid_19",
+            "compute",
+            "compute_global",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
         "T_softmax_expsum",
         [
-            "T_softmax_exp",
-            "T_softmax_norm",
             "sid_5",
-            "sid_6",
+            "T_softmax_norm",
             "T_softmax_maxelem",
             "sid_10",
+            "T_softmax_exp",
+            "sid_6",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_8",
+        "data_pad",
         [
-            "data_pad",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "T_softmax_expsum2",
-        [
-            "T_softmax_maxelem2",
-            "T_softmax_exp2",
-            "sid_18",
-            "sid_2",
-            "T_softmax_norm2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "T_softmax_maxelem2",
-        [
-            "T_softmax_exp2",
-            "sid_18",
-            "sid_2",
-            "T_softmax_expsum2",
-            "T_softmax_norm2",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_12",
-        [
-            "sid_11",
-            "compute",
-            "compute_global",
+            "sid_8",
+            "conv2d_NCHWc_global",
+            "sid_7",
+            "sid_4",
+            "sid_5",
+            "sid_3",
+            "conv2d_NCHWc_global",
         ],
         buffer_info_map,
     )
@@ -1410,6 +1545,7 @@ def test_multiple_calls_to_same_primfunc():
         "sid_19",
         [
             "sid_20",
+            "sid_2",
             "compute",
             "compute_global",
             "sid_18",
@@ -1423,17 +1559,19 @@ def test_multiple_calls_to_same_primfunc():
             "sid_7",
             "sid_3",
             "data_pad",
+            "sid_5",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "T_softmax_exp2",
+        "sid_18",
         [
-            "sid_18",
+            "sid_19",
             "sid_2",
+            "T_softmax_norm2",
+            "T_softmax_exp2",
             "T_softmax_maxelem2",
             "T_softmax_expsum2",
-            "T_softmax_norm2",
         ],
         buffer_info_map,
     )
@@ -1447,24 +1585,13 @@ def test_multiple_calls_to_same_primfunc():
         buffer_info_map,
     )
     _verify_conflicts(
-        "data_pad",
+        "T_softmax_exp2",
         [
-            "sid_8",
-            "conv2d_NCHWc_global",
-            "sid_7",
-            "sid_4",
-            "sid_3",
-            "conv2d_NCHWc_global",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_20",
-        [
-            "sid_5",
-            "sid_19",
-            "compute",
-            "compute_global",
+            "T_softmax_norm2",
+            "sid_18",
+            "sid_2",
+            "T_softmax_maxelem2",
+            "T_softmax_expsum2",
         ],
         buffer_info_map,
     )
@@ -1477,75 +1604,65 @@ def test_multiple_calls_to_same_primfunc():
         buffer_info_map,
     )
     _verify_conflicts(
-        "T_softmax_exp",
-        [
-            "T_softmax_expsum",
-            "T_softmax_norm",
-            "sid_5",
-            "sid_6",
-            "T_softmax_maxelem",
-            "sid_10",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "compute_global",
-        [
-            "sid_12",
-            "sid_11",
-            "compute",
-            "compute",
-            "sid_20",
-            "sid_19",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "compute",
-        [
-            "sid_11",
-            "sid_12",
-            "compute_global",
-            "sid_20",
-            "sid_19",
-            "compute_global",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
-        "sid_6",
-        [
-            "sid_7",
-            "sid_5",
-            "T_softmax_norm",
-            "T_softmax_expsum",
-            "T_softmax_exp",
-            "T_softmax_maxelem",
-            "sid_10",
-        ],
-        buffer_info_map,
-    )
-    _verify_conflicts(
         "T_softmax_maxelem",
         [
+            "sid_10",
+            "T_softmax_exp",
             "sid_6",
             "sid_5",
             "T_softmax_norm",
             "T_softmax_expsum",
-            "T_softmax_exp",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_maxelem2",
+        [
+            "T_softmax_exp2",
+            "T_softmax_norm2",
+            "sid_18",
+            "sid_2",
+            "T_softmax_expsum2",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_11",
+        [
+            "compute",
+            "sid_12",
+            "compute_global",
+            "sid_6",
             "sid_10",
         ],
         buffer_info_map,
     )
     _verify_conflicts(
-        "sid_2",
+        "sid_12",
         [
-            "sid_3",
-            "sid_18",
-            "T_softmax_exp2",
-            "T_softmax_maxelem2",
-            "T_softmax_expsum2",
-            "T_softmax_norm2",
+            "sid_6",
+            "compute",
+            "compute_global",
+            "sid_11",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "T_softmax_norm",
+        [
+            "sid_5",
+            "T_softmax_maxelem",
+            "sid_10",
+            "T_softmax_exp",
+            "sid_6",
+            "T_softmax_expsum",
+        ],
+        buffer_info_map,
+    )
+    _verify_conflicts(
+        "sid_8",
+        [
+            "data_pad",
         ],
         buffer_info_map,
     )

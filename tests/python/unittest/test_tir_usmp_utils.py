@@ -193,10 +193,10 @@ def test_create_array_buffer_info():
     tir_mod = _assign_targets_to_primfuncs_irmodule(tir_mod, target)
     tir_mod = _assign_poolinfos_to_allocates_in_irmodule(tir_mod, [global_ws_pool])
     main_func = tir_mod["tvmgen_default_run_model"]
-    buffer_info_map = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
-    buffer_info_array = fcreate_array_bi(buffer_info_map)
+    buffer_info_analysis = tvm.tir.usmp.analysis.extract_buffer_info(main_func, tir_mod)
+    buffer_info_array = fcreate_array_bi(buffer_info_analysis.buffer_info_stmts)
     for buffer_info in buffer_info_array:
-        assert buffer_info in buffer_info_map.keys()
+        assert buffer_info in buffer_info_analysis.buffer_info_stmts.keys()
 
 
 if __name__ == "__main__":

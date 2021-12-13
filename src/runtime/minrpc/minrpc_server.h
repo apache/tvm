@@ -192,7 +192,7 @@ class MinRPCServer {
       data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
       DLTensor temp;
       temp.data = reinterpret_cast<void*>(data_ptr);
-      temp.device = arr->device;
+      temp.device = DLDevice{kDLCPU, 0};
       temp.ndim = arr->ndim;
       temp.dtype = arr->dtype;
       temp.shape = arr->shape;

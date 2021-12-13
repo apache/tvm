@@ -1198,7 +1198,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger():
+def FakeQuantizationToInteger(hard_fail=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1220,12 +1220,19 @@ def FakeQuantizationToInteger():
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
+    Parameters
+    ----------
+    hard_fail : boolean
+        How do deal with errors during graph rewriting.
+        If true, raise an error.
+        If false, skip rewriting the subgraph.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered SimplifyExpr pass.
     """
-    return _ffi_api.FakeQuantizationToInteger()
+    return _ffi_api.FakeQuantizationToInteger(hard_fail)
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

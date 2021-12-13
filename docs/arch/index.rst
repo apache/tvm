@@ -423,4 +423,5 @@ microTVM
    :maxdepth: 1
 
    microtvm_design
+   microtvm_project_api
    model_library_format

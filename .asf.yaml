@@ -46,3 +46,4 @@ github:
   # cycle. PMC may review and recycle slots when necessary.
   collaborators:
     - denise-k
+    - tvm-bot  # For automated feedback in PR review.

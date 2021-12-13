@@ -34,19 +34,26 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
-import tvm.micro.project as project
-from tvm.micro.project import TemplateProjectError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 from . import common
 from .common import (
     TVMCException,
     TVMCSuppressedArgumentParser,
     get_project_options,
     get_and_check_options,
+    get_project_dir,
 )
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
+
+try:
+    import tvm.micro.project as project
+    from tvm.micro.project import TemplateProjectError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
+
+    SUPPORT_MICRO = True
+except (ImportError, AttributeError) as exception:
+    SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -135,7 +142,13 @@ def add_run_parser(subparsers, main_parser):
         # No need to augment the parser for micro targets.
         return
 
-    project_dir = known_args.PATH
+    if SUPPORT_MICRO is False:
+        sys.exit(
+            "'--device micro' is not supported. "
+            "Please build TVM with micro support (USE_MICRO ON)!"
+        )
+
+    project_dir = get_project_dir(known_args.PATH)
 
     try:
         project_ = project.GeneratedProject.from_directory(project_dir, None)
@@ -185,9 +198,7 @@ def drive_run(args):
     if args.device == "micro":
         path = path / "model.tar"
         if not path.is_file():
-            TVMCException(
-                f"Could not find model (model.tar) in the specified project dir {path.dirname()}."
-            )
+            TVMCException(f"Could not find model '{path}'!")
 
         # Check for options unavailable for micro targets.
 
@@ -486,7 +497,8 @@ def run_module(
             if tvmc_package.type != "mlf":
                 raise TVMCException(f"Model {tvmc_package.package_path} is not a MLF archive.")
 
-            project_dir = os.path.dirname(tvmc_package.package_path)
+            project_dir = get_project_dir(tvmc_package.package_path)
+            project_dir = os.path.dirname(project_dir)
 
             # This is guaranteed to work since project_dir was already checked when
             # building the dynamic parser to accommodate the project options, so no

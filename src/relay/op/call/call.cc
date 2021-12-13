@@ -63,23 +63,23 @@ bool CallLoweredRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 const Op& CallLoweredOp() { return Op::Get("call_lowered"); }
 
-Expr CallLowered(Expr func, Array<Expr> inputs, Attrs attrs, Array<Type> type_args, Span span) {
-  // Right now, call_lowered only supports func being a global var pointing to the lowered
-  // function.
-  ICHECK(func.as<GlobalVarNode>())
-      << "Function to call should be GlobalVarNode, but got:" << std::endl
-      << PrettyPrint(func);
-  ICHECK(attrs.as<CallLoweredAttrs>())
-      << "Expected attributes to be CallLoweredAttrs, but got " << attrs->GetTypeKey();
-  return Call(CallLoweredOp(), {std::move(func), Tuple(std::move(inputs))}, std::move(attrs),
-              std::move(type_args), std::move(span));
+Call CallLowered(GlobalVar lowered_func, Array<Expr> args, CallLoweredAttrs call_lowered_attrs,
+                 Span span) {
+  auto attrs = make_object<CallLoweredAttrs>(std::move(call_lowered_attrs));
+  return Call(CallLoweredOp(), {std::move(lowered_func), Tuple(std::move(args))},
+              Attrs(std::move(attrs)), /*type_args=*/{}, std::move(span));
 }
 
 TVM_REGISTER_GLOBAL("relay.op.call_lowered")
-    .set_body_typed([](Expr func, Array<Expr> inputs, Attrs attrs, Array<Type> type_args,
-                       Span span) {
-      const TupleNode* tuple_node = inputs.as<TupleNode>();
-      return CallLowered(func, tuple_node->fields, attrs, type_args, span);
+    .set_body_typed([](Expr lowered_func, Array<Expr> args, Attrs attrs, Span span) {
+      const auto* lowered_func_node = lowered_func.as<GlobalVarNode>();
+      ICHECK(lowered_func_node) << "Function to call should be GlobalVarNode, but got:" << std::endl
+                                << PrettyPrint(lowered_func);
+      const auto* call_lowered_attrs = attrs.as<CallLoweredAttrs>();
+      ICHECK(call_lowered_attrs) << "Expected attributes to be CallLoweredAttrs, but got "
+                                 << attrs->GetTypeKey();
+      return CallLowered(GetRef<GlobalVar>(lowered_func_node), std::move(args), *call_lowered_attrs,
+                         std::move(span));
     });
 
 RELAY_REGISTER_OP("call_lowered")
@@ -105,12 +105,26 @@ CallLoweredProps GetCallLoweredProps(const CallNode* call_node) {
     ICHECK(tuple_args) << "Expected second arg to call_lowered to be a Tuple of input arguments.";
 
     ICHECK(call_node->attrs.defined()) << "Expecting call_lowered to have attributes.";
-    const auto* attrs = call_node->attrs.as<CallLoweredAttrs>();
-    ICHECK(attrs) << "Expected call_lowered op to have CallLoweredAttrs, but found "
-                  << call_node->attrs->GetTypeKey();
-    return CallLoweredProps{GetRef<GlobalVar>(function_node), tuple_args->fields, *attrs};
+    const auto* call_lowered_attrs = call_node->attrs.as<CallLoweredAttrs>();
+    ICHECK(call_lowered_attrs) << "Expected call_lowered op to have CallLoweredAttrs, but found "
+                               << call_node->attrs->GetTypeKey();
+    // If the call_node has type_args then they are for the polymorphic 'call_lowered' operator
+    // itself which expects the function type and argument type as parameters.
+    return {GetRef<GlobalVar>(function_node), tuple_args->fields, *call_lowered_attrs};
   }
   return {};
+}
+
+Call GetAnyCall(const CallNode* call_node) {
+  CallLoweredProps props = GetCallLoweredProps(call_node);
+  if (props.lowered_func.defined()) {
+    auto call_lowered_attrs = make_object<CallLoweredAttrs>(props.attrs);
+    return Call(std::move(props.lowered_func), std::move(props.arguments),
+                Attrs(std::move(call_lowered_attrs)),
+                /*type_args=*/{}, call_node->span);
+  } else {
+    return GetRef<Call>(call_node);
+  }
 }
 
 bool IsReshapeOnly(const CallLoweredProps& props) {

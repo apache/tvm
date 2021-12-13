@@ -23,33 +23,44 @@ from pathlib import Path
 import shutil
 import sys
 
-import tvm.micro.project as project
-from tvm.micro import get_microtvm_template_projects
-from tvm.micro.build import MicroTVMTemplateProjectNotFoundError
-from tvm.micro.project_api.server import ServerError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 from .main import register_parser
 from .common import (
     TVMCException,
     TVMCSuppressedArgumentParser,
     get_project_options,
     get_and_check_options,
+    get_project_dir,
 )
 
+try:
+    import tvm.micro.project as project
+    from tvm.micro import get_microtvm_template_projects
+    from tvm.micro.build import MicroTVMTemplateProjectNotFoundError
+    from tvm.micro.project_api.server import ServerError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
 
-TEMPLATES = {}
-for p in ("zephyr", "arduino"):
-    try:
-        TEMPLATES[p] = get_microtvm_template_projects(p)
-    except MicroTVMTemplateProjectNotFoundError:
-        pass
+    SUPPORT_MICRO = True
+except (ImportError, NameError):
+    SUPPORT_MICRO = False
 
 
 @register_parser
 def add_micro_parser(subparsers, main_parser):
     """Includes parser for 'micro' context and associated subcommands:
-    create-project, build, and flash.
+    create-project (create), build, and flash.
     """
+
+    if SUPPORT_MICRO is False:
+        # Don't create 'tvmc micro' parser.
+        return
+
+    # Probe available default platform templates.
+    templates = {}
+    for p in ("zephyr", "arduino"):
+        try:
+            templates[p] = get_microtvm_template_projects(p)
+        except MicroTVMTemplateProjectNotFoundError:
+            pass
 
     micro = subparsers.add_parser("micro", help="select micro context.")
     micro.set_defaults(func=drive_micro)
@@ -132,7 +143,7 @@ def add_micro_parser(subparsers, main_parser):
         subcmd_parser = subcmd_parser_handler[0]
         subcmd_parser.required = True  # Selecting a platform or template is mandatory
         parser_by_platform = {}
-        for platform in TEMPLATES:
+        for platform in templates:
             new_parser = _add_parser(subcmd_parser, platform)
             parser_by_platform[platform] = new_parser
 
@@ -169,7 +180,7 @@ def add_micro_parser(subparsers, main_parser):
         template_dir = str(Path(known_args.template_dir).resolve())
     else:
         # default template
-        template_dir = TEMPLATES[platform]
+        template_dir = templates[platform]
 
     try:
         template = project.TemplateProject.from_directory(template_dir)
@@ -228,16 +239,16 @@ def drive_micro(args):
 
 def create_project_handler(args):
     """Creates a new project dir."""
+    project_dir = get_project_dir(args.project_dir)
 
-    if os.path.exists(args.project_dir):
+    if os.path.exists(project_dir):
         if args.force:
-            shutil.rmtree(args.project_dir)
+            shutil.rmtree(project_dir)
         else:
             raise TVMCException(
                 "The specified project dir already exists. "
                 "To force overwriting it use '-f' or '--force'."
             )
-    project_dir = args.project_dir
 
     template_dir = str(Path(args.template_dir).resolve())
     if not os.path.exists(template_dir):
@@ -258,20 +269,19 @@ def create_project_handler(args):
 
 def build_handler(args):
     """Builds a firmware image given a project dir."""
+    project_dir = get_project_dir(args.project_dir)
 
-    if not os.path.exists(args.project_dir):
-        raise TVMCException(f"{args.project_dir} doesn't exist.")
+    if not os.path.exists(project_dir):
+        raise TVMCException(f"{project_dir} doesn't exist.")
 
-    if os.path.exists(args.project_dir + "/build"):
+    if os.path.exists(project_dir + "/build"):
         if args.force:
-            shutil.rmtree(args.project_dir + "/build")
+            shutil.rmtree(project_dir + "/build")
         else:
             raise TVMCException(
-                f"There is already a build in {args.project_dir}. "
+                f"There is already a build in {project_dir}. "
                 "To force rebuild it use '-f' or '--force'."
             )
-
-    project_dir = args.project_dir
 
     options = get_and_check_options(args.project_option, args.valid_options)
 
@@ -285,10 +295,11 @@ def build_handler(args):
 
 def flash_handler(args):
     """Flashes a firmware image to a target device given a project dir."""
-    if not os.path.exists(args.project_dir + "/build"):
-        raise TVMCException(f"Could not find a build in {args.project_dir}")
 
-    project_dir = args.project_dir
+    project_dir = get_project_dir(args.project_dir)
+
+    if not os.path.exists(project_dir + "/build"):
+        raise TVMCException(f"Could not find a build in {project_dir}")
 
     options = get_and_check_options(args.project_option, args.valid_options)
 

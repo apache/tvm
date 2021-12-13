@@ -60,7 +60,10 @@ run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_p
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib
+
+# Ignoring Arm(R) Ethos(TM)-U NPU tests in the collective to run to run them in parallel in the next step.
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosu tests/python/contrib/test_ethosu -n auto
 
 # forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \

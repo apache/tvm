@@ -33,21 +33,31 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Helper to construct a Relay call with the call_lowered op.
- * \param func Lowered function to call with call_lowered.
- * \param inputs Arguments to be passed to the function.
- * \param attrs Function attributes, should be TIRCallAttrs.
- * \param type_args Type arguments for the call.
- * \param span TVM span for propogating debugging info.
- * \return
- */
-Expr CallLowered(Expr func, Array<Expr> inputs, Attrs attrs, Array<Type> type_args, Span span);
-
-/*!
  * \brief Returns the Relay call_lowered op. Use this helper to avoid extraneous calls to
  * Registry::Get.
  */
 const Op& CallLoweredOp();
+
+/*!
+ * \brief Helper to construct a Relay call with the "call_lowered" op.
+ *
+ * The callee must:
+ *  - Be a global bound to a PrimFunc or an externally defined functions.
+ *  - Accept only tensor arguments and return tensor results.
+ *  - Arguments and results correspond to the flattened form (see FlattenTupleType) of the
+ *    Relay Function type.
+ *  - Return results by output pointer, ie use DPS.
+ * The arguments remain in Relay form (ie not flattened).
+ * The result remains in Relay form (ie returned from the call and not flattened).
+ *
+ * \param lowered_func Lowered function to call with call_lowered.
+ * \param args Arguments to be passed to the function.
+ * \param call_lowered_attrs Function attributes.
+ * \param span TVM span for propagating debugging info.
+ * \return
+ */
+Call CallLowered(GlobalVar lowered_func, Array<Expr> args, CallLoweredAttrs call_lowered_attrs,
+                 Span span);
 
 /*!
  * \brief Lowered function and the arguments to call it with.
@@ -57,7 +67,7 @@ struct CallLoweredProps {
   GlobalVar lowered_func;
   /*! \brief Array of the arguments to call lowered_func with. */
   Array<Expr> arguments;
-  /*! \brief Arguments from the call_lowered op. */
+  /*! \brief Attributes from the call_lowered op. */
   CallLoweredAttrs attrs;
 };
 
@@ -66,6 +76,14 @@ struct CallLoweredProps {
  * Returns the null/empty \p CallLoweredProps if \p call_node is not in that form.
  */
 CallLoweredProps GetCallLoweredProps(const CallNode* call_node);
+
+/*!
+ * \brief Returns \p call_node in 'standard' Relay form. Ie if \p call_node is a call_lowered
+ * then returns it in un-lowered form, otherwise returns \p call_node directly.
+ *
+ * Useful for passes which can act uniformly on calls irrespective of their form.
+ */
+Call GetAnyCall(const CallNode* call_node);
 
 /*!
  * \brief Returns true if lowered call described by \p props is to a reshape primitive.

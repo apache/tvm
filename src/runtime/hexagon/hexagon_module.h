@@ -50,6 +50,36 @@ Module HexagonModuleCreate(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                            std::string obj_str, std::string ir_str, std::string bc_str,
                            const std::set<std::string>& packed_c_abi);
+
+/*!
+  \brief Module implementation for managing cross compiled hexagon
+         binaries on a host machine. Base class for the HexagonModuleNode
+         used in offload mode. See docstring for HexagonModuleCreate for
+         construction parameter details.
+ */
+class HexagonHostModuleNode : public runtime::ModuleNode {
+ public:
+  HexagonHostModuleNode(std::string data, std::string fmt,
+                        std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
+                        std::string obj_str, std::string ir_str, std::string bc_str,
+                        const std::set<std::string>& packed_c_abi);
+  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) override;
+  std::string GetSource(const std::string& format) override;
+  const char* type_key() const final { return "hexagon"; }
+  void SaveToFile(const std::string& file_name, const std::string& format) override;
+  void SaveToBinary(dmlc::Stream* stream) override;
+
+ protected:
+  std::string data_;
+  std::string fmt_;
+  std::unordered_map<std::string, FunctionInfo> fmap_;
+  std::string asm_;
+  std::string obj_;
+  std::string ir_;
+  std::string bc_;
+  std::set<std::string> packed_c_abi_funcs_;
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_HEXAGON_HEXAGON_MODULE_H_

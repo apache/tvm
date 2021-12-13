@@ -566,10 +566,6 @@ String TargetNode::ToDebugString() const {
   if (host.defined()) {
     os << ", host=" << GetHost().value()->ToDebugString();
   }
-#if TVM_LOG_DEBUG
-  // We depend on pointer equality so include that in the debug representation.
-  os << ", id=" << reinterpret_cast<uint64_t>(this);
-#endif
   os << ")";
   return os.str();
 }

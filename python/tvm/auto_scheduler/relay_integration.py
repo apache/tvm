@@ -25,10 +25,12 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
+import traceback
 import warnings
 
 import tvm
 from tvm import autotvm, transform
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.target import Target
@@ -66,9 +68,12 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         if params:
             compiler.set_params(params)
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
-        compiler.lower(mod, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+        try:
+            compiler.lower(mod, target)
+        except TVMError:
+            logger.warning("Got exception in task extraction:\n %s", traceback.format_exc())
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(

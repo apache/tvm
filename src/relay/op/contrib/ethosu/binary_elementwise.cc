@@ -152,6 +152,8 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
     ofm_dtype = DataType::Int(8);
   } else if (param->ofm_dtype == "uint8") {
     ofm_dtype = DataType::UInt(8);
+  } else if (param->ofm_dtype == "int16") {
+    ofm_dtype = DataType::Int(16);
   } else if (param->ofm_dtype == "int32") {
     ofm_dtype = DataType::Int(32);
   }
@@ -166,19 +168,19 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
 
   if (operator_type == "ADD" || operator_type == "SUB" || operator_type == "MUL") {
     if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8) &&
-        ifm_dtype != DataType::Int(32)) {
+        ifm_dtype != DataType::Int(16) && ifm_dtype != DataType::Int(32)) {
       reporter->GetDiagCtx().EmitFatal(
           Diagnostic::Error(reporter->GetSpan())
           << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ifm but was " << ifm_dtype);
+          << " type(uint8), type(int8), type(int16) or type(int32) for ifm but was " << ifm_dtype);
       return false;
     }
     if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-        ofm_dtype != DataType::Int(32)) {
+        ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
       reporter->GetDiagCtx().EmitFatal(
           Diagnostic::Error(reporter->GetSpan())
           << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ofm but was " << ofm_dtype);
+          << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
       return false;
     }
   } else if (operator_type == "MIN" || operator_type == "MAX") {
