@@ -1608,7 +1608,11 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       [&](const Array<Var>& dst_indices) {
         Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
         Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
-        return src(src_indices);
+        PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
+        for (size_t i = 0; i < src.ndim(); ++i) {
+          in_range = in_range && (src_indices[i] < src->shape[i]);
+        }
+        return if_then_else(in_range, src(src_indices), tvm::cast(src->dtype, PrimExpr(0)));
       },
       name, tag);
 }
