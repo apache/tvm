@@ -75,6 +75,8 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
             return is_op("nn.relu")(conv2d_out)
         if with_act == "sigmoid":
             return is_op("sigmoid")(conv2d_out)
+        if with_act == "silu":
+            return is_op("multiply")(conv2d_out, is_op("sigmoid")(conv2d_out))
 
     return conv2d_out
 
@@ -149,6 +151,11 @@ def partition_for_cutlass(mod, params=None):
         dense_bias_pat,
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern(), check_batch_matmul),
+        (
+            "cutlass.conv2d_bias_silu",
+            make_conv2d_pattern(with_bias=True, with_act="silu"),
+            check_conv2d,
+        ),
         (
             "cutlass.conv2d_bias_relu",
             make_conv2d_pattern(with_bias=True, with_act="relu"),

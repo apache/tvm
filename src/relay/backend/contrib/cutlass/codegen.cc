@@ -265,8 +265,10 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                      const std::vector<std::string>& func_args) {
   bool has_bias = attrs.at("op_type") == "cutlass.conv2d_bias" ||
                   attrs.at("op_type") == "cutlass.conv2d_bias_relu" ||
-                  attrs.at("op_type") == "cutlass.conv2d_bias_sigmoid";
-  bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid";
+                  attrs.at("op_type") == "cutlass.conv2d_bias_sigmoid" ||
+                  attrs.at("op_type") == "cutlass.conv2d_bias_silu";
+  bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid" &&
+                         attrs.at("op_type") != "cutlass.conv2d_bias_silu";
 
   std::ostringstream conv2d_decl;
   CutlassPrint(conv2d_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
@@ -505,6 +507,13 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "sigmoid"});
       return GenerateBody(conv2d_call, "cutlass_conv2d_bias_sigmoid", GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.conv2d_bias_silu") {
+      const CallNode* current_call = callee->body.as<CallNode>();
+      std::string add_or_bias_add = current_call->args[0].as<CallNode>()->op.as<OpNode>()->name;
+      const auto* conv2d_call =
+	GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "multiply"});
+      return GenerateBody(conv2d_call, "cutlass_conv2d_bias_silu", GetArgumentNames(caller),
+                          Conv2dArgs(std::ref(attrs_)));
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
@@ -553,7 +562,8 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ret.decl = BatchMatmulOp(ext_func_id_, attribute_args, func_args);
     } else if (func_name == "cutlass_conv2d" || func_name == "cutlass_conv2d_bias" ||
                func_name == "cutlass_conv2d_bias_relu" ||
-               func_name == "cutlass_conv2d_bias_sigmoid") {
+               func_name == "cutlass_conv2d_bias_sigmoid" ||
+	       func_name == "cutlass_conv2d_bias_silu") {
       ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args);
     }
 
@@ -613,6 +623,8 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_sigmoid.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_silu.h>\n";
 
     ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenCutlassFunc(Downcast<Function>(ref));

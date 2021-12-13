@@ -222,6 +222,8 @@ def handle_conv2d(
         cutlass_op_def = out["opdef_bias_relu"]
     elif op_type == "cutlass.conv2d_bias_sigmoid":
         cutlass_op_def = out["opdef_bias_sigmoid"]
+    elif op_type == "cutlass.conv2d_bias_silu":
+        cutlass_op_def = out["opdef_bias_silu"]
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
