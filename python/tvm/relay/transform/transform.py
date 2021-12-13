@@ -698,12 +698,19 @@ def LambdaLift():
 def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
     Parameters
     ----------
+    mod_name : string
+        Controls the prefix of the name of each partitioned subraph.
+        If `mod_name` is None, then `tvmgen_` prefix is used.
+        Otherwise, `tvmgen_mod_name_` prefix is used.
+
     bind_constants: bool
-        Whether or not to bind constants in partitioned subgraphs. For C-source based codegen,
-        it is recommended to set this to False to avoid embedding large constants in
-        a C source file.
+        Whether or not to bind constants in partitioned subgraphs. Note that the codegen needs
+        to maintain the bound constants; Otherwise the constants will be maintained by
+        the metadata module. So it is recommended for C-source based codegens to
+        set bind_constants=False to avoid embedding large constants in a C source file.
 
     Returns
     -------
