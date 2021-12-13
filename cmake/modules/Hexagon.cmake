@@ -294,7 +294,7 @@ if(USE_HEXAGON_RPC)
   )
 
   # copy android_bash template file
-  configure_file("${CMAKE_SOURCE_DIR}/src/runtime/hexagon/rpc/android_bash.sh.template" 
+  configure_file("${CMAKE_SOURCE_DIR}/src/runtime/hexagon/rpc/android_bash.sh.template"
     ${HEXAGON_RPC_OUTPUT} COPYONLY)
 
   set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${HEXAGON_RPC_OUTPUT}")
@@ -366,7 +366,7 @@ if(USE_HEXAGON_SDK AND BUILD_FOR_ANDROID)
   set(RPC_IDL "hexagon_rpc.idl")
   set(RPC_H "hexagon_rpc.h")
   set(RPC_STUB_C "hexagon_rpc_stub.c")
-  
+
   add_custom_command(
     OUTPUT "${HEXAGON_RPC_DIR}/${RPC_STUB_C}" "${HEXAGON_RPC_DIR}/${RPC_H}"
     COMMAND ${QAIC_EXE} ${QAIC_FLAGS} "${HEXAGON_RPC_DIR}/${RPC_IDL}" -o ${HEXAGON_RPC_DIR}
@@ -377,5 +377,5 @@ if(USE_HEXAGON_SDK AND BUILD_FOR_ANDROID)
 endif()
 
 list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS} ${RUNTIME_HEXAGON_SIM_SRCS}
-                         ${RUNTIME_HEXAGON_DEVICE_SRCS} ${HEXAGON_RPC_CPP} ${HEXAGON_RPC_STUB_C} 
+                         ${RUNTIME_HEXAGON_DEVICE_SRCS} ${HEXAGON_RPC_CPP} ${HEXAGON_RPC_STUB_C}
                          ${RUNTIME_HEXAGON_COMMON_SRCS})

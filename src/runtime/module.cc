@@ -105,6 +105,22 @@ std::string ModuleNode::GetSource(const std::string& format) {
   return "";
 }
 
+// This function does NOT check whether name is registered globally.
+// This is different from GetFuncFromEnv
+const bool ModuleNode::FuncInExternalModule(const std::string& name) {
+  auto it = import_cache_.find(name);
+  if (it != import_cache_.end()) return true;
+  PackedFunc pf;
+  for (Module& m : this->imports_) {
+    pf = m.GetFunction(name, true);
+    if (pf != nullptr) {
+      import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
+      return true;
+    }
+  }
+  return false;
+}
+
 const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();

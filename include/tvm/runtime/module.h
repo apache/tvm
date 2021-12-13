@@ -163,7 +163,7 @@ class TVM_DLL ModuleNode : public Object {
    * \param query_imports Whether also query dependency modules.
    * \return The result function.
    *  This function will return PackedFunc(nullptr) if function do not exist.
-   * \note Implemented in packed_func.cc
+   * \note Implemented in packed_func.cc (this file doesn't exist?)
    */
   PackedFunc GetFunction(const std::string& name, bool query_imports = false);
   /*!
@@ -182,6 +182,9 @@ class TVM_DLL ModuleNode : public Object {
    * \return The corresponding function.
    */
   const PackedFunc* GetFuncFromEnv(const std::string& name);
+
+  const bool FuncInExternalModule(const std::string& name);
+
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const { return imports_; }
 
@@ -195,11 +198,11 @@ class TVM_DLL ModuleNode : public Object {
  protected:
   friend class Module;
   friend class ModuleInternal;
-  /*! \brief The modules this module depend on */
+  /*! \brief The modules this module depends on */
   std::vector<Module> imports_;
 
  private:
-  /*! \brief Cache used by GetImport */
+  /*! \brief Cache used by GetFunction */
   std::unordered_map<std::string, std::shared_ptr<PackedFunc> > import_cache_;
 };
 

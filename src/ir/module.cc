@@ -45,7 +45,7 @@ namespace tvm {
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
                    std::unordered_set<String> import_set, parser::SourceMap source_map,
-                   DictAttrs attrs) {
+                   DictAttrs attrs, Array<runtime::Module> external_mods) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -55,6 +55,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
   n->attrs = std::move(attrs);
+  n->external_mods = {};
 
   for (const auto& kv : n->functions) {
     // set global var map
@@ -304,6 +305,24 @@ String IRModuleNode::GetUniqueName(const String& name) {
     os << name << "_" << ++suffix;
     result = os.str();
   }
+}
+
+Bool IRModuleNode::HasExternalModules() { return Bool(this->external_mods.defined()); }
+
+/*!
+ * \brief Gets an external function from the IRModule. Returns nullptr if the packed function is not
+ * in
+ */
+const PackedFunc* IRModuleNode::GetExternalFunction(std::string name) {
+  if (this->HasExternalModules()) {
+    for (auto rt_module : this->external_mods) {
+      // What if name is in multiple modules?
+      if (rt_module->GetFuncFromEnv(name)) {
+        return rt_module->GetFuncFromEnv(name);
+      }
+    }
+  }
+  return nullptr;
 }
 
 /*!

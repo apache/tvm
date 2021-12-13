@@ -587,7 +587,7 @@ def test_function_in_tuple():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
                       param_se_scopes=[meta[SEScope][0], meta[SEScope][0]], result_se_scope=meta[SEScope][0]) {
               let %f = fn (%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -618,7 +618,7 @@ def test_device_copy():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
               %0 = device_copy(%x, src_se_scope=meta[SEScope][0], dst_se_scope=meta[SEScope][1]);
               add(%0, meta[relay.Constant][0])
@@ -632,7 +632,7 @@ def test_device_copy():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32],
                       param_se_scopes=[meta[SEScope][0]], result_se_scope=meta[SEScope][1]) {
               %0 = device_copy(%x, src_se_scope=meta[SEScope][0], dst_se_scope=meta[SEScope][1]);
@@ -659,7 +659,7 @@ def test_shape_of():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(?, ?), float32]) {
               %0 = on_device(%x, se_scope=meta[SEScope][1], constrain_result=True);
               vm.shape_of(%0, dtype="int64")
@@ -1366,7 +1366,7 @@ def test_global():
               %0 = on_device(%b, se_scope=meta[SEScope][0]);
               add(%a, %0)
             }
-            
+
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
               @f(%y, %x)
             }
@@ -1386,7 +1386,7 @@ def test_global():
               %0 = device_copy(%b, src_se_scope=meta[SEScope][0], dst_se_scope=meta[SEScope][1]);
               add(%a, %0)
             }
-            
+
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
                       param_se_scopes=[meta[SEScope][0], meta[SEScope][1]],
                       result_se_scope=meta[SEScope][1]) -> Tensor[(5, 7), float32] {
@@ -1530,8 +1530,8 @@ def test_free_on_device():
             def @on_scope_b(%x: Tensor[(5, 7), float32],
                             param_se_scopes=[meta[SEScope][2]],
                             result_se_scope=meta[SEScope][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
+              %x
+            }
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
                       param_se_scopes=[meta[SEScope][0], meta[SEScope][1], meta[SEScope][2]],
                       result_se_scope=meta[SEScope][1]) {
@@ -1558,8 +1558,8 @@ def test_free_on_device():
             def @on_scope_b(%x: Tensor[(5, 7), float32],
                             param_se_scopes=[meta[SEScope][2]],
                             result_se_scope=meta[SEScope][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
+              %x
+            }
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
                       param_se_scopes=[meta[SEScope][2], meta[SEScope][1], meta[SEScope][2]],
                       result_se_scope=meta[SEScope][1]) {
@@ -1568,7 +1568,7 @@ def test_free_on_device():
               %2 = @on_scope_b(%1);
               %3 = @on_scope_b(%c);
               %4 = add(add(%0, %2), %3);
-              %5 = on_device(%4, se_scope=meta[SEScope][2], constrain_result=True); 
+              %5 = on_device(%4, se_scope=meta[SEScope][2], constrain_result=True);
               device_copy(%5, src_se_scope=meta[SEScope][2], dst_se_scope=meta[SEScope][1])
             }
         """,
