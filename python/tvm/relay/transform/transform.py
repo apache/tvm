@@ -695,9 +695,15 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph(mod_name="default"):
+def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+    Parameters
+    ----------
+    bind_constants: bool
+        Whether or not to bind constants in partitioned subgraphs. For C-source based codegen,
+        it is recommended to set this to False to avoid embedding large constants in
+        a C source file.
 
     Returns
     -------
@@ -705,7 +711,7 @@ def PartitionGraph(mod_name="default"):
         The registered pass that partitions the Relay program.
     """
     mod_name = mangle_module_name(mod_name)
-    return _ffi_api.PartitionGraph(mod_name)
+    return _ffi_api.PartitionGraph(mod_name, bind_constants)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
