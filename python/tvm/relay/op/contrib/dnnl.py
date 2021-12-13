@@ -35,6 +35,8 @@ check the attributes of the op and decide if it should be offloaded to DNNL.
 import tvm.ir
 from ...dataflow_pattern import wildcard, is_op
 from .register import register_pattern_table
+from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
 
 
 def _register_external_op_helper(op_name, supported=True):
@@ -85,3 +87,36 @@ def pattern_table():
     conv2d_relu_pat = ("dnnl.conv2d_relu", make_pattern(with_bias=False))
     dnnl_patterns = [conv2d_bias_relu_pat, conv2d_relu_pat]
     return dnnl_patterns
+
+
+def partition_for_dnnl(
+    mod,
+    params=None,
+):
+    """Partition the graph greedily offloading supported operators to DNNL.
+
+    Parameters
+    ----------
+    mod : Module
+        The module to run passes on.
+    params : Optional[Dict[str, NDArray]]
+        Constant input parameters.
+    Returns
+    -------
+    mod : Module
+        Annotated and partitioned module.
+    """
+
+    if params:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+    seq = tvm.transform.Sequential(
+        [
+            transform.MergeComposite(pattern_table()),
+            transform.AnnotateTarget("dnnl"),
+            transform.MergeCompilerRegions(),
+            transform.PartitionGraph(),
+        ]
+    )
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+    return mod
