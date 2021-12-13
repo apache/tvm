@@ -152,6 +152,11 @@ reg.register_strategy("nn.batch_matmul", strategy.batch_matmul_strategy)
 reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# batch_norm
+reg.register_strategy("nn.batch_norm", strategy.batch_norm_strategy)
+reg.register_pattern("nn.batch_norm", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # sparse_dense
 @reg.register_compute("nn.sparse_dense")
 def compute_sparse_dense(attrs, inputs, out_type):
