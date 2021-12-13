@@ -719,7 +719,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
       ICHECK(ramp);
       arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
       // The condition: {k * coeff + base} divisible by the alignment for any k
-      if (me->coeff != 1 && me->base % op->dtype.lanes() == 0) {
+      if (me->coeff % op->dtype.lanes() == 0 && me->base % op->dtype.lanes() == 0) {
         can_vector_load = true;
       }
     }
