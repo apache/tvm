@@ -176,6 +176,12 @@ class MixedPrecisionPass : public MixedModeMutator {
   }
 
   Type GetType(const Expr& expr) const {
+    const Type old_checked_type = expr->checked_type_;
+
+    if (old_checked_type.defined()) {
+      return old_checked_type;
+    }
+
     auto mod = IRModule::FromExpr(expr);
     mod = transform::InferType()(mod);
     if (expr.as<FunctionNode>()) {
@@ -379,6 +385,18 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     return Call(cur_op, new_args, pre_call_node->attrs, new_arg_types, pre_call_node->span);
+  }
+
+  Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) {
+    // The old checked type in the expression may not be valid so clear it
+    post->checked_type_ = Type(nullptr);
+    return post;
+  }
+
+  Expr Rewrite_(const TupleNode* pre, const Expr& post) {
+    // The old checked type in the expression may not be valid so clear it
+    post->checked_type_ = Type(nullptr);
+    return post;
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {

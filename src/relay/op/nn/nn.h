@@ -162,6 +162,7 @@ bool BatchMatmulRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (out_dtype.bits() == 0) {
     out_dtype = x->dtype;
   }
+
   // assign output type
   const auto& out_b =
       xb->IsInstance<tir::AnyNode>() || yb->IsInstance<tir::AnyNode>() ? tir::Any() : max(xb, yb);
