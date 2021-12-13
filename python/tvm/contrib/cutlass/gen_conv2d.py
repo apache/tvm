@@ -91,9 +91,16 @@ def create_conv2d_operator(
                         EpilogueFunctor.LinearCombinationRelu,
                         EpilogueFunctor.LinearCombinationSigmoid,
                         EpilogueFunctor.LinearCombinationSilu,
+                        EpilogueFunctor.LinearCombinationHardSwish,
                     ],
-                    ["opdef_bias", "opdef_bias_relu", "opdef_bias_sigmoid", "opdef_bias_silu"],
-                    [True, True, False, False],
+                    [
+                        "opdef_bias",
+                        "opdef_bias_relu",
+                        "opdef_bias_sigmoid",
+                        "opdef_bias_silu",
+                        "opdef_bias_hardswish",
+                    ],
+                    [True, True, False, False, False],
                 ):
                     op = Conv2dOperation(
                         ConvKind.Fprop,

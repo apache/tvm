@@ -29,14 +29,7 @@ logger = logging.getLogger("cutlass")
 
 
 def _get_cutlass_path():
-    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
-    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
-    assert os.path.exists(
-        cutlass_path
-    ), """The CUTLASS root directory not found in {}.
-        Currently, using CUTLASS requires building TVM from source.""".format(
-        cutlass_path
-    )
+    cutlass_path = "/home/masa/projects/dev/cutlass"
     return cutlass_path
 
 
@@ -224,6 +217,8 @@ def handle_conv2d(
         cutlass_op_def = out["opdef_bias_sigmoid"]
     elif op_type == "cutlass.conv2d_bias_silu":
         cutlass_op_def = out["opdef_bias_silu"]
+    elif op_type == "cutlass.conv2d_bias_hardswish":
+        cutlass_op_def = out["opdef_bias_hardswish"]
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
