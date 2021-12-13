@@ -101,6 +101,9 @@ class MixedPrecisionPass : public MixedModeMutator {
   /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type_;
 
+  /* TODO*/
+  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> analgous_graphs;
+
   /*! \brief Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
    * encountered. Used for emitting warnings on missing ops in the pass.
    */
@@ -175,20 +178,39 @@ class MixedPrecisionPass : public MixedModeMutator {
     return Attrs(new_attrs);
   }
 
+  Expr MakeAnalogousSubgraph(const Expr& expr) const {
+    if (auto node = expr.as<CallNode>()) {
+      Array<Expr> args;
+      for (Expr expr : node->args) {
+        args.push_back(Var("dummy_temp", GetType(expr)));
+      }
+      return Call(node->op, args, node->attrs, node->type_args, node->span);
+    } else if (auto node = expr.as<TupleGetItemNode>()) {
+      return TupleGetItem(MakeAnalogousSubgraph(node->tuple), node->index, node->span);
+    } else {
+      LOG(FATAL) << "Unknown node " << expr;
+      return Expr(nullptr);
+    }
+  }
+
   Type GetType(const Expr& expr) const {
     const Type old_checked_type = expr->checked_type_;
-
     if (old_checked_type.defined()) {
       return old_checked_type;
     }
 
-    auto mod = IRModule::FromExpr(expr);
+    auto mod = IRModule::FromExpr(MakeAnalogousSubgraph(expr));
+    // LOG(WARNING) << mod;
+    // LOG(WARNING) << IRModule::FromExpr(expr);
     mod = transform::InferType()(mod);
+    Type t;
     if (expr.as<FunctionNode>()) {
-      return mod->Lookup("main")->checked_type();
+      t = mod->Lookup("main")->checked_type();
     } else {
-      return mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+      t = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
     }
+    expr->checked_type_ = t;
+    return t;
   }
 
   bool IsMixedPrecisionType(const Type& t, bool ignore_non_float = false) const {
