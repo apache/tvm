@@ -16,8 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
-from tvm.ir.transform import Sequential
+from tvm.ir.transform import Sequential, PassContext
 from tvm.relay import transform
+from tvm.relay.build_module import bind_params_by_name
 from ...dataflow_pattern import wildcard, is_op, is_constant
 
 
@@ -126,7 +127,7 @@ def check_conv2d(call):
     return not is_depthwise_conv2d(IC, OC, conv2d.attrs.groups)
 
 
-def partition_for_cutlass(mod):
+def partition_for_cutlass(mod, params=None):
     """Partition the input module into CUTLASS-supported subgraphs."""
     dense_pat = ("cutlass.dense", make_gemm_pattern(False, None), check_gemm)
     dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None), check_gemm)
@@ -161,12 +162,27 @@ def partition_for_cutlass(mod):
         ("cutlass.conv2d_bias", make_conv2d_pattern(with_bias=True), check_conv2d),
         ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
+
+    if params is not None:
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        remove_bn_pass = Sequential(
+            [
+                transform.InferType(),
+                transform.SimplifyInference(),
+                transform.FoldConstant(),
+                transform.FoldScaleAxis(),
+            ]
+        )
+        with PassContext(opt_level=3):
+            mod = remove_bn_pass(mod)
+
     seq = Sequential(
         [
             transform.InferType(),
             transform.MergeComposite(cutlass_patterns),
             transform.AnnotateTarget(["cutlass"]),
-            transform.PartitionGraph(),
+            transform.PartitionGraph(bind_constants=False),
         ]
     )
+
     return seq(mod)
