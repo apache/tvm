@@ -88,6 +88,33 @@ def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     assert str(exp.value) == expected_reason, on_error
 
 
+def test_tvmc_import_package_project_dir(tflite_mobilenet_v1_1_quant, tflite_compile_model):
+    pytest.importorskip("tflite")
+
+    # Generate a MLF archive.
+    compiled_model_mlf_tvmc_package = tflite_compile_model(
+        tflite_mobilenet_v1_1_quant, output_format="mlf"
+    )
+
+    # Import the MLF archive setting 'project_dir'. It must succeed.
+    mlf_archive_path = compiled_model_mlf_tvmc_package.package_path
+    tvmc_package = TVMCPackage(mlf_archive_path, project_dir="/tmp/foobar")
+    assert tvmc_package.type == "mlf", "Can't load the MLF archive passing the project directory!"
+
+    # Generate a Classic archive.
+    compiled_model_classic_tvmc_package = tflite_compile_model(tflite_mobilenet_v1_1_quant)
+
+    # Import the Classic archive setting 'project_dir'.
+    # It must fail since setting 'project_dir' is only support when importing a MLF archive.
+    classic_archive_path = compiled_model_classic_tvmc_package.package_path
+    with pytest.raises(TVMCException) as exp:
+        tvmc_package = TVMCPackage(classic_archive_path, project_dir="/tmp/foobar")
+
+    expected_reason = "Setting 'project_dir' is only allowed when importing a MLF.!"
+    on_error = "A TVMCException was caught but its reason is not the expected one."
+    assert str(exp.value) == expected_reason, on_error
+
+
 def test_tvmc_import_package_mlf_graph(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
 
