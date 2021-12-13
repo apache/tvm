@@ -215,8 +215,6 @@ def create_test_runner(accel="ethos-u55-256"):
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
             },
-            # TODO(@manupa-arm): enable USMP once TIR to CS translator is capable of handling let bindings
-            "tir.usmp.disable": True,
         },
     )
 

@@ -35,7 +35,7 @@
 
 namespace tvm {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.usmp.disable", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.usmp.enable", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.usmp.algorithm", String);
 
 namespace tir {

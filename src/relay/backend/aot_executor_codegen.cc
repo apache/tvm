@@ -691,13 +691,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   IRModule PlanMemoryLoweredModule(const IRModule& mod) {
     transform::PassContext pass_ctx = transform::PassContext::Current();
-    bool disable_usmp = pass_ctx->GetConfig<Bool>("tir.usmp.disable", Bool(false)).value();
+    bool enable_usmp = pass_ctx->GetConfig<Bool>("tir.usmp.enable", Bool(false)).value();
 
     IRModule lowered_mod = mod->ShallowCopy();
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
-    if (!disable_usmp) {
+    if (enable_usmp) {
       lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
       // Update workspace size based on the pool allocations.
       Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =

@@ -702,8 +702,10 @@ def run_and_check(
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
-        # TODO(@manupa-arm): remove the stack allocator once the microNPU uses target hooks
         workspace_bytes = model.extra_memory_in_bytes
+        use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+        if interface_api == "packed" and not use_usmp:
+            workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
