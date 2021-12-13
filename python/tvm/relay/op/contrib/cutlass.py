@@ -106,7 +106,7 @@ def check_conv2d(call):
         return False
     IC = data.shape[3]
     OC = weight.shape[0]
-    return not is_depthwise_conv2d(IC, OC, call.attrs.groups)
+    return not is_depthwise_conv2d(IC, OC, conv2d.attrs.groups)
 
 
 def partition_for_cutlass(mod):
