@@ -64,12 +64,10 @@ def skip_aot_runtime_test():
     # Mrvl codegen not present.
     if skip_json_codegen_test():
         return True
-
-    # TODO(ccjoechou): add real code
-    # Remote device is in use or Mrvl runtime not present
-    # Note: Ensure that the device config has been loaded before this check
-    print("Skip because Mrvl runtime isn't present or a remote device isn't being used.")
-    return True
+    if not mrvl.is_mrvl_runtime_enabled():
+        print("Skip because Mrvl runtime isn't present or a remote device isn't being used.")
+        return True
+    return False
 
 
 def aot_build_and_json_codegen(

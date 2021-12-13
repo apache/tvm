@@ -869,11 +869,17 @@ runtime::Module MrvlCompiler(const ObjectRef& ref) {
 TVM_REGISTER_GLOBAL("relay.ext.mrvl").set_body_typed(MrvlCompiler);
 
 /*!
- * \brief Check whether Mrvl graph executor is used.
+ * \brief Check whether Mrvl runtime is used.
  *
- * \return True if Mrvl graph executor is enabled, False if not.
+ * \return True if Mrvl runtime is enabled, False if not.
  */
-inline constexpr bool IsMrvlRuntimeEnabled() { return true; }
+inline constexpr bool IsMrvlRuntimeEnabled() {
+#if TVM_RUNTIME_MRVL
+  return true;
+#else
+  return false;
+#endif
+}
 
 TVM_REGISTER_GLOBAL("relay.op.is_mrvl_runtime_enabled").set_body_typed(IsMrvlRuntimeEnabled);
 

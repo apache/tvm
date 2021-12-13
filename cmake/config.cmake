@@ -248,6 +248,12 @@ set(USE_TENSORRT_RUNTIME OFF)
 # Whether use VITIS-AI codegen
 set(USE_VITIS_AI OFF)
 
+# Whether use MRVL codegen
+set(USE_MRVL OFF)
+
+# Whether use MRVL runtime
+set(USE_MRVL_RUNTIME OFF)
+
 # Build Verilator codegen and runtime
 set(USE_VERILATOR OFF)
 

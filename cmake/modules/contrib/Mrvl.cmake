@@ -17,7 +17,7 @@
 include(ExternalProject)
 
 if(USE_MRVL)
-  IF (MRVL_COMPILER_LIB_PATH)
+  if(MRVL_COMPILER_LIB_PATH)
     add_definitions(-DTVM_USE_MRVL_COMPILER_LIB=1)
     # copy 3 pre-built static lib files of Marvell compiler-backend
     #   under the MRVL_COMPILER_LIB_PATH directory
@@ -38,7 +38,7 @@ if(USE_MRVL)
     # FIXME: list(APPEND TVM_LINKER_LIBS ${MRVL_LIB})
     message(STATUS "Build with 4 Mrvl lib *.a files: ${MRVL_RUNTIME_LIB}")
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${MRVL_RUNTIME_LIB})
-  ENDIF (MRVL_COMPILER_LIB_PATH) 
+  endif(MRVL_COMPILER_LIB_PATH) 
 
   # Mrvl Module
   message(STATUS "Build with Mrvl support")
@@ -46,11 +46,23 @@ if(USE_MRVL)
   # FIXME: find_livrary(MRVL_LIB Mrvl)
   # FIXME: find_livrary(MRVL_RUNTIME_LIB Mrvl_runtime)
   file(GLOB RUNTIME_MRVL_SRCS
-    src/relay/backend/contrib/mrvl/graph_executor_codegen_mrvl.cc
-    src/relay/backend/contrib/mrvl/codegen.cc
-    src/relay/backend/contrib/mrvl/drop_noop_transpose.cc
     src/runtime/contrib/mrvl/mrvl_runtime.cc
   )
   list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})
 
+  file(GLOB COMPILER_MRVL_SRCS
+    src/relay/backend/contrib/mrvl/graph_executor_codegen_mrvl.cc
+    src/relay/backend/contrib/mrvl/codegen.cc
+    src/relay/backend/contrib/mrvl/drop_noop_transpose.cc
+  )
+  list(APPEND COMPILER_SRCS ${COMPILER_MRVL_SRCS})
+
+  if(NOT USE_MRVL_RUNTIME)
+    list(APPEND COMPILER_SRCS ${RUNTIME_MRVL_MODULE})
+  endif()
 endif(USE_MRVL)
+
+if(USE_MRVL_RUNTIME)
+  # Set flag to detect Marvell runtime support.
+  add_definitions(-DTVM_RUNTIME_MRVL)
+endif(USE_MRVL_RUNTIME)

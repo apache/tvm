@@ -70,12 +70,12 @@ class MrvlRuntime : public JSONRuntimeBase {
 
   void Run() override {
     LOG(FATAL) << "Cannot call run on Mrvl module without runtime enabled. "
-               << "Please build with USE_MRVL_GRAPH_EXECUTOR.";
+               << "Please build with USE_MRVL_RUNTIME (which is not supported yet).";
   }
 
   void BuildEngine() {
     LOG(WARNING) << "Mrvl engine is not initialized. "
-                 << "Please build with USE_MRVL_GRAPH_EXECUTOR.";
+                 << "Please build with USE_MRVL_RUNTIME (which is not supported yet).";
   }
 };
 
