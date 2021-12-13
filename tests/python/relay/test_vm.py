@@ -1103,6 +1103,18 @@ def test_multi_targets():
     tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
 
 
+def test_dialect_rewriter():
+    x = relay.var("x", shape=(3,), dtype="int32")
+    y = relay.take(x, relay.const(0))
+    z = relay.const(1)
+
+    f = relay.Function([x], relay.stack((z, y), axis=0))
+    mod = IRModule.from_expr(f)
+
+    compiler = VMCompiler()
+    compiler.optimize(mod, "llvm")
+
+
 if __name__ == "__main__":
     import sys
 
