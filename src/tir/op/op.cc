@@ -369,6 +369,8 @@ PrimExpr operator%(PrimExpr a, PrimExpr b) { return truncmod(a, b); }
 // TODO(tqchen): switch to floordiv
 PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span) { return floordiv(a, b, span); }
 
+PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span) { return ceildiv(a, b, span); }
+
 PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span) { return floormod(a, b, span); }
 
 PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
@@ -378,6 +380,15 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a, b);
   if (ret.defined()) return ret;
   return tir::FloorDiv(a, b, span);
+}
+
+PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
+  ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
+  ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
+  BinaryOpMatchTypes(a, b, span);
+  PrimExpr ret = arith::TryConstFold<tir::FloorDiv>(a + b - 1, b);
+  if (ret.defined()) return ret;
+  return tir::FloorDiv(a + b - 1, b, span);
 }
 
 PrimExpr floormod(PrimExpr a, PrimExpr b, Span span) {
