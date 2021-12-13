@@ -22,6 +22,8 @@
  */
 #include "codegen_c.h"
 
+#include <tvm/arith/analyzer.h>
+
 #include <cctype>
 #include <iomanip>
 
@@ -715,9 +717,8 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
       const RampNode* ramp = op->index.as<RampNode>();
       ICHECK(ramp);
-      auto* base_int = ramp->base.as<IntImmNode>();
-      auto access_bytes = op->dtype.lanes() * op->dtype.bytes();
-      if (base_int && (base_int->value % access_bytes == 0)) {
+      arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
+      if (me->base % op->dtype.lanes() == 0) {
         can_vector_load = true;
       }
     }
