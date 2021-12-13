@@ -26,6 +26,7 @@
 #include <tvm/target/virtual_device.h>
 
 namespace tvm {
+int64_t RelayExprNode::_global_en_id = 0;
 
 VirtualDevice RelayExprNode::virtual_device() const {
   if (virtual_device_.defined()) {
@@ -591,6 +592,16 @@ void LetNode::Deleter_(Object* ptr) {
   // create Let reference in order to invoke ~Let
   auto c = GetRef<Let>(p);
 }
+
+/*
+ * Helper functions to get en_id mgmt
+ * Identify an expr node
+ */
+TVM_REGISTER_GLOBAL("relay.ir.get_en_id").set_body_typed([](const ObjectRef& ref) {
+  auto* relay_expr = static_cast<const tvm::RelayExprNode*>(ref.get());
+  ICHECK(relay_expr) << "can't downclass obj to RelayExprNode";
+  return relay_expr->get_en_id();
+});
 
 }  // namespace relay
 }  // namespace tvm

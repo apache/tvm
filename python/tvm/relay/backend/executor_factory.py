@@ -164,6 +164,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         libmod_name,
         params,
         function_metadata,
+        external_graph_json_str=None,
     ):
         assert isinstance(graph_json_str, string_types)
         fcreate = get_global_func("tvm.graph_executor_factory.create")
@@ -177,6 +178,7 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
         self.executor = executor
         self.module = fcreate(graph_json_str, libmod, libmod_name, *args)
         self.graph_json = graph_json_str
+        self.external_graph_json = external_graph_json_str
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params
@@ -197,6 +199,9 @@ class GraphExecutorFactoryModule(ExecutorFactoryModule):
 
     def get_executor_config(self):
         return self.graph_json
+
+    def get_external_graph_json(self):
+        return self.external_graph_json
 
     def get_lib(self):
         return self.lib

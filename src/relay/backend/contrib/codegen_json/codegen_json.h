@@ -173,6 +173,9 @@ class JSONSerializer : public MemoizedExprTranslator<std::vector<JSONGraphNodeEn
     return os.str();
   }
 
+  /*!\brief Return the generated graph nodes. */
+  std::vector<JSONGraphObjectPtr> GetNodes() const { return nodes_; }
+
  protected:
   /*!
    * \brief Add a node to graph.

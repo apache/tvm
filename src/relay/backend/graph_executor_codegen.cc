@@ -22,6 +22,8 @@
  * \brief Graph executor codegen
  */
 
+#include "../src/relay/backend/graph_executor_codegen.h"
+
 #include <dmlc/any.h>
 #include <dmlc/json.h>
 #include <tvm/ir/module.h>
@@ -52,146 +54,63 @@ backend::StaticMemoryPlan GraphPlanMemory(const Function& func);
 
 namespace backend {
 
-class GraphNode;
 class GraphInputNode;
 class GraphOpNode;
+class GraphExecutorCodegen;
 
 using IntegerArray = Array<Integer>;
 using ShapeVector = std::vector<std::vector<int64_t>>;
 using GraphAttrs = std::unordered_map<std::string, dmlc::any>;
 using GraphObjectPtr = std::shared_ptr<GraphNode>;
-using GraphInputObjectPtr = std::shared_ptr<GraphInputNode>;
 using GraphOpObjectPtr = std::shared_ptr<GraphOpNode>;
 
-/*! \brief Node types */
-enum GraphNodeType {
-  kGraphNop,
-  kGraphInputNode,
-  kGraphOpNode,
-};
-
-class GraphNodeRef {
- public:
-  GraphNodeRef() {}
-  GraphNodeRef(int ident, int index, int version = 0)
-      : ident_(ident), index_(index), version_(version) {}
-
-  inline void Save(dmlc::JSONWriter* writer) const {
-    writer->BeginArray();
-    writer->WriteArrayItem(ident_);
-    writer->WriteArrayItem(index_);
-    writer->WriteArrayItem(version_);
-    writer->EndArray();
-  }
-
-  inline void Load(dmlc::JSONReader* reader) { LOG(FATAL) << "Not implemented."; }
-
- protected:
-  int ident_;
-  int index_{0};
-  int version_{0};
-};
-
-/*! \brief Base Node class */
-class GraphNode {
- public:
-  GraphNode() {}
-  virtual void Save(dmlc::JSONWriter* writer) const {}
-  virtual void Load(dmlc::JSONReader* reader) {}
-  virtual GraphNodeType Type() const { return kGraphNop; }
-  virtual ~GraphNode() {}
-
- public:
-  int num_outputs_{1};
-  std::string name_;
-  GraphAttrs attrs_;
-};
-
-/*! \brief Input Node */
-class GraphInputNode : public GraphNode {
- public:
-  GraphInputNode() {}
-  GraphInputNode(const std::string& name, const GraphAttrs& attrs) {
-    name_ = name;
-    attrs_ = attrs;
-  }
-
-  GraphNodeType Type() const override { return kGraphInputNode; }
-
-  void Save(dmlc::JSONWriter* writer) const override {
-    const std::string op_name{"null"};
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("op", op_name);
-    writer->WriteObjectKeyValue("name", this->name_);
-    writer->WriteObjectKeyValue("inputs", std::list<int>());
-    writer->EndObject();
-  }
-  static std::shared_ptr<GraphNode> make_node_ptr(const std::string& name,
-                                                  const GraphAttrs& attrs) {
-    auto ptr = std::make_shared<GraphInputNode>(name, attrs);
-    return std::dynamic_pointer_cast<GraphNode>(ptr);
-  }
-};
-
 /*! \brief Op Node */
-class GraphOpNode : public GraphNode {
- public:
-  GraphOpNode() {}
-  GraphOpNode(const std::string& name, const GraphAttrs& nd_attrs, const std::string& op_name,
-              const std::vector<GraphNodeRef>& inputs, const GraphAttrs& attrs,
-              size_t num_outputs = 1) {
-    name_ = name;
-    attrs_ = nd_attrs;
-    op_name_ = op_name;
-    inputs_ = inputs;
-    op_attrs_ = attrs;
-    num_outputs_ = num_outputs;
-    op_attrs_["func_name"] = op_name_;
-    op_attrs_["flatten_data"] = std::string("0");
-    op_attrs_["num_inputs"] = std::to_string(inputs_.size());
-    op_attrs_["num_outputs"] = std::to_string(num_outputs_);
-  }
+GraphOpNode::GraphOpNode(const std::string& name, const GraphAttrs& nd_attrs,
+                         const std::string& op_name, const std::vector<GraphNodeRef>& inputs,
+                         const GraphAttrs& attrs, size_t num_outputs) {
+  name_ = name;
+  attrs_ = nd_attrs;
+  op_name_ = op_name;
+  inputs_ = inputs;
+  op_attrs_ = attrs;
+  num_outputs_ = num_outputs;
+  op_attrs_["func_name"] = op_name_;
+  op_attrs_["flatten_data"] = std::string("0");
+  op_attrs_["num_inputs"] = std::to_string(inputs_.size());
+  op_attrs_["num_outputs"] = std::to_string(num_outputs_);
+}
 
-  GraphNodeType Type() const override { return kGraphOpNode; }
+GraphNodeType GraphOpNode::Type() const { return kGraphOpNode; }
 
-  void Save(dmlc::JSONWriter* writer) const override {
-    GraphAttrs attrs = op_attrs_;
-    attrs["func_name"] = this->op_name_;
-    attrs["flatten_data"] = std::string("0");
-    attrs["num_inputs"] = std::to_string(this->inputs_.size());
-    attrs["num_outputs"] = std::to_string(this->num_outputs_);
-    writer->BeginObject();
-    writer->WriteObjectKeyValue("op", op_type_name_);
-    writer->WriteObjectKeyValue("name", name_);
-    writer->WriteObjectKeyValue("attrs", attrs);
-    writer->WriteObjectKeyValue("inputs", this->inputs_);
-    writer->EndObject();
-  }
-  static std::shared_ptr<GraphNode> make_node_ptr(const std::string& name,
-                                                  const GraphAttrs& nd_attrs,
-                                                  const std::string& op_name,
-                                                  const std::vector<GraphNodeRef>& inputs,
-                                                  const GraphAttrs& attrs, size_t num_outputs = 1) {
-    auto ptr = std::make_shared<GraphOpNode>(name, nd_attrs, op_name, inputs, attrs, num_outputs);
-    return std::dynamic_pointer_cast<GraphNode>(ptr);
-  }
+void GraphOpNode::Save(dmlc::JSONWriter* writer) const {
+  GraphAttrs attrs = op_attrs_;
+  attrs["func_name"] = this->op_name_;
+  attrs["flatten_data"] = std::string("0");
+  attrs["num_inputs"] = std::to_string(this->inputs_.size());
+  attrs["num_outputs"] = std::to_string(this->num_outputs_);
+  writer->BeginObject();
+  writer->WriteObjectKeyValue("op", op_type_name_);
+  writer->WriteObjectKeyValue("name", name_);
+  writer->WriteObjectKeyValue("attrs", attrs);
+  writer->WriteObjectKeyValue("inputs", this->inputs_);
+  writer->EndObject();
+}
 
- public:
-  std::string op_name_;
-  std::vector<GraphNodeRef> inputs_;
-  GraphAttrs op_attrs_;
-
- private:
-  const std::string op_type_name_{"tvm_op"};
-};
-
-/*! \brief Code generator for the graph executor, produces a module containing the graph JSON,
- * module, and parameters.
+/*! \brief Code generator for the graph executor, produces a module containing
+ * the graph JSON, module, and parameters.
  */
 class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
   GraphExecutorCodegen(runtime::Module* mod, const TargetMap& targets)
-      : mod_(mod), targets_(targets) {}
+      : mod_(mod), targets_(targets) {
+    // we need the following variable to be a static member of the class so we can access
+    //   its setting in the following static GetExternalJsonWriter() function; but this static
+    //   member can actually be used as a local Callback setting for "per" GraphExecutorCodegen
+    //   instantiation during each TVM build-codegen flow
+    external_json_writer_ = std::make_shared<ExternalJsonWriterCB>();
+    ICHECK(external_json_writer_);
+  }
+  static ExternalJsonWriterCB* GetExternalJsonWriter() { return external_json_writer_.get(); }
 
   StorageInfo GetStorageInfo(const Expr& e) {
     size_t count = memory_plan_->expr_to_storage_info.count(e);
@@ -254,13 +173,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
 
     Function lowered_main_func = Downcast<Function>(lowered_mod->Lookup("main"));
 
-    // Now that we have lowered all operators to TIR code, we can proceed with compilation.
+    // Now that we have lowered all operators to TIR code, we can proceed with
+    // compilation.
     //
-    // We need to unfortunately re-plan as the previous results have been invalidated by lowering
-    // we will fix this in future refactors.
+    // We need to unfortunately re-plan as the previous results have been
+    // invalidated by lowering we will fix this in future refactors.
     memory_plan_ = GraphPlanMemory(lowered_main_func);
 
-    // The graph planner also can not handle planning calls to global variables to we must remap
+    // The graph planner also can not handle planning calls to global variables
+    // to we must remap
 
     // First we convert all the parameters into input nodes.
     for (auto param : lowered_main_func->params) {
@@ -290,6 +211,15 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
+
+    // if it has been registered for this GraphExecutorCodegen object, call the external JSON writer
+    if (external_json_writer_->HasCallback()) {
+      std::ostringstream external_os;
+      dmlc::JSONWriter external_writer(&external_os);
+      external_json_writer_->Exe(&external_writer, ret.external_mods, nodes_, heads_);
+      ret.external_graph_json = external_os.str();
+    }
+
     return ret;
   }
 
@@ -461,7 +391,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
       std::cout << "call_node: \n" << PrettyPrint(call) << std::endl;
       const auto* func = call_node->op.as<GlobalVarNode>();
       ICHECK(func) << "Expected the operator to be a global var, but got "
-                   << call_node->op->GetTypeKey();  // getting a relay fn here, not sure why.
+                   << call_node->op->GetTypeKey();  // getting a relay fn here,
+                                                    // not sure why.
       func_name = func->name_hint;
 
       for (const Expr& arg : call_node->args) {
@@ -476,7 +407,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
                  << PrettyPrint(call);
     }
 
-    // Compute the operator name, because we used the get unique name when generating the kernel.
+    // Compute the operator name, because we used the get unique name when
+    // generating the kernel.
     auto op_name = _GetUniqueName(func_name);
     auto node = GraphOpNode::make_node_ptr(op_name, GraphAttrs(), func_name, inputs, attrs);
     return AddNode(node, call);
@@ -507,7 +439,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const GlobalVarNode* op) override {
-    LOG(FATAL) << "All GlobalVarNodes should be removed before graph executor's Codegen is called";
+    LOG(FATAL) << "All GlobalVarNodes should be removed before graph "
+                  "executor's Codegen is called";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const IfNode* op) override {
@@ -625,8 +558,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
    * These are take as inputs to the GraphExecutor.
-   * Maps param name to a pair of storage_id and NDArray. At runtime, the storage_id can be
-   * used to lookup the parameter.
+   * Maps param name to a pair of storage_id and NDArray. At runtime, the
+   * storage_id can be used to lookup the parameter.
    */
   std::unordered_map<std::string, runtime::NDArray> params_;
   std::unordered_map<std::string, int64_t> param_storage_ids_;
@@ -638,7 +571,10 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
+  static std::shared_ptr<ExternalJsonWriterCB> external_json_writer_;
 };
+std::shared_ptr<ExternalJsonWriterCB> GraphExecutorCodegen::external_json_writer_ =
+    std::shared_ptr<ExternalJsonWriterCB>();
 
 class GraphExecutorCodegenModule : public runtime::ModuleNode {
  public:
@@ -663,6 +599,10 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_graph_json") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.graph_json; });
+    } else if (name == "get_external_graph_json") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->output_.external_graph_json;
+      });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<runtime::String> ret;
@@ -713,6 +653,10 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
   std::shared_ptr<GraphExecutorCodegen> codegen_;
   LoweredOutput output_;
 };
+
+extern "C" ExternalJsonWriterCB* GetExternalJsonWriter() {
+  return GraphExecutorCodegen::GetExternalJsonWriter();
+}
 
 runtime::Module CreateGraphCodegenMod() {
   auto ptr = make_object<GraphExecutorCodegenModule>();
@@ -766,7 +710,7 @@ struct Handler<std::unordered_map<std::string, dmlc::any>> {
       } else if (SameType<std::vector<dmlc::any>>(v)) {
         writer->WriteObjectKeyValue(k, dmlc::get<std::vector<dmlc::any>>(v));
       } else {
-        LOG(FATAL) << "Not supported";
+        LOG(FATAL) << "Value type not supported for key: " << k;
       }
     }
     writer->EndObject();

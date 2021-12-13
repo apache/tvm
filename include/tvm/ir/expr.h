@@ -155,6 +155,15 @@ class RelayExprNode : public BaseExprNode {
    * \return The checked_type
    */
   inline const Type& checked_type() const;
+
+  /*!
+   * \brief members to identify an expr node
+   */
+  static int64_t _global_en_id;
+  mutable int64_t en_id;
+  RelayExprNode() { en_id = _global_en_id++; }
+  inline int64_t get_en_id() const { return en_id; }
+
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.

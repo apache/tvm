@@ -196,6 +196,18 @@ class Op : public RelayExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
+  /*!
+   * \brief list all registered op names
+   */
+  TVM_DLL static void ListAllOpNames();
+
+  /*!
+   * \brief get the name of an op, if it is registered.
+   * \param op Obj of an op
+   * \return op name in String, if it is registered.
+   */
+  TVM_DLL static String GetOpName(const Op& op);
+
   /*! \brief specify container node */
   using ContainerType = OpNode;
 

@@ -61,6 +61,7 @@ run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module apps/dso_p
 
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
 
+sudo pip3 install gluoncv
 # Ignoring Arm(R) Ethos(TM)-U NPU tests in the collective to run to run them in parallel in the next step.
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosu tests/python/contrib/test_ethosu -n auto

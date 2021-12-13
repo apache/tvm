@@ -75,6 +75,10 @@ class JSONRuntimeBase : public ModuleNode {
     } else if (name == "get_const_vars") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
+    } else if (name == "get_graph_json") {
+      // add a new API to return graph_json
+      return PackedFunc(
+          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->graph_json_; });
     } else if (this->symbol_name_ == name) {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
