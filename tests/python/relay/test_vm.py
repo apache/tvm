@@ -1112,8 +1112,8 @@ def test_multi_targets():
     tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
 
 
-def test_dialect_rewriter():
-    """Tests dialect rewriter for tuple node."""
+def test_let_bound_constants():
+    """This tests for an ICHECK failure for ill-formed IR with let-bound constants"""
 
     x = relay.var("x", shape=(3,), dtype="int32")
     y = relay.take(x, relay.const(0))
