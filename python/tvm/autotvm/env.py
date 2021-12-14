@@ -41,4 +41,4 @@ GLOBAL_SCOPE = AutotvmGlobalScope()
 def reset_global_scope(global_scope):
     """Reset global autotvm state. This is needed to initialize PopenPool workers."""
     global GLOBAL_SCOPE
-    GLOBAL_SCOPE = global_scope
+    GLOBAL_SCOPE.deepcopy(global_scope)
