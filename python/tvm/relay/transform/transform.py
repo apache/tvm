@@ -695,9 +695,22 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph(mod_name="default"):
+def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
+    Parameters
+    ----------
+    mod_name : string
+        Controls the prefix of the name of each partitioned subraph.
+        If `mod_name` is None, then `tvmgen_` prefix is used.
+        Otherwise, `tvmgen_mod_name_` prefix is used.
+
+    bind_constants: bool
+        Whether or not to bind constants in partitioned subgraphs. Note that the codegen needs
+        to maintain the bound constants; Otherwise the constants will be maintained by
+        the metadata module. So it is recommended for C-source based codegens to
+        set bind_constants=False to avoid embedding large constants in a C source file.
 
     Returns
     -------
@@ -705,7 +718,7 @@ def PartitionGraph(mod_name="default"):
         The registered pass that partitions the Relay program.
     """
     mod_name = mangle_module_name(mod_name)
-    return _ffi_api.PartitionGraph(mod_name)
+    return _ffi_api.PartitionGraph(mod_name, bind_constants)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
