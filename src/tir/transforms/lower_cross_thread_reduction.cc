@@ -122,7 +122,7 @@ Buffer MakeScratchpad(String name, const DataType& dtype) {
                 /*shape=*/{Integer(1)},
                 /*strides=*/{Integer(1)},
                 /*elem_offset=*/PrimExpr{nullptr},
-                /*name=*/std::move(name),
+                /*name=*/name,
                 /*data_alignment=*/0,
                 /*offset_factor=*/0,
                 /*buffer_type=*/kDefault);
