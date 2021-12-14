@@ -175,21 +175,6 @@ class MixedPrecisionPass : public MixedModeMutator {
     return Attrs(new_attrs);
   }
 
-  Expr MakeAnalogousSubgraph(const Expr& expr) const {
-    if (auto node = expr.as<CallNode>()) {
-      Array<Expr> args;
-      for (Expr expr : node->args) {
-        args.push_back(Var("dummy_temp", GetType(expr)));
-      }
-      return Call(node->op, args, node->attrs, node->type_args, node->span);
-    } else if (auto node = expr.as<TupleGetItemNode>()) {
-      return TupleGetItem(MakeAnalogousSubgraph(node->tuple), node->index, node->span);
-    } else {
-      LOG(FATAL) << "Unknown node " << expr;
-      return Expr(nullptr);
-    }
-  }
-
   Type GetType(const Expr& expr) const {
     Type checked_type = expr->checked_type_;
     if (checked_type.defined()) {
