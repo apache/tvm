@@ -36,10 +36,11 @@ Follow the steps to download a resnet model via the terminal:
      touch tvmcpythonintro.py
 
 Let's start editing the python file in your favorite text editor.
+"""
 
 ################################################################################
 # Step 0: Imports
-# ---------------
+# ~~~~~~~~~~~~~~~
 # 
 # .. code-block:: python
 #
@@ -48,7 +49,7 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Step 1: Load a model
-# --------------------
+# ~~~~~~~~~~~~~~~~~~~~
 #
 # Let's import our model into tvmc. This step converts a machine learning model from 
 # a supported framework into TVM's high level graph representation language called Relay. 
@@ -76,7 +77,8 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Step 2: Compile
-# ----------------
+# ~~~~~~~~~~~~~~~
+# 
 # Now that our model is in Relay, our next step is to compile it to a desired 
 # hardware to run on. We refer to this hardware as a target. This compilation process 
 # translates the model from Relay into a lower-level language that the 
@@ -97,7 +99,8 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Step 3: Run
-# -----------
+# ~~~~~~~~~~~
+# 
 # The compiled package can now be run on the hardware target. The device 
 # input options are: CPU, Cuda, CL, Metal, and Vulkan.
 # 
@@ -110,7 +113,8 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Step 1.5: Tune [Optional & Recommended]
-# ---------------------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 
 # Run speed can further be improved by tuning. This optional step uses 
 # machine learning to look at each operation within a model (a function) and 
 # tries to find a faster way to run it. We do this through a cost model, and 
@@ -136,7 +140,7 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Save and then start the process in the terminal:
-# ------------------------------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
 #  .. code-block:: python
 #      python my_tvmc_script.py
@@ -146,7 +150,7 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Example results:
-# ----------------
+# ~~~~~~~~~~~~~~~~
 # 
 #   .. code-block:: python
 #      Time elapsed for training: 18.99 s
@@ -158,12 +162,14 @@ Let's start editing the python file in your favorite text editor.
 #       ['output_0']
 #
 
-Additional TVMC Functionalities
-===============================
+################################################################################
+# Additional TVMC Functionalities
+# -------------------------------
+# 
 
 ################################################################################
 # Saving the model
-# ----------------
+# ~~~~~~~~~~~~~~~~
 # 
 # To make things faster for later, after loading the model (Step 1) save the Relay version. 
 # The model will then appear where you saved it for later in the coverted syntax.
@@ -175,7 +181,7 @@ Additional TVMC Functionalities
 
 ################################################################################
 # Saving the package
-# ------------------
+# ~~~~~~~~~~~~~~~~~~
 # 
 # After the model has been compiled (Step 2) the package also is also saveable.  
 # 
@@ -188,7 +194,8 @@ Additional TVMC Functionalities
 
 ################################################################################
 # Using Autoscheduler
-# -------------------
+# ~~~~~~~~~~~~~~~~~~~
+# 
 # Use the next generation of tvm to enable potentially faster run speed results. 
 # The search space of the schedules is automatically generated unlike 
 # previously where they needed to be hand written. (Learn more: 1, 2) 
@@ -199,7 +206,7 @@ Additional TVMC Functionalities
 
 ################################################################################
 # Saving the tuning results
-# -------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
 # The tuning results can be saved in a file for later reuse.
 # 
@@ -228,7 +235,8 @@ Additional TVMC Functionalities
 
 ################################################################################
 # Tuning a more complex model:
-# ----------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 
 # If you notice T's (timeouts) printed like below,
 # .........T.T..T..T..T.T.T.T.T.T. 
 # increase the searching time frame: 
@@ -239,6 +247,7 @@ Additional TVMC Functionalities
 
 ################################################################################
 # Compiling a model for a remote device:
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # 
 # A remote procedural call (RPC) is useful when you would like to compile for hardware 
 # that is not on your local machine. The tvmc methods support this. 
@@ -258,4 +267,3 @@ Additional TVMC Functionalities
 #      )
 # 
 
-"""
