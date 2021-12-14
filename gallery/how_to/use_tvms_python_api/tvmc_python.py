@@ -51,34 +51,35 @@ Let's start editing the python file in your favorite text editor.
 # --------------------
 #
 # Let's import our model into tvmc. This step converts a machine learning model from 
-# a supported framework into TVM's high level graph representation language called relay. 
+# a supported framework into TVM's high level graph representation language called Relay. 
 # This is to have a unified starting point for all models in tvm. The frameworks we currently 
 # support are: Keras, ONNX, Tensorflow, TFLite, and PyTorch.
 # 
 # .. code-block:: python
 #      model = tvmc.load('my_model.onnx') #Step 1: Load
 # 
-# If you'd like to see the relay, you can run: 
+# If you'd like to see the Relay, you can run: 
 # ``model.summary()``
 # 
-# All frameworks support over writing the input shapes with a shape_dict argument. 
-# For most frameworks this is optional but for Pytorch this is necessary. 
+# All frameworks support overwriting the input shapes with a shape_dict argument. 
+# For most frameworks this is optional, but for Pytorch this is necessary as 
+# TVM cannot automatically search for it. 
 #
 # .. code-block:: python
 #      ### Step 1: Load shape_dict Style 
 #      # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
 #      # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
 # 
-# One way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model, 
+# A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model, 
 # click the first node to see the name(s) and shape(s) in the inputs section.
 
 
 ################################################################################
 # Step 2: Compile
 # ----------------
-# Now that our model is in relay, our next step is to compile it to a desired 
+# Now that our model is in Relay, our next step is to compile it to a desired 
 # hardware to run on. We refer to this hardware as a target. This compilation process 
-# translates the model from relay into a lower-level language that the 
+# translates the model from Relay into a lower-level language that the 
 # target machine can understand. 
 # 
 # In order to compile a model a tvm.target string is required. 
@@ -127,7 +128,11 @@ Let's start editing the python file in your favorite text editor.
 # 
 # There may be UserWarnings that can be ignored. 
 # This should make the end result faster, but it can take hours to tune. 
+#
+# See the section 'Saving the Tuning Results' below. Be sure to pass the tuning 
+# results into compile. 
 # 
+# Ex: tvmc.compile(model, target="llvm", tuning_records = "records.log") #Step 2: Compile
 
 ################################################################################
 # Save and then start the process in the terminal:
@@ -160,7 +165,7 @@ Additional TVMC Functionalities
 # Saving the model
 # ----------------
 # 
-# To make things faster for later, after loading the model (Step 1) save the relay version. 
+# To make things faster for later, after loading the model (Step 1) save the Relay version. 
 # The model will then appear where you saved it for later in the coverted syntax.
 #
 #   .. code-block:: python
@@ -243,10 +248,14 @@ Additional TVMC Functionalities
 # Within the TVMC Script include the following and adjust accordingly:
 # 
 #    .. code-block:: python
-#      tvmc.tune(model,trials=10000,timeout=10,)
-#      tvmc.tune(model,trials=10000,timeout=10,) 
-#      tvmc.tune(model,trials=10000,timeout=10,) 
-#      tvmc.tune(model,trials=10000,timeout=10,) 
+#      tvmc.tune(
+#           model,
+#           target=target, # Compilation target as string // Device to compile for
+#           target_host=target_host, # Host processor
+#           hostname=host_ip_address, #The IP address of an RPC tracker, used when benchmarking remotely.
+#           port=port_number, # The port of the RPC tracker to connect to. Defaults to 9090.
+#           rpc_key=your_key, # The RPC tracker key of the target device. Required when rpc_tracker is provided
+#      )
 # 
 
 """
