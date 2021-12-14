@@ -191,7 +191,7 @@ class CutlassConv2DProfiler:
         for op in ops:
             out = self.engine.evaluate(op, args.split(" "))
             op["runtime"] = out
-            if out > 0 and profile_all is False:
+            if out > 0 and not profile_all:
                 break
 
         valid_ops = filter(lambda op: op["runtime"] > 0, ops)
