@@ -36,73 +36,6 @@
 namespace tvm {
 namespace relay {
 
-class SameTypedSubgraphExtractor : public ExprMutator {
-  /*
-  Creates a small subgraph with the same type as the input expression.
-
-  ExprMutator is sufficient over MixedModemutator since we will not recurse much.
-  */
-
-  Expr VisitExpr_(const VarNode* op) { return Var(op->vid, op->type_annotation, op->span); }
-  Expr VisitExpr_(const ConstantNode* op) { return Constant(op->data, op->span); }
-  Expr VisitExpr_(const GlobalVarNode* op) { return GlobalVar(op->name_hint); }
-  Expr VisitExpr_(const OpNode* op) { return Op(GetRef<Op>(op)); }
-  Expr VisitExpr_(const TupleNode* op) {
-    return Tuple(get_analogous_expression(op->fields), op->span);
-  }
-  Expr VisitExpr_(const FunctionNode* op) {
-    // Here will be the only VisitExpr
-    return Function(op->params, get_analogous_expression(op->body), op->ret_type, op->type_params,
-                    op->attrs, op->span);
-  }
-  Expr VisitExpr_(const CallNode* op) {
-    return Call(op->op, get_analogous_expression(op->args), op->attrs, op->type_args, op->span);
-  }
-  Expr VisitExpr_(const LetNode* op) {
-    return Let(op->var, get_analogous_expression(op->value), get_analogous_expression(op->body),
-               op->span);
-  }
-  Expr VisitExpr_(const IfNode* op) {
-    return If(get_analogous_expression(op->cond), get_analogous_expression(op->true_branch),
-              get_analogous_expression(op->false_branch), op->span);
-  }
-  Expr VisitExpr_(const TupleGetItemNode* op) {
-    return TupleGetItem(get_analogous_expression(op->tuple), op->index, op->span);
-  }
-  Expr VisitExpr_(const RefCreateNode* op) {
-    return RefCreate(get_analogous_expression(op->value), op->span);
-  }
-  Expr VisitExpr_(const RefReadNode* op) {
-    return RefRead(get_analogous_expression(op->ref), op->span);
-  }
-  Expr VisitExpr_(const RefWriteNode* op) {
-    return RefWrite(get_analogous_expression(op->ref), get_analogous_expression(op->value),
-                    op->span);
-  }
-  Expr VisitExpr_(const ConstructorNode* op) {
-    return Constructor(op->name_hint, op->inputs, op->belong_to);
-  }
-  Expr VisitExpr_(const MatchNode* op) {
-    return Match(get_analogous_expression(op->data), op->clauses, op->complete, op->span);
-  }
-
- private:
-  Expr get_analogous_expression(const Expr& expr) {
-    if (!expr->checked_type_.defined()) {
-      return VisitExpr(expr);
-    }
-
-    return Var("dummy_var", expr->checked_type(), expr->span);
-  }
-  Array<Expr> get_analogous_expression(const Array<Expr>& fields) {
-    Array<Expr> new_fields;
-    for (Expr expr : fields) {
-      new_fields.push_back(get_analogous_expression(expr));
-    }
-    return new_fields;
-  }
-};
-
 // A callable which hashes std::pair
 struct pair_hash {
   template <class T1, class T2>
@@ -167,9 +100,6 @@ class MixedPrecisionPass : public MixedModeMutator {
 
   /*! \brief The target datatype we want to convert to e.g. FP16 */
   const DataType mixed_precision_type_;
-
-  /* TODO*/
-  std::unordered_map<Expr, Expr, ObjectPtrHash, ObjectPtrEqual> analgous_graphs;
 
   /*! \brief Map of Ops with no associated FTVMMixedPrecisionConversionType to the times they were
    * encountered. Used for emitting warnings on missing ops in the pass.
