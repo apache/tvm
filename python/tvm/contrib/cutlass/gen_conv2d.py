@@ -128,16 +128,16 @@ class CutlassConv2DProfiler:
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
-        B, H, W, C = d_shape
-        K, R, S, _ = w_shape
+        B, _, _, IC = d_shape
+        OC, R, S, _ = w_shape
         _, P, Q, _ = out_shape
 
-        M = B * H * W
-        K = R * S * C
-        N = B * P * Q
+        M = B * P * Q
+        N = OC
+        K = R * S * IC
 
         gemm_profile_result = self.gemm_profiler.profile(
-            M, K, N, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+            M, N, K, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
         )
 
         tile_description = gemm_profile_result["tile_description"]
