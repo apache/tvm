@@ -463,7 +463,7 @@ stage('Unit Test') {
       } else {
          Utils.markStageSkippedForConditional('python3: arm')
       }
-    },
+    }
 }
 
 stage('Integration Test') {
