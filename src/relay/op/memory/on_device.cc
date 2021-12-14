@@ -99,7 +99,9 @@ Expr MaybeOnDevice(Expr body, SEScope se_scope, bool constrain_result, bool cons
       ICHECK(inner == outer)
           << "Cannot constrain intermediate result of nested on_device calls to different SEScopes";
     }
-    // We can now ignore the intermediate constraints, if any.
+    // We can now ignore the middle constraint.
+    // If the outer on_device has any constraint then use se_scope given for it.
+    // Otherwise we can use the existing inner se_scope.
     return OnDevice(props.body, (constrain_inner || constrain_outer) ? outer : inner,
                     constrain_outer, constrain_inner);
   } else {
