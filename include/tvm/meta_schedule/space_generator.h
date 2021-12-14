@@ -102,7 +102,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
    */
   using FGenerateDesignSpace = runtime::TypedPackedFunc<Array<tir::Schedule>(const IRModule&)>;
 
-  /*! \brief The packed function to the `InitializeWithTuneContext` funcion. */
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `GenerateDesignSpace` function. */
   FGenerateDesignSpace f_generate_design_space;
