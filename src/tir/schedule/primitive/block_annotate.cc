@@ -356,8 +356,10 @@ class StorageScopeMutator : StmtExprMutator {
 
   /*! \brief The storage scope to be set. */
   String storage_scope_;
-  /*! \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
-   *         MatchBufferRegion.*/
+  /*!
+   * \brief A mapping which maps old buffer vars to new buffers, including the buffers defined in
+   * MatchBufferRegion.
+   */
   std::unordered_map<const VarNode*, Buffer> buffer_var_map_;
   /*! \brief The block sref reuse map for the following replacement */
   Map<Block, Block>* block_sref_reuse_;
@@ -409,12 +411,15 @@ void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
     return;
   }
 
-  // Step 2. Get the allocation site of the target buffer.
+  // Step 2. Throw an error if the input storage scope is invalid.
+  CheckStorageScope(self, storage_scope);
+
+  // Step 3. Get the allocation site of the target buffer.
   StmtSRef alloc_site_sref =
       NonAllocatedBufferError::CheckAndGetBufferAllocationSite(self->mod, block_sref, buffer);
   const BlockNode* alloc_site = TVM_SREF_TO_BLOCK(alloc_site, alloc_site_sref);
 
-  // Step 3. Recursively replace the old buffer to a new buffer, where the new buffer has the given
+  // Step 4. Recursively replace the old buffer to a new buffer, where the new buffer has the given
   // storage scope. In the meanwhile, collect the block sref reuse information.
   Map<Block, Block> block_reuse_map;
   Block new_block = StorageScopeMutator::Mutate(GetRef<Block>(alloc_site), buffer, storage_scope,

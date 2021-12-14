@@ -395,6 +395,8 @@ bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
 
 /******** Misc ********/
 
+void CheckStorageScope(const ScheduleState& self, String storage_scope);
+
 /*!
  * \brief Checks if a block could be successfully computed inline into its consumer
  * \param self The schedule state

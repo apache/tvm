@@ -111,6 +111,13 @@ def test_set_scope_fail_on_index_out_of_bound():
         s.set_scope(s.get_block("B"), -1, "shared")
 
 
+def test_set_scope_fail_on_invalid_scope():
+    func = element_wise
+    s = tir.Schedule(func, debug_mask='all')
+    with pytest.raises(tvm.tir.ScheduleError):
+        s.set_scope(s.get_block("B"), 0, "test_scope")
+
+
 def test_set_scope_subregion():
     func = element_wise_subregion_match
     s = tir.Schedule(func, debug_mask='all')
@@ -123,4 +130,5 @@ if __name__ == "__main__":
     test_set_scope()
     test_set_scope_fail_on_output_buffer()
     test_set_scope_fail_on_index_out_of_bound()
+    test_set_scope_fail_on_invalid_scope()
     test_set_scope_subregion()

@@ -1343,5 +1343,36 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   return GetRef<StmtSRef>(p);
 }
 
+/******** Storage Scope ********/
+
+void CheckStorageScope(const ScheduleState& self, String storage_scope) {
+  class InvalidStorageScopeError : public ScheduleError {
+   public:
+    explicit InvalidStorageScopeError(IRModule mod, String storage_scope)
+        : mod_(std::move(mod)), storage_scope_(std::move(storage_scope)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The input storage scope is invalid";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "The input storage scope \"" + storage_scope_ + "\" is invalid.";
+    }
+
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    IRModule mod() const final { return mod_; }
+
+   private:
+    IRModule mod_;
+    String storage_scope_;
+  };
+
+  try {
+    runtime::StorageScope::Create(std::string(storage_scope));
+  } catch (...) {
+    throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
+  }
+}
+
 }  // namespace tir
 }  // namespace tvm
