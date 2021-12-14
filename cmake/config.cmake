@@ -368,3 +368,6 @@ set(USE_GTEST AUTO)
 # Enable using CUTLASS as a BYOC backend
 # Need to have USE_CUDA=ON
 set(USE_CUTLASS OFF)
+
+# Enable to show a summary of TVM options
+set(SUMMARIZE OFF)

@@ -3,6 +3,7 @@ project(tvm C CXX)
 
 # Utility functions
 include(cmake/utils/Utils.cmake)
+include(cmake/utils/Summary.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
@@ -96,7 +97,7 @@ tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
-tvm_option(USE_MLAS "Build with MLAS library" OFF)
+tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -735,3 +736,7 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   # Set the flag for ccache
   set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
 endif(USE_CCACHE)
+
+if(${SUMMARIZE})
+  print_summary()
+endif()

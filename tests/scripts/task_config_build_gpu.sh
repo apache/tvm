@@ -46,3 +46,4 @@ echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
 echo set\(USE_TENSORRT_CODEGEN ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
+echo set\(SUMMARIZE ON\) >> config.cmake
