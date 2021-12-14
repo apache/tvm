@@ -1681,13 +1681,25 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            Todo
+            @T.prim_func
+            def before_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float32")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do set_scope:
 
         .. code-block:: python
 
-            Todo
             sch = tir.Schedule(before_set_scope)
             sch.set_scope(sch.get_block("B"), buffer_index=0, storage_scope="shared")
             print(sch.mod["main"].script())
@@ -1696,21 +1708,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            Todo
             @T.prim_func
-            def after_set_scope(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            def after_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+
                 for i, j in T.grid(128, 128):
                     with T.block("B"):
-                        T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
                         vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj] * 2.0
+                        B_shared[vi, vj] = A[vi, vj] * T.float32(2)
                 for i, j in T.grid(128, 128):
                     with T.block("C"):
                         vi, vj = T.axis.remap("SS", [i, j])
-                        C[vi, vj] = B[vi, vj] + 1.0
+                        C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
         Note
         ----
