@@ -297,21 +297,12 @@ class StorageScopeMutator : StmtExprMutator {
     }
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
+  Stmt VisitStmt_(const BlockNode* block) final {
     // To reduce the number of blocks in block sref reuse map, we check whether the block is really
     // mutated (i.e., the old buffer appears in the block). If so, we return the block after
     // mutation. Otherwise we just return the original block.
 
     // Define the mutation functions.
-    auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
-      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
-      return it == buffer_var_map_.end() ? buffer_region
-                                         : BufferRegion(it->second, buffer_region->region);
-    };
-    auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
-      auto it = buffer_var_map_.find(buffer->data.get());
-      return it == buffer_var_map_.end() ? buffer : it->second;
-    };
     auto f_mutate_match_buffers = [this](const MatchBufferRegion& match_buffer) {
       auto it = buffer_var_map_.find(match_buffer->source->buffer->data.get());
       if (it != buffer_var_map_.end()) {
@@ -323,24 +314,33 @@ class StorageScopeMutator : StmtExprMutator {
         return match_buffer;
       }
     };
+    auto f_mutate_read_write_region = [this](const BufferRegion& buffer_region) {
+      auto it = buffer_var_map_.find(buffer_region->buffer->data.get());
+      return it == buffer_var_map_.end() ? buffer_region
+                                         : BufferRegion(it->second, buffer_region->region);
+    };
+    auto f_mutate_alloc_buffers = [this](const Buffer& buffer) {
+      auto it = buffer_var_map_.find(buffer->data.get());
+      return it == buffer_var_map_.end() ? buffer : it->second;
+    };
 
-    // Step 1. Recursively mutate the block.
-    Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(op));
-    // Step 2. Mutate the read/write region.
-    Array<BufferRegion> reads = MutateArray(mutated_block->reads, f_mutate_read_write_region);
-    Array<BufferRegion> writes = MutateArray(mutated_block->writes, f_mutate_read_write_region);
-    // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
-    Array<Buffer> alloc_buffers = MutateArray(mutated_block->alloc_buffers, f_mutate_alloc_buffers);
-    // Step 4. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
+    // Step 1. Mutate `match_buffers`. If an old buffer appears as a source of MatchBufferRegion,
     // the storage scope of the target buffer also needs to be set.
     Array<MatchBufferRegion> match_buffers =
-        MutateArray(mutated_block->match_buffers, f_mutate_match_buffers);
+        MutateArray(block->match_buffers, f_mutate_match_buffers);
+    // Step 2. Mutate the read/write region.
+    Array<BufferRegion> reads = MutateArray(block->reads, f_mutate_read_write_region);
+    Array<BufferRegion> writes = MutateArray(block->writes, f_mutate_read_write_region);
+    // Step 3. Mutate `alloc_buffers` for the old buffer allocated in this block.
+    Array<Buffer> alloc_buffers = MutateArray(block->alloc_buffers, f_mutate_alloc_buffers);
+    // Step 4. Recursively mutate the block.
+    Block mutated_block = Downcast<Block>(StmtMutator::VisitStmt_(block));
 
-    if (mutated_block.get() == op && reads.same_as(mutated_block->reads) &&
+    if (mutated_block.get() == block && reads.same_as(mutated_block->reads) &&
         writes.same_as(mutated_block->writes) &&
         alloc_buffers.same_as(mutated_block->alloc_buffers) &&
         match_buffers.same_as(mutated_block->match_buffers)) {
-      return GetRef<Block>(op);
+      return GetRef<Block>(block);
     } else {
       ObjectPtr<BlockNode> n = CopyOnWrite(mutated_block.get());
       n->reads = std::move(reads);
@@ -349,7 +349,7 @@ class StorageScopeMutator : StmtExprMutator {
       n->match_buffers = std::move(match_buffers);
 
       Block new_block(n);
-      block_sref_reuse_->Set(GetRef<Block>(op), new_block);
+      block_sref_reuse_->Set(GetRef<Block>(block), new_block);
       return new_block;
     }
   }
