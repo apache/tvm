@@ -155,7 +155,9 @@ class TVMScriptParser(Transformer):
         ast.BuiltinOp.Not: tvm.tir.Not,
     }
 
-    def __init__(self, base_lineno, tir_namespace):
+    # pylint gets confused here with synr.Transformer which doesn't have a
+    # custom init, so just disable it
+    def __init__(self, base_lineno, tir_namespace):  # pylint: disable=super-init-not-called
         self.context = None
 
         self.base_lineno = base_lineno
