@@ -264,7 +264,7 @@ TVM_DLL Pass InferType();
  * The result of type checking is a new expression with unambiguous
  * type information filled in for that expression only. The fast
  * version depends on existing type information populated throughout
- * the expression and assumes this information is correct. The fast 
+ * the expression and assumes this information is correct. The fast
  * version also avoids examining large amounts of the graph assuming
  * type information is filled in.
  *
