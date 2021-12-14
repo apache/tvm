@@ -200,7 +200,6 @@ def handle_conv2d(
         out = cutlass_profiler.profile(
             d_shape,
             w_shape,
-            out_shape,
             padding,
             strides,
             dilation,

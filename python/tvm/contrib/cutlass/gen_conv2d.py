@@ -79,7 +79,6 @@ def create_conv2d_operator(
                     swizzling_functor_,
                 )
 
-                # TODO(masahi): Add profiler source here
                 op_entry["opdef"] = kernel_emitter.emit(op)
                 op_entry["op"] = op
                 op_entry["src"] = profiler_emitter.emit(op_entry["opdef"], op.procedural_name())
@@ -143,7 +142,6 @@ class CutlassConv2DProfiler:
         self,
         d_shape,
         w_shape,
-        out_shape,
         padding,
         stride,
         dilation,

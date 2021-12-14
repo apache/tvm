@@ -129,7 +129,7 @@ def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
+        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -376,7 +376,8 @@ def test_conv2d():
     for IC in [3, 16]:
         d_shape = (16, IC, 32, 32)
         w_shape = (32, IC, 3, 3)
-        mod_nchw = get_conv2d_nchw(d_shape, w_shape)
+        padding = (1, 1)
+        mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
 
         verify_conv2d(
             mod_nchw,
@@ -392,10 +393,11 @@ def test_conv2d():
 
     d_shape = (16, 16, 32, 32)
     w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
     dyn_batch_shape = (relay.Any(),) + d_shape[1:]
 
-    mod_nchw = get_conv2d_nchw(d_shape, w_shape)
-    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape)
+    mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
+    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape, padding)
 
     verify_conv2d(
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
