@@ -247,3 +247,4 @@ conda/pkg
 _docs/
 jvm/target
 .config/configstore/
+.cipy-scripts/
