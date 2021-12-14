@@ -21,6 +21,8 @@ macro(__tvm_option variable description value)
   endif()
 endmacro()
 
+set(TVM_ALL_OPTIONS)
+
 #######################################################
 # An option that the user can select. Can accept condition to control when option is available for user.
 # Usage:
@@ -29,6 +31,7 @@ macro(tvm_option variable description value)
   set(__value ${value})
   set(__condition "")
   set(__varname "__value")
+  list(APPEND TVM_ALL_OPTIONS ${variable})
   foreach(arg ${ARGN})
     if(arg STREQUAL "IF" OR arg STREQUAL "if")
       set(__varname "__condition")
