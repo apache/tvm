@@ -258,6 +258,11 @@ TVM_DLL Pass DynamicToStatic();
  */
 TVM_DLL Pass InferType();
 
+/*
+TODO
+*/
+TVM_DLL Type InferTypeFast(const Expr& expr);
+
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
  * two expressions evaluated to an identical value, a single variable is created
