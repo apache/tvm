@@ -61,7 +61,6 @@ def get_tvm_output_with_vm(
     if not isinstance(input_data, list):
         input_data = [input_data]
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
-
     mod, params = relay.frontend.from_onnx(
         graph_def,
         shape_dict,
@@ -167,7 +166,6 @@ def verify_with_ort_with_inputs(
         model.opset_import[0].version = opset
 
     ort_out = get_onnxruntime_output(model, inputs)
-
     if use_vm:
         tvm_out = get_tvm_output_with_vm(
             model,
@@ -1954,7 +1952,9 @@ def test_split(target, dev):
                 inputs.append(
                     helper.make_tensor_value_info("split", TensorProto.INT64, list(np_split.shape))
                 )
-                indata = [indata, np_split]
+                # TODO(mbrookhart): Support dynamic split, edit this test case to remove split from
+                # the initializer and add it back to the input data
+                indata = [indata]  # , np_split]
                 initializer.append(
                     helper.make_tensor("split", TensorProto.INT64, list(np_split.shape), np_split)
                 )
@@ -1989,6 +1989,8 @@ def test_split(target, dev):
             opset=opset,
             target=target,
             dev=dev,
+            use_vm=True,
+            freeze_params=(opset >= 13),
         )
 
     # 1D
@@ -1997,12 +1999,22 @@ def test_split(target, dev):
         [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], [2, 2, 2], 0, False
     )
     verify_split([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0)
+    verify_split(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], [[1.0, 2.0], [3.0], [4.0, 5.0, 6.0]], [2, 1, 3], 0, opset=13
+    )
     # 2D
     verify_split(
         [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
         [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
         [2, 2],
         1,
+    )
+    verify_split(
+        [[1.0, 2.0, 3.0, 4.0], [7.0, 8.0, 9.0, 10.0]],
+        [[[1.0, 2.0], [7.0, 8.0]], [[3.0, 4.0], [9.0, 10.0]]],
+        [2, 2],
+        1,
+        opset=13,
     )
     # Split evenly (unstack)
     verify_split([1, 2, 3], [[1], [2], [3]], False, 0, False)
@@ -5037,8 +5049,6 @@ unsupported_onnx_tests = [
     "test_reduce_sum_negative_axes_keepdims_random",
     "test_rnn_seq_length",
     "test_round",
-    "test_scan9_sum",
-    "test_scan_sum",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
     "test_shape_end_1",
@@ -6021,6 +6031,172 @@ def test_convinteger(target, dev):
     )
 
 
+@tvm.testing.parametrize_targets
+def test_scan(target, dev):
+    def verify_scan(
+        input_shapes,
+        output_shapes,
+        num_scan_inputs,
+        scan_input_axes,
+        scan_input_directions,
+        scan_output_axes,
+        scan_output_directions,
+        opset,
+    ):
+        import copy
+
+        body_input_shapes = copy.deepcopy(input_shapes)
+        num_state_inputs = len(input_shapes) - num_scan_inputs
+
+        if opset == 8:
+            for i in range(len(input_shapes)):
+                body_input_shapes[i].pop(0)
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(0)
+        else:
+            for i in range(num_state_inputs, len(input_shapes)):
+                body_input_shapes[i].pop(scan_input_axes[i - num_state_inputs])
+
+        initial0 = onnx.helper.make_tensor_value_info(
+            "initial0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        initial1 = onnx.helper.make_tensor_value_info(
+            "initial1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        input0 = onnx.helper.make_tensor_value_info(
+            "input0", onnx.TensorProto.FLOAT, body_input_shapes[2]
+        )
+        input1 = onnx.helper.make_tensor_value_info(
+            "input1", onnx.TensorProto.FLOAT, body_input_shapes[3]
+        )
+        input2 = onnx.helper.make_tensor_value_info(
+            "input2", onnx.TensorProto.FLOAT, body_input_shapes[4]
+        )
+        state0 = onnx.helper.make_tensor_value_info(
+            "state0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        scan_out0 = onnx.helper.make_tensor_value_info(
+            "scan_out0", onnx.TensorProto.FLOAT, body_input_shapes[0]
+        )
+        matmul_out = onnx.helper.make_tensor_value_info(
+            "matmul_out", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        state1 = onnx.helper.make_tensor_value_info(
+            "state1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        scan_out1 = onnx.helper.make_tensor_value_info(
+            "scan_out1", onnx.TensorProto.FLOAT, body_input_shapes[1]
+        )
+        add_node = onnx.helper.make_node(
+            "Add",
+            inputs=["initial0", "input0"],
+            outputs=["state0"],
+        )
+        id_node_0 = onnx.helper.make_node(
+            "Identity",
+            inputs=["state0"],
+            outputs=["scan_out0"],
+        )
+        matmul_node = onnx.helper.make_node(
+            "MatMul",
+            inputs=["input1", "input2"],
+            outputs=["matmul_out"],
+        )
+        sub_node = onnx.helper.make_node(
+            "Sub",
+            inputs=["initial1", "matmul_out"],
+            outputs=["state1"],
+        )
+        id_node_1 = onnx.helper.make_node(
+            "Identity",
+            inputs=["state1"],
+            outputs=["scan_out1"],
+        )
+        scan_body = onnx.helper.make_graph(
+            [add_node, id_node_0, matmul_node, sub_node, id_node_1],
+            "scan_body",
+            [initial0, initial1, input0, input1, input2],
+            [state0, state1, scan_out0, scan_out1],
+        )
+        # create scan op node
+        scan_node = None
+        if opset == 8:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["", "init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+            )
+        else:
+            scan_node = onnx.helper.make_node(
+                "Scan",
+                inputs=["init0", "init1", "in0", "in1", "in2"],
+                outputs=["s0", "s1", "scan0", "scan1"],
+                num_scan_inputs=num_scan_inputs,
+                body=scan_body,
+                scan_input_axes=scan_input_axes,
+                scan_input_directions=scan_input_directions,
+                scan_output_axes=scan_output_axes,
+                scan_output_directions=scan_output_directions,
+            )
+        input_info = [
+            helper.make_tensor_value_info("init0", TensorProto.FLOAT, input_shapes[0]),
+            helper.make_tensor_value_info("init1", TensorProto.FLOAT, input_shapes[1]),
+            helper.make_tensor_value_info("in0", TensorProto.FLOAT, input_shapes[2]),
+            helper.make_tensor_value_info("in1", TensorProto.FLOAT, input_shapes[3]),
+            helper.make_tensor_value_info("in2", TensorProto.FLOAT, input_shapes[4]),
+        ]
+        out_info = [
+            helper.make_tensor_value_info("s0", TensorProto.FLOAT, output_shapes[0]),
+            helper.make_tensor_value_info("s1", TensorProto.FLOAT, output_shapes[1]),
+            helper.make_tensor_value_info("scan0", TensorProto.FLOAT, output_shapes[2]),
+            helper.make_tensor_value_info("scan1", TensorProto.FLOAT, output_shapes[3]),
+        ]
+        graph = helper.make_graph(
+            nodes=[scan_node],
+            name="scan_test",
+            inputs=input_info,
+            outputs=out_info,
+        )
+        model = onnx.helper.make_model(graph, producer_name="scan-test")
+        init0 = np.random.uniform(low=0, high=255, size=input_shapes[0]).astype(np.float32)
+        init1 = np.random.uniform(low=0, high=255, size=input_shapes[1]).astype(np.float32)
+        in0 = np.random.uniform(low=0, high=255, size=input_shapes[2]).astype(np.float32)
+        in1 = np.random.uniform(low=0, high=255, size=input_shapes[3]).astype(np.float32)
+        in2 = np.random.uniform(low=0, high=255, size=input_shapes[4]).astype(np.float32)
+        input_values = [init0, init1, in0, in1, in2]
+
+        verify_with_ort_with_inputs(
+            model,
+            input_values,
+            target=target,
+            dev=dev,
+            opt_level=2,
+            use_vm=True,
+            opset=opset,
+        )
+
+    # opset 8
+    input_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 4], [2, 5, 4, 3]]
+    output_shapes = [[2, 6, 7, 8], [2, 3, 3], [2, 5, 6, 7, 8], [2, 5, 3, 3]]
+    # input_shapes, output_shapes, num_scan_inputs, scan_input_axes, scan_input_directions,
+    # scan_output_axes, scan_output_directions, opset
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 8)
+    # opset 9
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 4], [5, 4, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [5, 3, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [0] * 3, [0] * 3, [0] * 2, [0] * 2, 9)
+
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [6, 5, 7, 8], [3, 5, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [0, 2, 1], [1] * 3, [1] * 2, [1] * 2, 9)
+    # Negative axes
+    input_shapes = [[6, 7, 8], [3, 3], [5, 6, 7, 8], [3, 4, 5], [4, 5, 3]]
+    output_shapes = [[6, 7, 8], [3, 3], [6, 5, 7, 8], [3, 5, 3]]
+    verify_scan(input_shapes, output_shapes, 3, [-4, -1, -2], [1] * 3, [-3, -2], [1] * 2, 9)
+
+
 if __name__ == "__main__":
     test_flatten()
     test_reshape()
@@ -6112,6 +6288,7 @@ if __name__ == "__main__":
     test_convinteger()
     test_batch_matmul()
     test_global_lppool()
+    test_scan()
     test_random_uniform_like()
     test_random_normal()
     test_random_normal_like()

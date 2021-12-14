@@ -35,6 +35,7 @@ import builtins
 from tvm.tir.function import PrimFunc
 from tvm.tir import Range
 from tvm.runtime import Object
+from tvm.target import Target
 from .node import BufferSlice
 
 """
@@ -210,9 +211,14 @@ def alloc_buffer(
 """
 special_stmt - Reads/Writes
 """
-
-def reads(read_regions: Union[BufferSlice, List[BufferSlice]]) -> None: ...
-def writes(write_region: Union[BufferSlice, List[BufferSlice]]) -> None: ...
+@overload
+def reads(read_regions: List[BufferSlice]) -> None: ...
+@overload
+def reads(*read_regions: BufferSlice) -> None: ...
+@overload
+def writes(write_region: List[BufferSlice]) -> None: ...
+@overload
+def writes(*write_region: BufferSlice) -> None: ...
 def block_attr(attrs: Mapping[str, Object]) -> None: ...
 
 """
@@ -316,36 +322,72 @@ def Assert(condition: Union[PrimExpr, builtins.bool], message: str) -> PrimExpr:
 """
 Scope handler - Loops
 """
-
+@overload
 def serial(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def serial(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def parallel(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def parallel(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def vectorized(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def vectorized(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def unroll(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def unroll(
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def thread_binding(
     begin: Union[PrimExpr, int],
     end: Union[PrimExpr, int],
     thread: str,
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
+@overload
+def thread_binding(
+    end: Union[PrimExpr, int],
+    thread: str,
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
 def for_range(
     begin: Union[PrimExpr, int],
-    end: Union[PrimExpr, int] = None,
+    end: Union[PrimExpr, int],
+    annotations: Optional[Mapping[str, Object]] = None,
+) -> Iterable[IterVar]: ...
+@overload
+def for_range(
+    end: Union[PrimExpr, int],
     annotations: Optional[Mapping[str, Object]] = None,
 ) -> Iterable[IterVar]: ...
 def grid(*extents: Union[PrimExpr, int]) -> Iterable[Sequence[IterVar]]: ...
@@ -371,3 +413,5 @@ class handle:
     def data(self: handle) -> Ptr: ...
 
 class Ptr: ...
+
+def target(target_str: Union[str, Mapping[str, Object]]) -> Target: ...

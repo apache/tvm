@@ -121,7 +121,8 @@ class TemplateProject:
                         Here is a list of available options:{list(available_options)}."""
             )
 
-    def generate_project_from_mlf(self, model_library_format_path, project_dir, options):
+    def generate_project_from_mlf(self, model_library_format_path, project_dir, options: dict):
+        """Generate a project from MLF file."""
         self._check_project_options(options)
         self._api_client.generate_project(
             model_library_format_path=str(model_library_format_path),

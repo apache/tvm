@@ -39,6 +39,7 @@
 
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
+#include "../op/memory/device_copy.h"
 #include "../transforms/pass_utils.h"
 #include "te_compiler.h"
 
@@ -447,25 +448,35 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
                                    const Array<Integer>& prim_shape_fn_states,
                                    size_t num_shape_inputs, size_t num_shape_outputs,
                                    Target prim_shape_target, const std::vector<ObjectRef>& args) {
+    VLOG_CONTEXT << "ComputeDynamicShape";
     ICHECK(prim_shape_fn_var.defined());
-    ICHECK(prim_shape_fn_states.defined());
     ICHECK(prim_shape_fn_var->checked_type().defined());
-    // The function type is that of the original primitive rather than the shape function
-    // itself. We currently can't express shape function types in Relay.
-    const FuncTypeNode* ftn = prim_shape_fn_var->checked_type().as<FuncTypeNode>();
-    ICHECK(ftn);
-    // The primitive shape function states are w.r.t. the primitive's arguments in
+    VLOG(1) << "prim_shape_fn_var:" << std::endl << PrettyPrint(prim_shape_fn_var);
+    ICHECK(prim_shape_fn_states.defined());
+    for (size_t i = 0; i < prim_shape_fn_states.size(); ++i) {
+      VLOG(1) << "prim_shape_fn_states[" << i << "]: " << prim_shape_fn_states[i];
+    }
+    VLOG(1) << "num_shape_inputs: " << num_shape_inputs;
+    VLOG(1) << "num_shape_outputs: " << num_shape_outputs;
+    VLOG(1) << "args.size(): " << args.size();
+    VLOG(1) << "prim_shape_target: " << prim_shape_target->ToDebugString();
+
+    // The function type is that of the shape function rather than the original primitive the shape
+    // function is for.
+    const auto* func_type_node = prim_shape_fn_var->checked_type().as<FuncTypeNode>();
+    ICHECK(func_type_node);
+    // The shape function states are w.r.t. the original primitive's arguments in
     // non-flattened form.
     // TODO(mbs): Clean this up so we don't mix flattened vs original conventions.
-    ICHECK_EQ(prim_shape_fn_states.size(), ftn->arg_types.size());
-    ICHECK_EQ(args.size(), ftn->arg_types.size());
+    ICHECK_EQ(args.size(), prim_shape_fn_states.size());
+
     // num_shape_inputs will account for which primitive function arguments are dynamic,
     // whether the shape and or data needs to be passed, and flattening of tuples.
     // Similarly, num_shape_outputs will account for flattening of tuples.
 
-    // Shape functions always run on the cpu
+    // TODO(mbs): Take this from the host_se_scope.
     Device shape_device;
-    shape_device.device_type = kDLCPU;
+    shape_device.device_type = static_cast<DLDeviceType>(prim_shape_target->kind->device_type);
     shape_device.device_id = 0;
 
     // 'Compile' the TIR shape function to appropriate callable form.
@@ -515,10 +526,15 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
 
     // Prepare NDArrays to hold the output shapes.
     size_t out_cnt = 0;
-    for (const auto& ttype : FlattenTupleType(ftn->ret_type)) {
+    for (const auto& ttype : FlattenTupleType(func_type_node->ret_type)) {
       ICHECK(out_cnt < num_shape_outputs);
-      int64_t ndim = ttype->shape.size();
-      auto arr = NDArray::Empty({ndim}, DataType::Int(64), shape_device);
+      std::vector<int64_t> concrete_shape;
+      for (const auto& dim : ttype->shape) {
+        const auto* ivalue = tir::as_const_int(dim);
+        ICHECK(ivalue) << "expected concrete dimensions";
+        concrete_shape.push_back(ivalue[0]);
+      }
+      auto arr = NDArray::Empty(concrete_shape, ttype->dtype, shape_device);
       outputs[out_cnt] = arr;
       setter(arg_counter + out_cnt, arr);
       ++out_cnt;
@@ -684,8 +700,14 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
   }
 
   ObjectRef VisitExpr_(const CallNode* call_node) final {
+    DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     CallLoweredProps call_lowered_props = GetCallLoweredProps(call_node);
-    if (call_lowered_props.lowered_func.defined()) {
+
+    if (device_copy_props.body.defined()) {
+      // TODO(mbs): device_copy cleanup
+      LOG(FATAL) << "The interpreter does not support device_copy";
+      return {};
+    } else if (call_lowered_props.lowered_func.defined()) {
       // Special case: Call a lowered TIR function.
 
       // Evaluate only function args
@@ -923,6 +945,7 @@ class Interpreter : public ExprFunctor<ObjectRef(const Expr& n)>,
  * functions needed by the rewritten module.
  */
 IRModule Prepare(IRModule mod, CompilationConfig config) {
+  SEScope host_se_scope = config->host_se_scope;
   // Run minimal transforms on module to establish invariants needed by interpreter.
   transform::Sequential seq(
       {transform::SimplifyInference(),
@@ -938,7 +961,8 @@ IRModule Prepare(IRModule mod, CompilationConfig config) {
        transform::EtaExpand(
            /*expand_constructor=*/true, /*expand_global_var=*/false),
        transform::InferType(),
-       tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ })});
+       tec::LowerTEPass(/*module_name=*/"intrp", [](BaseFunc func) { /* no-op */ },
+                        std::move(host_se_scope))});
 
   transform::PassContext pass_ctx = transform::PassContext::Current();
   With<transform::PassContext> ctx(pass_ctx);

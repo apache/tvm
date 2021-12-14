@@ -191,10 +191,18 @@ class CodegenCBase {
       PrintIndents();
     }
     for (size_t i = 0; i < outs.size() - 1; i++) {
-      code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
+      if (pass_dl_tensor) {
+        code_stream_ << "out" << i << ",\n";
+      } else {
+        code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
+      }
       PrintIndents();
     }
-    code_stream_ << "(" << outs.back().dtype << "*)(out" << outs.size() - 1 << "->data));\n";
+    if (pass_dl_tensor) {
+      code_stream_ << "out" << outs.size() - 1 << ");\n";
+    } else {
+      code_stream_ << "(" << outs.back().dtype << "*)(out" << outs.size() - 1 << "->data));\n";
+    }
     PrintIndents();
     code_stream_ << "return 0;\n";
     ExitScope();

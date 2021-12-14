@@ -35,6 +35,8 @@ from tvm.contrib.nvcc import have_fp16
 import pytest
 
 sys.setrecursionlimit(10000)
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
 
 
 def list_ops(expr):
@@ -4018,6 +4020,18 @@ def test_roll():
     verify_model(test_fn(1, 0), [x])
     verify_model(test_fn(-1, 0), [x])
     verify_model(test_fn(shifts=(2, 1), dims=(0, 1)), [x])
+
+
+@tvm.testing.uses_gpu
+def test_einsum():
+    def test_fn(equation):
+        return lambda *x: torch.einsum(equation, *x)
+
+    x = torch.ones([2, 3])
+    y = torch.ones([3, 4])
+    z = torch.ones([4, 5])
+    verify_model(test_fn("ij,jk"), [x, y])
+    verify_model(test_fn("ij,jk,km->im"), [x, y, z])
 
 
 if __name__ == "__main__":

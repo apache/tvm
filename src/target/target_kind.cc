@@ -276,6 +276,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
+    .add_attr_option<Integer>("constants-byte-alignment")
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
     .set_default_keys({"cpu"});
@@ -401,12 +402,15 @@ TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
 
 TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
 
-TVM_REGISTER_TARGET_KIND("ethos-u", kDLCPU).set_attr<Bool>("use_device_api", Bool(true));
-
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
 TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
     .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptionsFromName")
+    .set_body_typed([](String target_kind_name) {
+      TargetKind kind = TargetKind::Get(target_kind_name).value();
+      return TargetKindRegEntry::ListTargetKindOptions(kind);
+    });
 
 }  // namespace tvm

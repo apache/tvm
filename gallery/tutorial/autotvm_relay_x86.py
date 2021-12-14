@@ -347,7 +347,7 @@ tuning_option = {
 #   spent tuning. The number of trials required for convergence will vary
 #   depending on the specifics of the model and the target platform.
 
-# begin by extracting the taks from the onnx model
+# begin by extracting the tasks from the onnx model
 tasks = autotvm.task.extract_from_program(mod["main"], target=target, params=params)
 
 # Tune the extracted tasks sequentially.

@@ -151,5 +151,7 @@ def test_dyn_one_hot():
 
 
 if __name__ == "__main__":
-    test_dyn_broadcast_to()
-    test_dyn_one_hot()
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

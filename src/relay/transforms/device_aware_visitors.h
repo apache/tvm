@@ -146,7 +146,10 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
         PushBoundVar(function_node->params[i], GetFunctionParamSEScope(function_node, i));
       }
       // Entering scope of function body.
-      PushSEScope(GetFunctionResultSEScope(function_node));
+      SEScope se_scope = GetFunctionResultSEScope(function_node);
+      VLOG(2) << "entering " << se_scope << " for function:" << std::endl
+              << PrettyPrint(GetRef<Function>(function_node));
+      PushSEScope(se_scope);
       EnterFunctionBody();
 
       DeviceAwareVisitExpr_(function_node);
@@ -154,6 +157,8 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
       // Leaving scope of function body.
       ExitFunctionBody();
       PopSEScope();
+      VLOG(2) << "leaving " << se_scope << " for function:" << std::endl
+              << PrettyPrint(GetRef<Function>(function_node));
       // Function parameters go out of scope.
       for (size_t i = 0; i < function_node->params.size(); ++i) {
         PopBoundVar(function_node->params[i]);
@@ -168,7 +173,9 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       // Let-bound var (in pre visited version) goes into scope.
       // (We'll just assume this is a letrec.)
-      PushBoundVar(inner_let_node->var, GetSEScope(inner_let_node->value));
+      SEScope se_scope = GetSEScope(inner_let_node->value);
+      VLOG(2) << "var '" << inner_let_node->var->name_hint() << "' has scope " << se_scope;
+      PushBoundVar(inner_let_node->var, se_scope);
       PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
       bindings.emplace_back(inner_let_node);
       expr = inner_let_node->body;
@@ -187,12 +194,16 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
 
   void VisitExpr_(const CallNode* call_node) {
     OnDeviceProps props = GetOnDeviceProps(call_node);
-    if (props.body.defined() && props.is_fixed) {
-      // Entering lexical scope of fixed "on_device" call.
+    if (props.body.defined() && props.is_fixed()) {
+      // Entering lexical scope of "on_device" call.
+      VLOG(2) << "entering " << props.se_scope << " for on_device:" << std::endl
+              << PrettyPrint(GetRef<Call>(call_node));
       PushSEScope(props.se_scope);
       VisitExpr(props.body);
       // Leaving lexical scope of "on_device" call.
       PopSEScope();
+      VLOG(2) << "leaving " << props.se_scope << " for on_device:" << std::endl
+              << PrettyPrint(GetRef<Call>(call_node));
     } else {
       DeviceAwareVisitExpr_(call_node);
     }

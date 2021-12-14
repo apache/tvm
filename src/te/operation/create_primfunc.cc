@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -83,19 +84,21 @@ struct CreateFuncInfo {
 
 BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::Tensor& tensor,
                                      Array<PrimExpr> bindings, PrimExpr expr_body,
-                                     CreateFuncInfo* info) {
+                                     CreateFuncInfo* info, arith::Analyzer* analyzer) {
   // Step 1. Push_back data_par axis and reduce_axis into block_vars.
   Array<IterVar> iter_vars;
   std::unordered_map<const VarNode*, PrimExpr> var_map;
   iter_vars.reserve(compute_op->axis.size() + compute_op->reduce_axis.size());
-  auto f_push_block_vars = [&iter_vars, &var_map](const Array<IterVar>& iters) {
+  auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {
       // Create new var
       Var new_var(iter_var->var->name_hint, iter_var->var->dtype);
       var_map[iter_var->var.get()] = new_var;
 
       IterVarNode* iter_var_node = iter_var.CopyOnWrite();
-      iter_var_node->dom = Range::FromMinExtent(iter_var->dom->min, iter_var->dom->extent);
+      const PrimExpr& dom_min = analyzer->Simplify(iter_var->dom->min);
+      const PrimExpr& dom_extent = analyzer->Simplify(iter_var->dom->extent);
+      iter_var_node->dom = Range::FromMinExtent(dom_min, dom_extent);
       iter_var_node->var = new_var;
       iter_vars.push_back(iter_var);
     }
@@ -130,11 +133,14 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
     const PrimExpr& lhs = BufferLoad(buffer, indices);
     const PrimExpr& rhs = Substitute(info->transformer(reduce->source[0]), var_map);
     ICHECK(lhs->dtype == rhs->dtype);
-    body = BufferStore(buffer, reduce->combiner.get()->operator()({lhs}, {rhs})[0], indices);
-    init = BufferStore(buffer, reduce->combiner->identity_element[0], indices);
+    const PrimExpr& reduce_body = reduce->combiner.get()->operator()({lhs}, {rhs})[0];
+    const PrimExpr& init_body = reduce->combiner->identity_element[0];
+    body = BufferStore(buffer, analyzer->Simplify(reduce_body), indices);
+    init = BufferStore(buffer, analyzer->Simplify(init_body), indices);
   } else {
     // Case 2. Data parallel compute
-    body = BufferStore(buffer, Substitute(info->transformer(expr_body), var_map), indices);
+    const PrimExpr& compute_body = Substitute(info->transformer(expr_body), var_map);
+    body = BufferStore(buffer, analyzer->Simplify(compute_body), indices);
   }
 
   // Step 6. Add script_parsing_detect_access attr for auto complete the whole IR.
@@ -156,7 +162,8 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
                             /*annotations=*/std::move(annotations)));
 }
 
-Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info) {
+Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
+                             arith::Analyzer* analyzer) {
   // Step 1. Creating loop vars for block bindings.
   Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
@@ -169,16 +176,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   for (int i = 0; i < compute_op->num_outputs(); ++i) {
     const te::Tensor& tensor = compute_op.output(i);
     PrimExpr expr_body = compute_op->body[i];
-    seq_stmt.push_back(
-        GenerateBlockFromTensor(compute_op, tensor, bindings, std::move(expr_body), info));
+    seq_stmt.push_back(GenerateBlockFromTensor(compute_op, tensor, bindings, std::move(expr_body),
+                                               info, analyzer));
   }
   Stmt body = SeqStmt::Flatten(seq_stmt);
 
   // Step 3. Generate loop nesting.
   for (size_t i = axes.size(); i > 0; --i) {
     const IterVar& axis = axes[i - 1];
+    PrimExpr dom_min = analyzer->Simplify(axis->dom->min);
+    PrimExpr dom_extent = analyzer->Simplify(axis->dom->extent);
     const Var& loop_var = Downcast<Var>(bindings[i - 1]);
-    body = For(loop_var, axis->dom->min, axis->dom->extent, ForKind::kSerial, body);
+    body = For(loop_var, dom_min, dom_extent, ForKind::kSerial, body);
   }
 
   return body;
@@ -256,6 +265,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;
+  // Analyzer
+  arith::Analyzer analyzer;
 
   // Step 3. Rewrite compute stages into blocks.
   for (const te::Operation& op : order) {
@@ -270,7 +281,8 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
       info.tensor2buffers[tensor] = buffer;
     } else if (const auto* compute_op = op.as<te::ComputeOpNode>()) {
       // Case 2. ComputeOp (te.compute)
-      root_stmts.push_back(GenerateStmtFromCompute(GetRef<te::ComputeOp>(compute_op), &info));
+      root_stmts.push_back(
+          GenerateStmtFromCompute(GetRef<te::ComputeOp>(compute_op), &info, &analyzer));
     } else if (const auto extern_op = op.as<te::ExternOpNode>()) {
       // Case 3. ExternOp (te.extern)
       root_stmts.push_back(GenerateStmtFromExternOp(GetRef<te::ExternOp>(extern_op), &info));

@@ -81,12 +81,25 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     int depth_multiplier;
   };
 
-  /*!  * \brief Emit the CMSIS-NN context buffer */
-  void VisitStmt_(const AllocateNode* op) {
-    context_buffer_name_ = op->buffer_var->name_hint;
-    context_buffer_size_ = op->constant_allocation_size();
-    CodeGenC::VisitStmt_(op);
-  }
+  /*!  * \brief CMSIS-NN Conv2D and Depthwise parameters */
+  struct FCParams {
+    int input_offset;
+    int filter_offset;
+    int output_offset;
+    int clip_min;
+    int clip_max;
+    int multiplier;
+    int shift;
+  };
+
+  struct PoolParams {
+    int stride_h;
+    int stride_w;
+    int padding_h;
+    int padding_w;
+    int clip_min;
+    int clip_max;
+  };
 
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
   void VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
@@ -101,6 +114,10 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     } else if (cmsis_func_name == "arm_convolve_wrapper_s8" ||
                cmsis_func_name == "arm_depthwise_conv_wrapper_s8") {
       EmitConv2D(op);
+    } else if (cmsis_func_name == "arm_fully_connected_s8") {
+      EmitFullyConnected(op);
+    } else if (cmsis_func_name == "arm_avgpool_s8" || cmsis_func_name == "arm_max_pool_s8") {
+      EmitPool2D(op);
     }
     return;
   }
@@ -140,12 +157,51 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     return instance_name;
   }
 
+  /*!  * \brief Emits cmsis_nn_fc_params struct */
+  std::string EmitCMSISNNFCParams(std::ostream& os, FCParams params) {
+    std::string struct_name = "cmsis_nn_fc_params";
+    std::string instance_name = "fc_params";
+    PrintIndent();
+    os << "cmsis_nn_activation activation = {" << params.clip_min << "," << params.clip_max
+       << "};\n";
+    PrintIndent();
+    os << struct_name << " " << instance_name << " = {" << params.input_offset << ", "
+       << params.filter_offset << ", " << params.output_offset;
+    os << ", activation};\n";
+    return instance_name;
+  }
+
+  /*!  * \brief Emits cmsis_nn_pool_params struct */
+  std::string EmitCMSISNNPoolParams(std::ostream& os, PoolParams params) {
+    std::string struct_name = "cmsis_nn_pool_params";
+    std::string instance_name = "pool_params";
+    PrintIndent();
+    os << "cmsis_nn_tile stride = {" << params.stride_w << "," << params.stride_h << "};\n";
+    PrintIndent();
+    os << "cmsis_nn_tile padding = {" << params.padding_w << "," << params.padding_h << "};\n";
+    PrintIndent();
+    os << "cmsis_nn_activation activation = {" << params.clip_min << "," << params.clip_max
+       << "};\n";
+    PrintIndent();
+    os << struct_name << " " << instance_name << " = {stride, padding, activation};\n";
+    return instance_name;
+  }
+
   /*!  * \brief Emits cmsis_nn_per_channel_quant_params struct */
   std::string EmitCMSISNNPerChannelQuantParams(std::ostream& os, std::string multiplier,
                                                std::string shift) {
     std::string struct_name = "quant_params";
     PrintIndent();
     os << "cmsis_nn_per_channel_quant_params " << struct_name << " = {" << multiplier << ", "
+       << shift << "};\n";
+    return struct_name;
+  }
+
+  /*!  * \brief Emits cmsis_nn_per_tensor_quant_params struct */
+  std::string EmitCMSISNNPerTensorQuantParams(std::ostream& os, int multiplier, int shift) {
+    std::string struct_name = "quant_params";
+    PrintIndent();
+    os << "cmsis_nn_per_tensor_quant_params " << struct_name << " = {" << multiplier << ", "
        << shift << "};\n";
     return struct_name;
   }
@@ -192,6 +248,31 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     return conv2d_params;
   }
 
+  /*!  * \brief extracts CMSIS-NN FC parameters from call_extern */
+  FCParams extract_fc_params(const CallNode* op, int base_pos) {
+    FCParams fc_params;
+    fc_params.input_offset = ValueFromArg(op, base_pos);
+    fc_params.filter_offset = ValueFromArg(op, ++base_pos);
+    fc_params.output_offset = ValueFromArg(op, ++base_pos);
+    fc_params.clip_min = ValueFromArg(op, ++base_pos);
+    fc_params.clip_max = ValueFromArg(op, ++base_pos);
+    fc_params.multiplier = ValueFromArg(op, ++base_pos);
+    fc_params.shift = ValueFromArg(op, ++base_pos);
+    return fc_params;
+  }
+
+  /*!  * \brief extracts CMSIS-NN Pooling parameters from call_extern */
+  PoolParams extract_pool_params(const CallNode* op, int base_pos) {
+    PoolParams pool_params;
+    pool_params.stride_h = ValueFromArg(op, base_pos);
+    pool_params.stride_w = ValueFromArg(op, ++base_pos);
+    pool_params.padding_h = ValueFromArg(op, ++base_pos);
+    pool_params.padding_w = ValueFromArg(op, ++base_pos);
+    pool_params.clip_min = ValueFromArg(op, ++base_pos);
+    pool_params.clip_max = ValueFromArg(op, ++base_pos);
+    return pool_params;
+  }
+
   /*!  * \brief extracts CMSIS-NN buffer dimensions from call_extern */
   CMSISNNDims extract_buffer_dims(const CallNode* op, int base_pos) {
     CMSISNNDims dims;
@@ -202,7 +283,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     return dims;
   }
 
-  /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising convolution */
   void EmitConv2D(const CallNode* op) {
     // Position of various arguments relative to buffers in the call_extern
     enum CallExternArgPos {
@@ -273,9 +354,128 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     stream << "}\n";
   }
 
- private:
-  std::string context_buffer_name_ = "NULL";
-  int context_buffer_size_ = 0;
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising fully connected */
+  void EmitFullyConnected(const CallNode* op) {
+    // Position of various arguments relative to buffers in the call_extern
+    enum CallExternArgPos {
+      CONTEXT_BUFFER_POS = 1,
+      FC_PARAMS_POS = 3,
+      INPUT_DIM_POS = 10,
+      FILTER_DIM_POS = 14,
+      BIAS_DIM_POS = 18,
+      OUTPUT_DIM_POS = 22,
+      MAX_NUM_ARGS = 30
+    };
+
+    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
+
+    // extract buffer names from call_extern
+    int arg_id = 0;
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    std::string filter_data = VarNameFromArg(op, ++arg_id);
+    std::string bias_data("NULL");
+    if (op->args.size() == CallExternArgPos::MAX_NUM_ARGS) {
+      bias_data = VarNameFromArg(op, ++arg_id);
+    }
+    std::string output_data = VarNameFromArg(op, ++arg_id);
+
+    // extract CMSIS-NN API parameters
+    int context_buffer_pos = arg_id + CallExternArgPos::CONTEXT_BUFFER_POS;
+    int fc_params_pos = arg_id + CallExternArgPos::FC_PARAMS_POS;
+    int input_dim_pos = arg_id + CallExternArgPos::INPUT_DIM_POS;
+    int filter_dim_pos = arg_id + CallExternArgPos::FILTER_DIM_POS;
+    int bias_dim_pos = arg_id + CallExternArgPos::BIAS_DIM_POS;
+    int output_dim_pos = arg_id + CallExternArgPos::OUTPUT_DIM_POS;
+
+    CMSISNNContextBuffer context_buffer = extract_context_buffer_info(op, context_buffer_pos);
+    FCParams fc_params = extract_fc_params(op, fc_params_pos);
+    CMSISNNDims input_dims = extract_buffer_dims(op, input_dim_pos);
+    CMSISNNDims filter_dims = extract_buffer_dims(op, filter_dim_pos);
+    CMSISNNDims bias_dims = extract_buffer_dims(op, bias_dim_pos);
+    CMSISNNDims output_dims = extract_buffer_dims(op, output_dim_pos);
+
+    // Emit CMSIS-NN API arguments
+    std::string context = EmitCMSISNNContext(stream, context_buffer);
+    std::string cmsisnn_fc_params = EmitCMSISNNFCParams(stream, fc_params);
+    std::string quant_params =
+        EmitCMSISNNPerTensorQuantParams(stream, fc_params.multiplier, fc_params.shift);
+    std::string input_dim = EmitCMSISNNDims(stream, "input", input_dims);
+    std::string filter_dim = EmitCMSISNNDims(stream, "filter", filter_dims);
+    std::string bias_dim = EmitCMSISNNDims(stream, "bias", bias_dims);
+    std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
+
+    PrintIndent();
+    stream << "arm_status status = ";
+    stream << cmsis_func_name << "(";
+    stream << "&" << context << ", ";
+    stream << "&" << cmsisnn_fc_params << ", ";
+    stream << "&" << quant_params << ", ";
+    stream << "&" << input_dim << ", " << input_data << ", ";
+    stream << "&" << filter_dim << ", " << filter_data << ", ";
+    stream << "&" << bias_dim << ", " << bias_data << ", ";
+    stream << "&" << output_dim << ", " << output_data << ");\n";
+    PrintIndent();
+    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    PrintIndent();
+    PrintIndent();
+    stream << "return -1;\n";
+    PrintIndent();
+    stream << "}\n";
+  }
+
+  /*!  * \brief Emits CMSIS-NN APIs for every call_extern comprising pooling ops */
+  void EmitPool2D(const CallNode* op) {
+    // Position of various arguments relative to buffers in the call_extern
+    enum CallExternArgPos {
+      CONTEXT_BUFFER_POS = 1,
+      POOL_PARAMS_POS = 3,
+      INPUT_DIM_POS = 9,
+      FILTER_DIM_POS = 13,
+      OUTPUT_DIM_POS = 17,
+      MAX_NUM_ARGS = 23
+    };
+    std::string cmsis_func_name = op->args[0].as<StringImmNode>()->value;
+
+    // extract buffer names from call_extern
+    int arg_id = 0;
+    std::string input_data = VarNameFromArg(op, ++arg_id);
+    std::string output_data = VarNameFromArg(op, ++arg_id);
+
+    // extract CMSIS-NN API parameters
+    int context_buffer_pos = arg_id + CallExternArgPos::CONTEXT_BUFFER_POS;
+    int pool_params_pos = arg_id + CallExternArgPos::POOL_PARAMS_POS;
+    int input_dim_pos = arg_id + CallExternArgPos::INPUT_DIM_POS;
+    int filter_dim_pos = arg_id + CallExternArgPos::FILTER_DIM_POS;
+    int output_dim_pos = arg_id + CallExternArgPos::OUTPUT_DIM_POS;
+
+    CMSISNNContextBuffer context_buffer = extract_context_buffer_info(op, context_buffer_pos);
+    PoolParams pool_params = extract_pool_params(op, pool_params_pos);
+    CMSISNNDims input_dims = extract_buffer_dims(op, input_dim_pos);
+    CMSISNNDims filter_dims = extract_buffer_dims(op, filter_dim_pos);
+    CMSISNNDims output_dims = extract_buffer_dims(op, output_dim_pos);
+
+    std::string context = EmitCMSISNNContext(stream, context_buffer);
+    std::string cmsisnn_pool_params = EmitCMSISNNPoolParams(stream, pool_params);
+    std::string input_dim = EmitCMSISNNDims(stream, "input", input_dims);
+    std::string filter_dim = EmitCMSISNNDims(stream, "filter", filter_dims);
+    std::string output_dim = EmitCMSISNNDims(stream, "output", output_dims);
+
+    PrintIndent();
+    stream << "arm_status status = ";
+    stream << cmsis_func_name << "(";
+    stream << "&" << context << ", ";
+    stream << "&" << cmsisnn_pool_params << ", ";
+    stream << "&" << input_dim << ", " << input_data << ", ";
+    stream << "&" << filter_dim << ", ";
+    stream << "&" << output_dim << ", " << output_data << ");\n";
+    PrintIndent();
+    stream << "if (status != ARM_MATH_SUCCESS) {\n";
+    PrintIndent();
+    PrintIndent();
+    stream << "return -1;\n";
+    PrintIndent();
+    stream << "}\n";
+  }
 };
 
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
