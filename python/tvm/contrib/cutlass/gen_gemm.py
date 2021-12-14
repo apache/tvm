@@ -198,7 +198,7 @@ class CutlassGemmProfiler:
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out > 0 and not profile_all:
+            if out < float("inf") and not profile_all:
                 self.cache[(M, N, K)] = op
                 return op
 
