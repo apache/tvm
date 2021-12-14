@@ -919,10 +919,25 @@ def test_mixed_single_multiple_outputs():
 
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
-    conv2d_bias_relu_pat, conv2d_relu_pat = dnnl_patterns
+    (
+        conv2d_bias_relu_pat,
+        conv2d_bias_sigmoid_pat,
+        conv2d_bias_pat,
+        conv2d_relu_pat,
+        conv2d_sigmoid_pat,
+    ) = (dnnl_patterns[0], dnnl_patterns[4], dnnl_patterns[6], dnnl_patterns[8], dnnl_patterns[12])
 
-    def get_blocks(prefix, data, in_channel, out_channel, include_bn=True, include_sigmoid=False):
+    def get_blocks(
+        prefix,
+        data,
+        in_channel,
+        out_channel,
+        include_bias_add=True,
+        include_bn=True,
+        include_sigmoid=False,
+    ):
         weight = relay.var(prefix + "weight")
+        bias = relay.var(prefix + "bias")
         bn_gamma = relay.var(prefix + "bn_gamma")
         bn_beta = relay.var(prefix + "bn_beta")
         bn_mmean = relay.var(prefix + "bn_mean")
@@ -931,6 +946,8 @@ def test_dnnl_fuse():
         layer = relay.nn.conv2d(
             data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1)
         )
+        if include_bias_add:
+            layer = relay.nn.bias_add(layer, bias)
         if include_bn:
             bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta, bn_mmean, bn_mvar)
             layer = bn_output[0]
@@ -940,11 +957,11 @@ def test_dnnl_fuse():
         layer = relay.nn.relu(layer)
         return layer
 
-    def get_net(include_bn=True, include_sigmoid=False):
+    def get_net(include_bias_add=True, include_bn=True, include_sigmoid=False):
         data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
-        block1 = get_blocks("block1_", data, 3, 8, include_bn, include_sigmoid)
+        block1 = get_blocks("block1_", data, 3, 8, include_bias_add, include_bn, include_sigmoid)
         # The second block is always conv + relu, to make it more interesting
-        block2 = get_blocks("block2_", block1, 8, 8, False, include_sigmoid)
+        block2 = get_blocks("block2_", block1, 8, 8, False, False, include_sigmoid)
         return relay.Function(relay.analysis.free_vars(block2), block2)
 
     def get_partitoned_mod(mod, params, pattern_table):
@@ -959,9 +976,18 @@ def test_dnnl_fuse():
                 transform.FoldScaleAxis(),
             ]
         )
+        # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
+        remove_linear_pass = tvm.transform.Sequential(
+            [
+                transform.SimplifyExpr(),
+                transform.FoldConstant(),
+            ]
+        )
         composite_partition = tvm.transform.Sequential(
             [
+                transform.CanonicalizeOps(),
                 remove_bn_pass,
+                remove_linear_pass,
                 transform.MergeComposite(pattern_table),
                 transform.AnnotateTarget("dnnl"),
                 transform.PartitionGraph(),
@@ -971,25 +997,38 @@ def test_dnnl_fuse():
         with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
             return composite_partition(mod)
 
-    def test_detect_pattern(pattern_table, include_bn, include_sigmoid, num_expected_partition):
-        net = get_net(include_bn, include_sigmoid)
+    def test_detect_pattern(
+        pattern_table, include_bias_add, include_bn, include_sigmoid, num_expected_partition
+    ):
+        net = get_net(include_bias_add, include_bn, include_sigmoid)
         mod, params = tvm.relay.testing.create_workload(net)
         mod = get_partitoned_mod(mod, params, pattern_table)
         assert len(mod.functions) - 1 == num_expected_partition  # -1 for main
 
     def test_partition():
         # conv + bn + relu, conv + relu -> fused conv_bias_relu, conv, and relu
-        test_detect_pattern([conv2d_bias_relu_pat], True, False, 3)
+        test_detect_pattern([conv2d_bias_relu_pat], False, True, False, 3)
         # conv + bn + relu, conv + relu -> conv, bias, relu, and fused conv_relu
-        test_detect_pattern([conv2d_relu_pat], True, False, 4)
+        test_detect_pattern([conv2d_relu_pat], False, True, False, 4)
         # conv + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
-        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, False, 2)
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], False, True, False, 2)
+        # conv + bias_add + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, False, 2)
         # conv + relu, conv + relu -> two fused conv_relu
-        test_detect_pattern([conv2d_relu_pat], False, False, 2)
+        test_detect_pattern([conv2d_relu_pat], False, False, False, 2)
         # conv + relu, conv + relu -> no fusion, 4 partition each with a single op
-        test_detect_pattern([conv2d_bias_relu_pat], False, False, 4)
+        test_detect_pattern([conv2d_bias_relu_pat], False, False, False, 4)
         # conv + bn + sigmoid + relu, conv + sigmoid + relu -> no fusion
-        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, 5)
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], False, True, True, 7)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias
+        # and single op sigmoid, relu, conv, sigmoid, relu
+        test_detect_pattern([conv2d_bias_pat, conv2d_relu_pat], True, True, True, 6)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias_sigmoid
+        # and single op relu, conv, sigmoid, relu
+        test_detect_pattern([conv2d_bias_sigmoid_pat, conv2d_relu_pat], True, True, True, 5)
+        # conv + bias_add + bn + sigmoid + relu, conv + sigmoid + relu -> fused conv_bias_sigmoid,
+        # fused conv_sigmoid and single op relu, relu
+        test_detect_pattern([conv2d_bias_sigmoid_pat, conv2d_sigmoid_pat], True, True, True, 4)
 
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
