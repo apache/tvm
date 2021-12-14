@@ -85,7 +85,7 @@ def get_dense_bias(M, N, K, out_dtype="float16"):
 
 
 def get_dense_bias_relu(M, N, K, out_dtype="float16"):
-    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype="float16"))
+    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype=out_dtype))
 
 
 def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
@@ -110,7 +110,7 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
-def get_conv2d_nchw(d_shape, w_shape):
+def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
     data = relay.var("data", shape=d_shape, dtype="float16")
     weight = relay.var("weight", shape=w_shape, dtype="float16")
     out_channel = w_shape[0]
@@ -118,10 +118,10 @@ def get_conv2d_nchw(d_shape, w_shape):
         relay.nn.conv2d(
             data=data,
             weight=weight,
-            kernel_size=(3, 3),
+            kernel_size=w_shape[2:],
             channels=out_channel,
-            padding=(1, 1),
-            out_dtype="float16",
+            padding=padding,
+            out_dtype=out_dtype,
         )
     )
 
@@ -129,7 +129,7 @@ def get_conv2d_nchw(d_shape, w_shape):
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+        mod, sm, profile_all=True, use_multiprocessing=True, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)

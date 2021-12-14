@@ -22,8 +22,7 @@ from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import (
     ProfilerEngine,
-    generate_sm75_tensor_op_1688,
-    generate_sm80_tensor_op_16816,
+    GENERATOR_FUNC_TABLE,
 )
 from .library import (
     EpilogueFunctor,
@@ -130,12 +129,6 @@ def create_gemm_operator(
                 op_entry["data_type"] = data_type
                 ret.append(op_entry)
     return ret
-
-
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
 
 
 # TODO(masahi): A sensible way to pick reasonable default kernels

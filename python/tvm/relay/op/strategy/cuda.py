@@ -324,7 +324,10 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 plevel=25,
             )
 
-    elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
+    elif (
+        is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups)
+        and "cudnn" not in target.libs
+    ):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
             strategy.add_implementation(
