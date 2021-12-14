@@ -1660,6 +1660,66 @@ class Schedule(Object):
             self, block, buffer_index, axis, factor, offset
         )
 
+    @type_checked
+    def set_scope(self, block: BlockRV, buffer_index: int, storage_scope: str) -> None:
+        """Set the storage scope of a buffer, where the buffer is
+        specified by the a block and a write-index
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer
+        buffer_index : int
+            The index of the buffer in block's write region
+        storage_scope : str
+            The storage scope to be set
+
+        Examples
+        --------
+
+        Before set_scope, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            Todo
+
+        Create the schedule and do set_scope:
+
+        .. code-block:: python
+
+            Todo
+            sch = tir.Schedule(before_set_scope)
+            sch.set_scope(sch.get_block("B"), buffer_index=0, storage_scope="shared")
+            print(sch.mod["main"].script())
+
+        After applying set_scope, the IR becomes:
+
+        .. code-block:: python
+
+            Todo
+            @T.prim_func
+            def after_set_scope(a: T.handle, c: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.alloc_buffer((128, 128))
+                C = T.match_buffer(c, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        T.block_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Note
+        ----
+        Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, storage_scope
+        )
+
     ########## Schedule: Blockize & Tensorize ##########
 
     ########## Schedule: Annotation ##########
