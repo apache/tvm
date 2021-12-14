@@ -393,6 +393,47 @@ std::vector<runtime::TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters()
 bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
                           CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs);
 
+/******** Misc ********/
+
+/*!
+ * \brief Checks if a block could be successfully computed inline into its consumer
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block could be successfully computed inline
+ */
+bool CanComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if a block could be successfully computed inline into its producer
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block could be successfully computed inline
+ */
+bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if a producer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully compute at the specific loop
+ */
+bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                  bool preserve_unit_loops);
+
+/*!
+ * \brief Checks if a consumer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully reverse compute at the
+ * specific loop
+ */
+bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
+                         const StmtSRef& loop_sref, bool preserve_unit_loops);
+
 }  // namespace tir
 }  // namespace tvm
 
