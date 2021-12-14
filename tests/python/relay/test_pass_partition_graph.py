@@ -1471,6 +1471,54 @@ def test_preserve_type_import():
     run("float32", [2, 3])
 
 
+def test_not_bind_constant():
+    def get_net(prefix, data, out_channel):
+        weight = relay.var(prefix + "weight")
+        bn_gamma = relay.var(prefix + "bn_gamma")
+        bn_beta = relay.var(prefix + "bn_beta")
+        bn_mmean = relay.var(prefix + "bn_mean")
+        bn_mvar = relay.var(prefix + "bn_var")
+
+        layer = relay.nn.conv2d(
+            data=data, weight=weight, kernel_size=(3, 3), channels=out_channel, padding=(1, 1)
+        )
+        bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+        out = relay.nn.relu(bn_output[0])
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    def get_partitoned_mod(mod, params, pattern_table, bind_constants):
+        mod["main"] = bind_params_by_name(mod["main"], params)
+        remove_bn_pass = tvm.transform.Sequential(
+            [
+                transform.InferType(),
+                transform.SimplifyInference(),
+                transform.FoldConstant(),
+                transform.FoldScaleAxis(),
+            ]
+        )
+        composite_partition = tvm.transform.Sequential(
+            [
+                remove_bn_pass,
+                transform.MergeComposite(pattern_table),
+                transform.AnnotateTarget("dnnl"),
+                transform.PartitionGraph(bind_constants=bind_constants),
+            ]
+        )
+
+        with tvm.transform.PassContext(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            return composite_partition(mod)
+
+    data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+    net = get_net("block_", data, 8)
+    mod, params = tvm.relay.testing.create_workload(net)
+
+    mod = get_partitoned_mod(mod, params, get_pattern_table("dnnl"), bind_constants=True)
+    len(mod["main"].body.args) == 1
+
+    mod = get_partitoned_mod(mod, params, get_pattern_table("dnnl"), bind_constants=False)
+    len(mod["main"].body.args) == 3
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -1492,4 +1540,4 @@ if __name__ == "__main__":
     test_flatten_tuple_output()
     test_tuple_output_exec()
     test_extern_opt()
-    test_static_tensor_array_gather_partition()
+    test_not_bind_constant()
