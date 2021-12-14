@@ -245,7 +245,7 @@ class GlobalVarNode : public RelayExprNode {
  */
 class GlobalVar : public RelayExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint);
+  TVM_DLL explicit GlobalVar(String name_hint, Type type = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };

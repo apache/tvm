@@ -65,7 +65,7 @@ struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   SEScope se_scope = SEScope::FullyUnconstrained();
 
   /*!
-   * \brief If fales (the default), the result of the "on_device" call is not constrained to be
+   * \brief If false (the default), the result of the "on_device" call is not constrained to be
    * \p se_scope.
    */
   bool constrain_result = false;

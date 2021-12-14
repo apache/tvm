@@ -23,6 +23,7 @@
 
 import tvm
 from tvm import relay
+from tvm.script import tir as T
 import tvm.testing
 import numpy as np
 
@@ -1574,6 +1575,110 @@ def test_free_on_device():
         """,
             "from_string",
             None,
+            metatable,
+        )
+
+    exercise(input(), expected(), None, None)
+
+
+def test_lowered():
+    """
+    Tests propagation of memory scopes from PrimFuncs and insertion
+    of device_copies to mediate any scope changes.
+    """
+
+    @T.prim_func
+    def input_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128], scope="scopeA")  # will flow out
+        B = T.match_buffer(b, [128, 128], scope="")  # will flow in
+        C = T.match_buffer(c, [128, 128], scope="scopeB")  # will flow out
+        D = T.match_buffer(d, [128, 128], scope="scopeA")  # will flow out
+
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    D[vi, vj] = C[vi, vj]
+                D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    @T.prim_func
+    def expected_gem(a: T.handle, b: T.handle, c: T.handle, d: T.handle) -> None:
+        A = T.match_buffer(a, [128, 128], scope="scopeA")
+        B = T.match_buffer(b, [128, 128], scope="scopeB")  # flowed in
+        C = T.match_buffer(c, [128, 128], scope="scopeB")
+        D = T.match_buffer(d, [128, 128], scope="scopeA")
+
+        for i, j, k in T.grid(128, 128, 128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    D[vi, vj] = C[vi, vj]
+                D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
+
+    metatable = {
+        "SEScope": [
+            CPU,  # meta[SEScope][0], no memory scope
+            CPU_SCOPE_A,  # meta[SEScope][1], "scopeA"
+            CPU_SCOPE_B,
+        ]
+    }  # meta[SEScope][2], "scopeB"
+    gem_ty = relay.FuncType(
+        [
+            relay.TensorType((128, 128), "float32"),
+            relay.TensorType((128, 128), "float32"),
+            relay.TensorType((128, 128), "float32"),
+        ],
+        relay.TensorType((128, 128), "float32"),
+    )
+    gem_gv = relay.GlobalVar("gem", type_annot=gem_ty)
+
+    def input():
+        mod = tvm.ir.IRModule()
+        mod[gem_gv] = input_gem
+        # - %x on CPU, no memory scope constraint, so will be constrained by first param of gem to "scopeA".
+        # - %y on CPU "scopeB", so will flow in to second param of gem.
+        # - %z on CPU "scopeA", so will clash with third param of gem and will need device_copy.
+        # - result on CPU "scopeB", but result of gem on "scopeA" so will need device_copy
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%x : Tensor[(128, 128), float32],
+                      %y : Tensor[(128, 128), float32],
+                      %z : Tensor[(128, 128), float32],
+                      param_se_scopes=[meta[SEScope][0], meta[SEScope][2], meta[SEScope][1]],
+                      result_se_scope=meta[SEScope][2]) {
+              call_lowered(@gem, (%x, %y, %z))          
+            }
+            """,
+            "from_string",
+            mod,
+            metatable,
+        )
+
+    def expected():
+        mod = tvm.ir.IRModule()
+        mod[gem_gv] = expected_gem
+        # - %x now on CPU "scopeA", no device_copy needed.
+        # - %y still on CPU "scopeB", no device_copy needed.
+        # - %z still on CPU "scopeA", needs device_copy to "scopeB".
+        # - result still on CPU "scopeB", needs device_copy  from "scopeA".
+        return tvm.parser.parse(
+            """
+            #[version = "0.0.5"]
+            def @main(%x : Tensor[(128, 128), float32],
+                      %y : Tensor[(128, 128), float32],
+                      %z : Tensor[(128, 128), float32], 
+                      param_se_scopes=[meta[SEScope][1], meta[SEScope][2], meta[SEScope][1]],
+                      result_se_scope=meta[SEScope][2]) {
+              %0 = device_copy(%z, src_se_scope=meta[SEScope][1], dst_se_scope=meta[SEScope][2]);
+              %1 = on_device(%0, se_scope=meta[SEScope][2], constrain_result=True);      
+              %2 = call_lowered(@gem, (%x, %y, %1));
+              %3 = on_device(%2, se_scope=meta[SEScope][1], constrain_result=True);
+              device_copy(%3, src_se_scope=meta[SEScope][1], dst_se_scope=meta[SEScope][2])
+            }
+            """,
+            "from_string",
+            mod,
             metatable,
         )
 

@@ -234,6 +234,15 @@ class Var : public Expr {
    */
   TVM_DLL Var(Id vid, Type type_annotation, Span span = Span());
 
+  /*!
+   * \brief Return a globally fresh name. Helps with debugging to follow the same
+   * variable between passes and sub-expressions.
+   *
+   * TODO(mbs): Replace with name creation w.r.t. scopes once available as part of
+   * name gen overhaul.
+   */
+  static Var GenSym(Type type_annotation = {}, Span span = {});
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
