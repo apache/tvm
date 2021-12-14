@@ -250,7 +250,7 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
@@ -258,9 +258,16 @@ TVM_DLL Pass DynamicToStatic();
  */
 TVM_DLL Pass InferType();
 
-/*
-TODO
-*/
+/*!
+ * \brief Infer the type of an expression.
+ *
+ * The result of type checking is a new expression with unambiguous
+ * type information filled in for that expression only. The fast
+ * version depends on existing type information populated throughout
+ * the expression and assumes this information is correct.
+ *
+ * \return The pass.
+ */
 TVM_DLL Type InferTypeFast(const Expr& expr);
 
 /*!

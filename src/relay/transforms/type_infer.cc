@@ -826,7 +826,11 @@ void AddGlobalTypes(IRModule mod) {
 
 class SameTypedSubgraphExtractor : public ExprMutator {
   /*
-  Creates a small subgraph with the same type as the input expression.
+  Creates a small subgraph with the same type as the input expression. We attempt to do
+  by depending on existing type information being populated in expressions the target
+  node depends on. If a node with populated type information is found we simply
+  replace it with a variable of that type. In this way, we can avoid copying and
+  recursing through most of the expression graph.
 
   ExprMutator is sufficient over MixedModemutator since we will not recurse much.
   */
@@ -876,6 +880,7 @@ class SameTypedSubgraphExtractor : public ExprMutator {
 
  private:
   Expr get_analogous_expression(const Expr& expr) {
+    // Replace the expression with a potentially simpler expression of the same type
     if (!expr->checked_type_.defined()) {
       return VisitExpr(expr);
     }
