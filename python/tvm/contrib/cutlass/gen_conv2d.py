@@ -177,9 +177,6 @@ class CutlassConv2DProfiler:
         ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, op_creator=create_conv2d_operator)
         ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
 
-        for op in ops:
-            op["runtime"] = -1
-
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
 
@@ -192,7 +189,8 @@ class CutlassConv2DProfiler:
             out = self.engine.evaluate(op, args.split(" "))
             op["runtime"] = out
             if out > 0 and not profile_all:
-                break
+                self.cache[workload] = op
+                return op
 
         output = min(ops, key=lambda i: i["runtime"])
         self.cache[workload] = output

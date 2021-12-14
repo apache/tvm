@@ -192,9 +192,6 @@ class CutlassGemmProfiler:
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
-        for op in ops:
-            op["runtime"] = -1
-
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
 
@@ -202,7 +199,8 @@ class CutlassGemmProfiler:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
             if out > 0 and not profile_all:
-                break
+                self.cache[(M, N, K)] = op
+                return op
 
         output = min(ops, key=lambda i: i["runtime"])
         self.cache[(M, N, K)] = output
