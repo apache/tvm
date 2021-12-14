@@ -180,9 +180,9 @@ class MixedPrecisionPass : public MixedModeMutator {
     if (checked_type.defined()) {
       return checked_type;
     }
-    checked_type = transform::InferTypeFast(expr);
-    expr->checked_type_ = checked_type;
-    return checked_type;
+
+    // This also populates the checked_type_ field for expr
+    return transform::InferTypeFast(expr);
   }
 
   bool IsMixedPrecisionType(const Type& t, bool ignore_non_float = false) const {

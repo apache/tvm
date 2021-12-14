@@ -901,12 +901,12 @@ namespace transform {
 Type InferTypeFast(const Expr& expr) {
   SameTypedSubgraphExtractor subgraph_extractor;
   auto mod = IRModule::FromExpr(subgraph_extractor(expr));
+
   mod = transform::InferType()(mod);
-  if (expr.as<FunctionNode>()) {
-    return mod->Lookup("main")->checked_type();
-  } else {
-    return mod->Lookup("main").as<FunctionNode>()->body->checked_type();
-  }
+  Type result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+
+  expr->checked_type_ = result_type;
+  return result_type;
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.InferTypeFast").set_body_typed([](const Expr& expr) {
