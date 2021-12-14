@@ -3322,17 +3322,17 @@ class PyTorchOpConverter:
     def _get_torch_span(self, node_repr):
         # torch span looks like
         # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
-        scope_part = ''
-        aten_part = ''
-        scope_str = ', scope:'
-        aten_str =  'aten::'
+        scope_part = "EMPTY"
+        aten_part = ""
+        scope_str = ", scope:"
+        aten_str = "aten::"
         if scope_str in node_repr:
             scope_part = node_repr.split(scope_str)[1]
-            scope_part = scope_part.split('#')[0].strip()
+            scope_part = scope_part.split("#")[0].strip()
         if aten_str in node_repr:
             aten_part = node_repr.split(aten_str)[1]
-            aten_part = aten_str + aten_part.split('(')[0]
-        return 'C.graph: {}, , jit._trace.TopLevelTracedModule: {}'.format(aten_part, scope_part)
+            aten_part = aten_str + aten_part.split("(")[0]
+        return "C.graph: {}, , jit._trace.TopLevelTracedModule: {}".format(aten_part, scope_part)
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

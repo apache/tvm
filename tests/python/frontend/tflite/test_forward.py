@@ -289,24 +289,22 @@ def run_span_verification(
         shape_dict[e] = input_data[i].shape
         dtype_dict[e] = input_data[i].dtype.name
 
-    mod, _ = relay.frontend.from_tflite(
-        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
-    )
+    mod, _ = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict)
     verify_span(mod)
 
 
 def verify_span(mod):
     fail_cases = []
     mod_main_start = False
-    for line in str(mod.__str__).split('\n'):
+    for line in str(mod.__str__).split("\n"):
         if "@main" in line:
             mod_main_start = True
             continue
 
         if mod_main_start == True:
-            if '}' == line:
+            if "}" == line:
                 break
-            elif not ('/*' in line and '*/' in line):
+            elif not ("/*" in line and "*/" in line):
                 fail_cases.append(line)
 
     print(fail_cases)

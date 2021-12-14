@@ -32,15 +32,15 @@ from tvm.relay.frontend.tensorflow2 import from_tensorflow
 def verify_span(mod):
     fail_cases = []
     mod_main_start = False
-    for line in str(mod.__str__).split('\n'):
+    for line in str(mod.__str__).split("\n"):
         if "@main" in line:
             mod_main_start = True
             continue
 
         if mod_main_start == True:
-            if '}' == line:
+            if "}" == line:
                 break
-            elif not ('/*' in line and '*/' in line):
+            elif not ("/*" in line and "*/" in line):
                 fail_cases.append(line)
 
     print(fail_cases)

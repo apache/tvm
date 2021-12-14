@@ -302,15 +302,15 @@ def verify_span(mod):
     # collect fail cases for the convenience of further improvement
     fail_cases = []
     mod_main_start = False
-    for line in str(mod.__str__).split('\n'):
+    for line in str(mod.__str__).split("\n"):
         if "@main" in line:
             mod_main_start = True
             continue
 
         if mod_main_start == True:
-            if '}' == line:
+            if "}" == line:
                 break
-            elif not ('/*' in line and '*/' in line):
+            elif not ("/*" in line and "*/" in line):
                 fail_cases.append(line)
 
     print(fail_cases)
@@ -318,10 +318,7 @@ def verify_span(mod):
 
 
 def simple_model():
-    input_node = tf.placeholder(shape=[None, None ,3, 1],
-                                dtype=np.float32,
-                                name='input'
-    )
+    input_node = tf.placeholder(shape=[None, None, 3, 1], dtype=np.float32, name="input")
 
     shape = tf.shape(input_node)
     stack = tf.stack([shape[0], 3, 3], axis=0)
@@ -339,21 +336,20 @@ def test_span_complement_simple_model():
 
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
-        mod, params = relay.frontend.from_tensorflow(graph_def, shape={'input:0',(1, 3, 3, 1)})
+        mod, params = relay.frontend.from_tensorflow(graph_def, shape={"input:0", (1, 3, 3, 1)})
         verify_span(mod)
 
 
 def test_span_complement_big_model():
     with tf.Graph().as_default() as graph:
-        graph_def = tf_testing.get_workload(
-            "ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb"
-        )
+        graph_def = tf_testing.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
         # Call the utility to import the graph definition into default graph.
         graph_def = tf_testing.ProcessGraphDefParam(graph_def)
 
-        mod, params = relay.frontend.from_tensorflow(graph_def, shape={'input_tensor:0',(128, 224, 224, 3)})
+        mod, params = relay.frontend.from_tensorflow(
+            graph_def, shape={"input_tensor:0", (128, 224, 224, 3)}
+        )
         verify_span(mod)
-
 
 
 #######################################################################
