@@ -164,7 +164,7 @@ class Executable(object):
             An executable constructed using the provided artifacts.
         """
         if isinstance(bytecode, (bytes, str)):
-            code = bytearray(bytecode)
+            bytecode = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
             raise TypeError(
                 "bytecode is expected to be the type of bytearray "
