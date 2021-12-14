@@ -381,6 +381,10 @@ stage('Unit Test') {
                 label: "Check Sphinx warnings in docs",
               )
               sh (
+                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
+                label: "Run Java unit tests",
+              )
+              sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: "Run Python GPU unit tests",
               )
@@ -460,25 +464,6 @@ stage('Unit Test') {
          Utils.markStageSkippedForConditional('python3: arm')
       }
     },
-    'java: GPU': {
-      if (is_docs_only_build != 1 ) {
-        node('GPU') {
-          ws(per_exec_ws('tvm/ut-java')) {
-            init_git()
-              unpack_lib('gpu', tvm_multilib)
-              timeout(time: max_time, unit: 'MINUTES') {
-                ci_setup(ci_gpu)
-                sh (
-                  script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
-                  label: "Run Java unit tests",
-                )
-              }
-          }
-        }
-      } else {
-         Utils.markStageSkippedForConditional('java: GPU')
-      }
-    }
 }
 
 stage('Integration Test') {
