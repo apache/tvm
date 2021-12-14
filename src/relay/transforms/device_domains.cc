@@ -199,9 +199,15 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
   DeviceCopyProps device_copy_props = GetDeviceCopyProps(call.get());
   CallLoweredProps call_lowered_props = GetCallLoweredProps(call.get());
 
-  // TODO(mbs): Support call_lowered to PrimFuncs.
-  ICHECK(!call_lowered_props.lowered_func.defined());
-  if (on_device_props.body.defined()) {
+  if (call_lowered_props.lowered_func.defined()) {
+    // Presumably we've already seen the call to the "primitive" Function from which this lowered
+    // function was derived in an earlier PlanDevices pass. Thus we've already established that
+    // all the argument and result devices domains must be equal, ignoring memory scopes.
+    // So at this point we'll let all the arguments and result be free so that memory scopes can
+    // differ.
+    // TODO(mbs): As per header comments, need to revisit when can setup sub-SEScope constraints.
+    return DomainFor(call_lowered_props.lowered_func);
+  } else if (on_device_props.body.defined()) {
     // By default:
     //   on_device(expr, se_scope=<t>)
     //   on_device : fn(<t>):?x?

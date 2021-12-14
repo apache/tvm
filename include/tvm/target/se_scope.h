@@ -159,19 +159,21 @@ using MemoryScope = String;
  *
  */
 class SEScopeNode : public AttrsNode<SEScopeNode> {
- public:
+ private:
   /*!
-   * \brief The \p DLDeviceType (represtented as an int) of the virtual device. If \p target is
+   * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
    * known then this will be equal to \p target->kind->device_type. If \p target is null then the
    * target is to be determined later.
    *
    * This is needed to support the legacy "on_device" and "device_copy" calls which only allow
    * a \p DLDeviceTypes (as an integer) to be given.
    *
-   * kInvalidDeviceType denotes unconstrained.
+   * kInvalidDeviceType denotes unconstrained. An int since the DLDeviceType enum representation
+   * is not fixed. Private to discourage further int vs DLDeviceType confusion.
    */
   int /* actually DLDeviceType */ device_type_int;
 
+ public:
   DLDeviceType device_type() const { return static_cast<DLDeviceType>(device_type_int); }
 
   /*!
