@@ -201,10 +201,9 @@ class CutlassGemmProfiler:
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out > 0 and profile_all is False:
+            if out > 0 and not profile_all:
                 break
 
-        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
-        output = sorted(valid_ops, key=lambda i: i["runtime"])
-        self.cache[(M, N, K)] = output[0]
-        return output[0]
+        output = min(ops, key=lambda i: i["runtime"])
+        self.cache[(M, N, K)] = output
+        return output

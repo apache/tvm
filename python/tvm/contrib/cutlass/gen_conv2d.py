@@ -194,7 +194,6 @@ class CutlassConv2DProfiler:
             if out > 0 and not profile_all:
                 break
 
-        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
-        output = sorted(valid_ops, key=lambda i: i["runtime"])
-        self.cache[workload] = output[0]
-        return output[0]
+        output = min(ops, key=lambda i: i["runtime"])
+        self.cache[workload] = output
+        return output

@@ -217,5 +217,5 @@ class ProfilerEngine:
             rt = float(sp.stdout)
             logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
-            rt = -1
+            rt = float("inf")
         return rt
