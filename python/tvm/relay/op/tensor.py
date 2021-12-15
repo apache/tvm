@@ -1178,8 +1178,18 @@ def copy(data):
 
 
 @script
-def _copy_shape_func(data_shape):
-    return data_shape
+def _copy_shape_func_tensor(data_shape):
+    ndim = data_shape.shape[0]
+    out = output_tensor((ndim,), "int64")
+    for i in const_range(ndim):
+        out[i] = data_shape[i]
+    return out
+
+
+@script
+def _copy_shape_func_scalar(data_shape):
+    out = output_tensor((), "int64")
+    return out
 
 
 @reg.register_shape_func("copy", False)
@@ -1187,7 +1197,10 @@ def copy_shape_func(attrs, inputs, _):
     """
     Shape function for copy op.
     """
-    return [_copy_shape_func(inputs[0])]
+    input = inputs[0]
+    if len(input.shape) == 0:
+        return [_copy_shape_func_scalar(input)]
+    return [_copy_shape_func_tensor(input)]
 
 
 def device_copy(data, src_device, dst_device):
