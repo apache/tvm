@@ -302,16 +302,15 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
     ICHECK(it != info.tensor2buffers.end());
     buffer_map.Set(arg, it->second);
   }
-  PrimFunc func = PrimFunc(/*params=*/std::move(parameters),
-                           /*body=*/SeqStmt::Flatten(root_stmts),
-                           /*ret_type=*/VoidType(),
-                           /*buffer_map=*/std::move(buffer_map));
-
+  PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
+                                     /*body=*/SeqStmt::Flatten(root_stmts),
+                                     /*ret_type=*/VoidType(),
+                                     /*buffer_map=*/std::move(buffer_map)),
+                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
-
   return (*complete)(func, info.root_alloc);
-}  // namespace tir
+}
 
 PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs) {
   std::vector<te::Tensor> stack;
