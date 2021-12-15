@@ -1759,6 +1759,10 @@ class Schedule(Object):
 
     ########## Schedule: Blockize & Tensorize ##########
 
+    @type_checked
+    def blockize(self, loop: LoopRV) -> BlockRV:
+        return _ffi_api.ScheduleBlockize(self, loop)  # type: ignore # pylint: disable=no-member
+
     ########## Schedule: Annotation ##########
 
     @type_checked
