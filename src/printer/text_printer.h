@@ -409,7 +409,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
 
-String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "tir", bool show_meta = false);
+String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "T", bool show_meta = false);
 
 String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
                                  runtime::TypedPackedFunc<std::string(Stmt)> annotate);
