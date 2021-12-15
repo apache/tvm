@@ -20,7 +20,7 @@
 /*!
  * \file relay/backend/contrib/generic/codegen.cc
  *
- * \brief This file contains the target hooks for generic Scale4Edge Codegen.
+ * \brief this file contains the target hooks for generic scale4edge codegen.
  */
 
 #include <tvm/ir/error.h>
@@ -50,7 +50,9 @@ namespace generic {
  */
 class RelayToTIRMutator : public MixedModeMutator {
  public:
-  explicit RelayToTIRMutator(IRModule ir_module) : ir_module_(ir_module) {}
+  explicit RelayToTIRMutator(IRModule ir_module, String target_name)
+      : ir_module_(ir_module),
+        target_name_(target_name) {}
 
   IRModule operator()() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
@@ -62,7 +64,7 @@ class RelayToTIRMutator : public MixedModeMutator {
                  main_func->type_params, main_func->attrs, main_func->span);
 
     ir_module_->Update(main_global_var, mutated_main);
-    ir_module_ = WithAttr(ir_module_, "device_contexts", device_contexts_);
+
     return ir_module_;
   }
 
@@ -71,7 +73,7 @@ class RelayToTIRMutator : public MixedModeMutator {
     if (call->op->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(call->op);
       auto codegen_name = func->GetAttr<String>(attr::kCompiler);
-      if (codegen_name.defined() && codegen_name == "generic") {
+      if (codegen_name.defined() && codegen_name == target_name_) {
         auto relay_to_tir_func_pf =
             tvm::runtime::Registry::Get("relay.ext.generic.relay_to_tir_func");
         ICHECK(relay_to_tir_func_pf);
@@ -79,11 +81,9 @@ class RelayToTIRMutator : public MixedModeMutator {
         prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target("c"));
         String symbol_name = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
         GlobalVar gv(symbol_name);
-        Array<RelayExpr> args = call->args;
         gv->checked_type_ = func->checked_type();
         ir_module_->Update(gv, prim_func);
-        device_contexts_.Set(gv, codegen_name.value());
-        return Call(gv, args, call->attrs, call->type_args);
+        return Call(gv, call->args, call->attrs, call->type_args);
       }
     }
     return post;
@@ -91,20 +91,16 @@ class RelayToTIRMutator : public MixedModeMutator {
 
  private:
   IRModule ir_module_;
-  Map<GlobalVar, String> device_contexts_;
+  String target_name_;
 };
 
-tvm::transform::Pass RelayToTIR() {
+tvm::transform::Pass RelayToTIR(String target_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule ir_module, transform::PassContext pass_context) {
-        return RelayToTIRMutator(ir_module)();
+        return RelayToTIRMutator(ir_module, target_name)();
       };
   return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.generic.RelayToTIR", {});
 }
-
-TVM_REGISTER_TARGET_KIND("generic", kDLCPU)
-    .set_attr<Bool>("use_device_api", Bool(true))
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", RelayToTIR());
 
 }  // namespace generic
 }  // namespace contrib

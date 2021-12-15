@@ -17,8 +17,9 @@ class TorchModel(torch.nn.Module):
         return x
 
 
+custom_target_name = "ultra_trail"
 def _register_external_op_helper(op_name, supported=True):
-    @tvm.ir.register_op_attr(op_name, "target.generic")
+    @tvm.ir.register_op_attr(op_name, f"target.{custom_target_name}")
     def _func_wrapper(expr):
         return supported
 
@@ -37,7 +38,7 @@ def main():
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
-    mod = relay.transform.AnnotateTarget("generic")(mod)
+    mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)
     mod = relay.transform.PartitionGraph()(mod)
     print(mod)
