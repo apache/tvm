@@ -1112,6 +1112,40 @@ def test_multi_targets():
     tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
 
 
+def test_large_constants():
+    """Large constants can be serialized outside of executable"""
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    # fn(x) { add(x, <large constant>) }
+    x = relay.var("x", shape=(1000, 1000))
+    const_data = np.random.rand(1000, 1000).astype("float32")
+    const = relay.const(const_data, dtype="float32")
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    # Compile to executable.
+    vm_exec = vm.compile(mod, target=target)
+
+    # Save to constants and library files
+    temp = utils.tempdir()
+    path_consts = temp.relpath("consts")
+    vm_exec.move_late_bound_consts(path_consts, byte_limit=256)
+    path_dso = temp.relpath("lib.so")
+    vm_exec.mod.export_library(path_dso)
+
+    # Load library files and constants
+    mod = runtime.load_module(path_dso)
+    mod["load_late_bound_consts"](path_consts)
+
+    # Test main
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
 if __name__ == "__main__":
     import sys
 

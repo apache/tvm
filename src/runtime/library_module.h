@@ -79,7 +79,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 void InitContextFunctions(std::function<void*(const char*)> fgetsymbol);
 
 /*!
- * \brief Type alias for funcion to wrap a TVMBackendPackedCFunc.
+ * \brief Type alias for function to wrap a TVMBackendPackedCFunc.
  * \param The function address imported from a module.
  * \param mptr The module pointer node.
  * \return Packed function that wraps the invocation of the function at faddr.

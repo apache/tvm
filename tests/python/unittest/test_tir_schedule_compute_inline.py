@@ -329,6 +329,28 @@ def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
             B[vi] = A_cache[vi] * 2.0 + 1.0
 
 
+@T.prim_func
+def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None:
+    A = T.match_buffer(var_A, [512, 512], dtype="float32")
+    B = T.match_buffer(var_B, [512, 512], dtype="float32")
+    compute = T.match_buffer(var_compute, [512, 512], dtype="float32")
+    C = T.alloc_buffer([512, 512], dtype="float32")
+    for i0, i1, i2 in T.grid(512, 512, 512):
+        with T.block("C"):
+            i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+            T.reads([C[i, j], A[i, k], B[k, j]])
+            T.writes([C[i, j]])
+            with T.init():
+                C[i, j] = T.float32(0)
+            C[i, j] = C[i, j] + A[i, k] * B[k, j]
+    for i0, i1 in T.grid(512, 512):
+        with T.block("compute"):
+            i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+            T.reads([C[i0_1, i1_1]])
+            T.writes([compute[i0_1, i1_1]])
+            compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -456,6 +478,13 @@ def test_buffer_matched():
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.compute_inline(block_b)
+
+
+def test_output_block():
+    sch = tir.Schedule(matmul_relu, debug_mask="all")
+    block = sch.get_block("compute")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block)
 
 
 def test_compute_inline_predicate():

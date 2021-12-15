@@ -22,8 +22,7 @@ from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import (
     ProfilerEngine,
-    generate_sm75_tensor_op_1688,
-    generate_sm80_tensor_op_16816,
+    GENERATOR_FUNC_TABLE,
 )
 from .library import (
     EpilogueFunctor,
@@ -132,12 +131,6 @@ def create_gemm_operator(
     return ret
 
 
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
-
-
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     75: {
@@ -199,19 +192,16 @@ class CutlassGemmProfiler:
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
-        for op in ops:
-            op["runtime"] = -1
-
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
 
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out > 0 and profile_all is False:
-                break
+            if out < float("inf") and not profile_all:
+                self.cache[(M, N, K)] = op
+                return op
 
-        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
-        output = sorted(valid_ops, key=lambda i: i["runtime"])
-        self.cache[(M, N, K)] = output[0]
-        return output[0]
+        output = min(ops, key=lambda i: i["runtime"])
+        self.cache[(M, N, K)] = output
+        return output

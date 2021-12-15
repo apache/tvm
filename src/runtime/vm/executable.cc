@@ -88,6 +88,19 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
       vm->LoadExecutable(this);
       *rv = Module(vm);
     });
+  } else if (name == "move_late_bound_consts") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 2);
+      std::string path = args[0];
+      uint64_t byte_limit = args[1];
+      MoveLateBoundConstantsToFile(path, static_cast<size_t>(byte_limit));
+    });
+  } else if (name == "load_late_bound_consts") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      std::string path = args[0];
+      LoadLateBoundConstantsFromFile(path);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc(nullptr);
@@ -306,6 +319,68 @@ void Executable::SaveVirtualDevicesSection(dmlc::Stream* strm) {
   strm->Write(host_device_index);
 }
 
+void Executable::MoveLateBoundConstantsToStream(dmlc::Stream* stream, size_t byte_limit) {
+  ICHECK(late_bound_constant_names.empty());
+  late_bound_constant_names.reserve(constants.size());
+  Map<String, NDArray> map;
+  size_t total_late_bound_bytes = 0;
+  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+    const auto ndarray = Downcast<NDArray>(constants[const_index]);
+    ICHECK(ndarray.defined()) << "Undefined constant at index " << const_index;
+    size_t num_bytes = runtime::GetDataSize(*ndarray.operator->());
+    if (num_bytes < byte_limit) {
+      // Leave as immediate.
+      late_bound_constant_names.emplace_back(nullptr);
+      continue;
+    }
+    total_late_bound_bytes += num_bytes;
+    std::ostringstream os;
+    os << "const_" << const_index;
+    String name = os.str();
+    map.Set(name, Downcast<NDArray>(std::move(constants[const_index])));
+    late_bound_constant_names.emplace_back(std::move(name));
+  }
+  VLOG(1) << "moved " << map.size() << " constants of " << total_late_bound_bytes
+          << " bytes (out of " << constants.size() << " overall) to be late-bound";
+  runtime::SaveParams(stream, map);
+}
+
+void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t byte_limit) {
+  std::string bytes;
+  dmlc::MemoryStringStream stream(&bytes);
+  MoveLateBoundConstantsToStream(&stream, byte_limit);
+  SaveBinaryToFile(path, bytes);
+}
+
+void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
+  ICHECK_EQ(late_bound_constant_names.size(), constants.size());
+  Map<String, NDArray> map = runtime::LoadParams(stream);
+  VLOG(1) << "loaded " << map.size() << " late-bound constants";
+  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+    if (!late_bound_constant_names[const_index].defined()) {
+      ICHECK(constants[const_index].defined())
+          << "Undefined immediate constant at index " << const_index;
+      continue;
+    }
+    const String& name = late_bound_constant_names[const_index];
+    ICHECK(!constants[const_index].defined()) << "Unexpected constant at index " << const_index;
+    auto itr = map.find(name);
+    ICHECK(itr != map.end()) << "No binding for late-bound constant at index " << const_index
+                             << " with name '" << name << "'";
+    constants[const_index] = (*itr).second;
+    map.erase(name);
+  }
+  late_bound_constant_names.clear();
+  ICHECK(map.empty()) << "Have " << map.size() << " unused late-bound constants";
+}
+
+void Executable::LoadLateBoundConstantsFromFile(const std::string& path) {
+  std::string bytes;
+  LoadBinaryFromFile(path, &bytes);
+  dmlc::MemoryStringStream stream(&bytes);
+  LoadLateBoundConstantsFromStream(&stream);
+}
+
 void Executable::SaveGlobalSection(dmlc::Stream* strm) {
   std::vector<std::pair<std::string, Index>> globals(this->global_map.begin(),
                                                      this->global_map.end());
@@ -321,19 +396,88 @@ void Executable::SaveGlobalSection(dmlc::Stream* strm) {
   strm->Write(glbs);
 }
 
-void Executable::SaveConstantSection(dmlc::Stream* strm) {
-  std::vector<DLTensor*> arrays;
-  for (const auto& obj : this->constants) {
-    const auto cell = Downcast<runtime::NDArray>(obj);
-    arrays.push_back(const_cast<DLTensor*>(cell.operator->()));
-  }
-  strm->Write(static_cast<uint64_t>(this->constants.size()));
-  for (const auto& it : arrays) {
-    runtime::SaveDLTensor(strm, it);
+namespace {
+// Tags to distinguish immediate vs late-bound constants in constants table bytestream.
+constexpr uint32_t kImmediateConstTag = 0;
+constexpr uint32_t kLateBoundConstTag = 1;
+}  // namespace
+
+void Executable::SaveConstantSection(dmlc::Stream* stream) {
+  // Save the overall number of constants.
+  stream->Write(static_cast<uint64_t>(constants.size()));
+
+  for (size_t const_index = 0; const_index < constants.size(); ++const_index) {
+    if (late_bound_constant_names.empty() || !late_bound_constant_names[const_index].defined()) {
+      // Tag immediate constants by 0.
+      stream->Write(kImmediateConstTag);
+      // Write as DLTensor.
+      const auto ndarray = Downcast<runtime::NDArray>(constants[const_index]);
+      ICHECK(ndarray.defined());
+      runtime::SaveDLTensor(stream, ndarray.operator->());
+      VLOG(1) << "save " << const_index << " as immediate";
+    } else {
+      // Tag late-bound constants by 1.
+      const String& name = late_bound_constant_names[const_index];
+      ICHECK(!constants[const_index].defined());
+      stream->Write(kLateBoundConstTag);
+      // Write a string.
+      stream->Write(std::string(name));
+      VLOG(1) << "save " << const_index << " as late-bound";
+    }
   }
 
+  VLOG(1) << "saved " << constants.size() << " constants";
+
   // Save the const to device index mapping.
-  strm->Write(this->const_device_indexes);
+  stream->Write(const_device_indexes);
+}
+
+void Executable::LoadConstantSection(dmlc::Stream* stream) {
+  uint64_t sz;
+  // Load the overall number of constants.
+  STREAM_CHECK(stream->Read(&sz, sizeof(sz)), "constants table size");
+  size_t size = static_cast<size_t>(sz);
+
+  VLOG(1) << "loading " << size << " constants";
+
+  constants.resize(size);
+  late_bound_constant_names.resize(size);
+  bool any_late_bound = false;
+
+  // Load each of the constants.
+  for (size_t const_index = 0; const_index < size; const_index++) {
+    uint32_t tag;
+    STREAM_CHECK(stream->Read(&tag, sizeof(tag)), "constant tag");
+    if (tag == kImmediateConstTag) {
+      // Immediate constants tagged by 0.
+      VLOG(1) << "load " << const_index << " as immediate";
+      runtime::NDArray ndarray;
+      STREAM_CHECK(ndarray.Load(stream), "constant tensor");
+      constants[const_index] = std::move(ndarray);
+      late_bound_constant_names[const_index] = String(ObjectPtr<StringObj>(nullptr));
+    } else if (tag == kLateBoundConstTag) {
+      // Late-bound constants tagged by 1.
+      VLOG(1) << "load " << const_index << " as late-bound";
+      std::string name;
+      STREAM_CHECK(stream->Read(&name), "late-bound constant name");
+      constants[const_index] = NDArray(nullptr);
+      late_bound_constant_names[const_index] = std::move(name);
+      any_late_bound = true;
+    } else {
+      STREAM_CHECK(false, "constant tag");
+    }
+  }
+
+  if (!any_late_bound) {
+    late_bound_constant_names.clear();
+  }
+
+  // Load the const to device index mapping.
+  std::vector<Index> indexes;
+  indexes.reserve(size);
+  STREAM_CHECK(stream->Read(&indexes), "constant devices");
+  ICHECK_EQ(size, indexes.size());
+  const_device_indexes = std::move(indexes);
 }
 
 void Executable::SavePrimitiveOpNames(dmlc::Stream* strm) {
@@ -597,7 +741,7 @@ runtime::Module Executable::Load(const std::string& code, const runtime::Module 
   auto exec = make_object<Executable>();
 
   // Support null-initialization of lib, to enable initialization during
-  // deserialization before we have we have deserialized the imports.
+  // deserialization before we have deserialized the imports.
   if (lib.defined()) {
     exec->SetLib(lib);
   }
@@ -638,27 +782,6 @@ void Executable::LoadGlobalSection(dmlc::Stream* strm) {
   for (size_t i = 0; i < globals.size(); i++) {
     this->global_map.insert({globals[i], i});
   }
-}
-
-void Executable::LoadConstantSection(dmlc::Stream* strm) {
-  uint64_t sz;
-  // Load the number of constants.
-  STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
-
-  size_t size = static_cast<size_t>(sz);
-  // Load each of the constants.
-  for (size_t i = 0; i < size; i++) {
-    runtime::NDArray constant;
-    STREAM_CHECK(constant.Load(strm), "constant");
-    this->constants.emplace_back(std::move(constant));
-  }
-
-  // Load the const to device index mapping.
-  std::vector<Index> const_device_indexes;
-  const_device_indexes.reserve(size);
-  STREAM_CHECK(strm->Read(&const_device_indexes), "constant");
-  ICHECK_EQ(size, const_device_indexes.size());
-  this->const_device_indexes = std::move(const_device_indexes);
 }
 
 void Executable::LoadPrimitiveOpNames(dmlc::Stream* strm) {
