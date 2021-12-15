@@ -1660,6 +1660,77 @@ class Schedule(Object):
             self, block, buffer_index, axis, factor, offset
         )
 
+    @type_checked
+    def set_scope(self, block: BlockRV, buffer_index: int, storage_scope: str) -> None:
+        """Set the storage scope of a buffer, where the buffer is
+        specified by the a block and a write-index
+
+        Parameters
+        ----------
+        block : BlockRV
+            The producer block of the buffer
+        buffer_index : int
+            The index of the buffer in block's write region
+        storage_scope : str
+            The storage scope to be set
+
+        Examples
+        --------
+
+        Before set_scope, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B = T.alloc_buffer((128, 128), dtype="float32")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do set_scope:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_set_scope)
+            sch.set_scope(sch.get_block("B"), buffer_index=0, storage_scope="shared")
+            print(sch.mod["main"].script())
+
+        After applying set_scope, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_set_scope(
+                A: T.Buffer[(128, 128), "float32"], C: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                B_shared = T.alloc_buffer([128, 128], dtype="float32", scope="shared")
+
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B_shared[vi, vj] = A[vi, vj] * T.float32(2)
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B_shared[vi, vj] + T.float32(1)
+
+        Note
+        ----
+        Set_scope requires the buffer to be an intermediate buffer defined via `alloc_buffer`.
+        """
+        _ffi_api.ScheduleSetScope(  # type: ignore # pylint: disable=no-member
+            self, block, buffer_index, storage_scope
+        )
+
     ########## Schedule: Blockize & Tensorize ##########
 
     ########## Schedule: Annotation ##########
