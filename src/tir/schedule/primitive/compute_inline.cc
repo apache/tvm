@@ -60,11 +60,27 @@ class NotSingleReadWriteBuffer : public ScheduleError {
   bool is_read_;
   Block block_;
 
-  static Buffer GetSingleRead(const ScheduleState& self, const Block& block) {
-    if (block->reads.size() != 1) {
+  static Buffer GetSingleRead(const ScheduleState& self, const Block& block,
+                              const StmtSRef& scope_root_sref) {
+    const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>&
+        buffer_writers = self->block_info.at(scope_root_sref).scope->buffer_writers;
+    const BufferNode* read_buffer = nullptr;
+    for (const BufferRegion& read_region : block->reads) {
+      const BufferNode* buffer = read_region->buffer.get();
+      if (buffer == read_buffer) {
+        continue;
+      }
+      if (buffer_writers.count(GetRef<Buffer>(buffer)) > 0) {
+        if (read_buffer != nullptr) {
+          throw NotSingleReadWriteBuffer(self->mod, true, block);
+        }
+        read_buffer = buffer;
+      }
+    }
+    if (read_buffer == nullptr) {
       throw NotSingleReadWriteBuffer(self->mod, true, block);
     }
-    return block->reads[0]->buffer;
+    return GetRef<Buffer>(read_buffer);
   }
 
   static Buffer GetSingleWrite(const ScheduleState& self, const Block& block) {
@@ -167,7 +183,7 @@ class OpaqueAccessError : public ScheduleError {
  * \brief The base class of the inliner, which handles:
  * 1) Substitute a subtree with the specific block being inlined
  * 2) Update the block signature to reflect the changes of read/write/allocated buffers
- * 3) Maintain a list of index variables and their substition of the buffer being inlined
+ * 3) Maintain a list of index variables and their substitution of the buffer being inlined
  */
 class BaseInliner : public StmtExprMutator {
  protected:
@@ -526,7 +542,8 @@ class ReverseComputeInliner : public BaseInliner {
   PrimExpr producer_rhs_{nullptr};
 };
 
-void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
+void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
+                       bool check_only = false) {
   const BlockNode* _producer_block = TVM_SREF_TO_BLOCK(_producer_block, producer_block_sref);
   Block producer_block = GetRef<Block>(_producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
@@ -535,6 +552,7 @@ void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
                                           /*require_stage_pipeline=*/true,
                                           /*require_subtree_compact_dataflow=*/false);
   // Step 2. Check completeness
+  CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
   // Step 3. Analyze the block body
   ComputeInliner inliner(inlined_buffer, producer_block, scope_root_sref);
@@ -550,17 +568,35 @@ void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
     throw OpaqueAccessError(self->mod, scope_root_sref);
   }
   // Step 6. Do the real mutation on the AST and the sref tree in the schedule state
+  if (check_only) {
+    return;
+  }
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
 }
 
-void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sref) {
+void ComputeInline(ScheduleState self, const StmtSRef& producer_block_sref) {
+  ComputeInlineImpl(self, producer_block_sref);
+}
+
+bool CanComputeInline(const ScheduleState& self, const StmtSRef& producer_block_sref) {
+  try {
+    ComputeInlineImpl(self, producer_block_sref, true);
+  } catch (const tvm::runtime::Error& e) {
+    return false;
+  }
+  return true;
+}
+
+void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block_sref,
+                              bool check_only = false) {
   const BlockNode* _consumer_block = TVM_SREF_TO_BLOCK(_consumer_block, consumer_block_sref);
   Block consumer_block = GetRef<Block>(_consumer_block);
-  Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
                                           /*require_stage_pipeline=*/true,
                                           /*require_subtree_compact_dataflow=*/false);
+  Buffer inlined_buffer =
+      NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness
   CheckCompleteBlock(self, consumer_block_sref, scope_root_sref);
   // Step 3. Check if the consumer has a single complete producer
@@ -579,7 +615,23 @@ void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sre
     throw OpaqueAccessError(self->mod, scope_root_sref);
   }
   // Step 7. Do the real mutation on the AST and the sref tree in the schedule state
+  if (check_only) {
+    return;
+  }
   self->Replace(scope_root_sref, tgt_stmt, inliner.block_reuse);
+}
+
+bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref) {
+  try {
+    ReverseComputeInlineImpl(self, block_sref, true);
+  } catch (const tvm::runtime::Error& e) {
+    return false;
+  }
+  return true;
+}
+
+void ReverseComputeInline(ScheduleState self, const StmtSRef& consumer_block_sref) {
+  ReverseComputeInlineImpl(self, consumer_block_sref);
 }
 
 /******** InstructionKind Registration ********/
