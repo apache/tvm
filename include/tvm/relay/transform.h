@@ -262,8 +262,8 @@ TVM_DLL Pass InferType();
  * \brief Infer the type of an expression, reusing existing type information.
  *
  * The result of type checking is a new expression with unambiguous
- * type information filled in for that expression only. The local
- * version depends on existing type information populated throughout
+ * type information filled in for the given node only. The local
+ * version can use existing type information populated throughout
  * the expression and assumes this information is correct. The local
  * version also avoids examining large amounts of the graph assuming
  * type information is filled in properly which makes it much faster if we
