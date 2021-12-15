@@ -227,8 +227,16 @@ def test_buffer_info_extraction():
                     "uint8",
                     tir_to_cs_translator.BufferType.input_or_output,
                 ),
-                "ethosu_conv2d_2": ([1024], "uint8", tir_to_cs_translator.BufferType.scratch),
-                "ethosu_conv2d_3": ([2048], "uint8", tir_to_cs_translator.BufferType.scratch),
+                "ethosu_conv2d_2": (
+                    [1024],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.runtime_allocate,
+                ),
+                "ethosu_conv2d_3": (
+                    [2048],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.runtime_allocate,
+                ),
             },
         },
     ]
@@ -768,15 +776,15 @@ def test_assign_addresses():
         original tir buffers.
         - If its constant, this will check
           the slice in the constant tensor has the values.
-        - If its scratch, this will check
-          the slice is within scratch and does not have conflicts
-          with other scratch tensors.
+        - If its runtime_allocation, this will check
+          the slice is within runtime_allocation and does not have conflicts
+          with other runtime_allocation tensors.
         - If its input/output, this will check the
           address is zero
         """
         inverse_region_map = {
             0: tir_to_cs_translator.BufferType.constant,
-            1: tir_to_cs_translator.BufferType.scratch,
+            1: tir_to_cs_translator.BufferType.runtime_allocate,
             3: tir_to_cs_translator.BufferType.input,
             4: tir_to_cs_translator.BufferType.output,
         }
@@ -796,19 +804,19 @@ def test_assign_addresses():
             constant_tensor_read_mask[address : address + length] = np.ones(
                 length, dtype=buffer_dtype
             )
-        elif buffer_type == tir_to_cs_translator.BufferType.scratch:
+        elif buffer_type == tir_to_cs_translator.BufferType.runtime_allocate:
             shape = list(buffer_info[buffer_var].shape)
             assert length == np.prod(shape)
-            assert address < scratch_size
+            assert address < runtime_allocation_size
 
             size_in_bytes = int(np.prod(shape)) * dtype_bytes
             # Every buffer is adjusted to align to 16 bytes
             size_in_bytes = util.round_up(size_in_bytes, 16)
-            assert address + size_in_bytes <= scratch_size
-            # The scratch area should not be used by anyother buffer
-            assert not scratch_allocation_mask[address : address + size_in_bytes].any()
-            # The scratch area is marked as used
-            scratch_allocation_mask[address : address + size_in_bytes] = np.ones(
+            assert address + size_in_bytes <= runtime_allocation_size
+            # The runtime_allocation area should not be used by anyother buffer
+            assert not runtime_allocation_mask[address : address + size_in_bytes].any()
+            # The runtime_allocation area is marked as used
+            runtime_allocation_mask[address : address + size_in_bytes] = np.ones(
                 size_in_bytes, dtype="uint8"
             )
         elif buffer_type == tir_to_cs_translator.BufferType.input:
@@ -887,14 +895,16 @@ def test_assign_addresses():
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
-        _npu_ops, constant_hex_string, scratch_size = tir_to_cs_translator.assign_addresses(
-            buffer_info, _npu_ops
-        )
-        scratch_allocation_mask = np.zeros(scratch_size, dtype="uint8")
+        (
+            _npu_ops,
+            constant_hex_string,
+            runtime_allocation_size,
+        ) = tir_to_cs_translator.assign_addresses(buffer_info, _npu_ops)
+        runtime_allocation_mask = np.zeros(runtime_allocation_size, dtype="uint8")
         constant_tensor_read_mask = np.zeros(len(constant_hex_string) // 2, dtype="uint8")
         verify(_npu_ops)
-        # This will be only 1 if all allocated scratch is used.
-        assert np.prod(scratch_allocation_mask) == 1
+        # This will be only 1 if all allocated runtime_allocation is used.
+        assert np.prod(runtime_allocation_mask) == 1
         # This will be only 1 if all constant tensors is read at least once.
         assert np.prod(constant_tensor_read_mask) == 1
 

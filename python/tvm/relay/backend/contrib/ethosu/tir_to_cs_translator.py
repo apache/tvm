@@ -18,7 +18,7 @@
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.
 """
-from typing import Dict, NamedTuple, Tuple, Union
+from typing import Dict, NamedTuple, Tuple, Union, List
 from enum import auto
 from enum import Enum
 import numpy as np  # type: ignore
@@ -36,7 +36,7 @@ class BufferType(Enum):
 
     constant = auto()
     input_or_output = auto()
-    scratch = auto()
+    runtime_allocate = auto()
     input = auto()
     output = auto()
     shram = auto()
@@ -44,7 +44,7 @@ class BufferType(Enum):
 
 _REGION_MAP = {
     BufferType.constant: 0,
-    BufferType.scratch: 1,
+    BufferType.runtime_allocate: 1,
     BufferType.input: 3,
     BufferType.output: 4,
     BufferType.shram: int((1 << 8) | (3 << 0)),
@@ -102,8 +102,8 @@ def translate(tir_module, params):
     encoded_constants : str
         An hex string of the bytes that includes concat'd
         encoded weights, encoded biases and scales.
-    scratch_size : int
-        The size of the scratch buffer needed.
+    base_addresses : List[util.BaseAddress]
+        base addresses
     """
 
     buffer_info = extract_buffer_info(tir_module, params)
@@ -111,11 +111,61 @@ def translate(tir_module, params):
     _npu_ops = list()
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
-    _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    _npu_ops, constant_data, runtime_allocation_size = assign_addresses(buffer_info, _npu_ops)
+    base_addresses = extract_param_base_addresses(tir_module, buffer_info)
+    if runtime_allocation_size > 0:
+        base_addresses.append(
+            util.BaseAddress(
+                "runtime_allocation",
+                None,
+                _REGION_MAP[BufferType.runtime_allocate],
+                runtime_allocation_size,
+                True,
+            )
+        )
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
     payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
-    return payload.hex(), constant_data, scratch_size
+    return payload.hex(), constant_data, base_addresses
+
+
+def extract_param_base_addresses(mod, buffer_info) -> List[util.BaseAddress]:
+    """This function extracts base addresses to be used by the driver
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The TIR Module for NPU
+    buffer_info : Dict[tvm.tir.Var, BufferInfo]
+        Information regarding buffer vars used in the PrimFunc
+
+    Returns
+    -------
+    List[util.BaseAddress]
+        base addresses to be used by the driver
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    base_addresses = list()
+    idx = 0
+    for param in primfunc.params:
+        # constants are pooled together and handled specially
+        # this will change after tir.allocate_const.
+        # For now, we are skipping generating buffer addresses here
+        if buffer_info[param].btype == BufferType.constant:
+            continue
+        buffer = primfunc.buffer_map[param]
+        dtype = buffer.dtype
+        element_size_bytes = np.iinfo(dtype).bits // 8
+        size_bytes = element_size_bytes * np.prod(list(buffer.shape))
+        base_addresses.append(
+            util.BaseAddress(param.name, idx, _REGION_MAP[buffer_info[param].btype], size_bytes)
+        )
+        idx += 1
+
+    return base_addresses
 
 
 def extract_call_extern_list(mod):
@@ -171,6 +221,7 @@ def extract_buffer_info(
     # There should only be a single function
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
+
     for idx, const_data in param_dict.items():
         param = primfunc.params[idx]
         buffer_info[param] = BufferInfo(
@@ -197,7 +248,7 @@ def extract_buffer_info(
             if storage_scope == "local":
                 buffer_type = BufferType.shram
             else:
-                buffer_type = BufferType.scratch
+                buffer_type = BufferType.runtime_allocate
             buffer_info[allocate.buffer_var] = BufferInfo(
                 None,
                 allocate.extents,
@@ -229,7 +280,7 @@ def assign_addresses(buffer_info, npu_ops):
         A list of Vela NpuOps with addesses within scratch and constant buffers
     constant_tensor : NDArray
         A unified constant data array of uint8 as the constant buffer
-    scratch_size : int
+    runtime_allocation_size : int
         The size of the scratch tensor.
     """
 
@@ -276,7 +327,7 @@ def assign_addresses(buffer_info, npu_ops):
 
         raise ValueError(f"Unused IO : {buffer} in tir module.")
 
-    scratch_size = 0
+    runtime_allocation_size = 0
     constant_hex_data = []
     total_constant_len = 0
     buffer_addresses = dict()
@@ -301,6 +352,7 @@ def assign_addresses(buffer_info, npu_ops):
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
+                buffer_info[_buffer] = BufferInfo(None, info.dtype, info.dtype, buffer_type)
             elif info.btype == BufferType.shram:
                 accl_config = util.get_accelerator_config()
                 arch_config = get_accelerator_arch_config(accl_config)
@@ -311,9 +363,9 @@ def assign_addresses(buffer_info, npu_ops):
                 size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
                 # Every memory address the NPU access have to be 16 byte aligned
                 size_in_bytes = util.round_up(size_in_bytes, 16)
-                assert info.btype == BufferType.scratch
-                address = scratch_size
-                scratch_size += size_in_bytes
+                assert info.btype == BufferType.runtime_allocate
+                address = runtime_allocation_size
+                runtime_allocation_size += size_in_bytes
                 buffer_addresses[_buffer] = (address, info.btype)
 
     for npu_op in npu_ops:
@@ -330,7 +382,7 @@ def assign_addresses(buffer_info, npu_ops):
     return (
         npu_ops,
         constant_data,
-        scratch_size,
+        runtime_allocation_size,
     )
 
 
