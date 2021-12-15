@@ -158,9 +158,9 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
    */
   using FNextTaskId = runtime::TypedPackedFunc<int()>;
 
-  /*! \brief The packed function to the `Tune` funcion. */
+  /*! \brief The packed function to the `Tune` function. */
   FTune f_tune;
-  /*! \brief The packed function to the `InitializeTask` funcion. */
+  /*! \brief The packed function to the `InitializeTask` function. */
   FInitializeTask f_initialize_task;
   /*! \brief The packed function to the `SetTaskStopped` function. */
   FSetTaskStopped f_set_task_stopped;
