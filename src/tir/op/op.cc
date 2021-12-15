@@ -128,6 +128,14 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
              !rtype.is_float()) {
     // Cast int->float when the other operand is a float
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_bfloat16() &&
+             (rtype.is_bfloat16() || datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
+    // Cast int->float when the other operand is a float
+    lhs = cast(rtype, lhs);
+  } else if ((ltype.is_bfloat16() || datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
+             !rtype.is_bfloat16()) {
+    // Cast int->float when the other operand is a float
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
