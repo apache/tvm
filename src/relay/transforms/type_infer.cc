@@ -898,7 +898,7 @@ class SameTypedSubgraphExtractor : public ExprMutator {
 
 namespace transform {
 
-Type InferTypeFast(const Expr& expr) {
+Type InferTypeLocal(const Expr& expr) {
   SameTypedSubgraphExtractor subgraph_extractor;
   auto mod = IRModule::FromExpr(subgraph_extractor(expr));
 
@@ -909,8 +909,8 @@ Type InferTypeFast(const Expr& expr) {
   return result_type;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.InferTypeFast").set_body_typed([](const Expr& expr) {
-  return InferTypeFast(expr);
+TVM_REGISTER_GLOBAL("relay._transform.InferTypeLocal").set_body_typed([](const Expr& expr) {
+  return InferTypeLocal(expr);
 });
 
 Pass InferType() {
