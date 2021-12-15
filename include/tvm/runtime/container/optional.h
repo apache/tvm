@@ -97,9 +97,7 @@ class Optional : public ObjectRef {
    * \return The internal object pointer with type T* for Optional<T>.
    * \note This function do not perform not-null checking.
    */
-  const T* get() const {
-    return data_;
-  }
+  const T* get() const { return data_; }
   /*!
    * \return The contained value if the Optional is not null
    *         otherwise return the default_value.
