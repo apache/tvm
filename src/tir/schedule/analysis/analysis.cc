@@ -137,7 +137,7 @@ Definition of a scope that is a stage pipeline:
   }
   // Step 3. Handle `require_subtree_compact_dataflow`
   if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_sref);
+    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
     for (const StmtSRef& block_sref : child_block_srefs) {
       if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
           !IsReductionBlock(self, block_sref, scope_root_sref)) {
