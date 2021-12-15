@@ -83,7 +83,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 
     TVMValue* arg_values = const_cast<TVMValue*>(args.values);
     std::vector<std::pair<size_t, HexagonBuffer*>> buffer_args;
-    for (size_t i = 0; i < args.num_args; i++) {
+    for (int i = 0; i < args.num_args; i++) {
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
