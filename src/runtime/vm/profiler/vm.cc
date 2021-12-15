@@ -90,7 +90,7 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
+void VirtualMachineDebug::LoadExecutable(Executable* exec) {
   VirtualMachine::LoadExecutable(exec);
   ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
@@ -202,7 +202,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   }
 }
 
-runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
+runtime::Module CreateVirtualMachineDebug(Executable* exec) {
   auto vm = make_object<VirtualMachineDebug>();
   vm->LoadExecutable(exec);
   return runtime::Module(vm);
@@ -210,7 +210,7 @@ runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
-  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  auto* exec = dynamic_cast<Executable*>(mod.operator->());
   ICHECK(exec) << "Virtual machine has not been defined yet."
                << "\n";
   *rv = CreateVirtualMachineDebug(exec);
