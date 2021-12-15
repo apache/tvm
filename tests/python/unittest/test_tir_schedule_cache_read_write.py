@@ -684,6 +684,13 @@ def test_cache_read_fail_index_out_of_bound():
         sch.cache_read(block_b, 1, "global")
 
 
+def test_cache_read_fail_invalid_storage_scope():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.cache_read(block_b, 0, "test_scope")
+
+
 ########## Testcases for cache_write ##########
 
 
@@ -757,6 +764,13 @@ def test_cache_write_fail_index_out_of_bound():
     block_b = sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.cache_write(block_b, 1, "global")
+
+
+def test_cache_write_fail_invalid_storage_scope():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.cache_write(block_b, 0, "test_scope")
 
 
 if __name__ == "__main__":
