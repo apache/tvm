@@ -127,7 +127,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
-      if (dtype.is_float() || dtype.is_bfloat16()) {
+      if (dtype.is_float()) {
         // floor(a / b)
         return VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>());
       } else {
@@ -181,7 +181,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
         }
       }
     } else {
-      if (dtype.is_float() || dtype.is_bfloat16()) {
+      if (dtype.is_float()) {
         // a - floor(a / b) * b
         return op->a - (VisitExpr_(tvm::floor(op->a / op->b).as<CallNode>()) * op->b);
       } else {
@@ -269,7 +269,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && (op->dtype.is_float() || op->dtype.is_bfloat16())) {
+    if (fma_ != nullptr && (op->dtype.is_float())) {
       PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
