@@ -185,6 +185,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
     .set_body_method<Schedule>(&ScheduleNode::SetScope);
 /******** (FFI) Blockize & Tensorize ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
+    .set_body_method<Schedule>(&ScheduleNode::Blockize);
 /******** (FFI) Annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
     .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,

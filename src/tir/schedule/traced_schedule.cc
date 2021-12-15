@@ -356,6 +356,17 @@ void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
 
 /******** Schedule: Blockize & Tensorize ********/
 
+BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv) {
+  BlockRV new_block = ConcreteScheduleNode::Blockize(loop_rv);
+  static const InstructionKind& kind = InstructionKind::Get("Blockize");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{loop_rv},
+      /*attrs=*/{},
+      /*outputs=*/{new_block}));
+  return new_block;
+}
+
 /******** Schedule: Annotation ********/
 
 void TracedScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,

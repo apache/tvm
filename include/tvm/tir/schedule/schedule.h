@@ -473,6 +473,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
   /******** Schedule: Blockize & Tensorize ********/
+  /*!
+   * \brief Convert the subtree rooted by a specific loop into a block.
+   * \param loop_rv The root of the subtree
+   * \return The new block
+   */
+  virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
   /******** Schedule: Annotation ********/
   /*!
    * \brief Annotate a loop with a key value pair

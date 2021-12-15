@@ -378,6 +378,9 @@ TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer
                       const String& storage_scope);
 
 /******** Schedule: Blockize & Tensorize ********/
+
+TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
+
 /******** Schedule: Annotation ********/
 /*!
  * \brief Annotate a block/loop with a key value pair
