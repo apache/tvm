@@ -41,7 +41,7 @@ Let's start editing the python file in your favorite text editor.
 ################################################################################
 # Step 0: Imports
 # ~~~~~~~~~~~~~~~
-# 
+#
 # .. code-block:: python
 #
 #     from tvm.driver import tvmc
@@ -51,41 +51,41 @@ Let's start editing the python file in your favorite text editor.
 # Step 1: Load a model
 # ~~~~~~~~~~~~~~~~~~~~
 #
-# Let's import our model into tvmc. This step converts a machine learning model from 
-# a supported framework into TVM's high level graph representation language called Relay. 
-# This is to have a unified starting point for all models in tvm. The frameworks we currently 
+# Let's import our model into tvmc. This step converts a machine learning model from
+# a supported framework into TVM's high level graph representation language called Relay.
+# This is to have a unified starting point for all models in tvm. The frameworks we currently
 # support are: Keras, ONNX, Tensorflow, TFLite, and PyTorch.
-# 
-# .. code-block:: python
-#      model = tvmc.load('my_model.onnx') #Step 1: Load
-# 
-# If you'd like to see the Relay, you can run: 
-# ``model.summary()``
-# 
-# All frameworks support overwriting the input shapes with a shape_dict argument. 
-# For most frameworks this is optional, but for Pytorch this is necessary as 
-# TVM cannot automatically search for it. 
 #
 # .. code-block:: python
-#      ### Step 1: Load shape_dict Style 
+#      model = tvmc.load('my_model.onnx') #Step 1: Load
+#
+# If you'd like to see the Relay, you can run:
+# ``model.summary()``
+#
+# All frameworks support overwriting the input shapes with a shape_dict argument.
+# For most frameworks this is optional, but for Pytorch this is necessary as
+# TVM cannot automatically search for it.
+#
+# .. code-block:: python
+#      ### Step 1: Load shape_dict Style
 #      # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
 #      # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
-# 
-# A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model, 
+#
+# A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
 
 
 ################################################################################
 # Step 2: Compile
 # ~~~~~~~~~~~~~~~
-# 
-# Now that our model is in Relay, our next step is to compile it to a desired 
-# hardware to run on. We refer to this hardware as a target. This compilation process 
-# translates the model from Relay into a lower-level language that the 
-# target machine can understand. 
-# 
-# In order to compile a model a tvm.target string is required. 
-# To learn more about tvm.targets and their options look at the `documentation <https://tvm.apache.org/docs/api/python/target.html>`_. 
+#
+# Now that our model is in Relay, our next step is to compile it to a desired
+# hardware to run on. We refer to this hardware as a target. This compilation process
+# translates the model from Relay into a lower-level language that the
+# target machine can understand.
+#
+# In order to compile a model a tvm.target string is required.
+# To learn more about tvm.targets and their options look at the `documentation <https://tvm.apache.org/docs/api/python/target.html>`_.
 # Some examples include:
 # 1. cuda (Nvidia GPU)
 # 2. llvm (CPU)
@@ -93,71 +93,71 @@ Let's start editing the python file in your favorite text editor.
 #
 #  .. code-block:: python
 #      package = tvmc.compile(model, target="llvm") #Step 2: Compile
-# 
+#
 # The compilation step returns a package.
-# 
+#
 
 ################################################################################
 # Step 3: Run
 # ~~~~~~~~~~~
-# 
-# The compiled package can now be run on the hardware target. The device 
+#
+# The compiled package can now be run on the hardware target. The device
 # input options are: CPU, Cuda, CL, Metal, and Vulkan.
-# 
+#
 #  .. code-block:: python
 #      result = tvmc.run(package, device="cpu") #Step 3: Run
-# 
+#
 # And you can print the results:
 # ``print(results)``
-# 
+#
 
 ################################################################################
 # Step 1.5: Tune [Optional & Recommended]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 
-# Run speed can further be improved by tuning. This optional step uses 
-# machine learning to look at each operation within a model (a function) and 
-# tries to find a faster way to run it. We do this through a cost model, and 
+#
+# Run speed can further be improved by tuning. This optional step uses
+# machine learning to look at each operation within a model (a function) and
+# tries to find a faster way to run it. We do this through a cost model, and
 # benchmarking possible schedules.
-# 
-# The target is the same as compile. 
-# 
+#
+# The target is the same as compile.
+#
 #  .. code-block:: python
 #      tvmc.tune(model, target="llvm") #Step 1.5: Optional Tune
-# 
-# The terminal output should look like: 
+#
+# The terminal output should look like:
 # [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
 # [Task  1/13]  Current/Best:   54.47/ 113.50 GFLOPS | Progress: (240/769) | 85.36 s
 # .....
-# 
-# There may be UserWarnings that can be ignored. 
-# This should make the end result faster, but it can take hours to tune. 
 #
-# See the section 'Saving the Tuning Results' below. Be sure to pass the tuning 
-# results into compile. 
-# 
+# There may be UserWarnings that can be ignored.
+# This should make the end result faster, but it can take hours to tune.
+#
+# See the section 'Saving the Tuning Results' below. Be sure to pass the tuning
+# results into compile.
+#
 # Ex: tvmc.compile(model, target="llvm", tuning_records = "records.log") #Step 2: Compile
 
 ################################################################################
 # Save and then start the process in the terminal:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 
+#
 #  .. code-block:: python
 #      python my_tvmc_script.py
-# 
+#
 # Note: Your fans may become very active
-# 
+#
 
 ################################################################################
 # Example results:
 # ~~~~~~~~~~~~~~~~
-# 
+#
 #   .. code-block:: python
 #      Time elapsed for training: 18.99 s
 #      Execution time summary:
-#      mean (ms)   max (ms)   min (ms)   std (ms) 
-#        25.24      26.12      24.89       0.38 
-#      
+#      mean (ms)   max (ms)   min (ms)   std (ms)
+#        25.24      26.12      24.89       0.38
+#
 #      Output Names:
 #       ['output_0']
 #
@@ -165,41 +165,41 @@ Let's start editing the python file in your favorite text editor.
 ################################################################################
 # Additional TVMC Functionalities
 # -------------------------------
-# 
+#
 
 ################################################################################
 # Saving the model
 # ~~~~~~~~~~~~~~~~
-# 
-# To make things faster for later, after loading the model (Step 1) save the Relay version. 
+#
+# To make things faster for later, after loading the model (Step 1) save the Relay version.
 # The model will then appear where you saved it for later in the coverted syntax.
 #
 #   .. code-block:: python
 #      model = tvmc.load('my_model.onnx') #Step 1: Load
-#      model.save(desired_model_path) 
-# 
+#      model.save(desired_model_path)
+#
 
 ################################################################################
 # Saving the package
 # ~~~~~~~~~~~~~~~~~~
-# 
-# After the model has been compiled (Step 2) the package also is also saveable.  
-# 
+#
+# After the model has been compiled (Step 2) the package also is also saveable.
+#
 #    .. code-block:: python
 #      tvmc.compile(model, target="llvm", package_path="whatever")
-#      
-#      new_package = tvmc.TVMCPackage(package_path="whatever") 
+#
+#      new_package = tvmc.TVMCPackage(package_path="whatever")
 #      result = tvmc.run(new_package) #Step 3: Run
-# 
+#
 
 ################################################################################
 # Using Autoscheduler
 # ~~~~~~~~~~~~~~~~~~~
-# 
-# Use the next generation of tvm to enable potentially faster run speed results. 
-# The search space of the schedules is automatically generated unlike 
-# previously where they needed to be hand written. (Learn more: 1, 2) 
-# 
+#
+# Use the next generation of tvm to enable potentially faster run speed results.
+# The search space of the schedules is automatically generated unlike
+# previously where they needed to be hand written. (Learn more: 1, 2)
+#
 #    .. code-block:: python
 #      tvmc.tune(model, target="llvm", enable_autoscheduler = True)
 #
@@ -207,40 +207,40 @@ Let's start editing the python file in your favorite text editor.
 ################################################################################
 # Saving the tuning results
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# 
+#
 # The tuning results can be saved in a file for later reuse.
-# 
+#
 # Method 1:
 #    .. code-block:: python
 #      log_file = "hello.json"
-#      
+#
 #      # Run tuning
 #      tvmc.tune(model, target="llvm",tuning_records=log_file)
-#      
+#
 #      ...
-#      
+#
 #      # Later run tuning and reuse tuning results
 #      tvmc.tune(model, target="llvm",tuning_records=log_file)
-#  
+#
 # Method 2:
 #    .. code-block:: python
 #      # Run tuning
 #      tuning_records = tvmc.tune(model, target="llvm")
-#      
+#
 #      ...
-#      
+#
 #      # Later run tuning and reuse tuning results
 #      tvmc.tune(model, target="llvm",tuning_records=tuning_records)
-# 
+#
 
 ################################################################################
 # Tuning a more complex model:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 
+#
 # If you notice T's (timeouts) printed like below,
-# .........T.T..T..T..T.T.T.T.T.T. 
-# increase the searching time frame: 
-# 
+# .........T.T..T..T..T.T.T.T.T.T.
+# increase the searching time frame:
+#
 #    .. code-block:: python
 #      tvmc.tune(model,trials=10000,timeout=10,)
 #
@@ -248,14 +248,14 @@ Let's start editing the python file in your favorite text editor.
 ################################################################################
 # Compiling a model for a remote device:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 
-# A remote procedural call (RPC) is useful when you would like to compile for hardware 
-# that is not on your local machine. The tvmc methods support this. 
-# To set up the RPC server take a look at the 'Set up RPC Server on Device' 
-# section in this `document <https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html>`_. 
-# 
+#
+# A remote procedural call (RPC) is useful when you would like to compile for hardware
+# that is not on your local machine. The tvmc methods support this.
+# To set up the RPC server take a look at the 'Set up RPC Server on Device'
+# section in this `document <https://tvm.apache.org/docs/tutorials/get_started/cross_compilation_and_rpc.html>`_.
+#
 # Within the TVMC Script include the following and adjust accordingly:
-# 
+#
 #    .. code-block:: python
 #      tvmc.tune(
 #           model,
@@ -265,5 +265,4 @@ Let's start editing the python file in your favorite text editor.
 #           port=port_number, # The port of the RPC tracker to connect to. Defaults to 9090.
 #           rpc_key=your_key, # The RPC tracker key of the target device. Required when rpc_tracker is provided
 #      )
-# 
-
+#
