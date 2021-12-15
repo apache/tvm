@@ -27,8 +27,6 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 Before we get started let's get an example model if you don't already have one.
 Follow the steps to download a resnet model via the terminal:
 
- .. code-block:: bash
-
      mkdir myscripts
      cd myscripts
      wget https://github.com/onnx/models/raw/master/vision/classification/resnet/model/resnet50-v2-7.onnx
