@@ -85,7 +85,7 @@ def get_dense_bias(M, N, K, out_dtype="float16"):
 
 
 def get_dense_bias_relu(M, N, K, out_dtype="float16"):
-    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype="float16"))
+    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype=out_dtype))
 
 
 def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
@@ -110,7 +110,7 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
-def get_conv2d_nchw(d_shape, w_shape):
+def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
     data = relay.var("data", shape=d_shape, dtype="float16")
     weight = relay.var("weight", shape=w_shape, dtype="float16")
     out_channel = w_shape[0]
@@ -118,10 +118,10 @@ def get_conv2d_nchw(d_shape, w_shape):
         relay.nn.conv2d(
             data=data,
             weight=weight,
-            kernel_size=(3, 3),
+            kernel_size=w_shape[2:],
             channels=out_channel,
-            padding=(1, 1),
-            out_dtype="float16",
+            padding=padding,
+            out_dtype=out_dtype,
         )
     )
 
@@ -376,7 +376,8 @@ def test_conv2d():
     for IC in [3, 16]:
         d_shape = (16, IC, 32, 32)
         w_shape = (32, IC, 3, 3)
-        mod_nchw = get_conv2d_nchw(d_shape, w_shape)
+        padding = (1, 1)
+        mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
 
         verify_conv2d(
             mod_nchw,
@@ -392,10 +393,11 @@ def test_conv2d():
 
     d_shape = (16, 16, 32, 32)
     w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
     dyn_batch_shape = (relay.Any(),) + d_shape[1:]
 
-    mod_nchw = get_conv2d_nchw(d_shape, w_shape)
-    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape)
+    mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
+    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape, padding)
 
     verify_conv2d(
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False

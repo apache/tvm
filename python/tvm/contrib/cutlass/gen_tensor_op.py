@@ -159,6 +159,12 @@ def generate_sm80_tensor_op_16816(out_dtype, op_creator):
     return sm75_kernels + sm80_kernels
 
 
+GENERATOR_FUNC_TABLE = {
+    75: generate_sm75_tensor_op_1688,
+    80: generate_sm80_tensor_op_16816,
+}
+
+
 class ProfilerEngine:
     """Compile and run a given profiler executable."""
 
@@ -204,16 +210,12 @@ class ProfilerEngine:
         if not os.path.exists(opath):
             self._compile(op)
         cmd = [opath]
-        if args is not None:
-            cmd.append(str(args[0]))
-            cmd.append(str(args[1]))
-            cmd.append(str(args[2]))
-            if len(args) > 3:
-                cmd.append(str(args[3]))
+        for arg in args:
+            cmd.append(str(arg))
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
             logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
-            rt = -1
+            rt = float("inf")
         return rt

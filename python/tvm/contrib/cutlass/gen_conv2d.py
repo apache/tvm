@@ -16,8 +16,14 @@
 # under the License.
 # pylint: disable=invalid-name
 """Conv2d kernel generator and profiler for CUTLASS."""
+import re
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
 from .gen_gemm import CutlassGemmProfiler
+from .conv2d_profiler import Conv2dProfilerEmitter
+from .gen_tensor_op import (
+    ProfilerEngine,
+    GENERATOR_FUNC_TABLE,
+)
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
@@ -39,6 +45,7 @@ def create_conv2d_operator(
     ret = []
 
     kernel_emitter = EmitConv2dInstance()
+    profiler_emitter = Conv2dProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
     iterator_algorithms = [IteratorAlgorithm.Optimized]
@@ -72,9 +79,9 @@ def create_conv2d_operator(
                     swizzling_functor_,
                 )
 
-                # TODO(masahi): Add profiler source here
                 op_entry["opdef"] = kernel_emitter.emit(op)
                 op_entry["op"] = op
+                op_entry["src"] = profiler_emitter.emit(op_entry["opdef"], op.procedural_name())
                 op_entry["name"] = op.procedural_name()
                 op_entry["runtime"] = 9999999
 
@@ -113,6 +120,9 @@ class CutlassConv2DProfiler:
     def __init__(self, sm, cutlass_path, binary_path):
         self.gemm_profiler = CutlassGemmProfiler(sm, cutlass_path, binary_path)
         self.sm = sm
+        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
+        self.cache = {}
 
     def get_default(self, out_dtype):
         gemm_profile_result = self.gemm_profiler.get_default(out_dtype)
@@ -121,27 +131,67 @@ class CutlassConv2DProfiler:
         data_type = gemm_profile_result["data_type"]
         return create_conv2d_operator([tile_description], data_type, [alignment])[0]
 
+    def check_align(self, op_name, C, K):
+        """Filter out kernels that cannot be supported."""
+        aligns = re.findall(r"align[1|2|4|8]", op_name)
+        assert len(aligns) == 1
+        align = int(aligns[0][-1])
+        return all([dim % align == 0 for dim in [C, K]])
+
     def profile(
-        self, d_shape, w_shape, out_shape, out_dtype, profile_all=True, use_multiprocessing=False
+        self,
+        d_shape,
+        w_shape,
+        padding,
+        stride,
+        dilation,
+        out_dtype,
+        profile_all=True,
+        use_multiprocessing=False,
     ):
         """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
-        B, _, _, IC = d_shape
+        N, H, W, IC = d_shape
         OC, R, S, _ = w_shape
-        _, P, Q, _ = out_shape
-
-        M = B * P * Q
-        N = OC
-        K = R * S * IC
-
-        gemm_profile_result = self.gemm_profiler.profile(
-            M, N, K, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+        workload = (
+            N,
+            H,
+            W,
+            IC,
+            OC,
+            R,
+            S,
+            padding[0],
+            padding[1],
+            stride[0],
+            stride[1],
+            dilation[0],
+            dilation[1],
         )
 
-        tile_description = gemm_profile_result["tile_description"]
-        alignment = gemm_profile_result["alignment"]
-        data_type = gemm_profile_result["data_type"]
+        if workload in self.cache:
+            return self.cache[workload]
 
-        return create_conv2d_operator([tile_description], data_type, [alignment])[0]
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, op_creator=create_conv2d_operator)
+        ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
+
+        if profile_all:
+            self.engine.compile_all(ops, use_multiprocessing)
+
+        args = (
+            "--n=%d --h=%d --w=%d --c=%d --k=%d --r=%d --s=%d --pad_h=%d --pad_w=%d "
+            "--stride_h=%d --stride_w=%d --dilation_h=%d --dilation_w=%d"
+        ) % workload
+
+        for op in ops:
+            out = self.engine.evaluate(op, args.split(" "))
+            op["runtime"] = out
+            if out < float("inf") and not profile_all:
+                self.cache[workload] = op
+                return op
+
+        output = min(ops, key=lambda i: i["runtime"])
+        self.cache[workload] = output
+        return output
