@@ -16,8 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/array.h>
-
 #include "../../ir/functor_common.h"
 #include "../utils.h"
 
