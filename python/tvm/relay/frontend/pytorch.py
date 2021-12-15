@@ -3303,7 +3303,7 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
-                span_str = self._get_torch_span(op_node.__repr__())
+                span_str = self._get_torch_span(op_node)
                 relay_out = set_span(relay_out, span_str)
 
                 self.record_output_type(relay_out)
@@ -3319,20 +3319,13 @@ class PyTorchOpConverter:
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
-    def _get_torch_span(self, node_repr):
+    def _get_torch_span(self, node):
         # torch span looks like
         # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
-        scope_part = "EMPTY"
-        aten_part = ""
-        scope_str = ", scope:"
-        aten_str = "aten::"
-        if scope_str in node_repr:
-            scope_part = node_repr.split(scope_str)[1]
-            scope_part = scope_part.split("#")[0].strip()
-        if aten_str in node_repr:
-            aten_part = node_repr.split(aten_str)[1]
-            aten_part = aten_str + aten_part.split("(")[0]
-        return "C.graph: {}, , jit._trace.TopLevelTracedModule: {}".format(aten_part, scope_part)
+        scope_name_str = node.scopeName() if node.scopeName() else "EMPTY"
+        return "C.graph: {}, jit._trace.TopLevelTracedModule: {}".format(
+            node.kind(), scope_name_str
+        )
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

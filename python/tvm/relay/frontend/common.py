@@ -958,15 +958,15 @@ def try_resolve_var_to_const(x, graph_params):
 
 
 def set_span(sym, node_name):
-    """Set up the sapn for while converting OP"""
+    """Set up the sapn of relay expression(s) while converting OP"""
 
     class SpanFiller(ExprMutator):
         """SpanFiller"""
 
-        def __init__(self, node_name, surfix_str="_PART_"):
+        def __init__(self, node_name, suffix_str="_PART_"):
             ExprMutator.__init__(self)
             self.node_name = node_name
-            self.surfix_str = surfix_str
+            self.suffix_str = suffix_str
             self.counter = 0
             self.distance_from_leaf = -1
 
@@ -974,7 +974,7 @@ def set_span(sym, node_name):
             if self.distance_from_leaf == 0:
                 return tvm.relay.Span(tvm.relay.SourceName(self.node_name), 0, 0, 0, 0)
             self.distance_from_leaf -= 1
-            span_str = "{}{}{}".format(self.node_name, self.surfix_str, str(self.counter))
+            span_str = "{}{}{}".format(self.node_name, self.suffix_str, str(self.counter))
             self.counter += 1
             return tvm.relay.Span(tvm.relay.SourceName(span_str), 0, 0, 0, 0)
 
