@@ -219,6 +219,12 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
+  } else if (name == "load_late_bound_consts") {
+    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.size(), 1);
+      std::string path = args[0];
+      exec_->LoadLateBoundConstantsFromFile(path);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -365,8 +371,10 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
   }
 }
 
-void VirtualMachine::LoadExecutable(const Executable* exec) {
+void VirtualMachine::LoadExecutable(Executable* exec) {
   ICHECK(exec) << "The executable is not created yet.";
+  ICHECK(exec->late_bound_constant_names.empty())
+      << "Need to load late-bound-constants before creating VM";
   exec_ = exec;
 
   runtime::Module lib = exec_->GetLib();
@@ -753,7 +761,7 @@ void VirtualMachine::RunLoop() {
   }
 }
 
-runtime::Module CreateVirtualMachine(const Executable* exec) {
+runtime::Module CreateVirtualMachine(Executable* exec) {
   auto vm = make_object<VirtualMachine>();
   vm->LoadExecutable(exec);
   return runtime::Module(vm);
@@ -761,7 +769,7 @@ runtime::Module CreateVirtualMachine(const Executable* exec) {
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachine").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
-  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  auto* exec = dynamic_cast<Executable*>(mod.operator->());
   ICHECK(exec) << "The virtual machine executable has not been defined yet.";
   *rv = CreateVirtualMachine(exec);
 });

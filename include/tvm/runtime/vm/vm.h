@@ -174,7 +174,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief load the executable for the virtual machine.
    * \param exec The executable.
    */
-  virtual void LoadExecutable(const Executable* exec);
+  virtual void LoadExecutable(Executable* exec);
 
  protected:
   /*! \brief Push a call frame on to the call stack. */
@@ -300,7 +300,7 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief The special return register. */
   ObjectRef return_register_;
   /*! \brief The executable the VM will operate on. */
-  const Executable* exec_;
+  Executable* exec_;
   /*! \brief The function name to inputs mapping. */
   std::unordered_map<std::string, std::vector<ObjectRef>> inputs_;
   /*!
