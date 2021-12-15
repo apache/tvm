@@ -1735,6 +1735,7 @@ class Schedule(Object):
 
     ########## Schedule: Annotation ##########
 
+    @type_checked
     def annotate(
         self,
         block_or_loop: Union[BlockRV, LoopRV],
@@ -1801,6 +1802,7 @@ class Schedule(Object):
             self, block_or_loop, ann_key, ann_val
         )
 
+    @type_checked
     def unannotate(self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str) -> None:
         """Unannotate a block/loop's annotation with key ann_key
 
