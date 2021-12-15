@@ -172,7 +172,7 @@ class RollingBufferInjector : public StmtExprMutator {
 
           auto it{std::find_if(
               bound_iter_vars.begin(), bound_iter_vars.end(),
-              [&](Optional<Var> var) { return var && (var.value().get() == loop_var.get()); })};
+              [&](Optional<Var> var) { return var && (var.get() == loop_var.get()); })};
 
           if (it != bound_iter_vars.end()) {
             auto i{std::distance(bound_iter_vars.begin(), it)};
