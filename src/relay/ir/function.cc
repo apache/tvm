@@ -91,7 +91,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params, Optional
     cow_function_node->virtual_device_ = virtual_device;
     cow_function_node->span = span;
   }
-  return std::move(function);
+  return function;
 }
 
 FuncType FunctionNode::func_type_annotation() const {

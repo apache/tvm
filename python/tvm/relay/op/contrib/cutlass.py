@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
+from tvm.ir.transform import Sequential
 from tvm.relay import transform
 from ...dataflow_pattern import wildcard, is_op, is_constant
 
@@ -56,19 +58,71 @@ def make_batch_matmul_pattern():
 
 
 def make_conv2d_pattern():
-    # TODO(masahi): Check layout and alignment
     return is_op("nn.conv2d")(wildcard(), wildcard())
+
+
+def check_dtype(lhs, rhs):
+    """Check if dtypes in the given workload are supported by CUTLASS."""
+    # Only fp16 inputs are supported for now.
+    return lhs.dtype == rhs.dtype and lhs.dtype == "float16" and rhs.dtype == "float16"
+
+
+def get_root_call(call, root_op_name):
+    if str(call.op) == root_op_name:
+        return call
+    return get_root_call(call.args[0], root_op_name)
+
+
+def check_gemm(call):
+    """Check if the given dense workload can be offloaded to CUTLASS."""
+    dense = get_root_call(call, "nn.dense")
+    lhs = dense.args[0].checked_type
+    rhs = dense.args[1].checked_type
+    return check_dtype(lhs, rhs)
+
+
+def check_batch_matmul(call):
+    """Check if the given batch_matmul workload can be offloaded to CUTLASS."""
+    batch_matmul = get_root_call(call, "nn.batch_matmul")
+    lhs = batch_matmul.args[0].checked_type
+    rhs = batch_matmul.args[1].checked_type
+    transpose_a = batch_matmul.attrs.transpose_a
+    transpose_b = batch_matmul.attrs.transpose_b
+    return check_dtype(lhs, rhs) and not transpose_a and transpose_b
+
+
+def is_depthwise_conv2d(ic, oc, groups):
+    return ic == oc == groups
+
+
+def check_conv2d(call):
+    """Check if the given conv2d workload can be offloaded to CUTLASS."""
+    conv2d = get_root_call(call, "nn.conv2d")
+    data_layout = conv2d.attrs.data_layout
+    kernel_layout = conv2d.attrs.kernel_layout
+    data = conv2d.args[0].checked_type
+    weight = conv2d.args[1].checked_type
+    if data_layout != "NHWC" or kernel_layout != "OHWI" or not check_dtype(data, weight):
+        return False
+    IC = data.shape[3]
+    OC = weight.shape[0]
+    return not is_depthwise_conv2d(IC, OC, conv2d.attrs.groups)
 
 
 def partition_for_cutlass(mod):
     """Partition the input module into CUTLASS-supported subgraphs."""
-    dense_pat = ("cutlass.dense", make_gemm_pattern(False, None))
-    dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None))
-    dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "relu"))
-    dense_bias_gelu_fp16_pat = ("cutlass.dense_bias_gelu_fp16", make_gemm_pattern(True, "gelu"))
+    dense_pat = ("cutlass.dense", make_gemm_pattern(False, None), check_gemm)
+    dense_bias_pat = ("cutlass.dense_bias", make_gemm_pattern(True, None), check_gemm)
+    dense_bias_relu_pat = ("cutlass.dense_bias_relu", make_gemm_pattern(True, "relu"), check_gemm)
+    dense_bias_gelu_fp16_pat = (
+        "cutlass.dense_bias_gelu_fp16",
+        make_gemm_pattern(True, "gelu"),
+        check_gemm,
+    )
     dense_bias_gelu_fp32_pat = (
         "cutlass.dense_bias_gelu_fp32",
         make_gemm_pattern(True, "gelu", out_dtype="float32"),
+        check_gemm,
     )
     cutlass_patterns = [
         dense_bias_gelu_fp16_pat,
@@ -76,11 +130,16 @@ def partition_for_cutlass(mod):
         dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,
-        ("cutlass.batch_matmul", make_batch_matmul_pattern()),
+        ("cutlass.batch_matmul", make_batch_matmul_pattern(), check_batch_matmul),
         # TODO(masahi): Add more conv2d patterns
-        ("cutlass.conv2d", make_conv2d_pattern()),
+        ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
-    mod = transform.MergeComposite(cutlass_patterns)(mod)
-    mod = transform.AnnotateTarget(["cutlass"])(mod)
-    mod = transform.PartitionGraph()(mod)
-    return mod
+    seq = Sequential(
+        [
+            transform.InferType(),
+            transform.MergeComposite(cutlass_patterns),
+            transform.AnnotateTarget(["cutlass"]),
+            transform.PartitionGraph(),
+        ]
+    )
+    return seq(mod)

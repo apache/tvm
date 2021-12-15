@@ -107,7 +107,7 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
     cow_tuple_node->virtual_device_ = virtual_device;
     cow_tuple_node->span = span;
   }
-  return std::move(tuple);
+  return tuple;
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -122,6 +122,13 @@ Var::Var(Id vid, Type type_annotation, Span span) {
   n->type_annotation = std::move(type_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+/* static */ Var Var::GenSym(Type type_annotation, Span span) {
+  static size_t next_id = std::atomic<size_t>(0);
+  std::ostringstream os;
+  os << "x_" << next_id++;
+  return Var(os.str(), std::move(type_annotation), std::move(span));
 }
 
 Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation,
@@ -141,7 +148,7 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
     cow_var_node->virtual_device_ = virtual_device;
     cow_var_node->span = span;
   }
-  return std::move(var);
+  return var;
 }
 
 TVM_REGISTER_NODE_TYPE(VarNode);
@@ -219,7 +226,7 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
     cow_call_node->virtual_device_ = virtual_device;
     cow_call_node->span = span;
   }
-  return std::move(call);
+  return call;
 }
 
 TVM_REGISTER_NODE_TYPE(CallNode);
@@ -264,7 +271,7 @@ Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optiona
     cow_let_node->virtual_device_ = virtual_device;
     cow_let_node->span = span;
   }
-  return std::move(let);
+  return let;
 }
 
 TVM_REGISTER_NODE_TYPE(LetNode);
@@ -308,7 +315,7 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
     cow_if_node->virtual_device_ = virtual_device;
     cow_if_node->span = span;
   }
-  return std::move(if_expr);
+  return if_expr;
 }
 
 TVM_REGISTER_NODE_TYPE(IfNode);
@@ -350,7 +357,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
     cow_tuple_get_item_node->span = span;
     cow_tuple_get_item_node->virtual_device_ = virtual_device;
   }
-  return std::move(tuple_get_item);
+  return tuple_get_item;
 }
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
@@ -385,7 +392,7 @@ RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
     cow_ref_create_node->virtual_device_ = virtual_device;
     cow_ref_create_node->span = span;
   }
-  return std::move(ref_create);
+  return ref_create;
 }
 
 TVM_REGISTER_NODE_TYPE(RefCreateNode);
@@ -420,7 +427,7 @@ RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref, Optional<SEScope> o
     cow_ref_read_node->virtual_device_ = virtual_device;
     cow_ref_read_node->span = span;
   }
-  return std::move(ref_read);
+  return ref_read;
 }
 
 TVM_REGISTER_NODE_TYPE(RefReadNode);
@@ -457,7 +464,7 @@ RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> o
     cow_ref_write_node->virtual_device_ = virtual_device;
     cow_ref_write_node->span = span;
   }
-  return std::move(ref_write);
+  return ref_write;
 }
 
 TVM_REGISTER_NODE_TYPE(RefWriteNode);
@@ -510,29 +517,29 @@ inline void Dismantle(const Expr& expr) {
       stack.top().second = true;
 
       // special handling
-      if (const CallNode* op = node.as<CallNode>()) {
+      if (const auto* call_node = node.as<CallNode>()) {
         // do not process args if used elsewhere
-        if (op->args.use_count() < 2) {
-          for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+        if (call_node->args.use_count() < 2) {
+          for (auto it = call_node->args.rbegin(); it != call_node->args.rend(); ++it) {
             fpush_to_stack(*it);
           }
         }
-      } else if (const TupleNode* op = node.as<TupleNode>()) {
+      } else if (const auto* tuple_node = node.as<TupleNode>()) {
         // do not process fields if used elsewhere
-        if (op->fields.use_count() < 2) {
-          for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
+        if (tuple_node->fields.use_count() < 2) {
+          for (auto it = tuple_node->fields.rbegin(); it != tuple_node->fields.rend(); ++it) {
             fpush_to_stack(*it);
           }
         }
-      } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
+      } else if (const auto* tuple_get_item_node = node.as<TupleGetItemNode>()) {
         // do not process tuple if used elsewhere
-        if (op->tuple.use_count() < 2) {
-          fpush_to_stack(op->tuple);
+        if (tuple_get_item_node->tuple.use_count() < 2) {
+          fpush_to_stack(tuple_get_item_node->tuple);
         }
-      } else if (const LetNode* op = node.as<LetNode>()) {
+      } else if (const auto* let_node = node.as<LetNode>()) {
         // do not process let if used elsewhere
-        if (op->body.use_count() < 2) {
-          fpush_to_stack(op->body);
+        if (let_node->body.use_count() < 2) {
+          fpush_to_stack(let_node->body);
         }
       }
     }

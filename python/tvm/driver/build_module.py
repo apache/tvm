@@ -231,8 +231,6 @@ def build(
     elif isinstance(inputs, PrimFunc):
         input_mod = lower(inputs, name=name)
     elif isinstance(inputs, tvm.IRModule):
-        if name is not None:
-            warnings.warn("Specifying name with IRModule input is useless")
         input_mod = lower(inputs)
     elif not isinstance(inputs, (dict, container.Map)):
         raise ValueError(
