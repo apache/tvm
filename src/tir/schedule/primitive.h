@@ -329,6 +329,7 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
  *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
  *        memory.
+ * \param self The state of the schedule
  * \param block_sref The producer block of the buffer
  * \param buffer_index The index of the buffer in block's write region
  * \param axis The dimension to be specified for alignment
@@ -337,6 +338,16 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  */
 TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           int axis, int factor, int offset);
+/*!
+ * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+ * write-index
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param storage_scope The storage scope to be set
+ */
+TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                      const String& storage_scope);
 
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/

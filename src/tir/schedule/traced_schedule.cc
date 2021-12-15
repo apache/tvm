@@ -329,6 +329,17 @@ void TracedScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index,
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
+                                  const String& storage_scope) {
+  ConcreteScheduleNode::SetScope(block_rv, buffer_index, storage_scope);
+  static const InstructionKind& kind = InstructionKind::Get("SetScope");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), storage_scope},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Blockize & Tensorize ********/
 
 /******** Schedule: Annotation ********/
