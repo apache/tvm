@@ -114,16 +114,28 @@ def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
     data = relay.var("data", shape=d_shape, dtype="float16")
     weight = relay.var("weight", shape=w_shape, dtype="float16")
     out_channel = w_shape[0]
-    return tvm.IRModule.from_expr(
-        relay.nn.conv2d(
-            data=data,
-            weight=weight,
-            kernel_size=w_shape[2:],
-            channels=out_channel,
-            padding=padding,
-            out_dtype=out_dtype,
-        )
+    return relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        out_dtype=out_dtype,
     )
+
+
+def get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype="float16"):
+    conv2d = get_conv2d_nchw(d_shape, w_shape, padding, out_dtype=out_dtype)
+    bias = relay.var("bias", shape=(w_shape[0],), dtype=out_dtype)
+    return relay.nn.bias_add(conv2d, bias)
+
+
+def get_conv2d_nchw_bias_relu(d_shape, w_shape, padding, out_dtype="float16"):
+    return relay.nn.relu(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
+
+
+def get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float16"):
+    return relay.sigmoid(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
 
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
@@ -314,8 +326,8 @@ def convert_conv2d_layout(mod, desired_layouts):
 
 
 def verify_conv2d(
-    mod_nchw,  # can be dynamic batch
-    mod_ref,  # always static batch
+    expr_nchw,  # can be dynamic batch
+    expr_ref,  # always static batch
     d_shape,
     w_shape,
     sm=80,
@@ -327,10 +339,17 @@ def verify_conv2d(
     if not has_cutlass():
         return
 
+    mod_nchw = tvm.IRModule.from_expr(expr_nchw)
+    mod_ref = tvm.IRModule.from_expr(expr_ref)
+
+    typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
+    out_dtype = typ.dtype
+
     np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
     np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
+    np_bias = np.random.uniform(-1, 1, (w_shape[0],)).astype(out_dtype)
 
-    params = {"weight": np_weight}
+    params = {"weight": np_weight, "bias": np_bias}
 
     typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
     use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
@@ -373,10 +392,10 @@ def verify_conv2d(
 
 
 def test_conv2d():
+    padding = (1, 1)
     for IC in [3, 16]:
         d_shape = (16, IC, 32, 32)
         w_shape = (32, IC, 3, 3)
-        padding = (1, 1)
         mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
 
         verify_conv2d(
@@ -401,6 +420,27 @@ def test_conv2d():
 
     verify_conv2d(
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+
+def test_conv2d_fusion():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
+
+    mod_nchw = get_conv2d_nchw_bias(d_shape, w_shape, padding)
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_relu(d_shape, w_shape, padding)
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float32")
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
 
 

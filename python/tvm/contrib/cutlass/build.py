@@ -87,6 +87,9 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if str(op) == "nn.conv2d":
             self.op_attrs = call.attrs
 
+        for arg in call.args:
+            self.visit(arg)
+
 
 def select_gemm_kernel(
     cutlass_profiler, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
@@ -213,6 +216,12 @@ def handle_conv2d(
 
     if op_type == "cutlass.conv2d":
         cutlass_op_def = out["opdef"]
+    elif op_type == "cutlass.conv2d_bias":
+        cutlass_op_def = out["opdef_bias"]
+    elif op_type == "cutlass.conv2d_bias_relu":
+        cutlass_op_def = out["opdef_bias_relu"]
+    elif op_type == "cutlass.conv2d_bias_sigmoid":
+        cutlass_op_def = out["opdef_bias_sigmoid"]
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 

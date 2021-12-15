@@ -57,8 +57,25 @@ def make_batch_matmul_pattern():
     return is_op("nn.batch_matmul")(wildcard(), wildcard())
 
 
-def make_conv2d_pattern():
-    return is_op("nn.conv2d")(wildcard(), wildcard())
+def make_conv2d_pattern(with_bias=False, with_act=None):
+    """Create a pattern for dense op followed by activations."""
+    data = wildcard()
+    weight = wildcard()
+    bias = wildcard()
+    conv2d = is_op("nn.conv2d")(data, weight)
+    if with_bias:
+        add_or_bias_add = is_op("add") | is_op("nn.bias_add")
+        conv2d_out = add_or_bias_add(conv2d, bias)
+    else:
+        conv2d_out = conv2d
+
+    if with_act is not None:
+        if with_act == "relu":
+            return is_op("nn.relu")(conv2d_out)
+        if with_act == "sigmoid":
+            return is_op("sigmoid")(conv2d_out)
+
+    return conv2d_out
 
 
 def check_dtype(lhs, rhs):
@@ -131,7 +148,17 @@ def partition_for_cutlass(mod):
         dense_bias_pat,
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern(), check_batch_matmul),
-        # TODO(masahi): Add more conv2d patterns
+        (
+            "cutlass.conv2d_bias_relu",
+            make_conv2d_pattern(with_bias=True, with_act="relu"),
+            check_conv2d,
+        ),
+        (
+            "cutlass.conv2d_bias_sigmoid",
+            make_conv2d_pattern(with_bias=True, with_act="sigmoid"),
+            check_conv2d,
+        ),
+        ("cutlass.conv2d_bias", make_conv2d_pattern(with_bias=True), check_conv2d),
         ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
     seq = Sequential(
