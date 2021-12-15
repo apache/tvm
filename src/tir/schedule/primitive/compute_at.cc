@@ -451,7 +451,8 @@ void CalculateProvidedRequiredRegions(
 
 template <bool is_compute_at>
 void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_sref,
-                                     const StmtSRef& loop_sref, bool preserve_unit_loops) {
+                                     const StmtSRef& loop_sref, bool preserve_unit_loops,
+                                     arith::Analyzer* analyzer, bool check_only = false) {
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   // Step 1. Bunch of checks
@@ -463,11 +464,10 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
   Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);
-  arith::Analyzer analyzer;
   // Check condition 3): `block` and `loop` are under the same scope,
   // and `loop` is not the ancestor of `block`
   NotInSameScopeError::CheckAndBindLoopDomain(self, block_sref, loop_sref, scope_root_sref,
-                                              &analyzer);
+                                              analyzer);
   // Check condition 4): `block` is not an output block
   if (is_compute_at) {
     CheckNotOutputBlock(self, block_sref, scope_root_sref);
@@ -501,29 +501,61 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
       CalculateBlockVarDomain(/*iter_vars=*/block->iter_vars,
                               /*provided_regions=*/std::move(provided_regions),
                               /*required_regions=*/std::move(required_regions),
-                              /*analyzer=*/&analyzer);
+                              /*analyzer=*/analyzer);
   // Step 6. Create the new scope according to the iteration domain
   reconstructor.MakeNewLoop(/*insert_position=*/insert_position, /*iter_doms=*/std::move(iter_doms),
                             /*preserve_unit_loops=*/preserve_unit_loops);
   Block new_scope_root = Downcast<Block>(reconstructor(scope_root));
+
   // Step 7. Do the actual replacement
+  if (check_only) {
+    return;
+  }
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
   // Step 8. Update the cached flags
   BlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
       /*realize=*/reconstructor.new_block_realize_,
       /*loop_var_ranges=*/LoopDomainOfSRefTreePath(GetRef<StmtSRef>(block_sref->parent)),
-      /*analyzer=*/&analyzer);
+      /*analyzer=*/analyzer);
 }
 
 void ComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
                bool preserve_unit_loops) {
-  ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops);
+  arith::Analyzer analyzer;
+  ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
+                                        &analyzer);
 }
 
 void ReverseComputeAt(ScheduleState self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
                       bool preserve_unit_loops) {
-  ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops);
+  arith::Analyzer analyzer;
+  ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
+                                         &analyzer);
+}
+
+bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                  bool preserve_unit_loops) {
+  arith::Analyzer analyzer;
+  try {
+    ComputeAtOrReverseComputeAtImpl<true>(self, block_sref, loop_sref, preserve_unit_loops,
+                                          &analyzer, true);
+  } catch (const tvm::runtime::Error& e) {
+    return false;
+  }
+  return true;
+}
+
+bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
+                         const StmtSRef& loop_sref, bool preserve_unit_loops) {
+  arith::Analyzer analyzer;
+  try {
+    ComputeAtOrReverseComputeAtImpl<false>(self, block_sref, loop_sref, preserve_unit_loops,
+                                           &analyzer, true);
+  } catch (const tvm::runtime::Error& e) {
+    return false;
+  }
+  return true;
 }
 
 /******** InstructionKind Registration ********/
