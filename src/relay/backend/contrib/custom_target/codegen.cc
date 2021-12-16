@@ -283,7 +283,7 @@ class CustomCSourceCodegen : public CSourceModuleCodegenBase {
     ICHECK(pf != nullptr) << "Cannot find csource module to create the external runtime module";
     return (*pf)(code, "c", Array<String>{func_name}, variables);
   }
-  
+
  private:
   std::ostringstream code_stream_;
 };
