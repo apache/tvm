@@ -32,10 +32,13 @@ class BuilderInputNode : public runtime::Object {
   IRModule mod;
   /*! \brief The target to be built for. */
   Target target;
+  /*! \brief The optional parameters used for build */
+  Optional<Map<String, runtime::NDArray>> params;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("mod", &mod);
     v->Visit("target", &target);
+    v->Visit("params", &params);
   }
 
   static constexpr const char* _type_key = "meta_schedule.BuilderInput";
@@ -53,7 +56,8 @@ class BuilderInput : public runtime::ObjectRef {
    * \param mod The IRModule to be built.
    * \param target The target to be built for.
    */
-  TVM_DLL explicit BuilderInput(IRModule mod, Target target);
+  TVM_DLL explicit BuilderInput(IRModule mod, Target target,
+                                Optional<Map<String, runtime::NDArray>> params = NullOpt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 

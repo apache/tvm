@@ -31,6 +31,10 @@ from tvm.tir import FloatImm, IntImm
 
 
 @register_func("meta_schedule.cpu_count")
+def _cpu_count_impl(logical: bool = True) -> int:
+    return psutil.cpu_count(logical=logical) or 1
+
+
 def cpu_count(logical: bool = True) -> int:
     """Return the number of logical or physical CPUs in the system
 
@@ -56,7 +60,7 @@ def cpu_count(logical: bool = True) -> int:
     Setting these variables may interfere the host-side search with profiling of generated kernels
     when measuring locally.
     """
-    return psutil.cpu_count(logical=logical) or 1
+    return _cpu_count_impl(logical)
 
 
 def get_global_func_with_default_on_worker(
