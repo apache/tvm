@@ -156,11 +156,10 @@ def test_copy_luts():
     sch = te.create_schedule([te_graph.outputs[0].op])
     copy_constants()(te_graph, const_dict, sch)
     copy_luts()(te_graph, const_dict, sch)
-    assert len(sch.stages) == 17
+    assert len(sch.stages) == 16
     assert ".global" in sch.stages[5].op.name
     assert ".global" in sch.stages[7].op.name
     assert ".local" in sch.stages[9].op.name
-    assert ".local" in sch.stages[10].op.name
 
 
 def test_schedule_cache_reads():
