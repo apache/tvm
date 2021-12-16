@@ -140,6 +140,9 @@ class DummyDatabase(PyDatabase):
         self.records = []
         self.workload_reg = []
 
+    def has_workload(self, mod: IRModule) -> bool:
+        return False
+
     def commit_tuning_record(self, record: TuningRecord) -> None:
         self.records.append(record)
 

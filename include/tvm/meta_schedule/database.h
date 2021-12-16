@@ -156,6 +156,12 @@ class DatabaseNode : public runtime::Object {
   /*! \brief Default destructor */
   virtual ~DatabaseNode() = default;
   /*!
+   * \brief Check if the database has the given workload.
+   * \param mod The IRModule to be searched for.
+   * \return Whether the database has the given workload.
+   */
+  virtual bool HasWorkload(const IRModule& mod) = 0;
+  /*!
    * \brief Look up or add workload to the database if missing.
    * \param mod The IRModule to be searched for or added.
    * \return The workload corresponding to the given IRModule.
@@ -187,6 +193,12 @@ class DatabaseNode : public runtime::Object {
 class PyDatabaseNode : public DatabaseNode {
  public:
   /*!
+   * \brief The function type of `HasWorkload` method.
+   * \param mod The IRModule to be searched for.
+   * \return Whether the database has the given workload.
+   */
+  using FHasWorkload = runtime::TypedPackedFunc<bool(const IRModule&)>;
+  /*!
    * \brief The function type of `CommitWorkload` method.
    * \param mod The IRModule to be searched for or added.
    * \return The workload corresponding to the given IRModule.
@@ -210,6 +222,8 @@ class PyDatabaseNode : public DatabaseNode {
    */
   using FSize = runtime::TypedPackedFunc<int64_t()>;
 
+  /*! \brief The packed function to the `HasWorkload` function. */
+  FHasWorkload f_has_workload;
   /*! \brief The packed function to the `CommitWorkload` function. */
   FCommitWorkload f_commit_workload;
   /*! \brief The packed function to the `CommitTuningRecord` function. */
@@ -223,11 +237,16 @@ class PyDatabaseNode : public DatabaseNode {
     // PackedFuncs are all not visited, because the reflection system doesn't take care of them,
     // so it cannot be accessible on the python side. If there is such need from the future,
     // we can then add corresponding accessor methods to help access on python.
-    //
+    // `f_has_workload` is not visited
     // `f_commit_workload` is not visited
     // `f_commit_tuning_record` is not visited
     // `f_get_top_k` is not visited
     // `f_size` is not visited
+  }
+
+  bool HasWorkload(const IRModule& mod) final {
+    ICHECK(f_has_workload != nullptr) << "PyDatabase's HasWorkload method not implemented!";
+    return f_has_workload(mod);
   }
 
   Workload CommitWorkload(const IRModule& mod) final {
@@ -271,13 +290,15 @@ class Database : public runtime::ObjectRef {
                                        bool allow_missing);
   /*!
    * \brief Create a database with customized methods on the python-side.
+   * \param f_has_workload The packed function of `HasWorkload`.
    * \param f_commit_workload The packed function of `CommitWorkload`.
    * \param f_commit_tuning_record The packed function of `CommitTuningRecord`.
    * \param f_get_top_k The packed function of `GetTopK`.
    * \param f_size The packed function of `Size`.
    * \return The created database.
    */
-  TVM_DLL static Database PyDatabase(PyDatabaseNode::FCommitWorkload f_commit_workload,
+  TVM_DLL static Database PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
+                                     PyDatabaseNode::FCommitWorkload f_commit_workload,
                                      PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                                      PyDatabaseNode::FGetTopK f_get_top_k,
                                      PyDatabaseNode::FSize f_size);
