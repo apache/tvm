@@ -83,15 +83,16 @@ def create_conv2d_operator(
                 op_entry["op"] = op
                 op_entry["src"] = profiler_emitter.emit(op_entry["opdef"], op.procedural_name())
                 op_entry["name"] = op.procedural_name()
-                op_entry["runtime"] = 9999999
 
                 # fused ops
-                for epilogue, opdef in zip(
+                for epilogue, opdef, no_bias_scaling in zip(
                     [
                         EpilogueFunctor.LinearCombinationBias,
                         EpilogueFunctor.LinearCombinationRelu,
+                        EpilogueFunctor.LinearCombinationSigmoid,
                     ],
-                    ["opdef_bias", "opdef_bias_relu"],
+                    ["opdef_bias", "opdef_bias_relu", "opdef_bias_sigmoid"],
+                    [True, True, False],
                 ):
                     op = Conv2dOperation(
                         ConvKind.Fprop,
@@ -107,7 +108,7 @@ def create_conv2d_operator(
                         swizzling_functor_,
                     )
 
-                    op_entry[opdef] = kernel_emitter.emit(op)
+                    op_entry[opdef] = kernel_emitter.emit(op, no_bias_scaling)
 
                 ret.append(op_entry)
 
