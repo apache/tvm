@@ -49,7 +49,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target, errors: List, opt_level=3):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -72,7 +72,7 @@ def call_all_topi_funcs(mod, params, target, errors: List, opt_level=3):
         try:
             compiler.lower(mod, target)
         except TVMError:
-            errors.append(f"{traceback.format_exc()}")
+            error_list.append(f"{traceback.format_exc()}")
         finally:
             autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
