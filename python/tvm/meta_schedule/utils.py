@@ -212,6 +212,22 @@ def structural_hash(mod: IRModule) -> str:
     return str(shash)
 
 
+def _get_hex_address(handle: ctypes.c_void_p) -> str:
+    """Get the hexadecimal address of a handle.
+
+    Parameters
+    ----------
+    handle : ctypes.c_void_p
+        The handle to be converted.
+
+    Returns
+    -------
+    result : str
+        The hexadecimal address of the handle.
+    """
+    return hex(ctypes.cast(handle, ctypes.c_void_p).value)
+
+
 def check_override(
     derived_class: Any, base_class: Any, required: bool = True, func_name: str = None
 ) -> Callable:

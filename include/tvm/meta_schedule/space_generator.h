@@ -153,6 +153,14 @@ class SpaceGenerator : public ObjectRef {
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator SpaceGeneratorUnion(Array<SpaceGenerator, void> space_generators);
+  /*!
+   * \brief Create a design space generator that generates design spaces by applying schedule rules
+   *  to blocks in post-DFS order.
+   * \param initialize_with_tune_context_func The packed function of `InitializeWithTuneContext`.
+   * \param generate_design_space_func The packed function of `GenerateDesignSpace`.
+   * \return The design space generator created.
+   */
+  TVM_DLL static SpaceGenerator PostOrderApply();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 

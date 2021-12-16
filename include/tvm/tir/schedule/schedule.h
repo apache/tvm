@@ -156,6 +156,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual StmtSRef GetSRef(const LoopRV& loop_rv) const = 0;
   /*!
+   * \brief Check the existance of a specific BlockRV
+   * \param block_rv The BlockRV to be looked up
+   * \return Whether the corresponding block exists
+   */
+  virtual bool HasBlock(const BlockRV& block_rv) const = 0;
+  /*!
    * \brief Get the block/loop sref corresponding to the specific statement
    * \param stmt The statement to be looked up
    * \return The corresponding block/loop sref
