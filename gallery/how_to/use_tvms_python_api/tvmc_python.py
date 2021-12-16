@@ -40,10 +40,11 @@ Let's start editing the python file in your favorite text editor.
 # Step 0: Imports
 # ~~~~~~~~~~~~~~~
 #
-# .. code-block:: python
+#  .. code-block:: python
 #
 #     from tvm.driver import tvmc
 #
+# 
 
 ################################################################################
 # Step 1: Load a model
@@ -55,7 +56,8 @@ Let's start editing the python file in your favorite text editor.
 # support are: Keras, ONNX, Tensorflow, TFLite, and PyTorch.
 #
 # .. code-block:: python
-#      model = tvmc.load('my_model.onnx') #Step 1: Load
+#
+#   model = tvmc.load('my_model.onnx') #Step 1: Load
 #
 # If you'd like to see the Relay, you can run:
 # ``model.summary()``
@@ -65,10 +67,11 @@ Let's start editing the python file in your favorite text editor.
 # TVM cannot automatically search for it.
 #
 # .. code-block:: python
-#      ### Step 1: Load shape_dict Style
-#      # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
-#      # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
 #
+#   ### Step 1: Load shape_dict Style
+#   # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
+#   # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
+# 
 # A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
 
@@ -89,8 +92,10 @@ Let's start editing the python file in your favorite text editor.
 # 2. llvm (CPU)
 # 3. llvm -mcpu=cascadelake (Intel CPU)
 #
-#  .. code-block:: python
-#      package = tvmc.compile(model, target="llvm") #Step 2: Compile
+# .. code-block:: python
+#
+#   package = tvmc.compile(model, target="llvm") #Step 2: Compile
+#      
 #
 # The compilation step returns a package.
 #
@@ -102,8 +107,9 @@ Let's start editing the python file in your favorite text editor.
 # The compiled package can now be run on the hardware target. The device
 # input options are: CPU, Cuda, CL, Metal, and Vulkan.
 #
-#  .. code-block:: python
-#      result = tvmc.run(package, device="cpu") #Step 3: Run
+# .. code-block:: python
+#
+#   result = tvmc.run(package, device="cpu") #Step 3: Run
 #
 # And you can print the results:
 # ``print(results)``
@@ -120,8 +126,9 @@ Let's start editing the python file in your favorite text editor.
 #
 # The target is the same as compile.
 #
-#  .. code-block:: python
-#      tvmc.tune(model, target="llvm") #Step 1.5: Optional Tune
+# .. code-block:: python
+#
+#   tvmc.tune(model, target="llvm") #Step 1.5: Optional Tune
 #
 # The terminal output should look like:
 # [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
@@ -140,8 +147,9 @@ Let's start editing the python file in your favorite text editor.
 # Save and then start the process in the terminal:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-#  .. code-block:: python
-#      python my_tvmc_script.py
+# .. code-block:: python
+#
+#   python my_tvmc_script.py
 #
 # Note: Your fans may become very active
 #
@@ -150,15 +158,18 @@ Let's start editing the python file in your favorite text editor.
 # Example results:
 # ~~~~~~~~~~~~~~~~
 #
-#   .. code-block:: python
-#      Time elapsed for training: 18.99 s
-#      Execution time summary:
-#      mean (ms)   max (ms)   min (ms)   std (ms)
-#        25.24      26.12      24.89       0.38
+# .. code-block:: python
 #
-#      Output Names:
-#       ['output_0']
-#
+#   Time elapsed for training: 18.99 s
+#   Execution time summary:
+#   mean (ms)   max (ms)   min (ms)   std (ms)
+#     25.24      26.12      24.89       0.38
+#   
+#   
+#   Output Names:
+#   ['output_0']
+#      
+
 
 ################################################################################
 # Additional TVMC Functionalities
@@ -172,9 +183,11 @@ Let's start editing the python file in your favorite text editor.
 # To make things faster for later, after loading the model (Step 1) save the Relay version.
 # The model will then appear where you saved it for later in the coverted syntax.
 #
-#   .. code-block:: python
-#      model = tvmc.load('my_model.onnx') #Step 1: Load
-#      model.save(desired_model_path)
+# .. code-block:: python
+#
+#   model = tvmc.load('my_model.onnx') #Step 1: Load
+#   model.save(desired_model_path)
+#      
 #
 
 ################################################################################
@@ -183,11 +196,13 @@ Let's start editing the python file in your favorite text editor.
 #
 # After the model has been compiled (Step 2) the package also is also saveable.
 #
-#    .. code-block:: python
-#      tvmc.compile(model, target="llvm", package_path="whatever")
+# .. code-block:: python
 #
-#      new_package = tvmc.TVMCPackage(package_path="whatever")
-#      result = tvmc.run(new_package) #Step 3: Run
+#   tvmc.compile(model, target="llvm", package_path="whatever")
+#  
+#   new_package = tvmc.TVMCPackage(package_path="whatever")
+#   result = tvmc.run(new_package) #Step 3: Run
+#
 #
 
 ################################################################################
@@ -198,8 +213,10 @@ Let's start editing the python file in your favorite text editor.
 # The search space of the schedules is automatically generated unlike
 # previously where they needed to be hand written. (Learn more: 1, 2)
 #
-#    .. code-block:: python
-#      tvmc.tune(model, target="llvm", enable_autoscheduler = True)
+# .. code-block:: python
+#
+#   tvmc.tune(model, target="llvm", enable_autoscheduler = True)
+#      
 #
 
 ################################################################################
@@ -210,6 +227,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # Method 1:
 #    .. code-block:: python
+# 
 #      log_file = "hello.json"
 #
 #      # Run tuning
@@ -222,6 +240,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # Method 2:
 #    .. code-block:: python
+# 
 #      # Run tuning
 #      tuning_records = tvmc.tune(model, target="llvm")
 #
@@ -240,6 +259,7 @@ Let's start editing the python file in your favorite text editor.
 # increase the searching time frame:
 #
 #    .. code-block:: python
+# 
 #      tvmc.tune(model,trials=10000,timeout=10,)
 #
 
@@ -255,6 +275,7 @@ Let's start editing the python file in your favorite text editor.
 # Within the TVMC Script include the following and adjust accordingly:
 #
 #    .. code-block:: python
+# 
 #      tvmc.tune(
 #           model,
 #           target=target, # Compilation target as string // Device to compile for
