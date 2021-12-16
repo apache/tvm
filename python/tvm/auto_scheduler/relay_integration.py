@@ -27,7 +27,6 @@ import logging
 import threading
 import traceback
 import warnings
-from typing import List
 
 import tvm
 from tvm import autotvm, transform
