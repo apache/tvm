@@ -131,7 +131,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
-  ConfigPipelineExecution& LoadConfigPipelineExecution(dmlc::JSONReader* reader) {
+  ConfigPipelineExecution& LoadConfig(dmlc::JSONReader* reader) {
     reader->BeginObject();
     std::string key;
     while (reader->NextObjectItem(&key)) {

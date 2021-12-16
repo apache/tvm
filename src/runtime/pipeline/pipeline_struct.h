@@ -27,14 +27,13 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#define GLOBAL_MODULE_INDEX -1
 /*!
  * \brief All binding information of a output interface.
  */
 class ConfigBindings {
  public:
   /*!\brief Whether this binding is bound to the PipelineExecutor output interface.*/
-  bool IsGlobalOutput() const { return global_output_index_ > GLOBAL_MODULE_INDEX; }
+  bool IsGlobalOutput() const { return global_output_index_ > -1; }
 
   /*!
    * \brief Create a module interface map from JSONReader.
