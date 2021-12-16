@@ -490,7 +490,7 @@ class ForScopeHandler(ScopeHandler):
                 for key, val in annotations.items()
             }
 
-        self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, annotations))
+        self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, self.annotations))
 
 
 @register
