@@ -999,9 +999,11 @@ def set_span(sym, node_name):
                 return _expr.TupleGetItem(self.visit(op.tuple_value), op.index, self._create_span())
             return op
 
-        def fill(self, expr):
-            if isinstance(expr, _expr.TupleWrapper):
-                return _expr.TupleWrapper(self.visit(expr.tuple_value), expr.size)
-            return self.visit(expr)
+        def fill(self, sym):
+            if isinstance(sym, _expr.TupleWrapper):
+                return _expr.TupleWrapper(self.visit(sym.tuple_value), sym.size)
+            elif isinstance(sym, _expr.RelayExpr):
+                return self.visit(sym)
+            return sym
 
     return SpanFiller(node_name).fill(sym)

@@ -3266,6 +3266,9 @@ class PyTorchOpConverter:
 
     def convert_operators(self, operators, outputs, ret_names):
         """Convert each Torch IR operators to Relay equivalent"""
+        # an op node might not belong to any of scope in trace info natively
+        # use a cunter to prevent from messing up its scope in span
+        empty_counter = 0
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -3303,7 +3306,7 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
-                span_str = self._get_torch_span(op_node)
+                span_str, empty_counter = self._get_torch_span(op_node, empty_counter)
                 relay_out = set_span(relay_out, span_str)
 
                 self.record_output_type(relay_out)
@@ -3319,13 +3322,17 @@ class PyTorchOpConverter:
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
 
-    def _get_torch_span(self, node):
+    def _get_torch_span(self, node, empty_counter):
         # torch span looks like
         # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
-        scope_name_str = node.scopeName() if node.scopeName() else "EMPTY"
-        return "C.graph: {}, jit._trace.TopLevelTracedModule: {}".format(
-            node.kind(), scope_name_str
-        )
+        # the scope part might not exist
+        if node.scopeName():
+            scope_name_str = "jit._trace.TopLevelTracedModule: " + node.scopeName()
+        else:
+            scope_name_str = "warning: no trace info " + str(empty_counter)
+            empty_counter += 1
+        span_str = "C.graph: {}, {}".format(node.kind(), scope_name_str)
+        return span_str, empty_counter
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):
