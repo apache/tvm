@@ -109,6 +109,10 @@ include_directories(SYSTEM ${PICOJSON_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
+if("${CMAKE_EXPORT_COMPILE_COMMANDS}" STREQUAL "")
+  # If not set manually, change the default to ON
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
 
 # Generic compilation options
 if(MSVC)
