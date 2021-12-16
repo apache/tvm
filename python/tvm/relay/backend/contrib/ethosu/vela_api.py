@@ -316,7 +316,7 @@ def _quantize_scale(scale: float) -> Tuple[int, int]:
     mantissa_scaled = mantissa * (1 << 31)
     mantissa_scaled = int(util.round_away_zero(mantissa_scaled))
     required_shift = 31 - exponent
-    if not (0 <= required_shift < (1 << 6)):
+    if required_shift < 0 or required_shift >= (1 << 6):
         # Shift outside of valid range, set scale to 0
         return 0, 16
 
@@ -336,7 +336,7 @@ def _reduced_quantize_scale(scale: float) -> Tuple[int, int]:
         reduced_mantissa_scaled = (mantissa_scaled + (1 << 15)) >> 16
     reduced_shift = required_shift - 16
 
-    if not (0 <= reduced_shift < (1 << 6)):
+    if required_shift < 0 or required_shift >= (1 << 6):
         # Shift outside of valid range, set scale to 0
         return 0, 16
 
