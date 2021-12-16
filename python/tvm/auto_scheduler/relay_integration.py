@@ -143,7 +143,7 @@ def extract_tasks(
         build_thread.start()
         build_thread.join()
 
-    if len(errors) > 0:
+    if errors:
         error_strings = ["Task extraction had the following errors:"] + errors
         raise TVMError("\n".join(error_strings))
 
