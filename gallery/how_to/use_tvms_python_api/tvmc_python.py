@@ -44,7 +44,7 @@ Let's start editing the python file in your favorite text editor.
 #
 #     from tvm.driver import tvmc
 #
-# 
+#
 
 ################################################################################
 # Step 1: Load a model
@@ -71,7 +71,7 @@ Let's start editing the python file in your favorite text editor.
 #   ### Step 1: Load shape_dict Style
 #   # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
 #   # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
-# 
+#
 # A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
 
@@ -95,7 +95,7 @@ Let's start editing the python file in your favorite text editor.
 # .. code-block:: python
 #
 #   package = tvmc.compile(model, target="llvm") #Step 2: Compile
-#      
+#
 #
 # The compilation step returns a package.
 #
@@ -164,11 +164,11 @@ Let's start editing the python file in your favorite text editor.
 #   Execution time summary:
 #   mean (ms)   max (ms)   min (ms)   std (ms)
 #     25.24      26.12      24.89       0.38
-#   
-#   
+#
+#
 #   Output Names:
 #   ['output_0']
-#      
+#
 
 
 ################################################################################
@@ -187,7 +187,7 @@ Let's start editing the python file in your favorite text editor.
 #
 #   model = tvmc.load('my_model.onnx') #Step 1: Load
 #   model.save(desired_model_path)
-#      
+#
 #
 
 ################################################################################
@@ -199,7 +199,7 @@ Let's start editing the python file in your favorite text editor.
 # .. code-block:: python
 #
 #   tvmc.compile(model, target="llvm", package_path="whatever")
-#  
+#
 #   new_package = tvmc.TVMCPackage(package_path="whatever")
 #   result = tvmc.run(new_package) #Step 3: Run
 #
@@ -216,7 +216,7 @@ Let's start editing the python file in your favorite text editor.
 # .. code-block:: python
 #
 #   tvmc.tune(model, target="llvm", enable_autoscheduler = True)
-#      
+#
 #
 
 ################################################################################
@@ -227,7 +227,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # Method 1:
 #    .. code-block:: python
-# 
+#
 #      log_file = "hello.json"
 #
 #      # Run tuning
@@ -240,7 +240,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # Method 2:
 #    .. code-block:: python
-# 
+#
 #      # Run tuning
 #      tuning_records = tvmc.tune(model, target="llvm")
 #
@@ -259,7 +259,7 @@ Let's start editing the python file in your favorite text editor.
 # increase the searching time frame:
 #
 #    .. code-block:: python
-# 
+#
 #      tvmc.tune(model,trials=10000,timeout=10,)
 #
 
@@ -275,7 +275,7 @@ Let's start editing the python file in your favorite text editor.
 # Within the TVMC Script include the following and adjust accordingly:
 #
 #    .. code-block:: python
-# 
+#
 #      tvmc.tune(
 #           model,
 #           target=target, # Compilation target as string // Device to compile for
