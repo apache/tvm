@@ -139,6 +139,12 @@ def elementwise_buffer_no_kwargs(
             b[vi, vj, vk, vl] = a[vi, vj, vk, vl] * 2.0
 
 
+# match buffer failed case
+def test_elementwise_buffer_no_kwargs_failed() -> None:
+    with pytest.raises(ValueError) as e:
+        a = T.Buffer[(128, 128, 128, 128)]
+
+
 def test_match_buffer_syntax_sugar():
     # with kwargs
     assert_structural_equal(elementwise_handle, elementwise_buffer_kwargs)
