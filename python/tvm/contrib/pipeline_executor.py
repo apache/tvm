@@ -245,16 +245,16 @@ class PipelineConfig(object):
                 It is a dictionary of module connections.
             """
             if "interface_name" not in connection_dict:
-                raise RuntimeError(f'"inteface_name" is missing in global config!"')
+                raise RuntimeError('"inteface_name" is missing in global config!"')
             if "connection" not in connection_dict:
                 raise RuntimeError(f'"connection" is missing!"')
             # The global interface mapping should be one-to-one.
             if not connection_dict["connection"]:
-                raise RuntimeError(f"The global interface map is empty!")
+                raise RuntimeError("The global interface map is empty!")
             if len(connection_dict["connection"]) > 1:
-                raise RuntimeError(f"A global interface maps multiple module interfaces!")
+                raise RuntimeError("A global interface maps multiple module interfaces!")
             if "mod_idx" not in connection_dict["connection"][0]:
-                raise RuntimeError(f'"mod_idx" is missing!')
+                raise RuntimeError('"mod_idx" is missing!')
 
         def get_binding_dict(self):
             """Returning the binding information in the form of dictionary.
@@ -309,34 +309,34 @@ class PipelineConfig(object):
 
             # Check whether the binding setting is correct or not.
             if self.io_owner == binding.io_owner:
-                raise RuntimeError(f"Can not bind itself.")
+                raise RuntimeError("Can not bind itself.")
 
             if not self.is_pipeline_executor_interface() and self.io_type == "input":
-                raise RuntimeError(f"Module can only bind from output interface!")
+                raise RuntimeError("Module can only bind from output interface!")
 
             if (
                 not self.is_pipeline_executor_interface()
                 and not binding.is_pipeline_executor_interface()
                 and binding.io_type == "output"
             ):
-                raise RuntimeError(f"Can not bind module output with another module output!")
+                raise RuntimeError("Can not bind module output with another module output!")
 
             if (
                 not self.is_pipeline_executor_interface()
                 and binding.is_pipeline_executor_interface()
                 and binding.io_type == "input"
             ):
-                raise RuntimeError(f"Can not bind module output with pipeline input!")
+                raise RuntimeError("Can not bind module output with pipeline input!")
 
             if self.is_pipeline_executor_interface() and self.io_type == "output":
-                raise RuntimeError(f"Global output can not be used as binding start point.")
+                raise RuntimeError("Global output can not be used as binding start point.")
 
             if (
                 self.is_pipeline_executor_interface()
                 and self.io_type == "input"
                 and binding.io_type != "input"
             ):
-                raise RuntimeError(f"Global input can only bind with module input.")
+                raise RuntimeError("Global input can only bind with module input.")
 
             self.bindings.append(binding)
             if not self.is_pipeline_executor_interface():
@@ -358,7 +358,7 @@ class PipelineConfig(object):
                 if not self.check_dag_acyclic(
                     binding.io_owner, self.io_owner.input_bindings.bindings
                 ):
-                    raise RuntimeError(f"Illegal connection: Cause a cycle!")
+                    raise RuntimeError("Illegal connection: Cause a cycle!")
 
     class BindingList:
         """Container for bindings(input or output interface).
@@ -429,7 +429,7 @@ class PipelineConfig(object):
 
                 raise RuntimeError(f"{key} not found!")
 
-            raise RuntimeError(f'The data type of "key" is not supported!')
+            raise RuntimeError('The data type of "key" is not supported!')
 
         def get_data_type(self, key, interface_type):
             """Get the module interface data type according to the key value and interface type.
@@ -584,7 +584,7 @@ class PipelineConfig(object):
             for input_name in self.input_bindings.bindings:
                 input_dict = self.input_bindings.bindings[input_name].get_binding_dict()
                 if "interface_name" not in input_dict["connection"][0]:
-                    raise RuntimeError(f"interface_name is missing in connection config!")
+                    raise RuntimeError("interface_name is missing in connection config!")
                 # Creating the map of global interface and subgraph interface.
                 input_map = {
                     "global_interface_name": input_dict["interface_name"],
@@ -691,11 +691,11 @@ class PipelineExecutorFactoryModule(object):
             Export the files to this directory.
         """
         if not self.pipeline_mods:
-            raise RuntimeError(f"The pipeline executor has not been initialized.")
+            raise RuntimeError("The pipeline executor has not been initialized.")
 
         # Check if the directory_path exists.
         if not os.path.exists(directory_path):
-            raise RuntimeError(f"The directory {directory_path} does not exist.")
+            raise RuntimeError("The directory {directory_path} does not exist.")
         # Create an load configuration.
         load_config_file_name = "{}/load_config".format(directory_path)
         pipeline_config_file_name = "{}/pipeline_config".format(directory_path)

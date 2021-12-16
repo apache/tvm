@@ -32,15 +32,6 @@
  * \brief All binding information of a output interface.
  */
 class ConfigBindings {
- private:
-  /*!\brief Output interface binding information, 'int' is the index of the module that
-   *  uses this output data as the input interface data, 'string' is the input interface name
-   *  of the module.
-   */
-  std::unordered_map<int, std::string> bindings_;
-  /*! The index value of the global interface to which the current output are bound.*/
-  int global_output_index_ = std::numeric_limits<int>::min();
-
  public:
   /*!\brief Whether this binding is bound to the PipelineExecutor output interface.*/
   bool IsGlobalOutput() const { return global_output_index_ > GLOBAL_MODULE_INDEX; }
@@ -86,15 +77,20 @@ class ConfigBindings {
       }
     }
   }
+
+ private:
+  /*!\brief Output interface binding information, 'int' is the index of the module that
+   *  uses this output data as the input interface data, 'string' is the input interface name
+   *  of the module.
+   */
+  std::unordered_map<int, std::string> bindings_;
+  /*! The index value of the global interface to which the current output are bound.*/
+  int global_output_index_ = std::numeric_limits<int>::min();
 };
 /*!
  * \brief The binding information of all outputs of a module.
  */
 class ConfigOutputBindings {
- private:
-  /*!\brief The map of output binding, 'int' is the output interface index.*/
-  std::unordered_map<int, ConfigBindings> output_binding_map_;
-
  public:
   ConfigOutputBindings& operator=(const ConfigOutputBindings& output) {
     output_binding_map_ = output.GetOutBindings();
@@ -148,19 +144,16 @@ class ConfigOutputBindings {
       output_binding_map_[output_idx] = binding;
     }
   }
+
+ private:
+  /*!\brief The map of output binding, 'int' is the output interface index.*/
+  std::unordered_map<int, ConfigBindings> output_binding_map_;
 };
 
 /*!
  * \brief The binding or dependency information of each module output interface.
  */
 class ConfigPipelineExecution {
- private:
-  /*
-   *!\brief The key is the module index, this variable records all module pipeline configuration
-   * information.
-   */
-  std::unordered_map<int, ConfigOutputBindings> config_;
-
  public:
   /*
    *!\brief This function is used to verify whether config is loaded successfully.
@@ -208,6 +201,13 @@ class ConfigPipelineExecution {
       config_[mod_idx] = output;
     }
   }
+
+ private:
+  /*
+   *!\brief The key is the module index, this variable records all module pipeline configuration
+   * information.
+   */
+  std::unordered_map<int, ConfigOutputBindings> config_;
 };
 
 struct InputConnectionConfig {
