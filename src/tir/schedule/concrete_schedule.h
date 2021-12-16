@@ -121,6 +121,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
+  void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
+  void Annotate(const BlockRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const BlockRV& loop_rv, const String& ann_key) override;
+
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 
@@ -162,6 +167,13 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
+  /*!
+   * \brief Check the annotation value is valid and look up the random variable. Raises an exception
+   * if the type of the annotation value is not allowed.
+   * \param The annotation value.
+   * \return The annotation value with random variables substituted with their values.
+   */
+  ObjectRef CheckAndGetAnnotationValue(const ObjectRef& ann_val);
 };
 
 // implementations
