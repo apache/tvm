@@ -1002,7 +1002,7 @@ def set_span(sym, node_name):
         def fill(self, sym):
             if isinstance(sym, _expr.TupleWrapper):
                 return _expr.TupleWrapper(self.visit(sym.tuple_value), sym.size)
-            elif isinstance(sym, _expr.RelayExpr):
+            if isinstance(sym, _expr.RelayExpr):
                 return self.visit(sym)
             return sym
 
