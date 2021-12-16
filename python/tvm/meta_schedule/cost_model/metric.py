@@ -14,10 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.search_strategy package.
-Meta Schedule search strategy utilizes the design spaces given
-to generate measure candidates.
-"""
-from .search_strategy import MeasureCandidate, PySearchStrategy, SearchStrategy
-from .replay_trace import ReplayTrace
+"""Cost model metrics for meta schedule"""
+import numpy as np  # type: ignore
+
+
+def max_curve(trial_scores: np.ndarray) -> np.ndarray:
+    """f(n) = max([s[i] fo i < n])
+
+    Parameters
+    ----------
+    trial_scores : List[float]
+        the score of i-th trial
+
+    Returns
+    -------
+    curve : np.ndarray
+        A vector, the max-curve function values
+    """
+    ret = np.empty(len(trial_scores))
+    keep = -1e9
+    for i, score in enumerate(trial_scores):
+        keep = max(keep, score)
+        ret[i] = keep
+    return ret

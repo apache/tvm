@@ -15,9 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-The tvm.meta_schedule.search_strategy package.
-Meta Schedule search strategy utilizes the design spaces given
-to generate measure candidates.
+The tvm.meta_schedule.cost_model package.
 """
-from .search_strategy import MeasureCandidate, PySearchStrategy, SearchStrategy
-from .replay_trace import ReplayTrace
+from .cost_model import CostModel, PyCostModel
+from .random_model import RandomModel
