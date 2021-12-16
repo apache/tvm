@@ -80,8 +80,8 @@ struct VMCompilerContext {
   std::vector<Index> const_device_indexes;
   // Map from names of primitive functions already allocated to their primitive function index.
   std::unordered_map<std::string, Index> primitive_map;
-  // The SEScopes corresponding to each device index.
-  std::vector<SEScope> se_scopes_;
+  // The virtual devices corresponding to each device index.
+  std::vector<VirtualDevice> virtual_devices_;
 };
 
 class VMCompiler : public runtime::ModuleNode {
@@ -136,8 +136,8 @@ class VMCompiler : public runtime::ModuleNode {
 
   IRModule OptimizeModuleImpl(IRModule mod);
 
-  transform::Sequential MemoryOpt(const SEScope& host_se_scope);
-  transform::Sequential FuseAndLowerOperators(const SEScope& host_se_scope);
+  transform::Sequential MemoryOpt(const VirtualDevice& host_virtual_device);
+  transform::Sequential FuseAndLowerOperators(const VirtualDevice& host_virtual_device);
 
   /*!
    * \brief Populate the global function names in a map where the value is used

@@ -135,18 +135,19 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
 
   void VisitExpr_(const TupleNode* op) final {
     std::vector<int64_t> storage_ids;
-    std::vector<SEScope> se_scopes;
+    std::vector<VirtualDevice> virtual_devices;
     std::vector<int64_t> storage_sizes_in_bytes;
     Expr expr = GetRef<Expr>(op);
     for (Expr field : op->fields) {
       auto sid = GetStorage(field);
       storage_ids.insert(storage_ids.end(), sid->storage_ids.begin(), sid->storage_ids.end());
-      se_scopes.insert(se_scopes.end(), sid->se_scopes.begin(), sid->se_scopes.end());
+      virtual_devices.insert(virtual_devices.end(), sid->virtual_devices.begin(),
+                             sid->virtual_devices.end());
       storage_sizes_in_bytes.insert(storage_sizes_in_bytes.end(),
                                     sid->storage_sizes_in_bytes.begin(),
                                     sid->storage_sizes_in_bytes.end());
     }
-    storage_device_map_[expr] = StorageInfo(storage_ids, se_scopes, storage_sizes_in_bytes);
+    storage_device_map_[expr] = StorageInfo(storage_ids, virtual_devices, storage_sizes_in_bytes);
     AssignReturnSid(expr);
   }
 
@@ -155,7 +156,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     auto sids = GetStorage(op->tuple);
     ICHECK_LT(static_cast<size_t>(op->index), sids->storage_ids.size());
     storage_device_map_[expr] =
-        StorageInfo({sids->storage_ids[op->index]}, {sids->se_scopes[op->index]},
+        StorageInfo({sids->storage_ids[op->index]}, {sids->virtual_devices[op->index]},
                     {sids->storage_sizes_in_bytes[op->index]});
     AssignReturnSid(expr);
   }
@@ -221,24 +222,25 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
    */
   void CreateStorage(const ExprNode* op) {
     Expr expr = GetRef<Expr>(op);
-    return CreateStorage(expr, GetSEScope(expr));
+    return CreateStorage(expr, GetVirtualDevice(expr));
   }
 
   /*!
-   * \brief Create storage to hold the result of evaluating \p expr in \p se_scope.
+   * \brief Create storage to hold the result of evaluating \p expr in \p virtual_device.
    */
-  void CreateStorage(const Expr& expr, const SEScope& se_scope) {
-    ICHECK(!se_scope->IsFullyUnconstrained()) << "invalid SEScope for expr:" << std::endl
-                                              << PrettyPrint(expr);
+  void CreateStorage(const Expr& expr, const VirtualDevice& virtual_device) {
+    ICHECK(!virtual_device->IsFullyUnconstrained())
+        << "invalid virtual device for expr:" << std::endl
+        << PrettyPrint(expr);
     std::vector<int64_t> storage_ids;
-    std::vector<SEScope> se_scopes;
+    std::vector<VirtualDevice> virtual_devices;
     std::vector<int64_t> storage_sizes_in_bytes;
     for (const auto& ttype : FlattenTupleType(expr->checked_type())) {
       storage_ids.push_back(next_available_sid_++);
-      se_scopes.push_back(se_scope);
+      virtual_devices.push_back(virtual_device);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
-    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(se_scopes),
+    storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                             std::move(storage_sizes_in_bytes));
   }
 
@@ -736,7 +738,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
     // TODO(mbs): Plumb from compiler config
-    SEScope host_se_scope = SEScope::ForTarget(target_host_);
+    VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
 
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name,
@@ -753,7 +755,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           // lowering process directly.
           tec::UpdateFunctionMetadata(func, this->function_metadata_, workspace_byte_alignment);
         },
-        host_se_scope)(mod);
+        host_virtual_device)(mod);
 
     auto lowered_main = lowered_mod->Lookup("main");
     auto lowered_main_func = GetRef<Function>(lowered_main.as<FunctionNode>());

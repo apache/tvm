@@ -19,14 +19,14 @@
 
 /*!
  * \file src/relay/transforms/device_planner.cc
- * \brief Determines a unique \p SEScope to hold the result of every Relay sub-expression.
+ * \brief Determines a unique \p VirtualDevice to hold the result of every Relay sub-expression.
  * This pass can be run multiple times, and can be run both before and after lowering.
  *
- * TODO(mbs): Rename SEScope |-> VirtualDevice, and use 'virtual device' (or just 'device')
+ * TODO(mbs): Rename VirtualDevice |-> VirtualDevice, and use 'virtual device' (or just 'device')
  * throughout.
  *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.
- * We represent D by an \p SEScope, which means we can track anywhere from an arbitrary device
+ * We represent D by an \p VirtualDevice, which means we can track anywhere from an arbitrary device
  * of some \p DLDeviceType to a specific memory scope on a specific (virtual) \p Device who's
  * code is compiled with a specific \p Target.
  *
@@ -37,17 +37,17 @@
  * resolve any remaining undetermined devices, and encoding the results on the output in a form
  * that's reasonably friendly to downstream passes.
  *
- * Specific \p SEScopes flow into the constraints from five places:
+ * Specific \p VirtualDevices flow into the constraints from five places:
  *  - Existing "device_copy" CallNodes (with a \p DeviceCopyAttrs attribute) specify a
- *    'src_se_scope' and 'dst_se_scope' \p SEScope. Those constrain the argument and context of
- *     the call respectively. It is ok if source and destination devices are the same, such no-op
- *     copies will be removed after accounting for the device preference.
- *  - Existing "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify an 'se_scope',
- *    which constrains the argument of the call, but (usually, see below) leaves the context
- *    unconstrained. These are called 'annotations' in the rest of the code, have no operational
- *    significance by themselves, but may trigger the insertion of a new "device_copy" call by
- *    this pass. In two situations the result of an "on_device" CallNode may also be constrained
- *    to the given 'se_scope':
+ *    'src_virtual_device' and 'dst_virtual_device' \p VirtualDevice. Those constrain the argument
+ * and context of the call respectively. It is ok if source and destination devices are the same,
+ * such no-op copies will be removed after accounting for the device preference.
+ *  - Existing "on_device" CallNodes (with a \p OnDeviceAttrs attribute) specify an
+ * 'virtual_device', which constrains the argument of the call, but (usually, see below) leaves the
+ * context unconstrained. These are called 'annotations' in the rest of the code, have no
+ * operational significance by themselves, but may trigger the insertion of a new "device_copy" call
+ * by this pass. In two situations the result of an "on_device" CallNode may also be constrained to
+ * the given 'virtual_device':
  *     - The "on_device" call occurs at the top-level of a function body, or occurs as an
  *       immediately let-bound expression. In this situation the extra degree of freedom in
  *       the function result and let-binding leads to surprising device copies, so we simply
@@ -56,12 +56,12 @@
  *       it ourselves during an earlier invocation of this pass. This helps make this pass
  *       idempotent.
  *  - Some special operators require their arguments or results to be on the 'host' (typcially
- *    a CPU) \p SEScope, see below.
+ *    a CPU) \p VirtualDevice, see below.
  *  - Any \p PrimFuncs in the \p IRModule (if \p LowerTEPass has already run) may constrain their
- *    argument buffers to have a specific memory scope, which is part of \p SEScope.
- *  - Annotations left over from a previous run of this pass, such as 'param_se_scopes' and
- *    'result_se_scope' function attributes we introduce below. This is so the pass is idempotent
- *    and can be re-run to flow additional memory scope constraints.
+ *    argument buffers to have a specific memory scope, which is part of \p VirtualDevice.
+ *  - Annotations left over from a previous run of this pass, such as 'param_virtual_devices' and
+ *    'result_virtual_device' function attributes we introduce below. This is so the pass is
+ * idempotent and can be re-run to flow additional memory scope constraints.
  *
  * We proceed in four phases:
  *
@@ -114,8 +114,8 @@
  *
  * Phase 2
  * -------
- * After flowing constraints we apply some defaulting heuristics (using a global default \p SEScope)
- * to fix the device for any as-yet unconstrained sub-expressions.
+ * After flowing constraints we apply some defaulting heuristics (using a global default \p
+ * VirtualDevice) to fix the device for any as-yet unconstrained sub-expressions.
  *  - Unconstrained function result devices default to the global default device.
  *  - Unconstrained function parameters devices default to the device for the function result.
  *  - Unconstrained let-bound expression devices default to the device for the overall let.
@@ -127,9 +127,9 @@
  * Phase 3
  * -------
  * Finally, the result of this analysis is reified into the result as:
- *  - Additional "param_se_scopes" (an \p Array<SEScope>) and "result_se_scope" (an \p SEScope)
- *    attributes for every function (both top-level and local). These describe the devices for
- *    the function's parameters and the result.
+ *  - Additional "param_virtual_devices" (an \p Array<VirtualDevice>) and "result_virtual_device"
+ * (an \p VirtualDevice) attributes for every function (both top-level and local). These describe
+ * the devices for the function's parameters and the result.
  *  - Additional "device_copy" CallNodes where a copy is required in order to respect the
  *    intent of the original "on_device" CallNodes.
  *  - Additional "on_device" CallNodes where the device type of an expression is not trivially
@@ -155,11 +155,11 @@
  * passes must preserve the lexical scoping of the "on_device" CallNodes. E.g. conversion
  * to ANF must respect the lexical scoping convention:
  * \code
- *   f(on_device(g(h(a, b), c), se_scope=CPU))
+ *   f(on_device(g(h(a, b), c), virtual_device=CPU))
  *   ==>
- *   let %x0 = on_device(h(a, b), se_scope=CPU)
- *   let %x1 = on_device(g(%x0), se_scope=CPU)
- *   f(on_device(%x1, se_scope=CPU))
+ *   let %x0 = on_device(h(a, b), virtual_device=CPU)
+ *   let %x1 = on_device(g(%x0), virtual_device=CPU)
+ *   f(on_device(%x1, virtual_device=CPU))
  * \endcode
  *
  * This pass can be run before FuseOps so that it can use device-specific fusion rules.
@@ -188,7 +188,7 @@
  * minimize cross-device calls by moving device copies out of functions. E.g.:
  * \code
  *   def @f() {  // execute on CPU
- *     let x = on_device(...GPU computation..., se_scope=GPU);
+ *     let x = on_device(...GPU computation..., virtual_device=GPU);
  *     device_copy(...GPU computation..., src_dev_type=GPU, dst_dev_type=CPU)
  *   }
  *   def @main() {
@@ -220,7 +220,7 @@
  * \code
  *   let f = fn(x, y) { ... }
  *   let g = fn(f, z) { f(z, z) }
- *   g(f, on_device(..., se_scope=CPU))
+ *   g(f, on_device(..., virtual_device=CPU))
  * \endcode
  * the parameters \p x and \p y will be on the CPU.
  *
@@ -298,14 +298,14 @@ namespace {
  *
  *  - Don't let the device for %x remain unconstrained:
  *    \code
- *      let %x = on_device(e, se_scope=d)
- *      ==> let %x = on_device(e, se_scope=d, constraint=kBoth)
+ *      let %x = on_device(e, virtual_device=d)
+ *      ==> let %x = on_device(e, virtual_device=d, constraint=kBoth)
  *    \endcode
  *
  *  - Don't let the function result remain unconstrained:
  *    \code
- *      fn(%x) { on_device(e, se_scope=d) }
- *      ==> fn(%x) { on_device(e, se_scope=d, constraint=kBoth)
+ *      fn(%x) { on_device(e, virtual_device=d) }
+ *      ==> fn(%x) { on_device(e, virtual_device=d, constraint=kBoth)
  *    \endcode
  *
  *  - Project-then-copy rather than copy-then-project:
@@ -321,7 +321,7 @@ namespace {
  *      call_lowered(@prim, (a, b))
  *      ==> copy_ok(call_lowered(@prim, (copy_ok(a), copy_ok(b))))
  *      where
- *        copy_ok(x) = on_device(x, se_scope=SEScope::FullyUnconstrained,
+ *        copy_ok(x) = on_device(x, virtual_device=VirtualDevice::FullyUnconstrained,
  *                               constrain_body=False, constrain_result=False)
  *    \endcode
  */
@@ -338,7 +338,7 @@ class RewriteOnDevices : public ExprMutator {
     if (props.body.defined() && props.is_normal()) {
       VLOG(2) << "wrapping tuple get item:" << std::endl
               << PrettyPrint(GetRef<TupleGetItem>(tuple_get_item_node)) << std::endl
-              << "with \"on_device\" for SEScope " << props.se_scope;
+              << "with \"on_device\" for VirtualDevice " << props.virtual_device;
       return OnDeviceWithProps(tuple_get_item, props);
     } else {
       return tuple_get_item;
@@ -355,8 +355,8 @@ class RewriteOnDevices : public ExprMutator {
       if (props.body.defined() && props.is_normal()) {
         VLOG(2) << "revising let-bound expression of let:" << std::endl
                 << PrettyPrint(expr) << std::endl
-                << "to be fixed to SEScope " << props.se_scope;
-        value = MaybeOnDeviceFixed(props.body, props.se_scope);
+                << "to be fixed to VirtualDevice " << props.virtual_device;
+        value = MaybeOnDeviceFixed(props.body, props.virtual_device);
       }
       bindings.emplace_back(inner_let, value);
       expr = inner_let_node->body;
@@ -375,8 +375,8 @@ class RewriteOnDevices : public ExprMutator {
     if (props.body.defined() && props.is_normal()) {
       VLOG(2) << "revising body of function:" << std::endl
               << PrettyPrint(GetRef<Function>(function_node)) << std::endl
-              << "to be fixed to SEScope " << props.se_scope;
-      body = MaybeOnDeviceFixed(props.body, props.se_scope);
+              << "to be fixed to VirtualDevice " << props.virtual_device;
+      body = MaybeOnDeviceFixed(props.body, props.virtual_device);
     }
     return WithFields(GetRef<Function>(function_node), function_node->params, std::move(body));
   }
@@ -412,12 +412,12 @@ class RewriteOnDevices : public ExprMutator {
  * It is possible some devices remain free and will need to be defaulted by \p DeviceDefaulter.
  *
  * Eg from \code add(%x, %y) \endcode we know \p %x and \p %y must be on the same device. Later,
- * from \code on_device(%x, se_scope=d) \endcode we know \p %x must be on device \p d, and thus
- * so must \p %y.
+ * from \code on_device(%x, virtual_device=d) \endcode we know \p %x must be on device \p d, and
+ * thus so must \p %y.
  *
  * Constraints can flow in interesting ways. E.g. in:
  * \code
- *   let %f = fn(%x, %y) { add(%x, on_device(%y, se_scope=d)) }
+ *   let %f = fn(%x, %y) { add(%x, on_device(%y, virtual_device=d)) }
  *   let %g = fn(%f, %x, %y) { %f(%x, %y) }
  *   %g(%f, %a, %b)
  * \endcode
@@ -468,21 +468,21 @@ class DeviceAnalyzer : public ExprVisitor {
     ICHECK(func_type_node);
     ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
 
-    Array<SEScope> se_scopes =
+    Array<VirtualDevice> virtual_devices =
         tir::GetPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node));
 
     // Build the implied domain (in terms of the function's Relay type) implied by any memory scope
     // constrains in the function's buffers, for both arguments and results.
     std::vector<DeviceDomainPtr> args_and_result_domains;
-    args_and_result_domains.reserve(se_scopes.size());
+    args_and_result_domains.reserve(virtual_devices.size());
     for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
-      const SEScope& param_se_scope = se_scopes[i];
-      VLOG(2) << "param_se_scope[" << i << "] = " << param_se_scope;
-      args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(param_se_scope));
+      const VirtualDevice& param_virtual_device = virtual_devices[i];
+      VLOG(2) << "param_virtual_device[" << i << "] = " << param_virtual_device;
+      args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(param_virtual_device));
     }
-    const SEScope& ret_se_scope = se_scopes.back();
-    VLOG(2) << "ret_se_scope = " << ret_se_scope;
-    args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(ret_se_scope));
+    const VirtualDevice& ret_virtual_device = virtual_devices.back();
+    VLOG(2) << "ret_virtual_device = " << ret_virtual_device;
+    args_and_result_domains.push_back(domains_->MakeFirstOrderDomain(ret_virtual_device));
 
     return domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));
   }
@@ -520,13 +520,14 @@ class DeviceAnalyzer : public ExprVisitor {
     // The above must match.
     if (domains_->UnifyOrNull(func_domain, implied_domain) == nullptr) {  // higher-order
       // TODO(mbs): Proper diagnostics.
-      LOG(FATAL) << "Function parameters and result SEScopes do not match those of call. Call:"
-                 << std::endl
-                 << PrettyPrint(call) << std::endl
-                 << "with function virtual devices:" << std::endl
-                 << domains_->ToString(func_domain) << std::endl
-                 << "and implied call virtual devices:" << std::endl
-                 << domains_->ToString(implied_domain);
+      LOG(FATAL)
+          << "Function parameters and result VirtualDevices do not match those of call. Call:"
+          << std::endl
+          << PrettyPrint(call) << std::endl
+          << "with function virtual devices:" << std::endl
+          << domains_->ToString(func_domain) << std::endl
+          << "and implied call virtual devices:" << std::endl
+          << domains_->ToString(implied_domain);
     }
 
     VLOG(2) << "final call function domain:" << std::endl
@@ -584,27 +585,28 @@ class DeviceAnalyzer : public ExprVisitor {
       VisitExpr(function_node->params[i]);
     }
 
-    // If the function already has SEScope attributes then we can further constrain the
+    // If the function already has VirtualDevice attributes then we can further constrain the
     // function's domain to match them.
-    if (!GetFunctionResultSEScope(function_node)->IsFullyUnconstrained()) {
+    if (!GetFunctionResultVirtualDevice(function_node)->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
       for (size_t i = 0; i < function_node->params.size(); ++i) {
-        args_and_result.emplace_back(domains_->ForSEScope(
-            function_node->params[i]->checked_type(), GetFunctionParamSEScope(function_node, i)));
+        args_and_result.emplace_back(
+            domains_->ForVirtualDevice(function_node->params[i]->checked_type(),
+                                       GetFunctionParamVirtualDevice(function_node, i)));
       }
-      args_and_result.emplace_back(domains_->ForSEScope(function_node->body->checked_type(),
-                                                        GetFunctionResultSEScope(function_node)));
+      args_and_result.emplace_back(domains_->ForVirtualDevice(
+          function_node->body->checked_type(), GetFunctionResultVirtualDevice(function_node)));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.
-        LOG(FATAL)
-            << "Function SEScopes are incompatible with its \"on_device\" annotation. Function:"
-            << std::endl
-            << PrettyPrint(function) << std::endl
-            << "with function virtual devices:" << std::endl
-            << domains_->ToString(func_domain) << std::endl
-            << "and annotation virtual devices:" << std::endl
-            << domains_->ToString(annotation_domain);
+        LOG(FATAL) << "Function VirtualDevices are incompatible with its \"on_device\" annotation. "
+                      "Function:"
+                   << std::endl
+                   << PrettyPrint(function) << std::endl
+                   << "with function virtual devices:" << std::endl
+                   << domains_->ToString(func_domain) << std::endl
+                   << "and annotation virtual devices:" << std::endl
+                   << domains_->ToString(annotation_domain);
       }
     }
 
@@ -783,7 +785,7 @@ class FreeOnDeviceDefaulter : public ExprVisitor {
  * \code
  *   def @main(%x, %y, %z) {
  *     let %a = add(%x, %y);
- *     multiply(%a, on_device(%z, se_scope=d))
+ *     multiply(%a, on_device(%z, virtual_device=d))
  *   }
  * \endcode
  * we know the parameter \p %z must be on device \p d, but the devices for \p %x and \p %y,
@@ -801,7 +803,8 @@ class DeviceDefaulter : public ExprVisitor {
 
   std::unique_ptr<DeviceDomains> Default() {
     VLOG_CONTEXT << "DeviceDefaulter";
-    VLOG(0) << "defaulting to SEScope " << domains_->config()->default_primitive_se_scope;
+    VLOG(0) << "defaulting to VirtualDevice "
+            << domains_->config()->default_primitive_virtual_device;
     for (const auto& kv : mod_->functions) {
       if (const auto* function_node = AsOptimizableFunctionNode(kv.second)) {
         VLOG(2) << "defaulting devices for '" << kv.first->name_hint << "'";
@@ -825,7 +828,7 @@ class DeviceDefaulter : public ExprVisitor {
     if (!domains_->IsFullyConstrained(func_domain)) {
       VLOG(2) << "before defaulting function:" << std::endl << domains_->ToString(func_domain);
       domains_->SetResultDefaultThenParams(func_domain,
-                                           domains_->config()->default_primitive_se_scope);
+                                           domains_->config()->default_primitive_virtual_device);
       VLOG(2) << "after defaulting function:" << std::endl << domains_->ToString(func_domain);
     }
     VisitExpr(function_node->body);
@@ -845,7 +848,7 @@ class DeviceDefaulter : public ExprVisitor {
       // defaulted.
       VLOG(2) << "before defaulting callee:" << std::endl << domains_->ToString(func_domain);
       domains_->SetResultDefaultThenParams(func_domain,
-                                           domains_->config()->default_primitive_se_scope);
+                                           domains_->config()->default_primitive_virtual_device);
       VLOG(2) << "after defaulting callee:" << std::endl << domains_->ToString(func_domain);
     }
     return ExprVisitor::VisitExpr_(call_node);
@@ -858,12 +861,12 @@ class DeviceDefaulter : public ExprVisitor {
       Let let = Downcast<Let>(expr);
       // If the let-var device is still free force it to match the overall let.
       auto let_domain = domains_->DomainFor(let);  // may be higher-order
-      SEScope let_se_scope = domains_->ResultSEScope(let_domain);
-      ICHECK(!let_se_scope->IsFullyUnconstrained());
+      VirtualDevice let_virtual_device = domains_->ResultVirtualDevice(let_domain);
+      ICHECK(!let_virtual_device->IsFullyUnconstrained());
       auto let_var_domain = domains_->DomainFor(let->var);  // may be higher-order
       if (!domains_->IsFullyConstrained(let_var_domain)) {
         VLOG(2) << "before defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
-        domains_->SetDefault(let_var_domain, let_se_scope);
+        domains_->SetDefault(let_var_domain, let_virtual_device);
         VLOG(2) << "after defaulting let-var:" << std::endl << domains_->ToString(let_var_domain);
       }
       VisitExpr(let->var);
@@ -889,7 +892,7 @@ class DeviceDefaulter : public ExprVisitor {
  * - Discard any existing "on_device" CallNodes since their job is done. Similarly, discard
  *   any existing "device_copy" CallNodes which are no-ops.
  *
- * - Functions are given "param_se_scopes" and "result_se_scope" attributes to capture
+ * - Functions are given "param_virtual_devices" and "result_virtual_device" attributes to capture
  *   the device type for its parameters and result.
  *
  * - Additional "device_copy" CallNodes are inserted wherever there's a transition between
@@ -910,10 +913,10 @@ class DeviceDefaulter : public ExprVisitor {
  *
  * For example, we'll end up with programs that look like:
  * \code
- *   def @main(%x, %y, param_se_scopes=[...], result_se_scope=...) {
- *     let %a = on_device(..., se_scope=..., is_fixed=True)
- *     @f(%a, device_copy(on_device(..., se_scope=..., is_fixed=True),
- *                        src_se_scope=..., dst_se_scope=...))
+ *   def @main(%x, %y, param_virtual_devices=[...], result_virtual_device=...) {
+ *     let %a = on_device(..., virtual_device=..., is_fixed=True)
+ *     @f(%a, device_copy(on_device(..., virtual_device=..., is_fixed=True),
+ *                        src_virtual_device=..., dst_virtual_device=...))
  *   }
  * \endcode
  */
@@ -961,19 +964,21 @@ class DeviceCapturer : public ExprMutator {
     ICHECK(func_type_node);
     ICHECK_EQ(func_domain->function_arity(), func_type_node->arg_types.size());
 
-    std::vector<SEScope> arg_and_result_se_scopes;
-    arg_and_result_se_scopes.reserve(func_type_node->arg_types.size() + 1);
+    std::vector<VirtualDevice> arg_and_result_virtual_devices;
+    arg_and_result_virtual_devices.reserve(func_type_node->arg_types.size() + 1);
     for (size_t i = 0; i < func_type_node->arg_types.size(); ++i) {
-      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
-      VLOG(2) << "param_se_scope[" << i << "] = " << param_se_scope;
-      arg_and_result_se_scopes.push_back(param_se_scope);
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      VLOG(2) << "param_virtual_device[" << i << "] = " << param_virtual_device;
+      arg_and_result_virtual_devices.push_back(param_virtual_device);
     }
-    SEScope ret_se_scope = domains_->ResultSEScope(func_domain->function_result());
-    VLOG(2) << "ret_se_scope = " << ret_se_scope;
-    arg_and_result_se_scopes.push_back(ret_se_scope);
+    VirtualDevice ret_virtual_device =
+        domains_->ResultVirtualDevice(func_domain->function_result());
+    VLOG(2) << "ret_virtual_device = " << ret_virtual_device;
+    arg_and_result_virtual_devices.push_back(ret_virtual_device);
 
     return tir::ApplyPrimFuncArgAndResultConstraints(prim_func, GetRef<FuncType>(func_type_node),
-                                                     arg_and_result_se_scopes);
+                                                     arg_and_result_virtual_devices);
   }
 
   // Nothing interesting for VarNode, ConstantNode, GlobalVarNode, OpNode and ConstructorNode
@@ -1002,26 +1007,28 @@ class DeviceCapturer : public ExprMutator {
 
     // Gather the parameter and result device types for the function attributes.
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
-    SEScope result_se_scope = domains_->ResultSEScope(func_domain);
-    ICHECK(!result_se_scope->IsFullyUnconstrained());
-    Array<SEScope> param_se_scopes;
-    param_se_scopes.reserve(function_node->params.size());
+    VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
+    ICHECK(!result_virtual_device->IsFullyUnconstrained());
+    Array<VirtualDevice> param_virtual_devices;
+    param_virtual_devices.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
-      ICHECK(!param_se_scope->IsFullyUnconstrained());
-      param_se_scopes.push_back(param_se_scope);
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      ICHECK(!param_virtual_device->IsFullyUnconstrained());
+      param_virtual_devices.push_back(param_virtual_device);
     }
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
     Expr body = VisitChild(
-        /*lexical_se_scope=*/result_se_scope,
-        /*expected_se_scope=*/result_se_scope,
-        /*child_se_scope=*/GetSEScope(function_node->body), function_node->body);
+        /*lexical_virtual_device=*/result_virtual_device,
+        /*expected_virtual_device=*/result_virtual_device,
+        /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
 
     Function func = WithFields(GetRef<Function>(function_node), std::move(function_node->params),
                                std::move(body));
-    return FunctionOnDevice(func, std::move(param_se_scopes), std::move(result_se_scope));
+    return FunctionOnDevice(func, std::move(param_virtual_devices),
+                            std::move(result_virtual_device));
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
@@ -1031,7 +1038,7 @@ class DeviceCapturer : public ExprMutator {
     // (However we'll preserve the form in the result below.)
     auto vanilla_call = GetAnyCall(call_node);
 
-    SEScope call_se_scope = GetSEScope(call);
+    VirtualDevice call_virtual_device = GetVirtualDevice(call);
 
     auto on_device_props = GetOnDeviceProps(call_node);
     if (on_device_props.body.defined()) {
@@ -1042,17 +1049,19 @@ class DeviceCapturer : public ExprMutator {
 
     DeviceCopyProps device_copy_props = GetDeviceCopyProps(call_node);
     if (device_copy_props.body.defined()) {
-      SEScope src_se_scope = domains_->config()->CanonicalSEScope(device_copy_props.src_se_scope);
-      SEScope dst_se_scope = domains_->config()->CanonicalSEScope(device_copy_props.dst_se_scope);
-      ICHECK_EQ(call_se_scope, dst_se_scope);
-      if (src_se_scope == dst_se_scope) {
+      VirtualDevice src_virtual_device =
+          domains_->config()->CanonicalVirtualDevice(device_copy_props.src_virtual_device);
+      VirtualDevice dst_virtual_device =
+          domains_->config()->CanonicalVirtualDevice(device_copy_props.dst_virtual_device);
+      ICHECK_EQ(call_virtual_device, dst_virtual_device);
+      if (src_virtual_device == dst_virtual_device) {
         // We can pinch out existing "device_copy" CallNodes if their source and destinations
         // match.
         return VisitExpr(device_copy_props.body);
       } else {
-        return VisitChild(/*lexical_se_scope=*/dst_se_scope,
-                          /*expected_se_scope=*/dst_se_scope,
-                          /*child_se_scope=*/src_se_scope, device_copy_props.body);
+        return VisitChild(/*lexical_virtual_device=*/dst_virtual_device,
+                          /*expected_virtual_device=*/dst_virtual_device,
+                          /*child_virtual_device=*/src_virtual_device, device_copy_props.body);
       }
     }
 
@@ -1060,16 +1069,17 @@ class DeviceCapturer : public ExprMutator {
     auto func_domain = domains_->DomainForCallee(call);  // higher-order
     VLOG(2) << "considering call:" << std::endl
             << PrettyPrint(call) << std::endl
-            << "in scope " << call_se_scope << " with function virtual devices:" << std::endl
+            << "in virtual device " << call_virtual_device
+            << " with function virtual devices:" << std::endl
             << domains_->ToString(func_domain);
-    SEScope result_se_scope = domains_->ResultSEScope(func_domain);
-    ICHECK(!result_se_scope->IsFullyUnconstrained());
+    VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
+    ICHECK(!result_virtual_device->IsFullyUnconstrained());
 
     // The callee is on the current device.
     Expr op = VisitChild(
-        /*lexical_se_scope=*/call_se_scope,
-        /*expected_se_scope=*/call_se_scope,
-        /*child_se_scope=*/result_se_scope, vanilla_call->op);
+        /*lexical_virtual_device=*/call_virtual_device,
+        /*expected_virtual_device=*/call_virtual_device,
+        /*child_virtual_device=*/result_virtual_device, vanilla_call->op);
 
     // Each argument can be on the device for the corresponding function parameter. However if
     // any of those differ from the overall call device then wrap them in an "on_device" to
@@ -1078,13 +1088,14 @@ class DeviceCapturer : public ExprMutator {
     args.reserve(vanilla_call->args.size());
     ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size());
     for (size_t i = 0; i < vanilla_call->args.size(); ++i) {
-      SEScope param_se_scope = domains_->ResultSEScope(func_domain->function_param(i));
-      ICHECK(!param_se_scope->IsFullyUnconstrained())
+      VirtualDevice param_virtual_device =
+          domains_->ResultVirtualDevice(func_domain->function_param(i));
+      ICHECK(!param_virtual_device->IsFullyUnconstrained())
           << "for parameter " << i << " for call:" << std::endl
           << PrettyPrint(call);
-      args.push_back(VisitChild(/*lexical_se_scope=*/call_se_scope,
-                                /*expected_se_scope=*/param_se_scope,
-                                /*child_se_scope=*/GetSEScope(vanilla_call->args[i]),
+      args.push_back(VisitChild(/*lexical_virtual_device=*/call_virtual_device,
+                                /*expected_virtual_device=*/param_virtual_device,
+                                /*child_virtual_device=*/GetVirtualDevice(vanilla_call->args[i]),
                                 vanilla_call->args[i]));
     }
 
@@ -1100,27 +1111,28 @@ class DeviceCapturer : public ExprMutator {
   Expr VisitExpr_(const LetNode* let_node) final {
     Expr expr = GetRef<Expr>(let_node);
     // Iterate through chained lets, provided they all agree on their device type.
-    SEScope let_se_scope = GetSEScope(expr);
+    VirtualDevice let_virtual_device = GetVirtualDevice(expr);
     std::vector<std::tuple<Var, Expr, Span>> bindings;
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       Expr inner_let = GetRef<Let>(inner_let_node);
-      if (GetSEScope(inner_let) != let_se_scope) {
+      if (GetVirtualDevice(inner_let) != let_virtual_device) {
         // We have a device transition which needs to be handled.
         break;
       }
       // The let-bound value can be on a different device than the overall let.
-      // By using the fully-unconstrained SEScope for the 'lexical' scope we'll force the let-bound
-      // value to *always* be wrapped by an "on_device" (see introductory comment for motivation.)
-      Expr value =
-          VisitChild(/*lexical_se_scope=*/SEScope::FullyUnconstrained(),
-                     /*expected_se_scope=*/GetSEScope(inner_let_node->var),
-                     /*child_se_scope=*/GetSEScope(inner_let_node->value), inner_let_node->value);
+      // By using the fully-unconstrained virtual device for the 'lexical' scope we'll force the
+      // let-bound value to *always* be wrapped by an "on_device" (see introductory comment for
+      // motivation.)
+      Expr value = VisitChild(/*lexical_virtual_device=*/VirtualDevice::FullyUnconstrained(),
+                              /*expected_virtual_device=*/GetVirtualDevice(inner_let_node->var),
+                              /*child_virtual_device=*/GetVirtualDevice(inner_let_node->value),
+                              inner_let_node->value);
       bindings.emplace_back(inner_let_node->var, value, inner_let_node->span);
       expr = inner_let_node->body;
     }
-    Expr body = VisitChild(/*lexical_se_scope=*/let_se_scope,
-                           /*expected_se_scope=*/let_se_scope,
-                           /*child_se_scope=*/GetSEScope(expr), expr);
+    Expr body = VisitChild(/*lexical_virtual_device=*/let_virtual_device,
+                           /*expected_virtual_device=*/let_virtual_device,
+                           /*child_virtual_device=*/GetVirtualDevice(expr), expr);
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
       body = Let(/*var=*/std::get<0>(*itr), /*value=*/std::get<1>(*itr), body,
                  /*span=*/std::get<2>(*itr));
@@ -1175,68 +1187,70 @@ class DeviceCapturer : public ExprMutator {
     return WithFields(std::move(match), std::move(data), std::move(clauses));
   }
 
-  SEScope GetSEScope(const Expr& expr) {
+  VirtualDevice GetVirtualDevice(const Expr& expr) {
     // Look through any "on_device" CallNodes, to mimic how we will be pinching them out.
     OnDeviceProps props = GetOnDeviceProps(expr);
     Expr true_expr = props.body.defined() ? props.body : expr;
     ICHECK(domains_->contains(true_expr));
     // If expr is higher order we'll return only the result domain's device.
-    SEScope se_scope = domains_->ResultSEScope(domains_->DomainFor(true_expr));
-    ICHECK(!se_scope->IsFullyUnconstrained())
-        << "no SEScope was determined for expression:" << std::endl
+    VirtualDevice virtual_device = domains_->ResultVirtualDevice(domains_->DomainFor(true_expr));
+    ICHECK(!virtual_device->IsFullyUnconstrained())
+        << "no VirtualDevice was determined for expression:" << std::endl
         << PrettyPrint(true_expr);
-    return std::move(se_scope);
+    return std::move(virtual_device);
   }
 
   /*!
-   * \brief Reconcile the \p child_se_scope for \p child with both the \p expected_se_scope
-   * (as required by the expression context the \p child is in) and the \p lexical_se_scope
-   * (as a downstream transform would infer based only on lexically enclosing "on_device"
-   * CallNodes and function attributes.) Generally \p lexical_se_scope and \p
-   * expected_se_scope are the same by definition, but may differ in arguments to  functions
+   * \brief Reconcile the \p child_virtual_device for \p child with both the \p
+   * expected_virtual_device (as required by the expression context the \p child is in) and the \p
+   * lexical_virtual_device (as a downstream transform would infer based only on lexically enclosing
+   * "on_device" CallNodes and function attributes.) Generally \p lexical_virtual_device and \p
+   * expected_virtual_device are the same by definition, but may differ in arguments to  functions
    * and let-bound expressions.
    *
-   * If \p child_se_scope differs from \p expected_se_scope, wrap it as:
+   * If \p child_virtual_device differs from \p expected_virtual_device, wrap it as:
    * \code
-   *   device_copy(on_device(child', se_scope=child_se_scope),
-   *               src_dev_type=child_se_scope, dst_dev_type=expected_se_scope)
+   *   device_copy(on_device(child', virtual_device=child_virtual_device),
+   *               src_dev_type=child_virtual_device, dst_dev_type=expected_virtual_device)
    * \endcode
    * (where child is rewritten to child'). Note the pedantic spelling out of "on_device" on the
    * child.
    *
-   * If \p expected_se_scope differs from \p lexical_se_scope, then (also) wrap
+   * If \p expected_virtual_device differs from \p lexical_virtual_device, then (also) wrap
    * the expression as:
    * \code
-   *   on_device(..., se_scope=expected_se_scope)
+   *   on_device(..., virtual_device=expected_virtual_device)
    * \endcode
    *
    * TODO(mbs): There's no attempt at sharing here. If usage of child's node could be wrapped
    * by a "device_copy", even though those copies will generally all be to the same destination
    * device.
    */
-  Expr VisitChild(const SEScope& lexical_se_scope, const SEScope& expected_se_scope,
-                  const SEScope& child_se_scope, const Expr& child) {
-    ICHECK(!expected_se_scope->IsFullyUnconstrained());
+  Expr VisitChild(const VirtualDevice& lexical_virtual_device,
+                  const VirtualDevice& expected_virtual_device,
+                  const VirtualDevice& child_virtual_device, const Expr& child) {
+    ICHECK(!expected_virtual_device->IsFullyUnconstrained());
     if (child->IsInstance<OpNode>() || child->IsInstance<ConstructorNode>()) {
       // Primitive operators and contructors don't need to be rewritten and can have a
       // different domain at each call site.
       return child;
     }
     Expr result = VisitExpr(child);
-    if (child_se_scope != expected_se_scope) {
-      VLOG(2) << "creating " << DeviceCopyOp()->name << " from virtual device " << child_se_scope
-              << " to virtual device " << expected_se_scope << " for:" << std::endl
+    if (child_virtual_device != expected_virtual_device) {
+      VLOG(2) << "creating " << DeviceCopyOp()->name << " from virtual device "
+              << child_virtual_device << " to virtual device " << expected_virtual_device
+              << " for:" << std::endl
               << PrettyPrint(result);
       // Also wrap the child in an "on_device" so downstream transforms can track devices
       // lexically.
-      result = MaybeOnDeviceFixed(result, child_se_scope);
-      result = DeviceCopy(result, child_se_scope, expected_se_scope);
+      result = MaybeOnDeviceFixed(result, child_virtual_device);
+      result = DeviceCopy(result, child_virtual_device, expected_virtual_device);
     }
-    if (expected_se_scope != lexical_se_scope) {
-      VLOG(2) << "creating " << OnDeviceOp()->name << " for virtual device " << expected_se_scope
-              << " for:" << std::endl
+    if (expected_virtual_device != lexical_virtual_device) {
+      VLOG(2) << "creating " << OnDeviceOp()->name << " for virtual device "
+              << expected_virtual_device << " for:" << std::endl
               << PrettyPrint(result);
-      result = MaybeOnDeviceFixed(result, expected_se_scope);
+      result = MaybeOnDeviceFixed(result, expected_virtual_device);
     }
     return result;
   }
@@ -1246,9 +1260,10 @@ class DeviceCapturer : public ExprMutator {
    * is expected to be on the same device as the \p parent.
    */
   Expr VisitChild(const Expr& parent, const Expr& child) {
-    SEScope expected_se_scope = GetSEScope(parent);
-    SEScope child_se_scope = GetSEScope(child);
-    return VisitChild(expected_se_scope, expected_se_scope, child_se_scope, child);
+    VirtualDevice expected_virtual_device = GetVirtualDevice(parent);
+    VirtualDevice child_virtual_device = GetVirtualDevice(child);
+    return VisitChild(expected_virtual_device, expected_virtual_device, child_virtual_device,
+                      child);
   }
 
   /*! \brief Module we are rewriting, so we can lookup global variables. */
@@ -1282,7 +1297,7 @@ tvm::transform::Pass PlanDevicesCore(CompilationConfig config) {
         VLOG(3) << "Domains after defaulting: " << std::endl << domains->ToString();
 
         // Insert "device_copy" and "on_device" CallNodes where needed to unambiguously capture
-        // the above map, and attach additional "param_se_scopes" and "result_se_scope"
+        // the above map, and attach additional "param_virtual_devices" and "result_virtual_device"
         // attributes to all function definitions.
         return DeviceCapturer(mod, std::move(domains)).Capture();
       },

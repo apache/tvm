@@ -31,7 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -62,8 +62,8 @@ class StorageInfoNode : public Object {
   // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The SEScopes these expressions are stored within. */
-  std::vector<SEScope> se_scopes;
+  /* \brief The virtual devices these expressions are stored within. */
+  std::vector<VirtualDevice> virtual_devices;
   /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
@@ -77,7 +77,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<SEScope> se_scopes,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<VirtualDevice> virtual_devices,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
