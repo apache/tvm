@@ -271,7 +271,7 @@ inline const char* DeviceName(int type) {
     case kDLMicroDev:
       return "micro";
     default:
-      //LOG(FATAL) << "unknown type =" << type;
+      LOG(FATAL) << "unknown type =" << type;
       return "Unknown";
   }
 }
