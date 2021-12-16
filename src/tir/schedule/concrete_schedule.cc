@@ -571,6 +571,53 @@ BlockRV ConcreteScheduleNode::RFactor(const LoopRV& loop_rv, int factor_axis) {
 
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/
+
+ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_val) {
+  if (ann_val.as<StringObj>()) {
+    return ann_val;
+  }
+  if (const auto* expr = ann_val.as<PrimExprNode>()) {
+    ICHECK(!ann_val->IsInstance<StringImmNode>())
+        << "TypeError: runtime::String is expected, but gets StringImm";
+    return this->Get(GetRef<PrimExpr>(expr));
+  }
+  LOG(FATAL)
+      << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
+      << "gets: " << ann_val->GetTypeKey();
+  throw;
+}
+
+void ConcreteScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
+                                    const ObjectRef& ann_val) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Annotate(state_, this->GetSRef(loop_rv), ann_key, this->CheckAndGetAnnotationValue(ann_val));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("annotate", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Unannotate(const LoopRV& loop_rv, const String& ann_key) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Unannotate(state_, this->GetSRef(loop_rv), ann_key);
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("unannotate", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_key,
+                                    const ObjectRef& ann_val) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Annotate(state_, this->GetSRef(block_rv), ann_key,
+                this->CheckAndGetAnnotationValue(ann_val));
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("annotate", this->error_render_level_);
+}
+
+void ConcreteScheduleNode::Unannotate(const BlockRV& loop_rv, const String& ann_key) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::Unannotate(state_, this->GetSRef(loop_rv), ann_key);
+  this->state_->DebugVerify();
+  TVM_TIR_SCHEDULE_END("unannotate", this->error_render_level_);
+}
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir

@@ -20,8 +20,8 @@ from typing import Dict, List, Optional, Union
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
-from tvm.runtime import Object
-from tvm.tir import Block, For, IntImm, PrimFunc
+from tvm.runtime import Object, String
+from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
 
 from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -1734,6 +1734,127 @@ class Schedule(Object):
     ########## Schedule: Blockize & Tensorize ##########
 
     ########## Schedule: Annotation ##########
+
+    @type_checked
+    def annotate(
+        self,
+        block_or_loop: Union[BlockRV, LoopRV],
+        ann_key: str,
+        ann_val: Union[str, int, float, ExprRV],
+    ) -> None:
+        """Annotate a block/loop with a key value pair
+
+        Parameters
+        ----------
+        block_or_loop: Union[BlockRV, LoopRV]
+            The block/loop to be annotated
+        ann_key : str
+            The annotation key
+        ann_val : Union[str, int, float, ExprRV]
+            The annotation value
+
+        Examples
+        --------
+
+        Before annotate, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_annotate)
+            sch.annotate(sch.get_block("B"), "ann_key", "ann_value")
+            print(sch.mod["main"].script())
+
+        After applying annotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_annotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        if isinstance(ann_val, str):
+            ann_val = String(ann_val)
+        elif isinstance(ann_val, int):
+            ann_val = IntImm("int32", ann_val)
+        elif isinstance(ann_val, float):
+            ann_val = FloatImm("float32", ann_val)
+        _ffi_api.ScheduleAnnotate(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, ann_key, ann_val
+        )
+
+    @type_checked
+    def unannotate(self, block_or_loop: Union[BlockRV, LoopRV], ann_key: str) -> None:
+        """Unannotate a block/loop's annotation with key ann_key
+
+        Parameters
+        ----------
+        block_or_loop: Union[BlockRV, LoopRV]
+            The block/loop to be unannotated
+        ann_key : str
+            The annotation key
+
+        Examples
+        --------
+
+        Before unannotate, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.block_attr({"ann_key", "ann_value"})
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        Create the schedule and do annotate:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_unannotate)
+            sch.unannotate(sch.get_block("B"), "ann_key")
+            print(sch.mod["main"].script())
+
+        After applying unannotate, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_unannotate(a: T.handle, b: T.handle) -> None:
+                A = T.match_buffer(a, (128, 128))
+                B = T.match_buffer(b, (128, 128))
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+
+        """
+        _ffi_api.ScheduleUnannotate(  # type: ignore # pylint: disable=no-member
+            self, block_or_loop, ann_key
+        )
 
     ########## Schedule: Misc ##########
 
