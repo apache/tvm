@@ -30,7 +30,7 @@ from ..utils import cpu_count, get_global_func_with_default_on_worker
 from .builder import BuilderInput, BuilderResult, PyBuilder
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:
