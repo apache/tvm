@@ -146,7 +146,6 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
     uart_init();
     """,
     includes=["uart.h"],
-    parameters={"NPU_VARIANT": "256"},
     pass_config={
         "relay.ext.cmsisnn.options": {
             "mcpu": "cortex-m55",

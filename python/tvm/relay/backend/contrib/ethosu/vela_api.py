@@ -388,6 +388,7 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
         "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
+        "ethos-u65-256": vapi.NpuAccelerator.Ethos_U65_256,
     }
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     accel_config_str = compiler_attrs.accelerator_config
