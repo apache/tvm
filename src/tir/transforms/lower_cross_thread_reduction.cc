@@ -122,7 +122,7 @@ Buffer MakeScratchpad(String name, const DataType& dtype) {
                 /*shape=*/{Integer(1)},
                 /*strides=*/{Integer(1)},
                 /*elem_offset=*/PrimExpr{nullptr},
-                /*name=*/std::move(name),
+                /*name=*/name,
                 /*data_alignment=*/0,
                 /*offset_factor=*/0,
                 /*buffer_type=*/kDefault);
@@ -207,7 +207,7 @@ class InThreadReducerMaker : private StmtMutator {
       if (res->thread_binding.defined()) {
         return res->body;
       } else {
-        return res;
+        return std::move(res);
       }
     } else {
       return Stmt{nullptr};
@@ -564,7 +564,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
         }
       }
     }
-    return new_block;
+    return std::move(new_block);
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {

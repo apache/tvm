@@ -219,7 +219,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   // v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
     Expr annotated_expr = MaybeOnDeviceFixed(now, GetSEScope(orig));
-    Var var = v.defined() ? v : Var(String("x"), Type());
+    Var var = v.defined() ? v : Var::GenSym();
     bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
     if (!v.defined() && not_included) {
       return annotated_expr;

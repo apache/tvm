@@ -694,8 +694,7 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
         *rv = this->output_.external_mods;
       });
     } else if (name == "get_devices") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
+      return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
     } else if (name == "get_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });

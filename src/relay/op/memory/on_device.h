@@ -66,15 +66,18 @@ struct OnDeviceProps {
 };
 
 /*!
- * \brief As for OnDevice, but taking all fields other than \p body from \p props.
+ * \brief Wraps \p body in an "on_device" CallNode, taking all fields other than \p body from \p
+ * props.
  */
 inline Call OnDeviceWithProps(Expr body, const OnDeviceProps& props) {
   return OnDevice(std::move(body), props.se_scope, props.constrain_result, props.constrain_body);
 }
 
 /*!
- * \brief As for OnDevice, but don't constrain the body or result to any particular virtual device.
- * This allows a "device_copy" when required.
+ * \brief Wraps \p body in an "on_device" CallNode, but don't constrain the body or result to
+ * any particular virtual device. This allows a "device_copy" to be inserted by PlanDevices
+ * where required, while at the same time not introducing unnecessary freedom in the device
+ * choices.
  */
 inline Call OnDeviceCopyOk(Expr body) {
   return OnDevice(std::move(body), SEScope::FullyUnconstrained(),

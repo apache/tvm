@@ -1088,6 +1088,10 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
+  // Now that we have PrimFuncs, flow and solve SEScope constraints again to account for
+  // any memory scopes which lowering has settled on.
+  pass_seqs.push_back(transform::PlanDevices(config_));
+
   // Inline the functions that are lifted to the module scope. We perform this
   // pass after all other optimization passes but before the memory allocation
   // pass. This is because memory allocation pass will insert `invoke_tvm_op`

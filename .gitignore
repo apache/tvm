@@ -242,3 +242,8 @@ conda/pkg
 .tvm_test_data
 .dgl
 .caffe2
+
+# Local docs build
+_docs/
+jvm/target
+.config/configstore/

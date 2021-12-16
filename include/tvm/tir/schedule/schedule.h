@@ -448,6 +448,14 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                             int offset) = 0;
+  /*!
+   * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+   * write-index
+   * \param block_rv The producer block of the buffer
+   * \param buffer_index The index of the buffer in block's write region
+   * \param storage_scope The storage scope to be set
+   */
+  virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
   /******** Schedule: Misc ********/

@@ -22,8 +22,7 @@ from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
 from .gen_tensor_op import (
     ProfilerEngine,
-    generate_sm75_tensor_op_1688,
-    generate_sm80_tensor_op_16816,
+    GENERATOR_FUNC_TABLE,
 )
 from .library import (
     EpilogueFunctor,
@@ -132,21 +131,16 @@ def create_gemm_operator(
     return ret
 
 
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
-
-
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     75: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
+    # align1 variants do not seem to be available for sm80
     80: {
-        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
-        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
 }
 
@@ -160,14 +154,16 @@ class CutlassGemmProfiler:
         self.sm = sm
         self.cache = {}
 
-    def check_align(self, op_name, M):
+    def check_align(self, op_name, M, N, K):
         """Filter out kernels that cannot be supported."""
         aligns = re.findall(r"align[1|2|4|8]", op_name)
         assert len(aligns) == 1
+        # The same alignment is used for all axes
         align = int(aligns[0][-1])
-        if M % align != 0:
-            return False
-        return True
+        # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
+        # See https://github.com/NVIDIA/cutlass/issues/362.
+        # When the above issue is resolved, we can remove the alignment check on M below.
+        return all([dim % align == 0 for dim in [M, N, K]])
 
     def get_default(self, out_dtype, batched=False):
         """Return the default kernel for the requested architecture.
@@ -194,10 +190,7 @@ class CutlassGemmProfiler:
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
         )
-        ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
-
-        for op in ops:
-            op["runtime"] = -1
+        ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
@@ -205,10 +198,10 @@ class CutlassGemmProfiler:
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out > 0 and profile_all is False:
-                break
+            if out < float("inf") and not profile_all:
+                self.cache[(M, N, K)] = op
+                return op
 
-        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
-        output = sorted(valid_ops, key=lambda i: i["runtime"])
-        self.cache[(M, N, K)] = output[0]
-        return output[0]
+        output = min(ops, key=lambda i: i["runtime"])
+        self.cache[(M, N, K)] = output
+        return output
