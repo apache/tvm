@@ -131,7 +131,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
-  ConfigPipelineExecution& LoadConfig(dmlc::JSONReader* reader) {
+  void LoadConfig(dmlc::JSONReader* reader) {
     reader->BeginObject();
     std::string key;
     while (reader->NextObjectItem(&key)) {
@@ -143,7 +143,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
         LOG(FATAL) << "do not support key " << key;
       }
     }
-    return pipeline_config_;
+    return;
   }
 };
 }  // namespace runtime

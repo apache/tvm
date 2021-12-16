@@ -127,11 +127,11 @@ void PipelineExecutor::Init(const std::vector<Module>& modules, const std::strin
   // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
-  ConfigPipelineExecution& pipeline_config = this->LoadConfig(&reader);
-  ICHECK(!pipeline_config.Empty()) << "The pipeline config information is empty.";
+  this->LoadConfig(&reader);
+  ICHECK(!pipeline_config_.Empty()) << "The pipeline config information is empty.";
   // Initialize the pipeline function class used for pipeline thread pool management
   // and schedule etc. This function returns the number of output.
-  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config);
+  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config_);
   return;
 }
 
