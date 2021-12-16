@@ -1168,8 +1168,8 @@ def PlanDevices(config):
     every Relay sub-expression should run and the result stored. Captures the result of that
     analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
     not otherwise constrained are assigned to the default primitive virtual device describe by
-    config. However data and computations which must be hosted on a CPU (such as shapes and shape functions)
-    use the host virtual device of the config.
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
 
     Parameters
     ----------
