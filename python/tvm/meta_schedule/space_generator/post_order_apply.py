@@ -32,5 +32,5 @@ class PostOrderApply(SpaceGenerator):
     def __init__(self):
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.SpaceGeneratorPostOrderApply,  # pylint: disable=no-member
+            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore # pylint: disable=no-member
         )
