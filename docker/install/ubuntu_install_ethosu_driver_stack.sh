@@ -23,7 +23,7 @@ set -o pipefail
 fvp_dir="/opt/arm/FVP_Corstone_SSE-300"
 cmake_dir="/opt/arm/cmake"
 ethosu_dir="/opt/arm/ethosu"
-ethosu_driver_ver="21.05"
+ethosu_driver_ver="21.11"
 cmsis_ver="5.8.0"
 
 mkdir -p /opt/arm
