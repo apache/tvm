@@ -146,5 +146,17 @@ def test_match_buffer_syntax_sugar():
     assert_structural_equal(elementwise_handle, elementwise_buffer_no_kwargs)
 
 
+# match buffer failed case
+def test_match_buffer_no_kwargs_failed():
+    with pytest.raises(ValueError) as e:
+
+        @T.prim_func
+        def elementwise_buffer_no_kwargs_failed(
+            a: T.Buffer[(128, 128, 128, 128)],
+            b: T.Buffer[(128, 128, 128, 128)],
+        ) -> None:
+            pass
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
