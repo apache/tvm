@@ -109,7 +109,13 @@ include_directories(SYSTEM ${PICOJSON_PATH})
 # initial variables
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
-if("${CMAKE_EXPORT_COMPILE_COMMANDS}" STREQUAL "")
+
+
+# Check if this is being run on its own or as a subdirectory for another project
+# If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
+get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
+
+if(NOT IS_SUBPROJECT AND "${CMAKE_EXPORT_COMPILE_COMMANDS}" STREQUAL "")
   # If not set manually, change the default to ON
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
