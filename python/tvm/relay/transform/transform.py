@@ -99,6 +99,25 @@ def InferType():
     return _ffi_api.InferType()
 
 
+def InferTypeLocal(expr):
+    """Infer the type of a single expr, reusing type information to do so.
+
+    This populates the checked_type field in expr. We assume existing type information
+    in the graph is correct!
+
+    Parameters
+    ----------
+    expr: relay.Expr
+        The expression we want to know the type of
+
+    Returns
+    -------
+    type: relay.Type
+        The type of the expression
+    """
+    return _ffi_api.InferTypeLocal(expr)
+
+
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.

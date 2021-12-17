@@ -269,7 +269,7 @@ TVM_DLL Pass InferType();
  * type information is filled in properly which makes it much faster if we
  * iteratively call type inference.
  *
- * \return The pass.
+ * \return The type of the expression.
  */
 TVM_DLL Type InferTypeLocal(const Expr& expr);
 

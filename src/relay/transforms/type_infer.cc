@@ -844,13 +844,9 @@ class SameTypedSubgraphExtractor : public ExprMutator {
     return Tuple(GetAnalogousExpression(op->fields), op->span);
   }
   Expr VisitExpr_(const FunctionNode* op) {
-    // We use these to regenerate the list of free variables in the function and place them in
-    // the list of input parameters for the model.
-    Expr new_body = GetAnalogousExpression(op->body);
-    IRModule new_body_mod = IRModule::FromExpr(new_body);
-    return Function(relay::FreeVars(new_body), new_body, op->ret_type,
-                    relay::FreeTypeVars(new_body, IRModule::FromExpr(new_body)), op->attrs,
-                    op->span);
+    // Unfortunately our strategy of inserting variables as dummies would change the signature of
+    // existing function nodes so we have to copy all used functions always :/
+    return Function(op->params, op->body, op->ret_type, op->type_params, op->attrs, op->span);
   }
   Expr VisitExpr_(const CallNode* op) {
     return Call(op->op, GetAnalogousExpression(op->args), op->attrs, op->type_args, op->span);
@@ -917,10 +913,16 @@ Type InferTypeLocal(const Expr& expr) {
   you should use InferType() instead.
   */
   SameTypedSubgraphExtractor subgraph_extractor;
-  auto mod = IRModule::FromExpr(subgraph_extractor(expr));
-
+  Expr sub_graph = subgraph_extractor(expr);
+  auto mod = IRModule::FromExpr(sub_graph);
   mod = transform::InferType()(mod);
-  Type result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+
+  Type result_type;
+  if (expr.as<FunctionNode>()) {
+    result_type = mod->Lookup("main")->checked_type();
+  } else {
+    result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+  }
 
   expr->checked_type_ = result_type;
   return result_type;
