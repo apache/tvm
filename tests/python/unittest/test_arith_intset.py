@@ -243,6 +243,7 @@ def test_region_lower_bound_for_non_perfect_tile():
         h2: tvm.ir.Range(begin=0, end=2),
         h1: tvm.ir.Range(begin=0, end=5),
     }
+    analyzer = tvm.arith.Analyzer()
 
     def do_test_point_access(point, predicates, expect):
         regions = tvm.arith.estimate_region_lower_bound(
@@ -256,19 +257,23 @@ def test_region_lower_bound_for_non_perfect_tile():
             assert regions is None
         else:
             assert len(regions) == 1
-            assert structural_equal(expect[0], regions[0].min_value)
-            assert structural_equal(expect[1], regions[0].max_value)
+            assert structural_equal(
+                analyzer.simplify(expect[0], 3), analyzer.simplify(regions[0].min_value, 3)
+            )
+            assert structural_equal(
+                analyzer.simplify(expect[1], 3), analyzer.simplify(regions[0].max_value, 3)
+            )
 
     # normal case of a non-uniform tiling
     # h3 == 0: region is [1, 9]
-    # 0 < h3 <= 8: region is [h3 * 8, h3 * 8 + 9]
-    # h3 > 8: region is [h3 * 8, 223]
+    # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 9]
+    # h3 > 26: region is [h3 * 8, 223]
     do_test_point_access(
         point=h3 * 8 + h2 * 5 + h1,
         predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224],
         expect=(
             tvm.tir.max(h3 * 8, 1),
-            tvm.tir.max(h3 * 8, 1) - tvm.tir.max(h3 * 8, 214) - tvm.tir.max(1 + h3 * -8, 0) + 223,
+            tvm.tir.max(h3 * 8, 1) - tvm.tir.max(h3 * 8, 214) - tvm.tir.max(1 - h3 * 8, 0) + 223,
         ),
     )
     # should fail on incompatible predicates

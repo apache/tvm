@@ -34,15 +34,12 @@ class IterMark(Object):
     source : PrimExpr.
         The source expression.
 
-    min_value : PrimExpr
-        The min of the iterator.
-
     extent : PrimExpr
         The extent of the iterator.
     """
 
-    def __init__(self, source, min_value, extent):
-        self.__init_handle_by_constructor__(_ffi_api.IterMark, source, min_value, extent)
+    def __init__(self, source, extent):
+        self.__init_handle_by_constructor__(_ffi_api.IterMark, source, extent)
 
 
 @tvm._ffi.register_object("arith.IterSplitExpr")

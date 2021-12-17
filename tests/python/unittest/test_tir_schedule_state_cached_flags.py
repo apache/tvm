@@ -320,11 +320,11 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
     Y = T.match_buffer(b, [224, 224], dtype="float32")
     cache = T.alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
-        for ax0 in T.serial(0, T.min(hh_0 * 8 + 8, 223) + 1 - T.max(hh_0 * 8 - 1, 0)):
-            for ax1 in T.serial(0, T.min(ww_0 * 8 + 8, 223) + 1 - T.max(ww_0 * 8 - 1, 0)):
+        for ax0 in T.serial(0, 10):
+            for ax1 in T.serial(0, 10):
                 with T.block("cache"):
-                    h = T.axis.spatial(224, T.max(hh_0 * 8 - 1, 0) + ax0)
-                    w = T.axis.spatial(224, T.max(ww_0 * 8 - 1, 0) + ax1)
+                    h = T.axis.spatial(224, hh_0 * 8 - 1 + ax0)
+                    w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
                     T.where(
                         1 <= hh_0 * 8 + ax0
                         and hh_0 * 8 + ax0 < 225

@@ -839,9 +839,9 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     iter_sum_exprs = DetectIterMap(
         /*indices=*/affine_indices, /*input_iters=*/var_dom,
         /*predicate=*/predicate, /*require_bijective=*/false, analyzer, diag_ctx);
-    if (iter_sum_exprs.empty()) {
-      return NullOpt;
-    }
+  }
+  if (iter_sum_exprs.empty()) {
+    return NullOpt;
   }
   ICHECK_EQ(iter_sum_exprs.size(), ndim);
   Array<IntSet> result;

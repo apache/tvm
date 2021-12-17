@@ -36,26 +36,23 @@ namespace arith {
 
 using namespace tir;
 
-IterMark::IterMark(PrimExpr source, PrimExpr min, PrimExpr extent) {
+IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   auto n = make_object<IterMarkNode>();
   n->source = std::move(source);
-  n->min = std::move(min);
   n->extent = std::move(extent);
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterMark")
-    .set_body_typed([](PrimExpr source, PrimExpr min, PrimExpr extent) {
-      return IterMark(source, min, extent);
-    });
+TVM_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
+  return IterMark(source, extent);
+});
 
 TVM_REGISTER_NODE_TYPE(IterMarkNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IterMarkNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IterMarkNode*>(node.get());
-      p->stream << "IterMark(" << op->source << ", min=" << op->min << ", extent=" << op->extent
-                << ")";
+      p->stream << "IterMark(" << op->source << ", extent=" << op->extent << ")";
     });
 
 IterSplitExpr::IterSplitExpr(IterMark source) {
@@ -75,9 +72,6 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) {
   n->dtype = source->source->dtype;
   n->source = std::move(source);
   n->extent = n->source->extent;
-  if (!is_zero(n->source->min)) {
-    n->extent = n->extent + n->source->min;
-  }
   n->lower_factor = one;
   n->scale = std::move(scale);
   data_ = std::move(n);
@@ -166,6 +160,14 @@ class IterMarkSplitCollector {
   }
 };
 
+/*! \brief Record form of IterMark(x, extent) + offset */
+struct IterMarkWithOffset {
+  IterMark mark;
+  PrimExpr offset{0};
+  IterMarkWithOffset() {}
+  IterMarkWithOffset(IterMark mark, PrimExpr offset) : mark(mark), offset(offset) {}
+};
+
 /*! \brief Rewriter to rewrite PrimExpr to IterMapExpr when possible */
 class IterMapRewriter : public ExprMutator {
  public:
@@ -180,11 +182,11 @@ class IterMapRewriter : public ExprMutator {
       if (is_one(vrng->extent)) {
         var_map_[var] = IterSumExpr({}, vrng->min);
       } else if (is_zero(vrng->min)) {
-        IterMark mark(var, 0, vrng->extent);
+        IterMark mark(var, vrng->extent);
         var_map_[var] = IterSplitExpr(mark);
         input_marks_.push_back(mark);
       } else {
-        IterMark mark(var - vrng->min, 0, vrng->extent);
+        IterMark mark(var - vrng->min, vrng->extent);
         IterSumExpr sum_expr = ToIterSumExpr(IterSplitExpr(mark));
         sum_expr.CopyOnWrite()->base = vrng->min;
         var_map_[var] = sum_expr;
@@ -359,8 +361,8 @@ class IterMapRewriter : public ExprMutator {
   std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
   // input iter marks
   std::vector<IterMark> input_marks_;
-  // The map for sum that maps flattened form to IterMark with normal form and extent
-  // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+  // The map for sum that maps flattened form to IterMark with normal form and extent (and possibly
+  // an extra offset) Example(1): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
   //          predicate: j*2 + k < 9
   // Then,    flattened form = IterSum(IterSplit(i, scale=9),
   //                                   IterSplit(j, scale=2),
@@ -370,7 +372,18 @@ class IterMapRewriter : public ExprMutator {
   //                                                              IterSplit(k, scale=1)),
   //                                                      extent=9)
   //                                             scale=1))
-  std::unordered_map<IterSumExpr, IterMark, IterSumHash, IterSumEqual> sum_fuse_map_;
+  // Example(2): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+  //          predicate: 1 <= j*2 + k < 9
+  // Then,    flattened form = IterSum(IterSplit(i, scale=9),
+  //                                   IterSplit(j, scale=2),
+  //                                   IterSplit(k, scale=1))
+  //          normal form    = IterSum(IterSplit(i, scale=9),
+  //                                   IterSplit(IterMark(IterSum(IterSplit(j, scale=2),
+  //                                                              IterSplit(k, scale=1), base=-1),
+  //                                                      extent=9-1)
+  //                                             scale=1),
+  //                                   base=1)
+  std::unordered_map<IterSumExpr, IterMarkWithOffset, IterSumHash, IterSumEqual> sum_fuse_map_;
   // The map for sum that maps normal form to flattened form
   std::unordered_map<IterSumExpr, IterSumExpr, IterSumHash, IterSumEqual> flattened_map_;
   // The flattened forms of constrained iters
@@ -461,16 +474,10 @@ class IterMapRewriter : public ExprMutator {
     // Case 1. bijective is required.
     //         We check the extent we calculate is consistent with the extent of the mark
     // Case 2. bijective is not required.
-    //         We check either
-    //         (1) the extent we calculate is a factor of the extent of the mark
+    //         We check the extent we calculate is a factor of the extent of the mark
     //         For example, y \in [0, 24) [(y / 2) % 6, y % 2] is valid, but y \in [0, 25) is not.
-    //         (2) the extent we calculate is larger than the max of the mark
-    //         For example, y \in [1, 8] [y / 18, y % 18] is valid.
-    if ((require_bijective &&
-         !(analyzer_->CanProveEqual(expected_lower_factor, mark->extent) && is_zero(mark->min))) ||
-        (!require_bijective &&
-         !(CanProveDivisible(mark->extent, expected_lower_factor) ||
-           analyzer_->CanProve(mark->min + mark->extent <= expected_lower_factor)))) {
+    if ((require_bijective && !analyzer_->CanProveEqual(expected_lower_factor, mark->extent)) ||
+        (!require_bijective && !CanProveDivisible(mark->extent, expected_lower_factor))) {
       diag_ctx_.Emit(Diagnostic::Error(mark->source->span)
                      << "Mark extent of " << mark
                      << " is not compatible with expected_lower_factor=" << expected_lower_factor);
@@ -495,10 +502,12 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_min.defined()) predicate_induced_min = predicate_induced_min - base;
       if (predicate_induced_max.defined()) predicate_induced_max = predicate_induced_max - base;
     }
-    Optional<IterSplitExpr> opt = TryFuseIters(expr);
+    Optional<IterSumExpr> opt = TryFuseIters(expr);
+    ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1
-    if (opt.defined() && is_one(opt.value()->scale)) {
-      IterSumExpr sum = Downcast<IterSumExpr>(opt.value()->source->source);
+    if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
+      IterSplitExpr fused_split = opt.value()->args[0];
+      IterSumExpr sum = Downcast<IterSumExpr>(fused_split->source->source);
       // get the flattened form
       auto it = flattened_map_.find(sum);
       ICHECK(it != flattened_map_.end());
@@ -506,26 +515,30 @@ class IterMapRewriter : public ExprMutator {
       // get the mark
       auto it_mark = sum_fuse_map_.find(flattened_form);
       ICHECK(it_mark != sum_fuse_map_.end());
-      IterMark mark = it_mark->second;
+      IterMark mark = it_mark->second.mark;
+      PrimExpr mark_offset = it_mark->second.offset;
       // update iter mark iter range to [0, mark->extent) ^ [pred_min, pred_max)
-      PrimExpr mark_min = mark->min;
-      PrimExpr mark_max = mark->min + mark->extent;
+      PrimExpr mark_min = 0;
+      PrimExpr mark_max = mark->extent;
       if (predicate_induced_min.defined()) {
         mark_min = max(predicate_induced_min, mark_min);
       }
       if (predicate_induced_max.defined()) {
         mark_max = min(predicate_induced_max, mark_max);
       }
-      mark.CopyOnWrite()->min = mark_min;
+      // mark.CopyOnWrite()->min = mark_min;
+      mark.CopyOnWrite()->source = mark->source - mark_min;
       mark.CopyOnWrite()->extent = mark_max - mark_min;
+      mark_offset = mark_offset + mark_min;
 
       // update the bound of the lhs based on predicate_induced_extent
-      sum_fuse_map_[flattened_form] = mark;
+      sum_fuse_map_[flattened_form] = {mark, mark_offset};
+
       // we need to note down the flattened form of constrained iterators
       // to check the validity of constraints, see also CheckConstraints()
       constrained_iters_flattened_.push_back(flattened_form);
-      expr.CopyOnWrite()->args = Array<IterSplitExpr>({opt.value()});
-      expr.CopyOnWrite()->base = base;
+      expr.CopyOnWrite()->args = Array<IterSplitExpr>({fused_split});
+      expr.CopyOnWrite()->base = base + mark_min;
       return expr;
     }
     Fail(Diagnostic::Error(expr->span)
@@ -542,13 +555,9 @@ class IterMapRewriter : public ExprMutator {
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
     if (expr->args.size() <= 1) return expr;
-    PrimExpr base = expr->base;
-    expr.CopyOnWrite()->base = make_zero(expr->dtype);
-    Optional<IterSplitExpr> opt = TryFuseIters(expr);
-    expr.CopyOnWrite()->base = base;
+    Optional<IterSumExpr> opt = TryFuseIters(expr);
     if (opt.defined()) {
-      expr.CopyOnWrite()->args = Array<IterSplitExpr>({opt.value()});
-      return expr;
+      return opt.value();
     } else {
       Fail(Diagnostic::Error(expr->span) << "Fail to normalize iter sum with offset: " << expr);
       return expr;
@@ -572,17 +581,16 @@ class IterMapRewriter : public ExprMutator {
   }
 
   /*!
-   * \brief IterSum = x1*c1 + x2*c2 + ... + xn*cn
-   *      = (x1*s1 + x2*s2 + ... + xn)*cn
-   *      = y*cn (IterMark y => x1*s1 + x2*s2 + ... + xn)
-   *      = [IterSplit(IterMark(y), scale=cn)]
-   *    return a corresponding IterSplitExpr if needed.
+   * \brief IterSum = x1*c1 + x2*c2 + ... + xn*cn + base
+   *      = (x1*s1 + x2*s2 + ... + xn)*cn + base
+   *      = y*cn (IterMark y => x1*s1 + x2*s2 + ... + xn) + base
+   *      = [IterSplit(IterMark(y), scale=cn)] + base
+   *    return a corresponding IterSumExpr with extra offset if needed.
    *    Try to normalize IterSum into a fused IterMark
    * \param expr The input sum.
-   * \return The split with the fused IterMark if succeed.
+   * \return The sum with the fused IterMark and extra offset if succeed.
    */
-  Optional<IterSplitExpr> TryFuseIters(IterSumExpr expr) {
-    if (!is_zero(expr->base)) return NullOpt;
+  Optional<IterSumExpr> TryFuseIters(IterSumExpr expr) {
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
@@ -600,10 +608,9 @@ class IterMapRewriter : public ExprMutator {
     }
     if (!base_scale) return NullOpt;
     // check if it can be remapped into a fused pattern.
+    PrimExpr expected_extra_base = 0;
     PrimExpr expected_scale = base_scale.value();
     for (size_t i = 0; i < expr->args.size();) {
-      // check arg iter mark starts from zero
-      if (!is_zero(expr->args[i]->source->min)) return NullOpt;
       // find j such that expr->args[j] has expected scale
       size_t j = i == 0 ? base_index : 0;
       for (; j < expr->args.size(); ++j) {
@@ -645,9 +652,10 @@ class IterMapRewriter : public ExprMutator {
         }
         auto iter = sum_fuse_map_.find(constraint_to_match.value());
         ICHECK(iter != sum_fuse_map_.end());
-        IterMark iter_matched = iter->second;
-        grouped_iters.emplace_back(iter_matched, expected_scale);
-        expected_scale *= iter_matched->extent;
+        const IterMarkWithOffset& iter_matched = iter->second;
+        grouped_iters.emplace_back(iter_matched.mark, expected_scale);
+        expected_extra_base += iter_matched.offset * expected_scale;
+        expected_scale *= iter_matched.mark->extent;
         // move forward
         i += constraint_to_match.value()->args.size();
       } else {
@@ -664,18 +672,26 @@ class IterMapRewriter : public ExprMutator {
     IterSumExpr structured_form = expr, flattened_form = expr;
     flattened_form.CopyOnWrite()->args =
         Array<IterSplitExpr>(flattened_iters.rbegin(), flattened_iters.rend());
+    flattened_form.CopyOnWrite()->base = 0;
     structured_form.CopyOnWrite()->args =
         Array<IterSplitExpr>(grouped_iters.rbegin(), grouped_iters.rend());
+    structured_form.CopyOnWrite()->base = 0;
     auto it = sum_fuse_map_.find(flattened_form);
     if (it != sum_fuse_map_.end()) {
       // old iter
-      return IterSplitExpr(it->second, base_scale.value());
+      if (!analyzer_->CanProveEqual(expected_extra_base, it->second.offset * base_scale.value())) {
+        // the extra offset is not consistent with old
+        return NullOpt;
+      }
+      return IterSumExpr({IterSplitExpr(it->second.mark, base_scale.value())},
+                         expr->base + expected_extra_base);
     } else {
       // new iter, form a new mark
-      IterMark mark = IterMark(structured_form, 0, div(expected_scale, base_scale.value()));
-      sum_fuse_map_[flattened_form] = mark;
+      IterMark mark = IterMark(structured_form, div(expected_scale, base_scale.value()));
+      sum_fuse_map_[flattened_form] = IterMarkWithOffset(mark, 0);
       flattened_map_[structured_form] = flattened_form;
-      return IterSplitExpr(mark, base_scale.value());
+      return IterSumExpr({IterSplitExpr(mark, base_scale.value())},
+                         expr->base + expected_extra_base);
     }
   }
 
@@ -941,17 +957,8 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
   if (!IsIndexType(op->dtype)) {
     return Parent::VisitExpr_(op);
   }
-
-  // skip analysis of irrelated sum parts
-  auto f_use_itervar = [this](const VarNode* v) { return var_map_.count(GetRef<Var>(v)); };
-  PrimExpr a = op->a;
-  PrimExpr b = op->b;
-  if (!is_const_int(a) && UsesVar(a, f_use_itervar)) {
-    a = this->DirectMutate(op->a);
-  }
-  if (!is_const_int(b) && UsesVar(b, f_use_itervar)) {
-    b = this->DirectMutate(op->b);
-  }
+  PrimExpr a = this->DirectMutate(op->a);
+  PrimExpr b = this->DirectMutate(op->b);
 
   // const folding
   PrimExpr const_res = TryConstFold<Add>(a, b);
@@ -1134,8 +1141,16 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorDivNode* op) {
 
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (Optional<IterSplitExpr> opt = TryFuseIters(ret)) {
-      return SplitFloorDivConst(opt.value(), b, GetRef<PrimExpr>(op));
+    if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
+      IterSumExpr sum = opt.value();
+      if (!is_zero(sum->base)) {
+        Fail(Diagnostic::Error(op->span)
+             << "Fuse IterSumExpr " << ret
+             << " failed, cannot floordiv an IterSumExpr with nonzero base");
+        return GetRef<PrimExpr>(op);
+      }
+      ICHECK_EQ(sum->args.size(), 1U);
+      return SplitFloorDivConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
       Fail(Diagnostic::Error(op->span) << "Fuse IterSumExpr " << ret << " failed");
       return GetRef<PrimExpr>(op);
@@ -1211,8 +1226,15 @@ PrimExpr IterMapRewriter::VisitExpr_(const FloorModNode* op) {
 
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(a);
-    if (Optional<IterSplitExpr> opt = TryFuseIters(ret)) {
-      return SplitFloorModConst(opt.value(), b, GetRef<PrimExpr>(op));
+    if (Optional<IterSumExpr> opt = TryFuseIters(ret)) {
+      IterSumExpr sum = opt.value();
+      if (!is_zero(sum->base)) {
+        Fail(Diagnostic::Error(op->span)
+             << "Fuse IterSumExpr " << ret
+             << " failed, cannot floormod an IterSumExpr with nonzero base");
+        return GetRef<PrimExpr>(op);
+      }
+      return SplitFloorModConst(sum->args[0], b, GetRef<PrimExpr>(op));
     } else {
       Fail(Diagnostic::Error(op->span) << "Fail to fuse iters of " << ret);
       return GetRef<PrimExpr>(op);
@@ -1365,7 +1387,7 @@ class SubspaceDivider {
       if (const auto* op = expr.as<IterSplitExprNode>()) {
         return GetRef<IterSplitExpr>(op);
       } else if (const auto* op = expr.as<IterSumExprNode>()) {
-        return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), 0, extent));
+        return IterSplitExpr(IterMark(GetRef<IterSumExpr>(op), extent));
       } else {
         LOG(FATAL) << "Unknown IterMapExpr type";
         return NullValue<IterSplitExpr>();
@@ -1477,7 +1499,7 @@ class SubspaceDivider {
       extent *= arg->extent;
       res.push_back(arg);
     }
-    return IterMark(IterSumExpr(Array<IterSplitExpr>(res.rbegin(), res.rend()), base), 0, extent);
+    return IterMark(IterSumExpr(Array<IterSplitExpr>(res.rbegin(), res.rend()), base), extent);
   }
 
   DivisionResult DivideIterSplitExpr(const IterSplitExpr& expr) {
@@ -1518,10 +1540,8 @@ class SubspaceDivider {
       if (splits.size() == 1) {
         return mark_division;
       }
-      IterMark outer_mark(Downcast<IterSumExpr>(mark_division.outer), 0,
-                          mark_division.outer_extent);
-      IterMark inner_mark(Downcast<IterSumExpr>(mark_division.inner), 0,
-                          mark_division.inner_extent);
+      IterMark outer_mark(Downcast<IterSumExpr>(mark_division.outer), mark_division.outer_extent);
+      IterMark inner_mark(Downcast<IterSumExpr>(mark_division.inner), mark_division.inner_extent);
       bool encountered_boundary = mark_division.IsOuter();
       std::vector<bool> used(splits.size(), false);
       std::vector<IterSplitExpr> inner_iters, outer_iters;
@@ -1608,11 +1628,11 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
     SubspaceDivider::DivisionResult res = subspace_divider.DivideIterSumExpr(expr, 0);
     if (subspace_divider.unresolved_count()) return {};
     results.push_back(
-        {IterMark(res.outer, 0, res.outer_extent), IterMark(res.inner, 0, res.inner_extent)});
+        {IterMark(res.outer, res.outer_extent), IterMark(res.inner, res.inner_extent)});
   }
 
-  results.push_back({IterMark(IterSumExpr({}, 0), 0, subspace_divider.GetOuterPreds()),
-                     IterMark(IterSumExpr({}, 0), 0, subspace_divider.GetInnerPreds())});
+  results.push_back({IterMark(IterSumExpr({}, 0), subspace_divider.GetOuterPreds()),
+                     IterMark(IterSumExpr({}, 0), subspace_divider.GetInnerPreds())});
   return results;
 }
 

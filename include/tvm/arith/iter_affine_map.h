@@ -83,7 +83,7 @@ class IterMapExpr : public PrimExpr {
 };
 
 /*!
- * \brief Mark the source as an iterator in [min, extent).
+ * \brief Mark the source as an iterator in [0, extent).
  *
  *  IterMark is used to mark source expression as a valid
  *  iterator to make future analysis easy.
@@ -96,10 +96,6 @@ class IterMarkNode : public Object {
    */
   PrimExpr source;
   /*!
-   * \brief The min of the iteration.
-   */
-  PrimExpr min;
-  /*!
    * \brief The extent of the iteration.
    */
   PrimExpr extent;
@@ -107,19 +103,17 @@ class IterMarkNode : public Object {
   // overrides
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("source", &source);
-    v->Visit("min", &min);
     v->Visit("extent", &extent);
   }
 
   bool SEqualReduce(const IterMarkNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
-    return equal(source, other->source) && equal(extent, other->extent) && equal(min, other->min);
+    return equal(source, other->source) && equal(extent, other->extent);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce->MarkGraphNode();
     hash_reduce(source);
-    hash_reduce(min);
     hash_reduce(extent);
   }
 
@@ -138,10 +132,9 @@ class IterMark : public ObjectRef {
   /*!
    * \brief constructor.
    * \param source The source expression.
-   * \param min The min of the iterator.
    * \param extent The extent of the iterator.
    */
-  TVM_DLL IterMark(PrimExpr source, PrimExpr min, PrimExpr extent);
+  TVM_DLL IterMark(PrimExpr source, PrimExpr extent);
 
   TVM_DEFINE_OBJECT_REF_METHODS(IterMark, ObjectRef, IterMarkNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterMarkNode);
