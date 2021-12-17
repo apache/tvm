@@ -226,7 +226,7 @@ void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
       size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
       if (bytes_to_copy == 0) break;
 
-      CHECK(managed_allocations_[i]->nbytes_ == other.managed_allocations_[i]->nbytes_);
+      CHECK_LE(other.managed_allocations_[i]->nbytes_, managed_allocations_[i]->nbytes_);
 
       memcpy(static_cast<char*>(managed_allocations_[i]->data_),
              static_cast<const char*>(other.managed_allocations_[i]->data_), bytes_to_copy);
