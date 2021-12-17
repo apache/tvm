@@ -29,6 +29,7 @@
 #include "HAP_compute_res.h"
 #endif
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
