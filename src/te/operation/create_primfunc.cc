@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <unordered_set>
 
+#include "../../tir/ir/functor_common.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
@@ -144,7 +145,30 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
   }
 
   // Step 6. Add script_parsing_detect_access attr for auto complete the whole IR.
-  Map<String, ObjectRef> annotations = compute_op->attrs;
+  Map<String, ObjectRef> annotations;
+  auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
+    if (value->IsInstance<te::TensorNode>()) {
+      const auto& tensor_value = Downcast<te::Tensor>(value);
+      auto it = info->tensor2buffers.find(tensor_value);
+      ICHECK(it != info->tensor2buffers.end());
+      return it->second;
+    } else {
+      return value;
+    }
+  };
+
+  for (const auto& pair : compute_op->attrs) {
+    const String& key = pair.first;
+    const ObjectRef& value = pair.second;
+    // TensorIR will not allow Tensor data structure
+    if (value->IsInstance<ArrayNode>()) {
+      const auto array_value = Downcast<Array<ObjectRef>>(value);
+      annotations.Set(key, MutateArray(array_value, mutate_attr));
+    } else {
+      annotations.Set(key, mutate_attr(value));
+    }
+  }
+  // Set script_parsing_detect_access
   annotations.Set(tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
 
   // Step 7. Create Block and BlockRealize.
