@@ -53,19 +53,21 @@ struct StorageToken {
   size_t max_bytes{0};
   /*! \brief The corresponding tensor type. */
   TensorType ttype{nullptr};
-  /*! \brief SEScope on which the memory will reside. */
-  SEScope se_scope = SEScope::FullyUnconstrained();
+  /*! \brief VirtualDevice on which the memory will reside. */
+  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
   /*! \brief The storage id */
   int64_t storage_id{-1};
 
-  bool is_valid() const { return !se_scope->IsFullyUnconstrained(); }
+  bool is_valid() const { return !virtual_device->IsFullyUnconstrained(); }
 
-  bool is_compatible(const StorageToken& that) const { return se_scope == that.se_scope; }
+  bool is_compatible(const StorageToken& that) const {
+    return virtual_device == that.virtual_device;
+  }
 
   std::string ToString() const {
     std::ostringstream os;
     os << "{storage_id: " << storage_id << ", max_bytes: " << max_bytes
-       << ", ttype: " << PrettyPrint(ttype) << ", se_scope: " << se_scope << "}";
+       << ", ttype: " << PrettyPrint(ttype) << ", virtual_device: " << virtual_device << "}";
     return os.str();
   }
 };
@@ -167,14 +169,14 @@ class StorageAllocaBaseVisitor : public transform::DeviceAwareExprVisitor {
    * the result of evaluating \p op.
    */
   void CreateToken(const ExprNode* expr_node, bool can_realloc) {
-    return CreateTokenOnDevice(expr_node, GetSEScope(GetRef<Expr>(expr_node)), can_realloc);
+    return CreateTokenOnDevice(expr_node, GetVirtualDevice(GetRef<Expr>(expr_node)), can_realloc);
   }
 
   /*!
    * \brief Allocates (or reuses if \p can_realloc is true) a storage token for holding
    * the result of evaluating \p op on \p device_type.
    */
-  virtual void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope,
+  virtual void CreateTokenOnDevice(const ExprNode* op, const VirtualDevice& virtual_device,
                                    bool can_realloc) = 0;
 };
 
@@ -193,13 +195,14 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
  protected:
   using StorageAllocaBaseVisitor::VisitExpr_;
 
-  void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope, bool can_realloc) override {
+  void CreateTokenOnDevice(const ExprNode* op, const VirtualDevice& virtual_device,
+                           bool can_realloc) override {
     ICHECK(!token_map_.count(op));
     std::vector<StorageToken*> tokens;
     for (const auto& ttype : FlattenTupleType(op->checked_type())) {
       auto* token = arena_->make<StorageToken>();
       token->ttype = ttype;
-      token->se_scope = se_scope;
+      token->virtual_device = virtual_device;
       tokens.push_back(token);
     }
     token_map_[op] = tokens;
@@ -256,8 +259,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     for (const auto& kv : token_map_) {
       std::vector<int64_t> storage_ids;
       storage_ids.reserve(kv.second.size());
-      std::vector<SEScope> se_scopes;
-      se_scopes.reserve(kv.second.size());
+      std::vector<VirtualDevice> virtual_devices;
+      virtual_devices.reserve(kv.second.size());
       std::vector<int64_t> sid_sizes_byte;
       sid_sizes_byte.reserve(kv.second.size());
 
@@ -268,10 +271,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         }
         num_nodes++;
         storage_ids.push_back(tok->storage_id);
-        se_scopes.push_back(tok->se_scope);
+        virtual_devices.push_back(tok->virtual_device);
         sid_sizes_byte.push_back(GetMemorySize(tok));
       }
-      auto storage_info = backend::StorageInfo(std::move(storage_ids), std::move(se_scopes),
+      auto storage_info = backend::StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                                std::move(sid_sizes_byte));
       smap.Set(GetRef<Expr>(kv.first), storage_info);
     }
@@ -286,20 +289,21 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
  protected:
   // override create token by getting token as prototype requirements.
-  void CreateTokenOnDevice(const ExprNode* op, const SEScope& se_scope, bool can_realloc) final {
+  void CreateTokenOnDevice(const ExprNode* op, const VirtualDevice& virtual_device,
+                           bool can_realloc) final {
     ICHECK(!token_map_.count(op));
     auto it = prototype_.find(op);
     ICHECK(it != prototype_.end());
     std::vector<StorageToken*> tokens;
 
     for (StorageToken* tok : it->second) {
-      ICHECK(tok->se_scope == se_scope);
+      ICHECK(tok->virtual_device == virtual_device);
       if (can_realloc) {
         tokens.push_back(Request(tok));
       } else {
         // Allocate a new token,
         StorageToken* allocated_tok = Alloc(tok, GetMemorySize(tok));
-        allocated_tok->se_scope = tok->se_scope;
+        allocated_tok->virtual_device = tok->virtual_device;
         // ensure it never get de-allocated.
         allocated_tok->ref_counter += 1;
         tokens.push_back(allocated_tok);

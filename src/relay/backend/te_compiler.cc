@@ -503,13 +503,13 @@ using AnalysisRemapping = std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual
 class LowerTensorExprMutator : public DeviceAwareExprMutator {
  public:
   LowerTensorExprMutator(const IRModule& module, ProcessFn process_fn, String module_name,
-                         TECompiler compiler, SEScope host_se_scope)
+                         TECompiler compiler, VirtualDevice host_virtual_device)
       : DeviceAwareExprMutator(module),
         module_(module),
         process_fn_(std::move(process_fn)),
         module_name_(std::move(module_name)),
         compiler_(std::move(compiler)),
-        host_se_scope_(std::move(host_se_scope)),
+        host_virtual_device_(std::move(host_virtual_device)),
         debug_op_(Op::Get("debug")) {}
 
   /*!
@@ -609,7 +609,7 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       // Shape function keys use the underlying primitive function as their 'function',
       // but the generic 'cpu' target as the target since all shape functions run
       // on the host cpu irrespective of where the primitive runs.
-      CCacheKey shape_key(func, host_se_scope_->target);
+      CCacheKey shape_key(func, host_virtual_device_->target);
       CachedFunc lowered_shape_func = compiler_->LowerShapeFunc(shape_key);
 
       // Capture the shape function's global var and parameters 'states' in call
@@ -707,8 +707,8 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       DeviceCopyProps device_copy_props = GetDeviceCopyProps(function_node->body);
       if (device_copy_props.body.defined()) {
         ICHECK_EQ(new_args.size(), 1);
-        return DeviceCopy(new_args[0], device_copy_props.src_se_scope,
-                          device_copy_props.dst_se_scope);
+        return DeviceCopy(new_args[0], device_copy_props.src_virtual_device,
+                          device_copy_props.dst_virtual_device);
       }
     }
 
@@ -746,9 +746,9 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
       target = Target("ext_dev");
     } else {
       // The target corresponding to the call_node expression's annotation.
-      SEScope se_scope = GetSEScope(GetRef<Call>(call_node));
-      ICHECK(!se_scope->IsFullyUnconstrained());
-      target = se_scope->target;
+      VirtualDevice virtual_device = GetVirtualDevice(GetRef<Call>(call_node));
+      ICHECK(!virtual_device->IsFullyUnconstrained());
+      target = virtual_device->target;
       ICHECK(target.defined());
     }
 
@@ -769,10 +769,10 @@ class LowerTensorExprMutator : public DeviceAwareExprMutator {
   String module_name_;
   TECompiler compiler_;
   /*!
-   * \brief The \p SEScope for the host, which is where all shape-related data and computation
+   * \brief The \p VirtualDevice for the host, which is where all shape-related data and computation
    * must live.
    */
-  SEScope host_se_scope_;
+  VirtualDevice host_virtual_device_;
   // Cache ops that need to be frequently used later to reduce lookup overhead.
   const Op& debug_op_;
 };
@@ -808,10 +808,11 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets) {
 }
 
 Pass LowerTensorExpr(const String& module_name, TECompiler compiler, ProcessFn process_fn,
-                     SEScope host_se_scope) {
+                     VirtualDevice host_virtual_device) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function func, IRModule module, PassContext ctx) {
-        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler, host_se_scope);
+        LowerTensorExprMutator lower_te(module, process_fn, module_name, compiler,
+                                        host_virtual_device);
         return Downcast<Function>(lower_te.Mutate(func));
       };
   return CreateFunctionPass(pass_func, 0, "LowerTensorExpr", {});
@@ -828,7 +829,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   }
 
   // This is a Map<device,Map<storage_id, size>>
-  // TODO(mbs): Collapsing SEScopes to just device type.
+  // TODO(mbs): Collapsing VirtualDevices to just device type.
   std::unordered_map<DLDeviceType, std::unordered_map<int, int>, backend::EnumClassHash>
       sid_workspace;
   // This is a Map<device, size_of_inputs_and_outputs>
@@ -841,10 +842,10 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
   for (const auto& kv : storage_info_map) {
     const backend::StorageInfo& storage_info = kv.second;
     const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
-    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
-    CHECK_EQ(storage_ids.size(), se_scopes.size());
-    for (uint32_t i = 0; i < se_scopes.size(); i++) {
-      DLDeviceType device_type = se_scopes[i]->device_type();
+    const std::vector<VirtualDevice>& virtual_devices = storage_info->virtual_devices;
+    CHECK_EQ(storage_ids.size(), virtual_devices.size());
+    for (uint32_t i = 0; i < virtual_devices.size(); i++) {
+      DLDeviceType device_type = virtual_devices[i]->device_type();
       sid_workspace[device_type][storage_ids[i]] = 0;
       device_io[device_type] = 0;
       device_consts[device_type] = 0;
@@ -877,18 +878,18 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
             << "has size " << size_bytes << " and storage info:" << std::endl
             << storage_info;
     const std::vector<int64_t>& storage_ids = storage_info->storage_ids;
-    const std::vector<SEScope>& se_scopes = storage_info->se_scopes;
+    const std::vector<VirtualDevice>& virtual_devices = storage_info->virtual_devices;
 
     if (expr->IsInstance<ConstantNode>()) {
-      for (const auto& se_scope : se_scopes) {
-        DLDeviceType device_type = se_scope->device_type();
+      for (const auto& virtual_device : virtual_devices) {
+        DLDeviceType device_type = virtual_device->device_type();
         ICHECK_EQ(device_consts.count(device_type), 1);
         device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(se_scopes.size(), 1) << "must be at least one device";
-      for (const auto& se_scope : se_scopes) {
-        DLDeviceType device_type = se_scope->device_type();
+      CHECK_GE(virtual_devices.size(), 1) << "must be at least one device";
+      for (const auto& virtual_device : virtual_devices) {
+        DLDeviceType device_type = virtual_device->device_type();
         device_io[device_type] += size_bytes;
       }
     } else {
@@ -899,7 +900,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         // Here we record the largest size of the tensor
         // that share the same storage id, because storage_id will
         // be shared between multiple tensors that are not live simultaneously.
-        DLDeviceType device_type = se_scopes[i]->device_type();
+        DLDeviceType device_type = virtual_devices[i]->device_type();
         if (size_bytes > sid_workspace[device_type][storage_ids[i]]) {
           sid_workspace[device_type][storage_ids[i]] = size_bytes;
         }
@@ -1045,7 +1046,7 @@ void UpdateFunctionMetadata(BaseFunc func,
 }
 
 IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn process_fn,
-                 SEScope host_se_scope) {
+                 VirtualDevice host_virtual_device) {
   TECompiler compiler(module);
 
   // TODO(mbs): This is all unnecessarily convoluted. Better would be to accumulate the rewritten
@@ -1061,7 +1062,7 @@ IRModule LowerTE(const IRModule& module, const String& module_name, ProcessFn pr
   //  - Calls to functions tagged with "Primitive" are compiled to PrimFuncs, and calls updated
   //    (using call_lowered convention).
   IRModule updated_module = LowerTensorExpr(module_name, compiler, std::move(process_fn),
-                                            std::move(host_se_scope))(module);
+                                            std::move(host_virtual_device))(module);
 
   // The Functions tagged with "Compiler" are now residing in the cache ready to be
   // compiled by LowerExternalFunctions. However we still need a record of them in the
@@ -1161,10 +1162,11 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod) {
   return per_target_modules;
 }
 
-Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_se_scope) {
+Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
+                 VirtualDevice host_virtual_device) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule module,
                                                                             PassContext ctx) {
-    return LowerTE(module, module_name, process_fn, host_se_scope);
+    return LowerTE(module, module_name, process_fn, host_virtual_device);
   };
 
   return tvm::transform::Sequential(

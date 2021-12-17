@@ -23,15 +23,15 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 namespace tvm {
 
-SEScope RelayExprNode::virtual_device() const {
+VirtualDevice RelayExprNode::virtual_device() const {
   if (virtual_device_.defined()) {
-    return Downcast<SEScope>(this->virtual_device_);
+    return Downcast<VirtualDevice>(this->virtual_device_);
   }
-  return SEScope::FullyUnconstrained();
+  return VirtualDevice::FullyUnconstrained();
 }
 
 namespace relay {
@@ -86,9 +86,9 @@ TVM_REGISTER_GLOBAL("relay.ir.Tuple").set_body_typed([](tvm::Array<relay::Expr> 
   return Tuple(fields, span);
 });
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
-                 Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+                 Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Array<Expr> fields = opt_fields.value_or(tuple->fields);
-  SEScope virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
   Span span = opt_span.value_or(tuple->span);
 
   bool all_fields_unchanged = true;
@@ -132,10 +132,10 @@ Var::Var(Id vid, Type type_annotation, Span span) {
 }
 
 Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation,
-               Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+               Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Id vid = opt_vid.value_or(var->vid);
   Type type_annotation = opt_type_annotation.value_or(var->type_annotation);
-  SEScope virtual_device = opt_virtual_device.value_or(var->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(var->virtual_device());
   Span span = opt_span.value_or(var->span);
 
   bool unchanged = vid.same_as(var->vid) && type_annotation.same_as(var->type_annotation) &&
@@ -180,12 +180,12 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
 
 Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args,
                 Optional<Attrs> opt_attrs, Optional<Array<Type>> opt_type_args,
-                Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+                Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Expr op = opt_op.value_or(call->op);
   Array<Expr> args = opt_args.value_or(call->args);
   Attrs attrs = opt_attrs.value_or(call->attrs);
   Array<Type> type_args = opt_type_args.value_or(call->type_args);
-  SEScope virtual_device = opt_virtual_device.value_or(call->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(call->virtual_device());
   Span span = opt_span.value_or(call->span);
 
   bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
@@ -253,11 +253,11 @@ Let::Let(Var var, Expr value, Expr body, Span span) {
 }
 
 Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optional<Expr> opt_body,
-               Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+               Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Var var = opt_var.value_or(let->var);
   Expr value = opt_value.value_or(let->value);
   Expr body = opt_body.value_or(let->body);
-  SEScope virtual_device = opt_virtual_device.value_or(let->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(let->virtual_device());
   Span span = opt_span.value_or(let->span);
 
   bool unchanged = var.same_as(let->var) && value.same_as(let->value) && body.same_as(let->body) &&
@@ -296,12 +296,12 @@ If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
 }
 
 If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branch,
-              Optional<Expr> opt_false_branch, Optional<SEScope> opt_virtual_device,
+              Optional<Expr> opt_false_branch, Optional<VirtualDevice> opt_virtual_device,
               Optional<Span> opt_span) {
   Expr cond = opt_cond.value_or(if_expr->cond);
   Expr true_branch = opt_true_branch.value_or(if_expr->true_branch);
   Expr false_branch = opt_false_branch.value_or(if_expr->false_branch);
-  SEScope virtual_device = opt_virtual_device.value_or(if_expr->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(if_expr->virtual_device());
   Span span = opt_span.value_or(if_expr->span);
 
   bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
@@ -341,11 +341,11 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
 }
 
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
-                        Optional<Integer> opt_index, Optional<SEScope> opt_virtual_device,
+                        Optional<Integer> opt_index, Optional<VirtualDevice> opt_virtual_device,
                         Optional<Span> opt_span) {
   Expr tuple = opt_tuple.value_or(tuple_get_item->tuple);
   Integer index = opt_index.value_or(tuple_get_item->index);
-  SEScope virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(tuple->virtual_device());
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
@@ -380,9 +380,9 @@ RefCreate::RefCreate(Expr value, Span span) {
 }
 
 RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
-                     Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+                     Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Expr value = opt_value.value_or(ref_create->value);
-  SEScope virtual_device = opt_virtual_device.value_or(ref_create->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(ref_create->virtual_device());
   Span span = opt_span.value_or(ref_create->span);
 
   bool unchanged = value.same_as(ref_create->value) && span.same_as(ref_create->span);
@@ -414,10 +414,10 @@ RefRead::RefRead(Expr ref, Span span) {
   data_ = std::move(n);
 }
 
-RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref, Optional<SEScope> opt_virtual_device,
-                   Optional<Span> opt_span) {
+RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref,
+                   Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Expr ref = opt_ref.value_or(ref_read->ref);
-  SEScope virtual_device = opt_virtual_device.value_or(ref_read->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(ref_read->virtual_device());
   Span span = opt_span.value_or(ref_read->span);
 
   bool unchanged = ref.same_as(ref_read->ref) && span.same_as(ref_read->span);
@@ -449,10 +449,10 @@ RefWrite::RefWrite(Expr ref, Expr value, Span span) {
 }
 
 RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> opt_value,
-                    Optional<SEScope> opt_virtual_device, Optional<Span> opt_span) {
+                    Optional<VirtualDevice> opt_virtual_device, Optional<Span> opt_span) {
   Expr ref = opt_ref.value_or(ref_write->ref);
   Expr value = opt_value.value_or(ref_write->value);
-  SEScope virtual_device = opt_virtual_device.value_or(ref_write->virtual_device());
+  VirtualDevice virtual_device = opt_virtual_device.value_or(ref_write->virtual_device());
   Span span = opt_span.value_or(ref_write->span);
 
   bool unchanged = ref.same_as(ref_write->ref) && value.same_as(ref_write->value) &&
