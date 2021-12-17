@@ -824,18 +824,18 @@ void AddGlobalTypes(IRModule mod) {
   }
 }
 
+/*!
+ * \brief Returns a possibly much smaller subgraph whose inner nodes have the same type.
+ *
+ * Returns the largest sub-graph who's inner nodes need types and leaves are vars standing in
+ * for already typed sub-expressions. This creates a graph whose inner nodes have the same
+ * type as the original graph and when running type inference, we can avoid copying and
+ * recursing through most of the expression graph when running type inference. Note, this assumes
+ * that current populated type information is correct!
+ *
+ * ExprMutator is sufficient over MixedModemutator since we will not recurse much.
+ */
 class SameTypedSubgraphExtractor : public ExprMutator {
-  /*
-  Creates a small subgraph with the same type as the input expression. We attempt to do
-  by depending on existing type information being populated in expressions the target
-  node depends on. If a node with populated type information is found we simply
-  replace it with a variable of that type. In this way, we can avoid copying and
-  recursing through most of the expression graph. Note, this assumes that current
-  populated type information is correct!
-
-  ExprMutator is sufficient over MixedModemutator since we will not recurse much.
-  */
-
   Expr VisitExpr_(const VarNode* op) { return Var(op->vid, op->type_annotation, op->span); }
   Expr VisitExpr_(const ConstantNode* op) { return Constant(op->data, op->span); }
   Expr VisitExpr_(const GlobalVarNode* op) { return GlobalVar(op->name_hint); }
