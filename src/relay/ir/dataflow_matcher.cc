@@ -641,7 +641,7 @@ void PatternGrouper::CreateGroup(const Expr& expr) {
           input.as<FunctionNode>() == nullptr && !EmbedConst(input, node->ref_)) {
         inputs[input] =
             Var("FunctionVar_" + std::to_string(graph_number_) + "_" + std::to_string(var_number),
-                NullValue<Type>());
+                input->checked_type_.defined() ? input->checked_type() : NullValue<Type>());
         group.args.push_back(input);
         params.push_back(inputs[input]);
         var_number++;
@@ -869,9 +869,15 @@ class PatternPartitioner : protected MixedModeMutator {
 
   Expr DispatchVisitExpr(const Expr& pre) override {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
-    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node &&
-        static_cast<bool>(check_(pre))) {
-      post = RewritePartition(groups_[gid_assignments_[pre]]);
+    auto& group = groups_[gid_assignments_[pre]];
+    if (gid_assignments_.count(pre) && pre == group.root_node) {
+      Expr body = group.function->body;
+      if (pre->checked_type_.defined()) {
+        body = InferType(body);
+      }
+      if (static_cast<bool>(check_(body))) {
+        post = RewritePartition(group);
+      }
     }
     return post;
   }
