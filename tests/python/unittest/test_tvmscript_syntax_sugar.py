@@ -150,6 +150,7 @@ def test_match_buffer_syntax_sugar():
 def test_match_buffer_no_kwargs_failed():
     with pytest.raises(ValueError) as e:
 
+        @T.prim_func
         def elementwise_buffer_no_kwargs_failed(
             a: T.Buffer[(128, 128, 128, 128)],
             b: T.Buffer[(128, 128, 128, 128)],
