@@ -147,6 +147,19 @@ class TuningRecord(Object):
 class Database(Object):
     """The abstract database interface."""
 
+    def has_workload(self, mod: IRModule) -> bool:
+        """Check if the database has the given workload.
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        Returns
+        -------
+        result : bool
+            Whether the database has the given workload.
+        """
+        return _ffi_api.DatabaseHasWorkload(self, mod)  # type: ignore # pylint: disable=no-member
+
     def commit_workload(self, mod: IRModule) -> Workload:
         """Commit a workload to the database if missing.
 
@@ -208,6 +221,10 @@ class PyDatabase(Database):
         """Constructor."""
 
         @check_override(self.__class__, Database)
+        def f_has_workload(mod: IRModule) -> bool:
+            return self.has_workload(mod)
+
+        @check_override(self.__class__, Database)
         def f_commit_workload(mod: IRModule) -> Workload:
             return self.commit_workload(mod)
 
@@ -225,6 +242,7 @@ class PyDatabase(Database):
 
         self.__init_handle_by_constructor__(
             _ffi_api.DatabasePyDatabase,  # type: ignore  # pylint: disable=no-member
+            f_has_workload,
             f_commit_workload,
             f_commit_tuning_record,
             f_get_top_k,
