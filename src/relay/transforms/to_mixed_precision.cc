@@ -176,6 +176,10 @@ class MixedPrecisionPass : public MixedModeMutator {
   }
 
   Type GetType(const Expr& expr) const {
+    // The expression has not been changed AND it's existing type
+    // is known to still be valid. (See special handling for tuples etc
+    // below for where we null out checked_type_ when we can not
+    // sure it is still valid.
     Type checked_type = expr->checked_type_;
     if (checked_type.defined()) {
       return checked_type;
