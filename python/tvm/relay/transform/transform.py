@@ -1164,12 +1164,12 @@ def SimplifyExpr():
 
 def PlanDevices(config):
     """
-    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    Uses existing "on_device" and "device_copy" calls to infer the virtual device on which
     every Relay sub-expression should run and the result stored. Captures the result of that
-    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
-    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
-    computations which must be hosted on a CPU (such as shapes and shape functions) use the
-    cpu_se_scope.
+    analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
+    not otherwise constrained are assigned to the default primitive virtual device describe by
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
 
     Parameters
     ----------

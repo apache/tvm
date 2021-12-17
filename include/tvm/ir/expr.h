@@ -39,8 +39,8 @@ namespace tvm {
 
 using tvm::runtime::String;
 
-// Forward-declare SEScope to avoid circular imports.
-class SEScope;
+// Forward-declare VirtualDevice to avoid circular imports.
+class VirtualDevice;
 
 /*!
  * \brief Base type of all the expressions.
@@ -169,7 +169,7 @@ class RelayExprNode : public BaseExprNode {
   inline const TTypeNode* type_as() const;
 
   /*!
-   * \brief The virtual device (SEScope) for this node (the result of device planning).
+   * \brief The virtual device (VirtualDevice) for this node (the result of device planning).
    * For first-order expressions (non functions), this describes where the result of evaluating the
    * expression should be stored. Note that currently, all composite first-order values (tuples,
    * references, ADTs) must be stored on the same virtual device. This means that it is not possible
@@ -178,7 +178,7 @@ class RelayExprNode : public BaseExprNode {
    *
    * For expressions that have the function type, the virtual device describes where the result of
    * the call to the function or closure is stored (instead of where the function itself is stored).
-   * The SEScope's Target field describes how the body of the function should be compiled.
+   * The VirtualDevice's Target field describes how the body of the function should be compiled.
    *
    * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
    * import.
@@ -186,10 +186,10 @@ class RelayExprNode : public BaseExprNode {
   mutable ObjectRef virtual_device_;
 
   /*!
-   * \return The virtual device (SEScope).
-   * If the virtual device is not defined, returns SEScope::FullyUnconstrained().
+   * \return The virtual device (VirtualDevice).
+   * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
    */
-  SEScope virtual_device() const;
+  VirtualDevice virtual_device() const;
 
   static constexpr const char* _type_key = "RelayExpr";
   static constexpr const uint32_t _type_child_slots = 22;

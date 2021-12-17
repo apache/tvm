@@ -19,30 +19,30 @@ import pytest
 import tvm
 
 
-def test_make_se_scope_for_device():
-    se_scope = tvm.target.make_se_scope(tvm.device("cuda"))
-    assert se_scope.device_type == 2
+def test_make_virtual_device_for_device():
+    virtual_device = tvm.target.make_virtual_device(tvm.device("cuda"))
+    assert virtual_device.device_type == 2
     # ie kDLCUDA
-    assert se_scope.virtual_device_id == 0
-    assert se_scope.target is None
-    assert se_scope.memory_scope == ""
+    assert virtual_device.virtual_device_id == 0
+    assert virtual_device.target is None
+    assert virtual_device.memory_scope == ""
 
 
-def test_make_se_scope_for_device_and_target():
+def test_make_virtual_device_for_device_and_target():
     target = tvm.target.Target("cuda")
-    se_scope = tvm.target.make_se_scope(tvm.device("cuda"), target)
-    assert se_scope.device_type == 2  # ie kDLCUDA
-    assert se_scope.target == target
-    assert se_scope.memory_scope == ""
+    virtual_device = tvm.target.make_virtual_device(tvm.device("cuda"), target)
+    assert virtual_device.device_type == 2  # ie kDLCUDA
+    assert virtual_device.target == target
+    assert virtual_device.memory_scope == ""
 
 
-def test_make_se_scope_for_device_target_and_memory_scope():
+def test_make_virtual_device_for_device_target_and_memory_scope():
     target = tvm.target.Target("cuda")
     scope = "local"
-    se_scope = tvm.target.make_se_scope(tvm.device("cuda"), target, scope)
-    assert se_scope.device_type == 2  # ie kDLCUDA
-    assert se_scope.target == target
-    assert se_scope.memory_scope == scope
+    virtual_device = tvm.target.make_virtual_device(tvm.device("cuda"), target, scope)
+    assert virtual_device.device_type == 2  # ie kDLCUDA
+    assert virtual_device.target == target
+    assert virtual_device.memory_scope == scope
 
 
 if __name__ == "__main__":

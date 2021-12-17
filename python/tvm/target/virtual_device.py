@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Python bindings for creating SEScopes."""
+"""Python bindings for creating VirtualDevices."""
 from . import _ffi_api
 
 
-def make_se_scope(device, target=None, memory_scope=""):
-    return _ffi_api.SEScope_ForDeviceTargetAndMemoryScope(device, target, memory_scope)
+# TODO(mbs): We need an official Python class representation given the importance of this structure.
+
+
+def make_virtual_device(device, target=None, memory_scope=""):
+    return _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope(device, target, memory_scope)

@@ -45,8 +45,8 @@ IRModule TestModule() {
 }
 
 TEST(DeviceDomains, SmokeTest) {
-  SEScope cpu = SEScope::ForDeviceType(kDLCPU);
-  SEScope cuda = SEScope::ForDeviceType(kDLCUDA);
+  VirtualDevice cpu = VirtualDevice::ForDeviceType(kDLCPU);
+  VirtualDevice cuda = VirtualDevice::ForDeviceType(kDLCUDA);
   TargetMap target_map;
   target_map.Set(Integer(static_cast<int>(kDLCPU)), Target("llvm"));
   target_map.Set(Integer(static_cast<int>(kDLCUDA)), Target("cuda"));
@@ -66,11 +66,11 @@ TEST(DeviceDomains, SmokeTest) {
   arg_and_results.push_back(result_domain);
   DeviceDomainPtr implied_add_domain = domains.MakeHigherOrderDomain(std::move(arg_and_results));
   EXPECT_FALSE(domains.UnifyOrNull(actual_add_domain, implied_add_domain) == nullptr);
-  EXPECT_FALSE(domains.UnifyOrNull(
-                   x_domain, domains.ForSEScope(f->params[0]->checked_type(), cuda)) == nullptr);
+  EXPECT_FALSE(domains.UnifyOrNull(x_domain, domains.ForVirtualDevice(f->params[0]->checked_type(),
+                                                                      cuda)) == nullptr);
 
-  EXPECT_EQ(domains.ResultSEScope(y_domain), config->CanonicalSEScope(cuda));
-  EXPECT_EQ(domains.ResultSEScope(result_domain), config->CanonicalSEScope(cuda));
+  EXPECT_EQ(domains.ResultVirtualDevice(y_domain), config->CanonicalVirtualDevice(cuda));
+  EXPECT_EQ(domains.ResultVirtualDevice(result_domain), config->CanonicalVirtualDevice(cuda));
 }
 
 }  // namespace
