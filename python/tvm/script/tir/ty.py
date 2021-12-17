@@ -137,7 +137,7 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         if len(args) < 2:
             raise ValueError("T.Buffer[...] needs at least two arguments: shape and dtype.")
         shape = args[0]
-        if not isinstance(shape, (tuple, list)):
+        if not isinstance(shape, tuple):
             raise ValueError(
                 "The first argument of T.Buffer[...] needs to be a tuple, "
                 "followed by the second argument dtype as a string"
