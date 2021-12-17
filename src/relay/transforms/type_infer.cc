@@ -844,9 +844,13 @@ class SameTypedSubgraphExtractor : public ExprMutator {
     return Tuple(get_analogous_expression(op->fields), op->span);
   }
   Expr VisitExpr_(const FunctionNode* op) {
-    // Here will be the only VisitExpr
-    return Function(op->params, get_analogous_expression(op->body), op->ret_type, op->type_params,
-                    op->attrs, op->span);
+    // We use these to regenerate the list of free variables in the function and place them in
+    // the list of input parameters for the model.
+    Expr new_body = get_analogous_expression(op->body);
+    IRModule new_body_mod = IRModule::FromExpr(new_body);
+    return Function(relay::FreeVars(new_body), new_body, op->ret_type,
+                    relay::FreeTypeVars(new_body, IRModule::FromExpr(new_body)), op->attrs,
+                    op->span);
   }
   Expr VisitExpr_(const CallNode* op) {
     return Call(op->op, get_analogous_expression(op->args), op->attrs, op->type_args, op->span);
