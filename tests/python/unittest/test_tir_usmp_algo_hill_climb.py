@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import sys
 import pytest
 import random
 import tvm
@@ -21,6 +22,7 @@ from tvm.tir.usmp.utils import BufferInfo, PoolInfo
 
 
 def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
+    """Helper to check maximum allocated memory size"""
     max_workspace_size = 0
     for buffer_info, pool_allocation in buffer_pool_allocations.items():
         if pool_allocation.pool_info == pool_info:
@@ -28,15 +30,16 @@ def _check_max_workspace_size(buffer_pool_allocations, pool_info, size):
             if size_candidate > max_workspace_size:
                 max_workspace_size = size_candidate
     _diff = max_workspace_size.value - size
-    assert (
-        max_workspace_size.value == size
-    ), "'{}': expected {} got {}, diff {:0.2f}% ({} bytes)".format(
-        pool_info.pool_name, size, max_workspace_size, 100 * _diff / size, _diff
+    return (
+        (max_workspace_size.value == size),
+        "'{}': expected {} got {}, diff {:0.2f}% ({} bytes)".format(
+            pool_info.pool_name, size, max_workspace_size, 100 * _diff / size, _diff
+        ),
     )
 
 
 def _verify_conflicts(buffer_info, pool_allocation, buffer_info_map):
-    """helper to check expected liveness conflicts"""
+    """Helper to check expected liveness conflicts"""
     for conflict in buffer_info.conflicts:
         conflict_pool_allocation = buffer_info_map[conflict]
 
@@ -57,12 +60,13 @@ def _verify_conflicts(buffer_info, pool_allocation, buffer_info_map):
 
 
 def _verify_all_conflicts(buffer_pool_allocations):
+    """Helper to verify liveness conflicts"""
     for buffer_info, pool_allocation in buffer_pool_allocations.items():
-        # print( "Processing ", name )
         _verify_conflicts(buffer_info, pool_allocation, buffer_pool_allocations)
 
 
 def test_bounded(random_len=150, pools=[PoolInfo("default", {}, 65535), PoolInfo("slow", {})]):
+    """Tests two pools, one is bounded and one is not limited"""
     random.seed(0)
     mem_range = [BufferInfo(str(i), random.randrange(1, 65535), pools) for i in range(random_len)]
     for mr in mem_range:
@@ -79,6 +83,7 @@ def test_bounded(random_len=150, pools=[PoolInfo("default", {}, 65535), PoolInfo
 
 
 def __test_data_alloc_max():
+    """Test data"""
     intervals = [
         (0, 159, 2048),
         (0, 13, 7904),
@@ -90,6 +95,7 @@ def __test_data_alloc_max():
 
 
 def __test_data_deep_speech():
+    """Test data"""
     intervals = [
         (0, 159, 2048),
         (0, 151, 2048),
@@ -280,6 +286,7 @@ def __test_data_deep_speech():
 
 
 def __test_data_five():
+    """Test data"""
     return [
         (4, 5, 95),
         (1, 4, 52135),
@@ -290,6 +297,7 @@ def __test_data_five():
 
 
 def __test_data_simple():
+    """Test data"""
     return [
         (0, 23, 131072),  # 0
         (4, 5, 65568),  # 1
@@ -304,8 +312,8 @@ def __test_data_simple():
     ]
 
 
-def maximumFromIntervals(intervals):
-    # expected list of intervals of (start, end, size)
+def find_maximum_from_intervals(intervals):
+    """Expected list of intervals of (start, end, size)"""
     sorted_list = sorted(intervals, key=lambda _: _[0])
     max_mem = 0
     for t in range(sorted_list[0][0], sorted_list[-1][1] + 1):
@@ -320,11 +328,14 @@ def maximumFromIntervals(intervals):
     [__test_data_alloc_max(), __test_data_simple(), __test_data_deep_speech(), __test_data_five()],
 )
 def test_intervals(intervals):
+    """Tests supplied intervals"""
+    random.seed(0)
     result = run_intervals(intervals)
     assert result["tir.usmp.algo.hill_climb"] == True, f" {result}"
 
 
 def generate_range(sz, max_segment_sz=65535):
+    """Helper func to generate list of size sz of ranges of random size max_segment_sz"""
     for i in range(0, sz):
         start = random.randrange(i, sz)
         stop = random.randrange(start + 1, start + 2 + ((sz - start) // 2))
@@ -332,37 +343,16 @@ def generate_range(sz, max_segment_sz=65535):
         yield (start, stop, random.randrange(1, max_segment_sz))
 
 
-@pytest.mark.skip()
-def test_10_random_intervals():
-    __test_n_random_intervals(10)
-
-
-@pytest.mark.skip()
-def test_100_random_intervals():
-    __test_n_random_intervals(100)
-
-
-def __test_n_random_intervals(n=1):
-    result = {}
-    for i in range(n):
-        result["total_runs"] = i + 1
-        r = test_random_intervals(100)
-        for k, v in r.items():
-            if k in result.keys():
-                result[k] += int(v)
-            else:
-                result[k] = int(v)
-
-    print(result)
-
-
 def test_random_intervals(interval_len=16):
+    """Tests randomly generated interval of length interval_len"""
+    random.seed(0)
     intervals = list(generate_range(interval_len))
     return run_intervals(intervals)
 
 
 def run_intervals(intervals):
-    expected_mem = maximumFromIntervals(intervals)
+    """Helper to run intervals"""
+    expected_mem = find_maximum_from_intervals(intervals)
     pools = [PoolInfo("default", {})]
     buffers = []
     # populate
@@ -396,14 +386,12 @@ def run_intervals(intervals):
         print()
 
         _verify_all_conflicts(buffer_info_arr)
-        try:
-            _check_max_workspace_size(buffer_info_arr, pools[0], expected_mem)
-            result[alg] = True
-        except AssertionError as e:
-            print(alg, e)
-            result[alg] = False
+        result[alg], msg = _check_max_workspace_size(buffer_info_arr, pools[0], expected_mem)
+        if not result[alg]:
+            print(alg, msg)
+
     return result
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
