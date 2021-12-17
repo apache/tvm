@@ -29,7 +29,7 @@ from tvm.relay.expr import const
 from tvm.relay.build_module import bind_params_by_name
 
 from .register import register_pattern_table, get_pattern_table
-from ...dataflow_pattern import wildcard, is_op, is_expr
+from ...dataflow_pattern import wildcard, is_op, is_expr, ConstantPattern
 
 
 def partition_for_bnns(mod, params=None):
@@ -211,8 +211,8 @@ def dense(expr):
 def make_conv_pattern(with_bias=True, activation="none"):
     """Make pattern for bnns.conv2d primitive"""
     data = wildcard()
-    weight = wildcard()
-    bias = wildcard()
+    weight = ConstantPattern()
+    bias = ConstantPattern()
     pat = is_op("nn.conv2d")(data, weight)
     if with_bias:
         pat = is_op("add")(pat, bias) | is_op("nn.bias_add")(pat, bias)
