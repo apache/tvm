@@ -841,50 +841,49 @@ class SameTypedSubgraphExtractor : public ExprMutator {
   Expr VisitExpr_(const GlobalVarNode* op) { return GlobalVar(op->name_hint); }
   Expr VisitExpr_(const OpNode* op) { return Op(GetRef<Op>(op)); }
   Expr VisitExpr_(const TupleNode* op) {
-    return Tuple(get_analogous_expression(op->fields), op->span);
+    return Tuple(GetAnalogousExpression(op->fields), op->span);
   }
   Expr VisitExpr_(const FunctionNode* op) {
     // We use these to regenerate the list of free variables in the function and place them in
     // the list of input parameters for the model.
-    Expr new_body = get_analogous_expression(op->body);
+    Expr new_body = GetAnalogousExpression(op->body);
     IRModule new_body_mod = IRModule::FromExpr(new_body);
     return Function(relay::FreeVars(new_body), new_body, op->ret_type,
                     relay::FreeTypeVars(new_body, IRModule::FromExpr(new_body)), op->attrs,
                     op->span);
   }
   Expr VisitExpr_(const CallNode* op) {
-    return Call(op->op, get_analogous_expression(op->args), op->attrs, op->type_args, op->span);
+    return Call(op->op, GetAnalogousExpression(op->args), op->attrs, op->type_args, op->span);
   }
   Expr VisitExpr_(const LetNode* op) {
-    return Let(op->var, get_analogous_expression(op->value), get_analogous_expression(op->body),
+    return Let(op->var, GetAnalogousExpression(op->value), GetAnalogousExpression(op->body),
                op->span);
   }
   Expr VisitExpr_(const IfNode* op) {
-    return If(get_analogous_expression(op->cond), get_analogous_expression(op->true_branch),
-              get_analogous_expression(op->false_branch), op->span);
+    return If(GetAnalogousExpression(op->cond), GetAnalogousExpression(op->true_branch),
+              GetAnalogousExpression(op->false_branch), op->span);
   }
   Expr VisitExpr_(const TupleGetItemNode* op) {
-    return TupleGetItem(get_analogous_expression(op->tuple), op->index, op->span);
+    return TupleGetItem(GetAnalogousExpression(op->tuple), op->index, op->span);
   }
   Expr VisitExpr_(const RefCreateNode* op) {
-    return RefCreate(get_analogous_expression(op->value), op->span);
+    return RefCreate(GetAnalogousExpression(op->value), op->span);
   }
   Expr VisitExpr_(const RefReadNode* op) {
-    return RefRead(get_analogous_expression(op->ref), op->span);
+    return RefRead(GetAnalogousExpression(op->ref), op->span);
   }
   Expr VisitExpr_(const RefWriteNode* op) {
-    return RefWrite(get_analogous_expression(op->ref), get_analogous_expression(op->value),
-                    op->span);
+    return RefWrite(GetAnalogousExpression(op->ref), GetAnalogousExpression(op->value), op->span);
   }
   Expr VisitExpr_(const ConstructorNode* op) {
     return Constructor(op->name_hint, op->inputs, op->belong_to);
   }
   Expr VisitExpr_(const MatchNode* op) {
-    return Match(get_analogous_expression(op->data), op->clauses, op->complete, op->span);
+    return Match(GetAnalogousExpression(op->data), op->clauses, op->complete, op->span);
   }
 
  private:
-  Expr get_analogous_expression(const Expr& expr) {
+  Expr GetAnalogousExpression(const Expr& expr) {
     // Replace the expression with a potentially simpler expression of the same type
     if (!expr->checked_type_.defined()) {
       return VisitExpr(expr);
@@ -892,10 +891,10 @@ class SameTypedSubgraphExtractor : public ExprMutator {
 
     return Var("dummy_var", expr->checked_type(), expr->span);
   }
-  Array<Expr> get_analogous_expression(const Array<Expr>& fields) {
+  Array<Expr> GetAnalogousExpression(const Array<Expr>& fields) {
     Array<Expr> new_fields;
     for (Expr expr : fields) {
-      new_fields.push_back(get_analogous_expression(expr));
+      new_fields.push_back(GetAnalogousExpression(expr));
     }
     return new_fields;
   }
