@@ -7,7 +7,30 @@ from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 
 @T.prim_func
-def elementwise(a: T.handle, c: T.handle) -> None:
+def single_elementwise(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]):
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+
+
+@T.prim_func
+def single_elementwise_blockized(A: T.Buffer[(128, 128), "float32"], B: T.Buffer[(128, 128), "float32"]) -> None:
+    with T.block("blockized_B"):
+        vio = T.axis.spatial(1, 0)
+        vjo = T.axis.spatial(1, 0)
+        T.reads(A[0 : 128, 0 : 128])
+        T.writes(B[0 : 128, 0 : 128])
+        for i, j in T.grid(128, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.reads(A[vi, vj])
+                T.writes(B[vi, vj])
+                B[vi, vj] = A[vi, vj] * T.float32(2)
+
+
+@T.prim_func
+def two_elementwise(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     B = T.alloc_buffer((128, 128))
@@ -152,7 +175,7 @@ def rowsum_blockized(a: T.handle, b: T.handle) -> None:
 def test_blockize():
     func = elementwise
     # schedule
-    s = tir.Schedule(func, debug_mask="none")
+    s = tir.Schedule(func, debug_mask="all")
     B = s.get_block("B")
     _ = s.get_block("C")
     x, y = s.get_loops(B)
@@ -161,13 +184,13 @@ def test_blockize():
     s.reorder(xo, yo, xi, yi)
     s.blockize(xi)
     tvm.ir.assert_structural_equal(blockize, s.mod["main"])
-    # verify_trace_roundtrip(sch=s, mod=func)
+    verify_trace_roundtrip(sch=s, mod=func)
 
 
 def test_blockize_schedule():
     func = elementwise
     # test 1
-    s = tir.Schedule(func, debug_mask="none")
+    s = tir.Schedule(func, debug_mask="all")
     B = s.get_block("B")
     C = s.get_block("C")
     x, y = s.get_loops(B)
@@ -178,9 +201,9 @@ def test_blockize_schedule():
     s.reverse_compute_at(C, yo)
     s.blockize(s.get_loops(C)[-2])
     tvm.ir.assert_structural_equal(s.mod["main"], blockize_schedule_1)
-    # verify_trace_roundtrip(sch=s, mod=func)
+    verify_trace_roundtrip(sch=s, mod=func)
     # test 2
-    s = tir.Schedule(func, debug_mask="none")
+    s = tir.Schedule(func, debug_mask="all")
     B = s.get_block("B")
     C = s.get_block("C")
     x, y = s.get_loops(C)
@@ -191,9 +214,9 @@ def test_blockize_schedule():
     s.compute_at(B, yo)
     s.blockize(s.get_loops(B)[-2])
     tvm.ir.assert_structural_equal(s.mod["main"], blockize_schedule_1)
-    # verify_trace_roundtrip(sch=s, mod=func)
+    verify_trace_roundtrip(sch=s, mod=func)
     # test 3
-    s = tir.Schedule(func, debug_mask="none")
+    s = tir.Schedule(func, debug_mask="all")
     B = s.get_block("B")
     C = s.get_block("C")
     x, y = s.get_loops(B)
@@ -207,13 +230,14 @@ def test_blockize_schedule():
     s.reorder(xCo, yCo, xCi, yCi)
     s.compute_at(b_outer, yCo)
     tvm.ir.assert_structural_equal(s.mod["main"], blockize_schedule_2)
-    #  verify_trace_roundtrip(sch=s, mod=func)
+     verify_trace_roundtrip(sch=s, mod=func)
 
 
 def test_blockize_init_loops():
-    s = tir.Schedule(rowsum, debug_mask="none")
+    s = tir.Schedule(rowsum, debug_mask="all")
     k, _ = s.get_loops(s.get_block("B"))
     s.blockize(k)
+    print(s.mod['main'].script())
     tvm.ir.assert_structural_equal(s.mod["main"], rowsum_blockized)
     # verify_trace_roundtrip(sch=s, mod=rowsum)
 
