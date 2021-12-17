@@ -885,11 +885,13 @@ class SameTypedSubgraphExtractor : public ExprMutator {
  private:
   Expr GetAnalogousExpression(const Expr& expr) {
     // Replace the expression with a potentially simpler expression of the same type
-    if (!expr->checked_type_.defined()) {
-      return VisitExpr(expr);
+    if (expr->checked_type_.defined()) {
+      // Since the expression already has a checked_type which we assume is correct we don't need
+      // full type inference to enter it. So stub it out with a dummy var of the same type.
+      return Var("dummy_var", expr->checked_type(), expr->span);
     }
 
-    return Var("dummy_var", expr->checked_type(), expr->span);
+    return VisitExpr(expr);
   }
   Array<Expr> GetAnalogousExpression(const Array<Expr>& fields) {
     Array<Expr> new_fields;
