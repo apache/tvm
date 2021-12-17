@@ -235,12 +235,12 @@ std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
 
 class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
  public:
-  VMFunctionCompiler(VMCompilerContext* context, SEScope host_se_scope)
+  VMFunctionCompiler(VMCompilerContext* context, VirtualDevice host_virtual_device)
       : DeviceAwareExprFunctor(context->module),
         last_register_(0),
         registers_num_(0),
         context_(context),
-        host_se_scope_(std::move(host_se_scope)) {}
+        host_virtual_device_(std::move(host_virtual_device)) {}
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
     std::vector<Index> param_device_indexes;
@@ -252,21 +252,21 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // Do that flattening on-the-fly here.
       Function inner_func = Downcast<Function>(func->body);
       std::vector<Var> params;
-      std::vector<SEScope> param_se_scopes;
+      std::vector<VirtualDevice> param_virtual_devices;
       params.reserve(func->params.size() + inner_func->params.size());
-      param_se_scopes.reserve(func->params.size() + inner_func->params.size());
+      param_virtual_devices.reserve(func->params.size() + inner_func->params.size());
       param_device_indexes.reserve(func->params.size() + inner_func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
         params.emplace_back(func->params[i]);
-        SEScope param_se_scope = GetFunctionParamSEScope(func.get(), i);
-        param_se_scopes.push_back(param_se_scope);
-        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
+        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(func.get(), i);
+        param_virtual_devices.push_back(param_virtual_device);
+        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
       }
       for (size_t i = 0; i < inner_func->params.size(); ++i) {
         params.emplace_back(inner_func->params[i]);
-        SEScope param_se_scope = GetFunctionParamSEScope(inner_func.get(), i);
-        param_se_scopes.push_back(param_se_scope);
-        param_device_indexes.push_back(GetDeviceIndex(param_se_scope));
+        VirtualDevice param_virtual_device = GetFunctionParamVirtualDevice(inner_func.get(), i);
+        param_virtual_devices.push_back(param_virtual_device);
+        param_device_indexes.push_back(GetDeviceIndex(param_virtual_device));
       }
       std::vector<TypeVar> type_params;
       type_params.reserve(func->type_params.size() + inner_func->type_params.size());
@@ -278,12 +278,13 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       }
       Function flattened_func = Function(params, inner_func->body, inner_func->ret_type,
                                          type_params, func->attrs, func->span);
-      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_se_scopes,
-                                      GetFunctionResultSEScope(inner_func.get())));
+      VisitExpr(MaybeFunctionOnDevice(flattened_func, param_virtual_devices,
+                                      GetFunctionResultVirtualDevice(inner_func.get())));
     } else {
       param_device_indexes.reserve(func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        param_device_indexes.push_back(GetDeviceIndex(GetFunctionParamSEScope(func.get(), i)));
+        param_device_indexes.push_back(
+            GetDeviceIndex(GetFunctionParamVirtualDevice(func.get(), i)));
       }
       VisitExpr(func);
     }
@@ -333,42 +334,44 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   }
 
   /*!
-   * \brief Returns the "device index" to represent \p se_scope for primitives
+   * \brief Returns the "device index" to represent \p virtual_device for primitives
    * in emitted code. Note that the host device is always at index 0.
    */
-  Index GetDeviceIndex(const SEScope& se_scope) {
-    ICHECK(!se_scope->IsFullyUnconstrained());
-    auto itr = std::find(context_->se_scopes_.begin(), context_->se_scopes_.end(), se_scope);
-    if (itr != context_->se_scopes_.end()) {
-      return std::distance(context_->se_scopes_.begin(), itr);
+  Index GetDeviceIndex(const VirtualDevice& virtual_device) {
+    ICHECK(!virtual_device->IsFullyUnconstrained());
+    auto itr = std::find(context_->virtual_devices_.begin(), context_->virtual_devices_.end(),
+                         virtual_device);
+    if (itr != context_->virtual_devices_.end()) {
+      return std::distance(context_->virtual_devices_.begin(), itr);
     }
 
-    ICHECK_GT(context_->se_scopes_.size(), 0);
-    ICHECK_NE(se_scope, host_se_scope_);  // the host scope is always at index 0
+    ICHECK_GT(context_->virtual_devices_.size(), 0);
+    ICHECK_NE(virtual_device, host_virtual_device_);  // the host scope is always at index 0
 
-    if (se_scope->device_type() == context_->se_scopes_.front()->device_type()) {
+    if (virtual_device->device_type() == context_->virtual_devices_.front()->device_type()) {
       // It's ok if we see distinct scopes which share the host device type. This is because
-      // we allow the SEScope for the host to be different from the SEScope for primitive
-      // operations which both happen to be on the same device (typically CPU).
+      // we allow the VirtualDevice for the host to be different from the VirtualDevice for
+      // primitive operations which both happen to be on the same device (typically CPU).
       return 0;
     }
 
-    // However, otherwise we allow at most one SEScope per device type.
+    // However, otherwise we allow at most one VirtualDevice per device type.
     // TODO(mbs): This will eventually need to account for memory scopes somehow so device_copy
     // instructions can do the right thing.
-    itr = std::find_if(context_->se_scopes_.begin() + 1, context_->se_scopes_.end(),
-                       [&se_scope](const SEScope& existing_se_scope) {
-                         return existing_se_scope->device_type() == se_scope->device_type();
+    itr = std::find_if(context_->virtual_devices_.begin() + 1, context_->virtual_devices_.end(),
+                       [&virtual_device](const VirtualDevice& existing_virtual_device) {
+                         return existing_virtual_device->device_type() ==
+                                virtual_device->device_type();
                        });
-    CHECK(itr == context_->se_scopes_.end())
+    CHECK(itr == context_->virtual_devices_.end())
         << "The VM does not currently support using more than one device with the same device type "
            "for primitives, however the program is using the distinct scopes "
-        << se_scope << " and " << *itr << " of device type " << se_scope->device_type();
+        << virtual_device << " and " << *itr << " of device type " << virtual_device->device_type();
 
-    ICHECK(se_scope != host_se_scope_);
-    Index index = context_->se_scopes_.size();
-    VLOG(2) << "se_scope[" << index << "] = " << se_scope;
-    context_->se_scopes_.push_back(se_scope);
+    ICHECK(virtual_device != host_virtual_device_);
+    Index index = context_->virtual_devices_.size();
+    VLOG(2) << "virtual_device[" << index << "] = " << virtual_device;
+    context_->virtual_devices_.push_back(virtual_device);
 
     return index;
   }
@@ -380,7 +383,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     NDArray data = const_node->data;
     size_t const_index = context_->constants.size();
     auto con = GetRef<Constant>(const_node);
-    Index device_index = GetDeviceIndex(GetSEScope(con));
+    Index device_index = GetDeviceIndex(GetVirtualDevice(con));
     VLOG(2) << "constant[" << const_index << "] on device[" << device_index << "]";
     context_->const_device_indexes.push_back(device_index);
     context_->constants.push_back(const_node->data);
@@ -542,8 +545,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       // TODO(mbs): device_copy cleanup.
       VisitExpr(device_copy_props.body);
       RegName src_reg = last_register_;
-      Index src_index = GetDeviceIndex(device_copy_props.src_se_scope);
-      Index dst_index = GetDeviceIndex(device_copy_props.dst_se_scope);
+      Index src_index = GetDeviceIndex(device_copy_props.src_virtual_device);
+      Index dst_index = GetDeviceIndex(device_copy_props.dst_virtual_device);
       // Since scopes distinguish by targets (including any target hosts) but at runtime we
       // deal only with devices, the copy may be unnecessary.
       if (src_index != dst_index) {
@@ -619,7 +622,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    auto dtype = alloc_attrs->dtype;
 
                    Emit(Instruction::AllocStorage(size_register, alignment, dtype,
-                                                  GetDeviceIndex(alloc_attrs->se_scope),
+                                                  GetDeviceIndex(alloc_attrs->virtual_device),
                                                   NewRegister()));
                  })
           .Match("vm.shape_of",
@@ -819,8 +822,8 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
   size_t registers_num_;
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
-  /*! \brief SEScope for data and computation which must reside on a CPU. */
-  SEScope host_se_scope_;
+  /*! \brief VirtualDevice for data and computation which must reside on a CPU. */
+  VirtualDevice host_virtual_device_;
 };
 
 PackedFunc VMCompiler::GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
@@ -873,9 +876,9 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
   config_ = CompilationConfig(PassContext::Current(), std::move(targets), std::move(target_host));
 
   // The first device is always for the host.
-  CHECK(context_.se_scopes_.empty());
-  VLOG(2) << "se_scope[0] = " << config_->host_se_scope << " (host)";
-  context_.se_scopes_.push_back(config_->host_se_scope);
+  CHECK(context_.virtual_devices_.empty());
+  VLOG(2) << "virtual_device[0] = " << config_->host_virtual_device << " (host)";
+  context_.virtual_devices_.push_back(config_->host_virtual_device);
 
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModuleImpl(std::move(mod));
@@ -896,7 +899,7 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
         continue;
       }
       auto func = GetRef<Function>(n);
-      VMFunctionCompiler func_compiler(&context_, config_->host_se_scope);
+      VMFunctionCompiler func_compiler(&context_, config_->host_virtual_device);
       auto vm_func = func_compiler.Compile(gvar, func);
 
       size_t func_index = context_.global_map.at(gvar);
@@ -911,12 +914,12 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
   }
 
   // Populate virtual devices and the host device index.
-  for (const auto& se_scope : context_.se_scopes_) {
-    ICHECK(!se_scope->IsFullyUnconstrained());
-    ICHECK_GT(se_scope->device_type(), 0);
+  for (const auto& virtual_device : context_.virtual_devices_) {
+    ICHECK(!virtual_device->IsFullyUnconstrained());
+    ICHECK_GT(virtual_device->device_type(), 0);
     // TODO(mbs): We forget the memory scope.
-    exec_->virtual_devices.push_back(
-        Device{/*device_type=*/se_scope->device_type(), /*device_id=*/se_scope->virtual_device_id});
+    exec_->virtual_devices.push_back(Device{/*device_type=*/virtual_device->device_type(),
+                                            /*device_id=*/virtual_device->virtual_device_id});
   }
   exec_->host_device_index = kHostDeviceIndex;
 
@@ -952,25 +955,25 @@ void VMCompiler::Lower(IRModule mod, TargetMap targets, tvm::Target target_host)
   }
 }
 
-transform::Sequential VMCompiler::MemoryOpt(const SEScope& host_se_scope) {
+transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_device) {
   Array<Pass> pass_seqs;
   // Remove unused functions
   Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Manifest the allocations.
-  pass_seqs.push_back(transform::ManifestAlloc(host_se_scope));
+  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower any new shape functions and device_copies.
-  pass_seqs.push_back(FuseAndLowerOperators(host_se_scope));
+  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
 
   // Manifest the allocations needed for the shape functions.
-  pass_seqs.push_back(transform::ManifestAlloc(host_se_scope));
+  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
 
   // Fuse & lower any new allocations.
-  pass_seqs.push_back(FuseAndLowerOperators(host_se_scope));
+  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
 
   // TODO(mbrookhart, jroesch, masahi): this pass is very slow, and is
   // incomplete to provide memory resuse optimizations. Disable it until we can
@@ -982,10 +985,10 @@ transform::Sequential VMCompiler::MemoryOpt(const SEScope& host_se_scope) {
   pass_seqs.push_back(transform::FoldConstant());
 
   // Fuse & lower yet again
-  pass_seqs.push_back(FuseAndLowerOperators(host_se_scope));
+  pass_seqs.push_back(FuseAndLowerOperators(host_virtual_device));
 
   // Create allocations for math introduced by dynamic region math.
-  pass_seqs.push_back(transform::ManifestAlloc(host_se_scope));
+  pass_seqs.push_back(transform::ManifestAlloc(host_virtual_device));
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
@@ -998,7 +1001,7 @@ transform::Sequential VMCompiler::MemoryOpt(const SEScope& host_se_scope) {
   return transform::Sequential(std::move(pass_seqs));
 }
 
-transform::Sequential VMCompiler::FuseAndLowerOperators(const SEScope& host_se_scope) {
+transform::Sequential VMCompiler::FuseAndLowerOperators(const VirtualDevice& host_virtual_device) {
   Array<Pass> pass_seqs;
   // Hoist operators to "primitive" Functions.
   pass_seqs.push_back(FuseOps());
@@ -1011,7 +1014,7 @@ transform::Sequential VMCompiler::FuseAndLowerOperators(const SEScope& host_se_s
                                            backend::UpdateConstants(func, &params_);
                                          }
                                        },
-                                       host_se_scope));
+                                       host_virtual_device));
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
@@ -1022,8 +1025,8 @@ IRModule VMCompiler::OptimizeModule(IRModule mod, const TargetMap& targets,
                                     const Target& target_host) {
   config_ = CompilationConfig(PassContext::Current(), targets, target_host);
   // The first device always corresponds to the host.
-  CHECK(context_.se_scopes_.empty());
-  context_.se_scopes_.push_back(config_->host_se_scope);
+  CHECK(context_.virtual_devices_.empty());
+  context_.virtual_devices_.push_back(config_->host_virtual_device);
   // TODO(mbs): exec_ is not allocated. What is the API here?
   CHECK(exec_ == nullptr);
   return OptimizeModuleImpl(std::move(mod));
@@ -1082,13 +1085,13 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
                                            backend::UpdateConstants(func, &params_);
                                          }
                                        },
-                                       config_->host_se_scope));
+                                       config_->host_virtual_device));
 
   // Since lowered functions are bound in the IRModule, we can now eliminate any unused
   // let-bound functions.
   pass_seqs.push_back(DeadCodeElimination(/*inline_once=*/false));
 
-  // Now that we have PrimFuncs, flow and solve SEScope constraints again to account for
+  // Now that we have PrimFuncs, flow and solve VirtualDevice constraints again to account for
   // any memory scopes which lowering has settled on.
   pass_seqs.push_back(transform::PlanDevices(config_));
 
@@ -1099,7 +1102,7 @@ IRModule VMCompiler::OptimizeModuleImpl(IRModule mod) {
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
-  pass_seqs.push_back(MemoryOpt(config_->host_se_scope));
+  pass_seqs.push_back(MemoryOpt(config_->host_virtual_device));
   pass_seqs.push_back(transform::InferType());
 
   transform::Sequential seq(pass_seqs);

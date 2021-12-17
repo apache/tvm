@@ -28,7 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <functional>
 #include <stack>
@@ -158,7 +158,7 @@ class Tuple : public Expr {
  * ret_tuple->span = tuple->span.
  */
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
-                 Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                  Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -264,7 +264,7 @@ class Var : public Expr {
  */
 Var WithFields(Var var, Optional<Id> opt_vid = Optional<Id>(),
                Optional<Type> opt_type_annotation = Optional<Type>(),
-               Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -391,7 +391,7 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
                 Optional<Attrs> opt_attrs = Optional<Attrs>(),
                 Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
-                Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                 Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -487,7 +487,7 @@ class Let : public Expr {
 Let WithFields(Let let, Optional<Var> opt_var = Optional<Var>(),
                Optional<Expr> opt_value = Optional<Expr>(),
                Optional<Expr> opt_body = Optional<Expr>(),
-               Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -574,7 +574,7 @@ class If : public Expr {
 If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_true_branch = Optional<Expr>(),
               Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+              Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
               Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
@@ -640,7 +640,7 @@ class TupleGetItem : public Expr {
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
                         Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                        Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                         Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Create a new Reference out of initial value. */
@@ -701,7 +701,7 @@ class RefCreate : public Expr {
  * ret_ref_create->value = opt_value.value()).
  */
 RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value = Optional<Expr>(),
-                     Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                     Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                      Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get value out of Reference. */
@@ -761,7 +761,7 @@ class RefRead : public Expr {
  * if opt_ref.value() != ref_read->ref, then ret_ref_read->ref = opt_ref.value()).
  */
 RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref = Optional<Expr>(),
-                   Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                   Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                    Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
@@ -829,7 +829,7 @@ class RefWrite : public Expr {
  */
 RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref = Optional<Expr>(),
                     Optional<Expr> opt_value = Optional<Expr>(),
-                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*!

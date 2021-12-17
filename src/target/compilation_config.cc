@@ -33,26 +33,27 @@ void CompilationConfigNode::VisitAttrs(AttrVisitor* v) {
   v->Visit("legacy_target_map", &legacy_target_map);
   v->Visit("host_target", &host_target);
   v->Visit("primitive_targets", &primitive_targets);
-  v->Visit("default_primitive_se_scope", &default_primitive_se_scope);
-  v->Visit("host_se_scope", &host_se_scope);
+  v->Visit("default_primitive_virtual_device", &default_primitive_virtual_device);
+  v->Visit("host_virtual_device", &host_virtual_device);
   v->Visit("optional_homogenous_target", &optional_homogeneous_target);
-  // NOTE: The se_scope_cache_ is not accessible via FFI.
+  // NOTE: The virtual_device_cache_ is not accessible via FFI.
 }
 
-SEScope CompilationConfigNode::CanonicalSEScope(const SEScope& se_scope) const {
-  if (se_scope->target.defined()) {
-    return se_scope_cache_.Unique(se_scope);
+VirtualDevice CompilationConfigNode::CanonicalVirtualDevice(
+    const VirtualDevice& virtual_device) const {
+  if (virtual_device->target.defined()) {
+    return virtual_device_cache_.Unique(virtual_device);
   }
-  DLDeviceType device_type = se_scope->device_type();
+  DLDeviceType device_type = virtual_device->device_type();
   // TODO(mbs): Proper diagnostics.
   CHECK(device_type != kInvalidDeviceType)
-      << "SEScope annotations must include at least a device_type";
-  Target target = FindPrimitiveTargetOrFail(se_scope->device_type());
-  return se_scope_cache_.Unique(
-      SEScope(device_type, se_scope->virtual_device_id, target, se_scope->memory_scope));
+      << "VirtualDevice annotations must include at least a device_type";
+  Target target = FindPrimitiveTargetOrFail(virtual_device->device_type());
+  return virtual_device_cache_.Unique(VirtualDevice(device_type, virtual_device->virtual_device_id,
+                                                    target, virtual_device->memory_scope));
 }
 
-void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContext& pass_ctx) {
+void CompilationConfigNode::EstablishDefaultVirtualDevices(const transform::PassContext& pass_ctx) {
   //
   // Gather the hints as to what our default device type for the 'host' should be, and
   // create an appropriate target if we don't already have one.
@@ -105,9 +106,10 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   }
 
   //
-  // Establish the host SEScope.
+  // Establish the host VirtualDevice.
   //
-  host_se_scope = se_scope_cache_.Unique(SEScope(host_device_type,
+  host_virtual_device =
+      virtual_device_cache_.Unique(VirtualDevice(host_device_type,
                                                  /*virtual_device_id=*/0, host_target));
 
   //
@@ -149,11 +151,12 @@ void CompilationConfigNode::EstablishDefaultSEScopes(const transform::PassContex
   }
 
   //
-  // Establish the default primitive SEScope, choosing a known Target to match the device type.
+  // Establish the default primitive VirtualDevice, choosing a known Target to match the device
+  // type.
   //
-  default_primitive_se_scope = se_scope_cache_.Unique(
-      SEScope(default_primitive_device_type,
-              /*virtual_device_id=*/0, FindPrimitiveTargetOrFail(default_primitive_device_type)));
+  default_primitive_virtual_device = virtual_device_cache_.Unique(VirtualDevice(
+      default_primitive_device_type,
+      /*virtual_device_id=*/0, FindPrimitiveTargetOrFail(default_primitive_device_type)));
 }
 
 /* static */ Target CompilationConfigNode::MakeDefaultTarget(DLDeviceType device_type) {
@@ -205,7 +208,7 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
   // Complete the targets vector and establish default scopes. After this primitive_targets will
   // contain the definitive list of all required targets, target_host will be defined, and
   // all primitive targets will have host target_host.
-  node->EstablishDefaultSEScopes(pass_ctx);
+  node->EstablishDefaultVirtualDevices(pass_ctx);
 
   // LEGACY: Reconstruct the target map from all the primitive targets.
   // Note that we require pointer equality between targets in legacy_target_map and
@@ -214,8 +217,8 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
     node->legacy_target_map.Set(Integer(primitive_target->kind->device_type), primitive_target);
   }
 
-  ICHECK(node->default_primitive_se_scope->target.defined());
-  ICHECK(node->host_se_scope->target.defined());
+  ICHECK(node->default_primitive_virtual_device->target.defined());
+  ICHECK(node->host_virtual_device->target.defined());
   ICHECK_GT(node->primitive_targets.size(), 0U);
 
   // Legacy: Some passes only support homogenous compilation and expect the target to be
@@ -227,8 +230,8 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
     DLOG(INFO) << "Target " << target->ToDebugString() << " of device type "
                << target->kind->device_type << " is available for primitives";
   }
-  DLOG(INFO) << "Using default primitive scope " << node->default_primitive_se_scope;
-  DLOG(INFO) << "Using host scope " << node->host_se_scope;
+  DLOG(INFO) << "Using default primitive virtual device " << node->default_primitive_virtual_device;
+  DLOG(INFO) << "Using host virtual device " << node->host_virtual_device;
 
   data_ = std::move(node);
 }

@@ -18,21 +18,22 @@
  */
 
 /*!
- * \file tvm/target/se_scope.cc
- * \brief Implementation of \p SEScope for representing a Storage or Execution scope.
+ * \file tvm/target/virtual_device.cc
+ * \brief A compile time representation for where data is to be stored at runtime, and how to
+ * compile code to compute it.
  */
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(SEScopeNode);
+TVM_REGISTER_NODE_TYPE(VirtualDeviceNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<SEScopeNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = ref.as<SEScopeNode>();
-      p->stream << "SEScope(";
+    .set_dispatch<VirtualDeviceNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = ref.as<VirtualDeviceNode>();
+      p->stream << "VirtualDevice(";
       if (node->IsFullyUnconstrained()) {
         p->stream << "?";
       } else {
@@ -65,12 +66,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << ")";
     });
 
-SEScope::SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
-                 MemoryScope memory_scope) {
+VirtualDevice::VirtualDevice(DLDeviceType device_type, int virtual_device_id, Target target,
+                             MemoryScope memory_scope) {
   ICHECK(!target.defined() || device_type == target->kind->device_type)
       << "target " << target->ToDebugString() << " has device type " << target->kind->device_type
-      << " but scope has device type " << device_type;
-  auto node = make_object<SEScopeNode>();
+      << " but virtual device has device type " << device_type;
+  auto node = make_object<VirtualDeviceNode>();
   node->device_type_int = device_type;
   node->virtual_device_id = virtual_device_id;
   node->target = std::move(target);
@@ -78,13 +79,13 @@ SEScope::SEScope(DLDeviceType device_type, int virtual_device_id, Target target,
   data_ = std::move(node);
 }
 
-/* static */ SEScope SEScope::FullyUnconstrained() {
-  static const SEScope unconstrained{};
+/* static */ VirtualDevice VirtualDevice::FullyUnconstrained() {
+  static const VirtualDevice unconstrained{};
   return unconstrained;
 }
 
 /* static */
-Optional<SEScope> SEScope::Join(const SEScope& lhs, const SEScope& rhs) {
+Optional<VirtualDevice> VirtualDevice::Join(const VirtualDevice& lhs, const VirtualDevice& rhs) {
   if (lhs == rhs) {
     return lhs;
   }
@@ -124,11 +125,12 @@ Optional<SEScope> SEScope::Join(const SEScope& lhs, const SEScope& rhs) {
   } else {
     joined_memory_scope = rhs->memory_scope;
   }
-  return SEScope(joined_device_type, joined_virtual_device_id, joined_target, joined_memory_scope);
+  return VirtualDevice(joined_device_type, joined_virtual_device_id, joined_target,
+                       joined_memory_scope);
 }
 
 /* static */
-SEScope SEScope::Default(const SEScope& lhs, const SEScope& rhs) {
+VirtualDevice VirtualDevice::Default(const VirtualDevice& lhs, const VirtualDevice& rhs) {
   if (lhs == rhs) {
     return lhs;
   }
@@ -160,13 +162,14 @@ SEScope SEScope::Default(const SEScope& lhs, const SEScope& rhs) {
   } else {
     defaulted_memory_scope = rhs->memory_scope;
   }
-  return SEScope(defaulted_device_type, defaulted_virtual_device_id, defaulted_target,
-                 defaulted_memory_scope);
+  return VirtualDevice(defaulted_device_type, defaulted_virtual_device_id, defaulted_target,
+                       defaulted_memory_scope);
 }
 
-SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Target target,
-                           MemoryScope memory_scope) {
-  SEScope prototype(device_type, virtual_device_id, std::move(target), std::move(memory_scope));
+VirtualDevice VirtualDeviceCache::Make(DLDeviceType device_type, int virtual_device_id,
+                                       Target target, MemoryScope memory_scope) {
+  VirtualDevice prototype(device_type, virtual_device_id, std::move(target),
+                          std::move(memory_scope));
   auto itr = cache_.find(prototype);
   if (itr == cache_.end()) {
     cache_.emplace(prototype);
@@ -180,11 +183,12 @@ SEScope SEScopeCache::Make(DLDeviceType device_type, int virtual_device_id, Targ
   }
 }
 
-SEScope SEScopeCache::Unique(const SEScope& scope) {
-  return Make(scope->device_type(), scope->virtual_device_id, scope->target, scope->memory_scope);
+VirtualDevice VirtualDeviceCache::Unique(const VirtualDevice& virtual_device) {
+  return Make(virtual_device->device_type(), virtual_device->virtual_device_id,
+              virtual_device->target, virtual_device->memory_scope);
 }
 
-TVM_REGISTER_GLOBAL("target.SEScope_ForDeviceTargetAndMemoryScope")
-    .set_body_typed(SEScope::ForDeviceTargetAndMemoryScope);
+TVM_REGISTER_GLOBAL("target.VirtualDevice_ForDeviceTargetAndMemoryScope")
+    .set_body_typed(VirtualDevice::ForDeviceTargetAndMemoryScope);
 
 }  // namespace tvm

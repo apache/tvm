@@ -148,7 +148,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<Type> opt_ret_type = Optional<Type>(),
                     Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
-                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*

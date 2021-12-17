@@ -37,43 +37,44 @@ namespace relay {
 namespace transform {
 
 DeviceDomains::DeviceDomains(CompilationConfig config) : config_(std::move(config)) {
-  host_domain_ = MakeFirstOrderDomain(config_->host_se_scope);
+  host_domain_ = MakeFirstOrderDomain(config_->host_virtual_device);
 }
 
-DeviceDomainPtr DeviceDomains::MakeFirstOrderDomain(const SEScope& se_scope) {
-  if (se_scope->IsFullyConstrained()) {
-    auto itr = fully_constrained_se_scope_to_domain_.find(se_scope);
-    if (itr != fully_constrained_se_scope_to_domain_.end()) {
+DeviceDomainPtr DeviceDomains::MakeFirstOrderDomain(const VirtualDevice& virtual_device) {
+  if (virtual_device->IsFullyConstrained()) {
+    auto itr = fully_constrained_virtual_device_to_domain_.find(virtual_device);
+    if (itr != fully_constrained_virtual_device_to_domain_.end()) {
       return itr->second;
     }
-    DeviceDomainPtr domain = std::make_shared<DeviceDomain>(se_scope);
-    fully_constrained_se_scope_to_domain_.emplace(se_scope, domain);
+    DeviceDomainPtr domain = std::make_shared<DeviceDomain>(virtual_device);
+    fully_constrained_virtual_device_to_domain_.emplace(virtual_device, domain);
     return domain;
   } else {
-    return std::make_shared<DeviceDomain>(se_scope);
+    return std::make_shared<DeviceDomain>(virtual_device);
   }
 }
 
-DeviceDomainPtr DeviceDomains::MakeDomain(const Type& type, const SEScope& se_scope) {
+DeviceDomainPtr DeviceDomains::MakeDomain(const Type& type, const VirtualDevice& virtual_device) {
   if (const auto* func_type_node = type.as<FuncTypeNode>()) {
     std::vector<DeviceDomainPtr> args_and_result;
     args_and_result.reserve(func_type_node->arg_types.size() + 1);
     for (const auto& arg_type : func_type_node->arg_types) {
-      args_and_result.emplace_back(MakeDomain(arg_type, SEScope::FullyUnconstrained()));
+      args_and_result.emplace_back(MakeDomain(arg_type, VirtualDevice::FullyUnconstrained()));
     }
-    args_and_result.emplace_back(MakeDomain(func_type_node->ret_type, se_scope));
+    args_and_result.emplace_back(MakeDomain(func_type_node->ret_type, virtual_device));
     return std::make_shared<DeviceDomain>(std::move(args_and_result));
   } else {
-    return MakeFirstOrderDomain(se_scope);
+    return MakeFirstOrderDomain(virtual_device);
   }
 }
 
-DeviceDomainPtr DeviceDomains::ForSEScope(const Type& type, const SEScope& non_canonical_se_scope) {
-  // Generally se_scope will have come from an annotation so resolve it to ensure we have
+DeviceDomainPtr DeviceDomains::ForVirtualDevice(const Type& type,
+                                                const VirtualDevice& non_canonical_virtual_device) {
+  // Generally the virtual device will have come from an annotation so resolve it to ensure we have
   // its canonical representation.
-  SEScope se_scope = config_->CanonicalSEScope(non_canonical_se_scope);
-  ICHECK(!se_scope->IsFullyUnconstrained());
-  return MakeDomain(type, se_scope);
+  VirtualDevice virtual_device = config_->CanonicalVirtualDevice(non_canonical_virtual_device);
+  ICHECK(!virtual_device->IsFullyUnconstrained());
+  return MakeDomain(type, virtual_device);
 }
 
 DeviceDomainPtr DeviceDomains::Lookup(DeviceDomainPtr domain) {
@@ -110,17 +111,18 @@ DeviceDomainPtr DeviceDomains::JoinOrNull(const DeviceDomainPtr& lhs, const Devi
       << "do not have the same kind and can't be unified.";
   if (lhs->args_and_result_.empty()) {
     // Directly compare first-order.
-    if (rhs->se_scope_->IsFullyUnconstrained()) {
+    if (rhs->virtual_device_->IsFullyUnconstrained()) {
       return lhs;
     }
-    if (lhs->se_scope_->IsFullyUnconstrained()) {
+    if (lhs->virtual_device_->IsFullyUnconstrained()) {
       return rhs;
     }
-    Optional<SEScope> joined_se_scope = SEScope::Join(lhs->se_scope_, rhs->se_scope_);
-    if (!joined_se_scope) {
+    Optional<VirtualDevice> joined_virtual_device =
+        VirtualDevice::Join(lhs->virtual_device_, rhs->virtual_device_);
+    if (!joined_virtual_device) {
       return nullptr;
     }
-    return MakeFirstOrderDomain(config_->CanonicalSEScope(joined_se_scope.value()));
+    return MakeFirstOrderDomain(config_->CanonicalVirtualDevice(joined_virtual_device.value()));
   } else {
     // Recurse for higher-order.
     std::vector<DeviceDomainPtr> args_and_result;
@@ -205,41 +207,42 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
     // all the argument and result devices domains must be equal, ignoring memory scopes.
     // So at this point we'll let all the arguments and result be free so that memory scopes can
     // differ.
-    // TODO(mbs): As per header comments, need to revisit when can setup sub-SEScope constraints.
+    // TODO(mbs): As per header comments, need to revisit when can setup sub-virtual device
+    // constraints.
     return DomainFor(call_lowered_props.lowered_func);
   } else if (on_device_props.body.defined()) {
     // By default:
-    //   on_device(expr, se_scope=<t>)
+    //   on_device(expr, virtual_device=<t>)
     //   on_device : fn(<t>):?x?
     // However we'll interpret the constrain_body and constrain_result fields to decide
     // on free vs constrained domains for the argument and result respectively.
     if (on_device_props.constrain_body) {
       args_and_result.emplace_back(
-          ForSEScope(on_device_props.body->checked_type(), on_device_props.se_scope));
+          ForVirtualDevice(on_device_props.body->checked_type(), on_device_props.virtual_device));
     } else {
       args_and_result.emplace_back(Free(on_device_props.body->checked_type()));
     }
     if (on_device_props.constrain_result) {
       args_and_result.emplace_back(
-          ForSEScope(on_device_props.body->checked_type(), on_device_props.se_scope));
+          ForVirtualDevice(on_device_props.body->checked_type(), on_device_props.virtual_device));
     } else {
       args_and_result.emplace_back(Free(on_device_props.body->checked_type()));
     }
   } else if (device_copy_props.body.defined()) {
-    // device_copy(expr, src_se_scope=<s>, dst_se_scope=<d>)
+    // device_copy(expr, src_virtual_device=<s>, dst_virtual_device=<d>)
     // device_copy: fn(<s>):<d>
-    args_and_result.emplace_back(
-        ForSEScope(device_copy_props.body->checked_type(), device_copy_props.src_se_scope));
-    args_and_result.emplace_back(
-        ForSEScope(device_copy_props.body->checked_type(), device_copy_props.dst_se_scope));
+    args_and_result.emplace_back(ForVirtualDevice(device_copy_props.body->checked_type(),
+                                                  device_copy_props.src_virtual_device));
+    args_and_result.emplace_back(ForVirtualDevice(device_copy_props.body->checked_type(),
+                                                  device_copy_props.dst_virtual_device));
   } else if (call->op == alloc_storage_op) {
     ICHECK_EQ(call->args.size(), 2U);
-    // alloc_storage(size, alignment, se_scope=<t>)
+    // alloc_storage(size, alignment, virtual_device=<t>)
     // alloc_storage: fn(<cpu>, <cpu>):<t>
     const auto* attrs = call->attrs.as<AllocStorageAttrs>();
     args_and_result.emplace_back(host_domain_);
     args_and_result.emplace_back(host_domain_);
-    args_and_result.emplace_back(ForSEScope(call->checked_type(), attrs->se_scope));
+    args_and_result.emplace_back(ForVirtualDevice(call->checked_type(), attrs->virtual_device));
   } else if (call->op == alloc_tensor_op) {
     ICHECK_EQ(call->args.size(), 3U);
     // alloc_tensor(storage, offset, shape)
@@ -277,7 +280,7 @@ DeviceDomainPtr DeviceDomains::DomainForCallee(const Call& call) {
     // <primitive>(arg1, ..., argn)
     // <primitive>: fn(?x?, ..., ?x?):?x?
     // (all args and result must be first-order).
-    auto free_domain = MakeFirstOrderDomain(SEScope::FullyUnconstrained());
+    auto free_domain = MakeFirstOrderDomain(VirtualDevice::FullyUnconstrained());
     for (size_t i = 0; i < call->args.size(); ++i) {
       args_and_result.emplace_back(free_domain);
     }
@@ -314,12 +317,12 @@ void DeviceDomains::UnifyExprExact(const Expr& lhs, const Expr& rhs) {
   auto rhs_domain = DomainFor(rhs);
   if (UnifyOrNull(lhs_domain, rhs_domain) == nullptr) {
     // TODO(mbs): Proper diagnostics.
-    LOG(FATAL) << "Incompatible SEScopes for expressions:" << std::endl
+    LOG(FATAL) << "Incompatible virtual devices for expressions:" << std::endl
                << PrettyPrint(lhs) << std::endl
-               << "with scope:" << std::endl
+               << "with virtual device:" << std::endl
                << ToString(lhs_domain) << "and:" << std::endl
                << PrettyPrint(rhs) << std::endl
-               << "with scope:" << std::endl
+               << "with virtual device:" << std::endl
                << ToString(rhs_domain);
   }
 }
@@ -332,21 +335,21 @@ void DeviceDomains::OptionalUnifyExprExact(const Expr& lhs, const Expr& rhs) {
   if (UnifyOrNull(lhs_domain, rhs_domain) == nullptr) {
     // Rollback
     domain_to_equiv_ = domain_to_equiv_snapshot;
-    VLOG(2) << "Unable to unify SEScopes for expression:" << std::endl
+    VLOG(2) << "Unable to unify virtual devices for expression:" << std::endl
             << PrettyPrint(lhs) << std::endl
-            << "with scope:" << std::endl
+            << "with virtual device:" << std::endl
             << ToString(lhs_domain) << std::endl
             << "and expression:" << std::endl
             << PrettyPrint(rhs) << std::endl
-            << "with scope:" << std::endl
+            << "with virtual device:" << std::endl
             << ToString(rhs_domain) << std::endl
-            << ". Leaving scopes non-unified.";
+            << ". Leaving virtual devices non-unified.";
   } else {
-    VLOG(2) << "Unified SEScopes for expression:" << std::endl
+    VLOG(2) << "Unified virtual devices for expression:" << std::endl
             << PrettyPrint(lhs) << std::endl
             << "and expression:" << std::endl
             << PrettyPrint(rhs) << std::endl
-            << "to scope:" << std::endl
+            << "to virtual devices:" << std::endl
             << ToString(lhs_domain);
   }
 }
@@ -355,11 +358,11 @@ void DeviceDomains::UnifyExprExact(const Expr& expr, const DeviceDomainPtr& expe
   auto actual_domain = DomainFor(expr);
   if (UnifyOrNull(actual_domain, expected_domain) == nullptr) {
     // TODO(mbs): Proper diagnostics.
-    LOG(FATAL) << "Incompatible SEScopes for expression:" << std::endl
+    LOG(FATAL) << "Incompatible virtual devices for expression:" << std::endl
                << PrettyPrint(expr) << std::endl
-               << "with actual scope:" << std::endl
+               << "with actual virtual device:" << std::endl
                << ToString(actual_domain) << std::endl
-               << "and expected scope:" << std::endl
+               << "and expected virtual device:" << std::endl
                << ToString(expected_domain);
   }
 }
@@ -369,11 +372,11 @@ void DeviceDomains::UnifyExprCollapsed(const Expr& expr_first_order,
   auto actual_domain_first_order = DomainFor(expr_first_order);
   if (!UnifyCollapsedOrFalse(actual_domain_first_order, expected_domain_maybe_higher_order)) {
     // TODO(mbs): Proper diagnostics.
-    LOG(FATAL) << "Incompatible SEScopes for expression:" << std::endl
+    LOG(FATAL) << "Incompatible virtual devices for expression:" << std::endl
                << PrettyPrint(expr_first_order) << std::endl
-               << "with actual scope:" << std::endl
+               << "with actual virtual devices:" << std::endl
                << ToString(actual_domain_first_order) << std::endl
-               << "and expected scope:" << std::endl
+               << "and expected virtual device:" << std::endl
                << ToString(expected_domain_maybe_higher_order);
   }
 }
@@ -382,7 +385,7 @@ bool DeviceDomains::IsFullyConstrained(DeviceDomainPtr domain) {
   domain = Lookup(domain);
   if (domain->args_and_result_.empty()) {
     // First-order.
-    return domain->se_scope_->IsFullyConstrained();
+    return domain->virtual_device_->IsFullyConstrained();
   } else {
     // Higher-order.
     return std::all_of(
@@ -391,30 +394,31 @@ bool DeviceDomains::IsFullyConstrained(DeviceDomainPtr domain) {
   }
 }
 
-void DeviceDomains::SetDefault(DeviceDomainPtr domain, const SEScope& default_se_scope) {
-  ICHECK(!default_se_scope->IsFullyUnconstrained());
+void DeviceDomains::SetDefault(DeviceDomainPtr domain,
+                               const VirtualDevice& default_virtual_device) {
+  ICHECK(!default_virtual_device->IsFullyUnconstrained());
   domain = Lookup(domain);
   if (domain->args_and_result_.empty()) {
-    DeviceDomainPtr defaulted_domain_ptr =
-        UnifyOrNull(domain, MakeFirstOrderDomain(config_->CanonicalSEScope(
-                                SEScope::Default(domain->se_scope_, default_se_scope))));
+    DeviceDomainPtr defaulted_domain_ptr = UnifyOrNull(
+        domain, MakeFirstOrderDomain(config_->CanonicalVirtualDevice(
+                    VirtualDevice::Default(domain->virtual_device_, default_virtual_device))));
     ICHECK_NOTNULL(defaulted_domain_ptr);
   } else {
     for (const auto& sub_domain : domain->args_and_result_) {
-      SetDefault(sub_domain, default_se_scope);
+      SetDefault(sub_domain, default_virtual_device);
     }
   }
 }
 
 void DeviceDomains::SetResultDefaultThenParams(const DeviceDomainPtr& domain_maybe_higher_order,
-                                               const SEScope& default_se_scope) {
+                                               const VirtualDevice& default_virtual_device) {
   if (domain_maybe_higher_order->args_and_result_.empty()) {
-    SetDefault(domain_maybe_higher_order, default_se_scope);
+    SetDefault(domain_maybe_higher_order, default_virtual_device);
   } else {
     // First set default for result domain.
-    SetDefault(ResultDomain(domain_maybe_higher_order), default_se_scope);
+    SetDefault(ResultDomain(domain_maybe_higher_order), default_virtual_device);
     // Then use current result domain as default for everything else.
-    SetDefault(domain_maybe_higher_order, ResultSEScope(domain_maybe_higher_order));
+    SetDefault(domain_maybe_higher_order, ResultVirtualDevice(domain_maybe_higher_order));
   }
 }
 
@@ -431,11 +435,11 @@ std::string DeviceDomains::ToString(DeviceDomainPtr domain) {
   std::ostringstream os;
   if (domain->args_and_result_.empty()) {
     // First-order.
-    if (!domain->se_scope_->IsFullyConstrained()) {
+    if (!domain->virtual_device_->IsFullyConstrained()) {
       os << "?" << static_cast<size_t>(reinterpret_cast<uintptr_t>(domain.get())) << "?";
     }
-    if (!domain->se_scope_->IsFullyUnconstrained()) {
-      os << domain->se_scope_;
+    if (!domain->virtual_device_->IsFullyUnconstrained()) {
+      os << domain->virtual_device_;
     }
   } else {
     // higher-order

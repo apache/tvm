@@ -211,14 +211,14 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   }
 
   Expr Atomic(const Expr& e, const Var& v) {
-    Expr annotated_expr = MaybeOnDeviceFixed(e, GetSEScope(e));
+    Expr annotated_expr = MaybeOnDeviceFixed(e, GetVirtualDevice(e));
     return v.defined() ? GetScope(e)->let_list->Push(v, annotated_expr) : annotated_expr;
   }
 
   // Bind expression `now` to var `v` if the original expression is in the include set, or if
   // v is already defined (e.g. coming from a Let expression). Otherwise return `now` directly
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
-    Expr annotated_expr = MaybeOnDeviceFixed(now, GetSEScope(orig));
+    Expr annotated_expr = MaybeOnDeviceFixed(now, GetVirtualDevice(orig));
     Var var = v.defined() ? v : Var::GenSym();
     bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
     if (!v.defined() && not_included) {
@@ -232,10 +232,10 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     OnDeviceProps props = GetOnDeviceProps(c);
     if (props.body.defined() && props.is_fixed()) {
       // Keep track of expression device type for lexically enclosing sub-expressions.
-      PushSEScope(props.se_scope);
+      PushVirtualDevice(props.virtual_device);
       Expr body = VisitExpr(props.body, v);
       // We are done with this sub-expression.
-      PopSEScope();
+      PopVirtualDevice();
       // Preserve the "on_device" annotations.
       return OnDeviceWithProps(body, props);
     }
@@ -293,9 +293,9 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     } else {
       // Keep track of expression and bound variable device types for lexically enclosing
       // sub-expressions.
-      PushSEScope(GetFunctionResultSEScope(f));
+      PushVirtualDevice(GetFunctionResultVirtualDevice(f));
       for (size_t i = 0; i < f->params.size(); ++i) {
-        PushBoundVar(f->params[i], GetFunctionParamSEScope(f, i));
+        PushBoundVar(f->params[i], GetFunctionParamVirtualDevice(f, i));
       }
       EnterFunctionBody();
       ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
@@ -305,7 +305,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
       for (size_t i = 0; i < f->params.size(); ++i) {
         PopBoundVar(f->params[i]);
       }
-      PopSEScope();
+      PopVirtualDevice();
     }
     if (function_nesting() == 0) {
       ICHECK(!v.defined());
@@ -320,7 +320,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
   Expr VisitExpr_(const LetNode* l, const Var& v) final {
     Expr e = GetRef<Expr>(l);
     // Keep track of bound variable device types for lexically enclosing sub-expressions.
-    PushBoundVar(l->var, GetSEScope(l->value));
+    PushBoundVar(l->var, GetVirtualDevice(l->value));
     VisitExpr(l->value, l->var);
     Expr ret = GetSubScope(e, 0)->let_list->Get(VisitExpr(l->body));
     // We are done with these sub-expressions.
