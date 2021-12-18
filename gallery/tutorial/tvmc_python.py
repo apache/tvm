@@ -21,7 +21,7 @@ Getting Starting using TVMC Python: a high-level API for TVM
 `Jocelyn Shiue <https://github.com/CircleSpin>`_
 
 Welcome to TVMC Python
-======================
+----------------------
 Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂 
 
 Before we get started let's get an example model if you don't already have one.
