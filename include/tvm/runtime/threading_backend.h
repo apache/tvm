@@ -28,6 +28,27 @@
 #include <memory>
 #include <vector>
 
+#if defined(__linux__) || defined(__ANDROID__)
+#if defined(__ANDROID__)
+#ifndef CPU_SET
+#define CPU_SETSIZE 1024
+#define __NCPUBITS (8 * sizeof(uint64_t))
+typedef struct {
+  uint64_t __bits[CPU_SETSIZE / __NCPUBITS];
+} cpu_set_t;
+
+#define CPU_SET(cpu, cpusetp) \
+  ((cpusetp)->__bits[(cpu) / __NCPUBITS] |= (1UL << ((cpu) % __NCPUBITS)))
+#define CPU_ZERO(cpusetp) memset((cpusetp), 0, sizeof(cpu_set_t))
+#define CPU_ISSET(cpu, cpusetp)    \
+  (1UL << ((cpu) % __NCPUBITS)) == \
+      ((cpusetp)->__bits[(cpu) / __NCPUBITS] & (1UL << ((cpu) % __NCPUBITS)))
+#define CPU_EQUAL(left, right) (memcmp(&left, &right, sizeof(cpu_set_t)) == 0)
+
+#endif
+#endif
+#endif
+
 namespace tvm {
 namespace runtime {
 namespace threading {
@@ -64,6 +85,7 @@ class ThreadGroup {
   enum AffinityMode : int {
     kBig = 1,
     kLittle = -1,
+    kSpecify = -2,
   };
 
   /*!
@@ -71,6 +93,7 @@ class ThreadGroup {
    *
    * \param mode The preferred CPU type (1 = big, -1 = little).
    * \param nthreads The number of threads to use (0 = use all).
+   * \param cpus A list of cpu to use for affinity setting.
    * \param exclude_worker0 Whether to use the main thread as a worker.
    *        If  `true`, worker0 will not be launched in a new thread and
    *        `worker_callback` will only be called for values >= 1. This
@@ -78,7 +101,8 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0);
+  int Configure(AffinityMode mode, int nthreads, std::vector<unsigned int> cpus,
+                bool exclude_worker0);
 
  private:
   Impl* impl_;
@@ -94,6 +118,8 @@ void Yield();
  */
 int MaxConcurrency();
 
+void SetMaxConcurrency(int value);
+
 /*!
  * \brief Reset the threads in the pool. All current threads are destroyed and
  * new ones are created.
@@ -101,6 +127,9 @@ int MaxConcurrency();
  * Note that this does nothing when openmp is used.
  */
 void ResetThreadPool();
+
+void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+               std::vector<unsigned int> cpus, int max_concurrency = 0);
 
 }  // namespace threading
 }  // namespace runtime

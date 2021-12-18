@@ -28,6 +28,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/tir/expr.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
@@ -317,10 +318,11 @@ class ThreadPool {
 
   static ThreadPool* ThreadLocal() { return dmlc::ThreadLocalStore<ThreadPool>::Get(); }
 
-  void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads) {
+  void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads,
+                                 const std::vector<unsigned int>& cpus) {
     // this will also reset the affinity of the ThreadGroup
     // may use less than the MaxConcurrency number of workers
-    num_workers_used_ = threads_->Configure(mode, nthreads, exclude_worker0_);
+    num_workers_used_ = threads_->Configure(mode, nthreads, cpus, exclude_worker0_);
     // if MaxConcurrency restricted the number of workers (e.g., due to
     // hyperthreading), respect the restriction
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
@@ -337,7 +339,7 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
             num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
             exclude_worker0_ /* include_main_thread */));
-    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
+    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, {}, exclude_worker0_);
   }
 
   // Internal worker function.
@@ -373,13 +375,28 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   threading::ThreadGroup::AffinityMode mode =
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
   int nthreads = args[1];
-  ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
+  std::vector<unsigned int> cpus;
+  int max_concurrency = 0;
+  if (args.num_args == 3) {
+    Array<Integer> cpu_array = args[2];
+    for (auto cpu : cpu_array) {
+      cpus.push_back(cpu);
+    }
+  }
+  if (args.num_args == 4) {
+    max_concurrency = args[3];
+  }
+  threading::Configure(mode, nthreads, cpus, max_concurrency);
 });
 
 namespace threading {
 void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
+void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
+               std::vector<unsigned int> cpus, int max_concurrency) {
+  tvm::runtime::threading::SetMaxConcurrency(max_concurrency);
+  tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
+}
 }  // namespace threading
-
 }  // namespace runtime
 }  // namespace tvm
 
