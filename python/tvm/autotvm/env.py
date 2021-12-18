@@ -19,6 +19,7 @@
 
 class AutotvmGlobalScope(object):
     """The global autotvm scope. And the deepcopy function: deep copy AutotvmGlobalScope state."""
+
     current = None
 
     def __init__(self):
