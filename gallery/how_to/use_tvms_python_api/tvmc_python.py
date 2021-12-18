@@ -88,9 +88,9 @@ Let's start editing the python file in your favorite text editor.
 # In order to compile a model a tvm.target string is required.
 # To learn more about tvm.targets and their options look at the `documentation <https://tvm.apache.org/docs/api/python/target.html>`_.
 # Some examples include:
-# 1. cuda (Nvidia GPU)
-# 2. llvm (CPU)
-# 3. llvm -mcpu=cascadelake (Intel CPU)
+#    1. cuda (Nvidia GPU)
+#    2. llvm (CPU)
+#    3. llvm -mcpu=cascadelake (Intel CPU)
 #
 # .. code-block:: python
 #
@@ -133,6 +133,7 @@ Let's start editing the python file in your favorite text editor.
 # The terminal output should look like:
 # 
 # .. code-block:: python
+# 
 #    [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
 #    [Task  1/13]  Current/Best:   54.47/ 113.50 GFLOPS | Progress: (240/769) | 85.36 s
 #    .....
@@ -143,7 +144,9 @@ Let's start editing the python file in your favorite text editor.
 # See the section 'Saving the Tuning Results' below. Be sure to pass the tuning
 # results into compile.
 #
-# Ex: tvmc.compile(model, target="llvm", tuning_records = "records.log") #Step 2: Compile
+# .. code-block:: python
+# 
+#     #tvmc.compile(model, target="llvm", tuning_records = "records.log") #Step 2: Compile
 
 ################################################################################
 # Save and then start the process in the terminal:
@@ -213,7 +216,9 @@ Let's start editing the python file in your favorite text editor.
 #
 # Use the next generation of tvm to enable potentially faster run speed results.
 # The search space of the schedules is automatically generated unlike
-# previously where they needed to be hand written. (Learn more: 1, 2)
+# previously where they needed to be hand written. (Learn more:
+# `1 <https://tvm.apache.org/2021/03/03/intro-auto-scheduler>`_, 
+# `2 <https://arxiv.org/abs/2006.06762>`_ )
 #
 # .. code-block:: python
 #
@@ -256,8 +261,7 @@ Let's start editing the python file in your favorite text editor.
 # Tuning a more complex model:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# If you notice T's (timeouts) printed like below,
-# ``.........T.T..T..T..T.T.T.T.T.T.``
+# If you notice T's print ``.........T.T..T..T..T.T.T.T.T.T.``
 # increase the searching time frame:
 #
 #    .. code-block:: python
