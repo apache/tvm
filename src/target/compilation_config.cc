@@ -62,31 +62,31 @@ void CompilationConfigNode::EstablishDefaultVirtualDevices(const transform::Pass
   if (host_target.defined()) {
     CHECK(!host_target->host.defined()) << "Host targets are not expected to have hosts";
     host_device_type = static_cast<DLDeviceType>(host_target->kind->device_type);
-    DLOG(INFO) << "Using the given host target " << host_target->ToDebugString()
-               << " of device type " << host_device_type << " for the host target";
+    VLOG(1) << "Using the given host target " << host_target->ToDebugString() << " of device type "
+            << host_device_type << " for the host target";
     for (const auto& primitive_target : primitive_targets) {
       if (primitive_target->host.defined() &&
           !StructuralEqual()(primitive_target->host, host_target)) {
-        DLOG(WARNING) << "The primitive target " << primitive_target->ToDebugString()
-                      << " already has a host which disagrees with the desired host target. It "
-                      << "will be ignored.";
+        VLOG(1) << "The primitive target " << primitive_target->ToDebugString()
+                << " already has a host which disagrees with the desired host target. It "
+                << "will be ignored.";
       }
     }
   } else if (primitive_targets.size() == 1 && primitive_targets.front()->host.defined()) {
     host_target = primitive_targets.front()->GetHost().value();
     CHECK(!host_target->host.defined()) << "Host targets are not expected to have hosts";
     host_device_type = static_cast<DLDeviceType>(host_target->kind->device_type);
-    DLOG(INFO) << "Using the host of the unique primitive target, namely "
-               << host_target->ToDebugString() << " of device type " << host_device_type
-               << " for the host target";
+    VLOG(1) << "Using the host of the unique primitive target, namely "
+            << host_target->ToDebugString() << " of device type " << host_device_type
+            << " for the host target";
   } else if (primitive_targets.size() == 1 &&
              primitive_targets.front()->kind->device_type == kDLCPU) {
     // In the homogenous case without an explicit host target just use the given target so long as
     // it's a CPU.
     host_device_type = kDLCPU;
     host_target = primitive_targets.front();
-    DLOG(INFO) << "Using the unique primitive target " << host_target->ToDebugString()
-               << " of device type " << host_device_type << " for the host target";
+    VLOG(1) << "Using the unique primitive target " << host_target->ToDebugString()
+            << " of device type " << host_device_type << " for the host target";
   } else {
     // Fallback.
     host_device_type = kDLCPU;
@@ -94,15 +94,15 @@ void CompilationConfigNode::EstablishDefaultVirtualDevices(const transform::Pass
     // in the hetrogeneous case since its options may not be appropriate for host code
     // (eg shape functions). Instead, create a fresh default Target.
     host_target = MakeDefaultTarget(host_device_type);
-    DLOG(WARNING) << "Using the default target " << host_target->ToDebugString()
-                  << " of device type " << host_device_type << " for the host target";
+    VLOG(1) << "Using the default target " << host_target->ToDebugString() << " of device type "
+            << host_device_type << " for the host target";
   }
   ICHECK(host_target.defined());
   ICHECK(!host_target->host.defined());
 
   if (host_device_type != kDLCPU) {
     // I think we're on thin ice here until we've audited the code base for assumed kDLCPU.
-    LOG(WARNING) << "The host target is not a CPU.";
+    VLOG(1) << "The host target is not a CPU.";
   }
 
   //
@@ -132,22 +132,22 @@ void CompilationConfigNode::EstablishDefaultVirtualDevices(const transform::Pass
     CHECK_GT(v, 0)
         << "The 'relay.fallback_device_type' pass attribute is set to an invalid device type " << v;
     default_primitive_device_type = static_cast<DLDeviceType>(v);
-    DLOG(INFO) << "Using the 'relay.fallback_device_type' pass attribute "
-               << default_primitive_device_type
-               << " as the default device type for all primitive operations";
+    VLOG(1) << "Using the 'relay.fallback_device_type' pass attribute "
+            << default_primitive_device_type
+            << " as the default device type for all primitive operations";
   } else if (primitive_targets.size() == 1) {
     // In the homogeneous case there's no free choice.
     default_primitive_device_type =
         static_cast<DLDeviceType>(primitive_targets.front()->kind->device_type);
-    DLOG(INFO) << "Using the device type " << default_primitive_device_type
-               << " of the unique primitive target as the default device type for all primitive "
-               << "operations";
+    VLOG(1) << "Using the device type " << default_primitive_device_type
+            << " of the unique primitive target as the default device type for all primitive "
+            << "operations";
   } else {
     // Fallback. Note that we'll require a primitive Target of kDLCPU device_type to be given
     // and won't manufacture one out of thin air.
     default_primitive_device_type = kDLCPU;
-    DLOG(WARNING) << "Using " << default_primitive_device_type
-                  << " as the default device type for all primitive operations";
+    VLOG(1) << "Using " << default_primitive_device_type
+            << " as the default device type for all primitive operations";
   }
 
   //
@@ -227,11 +227,11 @@ CompilationConfig::CompilationConfig(const transform::PassContext& pass_ctx,
       node->legacy_target_map.size() == 1 ? (*node->legacy_target_map.begin()).second : Target();
 
   for (const auto& target : node->primitive_targets) {
-    DLOG(INFO) << "Target " << target->ToDebugString() << " of device type "
-               << target->kind->device_type << " is available for primitives";
+    VLOG(1) << "Target " << target->ToDebugString() << " of device type "
+            << target->kind->device_type << " is available for primitives";
   }
-  DLOG(INFO) << "Using default primitive virtual device " << node->default_primitive_virtual_device;
-  DLOG(INFO) << "Using host virtual device " << node->host_virtual_device;
+  VLOG(1) << "Using default primitive virtual device " << node->default_primitive_virtual_device;
+  VLOG(1) << "Using host virtual device " << node->host_virtual_device;
 
   data_ = std::move(node);
 }
