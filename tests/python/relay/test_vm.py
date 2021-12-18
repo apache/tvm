@@ -36,7 +36,7 @@ from tvm.relay.dataflow_pattern import wildcard, is_op
 from tvm.relay.backend.vm import VMCompiler
 
 
-def check_result(target, dev, args, expected_result, mod=None):
+def check_result(target, dev, args, expected_result, mod):
     """
     Check that evaluating `expr` applied to the arguments produces
     `result` on Relay VM.
@@ -111,7 +111,7 @@ def test_id(target, dev):
     x_data = np.random.rand(10, 10).astype("float64")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data], x_data, mod)
 
 
 def test_op(target, dev):
@@ -120,7 +120,7 @@ def test_op(target, dev):
     x_data = np.random.rand(10, 10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], 2 * x_data, mod=mod)
+    check_result(target, dev, [x_data], 2 * x_data, mod)
 
 
 def any(x):
@@ -140,10 +140,10 @@ def test_cond(target, dev):
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result(target, dev, [x_data, x_data], True, mod=mod)
+    check_result(target, dev, [x_data, x_data], True, mod)
 
     # diff
-    check_result(target, dev, [x_data, y_data], False, mod=mod)
+    check_result(target, dev, [x_data, y_data], False, mod)
 
 
 @tvm.testing.known_failing_targets("vulkan")
@@ -157,10 +157,10 @@ def test_simple_if(target, dev):
     mod = tvm.IRModule()
     mod["main"] = f
     # same
-    check_result(target, dev, [x_data, x_data], x_data, mod=mod)
+    check_result(target, dev, [x_data, x_data], x_data, mod)
 
     # diff
-    check_result(target, dev, [x_data, y_data], y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], y_data, mod)
 
 
 @tvm.testing.parametrize_targets("llvm")
@@ -204,7 +204,7 @@ def test_unused_function(target, dev):
     x_data = np.random.rand(2, 2).astype("float32")
     y_data = x_data * 2
 
-    check_result(target, dev, [x_data], y_data, mod=mod)
+    check_result(target, dev, [x_data], y_data, mod)
 
 
 def test_simple_call(target, dev):
@@ -218,7 +218,7 @@ def test_simple_call(target, dev):
     i_data = np.array(0, dtype="int32")
     iarg = relay.var("iarg", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    check_result(target, dev, [i_data], i_data, mod=mod)
+    check_result(target, dev, [i_data], i_data, mod)
 
 
 def test_count_loop(target, dev):
@@ -239,7 +239,7 @@ def test_count_loop(target, dev):
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     result = veval(mod, i_data, device=dev, target=target)
     tvm.testing.assert_allclose(result.numpy(), i_data)
-    check_result(target, dev, [i_data], i_data, mod=mod)
+    check_result(target, dev, [i_data], i_data, mod)
 
 
 def test_sum_loop(target, dev):
@@ -263,7 +263,7 @@ def test_sum_loop(target, dev):
     iarg = relay.var("i", shape=[], dtype="int32")
     aarg = relay.var("accum", shape=[], dtype="int32")
     mod["main"] = relay.Function([iarg, aarg], sum_up(iarg, aarg))
-    check_result(target, dev, [i_data, accum_data], sum(range(1, loop_bound + 1)), mod=mod)
+    check_result(target, dev, [i_data, accum_data], sum(range(1, loop_bound + 1)), mod)
 
 
 def test_tuple_fst(target, dev):
@@ -274,7 +274,7 @@ def test_tuple_fst(target, dev):
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [(i_data, j_data)], i_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], i_data, mod)
 
 
 def test_tuple_second(target, dev):
@@ -285,7 +285,7 @@ def test_tuple_second(target, dev):
     j_data = np.random.rand(10).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [(i_data, j_data)], j_data, mod=mod)
+    check_result(target, dev, [(i_data, j_data)], j_data, mod)
 
 
 def test_list_constructor(target, dev):
@@ -325,7 +325,7 @@ def test_let_tensor(target, dev):
     x_data = np.random.rand(*shape).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod)
 
 
 def test_let_scalar(target, dev):
@@ -342,7 +342,7 @@ def test_let_scalar(target, dev):
     x_data = np.array(np.random.rand()).astype("float32")
     mod = tvm.IRModule()
     mod["main"] = f
-    check_result(target, dev, [x_data], x_data + 42.0, mod=mod)
+    check_result(target, dev, [x_data], x_data + 42.0, mod)
 
 
 def test_compose(target, dev):
@@ -616,7 +616,7 @@ def test_add_op_scalar(target, dev):
     ]
     for (x_data, y_data) in x_y_data:
         mod["main"] = func
-        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_scalar_int(target, dev):
@@ -637,7 +637,7 @@ def test_add_op_scalar_int(target, dev):
     ]
     for (x_data, y_data) in x_y_data:
         mod["main"] = func
-        check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+        check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_tensor(target, dev):
@@ -654,7 +654,7 @@ def test_add_op_tensor(target, dev):
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(10, 5).astype("float32")
     mod["main"] = func
-    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_add_op_broadcast(target, dev):
@@ -671,7 +671,7 @@ def test_add_op_broadcast(target, dev):
     x_data = np.random.rand(10, 5).astype("float32")
     y_data = np.random.rand(1, 5).astype("float32")
     mod["main"] = func
-    check_result(target, dev, [x_data, y_data], x_data + y_data, mod=mod)
+    check_result(target, dev, [x_data, y_data], x_data + y_data, mod)
 
 
 def test_vm_optimize_dynamic():
@@ -717,7 +717,7 @@ def test_loop_free_var(target, dev):
         ret = relay.TupleGetItem(tup, 1)
         mod = tvm.IRModule()
         mod["main"] = relay.Function(relay.analysis.free_vars(ret), ret)
-        check_result(target, dev, args, expected, mod=mod)
+        check_result(target, dev, args, expected, mod)
 
 
 def test_vm_reshape_tensor(target, dev):
@@ -1040,8 +1040,8 @@ def test_storage_size_and_offset_on_cpu():
     # - The offset of the tensor within the storage (second arg) to alloc_tensor
     # Both should be on the CPU
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Const[0]: has shape int64[] on device index 0" in exe.constants
-    assert "Const[1]: has shape int64[] on device index 0" in exe.constants
+    assert "VM Const[0]: NDArray[(),int64,(1,0)]=[140] on device index 0" in exe.constants
+    assert "VM Const[1]: NDArray[(),int64,(1,0)]=[0] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
@@ -1073,7 +1073,7 @@ def test_reshape_shape_on_cpu():
 
     # The newshape annotation should have been turned into a constant on the CPU.
     assert "VirtualDevice[0]: device type 1" in exe.virtual_devices
-    assert "Const[0]: has shape int64[3] on device index 0" in exe.constants
+    assert "VM Const[0]: NDArray[(3),int64,(1,0)]=[2,4,2] on device index 0" in exe.constants
 
 
 @tvm.testing.requires_cuda
