@@ -70,7 +70,7 @@ Let's start editing the python file in your favorite text editor.
 #
 # .. code-block:: python
 #
-#   #model = tvmc.load(model_path, shape_dict={'input1' : [1, 2, 3, 4], 'input2' : [1, 2, 3, 4]}) #Step 1: Load + shape_dict
+#   #model = tvmc.load(my_model, shape_dict={'input1' : [1, 2, 3, 4], 'input2' : [1, 2, 3, 4]}) #Step 1: Load + shape_dict
 #
 # A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_. After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
@@ -142,7 +142,7 @@ Let's start editing the python file in your favorite text editor.
 # This should make the end result faster, but it can take hours to tune.
 #
 # See the section 'Saving the Tuning Results' below. Be sure to pass the tuning
-# results into compile.
+# results into compile if you want the results to apply.
 #
 # .. code-block:: python
 # 
@@ -218,7 +218,7 @@ Let's start editing the python file in your favorite text editor.
 # The search space of the schedules is automatically generated unlike
 # previously where they needed to be hand written. (Learn more:
 # `1 <https://tvm.apache.org/2021/03/03/intro-auto-scheduler>`_, 
-# `2 <https://arxiv.org/abs/2006.06762>`_ )
+# `2 <https://arxiv.org/abs/2006.06762>`_)
 #
 # .. code-block:: python
 #
@@ -261,7 +261,7 @@ Let's start editing the python file in your favorite text editor.
 # Tuning a more complex model:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# If you notice T's print ``.........T.T..T..T..T.T.T.T.T.T.``
+# If you notice T's printing that look like ``.........T.T..T..T..T.T.T.T.T.T.``
 # increase the searching time frame:
 #
 #    .. code-block:: python
