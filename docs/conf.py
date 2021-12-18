@@ -220,14 +220,12 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("gallery", "how_to", "use_tvms_python_api"),
     tvm_path.joinpath("vta", "tutorials"),
 ]
 
 gallery_dirs = [
     "tutorial",
     "how_to/compile_models",
-    "how_to/use_tvms_python_api",
     "how_to/deploy_models",
     "how_to/work_with_relay",
     "how_to/work_with_schedules",
@@ -257,6 +255,7 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "tvmc_python.py"
         "autotvm_relay_x86.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",
