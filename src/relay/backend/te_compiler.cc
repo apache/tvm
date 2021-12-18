@@ -350,7 +350,7 @@ class TECompilerImpl : public TECompilerNode {
 
   // implement lowered shape func
   CCacheValue LowerShapeFuncInternal(const CCacheKey& key) {
-    VLOG(1) << "lowering dynamic shape function:" << std::endl
+    VLOG(1) << "lowering dynamic shape function for:" << std::endl
             << PrettyPrint(key->source_func) << std::endl
             << "for target:" << std::endl
             << key->target->ToDebugString();
