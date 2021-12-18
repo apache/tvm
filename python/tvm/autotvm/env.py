@@ -18,7 +18,7 @@
 
 
 class AutotvmGlobalScope(object):
-    """The global autotvm scope. And the deepcopy function: deep copy AutotvmGlobalScope state."""
+    """The global autotvm scope."""
 
     current = None
 
@@ -30,6 +30,7 @@ class AutotvmGlobalScope(object):
         self.silent = False
 
     def deepcopy(self, global_scope):
+        """Deep copy from another instance of AutotvmGlobalScope."""
         self._old = AutotvmGlobalScope.current
 
         self.in_tuning = global_scope.in_tuning
