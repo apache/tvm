@@ -26,7 +26,6 @@ schedule with tesor expressions?"
    :maxdepth: 1
 
    compile_models/index
-   use_tvms_python_api/index
    deploy/index
    work_with_relay/index
    work_with_schedules/index

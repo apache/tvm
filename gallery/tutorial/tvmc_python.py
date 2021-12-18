@@ -20,7 +20,7 @@ Getting Starting using TVMC Python: a high-level API for TVM
 **Author**:
 `Jocelyn Shiue <https://github.com/CircleSpin>`_
 
-Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂 
+Hi! Here we explain the scripting tool designed for the complete TVM beginner. 🙂                                                                                                      
 
 Before we get started let's get an example model if you don't already have one.
 Follow the steps to download a resnet model via the terminal:
@@ -129,9 +129,9 @@ Let's start editing the python file in your favorite text editor.
 #   tvmc.tune(model, target="llvm") #Step 1.5: Optional Tune
 #
 # The terminal output should look like:
-# 
+#
 # .. code-block:: python
-# 
+#
 #    [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
 #    [Task  1/13]  Current/Best:   54.47/ 113.50 GFLOPS | Progress: (240/769) | 85.36 s
 #    .....
@@ -143,7 +143,7 @@ Let's start editing the python file in your favorite text editor.
 # results into compile if you want the results to apply.
 #
 # .. code-block:: python
-# 
+#
 #     #tvmc.compile(model, target="llvm", tuning_records = "records.log") #Step 2: Compile
 
 ################################################################################
@@ -215,7 +215,7 @@ Let's start editing the python file in your favorite text editor.
 # Use the next generation of tvm to enable potentially faster run speed results.
 # The search space of the schedules is automatically generated unlike
 # previously where they needed to be hand written. (Learn more:
-# `1 <https://tvm.apache.org/2021/03/03/intro-auto-scheduler>`_, 
+# `1 <https://tvm.apache.org/2021/03/03/intro-auto-scheduler>`_,
 # `2 <https://arxiv.org/abs/2006.06762>`_)
 #
 # .. code-block:: python
