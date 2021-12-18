@@ -18,7 +18,7 @@
 Getting Starting using TVMC Python: a high-level API for TVM
 =============================================================
 **Author**:
-`Jocelyn Shiue <https://github.com/CircleSpin>`_,
+`Jocelyn Shiue <https://github.com/CircleSpin>`_
 
 Welcome to TVMC Python
 ======================
@@ -26,6 +26,8 @@ Hi! Here we explain the scripting tool designed for the complete TVM beginner. ð
 
 Before we get started let's get an example model if you don't already have one.
 Follow the steps to download a resnet model via the terminal:
+
+ .. code-block:: python
 
      mkdir myscripts
      cd myscripts
@@ -68,11 +70,9 @@ Let's start editing the python file in your favorite text editor.
 #
 # .. code-block:: python
 #
-#   ### Step 1: Load shape_dict Style
-#   # shape_dict = {'model_input_name1': [1, 3, 224, 224], 'input2': [1, 2, 3, 4], ...} #example format with random numbers
-#   # model = tvmc.load(model_path, shape_dict=shape_dict) #Step 1: Load + shape_dict
+#   #model = tvmc.load(model_path, shape_dict={'input1' : [1, 2, 3, 4], 'input2' : [1, 2, 3, 4]}) #Step 1: Load + shape_dict
 #
-# A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_, . After opening the model,
+# A suggested way to see the model's input/shape_dict is via `netron <https://netron.app/>`_. After opening the model,
 # click the first node to see the name(s) and shape(s) in the inputs section.
 
 
@@ -131,9 +131,11 @@ Let's start editing the python file in your favorite text editor.
 #   tvmc.tune(model, target="llvm") #Step 1.5: Optional Tune
 #
 # The terminal output should look like:
-# [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
-# [Task  1/13]  Current/Best:   54.47/ 113.50 GFLOPS | Progress: (240/769) | 85.36 s
-# .....
+# 
+# .. code-block:: python
+#    [Task  1/13]  Current/Best:   82.00/ 106.29 GFLOPS | Progress: (48/769) | 18.56 s
+#    [Task  1/13]  Current/Best:   54.47/ 113.50 GFLOPS | Progress: (240/769) | 85.36 s
+#    .....
 #
 # There may be UserWarnings that can be ignored.
 # This should make the end result faster, but it can take hours to tune.
@@ -173,7 +175,7 @@ Let's start editing the python file in your favorite text editor.
 
 ################################################################################
 # Additional TVMC Functionalities
-# -------------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 
 ################################################################################
@@ -255,7 +257,7 @@ Let's start editing the python file in your favorite text editor.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # If you notice T's (timeouts) printed like below,
-# .........T.T..T..T..T.T.T.T.T.T.
+# ``.........T.T..T..T..T.T.T.T.T.T.``
 # increase the searching time frame:
 #
 #    .. code-block:: python
