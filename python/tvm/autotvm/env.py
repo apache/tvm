@@ -29,7 +29,6 @@ class AutotvmGlobalScope(object):
 
     def deepcopy(self, global_scope):
         self._old = AutotvmGlobalScope.current
-        AutotvmGlobalScope.current = global_scope
 
         self.in_tuning = global_scope.in_tuning
         self.silent = global_scope.silent
@@ -42,3 +41,4 @@ def reset_global_scope(global_scope):
     """Reset global autotvm state. This is needed to initialize PopenPool workers."""
     global GLOBAL_SCOPE
     GLOBAL_SCOPE.deepcopy(global_scope)
+    AutotvmGlobalScope.current = GLOBAL_SCOPE
