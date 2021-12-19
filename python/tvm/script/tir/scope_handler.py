@@ -20,7 +20,7 @@ from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
 import tvm.tir
-from tvm.runtime import Object, String
+from tvm.runtime import Object
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
