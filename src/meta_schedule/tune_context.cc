@@ -38,6 +38,7 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
                          Optional<Target> target,                                   //
                          Optional<SpaceGenerator> space_generator,                  //
                          Optional<SearchStrategy> search_strategy,                  //
+                         Optional<Array<ScheduleRule>> sch_rules,                   //
                          Optional<String> task_name,                                //
                          support::LinearCongruentialEngine::TRandState rand_state,  //
                          int num_threads) {
@@ -46,6 +47,7 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   n->target = target;
   n->space_generator = space_generator;
   n->search_strategy = search_strategy;
+  n->sch_rules = sch_rules.value_or({});
   n->task_name = task_name;
   if (rand_state == -1) {
     rand_state = std::random_device()();
@@ -65,11 +67,12 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
                        Optional<Target> target,                                   //
                        Optional<SpaceGenerator> space_generator,                  //
                        Optional<SearchStrategy> search_strategy,                  //
+                       Optional<Array<ScheduleRule>> sch_rules,                   //
                        Optional<String> task_name,                                //
                        support::LinearCongruentialEngine::TRandState rand_state,  //
                        int num_threads) -> TuneContext {
-      return TuneContext(mod, target, space_generator, search_strategy, task_name, rand_state,
-                         num_threads);
+      return TuneContext(mod, target, space_generator, search_strategy, sch_rules, task_name,
+                         rand_state, num_threads);
     });
 }  // namespace meta_schedule
 }  // namespace tvm

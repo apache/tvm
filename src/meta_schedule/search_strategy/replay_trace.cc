@@ -73,11 +73,11 @@ class ReplayTraceNode : public SearchStrategyNode {
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
 
-  void InitializeWithTuneContext(const TuneContext& tune_context) final {
-    this->mod_ = tune_context->mod.value();
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    this->mod_ = context->mod.value();
     this->args_info_ = ArgInfo::FromPrimFunc(FindEntryFunc(this->mod_));
-    this->num_threads_ = tune_context->num_threads;
-    this->rand_state_ = ForkSeed(&tune_context->rand_state);
+    this->num_threads_ = context->num_threads;
+    this->rand_state_ = ForkSeed(&context->rand_state);
     this->state_.reset();
   }
 

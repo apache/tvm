@@ -16,7 +16,7 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, List, TYPE_CHECKING
 
 from tvm import IRModule
 from tvm._ffi import register_object
@@ -29,6 +29,7 @@ from . import _ffi_api
 if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
     from .search_strategy import SearchStrategy
+    from .schedule_rule import ScheduleRule
 
 
 @register_object("meta_schedule.TuneContext")
@@ -50,6 +51,8 @@ class TuneContext(Object):
         The design space generator.
     search_strategy : Optional[SearchStrategy] = None
         The search strategy.
+    sch_rules: Optional[List[ScheduleRule]] = None,
+        The schedule rules.
     task_name : Optional[str] = None
         The name of the tuning task.
     rand_state : int = -1
@@ -80,30 +83,11 @@ class TuneContext(Object):
         target: Optional[Target] = None,
         space_generator: Optional["SpaceGenerator"] = None,
         search_strategy: Optional["SearchStrategy"] = None,
+        sch_rules: Optional[List["ScheduleRule"]] = None,
         task_name: Optional[str] = None,
         rand_state: int = -1,
         num_threads: Optional[int] = None,
     ):
-        """Constructor.
-
-        Parameters
-        ----------
-        mod : Optional[IRModule] = None
-            The workload to be optimized.
-        target : Optional[Target] = None
-            The target to be optimized for.
-        space_generator : Optional[SpaceGenerator] = None
-            The design space generator.
-        search_strategy : Optional[SearchStrategy] = None
-            The search strategy.
-        task_name : Optional[str] = None
-            The name of the tuning task.
-        rand_state : int = -1
-            The random state.
-            Need to be in integer in [1, 2^31-1], -1 means using random number.
-        num_threads : Optional[int] = None
-            The number of threads to be used, None means using the logical cpu count.
-        """
         if num_threads is None:
             num_threads = cpu_count()
 
@@ -113,6 +97,7 @@ class TuneContext(Object):
             target,
             space_generator,
             search_strategy,
+            sch_rules,
             task_name,
             rand_state,
             num_threads,
