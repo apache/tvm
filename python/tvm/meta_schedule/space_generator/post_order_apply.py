@@ -14,13 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import database
-from . import builder
-from . import runner
-from . import space_generator
-from . import search_strategy
-from . import schedule_rule
-from . import integration
-from .tune_context import TuneContext
+"""Post Order Apply Space Generator."""
+
+
+from tvm._ffi import register_object
+from .space_generator import SpaceGenerator
+from .. import _ffi_api
+
+
+@register_object("meta_schedule.PostOrderApply")
+class PostOrderApply(SpaceGenerator):
+    """
+    PostOrderApply is the design space generator that generates design spaces by applying schedule
+    rules to blocks in post-DFS order.
+    """
+
+    def __init__(self):
+        """Constructor"""
+        self.__init_handle_by_constructor__(
+            _ffi_api.SpaceGeneratorPostOrderApply,  # type: ignore # pylint: disable=no-member
+        )
