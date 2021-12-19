@@ -101,7 +101,8 @@ class BufferFlattener : public StmtExprMutator {
       const String& ann_key = annotation.first;
       const ObjectRef& ann_value = annotation.second;
       if (attr::IsPragmaKey(ann_key)) {
-        body = AttrStmt(op->loop_var, ann_key, Downcast<PrimExpr>(ann_value), std::move(body));
+        body =
+            AttrStmt(op->loop_var, ann_key, ConvertAttrValue(ann_key, ann_value), std::move(body));
       }
     }
     return body;
@@ -152,6 +153,21 @@ class BufferFlattener : public StmtExprMutator {
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
                     /*body=*/std::move(body));
+  }
+
+  /*! \brief Convert attr value from annotation map into PrimExpr. */
+  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
+    if (!obj.defined()) {
+      return PrimExpr();
+    } else if (const PrimExprNode* expr = obj.as<PrimExprNode>()) {
+      return GetRef<PrimExpr>(expr);
+    } else if (const StringObj* str = obj.as<StringObj>()) {
+      return std::move(StringImm(str->data));
+    } else {
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+                 << " not supported";
+      return PrimExpr();
+    }
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */

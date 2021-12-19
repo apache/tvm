@@ -483,13 +483,7 @@ class ForScopeHandler(ScopeHandler):
         """
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
-        self.annotations: Mapping[str, Object] = {}
-        if annotations is not None:
-            self.annotations = {
-                key: String(val) if isinstance(val, str) else val
-                for key, val in annotations.items()
-            }
-
+        self.annotations = annotations
         self.loop_info.append(LoopInfo(begin, extent, kind, thread_binding, self.annotations))
 
 

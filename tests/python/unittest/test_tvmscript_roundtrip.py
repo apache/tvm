@@ -2806,7 +2806,6 @@ def test_for_thread_binding():
     assert isinstance(rt_func.body.body, tir.stmt.For)
     assert rt_func.body.body.kind == 4
     assert rt_func.body.body.thread_binding.thread_tag == "threadIdx.y"
-    assert isinstance(rt_func.body.body.annotations["attr_key"], tir.StringImm)
     assert rt_func.body.body.annotations["attr_key"] == "attr_value"
 
 
@@ -2881,7 +2880,6 @@ def test_block_elements():
     assert isinstance(block.body, tir.stmt.BufferStore)
     assert isinstance(block.init, tir.stmt.BufferStore)
     assert len(block.annotations) == 1
-    assert isinstance(block.annotations["attr_key"], tir.StringImm)
     assert block.annotations["attr_key"] == "attr_value"
 
 
