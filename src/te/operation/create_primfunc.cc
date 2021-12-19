@@ -147,11 +147,8 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
   // Step 6. Add script_parsing_detect_access attr for auto complete the whole IR.
   Map<String, ObjectRef> annotations;
   auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
-    if (value->IsInstance<te::TensorNode>()) {
-      const auto& tensor_value = Downcast<te::Tensor>(value);
-      auto it = info->tensor2buffers.find(tensor_value);
-      ICHECK(it != info->tensor2buffers.end());
-      return it->second;
+    if (const auto* tensor_value = value.as<te::TensorNode>()) {
+      return info->tensor2buffers.at(GetRef<te::Tensor>(tensor_value));
     } else {
       return value;
     }
