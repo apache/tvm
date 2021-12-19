@@ -781,21 +781,21 @@ std::vector<IterConstraint> MatchBoundConstraints(PrimExpr pred,
     bool is_finish = false;
     bool is_greater = false;
     bool is_equal = false;
-    if ((rest && (lhs < rhs)).Match(pred)) {
+    if ((rest && (lhs < rhs)).Match(pred) || ((lhs < rhs) && rest).Match(pred)) {
       // pass
     } else if ((lhs < rhs).Match(pred)) {
       is_finish = true;
-    } else if ((rest && (lhs <= rhs)).Match(pred)) {
+    } else if ((rest && (lhs <= rhs)).Match(pred) || ((lhs <= rhs) && rest).Match(pred)) {
       is_equal = true;
     } else if ((lhs <= rhs).Match(pred)) {
       is_equal = true;
       is_finish = true;
-    } else if ((rest && (lhs > rhs)).Match(pred)) {
+    } else if ((rest && (lhs > rhs)).Match(pred) || ((lhs > rhs) && rest).Match(pred)) {
       is_greater = true;
     } else if ((lhs > rhs).Match(pred)) {
       is_greater = true;
       is_finish = true;
-    } else if ((rest && (lhs >= rhs)).Match(pred)) {
+    } else if ((rest && (lhs >= rhs)).Match(pred) || ((lhs >= rhs) && rest).Match(pred)) {
       is_greater = true;
       is_equal = true;
     } else if ((lhs >= rhs).Match(pred)) {

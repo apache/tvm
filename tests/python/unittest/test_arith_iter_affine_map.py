@@ -232,6 +232,23 @@ def test_predicate():
     assert len(res) == 1
     assert_iter_sum_pattern(res[0], 122, 6)
 
+    # lower bound on many fused iters
+    # i4 * 6 + i5 in [3, 9), extent=6 (= scale of i2)
+    # i2 * 30 + i3 * 15 in [30, 90), extent=60 (= scale of i1)
+    # i1 * 60 in [60, 240), extent=180 (= scale of i0)
+    i0 = tvm.tir.Var("i0", "int32"), 3
+    i1 = tvm.tir.Var("i1", "int32"), 4
+    i2 = tvm.tir.Var("i2", "int32"), 3
+    i3 = tvm.tir.Var("i3", "int32"), 2
+    i4 = tvm.tir.Var("i4", "int32"), 3
+    i5 = tvm.tir.Var("i5", "int32"), 6
+    res = tvm.arith.detect_iter_map(
+        [i0[0] * 180 + i1[0] * 60 + i2[0] * 30 + i3[0] * 15 + i4[0] * 6 + i5[0]],
+        var_dom([i0, i1, i2, i3, i4, i5]),
+        tvm.tir.And(1 <= i1[0], tvm.tir.And(2 <= i2[0] * 2 + i3[0], 3 <= i4[0] * 6 + i5[0])),
+    )
+    assert_iter_sum_pattern(res[0], 540, 93)
+
     # non-standard form of predicate
     res = tvm.arith.detect_iter_map([x[0] * 10 + y[0]], var_dom([x, y]), x[0] * 10 < 128 - y[0])
     assert len(res) == 1
