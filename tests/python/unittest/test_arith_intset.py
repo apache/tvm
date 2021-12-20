@@ -213,6 +213,26 @@ def test_region_lower_bound_multiple_variables():
     assert k_int_set.max_value.value == 31
 
 
+def test_region_lower_bound_negative_scale():
+    i = tvm.tir.Var("i", "int32")
+    j = tvm.tir.Var("j", "int32")
+    int_set_0, int_set_1 = tvm.arith.estimate_region_lower_bound(
+        region=[
+            tvm.ir.Range.from_min_extent(min_value=1 - i, extent=4),
+            tvm.ir.Range.from_min_extent(min_value=20 - j * 4, extent=16),
+        ],
+        var_dom={
+            i: tvm.ir.Range(begin=0, end=4),
+            j: tvm.ir.Range(begin=0, end=4),
+        },
+        predicate=tvm.tir.IntImm("bool", 1),
+    )
+    assert int_set_0.min_value.value == -2
+    assert int_set_0.max_value.value == 4
+    assert int_set_1.min_value.value == 8
+    assert int_set_1.max_value.value == 35
+
+
 def test_union_lower_bound():
     neg_inf = tvm.arith.int_set.neg_inf()
     pos_inf = tvm.arith.int_set.pos_inf()
@@ -236,4 +256,5 @@ if __name__ == "__main__":
     test_region_lower_bound_small_stride()
     test_region_lower_bound_split_predicate()
     test_region_lower_bound_multiple_variables()
+    test_region_lower_bound_negative_scale()
     test_union_lower_bound()
