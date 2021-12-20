@@ -269,10 +269,13 @@ inline bool GetStoreRule(Array<PrimExpr>* index_rule, Array<PrimExpr>* shape_rul
     shape_rule->push_back(shape_store);
   }
 
-  VLOG(1) << "index rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
-  for (const auto& r : *index_rule) { VLOG(1) << r << ", "; }; VLOG(1) << "]" << std::endl;
-  VLOG(1) << "shape rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
-  for (const auto& r : *shape_rule) { VLOG(1) << r << ", "; }; VLOG(1) << "]" << std::endl;
+  std::stringstream ss;
+  ss << "index rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
+  for (const auto& r : *index_rule) { ss << r << ", "; }; ss << "]" << std::endl;
+
+  ss << "shape rule for " << src_layout.name() << "-->" << dst_layout.name() << ": [ ";
+  for (const auto& r : *shape_rule) { ss << r << ", "; }; ss << "]" << std::endl;
+  VLOG(1) << std::endl << ss.str();
 
   return true;
 }
@@ -364,12 +367,14 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
     }
   }
 
-  VLOG(1) << "shape rule for " << Layout(src_axis).name() << "-->" << Layout(target_axis).name() << ": [ ";
-  for (const auto& r : transform_rule) { VLOG(1) << r << ", "; }; VLOG(1) << "]" << std::endl;
+  std::stringstream ss;
+  ss << "shape rule for " << Layout(src_axis).name() << "-->" << Layout(target_axis).name() << ": [ ";
+  for (const auto& r : transform_rule) { ss << r << ", "; }; ss << "]" << std::endl;
 
-  VLOG(1) << "shape transform: [ ";
-  for (const auto& s : src_shape) { VLOG(1) << s << ", "; }; VLOG(1) << "] --> [ ";
-  for (const auto& r : result) { VLOG(1) << r << ", "; }; VLOG(1) << "]" << std::endl;
+  ss << "shape transform: [ ";
+  for (const auto& s : src_shape) { ss << s << ", "; }; ss << "] --> [ ";
+  for (const auto& r : result) { ss << r << ", "; }; ss << "]" << std::endl;
+  VLOG(1) << std::endl << ss.str();
 
   return result;
 }
