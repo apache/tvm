@@ -190,29 +190,29 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
 
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
   CHECK_LE(nbytes, nbytes_);
-  size_t offset = 0;
+  size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - offset, managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
     if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(data) + offset,
+    memcpy(static_cast<char*>(data) + copied,
            static_cast<const char*>(managed_allocations_[i]->data_), bytes_to_copy);
 
-    offset += bytes_to_copy;
+    copied += bytes_to_copy;
   }
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   CHECK_LE(nbytes, nbytes_);
-  size_t offset = 0;
+  size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - offset, managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
     if (bytes_to_copy == 0) break;
 
     memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-           static_cast<const char*>(data) + offset, bytes_to_copy);
+           static_cast<const char*>(data) + copied, bytes_to_copy);
 
-    offset += bytes_to_copy;
+    copied += bytes_to_copy;
   }
 }
 
