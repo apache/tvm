@@ -103,7 +103,11 @@ def read_compute(
 
 
 def write_compute(
-    tensor: te.Tensor, zero_point: int, scale: float, layout: Optional[str] = None, attrs: dict = None
+    tensor: te.Tensor,
+    zero_point: int,
+    scale: float,
+    layout: Optional[str] = None,
+    attrs: dict = None,
 ) -> te.Tensor:
     """A tensor expression which represents a write.
 
