@@ -97,9 +97,13 @@ class BufferFlattener : public StmtExprMutator {
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body));
     }
     // Step 4. Handle annotations
+    std::set<std::string> ordered_ann_keys;
     for (const auto& annotation : op->annotations) {
-      const String& ann_key = annotation.first;
-      const ObjectRef& ann_value = annotation.second;
+      ordered_ann_keys.insert(annotation.first);
+    }
+    for (auto it = ordered_ann_keys.rbegin(); it != ordered_ann_keys.rend(); ++it) {
+      const std::string& ann_key = *it;
+      const ObjectRef& ann_value = op->annotations.at(ann_key);
       if (attr::IsPragmaKey(ann_key)) {
         body =
             AttrStmt(op->loop_var, ann_key, ConvertAttrValue(ann_key, ann_value), std::move(body));
