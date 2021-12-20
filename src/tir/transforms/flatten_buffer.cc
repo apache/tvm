@@ -97,11 +97,16 @@ class BufferFlattener : public StmtExprMutator {
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body));
     }
     // Step 4. Handle annotations
+    std::set<std::string> ordered_ann_keys;
     for (const auto& annotation : op->annotations) {
-      const String& ann_key = annotation.first;
-      const ObjectRef& ann_value = annotation.second;
+      ordered_ann_keys.insert(annotation.first);
+    }
+    for (auto it = ordered_ann_keys.rbegin(); it != ordered_ann_keys.rend(); ++it) {
+      const std::string& ann_key = *it;
+      const ObjectRef& ann_value = op->annotations.at(ann_key);
       if (attr::IsPragmaKey(ann_key)) {
-        body = AttrStmt(op->loop_var, ann_key, Downcast<PrimExpr>(ann_value), std::move(body));
+        body =
+            AttrStmt(op->loop_var, ann_key, ConvertAttrValue(ann_key, ann_value), std::move(body));
       }
     }
     return body;
@@ -152,6 +157,21 @@ class BufferFlattener : public StmtExprMutator {
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
                     /*body=*/std::move(body));
+  }
+
+  /*! \brief Convert attr value from annotation map into PrimExpr. */
+  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
+    if (!obj.defined()) {
+      return PrimExpr();
+    } else if (const PrimExprNode* expr = obj.as<PrimExprNode>()) {
+      return GetRef<PrimExpr>(expr);
+    } else if (const StringObj* str = obj.as<StringObj>()) {
+      return std::move(StringImm(str->data));
+    } else {
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+                 << " not supported";
+      return PrimExpr();
+    }
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */

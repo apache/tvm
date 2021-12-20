@@ -247,6 +247,13 @@ def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
                 C.data[i0 * 64 + i1 * 16 + j] = T.load("float32", B_new, i1 * 17 + j) * 2.0
 
 
+@T.prim_func
+def annotated_loops(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,), "float32")
+    for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
+        A[i] = 0.0
+
+
 def test_elementwise():
     _check(compacted_elementwise_func, flattened_elementwise_func)
 
@@ -284,6 +291,20 @@ def test_lower_te():
     tvm.ir.assert_structural_equal(mod, orig_mod)  # FlattenBuffer should do nothing on TE
 
 
+def test_annotated_loops():
+    mod = tvm.IRModule.from_expr(annotated_loops)
+    mod = tvm.tir.transform.FlattenBuffer()(mod)
+    # _check(annotated_loops, compacted_annotated_loops)
+    attr1 = mod["main"].body
+    attr2 = attr1.body
+    attr3 = attr2.body
+    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
+    assert attr2.attr_key == "pragma_2"
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    assert attr3.attr_key == "pragma_3"
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_gpu_workload()
@@ -293,3 +314,4 @@ if __name__ == "__main__":
     test_multi_alloc()
     test_strided_buffer()
     test_lower_te()
+    test_annotated_loops()
