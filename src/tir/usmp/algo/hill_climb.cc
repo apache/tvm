@@ -137,7 +137,7 @@ class HillClimbAllocator : public GreedyBase {
   std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual> find_highest(
       alloc_map_t* pool_allocations) {
     std::unordered_map<PoolInfo, size_t, ObjectPtrHash, ObjectPtrEqual> pool_sizes;
-    for (const auto it : *pool_allocations) {
+    for (const auto& it : *pool_allocations) {
       const BufferInfoNode* buf = it.first;
       const PoolAllocation& pa = it.second;
       size_t high_sz = pa->byte_offset + buf->size_bytes;
@@ -153,9 +153,10 @@ class HillClimbAllocator : public GreedyBase {
    * First level are the immediate neighbors of the buf and
    * second level are the immediate neighbors of the first level nodes
    */
+  template <typename TPos>
   void collect_neighbor_lists(const BufferInfoNode* buf,
                               std::vector<const BufferInfoNode*>* first_level,
-                              std::vector<const BufferInfoNode*>* second_level, const auto& _pos) {
+                              std::vector<const BufferInfoNode*>* second_level, const TPos& _pos) {
     std::unordered_map<int, const BufferInfoNode*> first_level_set;
     std::unordered_map<int, const BufferInfoNode*> second_level_set;
 
