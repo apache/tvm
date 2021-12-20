@@ -126,6 +126,7 @@ def test_ethosu_conv2d_matcher(
         clip_min=0,
         clip_max=0,
         upscale="NONE",
+        rounding_mode="TFL",
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )
