@@ -860,9 +860,18 @@ Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
     const PrimExpr& base = sum_expr->base;
     // IterSplitExpr: (source // lower_factor) % extent * scale
     // where `(source // lower_factor) % extent` is within [0, extent - 1]
-    // Therefore, the range of `region[i]->min` is `base + [0, (extent - 1) * scale]`
-    result.push_back(
-        IntSet::FromMinExtent(base, split->extent * split->scale + (range->extent - split->scale)));
+    if (analyzer->CanProve(split->scale < 0)) {
+      // If scale is negative, the var dom is [(extent - 1) * scale, 0]
+      // The total base is `base + (extent - 1) * scale`,
+      // while total extent is `dom_extent + (extent - 1) * (-scale)`
+      const PrimExpr& var_extent = (split->extent - 1) * split->scale;
+      result.push_back(IntSet::FromMinExtent(base + var_extent, range->extent - var_extent));
+    } else {
+      // If scale is positive, the var dom is [0, (extent - 1) * scale]
+      // The total dom is [base, dom_extent + (extent - 1) * scale]
+      result.push_back(
+          IntSet::FromMinExtent(base, range->extent + (split->extent - 1) * split->scale));
+    }
   }
   return result;
 }
