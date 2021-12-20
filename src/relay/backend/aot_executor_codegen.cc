@@ -42,6 +42,7 @@
 #include <string>
 #include <vector>
 
+#include "../../target/source/codegen_source_base.h"
 #include "../op/annotation/annotation.h"
 #include "../op/call/call.h"
 #include "../op/memory/device_copy.h"
@@ -849,7 +850,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
-      std::string input_name = input->name_hint();
+      std::string input_name = codegen::CodeGenSourceBase::SanitiseName(input->name_hint());
       CreateIOVar(input, input_name);
     }
 

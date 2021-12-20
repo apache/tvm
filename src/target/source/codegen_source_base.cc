@@ -74,13 +74,13 @@ std::string CodeGenSourceBase::AllocVarID(const tir::VarNode* v) {
   std::string key = v->name_hint;
   std::string vid = GetUniqueName(key);
   var_idmap_[v] = vid;
-  return SanitiseName(vid);
+  return vid;
 }
 
 std::string CodeGenSourceBase::GetVarID(const tir::VarNode* v) const {
   auto it = var_idmap_.find(v);
   ICHECK(it != var_idmap_.end()) << "Find undefined Variable " << v->name_hint;
-  return SanitiseName(it->second);
+  return it->second;
 }
 
 void CodeGenSourceBase::PrintIndent() {
@@ -113,7 +113,7 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-std::string CodeGenSourceBase::SanitiseName(std::string name) const {
+std::string CodeGenSourceBase::SanitiseName(std::string name) {
   std::replace_if(
       name.begin(), name.end(),
       [](char c) {
