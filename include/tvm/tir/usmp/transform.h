@@ -37,9 +37,9 @@ using Pass = tvm::transform::Pass;
 /*!
  * \brief Convert the analyzed PoolAllocation to offsets from pool variables
  *
- * This pass would convert the IRModule that contains all PrimFuncs that contains
- * the associated PoolAllocations to be read from being offset from the input var
- * of the PrimFunc.
+ * This pass would convert the main function to accept pool variables as an input
+ * that get passed onto the operator PrimFuncs. Furthermore, the static allocations
+ * will be converted to offsets within the pool variable.
  *
  * \return the pass
  */
@@ -49,10 +49,8 @@ TVM_DLL Pass ConvertPoolAllocationsToOffsets(const Map<tir::Stmt, PoolAllocation
 /*!
  * \brief Assign PoolInfo objects to tir.allocate nodes depending on the PrimFunc's target
  *
- * This pass would assign PoolInfo objects to tir.allocate nodes depending on the each target
- * that each PrimFunc would belong to. If there are not any pools provided in the IRModule,
- * this pass would create a global workspace pool that every target could access for as the
- * default behaviour.
+ * This pass would assign default PoolInfo objects to allocate nodes that are not otherwise
+ * annotated, depending on pool info supplied for each target.
  *
  * \return the pass
  */

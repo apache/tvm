@@ -54,6 +54,8 @@ IRModule PlanMemory(const IRModule& mod, String algo) {
   BufferInfoAnalysis buffer_info_analysis = ExtractBufferInfo(main_func, mod);
   Array<BufferInfo> buffer_info_arr =
       CreateArrayBufferInfo(buffer_info_analysis->buffer_info_stmts);
+  CHECK(algorithms.count(algo)) << "The selected USMP algorithm : " << algo
+                                << "is not defined. Please define it in the above algorithms map.";
   Map<BufferInfo, PoolAllocation> buffer_info_pool_allocations =
       algorithms[algo](buffer_info_arr, buffer_info_analysis->memory_pressure);
   Map<Stmt, PoolAllocation> stmt_pool_allocations = AssignStmtPoolAllocations(

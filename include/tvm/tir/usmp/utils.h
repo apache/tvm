@@ -60,8 +60,10 @@ struct PoolInfoNode : public Object {
   Integer size_hint_bytes;
   /*! \brief The accessibility from each Target*/
   Map<Target, String> target_access;  // 'rw' or 'ro'
-  /*! \brief Whether pool is internally generated*/
-  Bool is_internal = Bool(false);
+  /*! \brief Whether pool is internally generated.
+   * The internal pools will be generated as part of
+   * the entry point code generation of the executor*/
+  bool is_internal = false;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_name", &pool_name);
@@ -320,8 +322,8 @@ namespace attr {
 static constexpr const char* kPoolArgs = "pool_args";
 
 /*!
- * \brief This is a BaseFunc attribute to indicate which input var represent
- * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
+ * \brief This is a IRModule attribute that contains all the PoolInfo objects
+ * as an Array.
  */
 static constexpr const char* kPoolInfoIRModuleAttr = "pool_infos";
 

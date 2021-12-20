@@ -486,7 +486,8 @@ TVM_DLL Pass ConvertForLoopsToSerial();
 
 /*!
  * \brief This is the unified static memory planner pass that will
- * plan for memory intra- and inter- PrimFuncs together.
+ * plan for memory intra- and inter- PrimFuncs together. The pass
+ * requires all the function to be PrimFuncs including the main.
  * \return The pass.
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
