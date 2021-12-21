@@ -29,6 +29,7 @@
 #include "HAP_compute_res.h"
 #endif
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -187,66 +188,55 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
   }
 }
 
-void HexagonBuffer::CopyTo(void* data, size_t nbytes) {
-  CHECK(nbytes_ == nbytes);
-  size_t offset = 0;
+void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
+  CHECK_LE(nbytes, nbytes_);
+  size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    CHECK(nbytes / nallocs_ == managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+    if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(data) + offset,
-           static_cast<const char*>(managed_allocations_[i]->data_),
-           managed_allocations_[i]->nbytes_);
+    memcpy(static_cast<char*>(data) + copied,
+           static_cast<const char*>(managed_allocations_[i]->data_), bytes_to_copy);
 
-    offset += managed_allocations_[i]->nbytes_;
+    copied += bytes_to_copy;
   }
 }
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
-  CHECK(nbytes_ == nbytes);
-  size_t offset = 0;
+  CHECK_LE(nbytes, nbytes_);
+  size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    CHECK(nbytes / nallocs_ == managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+    if (bytes_to_copy == 0) break;
 
     memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-           static_cast<const char*>(data) + offset, managed_allocations_[i]->nbytes_);
+           static_cast<const char*>(data) + copied, bytes_to_copy);
 
-    offset += managed_allocations_[i]->nbytes_;
+    copied += bytes_to_copy;
   }
 }
 
-void HexagonBuffer::CopyFrom(const HexagonBuffer& other) {
-  CHECK(nbytes_ == other.nbytes_);
+void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
+  CHECK_LE(nbytes, nbytes_);
+  CHECK_LE(nbytes, other.nbytes_);
 
   if (nallocs_ == other.nallocs_) {
+    size_t copied = 0;
     for (size_t i = 0; i < nallocs_; ++i) {
-      CHECK(managed_allocations_[i]->nbytes_ == other.managed_allocations_[i]->nbytes_);
+      size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+      if (bytes_to_copy == 0) break;
+
+      CHECK_LE(other.managed_allocations_[i]->nbytes_, managed_allocations_[i]->nbytes_);
 
       memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-             static_cast<const char*>(other.managed_allocations_[i]->data_),
-             managed_allocations_[i]->nbytes_);
+             static_cast<const char*>(other.managed_allocations_[i]->data_), bytes_to_copy);
+
+      copied += bytes_to_copy;
     }
   } else if (nallocs_ == 1) {
-    size_t offset = 0;
-    for (size_t i = 0; i < other.nallocs_; ++i) {
-      CHECK(nbytes_ / other.nallocs_ == other.managed_allocations_[i]->nbytes_);
-
-      memcpy(static_cast<char*>(managed_allocations_[0]->data_) + offset,
-             static_cast<const char*>(other.managed_allocations_[i]->data_),
-             other.managed_allocations_[i]->nbytes_);
-
-      offset += other.managed_allocations_[i]->nbytes_;
-    }
+    return other.CopyTo(managed_allocations_[0]->data_, nbytes);
   } else if (other.nallocs_ == 1) {
-    size_t offset = 0;
-    for (size_t i = 0; i < nallocs_; ++i) {
-      CHECK(other.nbytes_ / nallocs_ == managed_allocations_[i]->nbytes_);
-
-      memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-             static_cast<const char*>(other.managed_allocations_[0]->data_) + offset,
-             managed_allocations_[i]->nbytes_);
-
-      offset += managed_allocations_[i]->nbytes_;
-    }
+    return CopyFrom(other.managed_allocations_[0]->data_, nbytes);
   } else {
     CHECK(false) << "To copy between Hexagon Buffers they must either have the same number of "
                     "dimensions or one of the Hexagon Buffers must have a single dimension.";
