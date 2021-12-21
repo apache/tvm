@@ -60,15 +60,17 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
 
   // Collect variables and buffers to map between
   Array<Var> args;
-  // We only iterate the function params upto number of buffer_map keys
-  // because if there exist a resource handle, it will not have a buffer
-  for (unsigned int i = 0; i < func->buffer_map.size(); i++) {
-    Var param = func->params[i];
-    args.push_back(func->buffer_map[param]->data);
+  for (const Var& param : func->params) {
+    // Ideally all func params should have Buffers defined in the buffer_map
+    // We should look to insert buffer_maps for all PrimFuncs that are returned
+    // to the core compiler.
+    if (func->buffer_map.find(param) != func->buffer_map.end()) {
+      args.push_back(func->buffer_map[param]->data);
+    } else {
+      args.push_back(param);
+    }
   }
-  if (func->params.size() == func->buffer_map.size() + 1) {
-    args.push_back(func->params.back());
-  }
+
   device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
   device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 
