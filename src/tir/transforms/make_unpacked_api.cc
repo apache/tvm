@@ -71,8 +71,10 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
     }
   }
 
-  device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
-  device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
+  if (func->buffer_map.size()) {
+    device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
+    device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
+  }
 
   func_ptr->body = MergeNest(device_init, func_ptr->body);
   func_ptr->params = args;
