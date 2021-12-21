@@ -173,13 +173,9 @@ void AppendGemmExecute(std::ostringstream& gemm_decl, const std::string& kernel)
 
 std::string DenseOp(std::string id, const Str2StrMap& attrs,
                     const std::vector<std::string>& func_args) {
-  bool has_bias = false;
+  bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
   bool is_gelu =
       attrs.at("op_type").find("cutlass.dense_bias_gelu") != std::string::npos;  // fp32 or fp16
-  if (attrs.at("op_type") == "cutlass.dense_bias" ||
-      attrs.at("op_type") == "cutlass.dense_bias_relu" || is_gelu) {
-    has_bias = true;
-  }
   std::ostringstream gemm_decl;
   AppendPrologue(gemm_decl, attrs, func_args, "Gemm", has_bias, is_gelu, 0, 0, 1);
 
@@ -263,11 +259,7 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs) {
 
 std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                      const std::vector<std::string>& func_args) {
-  bool has_bias = attrs.at("op_type") == "cutlass.conv2d_bias" ||
-                  attrs.at("op_type") == "cutlass.conv2d_bias_relu" ||
-                  attrs.at("op_type") == "cutlass.conv2d_bias_sigmoid" ||
-                  attrs.at("op_type") == "cutlass.conv2d_bias_silu" ||
-                  attrs.at("op_type") == "cutlass.conv2d_bias_hardswish";
+  bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
   bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid" &&
                          attrs.at("op_type") != "cutlass.conv2d_bias_silu" &&
                          attrs.at("op_type") != "cutlass.conv2d_bias_hardswish";
@@ -564,16 +556,11 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ret.outputs.push_back(output);
     }
     decl_stream << ");";
-    if (func_name == "cutlass_dense" || func_name == "cutlass_dense_bias" ||
-        func_name == "cutlass_dense_bias_relu" || func_name == "cutlass_dense_bias_gelu") {
+    if (func_name.find("dense") != std::string::npos) {
       ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
     } else if (func_name == "cutlass_batch_matmul") {
       ret.decl = BatchMatmulOp(ext_func_id_, attribute_args, func_args);
-    } else if (func_name == "cutlass_conv2d" || func_name == "cutlass_conv2d_bias" ||
-               func_name == "cutlass_conv2d_bias_relu" ||
-               func_name == "cutlass_conv2d_bias_sigmoid" ||
-               func_name == "cutlass_conv2d_bias_silu" ||
-               func_name == "cutlass_conv2d_bias_hardswish") {
+    } else if (func_name.find("conv2d") != std::string::npos) {
       ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args);
     }
 
