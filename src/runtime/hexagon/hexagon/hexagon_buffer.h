@@ -116,7 +116,7 @@ class HexagonBuffer {
    *
    * \param nbytes The number of bytes to copy.
    */
-  void CopyTo(void* data, size_t nbytes);
+  void CopyTo(void* data, size_t nbytes) const;
 
   /* \brief Copy data from an external buffer to a Hexagon Buffer.
    *
@@ -129,8 +129,10 @@ class HexagonBuffer {
   /* \brief Copy data from one Hexagon Buffer to another.
    *
    * \param other The other Hexagon Buffer.
+   *
+   * \param nbytes The number of bytes to copy.
    */
-  void CopyFrom(const HexagonBuffer& other);
+  void CopyFrom(const HexagonBuffer& other, size_t nbytes);
 
  private:
   //! \brief Assign a storage scope to the buffer.

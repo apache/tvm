@@ -67,10 +67,15 @@ TEST(HexagonBuffer, copy_from_invalid_size) {
   // HexagonBuffer too small
   HexagonBuffer toosmall(4 /* nbytes */, 8 /* alignment */, scope);
   EXPECT_THROW(toosmall.CopyFrom(data.data(), data.size()), InternalError);
+}
 
-  // HexagonBuffer too big
-  HexagonBuffer toobig(16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(toobig.CopyFrom(data.data(), data.size()), InternalError);
+TEST(HexagonBuffer, copy_from_smaller_size) {
+  Optional<String> scope("global");
+  std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
+
+  // HexagonBuffer is big
+  HexagonBuffer big(16 /* nbytes */, 16 /* alignment */, scope);
+  EXPECT_NO_THROW(big.CopyFrom(data.data(), data.size()));
 }
 
 TEST(HexagonBuffer, nd) {
@@ -120,7 +125,7 @@ TEST(HexagonBuffer, 1d_copy_from_1d) {
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   from.CopyFrom(data.data(), data.size());
-  to.CopyFrom(from);
+  to.CopyFrom(from, 8);
 
   uint8_t* ptr = static_cast<uint8_t*>(to.GetPointer()[0]);
   for (size_t i = 0; i < data.size(); ++i) {
@@ -137,7 +142,7 @@ TEST(HexagonBuffer, 2d_copy_from_1d) {
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb1d.CopyFrom(data.data(), data.size());
-  hb2d.CopyFrom(hb1d);
+  hb2d.CopyFrom(hb1d, 8);
 
   uint8_t* ptr = static_cast<uint8_t*>(hb2d.GetPointer()[0]);
   EXPECT_EQ(ptr[0], data[0]);
@@ -161,7 +166,7 @@ TEST(HexagonBuffer, 1d_copy_from_2d) {
 
   std::vector<uint8_t> data{0, 1, 2, 3, 4, 5, 6, 7};
   hb2d.CopyFrom(data.data(), data.size());
-  hb1d.CopyFrom(hb2d);
+  hb1d.CopyFrom(hb2d, 8);
 
   uint8_t* ptr = static_cast<uint8_t*>(hb1d.GetPointer()[0]);
   for (size_t i = 0; i < data.size(); ++i) {
@@ -174,29 +179,35 @@ TEST(HexagonBuffer, nd_copy_from_nd_invalid_size) {
   HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
 
-  HexagonBuffer toosmall1d(4 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toosmall1d), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toosmall1d), InternalError);
-
   HexagonBuffer toosbig1d(16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toosbig1d), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toosbig1d), InternalError);
-
-  HexagonBuffer toosmall2d(2 /* ndim */, 2 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toosmall2d), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toosmall2d), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toosbig1d, 16), InternalError);
+  EXPECT_THROW(hb2d.CopyFrom(toosbig1d, 16), InternalError);
 
   HexagonBuffer toobig2d(2 /* ndim */, 16 /* nbytes */, 16 /* alignment */, scope);
-  EXPECT_THROW(hb1d.CopyFrom(toobig2d), InternalError);
-  EXPECT_THROW(hb2d.CopyFrom(toobig2d), InternalError);
+  EXPECT_THROW(hb1d.CopyFrom(toobig2d, 32), InternalError);
+  EXPECT_THROW(hb2d.CopyFrom(toobig2d, 32), InternalError);
+}
+
+TEST(HexagonBuffer, nd_copy_from_nd_smaller_size) {
+  Optional<String> scope("global");
+  HexagonBuffer hb1d(8 /* nbytes */, 8 /* alignment */, scope);
+  HexagonBuffer hb2d(2 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
+
+  HexagonBuffer small1d(4 /* nbytes */, 8 /* alignment */, scope);
+  EXPECT_NO_THROW(hb1d.CopyFrom(small1d, 4));
+  EXPECT_NO_THROW(hb2d.CopyFrom(small1d, 4));
+
+  HexagonBuffer small2d(2 /* ndim */, 2 /* nbytes */, 8 /* alignment */, scope);
+  EXPECT_NO_THROW(hb1d.CopyFrom(small2d, 4));
+  EXPECT_NO_THROW(hb2d.CopyFrom(small2d, 4));
 }
 
 TEST(HexagonBuffer, md_copy_from_nd) {
   Optional<String> scope("global");
   HexagonBuffer hb3d(3 /* ndim */, 4 /* nbytes */, 8 /* alignment */, scope);
   HexagonBuffer hb4d(4 /* ndim */, 3 /* nbytes */, 8 /* alignment */, scope);
-  EXPECT_THROW(hb3d.CopyFrom(hb4d), InternalError);
-  EXPECT_THROW(hb4d.CopyFrom(hb3d), InternalError);
+  EXPECT_THROW(hb3d.CopyFrom(hb4d, 12), InternalError);
+  EXPECT_THROW(hb4d.CopyFrom(hb3d, 12), InternalError);
 }
 
 TEST(HexagonBuffer, copy_to) {
