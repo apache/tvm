@@ -41,7 +41,7 @@ class MeasureCallbackNode : public runtime::Object {
   /*!
    * \brief Apply a measure callback rule with given arguments.
    * \param task_scheduler The task scheduler.
-   * \param tasks The list of tune context to process.
+   * \param task_id The id of the task (tune context) to apply measure callbacks.
    * \param measure_candidates The measure candidates.
    * \param builder_results The builder results by building the measure candidates.
    * \param runner_results The runner results by running the built measure candidates.
@@ -132,6 +132,7 @@ class MeasureCallback : public runtime::ObjectRef {
   /*!
    * \brief Create a measure callback with customized methods on the python-side.
    * \param f_apply The packed function of `Apply`.
+   * \param f_as_string The packed function of `AsString`.
    * \return The measure callback created.
    */
   TVM_DLL static MeasureCallback PyMeasureCallback(PyMeasureCallbackNode::FApply f_apply,
