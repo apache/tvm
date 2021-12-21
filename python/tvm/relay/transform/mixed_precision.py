@@ -131,7 +131,7 @@ DEFAULT_NEVER_LIST = [
     "sum",
     "mean",
     "variance",
-    "nn.layer_norm"
+    "nn.layer_norm",
 ]
 
 
