@@ -27,6 +27,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/container/array.h>
 
+#include <functional>
 #include <numeric>
 #include <vector>
 
