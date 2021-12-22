@@ -719,7 +719,8 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        if len(infer_type(inputs[0]).checked_type.shape) != 2:
+            inputs[0] = _op.nn.batch_flatten(inputs[0])
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
