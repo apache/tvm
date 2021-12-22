@@ -918,12 +918,10 @@ def test_raise_exception_during_codegen():
             for j in T.parallel(4):
                 T.store(B.data, i * 4 + j, T.load("float32", A.data, i * 4 + j) * 2.0)
 
-    try:
+    with pytest.raises(tvm.TVMError) as e:
         tvm.build({"llvm": tvm.IRModule.from_expr(threadpool_nested_parallel_loop)})
-        assert False
-    except tvm.TVMError as e:
-        msg = str(e)
-        assert msg.find("tvm::codegen::CodeGenCPU") != -1
+    msg = str(e)
+    assert msg.find("Nested parallel loop is not supported") != -1
 
 
 if __name__ == "__main__":

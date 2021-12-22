@@ -494,7 +494,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
 void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   /*! \brief maintain states that should be guarded when step into compute scope */
   struct ComputeScopeStates {
-    ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
+    explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
 
     void EnterWithScope() {
       std::swap(function_, parent_->function_);
