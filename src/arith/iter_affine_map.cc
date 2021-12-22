@@ -372,12 +372,12 @@ class IterMapRewriter : public ExprMutator {
   //                                                              IterSplit(k, scale=1)),
   //                                                      extent=9)
   //                                             scale=1))
-  // Example(2): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+  // Example(2): expr = i*8 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
   //          predicate: 1 <= j*2 + k < 9
-  // Then,    flattened form = IterSum(IterSplit(i, scale=9),
+  // Then,    flattened form = IterSum(IterSplit(i, scale=8),
   //                                   IterSplit(j, scale=2),
   //                                   IterSplit(k, scale=1))
-  //          normal form    = IterSum(IterSplit(i, scale=9),
+  //          normal form    = IterSum(IterSplit(i, scale=8),
   //                                   IterSplit(IterMark(IterSum(IterSplit(j, scale=2),
   //                                                              IterSplit(k, scale=1), base=-1),
   //                                                      extent=9-1)
@@ -495,7 +495,7 @@ class IterMapRewriter : public ExprMutator {
    */
   IterSumExpr NormalizeToIterOnBoundExpr(IterSumExpr expr, PrimExpr predicate_induced_min,
                                          PrimExpr predicate_induced_max) {
-    // remove base temporarily since `TryFuseIters` require zero base iter sum
+    // normalize to zero base
     PrimExpr base = expr->base;
     if (!is_zero(base)) {
       expr.CopyOnWrite()->base = 0;
@@ -506,39 +506,40 @@ class IterMapRewriter : public ExprMutator {
     ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1
     if (opt.defined() && is_one(opt.value()->args[0]->scale)) {
-      IterSplitExpr fused_split = opt.value()->args[0];
-      IterSumExpr sum = Downcast<IterSumExpr>(fused_split->source->source);
+      const IterSplitExpr split = opt.value()->args[0];
+      IterSumExpr structured_form = Downcast<IterSumExpr>(split->source->source);
       // get the flattened form
-      auto it = flattened_map_.find(sum);
+      auto it = flattened_map_.find(structured_form);
       ICHECK(it != flattened_map_.end());
       IterSumExpr flattened_form = it->second;
-      // get the mark
+      // get the mark and offset of the structured_form
       auto it_mark = sum_fuse_map_.find(flattened_form);
       ICHECK(it_mark != sum_fuse_map_.end());
       IterMark mark = it_mark->second.mark;
       PrimExpr mark_offset = it_mark->second.offset;
-      // update iter mark iter range to [0, mark->extent) ^ [pred_min, pred_max)
-      PrimExpr mark_min = 0;
-      PrimExpr mark_max = mark->extent;
+      PrimExpr iter_min = mark_offset;
+      PrimExpr iter_max = iter_min + mark->extent;
       if (predicate_induced_min.defined()) {
-        mark_min = max(predicate_induced_min, mark_min);
+        iter_min = max(predicate_induced_min, iter_min);
       }
       if (predicate_induced_max.defined()) {
-        mark_max = min(predicate_induced_max, mark_max);
+        iter_max = min(predicate_induced_max, iter_max);
       }
-      // mark.CopyOnWrite()->min = mark_min;
-      mark.CopyOnWrite()->source = mark->source - mark_min;
-      mark.CopyOnWrite()->extent = mark_max - mark_min;
-      mark_offset = mark_offset + mark_min;
-
-      // update the bound of the lhs based on predicate_induced_extent
-      sum_fuse_map_[flattened_form] = {mark, mark_offset};
+      if (!is_zero(iter_min)) {
+        // structured form's offset should be updated
+        flattened_map_.erase(structured_form);
+        structured_form.CopyOnWrite()->base = -iter_min;
+        mark.CopyOnWrite()->source = structured_form;
+        flattened_map_[structured_form] = flattened_form;
+      }
+      mark.CopyOnWrite()->extent = iter_max - iter_min;
+      sum_fuse_map_[flattened_form] = {mark, iter_min};
 
       // we need to note down the flattened form of constrained iterators
       // to check the validity of constraints, see also CheckConstraints()
       constrained_iters_flattened_.push_back(flattened_form);
-      expr.CopyOnWrite()->args = Array<IterSplitExpr>({fused_split});
-      expr.CopyOnWrite()->base = base + mark_min;
+      expr.CopyOnWrite()->args = Array<IterSplitExpr>({split});
+      expr.CopyOnWrite()->base = base + iter_min;
       return expr;
     }
     Fail(Diagnostic::Error(expr->span)
@@ -554,7 +555,7 @@ class IterMapRewriter : public ExprMutator {
    */
   IterSumExpr NormalizeToIterWithOffset(IterSumExpr expr) {
     // We are normalizing a regular iter
-    if (expr->args.size() <= 1) return expr;
+    if (expr->args.size() < 1) return expr;
     Optional<IterSumExpr> opt = TryFuseIters(expr);
     if (opt.defined()) {
       return opt.value();
@@ -593,6 +594,7 @@ class IterMapRewriter : public ExprMutator {
   Optional<IterSumExpr> TryFuseIters(IterSumExpr expr) {
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
+    size_t num_visited = 0;
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
     // canonicalize the expression into two different forms: flattened form and structured form
     // step0. check if find the base scale first
@@ -606,7 +608,11 @@ class IterMapRewriter : public ExprMutator {
         }
       }
     }
-    if (!base_scale) return NullOpt;
+    if (!base_scale) {
+      diag_ctx_.Emit(Diagnostic::Error(expr->span)
+                     << "Fuse iters failed, can not find a valid base scale");
+      return NullOpt;
+    }
     // check if it can be remapped into a fused pattern.
     PrimExpr expected_extra_base = 0;
     PrimExpr expected_scale = base_scale.value();
@@ -616,7 +622,11 @@ class IterMapRewriter : public ExprMutator {
       for (; j < expr->args.size(); ++j) {
         if (!visited[j] && analyzer_->CanProveEqual(expr->args[j]->scale, expected_scale)) break;
       }
-      if (j == expr->args.size()) return NullOpt;
+      if (j == expr->args.size()) {
+        diag_ctx_.Emit(Diagnostic::Error(expr->span)
+                       << "Fuse iters failed, can not find expected scale " << expected_scale);
+        return NullOpt;
+      }
       // look for the longest constrained iter started from expr->args[j]
       // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
       //          predicate: j*2 + k < 9
@@ -637,6 +647,7 @@ class IterMapRewriter : public ExprMutator {
         // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
         //          predicate = j*2 + k < 9
         //          then j*2 + k matches the lower two splits of expr
+        bool match_constraint_suffix = false;
         for (auto it = constraint_to_match.value()->args.rbegin();
              it != constraint_to_match.value()->args.rend(); ++it) {
           size_t k = 0;
@@ -646,9 +657,32 @@ class IterMapRewriter : public ExprMutator {
                 break;
             }
           }
-          if (k == expr->args.size()) return NullOpt;
+          if (k == expr->args.size()) {
+            if (i == 0 && num_visited == visited.size()) {
+              // if match failed because of iterations are used out instead of scale mismatch,
+              // and all used iters are visited during current match round, fallback to skip the
+              // constraint. Example: exprs = [i * 2 + j, k], i in [0, 3), j in [0, 2), k in [0, 4)
+              //          predicate = i * 8 + j * 4 + k < 10
+              ICHECK_EQ(flattened_iters.size(), num_visited);
+              for (size_t l = 0; l < flattened_iters.size(); ++l) {
+                grouped_iters.push_back(flattened_iters[l]);
+                expected_scale *= flattened_iters[l]->extent;
+              }
+              match_constraint_suffix = true;
+              break;
+            }
+            diag_ctx_.Emit(Diagnostic::Error(expr->span)
+                           << "Fuse iters failed, can not find flattened iter match constraint "
+                           << constraint_to_match.value());
+            return NullOpt;
+          }
           visited[k] = true;
+          num_visited += 1;
           flattened_iters.push_back(expr->args[k]);
+        }
+        if (match_constraint_suffix) {
+          // all iters are used to match the constraint, but only a suffix is matched.
+          break;
         }
         auto iter = sum_fuse_map_.find(constraint_to_match.value());
         ICHECK(iter != sum_fuse_map_.end());
@@ -661,6 +695,7 @@ class IterMapRewriter : public ExprMutator {
       } else {
         // constraint_to_match not found, skip this iterator
         visited[j] = true;
+        num_visited += 1;
         flattened_iters.push_back(expr->args[j]);
         grouped_iters.push_back(expr->args[j]);
         expected_scale *= expr->args[j]->extent;
@@ -681,6 +716,8 @@ class IterMapRewriter : public ExprMutator {
       // old iter
       if (!analyzer_->CanProveEqual(expected_extra_base, it->second.offset * base_scale.value())) {
         // the extra offset is not consistent with old
+        diag_ctx_.Emit(Diagnostic::Error(expr->span)
+                       << "Fuse iters failed, the extra offset is not consistent with old");
         return NullOpt;
       }
       return IterSumExpr({IterSplitExpr(it->second.mark, base_scale.value())},
