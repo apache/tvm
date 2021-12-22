@@ -526,7 +526,7 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
   } else if (param->kernel_layout == "HWOI") {
     axes_t3 = {0, 1, 3};
   } else if (param->kernel_layout == "OHWI") {
-    axes_t3 = {0, 1, 2};
+    axes_t3 = {1, 2, 3};
   } else {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
   }
