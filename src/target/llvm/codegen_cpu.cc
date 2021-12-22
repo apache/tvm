@@ -492,6 +492,28 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
 }
 
 void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
+  /*! \brief maintain states that should be guarded when step into compute scope */
+  struct ComputeScopeStates {
+    explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
+
+    void EnterWithScope() {
+      std::swap(function_, parent_->function_);
+      std::swap(analyzer_, parent_->analyzer_);
+      std::swap(var_map_, parent_->var_map_);
+    }
+
+    void ExitWithScope() {
+      std::swap(function_, parent_->function_);
+      std::swap(analyzer_, parent_->analyzer_);
+      std::swap(var_map_, parent_->var_map_);
+    }
+
+    llvm::Function* function_{nullptr};
+    std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::unique_ptr<arith::Analyzer> analyzer_{std::make_unique<arith::Analyzer>()};
+    CodeGenCPU* parent_;
+  };
+
   // There are two reasons why we create another function for compute_scope
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
   // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
@@ -515,13 +537,13 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
       llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                              value->value.operator llvm::StringRef(), module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(builder_->CreateCall(fcompute, arg_values));
-  // setup compute function.
-  std::unordered_map<const VarNode*, llvm::Value*> new_vmap;
+  // enter compute scope and setup compute function.
+  With<ComputeScopeStates> scope_states_guard(this);
   size_t idx = 0;
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); ++it, ++idx) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
-    new_vmap[var.get()] = v;
+    var_map_[var.get()] = v;
     if (var.dtype().is_handle() && !alias_var_set_.count(var.get())) {
       // set non alias.
 #if TVM_LLVM_VERSION >= 50
@@ -544,18 +566,11 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     }
 #endif
   }
-  auto new_analyzer = std::make_unique<arith::Analyzer>();
-  std::swap(function_, fcompute);
-  std::swap(analyzer_, new_analyzer);
-  std::swap(var_map_, new_vmap);
+  function_ = fcompute;
   BasicBlock* compute_entry = BasicBlock::Create(*ctx_, "entry", function_);
   builder_->SetInsertPoint(compute_entry);
   this->VisitStmt(op->body);
   builder_->CreateRet(ConstInt32(0));
-  // swap the var map back, now we are back on track.
-  std::swap(var_map_, new_vmap);
-  std::swap(analyzer_, new_analyzer);
-  std::swap(function_, fcompute);
   builder_->SetInsertPoint(compute_call_end);
 }
 
