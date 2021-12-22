@@ -53,10 +53,10 @@ TVM_REGISTER_GLOBAL("meta_schedule.CostModelUpdate")
     .set_body_method<CostModel>(&CostModelNode::Update);
 TVM_REGISTER_GLOBAL("meta_schedule.CostModelPredict")
     .set_body_typed([](CostModel model,                     //
-                       const TuneContext& tune_context,     //
+                       const TuneContext& context,          //
                        Array<MeasureCandidate> candidates,  //
                        void* p_addr) -> void {
-      std::vector<double> result = model->Predict(tune_context, candidates);
+      std::vector<double> result = model->Predict(context, candidates);
       std::copy(result.begin(), result.end(), static_cast<double*>(p_addr));
     });
 TVM_REGISTER_GLOBAL("meta_schedule.CostModelPyCostModel").set_body_typed(CostModel::PyCostModel);

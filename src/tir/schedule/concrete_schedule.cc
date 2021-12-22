@@ -30,7 +30,7 @@ Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRa
   n->error_render_level_ = error_render_level;
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
-  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
+  n->Seed(seed);
   return Schedule(std::move(n));
 }
 

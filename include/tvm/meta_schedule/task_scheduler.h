@@ -20,7 +20,9 @@
 #define TVM_META_SCHEDULE_TASK_SCHEDULER_H_
 
 #include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/tune_context.h>
 
@@ -78,7 +80,7 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The list of measure callbacks of the scheduler. */
   Array<MeasureCallback> measure_callbacks;
 
-  /*! \brief The default desctructor. */
+  /*! \brief The default destructor. */
   virtual ~TaskSchedulerNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -248,15 +250,19 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param runner The runner of the scheduler.
    * \param database The database of the scheduler.
    */
-  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,  //
-                                          Builder builder,           //
-                                          Runner runner,             //
-                                          Database database);        //
+  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,        //
+                                          Builder builder,                 //
+                                          Runner runner,                   //
+                                          Database database,               //
+                                          Optional<CostModel> cost_model,  //
+                                          Optional<Array<MeasureCallback>> measure_callbacks);
   TVM_DLL static TaskScheduler PyTaskScheduler(
       Array<TuneContext> tasks,                                   //
       Builder builder,                                            //
       Runner runner,                                              //
       Database database,                                          //
+      Optional<CostModel> cost_model,                             //
+      Optional<Array<MeasureCallback>> measure_callbacks,         //
       PyTaskSchedulerNode::FTune f_tune,                          //
       PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
       PyTaskSchedulerNode::FSetTaskStopped f_set_task_stopped,    //
