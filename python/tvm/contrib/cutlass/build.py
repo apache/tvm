@@ -29,7 +29,14 @@ logger = logging.getLogger("cutlass")
 
 
 def _get_cutlass_path():
-    cutlass_path = "/home/masa/projects/dev/cutlass"
+    tvm_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../")
+    cutlass_path = os.path.join(tvm_root, "3rdparty/cutlass")
+    assert os.path.exists(
+        cutlass_path
+    ), """The CUTLASS root directory not found in {}.
+        Currently, using CUTLASS requires building TVM from source.""".format(
+        cutlass_path
+    )
     return cutlass_path
 
 
@@ -52,7 +59,7 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
         "-I" + cutlass_util_include,
     ]
     if use_fast_math:
-        kwargs["options"].append("-DCUTLASS_USE_FAST_MATH")
+        kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_path = find_cuda_path()
     cuda_ver = get_cuda_version(cuda_path)
     if cuda_ver >= 11.2:
