@@ -47,6 +47,7 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
+from distutils.version import LooseVersion
 
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -3515,7 +3516,13 @@ def _test_abs(data, quantized=False):
 
         tflite_model_quant = _create_model()
         tflite_output = run_tflite_graph(tflite_model_quant, data)
-        in_node = ["serving_default_input_int8"]
+
+        # TFLite 2.6.x upgrade support
+        if tf.__version__ < LooseVersion("2.6.1"):
+            in_node = ["serving_default_input_int8"]
+        else:
+            in_node = ["tfl.quantize"]
+
         tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
         tvm.testing.assert_allclose(
             np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
