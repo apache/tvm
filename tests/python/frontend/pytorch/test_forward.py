@@ -213,6 +213,8 @@ def verify_model(
 
     with tvm.transform.PassContext(opt_level=3):
         for target in ["llvm", "cuda"]:
+            if not tvm.runtime.enabled(target):
+                continue
             dev = tvm.device(target, 0)
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_executor.create(relay_graph, relay_lib, dev)
@@ -2270,7 +2272,10 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
     for tgt in targets:
+        if not tvm.runtime.enabled(tgt):
+            continue
         print("Running on target", tgt)
+
         dev = tvm.device(tgt, 0)
 
         evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
