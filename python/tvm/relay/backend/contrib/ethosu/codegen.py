@@ -294,8 +294,8 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     mod = tvm.IRModule()
     mod["main"] = ext_func
     mod = LegalizeEthosU()(mod)
-    mod = LayoutOptimizer()(mod)
     mod = LUTsOptimizer()(mod)
+    mod = LayoutOptimizer()(mod)
     mod = relay.transform.InferType()(mod)
     # We are currently using copy_constants scheduler In the long run,
     # this should be a single intelligent and a composite scheduler
