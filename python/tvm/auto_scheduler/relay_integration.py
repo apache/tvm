@@ -48,7 +48,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target, opt_level=3):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -71,7 +71,7 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         try:
             compiler.lower(mod, target)
         except TVMError:
-            logger.warning("Got exception in task extraction:\n %s", traceback.format_exc())
+            error_list.append(f"{traceback.format_exc()}")
         finally:
             autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
@@ -131,14 +131,21 @@ def extract_tasks(
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
+
+    errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
+
+    if errors:
+        error_strings = ["Task extraction had the following errors:"] + errors
+        raise TVMError("\n".join(error_strings))
+
     dispatch_ctx.verbose = old_verbose
 
     # create search tasks
