@@ -104,10 +104,10 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Initialize the search strategy with tuning context.
-   * \param tune_context The tuning context for initialization.
+   * \param context The tuning context for initialization.
    * \note This method is supposed to be called only once before every other method.
    */
-  virtual void InitializeWithTuneContext(const TuneContext& tune_context) = 0;
+  virtual void InitializeWithTuneContext(const TuneContext& context) = 0;
 
   /*!
    * \brief Pre-tuning for the search strategy.
@@ -146,7 +146,7 @@ class PySearchStrategyNode : public SearchStrategyNode {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
-   * \param tune_context The tuning context for initialization.
+   * \param context The tuning context for initialization.
    */
   using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
   /*!

@@ -85,7 +85,7 @@ def get_dense_bias(M, N, K, out_dtype="float16"):
 
 
 def get_dense_bias_relu(M, N, K, out_dtype="float16"):
-    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype="float16"))
+    return relay.nn.relu(get_dense_bias(M, N, K, out_dtype=out_dtype))
 
 
 def get_dense_bias_gelu(M, N, K, out_dtype="float16"):
@@ -110,20 +110,32 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
-def get_conv2d_nchw(d_shape, w_shape):
+def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
     data = relay.var("data", shape=d_shape, dtype="float16")
     weight = relay.var("weight", shape=w_shape, dtype="float16")
     out_channel = w_shape[0]
-    return tvm.IRModule.from_expr(
-        relay.nn.conv2d(
-            data=data,
-            weight=weight,
-            kernel_size=(3, 3),
-            channels=out_channel,
-            padding=(1, 1),
-            out_dtype="float16",
-        )
+    return relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        out_dtype=out_dtype,
     )
+
+
+def get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype="float16"):
+    conv2d = get_conv2d_nchw(d_shape, w_shape, padding, out_dtype=out_dtype)
+    bias = relay.var("bias", shape=(w_shape[0],), dtype=out_dtype)
+    return relay.nn.bias_add(conv2d, bias)
+
+
+def get_conv2d_nchw_bias_relu(d_shape, w_shape, padding, out_dtype="float16"):
+    return relay.nn.relu(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
+
+
+def get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float16"):
+    return relay.sigmoid(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
 
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
@@ -242,6 +254,8 @@ K = 768
 def test_dense():
     verify_dense(get_dense(M, N, K), M, N, K)
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
+    # Test align1 case
+    verify_dense(get_dense_bias(M, N + 1, K), M, N + 1, K)
 
 
 def test_dense_bias():
@@ -312,34 +326,42 @@ def convert_conv2d_layout(mod, desired_layouts):
 
 
 def verify_conv2d(
-    mod_nchw,
-    mod_ref,
+    expr_nchw,  # can be dynamic batch
+    expr_ref,  # always static batch
     d_shape,
     w_shape,
     sm=80,
     atol=1e-5,
     rtol=1e-5,
+    use_cudnn_ref=False,
     run_benchmark=False,
 ):
     if not has_cutlass():
         return
 
+    mod_nchw = tvm.IRModule.from_expr(expr_nchw)
+    mod_ref = tvm.IRModule.from_expr(expr_ref)
+
+    typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
+    out_dtype = typ.dtype
+
     np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
     np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
+    np_bias = np.random.uniform(-1, 1, (w_shape[0],)).astype(out_dtype)
 
-    params = {"weight": np_weight}
+    params = {"weight": np_weight, "bias": np_bias}
 
     typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
     use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
 
+    mod_weight_ohwi = convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]})
+
     if use_vm:
-        rt_mod, dev, num_cutlass_partition = profile_and_build_vm(
-            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}), params, sm
-        )
+        rt_mod, _, num_cutlass_partition = profile_and_build_vm(mod_weight_ohwi, params, sm)
         out = get_output_vm(rt_mod, ["data"], [np_data])
     else:
-        rt_mod, dev, num_cutlass_partition = profile_and_build(
-            convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]}),
+        rt_mod, _, num_cutlass_partition = profile_and_build(
+            mod_weight_ohwi,
             params,
             sm,
         )
@@ -347,41 +369,78 @@ def verify_conv2d(
 
     assert num_cutlass_partition > 0
 
-    rt_mod_ref, _ = get_ref_rt_mod(
-        convert_conv2d_layout(mod_ref, {"nn.conv2d": ["NHWC", "HWIO"]}),
-        params,
-        target="cuda",
-    )
-    ref_out = get_output(rt_mod_ref, ["data"], [np_data])
+    if use_cudnn_ref:
+        rt_mod_ref, dev = get_ref_rt_mod(
+            convert_conv2d_layout(mod_ref, {"nn.conv2d": ["NHWC", "OHWI"]}),
+            params,
+            target="cuda -libs=cudnn",
+        )
+    else:
+        rt_mod_ref, dev = get_ref_rt_mod(
+            convert_conv2d_layout(mod_ref, {"nn.conv2d": ["NHWC", "HWIO"]}),
+            params,
+            target="cuda",
+        )
 
-    np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
+    ref_out = get_output(rt_mod_ref, ["data"], [np_data])
 
     if run_benchmark:
         print("CUTLASS:", rt_mod.benchmark(dev, number=1, repeat=600))
         print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
+    np.testing.assert_allclose(out, ref_out, atol=atol, rtol=rtol)
+
 
 def test_conv2d():
+    padding = (1, 1)
+    for IC in [3, 16]:
+        d_shape = (16, IC, 32, 32)
+        w_shape = (32, IC, 3, 3)
+        mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
+
+        verify_conv2d(
+            mod_nchw,
+            mod_nchw,
+            d_shape,
+            w_shape,
+            sm=80,
+            atol=1e-5,
+            rtol=1e-5,
+            use_cudnn_ref=(IC == 3),  # The autotvm kernel has an accuracy issue with IC == 3 case
+            run_benchmark=False,
+        )
+
     d_shape = (16, 16, 32, 32)
     w_shape = (32, 16, 3, 3)
-    mod_nchw = get_conv2d_nchw(d_shape, w_shape)
-
-    verify_conv2d(
-        mod_nchw,
-        mod_nchw,
-        d_shape,
-        w_shape,
-        sm=80,
-        atol=1e-5,
-        rtol=1e-5,
-        run_benchmark=False,
-    )
-
+    padding = (1, 1)
     dyn_batch_shape = (relay.Any(),) + d_shape[1:]
-    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape)
+
+    mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
+    mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape, padding)
 
     verify_conv2d(
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+
+def test_conv2d_fusion():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
+
+    mod_nchw = get_conv2d_nchw_bias(d_shape, w_shape, padding)
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_relu(d_shape, w_shape, padding)
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float32")
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
 
 

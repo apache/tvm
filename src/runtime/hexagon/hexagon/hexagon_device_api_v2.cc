@@ -126,7 +126,7 @@ void HexagonDeviceAPIv2::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamH
       TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
     CHECK(hex_from_buf != nullptr);
     CHECK(hex_to_buf != nullptr);
-    hex_to_buf->CopyFrom(*hex_from_buf);
+    hex_to_buf->CopyFrom(*hex_from_buf, GetDataSize(*from));
   } else if (from->device.device_type == kDLCPU &&
              TVMDeviceExtType(to->device.device_type) == kDLHexagon) {
     CHECK(hex_to_buf != nullptr);

@@ -22,8 +22,11 @@
 #include <dmlc/memory_io.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/feature_extractor.h>
 #include <tvm/meta_schedule/runner.h>
+#include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/task_scheduler.h>
@@ -43,6 +46,9 @@
 
 namespace tvm {
 namespace meta_schedule {
+
+/*! \brief The type of the random state */
+using TRandState = support::LinearCongruentialEngine::TRandState;
 
 /*!
  * \brief Read lines from a json file.

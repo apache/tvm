@@ -474,7 +474,10 @@ class BatchNorm(OnnxOpConverter):
             op_name="batch_norm",
             ignores=["spatial", "is_test", "consumed_inputs", "momentum", "training_mode"],
         )(inputs, attr, params)
-        return out[0]
+        # We only support test mode, so we return data, moving_mean, moving_var,
+        # and then moving_mean and moving_var again as placeholders for
+        # the expected "saved_mean", "saved_var".
+        return _expr.TupleWrapper(_expr.Tuple((*out, out[1], out[2])), 5)
 
 
 class InstanceNorm(OnnxOpConverter):

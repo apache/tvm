@@ -77,6 +77,8 @@ class Executable(object):
         self._get_stats = self.mod["get_stats"]
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
+        self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._load_late_bound_consts = self.mod["load_late_bound_consts"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -162,11 +164,11 @@ class Executable(object):
             An executable constructed using the provided artifacts.
         """
         if isinstance(bytecode, (bytes, str)):
-            code = bytearray(bytecode)
+            bytecode = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
             raise TypeError(
                 "bytecode is expected to be the type of bytearray "
-                + "or TVMByteArray, but received {}".format(type(code))
+                + "or TVMByteArray, but received {}".format(type(bytecode))
             )
 
         if lib is not None and not isinstance(lib, tvm.runtime.Module):
@@ -297,6 +299,14 @@ class Executable(object):
             params.append(p)
         self._function_params[func_name] = params
         return params
+
+    def move_late_bound_consts(self, path, byte_limit):
+        """Move all constants of byte size greater or equal to byte_limit to file at path"""
+        return self._move_late_bound_consts(path, byte_limit)
+
+    def load_late_bound_consts(self, path):
+        """Re-load constants previously saved to file at path"""
+        return self._load_late_bound_consts(path, bytes)
 
 
 class VirtualMachine(object):

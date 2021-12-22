@@ -86,17 +86,20 @@ def make_module(func):
     return mod
 
 
-def get_same_padding(data, kernel, dilation, stride, cmsisnn_padding=True):
-    """Provides CMSIS-NN padding when output dim == input dim"""
+def get_same_padding(in_shape, kernel, dilation, stride):
+    """
+    Provides CMSIS-NN padding when output dim == input dim.
+    This is TFLu's "SAME" padding case.
+    """
     dilated_kernel_h = dilation[0] * (kernel[0] - 1) + 1
     dilated_kernel_w = dilation[1] * (kernel[1] - 1) + 1
-    out = int(math.ceil(float(data[0]) / float(stride[0])))
-    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - data[0])
-    pad_top, pad_bottom = (pad, 0) if cmsisnn_padding else (0, pad)
+    out = int(math.ceil(float(in_shape[0]) / float(stride[0])))
+    pad = max(0, (out - 1) * stride[0] + dilated_kernel_h - in_shape[0])
+    pad_top, pad_bottom = (pad, 0)
 
-    out = int(math.ceil(float(data[1]) / float(stride[1])))
-    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - data[1])
-    pad_left, pad_right = (pad, 0) if cmsisnn_padding else (0, pad)
+    out = int(math.ceil(float(in_shape[1]) / float(stride[1])))
+    pad = max(0, (out - 1) * stride[1] + dilated_kernel_w - in_shape[1])
+    pad_left, pad_right = (pad, 0)
     return [pad_top, pad_left, pad_bottom, pad_right]
 
 

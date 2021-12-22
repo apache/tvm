@@ -23,21 +23,21 @@
  * parameters.
  *
  * These utilities are used by the \p PlanDevices pass to extract memory (aka 'storage') scope
- * information from \p PrimFuncs and convert them back into \p SEScope form w.r.t. the original
- * Relay type of the \p PrimFunc (ie before flattening of tuple arguments/results and conversion
- * to destination-passing style aka DPS).
+ * information from \p PrimFuncs and convert them back into \p VirtualDevice form w.r.t. the
+ * original Relay type of the \p PrimFunc (ie before flattening of tuple arguments/results and
+ * conversion to destination-passing style aka DPS).
  *
  * A utility is also supplied to go the other way: impose memory scopes on \p PrimFunc parameters.
  * However that's still in EXPERIMENTAL form.
  *
  * We may extend these utilities to also gather/apply layout information should we add that to
- * \p SEScope.
+ * \p VirtualDevice.
  */
 
 #ifndef TVM_TIR_ANALYSIS_DEVICE_CONSTRAINT_UTILS_H_
 #define TVM_TIR_ANALYSIS_DEVICE_CONSTRAINT_UTILS_H_
 
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -71,26 +71,26 @@ namespace tir {
  */
 
 /*!
- * \brief Returns the \p SEScopes capturing the memory (aka storage) scope constraints for all the
- * arguments and result of \p prim_func. However the result will be w.r.t. the \p prim_func's
+ * \brief Returns the \p VirtualDevices capturing the memory (aka storage) scope constraints for all
+ * the arguments and result of \p prim_func. However the result will be w.r.t. the \p prim_func's
  * representation as a Relay \p Function of \p relay_func_type_ before lowering and conversion to
  * DPS.
  */
-Array<SEScope> GetPrimFuncArgAndResultConstraints(const tir::PrimFunc& prim_func,
-                                                  const FuncType& relay_func_type);
+Array<VirtualDevice> GetPrimFuncArgAndResultConstraints(const tir::PrimFunc& prim_func,
+                                                        const FuncType& relay_func_type);
 
 /*
  * \brief Returns \p prim_func written to capture the memory (aka storage) scope constraints
- * for each of the \p prim_func's parameters given by \p arg_and_result_se_scopes. However,
- * \p arg_and_result_se_scopes should be w.r.t. the \p prim_func's representation as a Relay
+ * for each of the \p prim_func's parameters given by \p arg_and_result_virtual_devices. However,
+ * \p arg_and_result_virtual_devices should be w.r.t. the \p prim_func's representation as a Relay
  * \p Function of \p relay_func_type before lowering and conversion to DPS.
  *
  * CAUTION: This is experimental. The resulting \p PrimFunc may not have fully accounted for all
  * new memory scopes.
  */
-PrimFunc ApplyPrimFuncArgAndResultConstraints(const PrimFunc& prim_func,
-                                              const FuncType& relay_func_type,
-                                              const Array<SEScope>& arg_and_result_se_scopes);
+PrimFunc ApplyPrimFuncArgAndResultConstraints(
+    const PrimFunc& prim_func, const FuncType& relay_func_type,
+    const Array<VirtualDevice>& arg_and_result_virtual_devices);
 
 }  // namespace tir
 }  // namespace tvm

@@ -87,6 +87,9 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if str(op) == "nn.conv2d":
             self.op_attrs = call.attrs
 
+        for arg in call.args:
+            self.visit(arg)
+
 
 def select_gemm_kernel(
     cutlass_profiler, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
@@ -184,7 +187,9 @@ def handle_conv2d(
     op_type,
     d_shape,
     w_shape,
-    out_shape,
+    padding,
+    strides,
+    dilation,
     out_dtype,
     profile_all,
     use_multiprocessing,
@@ -197,7 +202,9 @@ def handle_conv2d(
         out = cutlass_profiler.profile(
             d_shape,
             w_shape,
-            out_shape,
+            padding,
+            strides,
+            dilation,
             out_dtype,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
@@ -209,6 +216,12 @@ def handle_conv2d(
 
     if op_type == "cutlass.conv2d":
         cutlass_op_def = out["opdef"]
+    elif op_type == "cutlass.conv2d_bias":
+        cutlass_op_def = out["opdef_bias"]
+    elif op_type == "cutlass.conv2d_bias_relu":
+        cutlass_op_def = out["opdef_bias_relu"]
+    elif op_type == "cutlass.conv2d_bias_sigmoid":
+        cutlass_op_def = out["opdef_bias_sigmoid"]
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
@@ -278,7 +291,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         op_type,
                         arg0_shape,
                         arg1_shape,
-                        annotator.signature["ret_shape"],
+                        annotator.op_attrs.padding,
+                        annotator.op_attrs.strides,
+                        annotator.op_attrs.dilation,
                         out_dtype,
                         profile_all,
                         use_multiprocessing,

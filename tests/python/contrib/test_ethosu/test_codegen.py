@@ -242,6 +242,41 @@ def test_ethosu_conv2d_double(
     infra.verify_source(compiled_models, accel_type)
 
 
+@pytest.mark.parametrize("weight_min, weight_max", [(0.0, 1e-11), (-1e10, 1e10)])
+def test_out_of_range_scaling(weight_min, weight_max):
+    ifm_shape = (1, 6, 6, 2)
+    strides = (1, 1)
+    kernel_shape = (1, 1)
+    dilation = (1, 1)
+    padding = "SAME"
+    activation = "RELU"
+    accel_type = "ethos-u55-128"
+
+    @tf.function
+    def conv_invalid_scale(x):
+        # Use tf.nn API to create the model
+        tf_strides = [1, strides[0], strides[1], 1]
+        weights = np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 2, 2])
+        # Overwrite to force quantization that produces out of range shift values
+        weights[0][0][0][0] = weight_min
+        weights[0][0][1][0] = weight_max
+        op = tf.nn.conv2d(
+            x,
+            filters=tf.constant(
+                weights,
+                dtype=tf.float32,
+            ),
+            strides=tf_strides,
+            padding=padding,
+            dilations=dilation,
+        )
+        if activation:
+            op = tf.nn.relu(op)
+        return op
+
+    _compare_tvm_with_tflite(conv_invalid_scale, [ifm_shape], accel_type)
+
+
 def _compare_ethosu_with_reference(
     mod, input_data, output_data, accel_type, output_tolerance=0, print_cmm=False
 ):

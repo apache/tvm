@@ -47,6 +47,7 @@ import os
 import tarfile
 import json
 from typing import Optional, Union, Dict, Callable, TextIO
+from pathlib import Path
 import numpy as np
 
 import tvm
@@ -258,7 +259,7 @@ class TVMCModel(object):
         Parameters
         ----------
         executor_factory : GraphExecutorFactoryModule
-            The factory containing compiled the compiled artifacts needed to run this model.
+            The factory containing the compiled artifacts needed to run this model.
         package_path : str, None
             Where the model should be saved. Note that it will be packaged as a .tar file.
             If not provided, the package will be saved to a generically named file in tmp.
@@ -311,12 +312,19 @@ class TVMCPackage(object):
     ----------
     package_path : str
         The path to the saved TVMCPackage that will be loaded.
+
+    project_dir : Path, str
+        If given and loading a MLF file, the path to the project directory that contains the file.
     """
 
-    def __init__(self, package_path: str):
+    def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.import_package(self.package_path)
+
+        if project_dir and self.type != "mlf":
+            raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
+        self.project_dir = project_dir
 
     def import_package(self, package_path: str):
         """Load a TVMCPackage from a previously exported TVMCModel.

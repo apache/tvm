@@ -21,8 +21,8 @@ Frontend classes do lazy-loading of modules on purpose, to reduce time spent on
 loading the tool.
 """
 import logging
-import os
 import sys
+import importlib
 from abc import ABC
 from abc import abstractmethod
 from typing import Optional, List, Dict
@@ -32,6 +32,7 @@ import numpy as np
 
 from tvm import relay
 from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc.common import TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
 
 
@@ -76,20 +77,15 @@ class Frontend(ABC):
         """
 
 
-def import_keras():
-    """Lazy import function for Keras"""
-    # Keras writes the message "Using TensorFlow backend." to stderr
-    # Redirect stderr during the import to disable this
-    stderr = sys.stderr
-    sys.stderr = open(os.devnull, "w")
+def lazy_import(pkg_name, from_pkg_name=None, hide_stderr=False):
+    """Lazy import a frontend package or subpackage"""
     try:
-        # pylint: disable=C0415
-        import tensorflow as tf
-        from tensorflow import keras
-
-        return tf, keras
+        return importlib.import_module(pkg_name, package=from_pkg_name)
+    except ImportError as error:
+        raise TVMCImportError(pkg_name) from error
     finally:
-        sys.stderr = stderr
+        if hide_stderr:
+            sys.stderr = stderr
 
 
 class KerasFrontend(Frontend):
@@ -105,7 +101,8 @@ class KerasFrontend(Frontend):
 
     def load(self, path, shape_dict=None, **kwargs):
         # pylint: disable=C0103
-        tf, keras = import_keras()
+        tf = lazy_import("tensorflow")
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
 
         # tvm build currently imports keras directly instead of tensorflow.keras
         try:
@@ -136,11 +133,11 @@ class KerasFrontend(Frontend):
         return relay.frontend.from_keras(model, input_shapes, **kwargs)
 
     def is_sequential_p(self, model):
-        _, keras = import_keras()
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
         return isinstance(model, keras.models.Sequential)
 
     def sequential_to_functional(self, model):
-        _, keras = import_keras()
+        keras = lazy_import("keras", from_pkg_name="tensorflow")
         assert self.is_sequential_p(model)
         input_layer = keras.layers.Input(batch_shape=model.layers[0].input_shape)
         prev_layer = input_layer
@@ -162,8 +159,7 @@ class OnnxFrontend(Frontend):
         return ["onnx"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import onnx
+        onnx = lazy_import("onnx")
 
         # pylint: disable=E1101
         model = onnx.load(path)
@@ -183,9 +179,8 @@ class TensorflowFrontend(Frontend):
         return ["pb"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import tensorflow as tf
-        import tvm.relay.testing.tf as tf_testing
+        tf = lazy_import("tensorflow")
+        tf_testing = lazy_import("tvm.relay.testing.tf")
 
         with tf.io.gfile.GFile(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -210,8 +205,7 @@ class TFLiteFrontend(Frontend):
         return ["tflite"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import tflite.Model as model
+        model = lazy_import("tflite.Model")
 
         with open(path, "rb") as tf_graph:
             content = tf_graph.read()
@@ -249,8 +243,7 @@ class PyTorchFrontend(Frontend):
         return ["pth", "zip"]
 
     def load(self, path, shape_dict=None, **kwargs):
-        # pylint: disable=C0415
-        import torch
+        torch = lazy_import("torch")
 
         if shape_dict is None:
             raise TVMCException("--input-shapes must be specified for %s" % self.name())

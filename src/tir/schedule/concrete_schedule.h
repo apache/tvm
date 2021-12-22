@@ -72,6 +72,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline PrimExpr Get(const ExprRV& expr_rv) const final;
   inline StmtSRef GetSRef(const BlockRV& block_rv) const final;
   inline StmtSRef GetSRef(const LoopRV& loop_rv) const final;
+  inline bool HasBlock(const BlockRV& block_rv) const final;
   inline Array<StmtSRef> GetSRefs(const Array<BlockRV>& rvs) const;
   inline Array<StmtSRef> GetSRefs(const Array<LoopRV>& rvs) const;
   void RemoveRV(const BlockRV& block_rv) final { RemoveFromSymbolTable(block_rv); }
@@ -118,8 +119,14 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Block annotation ********/
   void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                     int offset) override;
+  void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
+  void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
+  void Annotate(const BlockRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const BlockRV& loop_rv, const String& ann_key) override;
+
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}
 
@@ -161,6 +168,13 @@ class ConcreteScheduleNode : public ScheduleNode {
   inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
+  /*!
+   * \brief Check the annotation value is valid and look up the random variable. Raises an exception
+   * if the type of the annotation value is not allowed.
+   * \param The annotation value.
+   * \return The annotation value with random variables substituted with their values.
+   */
+  ObjectRef CheckAndGetAnnotationValue(const ObjectRef& ann_val);
 };
 
 // implementations
@@ -190,6 +204,19 @@ inline PrimExpr ConcreteScheduleNode::Get(const ExprRV& expr_rv) const {
     return Integer(int_imm->value);
   });
   return this->analyzer_->Simplify(transformed);
+}
+
+inline bool ConcreteScheduleNode::HasBlock(const BlockRV& block_rv) const {
+  auto it = this->symbol_table_.find(block_rv);
+  if (it == this->symbol_table_.end()) {
+    return false;
+  }
+  const ObjectRef& obj = (*it).second;
+  const auto* sref = obj.as<StmtSRefNode>();
+  if (sref == nullptr || sref->stmt == nullptr) {
+    return false;
+  }
+  return true;
 }
 
 inline StmtSRef ConcreteScheduleNode::GetSRef(const BlockRV& block_rv) const {

@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <unordered_set>
 
+#include "../../tir/ir/functor_common.h"
 #include "../schedule/graph.h"
 
 namespace tvm {
@@ -144,7 +145,27 @@ BlockRealize GenerateBlockFromTensor(const te::ComputeOp& compute_op, const te::
   }
 
   // Step 6. Add script_parsing_detect_access attr for auto complete the whole IR.
-  Map<String, ObjectRef> annotations = compute_op->attrs;
+  Map<String, ObjectRef> annotations;
+  auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
+    if (const auto* tensor_value = value.as<te::TensorNode>()) {
+      return info->tensor2buffers.at(GetRef<te::Tensor>(tensor_value));
+    } else {
+      return value;
+    }
+  };
+
+  for (const auto& pair : compute_op->attrs) {
+    const String& key = pair.first;
+    const ObjectRef& value = pair.second;
+    // TensorIR will not allow Tensor data structure
+    if (value->IsInstance<ArrayNode>()) {
+      const auto array_value = Downcast<Array<ObjectRef>>(value);
+      annotations.Set(key, MutateArray(array_value, mutate_attr));
+    } else {
+      annotations.Set(key, mutate_attr(value));
+    }
+  }
+  // Set script_parsing_detect_access
   annotations.Set(tir::attr::script_parsing_detect_access, IntImm(DataType::Int(32), 3));
 
   // Step 7. Create Block and BlockRealize.
@@ -302,16 +323,15 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
     ICHECK(it != info.tensor2buffers.end());
     buffer_map.Set(arg, it->second);
   }
-  PrimFunc func = PrimFunc(/*params=*/std::move(parameters),
-                           /*body=*/SeqStmt::Flatten(root_stmts),
-                           /*ret_type=*/VoidType(),
-                           /*buffer_map=*/std::move(buffer_map));
-
+  PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),
+                                     /*body=*/SeqStmt::Flatten(root_stmts),
+                                     /*ret_type=*/VoidType(),
+                                     /*buffer_map=*/std::move(buffer_map)),
+                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
-
   return (*complete)(func, info.root_alloc);
-}  // namespace tir
+}
 
 PrimFunc CreatePrimFuncFromOutputs(const Array<te::Tensor>& outputs) {
   std::vector<te::Tensor> stack;

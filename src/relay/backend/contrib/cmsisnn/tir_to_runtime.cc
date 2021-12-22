@@ -101,8 +101,10 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
     int clip_max;
   };
 
+  using codegen::CodeGenCHost::VisitStmt_;
+
   /*!  * \brief Emits CMSIS-NN APIs for every call_extern */
-  void VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+  void VisitExpr_(const CallNode* op, std::ostream& os) final {
     if (!op->op.same_as(builtin::call_extern())) {
       CodeGenCHost::VisitExpr_(op, os);
       return;

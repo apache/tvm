@@ -329,9 +329,58 @@ void TracedScheduleNode::StorageAlign(const BlockRV& block_rv, int buffer_index,
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::SetScope(const BlockRV& block_rv, int buffer_index,
+                                  const String& storage_scope) {
+  ConcreteScheduleNode::SetScope(block_rv, buffer_index, storage_scope);
+  static const InstructionKind& kind = InstructionKind::Get("SetScope");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv},
+      /*attrs=*/{Integer(buffer_index), storage_scope},
+      /*outputs=*/{}));
+}
+
 /******** Schedule: Blockize & Tensorize ********/
 
 /******** Schedule: Annotation ********/
+
+void TracedScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
+                                  const ObjectRef& ann_val) {
+  ConcreteScheduleNode::Annotate(loop_rv, ann_key, ann_val);
+  static const InstructionKind& kind = InstructionKind::Get("Annotate");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv, ann_val},
+                                      /*attrs=*/{ann_key},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_key,
+                                  const ObjectRef& ann_val) {
+  ConcreteScheduleNode::Annotate(block_rv, ann_key, ann_val);
+  static const InstructionKind& kind = InstructionKind::Get("Annotate");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv, ann_val},
+                                      /*attrs=*/{ann_key},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Unannotate(const LoopRV& loop_rv, const String& ann_key) {
+  ConcreteScheduleNode::Unannotate(loop_rv, ann_key);
+  static const InstructionKind& kind = InstructionKind::Get("Unannotate");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{loop_rv},
+                                      /*attrs=*/{ann_key},
+                                      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_key) {
+  ConcreteScheduleNode::Unannotate(block_rv, ann_key);
+  static const InstructionKind& kind = InstructionKind::Get("Unannotate");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{ann_key},
+                                      /*outputs=*/{}));
+}
 
 /******** Schedule: Misc ********/
 

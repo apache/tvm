@@ -43,9 +43,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       for (auto id : node->storage_ids) {
         p->stream << id << ",";
       }
-      p->stream << "], se_scopes=[";
-      for (const auto& se_scope : node->se_scopes) {
-        p->stream << se_scope << ",";
+      p->stream << "], virtual_devices=[";
+      for (const auto& virtual_device : node->virtual_devices) {
+        p->stream << virtual_device << ",";
       }
       p->stream << "], storage_size_in_bytes=[";
       for (auto bytes : node->storage_sizes_in_bytes) {
@@ -54,13 +54,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "])";
     });
 
-StorageInfo::StorageInfo(std::vector<int64_t> storage_ids, std::vector<SEScope> se_scopes,
+StorageInfo::StorageInfo(std::vector<int64_t> storage_ids,
+                         std::vector<VirtualDevice> virtual_devices,
                          std::vector<int64_t> storage_sizes_in_bytes) {
-  ICHECK_EQ(storage_ids.size(), se_scopes.size());
+  ICHECK_EQ(storage_ids.size(), virtual_devices.size());
   ICHECK_EQ(storage_ids.size(), storage_sizes_in_bytes.size());
   auto node = make_object<StorageInfoNode>();
   node->storage_ids = std::move(storage_ids);
-  node->se_scopes = std::move(se_scopes);
+  node->virtual_devices = std::move(virtual_devices);
   node->storage_sizes_in_bytes = std::move(storage_sizes_in_bytes);
   data_ = std::move(node);
 }
@@ -74,17 +75,18 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfo")
       for (auto s : sids) {
         sids_v.push_back(s);
       }
-      std::vector<SEScope> se_scopes_v;
-      se_scopes_v.reserve(device_types.size());
+      std::vector<VirtualDevice> virtual_devices_v;
+      virtual_devices_v.reserve(device_types.size());
       for (const auto& device_type : device_types) {
-        se_scopes_v.emplace_back(SEScope::ForDeviceType(device_type));
+        virtual_devices_v.emplace_back(VirtualDevice::ForDeviceType(device_type));
       }
       std::vector<int64_t> size_in_bytes_v;
       size_in_bytes_v.reserve(sizes_in_bytes.size());
       for (auto s : sizes_in_bytes) {
         size_in_bytes_v.push_back(s);
       }
-      return StorageInfo(std::move(sids_v), std::move(se_scopes_v), std::move(size_in_bytes_v));
+      return StorageInfo(std::move(sids_v), std::move(virtual_devices_v),
+                         std::move(size_in_bytes_v));
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageInfo si) {
@@ -98,8 +100,8 @@ TVM_REGISTER_GLOBAL("relay.ir.StorageInfoStorageIds").set_body_typed([](StorageI
 // This is the legacy interface for devices as DLDeviceTypes (represented by integers)
 TVM_REGISTER_GLOBAL("relay.ir.StorageInfoDeviceTypes").set_body_typed([](StorageInfo si) {
   Array<tvm::Integer> device_types;
-  for (const auto& se_scope : si->se_scopes) {
-    device_types.push_back(se_scope->device_type());
+  for (const auto& virtual_device : si->virtual_devices) {
+    device_types.push_back(virtual_device->device_type());
   }
   return device_types;
 });
