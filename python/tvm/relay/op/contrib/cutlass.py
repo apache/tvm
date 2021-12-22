@@ -73,17 +73,17 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
     if with_act is not None:
         if with_act == "relu":
             return is_op("nn.relu")(conv2d_out)
-        elif with_act == "sigmoid":
+        if with_act == "sigmoid":
             return is_op("sigmoid")(conv2d_out)
-        elif with_act == "silu":
+        if with_act == "silu":
             return is_op("multiply")(conv2d_out, is_op("sigmoid")(conv2d_out))
-        elif with_act == "hardswish":
+        if with_act == "hardswish":
             rhs = is_op("divide")(
                 is_op("clip")(is_op("add")(conv2d_out, is_constant())), is_constant()
             )
             return is_op("multiply")(conv2d_out, rhs)
-        else:
-            raise ValueError("Unknown activation %s." % with_act)
+
+        raise ValueError("Unknown activation %s." % with_act)
 
     return conv2d_out
 
