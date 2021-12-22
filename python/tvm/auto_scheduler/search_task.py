@@ -543,7 +543,8 @@ class SearchTask(Object):
         code: str
             The best schedule code in python API or CUDA source code
         """
-        inp, _ = load_best_record(log_file, self.workload_key)
+        inp, res = load_best_record(log_file, self.workload_key)
+        print("Best codes (ms):", [float(c) * 1000.0 for c in res.costs])
         if inp is None:
             raise RuntimeError(
                 "Cannot find any valid schedule for %s in file %s" % (self.workload_key, log_file)
