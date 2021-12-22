@@ -27,6 +27,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/container/array.h>
 
+#include <numeric>
 #include <vector>
 
 namespace tvm {
@@ -121,14 +122,7 @@ inline std::size_t hash_vector(const std::vector<T>& vec) {
 
 template <class T>
 inline T mul_reduce(const std::vector<T>& vec) {
-  if (vec.size() == 0) {
-    return 0;
-  }
-  T v = vec[0];
-  for (unsigned int i = 1; i < vec.size(); i++) {
-    v *= vec[i];
-  }
-  return v;
+  return std::accumulate(vec.begin(), vec.end(), 1, std::multiplies<T>());
 }
 
 }  // namespace cascader

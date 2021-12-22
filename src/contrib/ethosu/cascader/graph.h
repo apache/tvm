@@ -69,7 +69,7 @@ class PerformanceInfoNode : public Object {
 };
 
 /*!
- * \brief An class to hold the performance information for a Part.
+ * \brief A class to hold the performance information for a Part.
  * \note The performance information for a Part is composed of 3 factors: the compute cycles,
  * the number of bytes read from each input tensor and the number of bytes written to the output
  * tensor. Bytes read/written is reported in favour of read/write bandwidth cycles so the
@@ -310,7 +310,7 @@ class CascaderGraph : public ObjectRef {
  public:
   CascaderGraph(std::vector<Tensor> input_tensors, std::vector<Tensor> output_tensors);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CascaderGraph, ObjectRef, CascaderGraphNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(CascaderGraph, ObjectRef, CascaderGraphNode);
 };
 
 }  // namespace cascader

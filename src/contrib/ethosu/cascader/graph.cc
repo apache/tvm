@@ -46,6 +46,16 @@ void PerformanceInfoNode::VisitAttrs(AttrVisitor* v) {
 
 TVM_REGISTER_NODE_TYPE(PerformanceInfoNode);
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<PerformanceInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const PerformanceInfoNode*>(ref.get());
+      p->stream << "PerformanceInfo(compute_cycles=" << node->compute_cycles << ", read_bytes=[";
+      for (auto rb : node->read_bytes) {
+        p->stream << rb << ", ";
+      }
+      p->stream << "], write_bytes=" << node->write_bytes << ")";
+    });
+
 void TensorNode::VisitAttrs(AttrVisitor* v) {
   Array<Integer> tmp_arr = make_array(shape_);
   v->Visit("_shape", &tmp_arr);

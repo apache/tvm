@@ -16,8 +16,6 @@
 # under the License.
 import pytest
 
-pytest.importorskip("ethosu.vela")
-
 from tvm.contrib.ethosu.cascader import (
     StripeConfig,
     Propagator,
