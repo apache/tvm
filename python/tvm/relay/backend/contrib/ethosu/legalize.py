@@ -624,9 +624,6 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[1] if params.reversed_operands else post.args[0]
         params.ifm2.tensor = post.args[0] if params.reversed_operands else post.args[1]
-        channels_map = {
-            "NHWC": 3,
-        }
 
         activation_map = {"clip": "CLIP"}
         if params.activation:
