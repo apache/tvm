@@ -139,13 +139,13 @@ class SpaceGenerator : public ObjectRef {
  public:
   /*!
    * \brief Create a design space generator with customized methods on the python-side.
-   * \param initialize_with_tune_context_func The packed function of `InitializeWithTuneContext`.
-   * \param generate_design_space_func The packed function of `GenerateDesignSpace`.
+   * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
+   * \param f_generate_design_space The packed function of `GenerateDesignSpace`.
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator PySpaceGenerator(
-      PySpaceGeneratorNode::FInitializeWithTuneContext initialize_with_tune_context_func,
-      PySpaceGeneratorNode::FGenerateDesignSpace generate_design_space_func);
+      PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
+      PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space);
 
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.

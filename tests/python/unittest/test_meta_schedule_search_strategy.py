@@ -81,11 +81,11 @@ def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disabl
     num_trials_total = 20
 
     strategy = TestClass(num_trials_per_iter=num_trials_per_iter, num_trials_total=num_trials_total)
-    tune_context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
-    tune_context.space_generator.initialize_with_tune_context(tune_context)
-    spaces = tune_context.space_generator.generate_design_space(tune_context.mod)
+    context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
+    context.space_generator.initialize_with_tune_context(context)
+    spaces = context.space_generator.generate_design_space(context.mod)
 
-    strategy.initialize_with_tune_context(tune_context)
+    strategy.initialize_with_tune_context(context)
     strategy.pre_tuning(spaces)
     (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
     num_trials_each_iter: List[int] = []
@@ -100,7 +100,7 @@ def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disabl
                 remove_decisions=(isinstance(strategy, ReplayTrace)),
             )
             runner_results.append(RunnerResult(run_secs=[0.11, 0.41, 0.54], error_msg=None))
-        strategy.notify_runner_results(tune_context, candidates, runner_results)
+        strategy.notify_runner_results(context, candidates, runner_results)
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [7, 7, 6]
