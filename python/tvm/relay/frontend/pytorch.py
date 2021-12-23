@@ -1736,14 +1736,19 @@ class PyTorchOpConverter:
             paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
             const_paddings = []
+            non_zero_found = False
             for pad in paddings:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
                         p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
+                    if p != 0:
+                        non_zero_found = True
 
-            if mode == "constant":
+            if not non_zero_found:
+                return data
+            elif mode == "constant":
                 return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
             else:
                 return _op.nn.pad(data, const_paddings, pad_mode=mode)

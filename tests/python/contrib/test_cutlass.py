@@ -138,27 +138,48 @@ def get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float16")
     return relay.sigmoid(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
 
 
-def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so"):
+def get_conv2d_nchw_bias_silu(d_shape, w_shape, padding, out_dtype="float16"):
+    conv_out = get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype)
+    return conv_out * relay.sigmoid(conv_out)
+
+
+def get_conv2d_nchw_bias_hardswish(d_shape, w_shape, padding, out_dtype="float16"):
+    conv2d_out = get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype)
+    return conv2d_out * (
+        relay.clip(conv2d_out + relay.const(3, dtype=out_dtype), a_min=0, a_max=6)
+        / relay.const(6, dtype=out_dtype)
+    )
+
+
+def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
-    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path)
+    lib = build_cutlass_kernels(lib, sm, tmp_dir, lib_path, use_fast_math=use_fast_math)
     dev = tvm.device("cuda", 0)
     rt_mod = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
     return rt_mod, dev, num_cutlass_partition
 
 
 def profile_and_build_vm(
-    mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro"
+    mod,
+    params,
+    sm,
+    tmp_dir="./tmp",
+    lib_path="compile.so",
+    vmcode_path="vmcode.ro",
+    use_fast_math=False,
 ):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(mod, sm, tmp_dir=tmp_dir)
     with tvm.transform.PassContext(opt_level=3):
         vm_exec = relay.vm.compile(mod, target="cuda", params=params)
-    vm_exec = build_cutlass_kernels_vm(vm_exec, sm, tmp_dir, lib_path, vmcode_path)
+    vm_exec = build_cutlass_kernels_vm(
+        vm_exec, sm, tmp_dir, lib_path, vmcode_path, use_fast_math=use_fast_math
+    )
     dev = tvm.device("cuda", 0)
     return VirtualMachine(vm_exec, dev), dev, num_cutlass_partition
 
@@ -335,6 +356,7 @@ def verify_conv2d(
     rtol=1e-5,
     use_cudnn_ref=False,
     run_benchmark=False,
+    use_fast_math=False,
 ):
     if not has_cutlass():
         return
@@ -357,13 +379,13 @@ def verify_conv2d(
     mod_weight_ohwi = convert_conv2d_layout(mod_nchw, {"nn.conv2d": ["NHWC", "OHWI"]})
 
     if use_vm:
-        rt_mod, _, num_cutlass_partition = profile_and_build_vm(mod_weight_ohwi, params, sm)
+        rt_mod, _, num_cutlass_partition = profile_and_build_vm(
+            mod_weight_ohwi, params, sm, use_fast_math=use_fast_math
+        )
         out = get_output_vm(rt_mod, ["data"], [np_data])
     else:
         rt_mod, _, num_cutlass_partition = profile_and_build(
-            mod_weight_ohwi,
-            params,
-            sm,
+            mod_weight_ohwi, params, sm, use_fast_math=use_fast_math
         )
         out = get_output(rt_mod, ["data"], [np_data])
 
@@ -438,7 +460,33 @@ def test_conv2d_fusion():
         mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
 
+    mod_nchw = get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float16")
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+    verify_conv2d(
+        mod_nchw,
+        mod_nchw,
+        d_shape,
+        w_shape,
+        sm=80,
+        atol=1e-3,
+        rtol=1e-3,
+        run_benchmark=False,
+        use_fast_math=True,
+    )
+
     mod_nchw = get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float32")
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_silu(d_shape, w_shape, padding, out_dtype="float32")
+    verify_conv2d(
+        mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
+
+    mod_nchw = get_conv2d_nchw_bias_hardswish(d_shape, w_shape, padding, out_dtype="float16")
     verify_conv2d(
         mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
