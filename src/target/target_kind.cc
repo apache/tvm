@@ -400,10 +400,20 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
+    .add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 
+TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
+    .set_body_typed([](TargetKind kind, String attr_name) -> TVMRetValue {
+      auto target_attr_map = TargetKind::GetAttrMap<TVMRetValue>(attr_name);
+      TVMRetValue rv;
+      if (target_attr_map.count(kind)) {
+        rv = target_attr_map[kind];
+      }
+      return rv;
+    });
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
 TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
     .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
