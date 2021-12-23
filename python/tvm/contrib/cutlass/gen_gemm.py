@@ -37,7 +37,10 @@ def create_gemm_operator_with_epilogue(
     swizzling_functor,
     batched=False,
 ):
-    """TODO"""
+    """
+    Instantiate a cutlass kernel from the given configuration,
+    along with the epilouge functor
+    """
     element_a, element_b, element_c, element_epilogue = data_type
 
     A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
@@ -174,7 +177,10 @@ class CutlassGemmProfiler:
         return op
 
     def select_op(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
-        """TODO"""
+        """
+        Profile and select the best kernel from candidate kernels.
+        See the documentation for the profile method below.
+        """
         if (M, N, K) in self.cache:
             op = self.cache[(M, N, K)]
             return op

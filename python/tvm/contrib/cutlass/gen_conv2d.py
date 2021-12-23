@@ -35,7 +35,10 @@ from .library import (
 def create_conv2d_operator_with_epilogue(
     op_type, tile_description, data_type, alignment, swizzling_functor
 ):
-    """TODO"""
+    """
+    Instantiate a cutlass kernel from the given configuration,
+    along with the epilouge functor
+    """
     epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
 
     element_a, element_b, element_c, element_epilogue = data_type
@@ -151,7 +154,10 @@ class CutlassConv2DProfiler:
         profile_all=True,
         use_multiprocessing=False,
     ):
-        """TODO"""
+        """
+        Profile and select the best kernel from candidate kernels.
+        See the documentation for the profile method below.
+        """
         N, H, W, IC = d_shape
         OC, R, S, _ = w_shape
         workload = (

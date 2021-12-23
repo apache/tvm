@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
-from functools import partial
 from tvm import relay
 from tvm.ir.transform import Sequential, PassContext
 from tvm.relay import transform
