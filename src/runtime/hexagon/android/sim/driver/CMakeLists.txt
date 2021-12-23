@@ -56,7 +56,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${EXTRA_LINK_FLAGS_STR} ${CMAKE_EXE_LINKER_FLAGS}")
 
 # Set project properties.
 
-file(GLOB SOURCE_FILES "*.cc")
+tvm_file_glob(GLOB SOURCE_FILES "*.cc")
 add_executable(sim_dev ${SOURCE_FILES})
 target_include_directories(sim_dev
   PUBLIC "."
