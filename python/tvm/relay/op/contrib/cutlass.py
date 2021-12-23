@@ -217,7 +217,6 @@ def partition_for_cutlass(mod, params=None):
     seq = Sequential(
         [
             transform.InferType(),
-            transform.SimplifyExpr(),
             transform.MergeComposite(cutlass_patterns),
             transform.AnnotateTarget(["cutlass"], include_non_call_ops=False),
             transform.PartitionGraph(bind_constants=False),
