@@ -40,7 +40,7 @@ def _get_cutlass_path():
     return cutlass_path
 
 
-def _get_cutlass_compile_options(sm, threads):
+def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_root = _get_cutlass_path()
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
@@ -58,6 +58,8 @@ def _get_cutlass_compile_options(sm, threads):
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
     ]
+    if use_fast_math:
+        kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_path = find_cuda_path()
     cuda_ver = get_cuda_version(cuda_path)
     if cuda_ver >= 11.2:
@@ -222,6 +224,10 @@ def handle_conv2d(
         cutlass_op_def = out["opdef_bias_relu"]
     elif op_type == "cutlass.conv2d_bias_sigmoid":
         cutlass_op_def = out["opdef_bias_sigmoid"]
+    elif op_type == "cutlass.conv2d_bias_silu":
+        cutlass_op_def = out["opdef_bias_silu"]
+    elif op_type == "cutlass.conv2d_bias_hardswish":
+        cutlass_op_def = out["opdef_bias_hardswish"]
     else:
         raise ValueError("%s pattern is not implemented." % op_type)
 
@@ -339,7 +345,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     return mod, num_cutlass_partition
 
 
-def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threads=-1):
+def build_cutlass_kernels(
+    lib, sm, tmp_dir="./tmp", lib_path="compile.so", threads=-1, use_fast_math=False
+):
     """Compile CUTLASS kernels in lib and return the runtime module ready to run.
 
     Parameters
@@ -361,18 +369,27 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threa
         The number of threads to use for compiling generated kernels. Only available for
         CUDA 11.2 or later. Use all physical cores by default.
 
+    use_fast_math : bool, optional
+        Whether or not to use faster but less accurate math intrinsics.
+
     Returns
     -------
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    kwargs = _get_cutlass_compile_options(sm, threads)
+    kwargs = _get_cutlass_compile_options(sm, threads, use_fast_math)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)
 
 
 def build_cutlass_kernels_vm(
-    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro", threads=-1
+    vm_exec,
+    sm,
+    tmp_dir="./tmp",
+    lib_path="compile.so",
+    vmcode_path="vmcode.ro",
+    threads=-1,
+    use_fast_math=False,
 ):
     """Compile CUTLASS kernels in vm_exec and return a VM executable ready to run.
 
@@ -398,13 +415,16 @@ def build_cutlass_kernels_vm(
         The number of threads to use for compiling generated kernels. Only available for
         CUDA 11.2 or later. Use all physical cores by default.
 
+    use_fast_math : bool, optional
+        Whether or not to use faster but less accurate math intrinsics.
+
     Returns
     -------
     updated_vm_exec: vm.Executable
         The updated exectuable with compiled cutlass kernels.
     """
     code, lib = vm_exec.save()
-    kwargs = _get_cutlass_compile_options(sm, threads)
+    kwargs = _get_cutlass_compile_options(sm, threads, use_fast_math)
     lib_path = os.path.join(tmp_dir, lib_path)
     vmcode_path = os.path.join(tmp_dir, vmcode_path)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)

@@ -289,6 +289,11 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "cast: expect input type to be TupleType but get " << types[0];
     return false;
   }
+  for (auto field : tensor_tuple->fields) {
+    if (field.as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
   const int ndim = static_cast<int>(first->shape.size());
