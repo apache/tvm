@@ -186,6 +186,21 @@ class Target(Object):
     def libs(self):
         return list(self.attrs.get("libs", []))
 
+    def get_kind_attr(self, attr_name):
+        """Get additional attribute about the target kind.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name.
+
+        Returns
+        -------
+        value : object
+            The attribute value
+        """
+        return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
+
     @staticmethod
     def list_kinds():
         """Returns the list of available target names."""
