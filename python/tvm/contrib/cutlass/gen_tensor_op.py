@@ -168,18 +168,18 @@ GENERATOR_FUNC_TABLE = {
 
 # (Epilogue functor name, no_beta_scaling)
 EPILOGUE_MAP = {
-    "cutlass.dense": (EpilogueFunctor.LinearCombination, True),
+    "cutlass.dense": (EpilogueFunctor.LinearCombination, False),
     "cutlass.dense_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.dense_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
     "cutlass.dense_bias_gelu_fp16": (EpilogueFunctor.LinearCombinationGelu, False),
     "cutlass.dense_bias_gelu_fp32": (EpilogueFunctor.LinearCombinationGelu, False),
-    "cutlass.batch_matmul": (EpilogueFunctor.LinearCombination, True),
+    "cutlass.batch_matmul": (EpilogueFunctor.LinearCombination, False),
     "cutlass.conv2d_bias_hardswish": (EpilogueFunctor.LinearCombinationHardSwish, False),
     "cutlass.conv2d_bias_silu": (EpilogueFunctor.LinearCombinationSilu, False),
     "cutlass.conv2d_bias_sigmoid": (EpilogueFunctor.LinearCombinationSigmoid, False),
     "cutlass.conv2d_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
     "cutlass.conv2d_bias": (EpilogueFunctor.LinearCombinationBias, True),
-    "cutlass.conv2d": (EpilogueFunctor.LinearCombination, True),
+    "cutlass.conv2d": (EpilogueFunctor.LinearCombination, False),
 }
 
 
