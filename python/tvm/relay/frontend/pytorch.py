@@ -23,6 +23,7 @@ import functools
 import itertools
 import math
 import sys
+import logging
 
 import numpy as np
 import tvm
