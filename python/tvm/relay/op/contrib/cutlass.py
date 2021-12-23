@@ -176,16 +176,6 @@ def partition_for_cutlass(mod, params=None):
             check_conv2d,
         ),
         (
-            "cutlass.conv2d_bias_hardswish",
-            make_conv2d_pattern(with_bias=True, with_act="hardswish"),
-            check_conv2d,
-        ),
-        (
-            "cutlass.conv2d_bias_silu",
-            make_conv2d_pattern(with_bias=True, with_act="silu"),
-            check_conv2d,
-        ),
-        (
             "cutlass.conv2d_bias_relu",
             make_conv2d_pattern(with_bias=True, with_act="relu"),
             check_conv2d,
