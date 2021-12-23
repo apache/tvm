@@ -76,7 +76,7 @@ def add_compile_parser(subparsers, _):
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
+        help="output the compiled module to a specified archive. Defaults to 'module.tar'.",
     )
     parser.add_argument(
         "-f",

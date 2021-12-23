@@ -43,6 +43,23 @@ def rocm_func(data):
     return data + 10
 
 
+def test_all_targets_device_type_verify():
+    """Consistency verification for all targets' device type"""
+    all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
+
+    for tgt in all_targets:
+        # skip target hook
+        relay_to_tir = tgt.get_kind_attr("RelayToTIR")
+        tir_to_runtime = tgt.get_kind_attr("TIRToRuntime")
+        if relay_to_tir is not None or tir_to_runtime is not None:
+            continue
+
+        if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
+            raise KeyError("Cannot find target kind: %s in Device.STR2MASK" % tgt.kind.name)
+
+        assert tgt.kind.device_type == tvm._ffi.runtime_ctypes.Device.STR2MASK[tgt.kind.name]
+
+
 def test_target_dispatch():
     with tvm.target.cuda():
         assert mygeneric(1) == 3
