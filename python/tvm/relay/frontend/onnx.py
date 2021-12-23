@@ -707,7 +707,8 @@ class Gemm(OnnxOpConverter):
         assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
             len(inputs)
         )
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        input0_state = infer_type(inputs[0])
+        dtype = input0_state.checked_type.dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -719,7 +720,7 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
-        if len(infer_type(inputs[0]).checked_type.shape) != 2:
+        if len(input0_state.checked_type.shape) != 2:
             inputs[0] = _op.nn.batch_flatten(inputs[0])
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha, dtype=dtype)
