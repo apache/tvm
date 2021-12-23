@@ -67,22 +67,39 @@ def _register_external_op_helper(op_name, supported=True):
 
 
 _register_external_op_helper("nn.batch_norm")
+_register_external_op_helper("nn.conv1d")
 _register_external_op_helper("nn.conv2d")
+_register_external_op_helper("nn.conv3d")
+_register_external_op_helper("nn.conv2d_transpose")
+_register_external_op_helper("nn.conv3d_transpose")
 _register_external_op_helper("nn.dense")
+_register_external_op_helper("nn.max_pool2d")
+_register_external_op_helper("nn.avg_pool2d")
+_register_external_op_helper("nn.max_pool3d")
+_register_external_op_helper("nn.avg_pool3d")
+_register_external_op_helper("abs")
+_register_external_op_helper("clip")
+_register_external_op_helper("exp")
+_register_external_op_helper("log")
+_register_external_op_helper("sqrt")
+_register_external_op_helper("round")
+_register_external_op_helper("logsumexp")
 _register_external_op_helper("nn.relu")
+_register_external_op_helper("nn.leaky_relu")
 _register_external_op_helper("tanh")
 _register_external_op_helper("sigmoid")
+_register_external_op_helper("nn.softmax")
 _register_external_op_helper("add")
 _register_external_op_helper("multiply")
 
 
-def make_conv_pattern(with_bias=True, with_eltwise=None):
-    """Create patterns related to nn.conv2d.
+def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
+    """Create patterns related to conv and deconv.
 
     Parameters
     ----------
     with_bias : bool
-        Whether attach `bias_add` to `nn.conv2d`.
+        Whether attach `bias_add` to `conv / deconv`.
     with_eltwise : str
         The attached elementwise post-op name.
     Returns
@@ -93,7 +110,7 @@ def make_conv_pattern(with_bias=True, with_eltwise=None):
     data = wildcard()
     weight = wildcard()
     bias = wildcard()
-    conv = is_op("nn.conv2d")(data, weight)
+    conv = is_op(conv_name)(data, weight)
     if with_bias:
         conv_out = is_op("add")(conv, bias)
     else:
@@ -146,15 +163,19 @@ def make_dnnl_pattern(op, with_bias, with_eltwise):
     pattern : Tuple(pattern_name, CallPattern)
         Created pattern name, along with its CallPattern.
     """
-    pat_name = "dnnl." + op
+    pat_name = op.replace("nn", "dnnl")
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
-    if op == "conv2d":
-        dnnl_pattern = (pat_name, make_conv_pattern(with_bias, with_eltwise))
-    elif op == "dense":
+    if "conv" in op:
+        dnnl_pattern = (pat_name, make_conv_pattern(op, with_bias, with_eltwise))
+    elif op == "nn.dense":
         dnnl_pattern = (pat_name, make_dense_pattern(with_bias, with_eltwise))
     else:
-        logger.warning("Currently, only conv2d and dense op are supported, but got %s.", op)
+        logger.warning(
+            "Currently, only conv1d, conv2d, conv2d_transpose, conv3d_transpose and "
+            "dense op are supported, but got %s.",
+            op,
+        )
         dnnl_pattern = ()
     return dnnl_pattern
 
@@ -174,8 +195,15 @@ def pattern_table():
         for elt in elt_list:
             if not with_bias and not elt:
                 return dnnl_patterns
-            dnnl_patterns.append(make_dnnl_pattern("conv2d", with_bias, elt))
-            dnnl_patterns.append(make_dnnl_pattern("dense", with_bias, elt))
+            for conv_name in [
+                "nn.conv1d",
+                "nn.conv2d",
+                "nn.conv3d",
+                "nn.conv2d_transpose",
+                "nn.conv3d_transpose",
+            ]:
+                dnnl_patterns.append(make_dnnl_pattern(conv_name, with_bias, elt))
+            dnnl_patterns.append(make_dnnl_pattern("nn.dense", with_bias, elt))
     return dnnl_patterns
 
 

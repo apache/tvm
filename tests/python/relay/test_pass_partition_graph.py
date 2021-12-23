@@ -925,7 +925,13 @@ def test_dnnl_fuse():
         conv2d_bias_pat,
         conv2d_relu_pat,
         conv2d_sigmoid_pat,
-    ) = (dnnl_patterns[0], dnnl_patterns[4], dnnl_patterns[6], dnnl_patterns[8], dnnl_patterns[12])
+    ) = (
+        dnnl_patterns[1],
+        dnnl_patterns[13],
+        dnnl_patterns[19],
+        dnnl_patterns[25],
+        dnnl_patterns[37],
+    )
 
     def get_blocks(
         prefix,
@@ -1033,8 +1039,8 @@ def test_dnnl_fuse():
     def test_partition_mobilenet():
         mod, params = relay.testing.mobilenet.get_workload()
         mod = get_partitoned_mod(mod, params, dnnl_patterns)
-        # 27 fused conv + bn + relu and one dense
-        assert len(mod.functions) - 1 == 28  # -1 for main
+        # 27 fused conv + bn + relu, one dense and one softmax
+        assert len(mod.functions) - 1 == 29  # -1 for main
 
     def test_exec(mod, params, ref_mod, ref_params, out_shape):
         ishape = (1, 3, 224, 224)
