@@ -100,6 +100,9 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
     else:
         arg_names = argspec.args
+        # if there are fewer args than out dimensions, the remaining dimensions
+        # are implicitly broadcast
+        out_ndim = len(arg_names)
     assert argspec.varkw is None, "Variable keyword arguments not supported in fcompute"
     assert argspec.defaults is None, "Default arguments not supported in fcompute"
     assert len(argspec.kwonlyargs) == 0, "Keyword arguments are not supported in fcompute"
