@@ -362,7 +362,8 @@ class IterMapRewriter : public ExprMutator {
   // input iter marks
   std::vector<IterMark> input_marks_;
   // The map for sum that maps flattened form to IterMark with normal form and extent (and possibly
-  // an extra offset) Example(1): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
+  // an extra offset)
+  // Example(1): expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
   //          predicate: j*2 + k < 9
   // Then,    flattened form = IterSum(IterSplit(i, scale=9),
   //                                   IterSplit(j, scale=2),
