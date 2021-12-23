@@ -20,6 +20,7 @@
 #define TVM_META_SCHEDULE_TUNE_CONTEXT_H_
 
 #include <tvm/ir/module.h>
+#include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
