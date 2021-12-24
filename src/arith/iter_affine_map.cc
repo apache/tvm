@@ -595,7 +595,6 @@ class IterMapRewriter : public ExprMutator {
   Optional<IterSumExpr> TryFuseIters(IterSumExpr expr) {
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
-    size_t num_visited = 0;
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
     // canonicalize the expression into two different forms: flattened form and structured form
     // step0. check if find the base scale first
@@ -648,7 +647,6 @@ class IterMapRewriter : public ExprMutator {
         // Example: expr = i*9 + j*2 + k, i in [0, 4) j in [0, 5) k in [0, 2)
         //          predicate = j*2 + k < 9
         //          then j*2 + k matches the lower two splits of expr
-        bool match_constraint_suffix = false;
         for (auto it = constraint_to_match.value()->args.rbegin();
              it != constraint_to_match.value()->args.rend(); ++it) {
           size_t k = 0;
@@ -659,31 +657,13 @@ class IterMapRewriter : public ExprMutator {
             }
           }
           if (k == expr->args.size()) {
-            if (i == 0 && num_visited == visited.size()) {
-              // if match failed because of iterations are used out instead of scale mismatch,
-              // and all used iters are visited during current match round, fallback to skip the
-              // constraint. Example: exprs = [i * 2 + j, k], i in [0, 3), j in [0, 2), k in [0, 4)
-              //          predicate = i * 8 + j * 4 + k < 10
-              ICHECK_EQ(flattened_iters.size(), num_visited);
-              for (size_t l = 0; l < flattened_iters.size(); ++l) {
-                grouped_iters.push_back(flattened_iters[l]);
-                expected_scale *= flattened_iters[l]->extent;
-              }
-              match_constraint_suffix = true;
-              break;
-            }
             diag_ctx_.Emit(Diagnostic::Error(expr->span)
                            << "Fuse iters failed, can not find flattened iter match constraint "
                            << constraint_to_match.value());
             return NullOpt;
           }
           visited[k] = true;
-          num_visited += 1;
           flattened_iters.push_back(expr->args[k]);
-        }
-        if (match_constraint_suffix) {
-          // all iters are used to match the constraint, but only a suffix is matched.
-          break;
         }
         auto iter = sum_fuse_map_.find(constraint_to_match.value());
         ICHECK(iter != sum_fuse_map_.end());
@@ -696,7 +676,6 @@ class IterMapRewriter : public ExprMutator {
       } else {
         // constraint_to_match not found, skip this iterator
         visited[j] = true;
-        num_visited += 1;
         flattened_iters.push_back(expr->args[j]);
         grouped_iters.push_back(expr->args[j]);
         expected_scale *= expr->args[j]->extent;

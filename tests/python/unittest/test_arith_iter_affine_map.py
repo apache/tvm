@@ -247,24 +247,21 @@ def test_predicate():
     res = tvm.arith.detect_iter_map([i], var_dom([(i, 48)]), tvm.tir.all(i < 10))
     assert_iter_sum_pattern(res[0], 10, 0)
 
-    # iterations are subparts of constraint, case 1
+    # iterations are subparts of constraint, invalid, case 1
     res = tvm.arith.detect_iter_map(
         [i, j, k],
         var_dom([(i, 128), (j, 128), (k, 128)]),
         tvm.tir.all(i * 16384 + j * 128 + k < 100),
     )
-    assert_iter_sum_pattern(res[0], 128, 0)
-    assert_iter_sum_pattern(res[1], 128, 0)
-    assert_iter_sum_pattern(res[2], 128, 0)
+    assert len(res) == 0
 
-    # iterations are subparts of constraint, case 2
+    # iterations are subparts of constraint, invalid, case 2
     res = tvm.arith.detect_iter_map(
         [i * 128 + j, k],
         var_dom([(i, 128), (j, 128), (k, 128)]),
         tvm.tir.all(i * 16384 + j * 128 + k < 100),
     )
-    assert_iter_sum_pattern(res[0], 16384, 0)
-    assert_iter_sum_pattern(res[1], 128, 0)
+    assert len(res) == 0
 
     # constraint on nested fused iters
     res = tvm.arith.detect_iter_map(

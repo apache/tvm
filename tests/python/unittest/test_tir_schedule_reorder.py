@@ -217,9 +217,8 @@ def test_reorder_with_predicate():
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
     block_b = sch.get_block("B")
     i, j, k, l = sch.get_loops(block_b)
-    sch.reorder(l, i)
-    tvm.ir.assert_structural_equal(elementwise_reordered_with_predicate, sch.mod["main"])
-    verify_trace_roundtrip(sch=sch, mod=elementwise_predicate)
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.reorder(l, i)
 
 
 def test_reorder_fail_with_multi_appearance_loops():
