@@ -16,6 +16,8 @@
 # under the License.
 import tvm
 from tvm import te
+from tvm import tir
+from tvm.ir.base import structural_equal
 
 
 class IntSetChecker:
@@ -233,6 +235,90 @@ def test_region_lower_bound_negative_scale():
     assert int_set_1.max_value.value == 35
 
 
+def test_region_lower_bound_for_non_perfect_tile():
+    h1 = tvm.tir.Var("h1", "int32")
+    h2 = tvm.tir.Var("h2", "int32")
+    h3 = tvm.tir.Var("h3", "int32")
+    analyzer = tvm.arith.Analyzer()
+
+    def do_test_point_access(point, predicates, var_dom, expect):
+        regions = tvm.arith.estimate_region_lower_bound(
+            region=[
+                tvm.ir.Range.from_min_extent(min_value=point, extent=1),
+            ],
+            var_dom=var_dom,
+            predicate=tvm.tir.all(*predicates),
+        )
+        if expect is None:  # expect a failure
+            assert regions is None
+        else:
+            assert len(regions) == 1
+            for binding, expect_min, expect_max in expect:
+                min_diff = expect_min - regions[0].min_value
+                assert analyzer.simplify(tir.stmt_functor.substitute(min_diff, binding), 3) == 0
+                max_diff = expect_max - regions[0].max_value
+                assert analyzer.simplify(tir.stmt_functor.substitute(max_diff, binding), 3) == 0
+
+    # non-uniform tiling, single inner variable
+    # h3 == 0: region is [1, 9]
+    # 0 < h3 <= 26: region is [h3 * 8, h3 * 8 + 9]
+    # h3 > 26: region is [h3 * 8, 223]
+    do_test_point_access(
+        point=h3 * 8 + h2,
+        predicates=[1 <= h3 * 8 + h2, h3 * 8 + h2 < 224],
+        var_dom={
+            h2: tvm.ir.Range(begin=0, end=10),
+        },
+        expect=[
+            (
+                {},
+                tvm.tir.max(h3 * 8, 1),
+                tvm.tir.max(h3 * 8, 1)
+                - tvm.tir.max(h3 * 8, 214)
+                - tvm.tir.max(1 - h3 * 8, 0)
+                + 223,
+            ),
+            ({h3: 0}, 1, 9),
+            ({h3: 10}, h3 * 8, h3 * 8 + 9),
+            ({h3: 27}, h3 * 8, 223),
+        ],
+    )
+
+    # non-uniform tiling, two inner variables
+    do_test_point_access(
+        point=h3 * 8 + h2 * 5 + h1,
+        predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h2 * 5 + h1 < 224],
+        var_dom={
+            h2: tvm.ir.Range(begin=0, end=2),
+            h1: tvm.ir.Range(begin=0, end=5),
+        },
+        expect=[
+            (
+                {},
+                tvm.tir.max(h3 * 8, 1),
+                tvm.tir.max(h3 * 8, 1)
+                - tvm.tir.max(h3 * 8, 214)
+                - tvm.tir.max(1 - h3 * 8, 0)
+                + 223,
+            ),
+            ({h3: 0}, 1, 9),
+            ({h3: 10}, h3 * 8, h3 * 8 + 9),
+            ({h3: 27}, h3 * 8, 223),
+        ],
+    )
+
+    # should fail on incompatible predicates
+    do_test_point_access(
+        point=h3 * 8 + h2 * 5 + h1,
+        predicates=[1 <= h3 * 8 + h2 * 5 + h1, h3 * 8 + h1 * 2 + h2 < 224],
+        var_dom={
+            h2: tvm.ir.Range(begin=0, end=2),
+            h1: tvm.ir.Range(begin=0, end=5),
+        },
+        expect=None,
+    )
+
+
 def test_union_lower_bound():
     neg_inf = tvm.arith.int_set.neg_inf()
     pos_inf = tvm.arith.int_set.pos_inf()
@@ -257,4 +343,5 @@ if __name__ == "__main__":
     test_region_lower_bound_split_predicate()
     test_region_lower_bound_multiple_variables()
     test_region_lower_bound_negative_scale()
+    test_region_lower_bound_for_non_perfect_tile()
     test_union_lower_bound()
