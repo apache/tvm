@@ -314,6 +314,45 @@ def warp_memory_negative(a: T.handle, c: T.handle) -> None:
                         C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 
+@T.prim_func
+def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
+    X = T.match_buffer(a, [224, 224], dtype="float32")
+    Y = T.match_buffer(b, [224, 224], dtype="float32")
+    cache = T.alloc_buffer([224, 224], dtype="float32")
+    for hh_0, ww_0 in T.grid(28, 28):
+        for ax0 in T.serial(0, 10):
+            for ax1 in T.serial(0, 10):
+                with T.block("cache"):
+                    h = T.axis.spatial(224, hh_0 * 8 - 1 + ax0)
+                    w = T.axis.spatial(224, ww_0 * 8 - 1 + ax1)
+                    T.where(
+                        1 <= hh_0 * 8 + ax0
+                        and hh_0 * 8 + ax0 < 225
+                        and 1 <= ww_0 * 8 + ax1
+                        and ww_0 * 8 + ax1 < 225
+                    )
+                    cache[h, w] = X[h, w]
+        for hh_1, ww_1, khh, kww in T.grid(8, 8, 3, 3):
+            with T.block("compute"):
+                h = T.axis.spatial(224, hh_0 * 8 + hh_1)
+                w = T.axis.spatial(224, ww_0 * 8 + ww_1)
+                kh, kw = T.axis.remap("RR", [khh, kww])
+                with T.init():
+                    Y[h, w] = 0.0
+                Y[h, w] = T.max(
+                    Y[h, w],
+                    T.if_then_else(
+                        T.likely(1 <= h + kh, dtype="bool")
+                        and T.likely(h + kh < 225, dtype="bool")
+                        and T.likely(1 <= w + kw, dtype="bool")
+                        and T.likely(w + kw < 225, dtype="bool"),
+                        cache[h + kh - 1, w + kw - 1],
+                        0.0,
+                        dtype="float32",
+                    ),
+                )
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -695,6 +734,22 @@ def test_warp_memory_negative():
         stage_pipeline=True,
     )
     assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
+        affine_binding=True,
+        region_cover=False,
+        stage_pipeline=True,
+    )
+    # pylint: enable=protected-access
+
+
+def test_non_perfect_tiling_cache():
+    s = tir.ScheduleState(non_perfect_tiling_cache, debug_mask="all")
+    # pylint: disable=protected-access
+    assert s._get_cached_flags(_get_block(s, "cache")) == CachedFlags(
+        affine_binding=False,
+        region_cover=True,
+        stage_pipeline=True,
+    )
+    assert s._get_cached_flags(_get_block(s, "compute")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
