@@ -546,7 +546,7 @@ class Schedule(Object):
             Potential inputs are:
             - None
             - ExprRV
-            - Non-negative constant integers
+            - Positive constant integers
 
         Returns
         -------

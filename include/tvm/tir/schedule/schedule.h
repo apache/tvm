@@ -268,8 +268,8 @@ class ScheduleNode : public runtime::Object {
    * 1) The loop can't have annotation or thread binding.
    * 2) The loop must start with 0.
    * \param loop_rv The loop to be split
-   * \param factors The tiling factors, and at most one of which is -1, which means that
-   * factor is inferred.
+   * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
+   * that factor is inferred.
    * \return The new loops after split
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
