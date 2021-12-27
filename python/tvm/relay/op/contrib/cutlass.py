@@ -75,6 +75,15 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
             return is_op("nn.relu")(conv2d_out)
         if with_act == "sigmoid":
             return is_op("sigmoid")(conv2d_out)
+        if with_act == "silu":
+            return is_op("multiply")(conv2d_out, is_op("sigmoid")(conv2d_out))
+        if with_act == "hardswish":
+            rhs = is_op("divide")(
+                is_op("clip")(is_op("add")(conv2d_out, is_constant())), is_constant()
+            )
+            return is_op("multiply")(conv2d_out, rhs)
+
+        raise ValueError("Unknown activation %s." % with_act)
 
     return conv2d_out
 
@@ -150,6 +159,16 @@ def partition_for_cutlass(mod, params=None):
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern(), check_batch_matmul),
         (
+            "cutlass.conv2d_bias_hardswish",
+            make_conv2d_pattern(with_bias=True, with_act="hardswish"),
+            check_conv2d,
+        ),
+        (
+            "cutlass.conv2d_bias_silu",
+            make_conv2d_pattern(with_bias=True, with_act="silu"),
+            check_conv2d,
+        ),
+        (
             "cutlass.conv2d_bias_relu",
             make_conv2d_pattern(with_bias=True, with_act="relu"),
             check_conv2d,
@@ -180,7 +199,7 @@ def partition_for_cutlass(mod, params=None):
         [
             transform.InferType(),
             transform.MergeComposite(cutlass_patterns),
-            transform.AnnotateTarget(["cutlass"]),
+            transform.AnnotateTarget(["cutlass"], include_non_call_ops=False),
             transform.PartitionGraph(bind_constants=False),
         ]
     )

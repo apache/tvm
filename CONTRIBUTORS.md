@@ -105,6 +105,7 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005

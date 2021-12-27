@@ -239,15 +239,17 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
   /*!
-   * \brief Get the producer of a specific block
+   * \brief Get the producer of a specific block, under the same block scope
    * \param block_rv The block in the query
-   * \return A list of blocks, the producers of the given block
+   * \return A list of blocks, the producers of the given block under the same scope of the given
+   * block
    */
   virtual Array<BlockRV> GetProducers(const BlockRV& block_rv) = 0;
   /*!
-   * \brief Get the consumers of a specific block
+   * \brief Get the consumers of a specific block, under the same block scope
    * \param block_rv The block to be queried
-   * \return A list of blocks, the consumers of the given block
+   * \return A list of blocks, the consumers of the given block under the same scope of the given
+   * block
    */
   virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
   /******** Schedule: Transform loops ********/
@@ -266,8 +268,8 @@ class ScheduleNode : public runtime::Object {
    * 1) The loop can't have annotation or thread binding.
    * 2) The loop must start with 0.
    * \param loop_rv The loop to be split
-   * \param factors The tiling factors, and at most one of which is -1, which means that
-   * factor is inferred.
+   * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
+   * that factor is inferred.
    * \return The new loops after split
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;

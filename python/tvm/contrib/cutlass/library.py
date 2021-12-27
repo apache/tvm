@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,line-too-long
 """Various type definitions to help instantiate CUTLASS kernels."""
 import re
 import enum
@@ -149,6 +149,8 @@ class EpilogueFunctor(enum.Enum):
     LinearCombinationBias = enum_auto()
     LinearCombinationGelu = enum_auto()
     LinearCombinationSigmoid = enum_auto()
+    LinearCombinationSilu = enum_auto()
+    LinearCombinationHardSwish = enum_auto()
 
 
 EpilogueFunctorTag = {
@@ -157,6 +159,8 @@ EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombination",
     EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
     EpilogueFunctor.LinearCombinationSigmoid: "cutlass::epilogue::thread::LinearCombinationSigmoid",
+    EpilogueFunctor.LinearCombinationSilu: "cutlass::epilogue::thread::LinearCombinationSilu",
+    EpilogueFunctor.LinearCombinationHardSwish: "cutlass::epilogue::thread::LinearCombinationHardSwish",
 }
 
 
