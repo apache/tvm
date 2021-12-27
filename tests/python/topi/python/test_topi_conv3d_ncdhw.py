@@ -202,8 +202,8 @@ def test_conv3d_ncdhw():
     # DHW kernel layout
     verify_conv3d_ncdhw(1, 32, 56, 16, (3, 5, 7), 2, (1, 2, 3))
     verify_conv3d_ncdhw(1, 3, 56, 16, (3, 7, 7), 2, (1, 2, 3, 0, 3, 2))
-    verify_conv3d_ncdhw(1, 3, 56, 16, (3, 3, 7), 2, (1, 2, 3, 0, 3, 2))
-    verify_conv3d_ncdhw(1, 3, 56, 16, (3, 7, 3), 2, (1, 2, 3, 0, 3, 2))
+    verify_conv3d_ncdhw(1, 3, 56, 16, (3, 3, 7), 2, (1, 2, 3))
+    verify_conv3d_ncdhw(1, 3, 56, 16, (3, 7, 3), 2, (1, 3, 1))
 
 
 if __name__ == "__main__":
