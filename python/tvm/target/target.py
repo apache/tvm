@@ -22,7 +22,9 @@ import warnings
 
 import tvm._ffi
 from tvm._ffi import register_func as _register_func
-from tvm.runtime import Object
+from tvm.runtime import Object, convert
+from tvm.runtime.container import String
+from tvm.ir.container import Map
 
 from . import _ffi_api
 
@@ -107,10 +109,14 @@ class Target(Object):
             When using a dictionary or json string to configure target, the possible values are
             same as target.
         """
-        if target is None or not isinstance(target, (dict, str, Target)):
+        if isinstance(target, (dict, str)):
+            target = convert(target)
+        if isinstance(host, (dict, str)):
+            host = convert(host)
+        if target is None or not isinstance(target, (Map, String, Target)):
             raise ValueError("target has to be a string or dictionary.")
         if host is not None:
-            if not isinstance(host, (dict, str, Target)):
+            if not isinstance(host, (Map, String, Target)):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:
@@ -221,15 +227,19 @@ class Target(Object):
         target_is_dict_key : Bool
             When the type of target is dict, whether Target is the key (Otherwise the value)
         """
+        if isinstance(target, (dict, str)):
+            target = convert(target)
+        if isinstance(host, (dict, str)):
+            host = convert(host)
         if target is None:
             assert host is None, "Target host is not empty when target is empty."
             return target, host
-        if isinstance(target, dict) and "kind" not in target:
+        if isinstance(target, Map) and "kind" not in target:
             new_target = {}
             for tgt, mod in target.items():
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
-                if isinstance(tgt, (dict, str, Target)):
+                if isinstance(tgt, (Map, String, Target)):
                     tgt, host = Target.check_and_update_host_consist(tgt, host)
                 if not target_is_dict_key:
                     tgt, mod = mod, tgt
@@ -242,8 +252,6 @@ class Target(Object):
 
 
 # TODO(@tvm-team): Deprecate the helper functions below. Encourage the usage of config dict instead.
-
-
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
     if isinstance(new_opts, str):
