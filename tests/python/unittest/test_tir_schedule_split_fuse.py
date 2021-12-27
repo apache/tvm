@@ -466,6 +466,18 @@ def test_split_with_opaque_access():
     verify_trace_roundtrip(sch=sch, mod=opaque_access)
 
 
+def test_split_with_non_positive_factors():
+    sch = tir.Schedule(elementwise, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k = sch.get_loops(block_b)
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(i, factors=[-2, -64])
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(j, factors=[0, None])
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.split(k, factors=[None, -16])
+
+
 def test_fuse_split_fail_with_thread_binding():
     sch = tir.Schedule(elementwise_with_thread_binding, debug_mask="all")
     block_b = sch.get_block("B")
