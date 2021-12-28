@@ -247,6 +247,53 @@ def verify_model(
     torch.cuda.empty_cache()
 
 
+def verify_span(model_name, input_data=[], custom_convert_map={}):
+    if isinstance(model_name, str):
+        baseline_model, baseline_input = load_model(model_name)
+    elif isinstance(input_data, list):
+        baseline_model = model_name
+        baseline_input = input_data
+    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
+        baseline_model = model_name
+        baseline_input = [input_data]
+    else:
+        assert False, "Unexpected input format"
+
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
+    if isinstance(baseline_model, torch.nn.Module):
+        trace = trace.float().eval()
+
+        if torch.cuda.is_available():
+            trace = trace.cuda()
+        else:
+            trace = trace.cpu()
+
+    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+
+    # collect fail cases for the convenience of further improvement
+    fail_cases = []
+    mod_main_start = False
+    for line in str(mod.__str__).split("\n"):
+        if "@main" in line:
+            mod_main_start = True
+            continue
+
+        if mod_main_start == True:
+            if "}" == line:
+                break
+            elif not ("/*" in line and "*/" in line):
+                fail_cases.append(line)
+
+    print(fail_cases)
+    assert len(fail_cases) == 0
+
+
+def test_span():
+    verify_span("resnet18")
+
+
 # Single operator tests
 @tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
