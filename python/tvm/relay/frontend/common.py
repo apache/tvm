@@ -25,6 +25,7 @@ from tvm.ir import IRModule
 from tvm.topi.utils import get_const_tuple
 
 from .. import expr as _expr
+from ..expr_functor import ExprMutator
 from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
@@ -954,3 +955,55 @@ def try_resolve_var_to_const(x, graph_params):
         return _op.const(value, dtype)
 
     return x
+
+
+def set_span(sym, node_name):
+    """Set up the sapn of relay expression(s) while converting OP"""
+
+    class SpanFiller(ExprMutator):
+        """SpanFiller"""
+
+        def __init__(self, node_name, suffix_str="_PART_"):
+            ExprMutator.__init__(self)
+            self.node_name = node_name
+            self.suffix_str = suffix_str
+            self.counter = 0
+            self.distance_from_leaf = -1
+
+        def _create_span(self):
+            if self.distance_from_leaf == 0:
+                return tvm.relay.Span(tvm.relay.SourceName(self.node_name), 0, 0, 0, 0)
+            self.distance_from_leaf -= 1
+            span_str = "{}{}{}".format(self.node_name, self.suffix_str, str(self.counter))
+            self.counter += 1
+            return tvm.relay.Span(tvm.relay.SourceName(span_str), 0, 0, 0, 0)
+
+        def visit_call(self, call):
+            if call.span is None:
+                self.distance_from_leaf += 1
+                new_args = [self.visit(arg) for arg in call.args]
+                return _expr.Call(
+                    call.op, new_args, call.attrs, call.type_args, self._create_span()
+                )
+            return call
+
+        def visit_tuple(self, tup):
+            if tup.span is None:
+                self.distance_from_leaf += 1
+                return _expr.Tuple([self.visit(field) for field in tup.fields], self._create_span())
+            return tup
+
+        def visit_tuple_getitem(self, op):
+            if op.span is None:
+                self.distance_from_leaf += 1
+                return _expr.TupleGetItem(self.visit(op.tuple_value), op.index, self._create_span())
+            return op
+
+        def fill(self, sym):
+            if isinstance(sym, _expr.TupleWrapper):
+                return _expr.TupleWrapper(self.visit(sym.tuple_value), sym.size)
+            if isinstance(sym, _expr.RelayExpr):
+                return self.visit(sym)
+            return sym
+
+    return SpanFiller(node_name).fill(sym)

@@ -389,12 +389,21 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  return doc << ")";
+  doc << ")";
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  return doc << Print(op->tuple) << "." << op->index;
+  doc << Print(op->tuple) << "." << op->index;
+
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
@@ -968,11 +977,13 @@ Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& 
   return doc;
 }
 
-Doc RelayTextPrinter::PrintSpan(const Span& span) {
+Doc RelayTextPrinter::PrintSpan(const Span& span, bool include_spans) {
   Doc doc;
-  const auto* span_node = span.as<SpanNode>();
-  ICHECK(span_node);
-  doc << span_node->source_name->name;
+  if (include_spans) {
+    const auto* span_node = span.as<SpanNode>();
+    ICHECK(span_node);
+    doc << span_node->source_name->name;
+  }
   return doc;
 }
 

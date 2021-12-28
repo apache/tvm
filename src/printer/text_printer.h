@@ -113,7 +113,7 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
    */
   Doc PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map);
 
-  Doc PrintSpan(const Span& span);
+  Doc PrintSpan(const Span& span, bool include_spans = true);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
