@@ -98,7 +98,9 @@ class AffinityCheck {
   int max_concurrency_;
   std::atomic<size_t>* acc_;
   std::mutex mutex_;
+#if defined(__linux__)
   std::unordered_map<int, cpu_set_t> thread_affinity_;
+#endif
 };
 
 static FTVMParallelLambda atomic_add_task_id = [](int task_id, TVMParallelGroupEnv* penv,
