@@ -212,9 +212,9 @@ def get_pad_tuple3d(padding, kernel):
         pad_w = 0
         pad_d = 0
     elif padding == "SAME":
-        pad_h = kernel[0] - 1
-        pad_w = kernel[1] - 1
-        pad_d = kernel[2] - 1
+        pad_d = kernel[0] - 1
+        pad_h = kernel[1] - 1
+        pad_w = kernel[2] - 1
     else:
         raise ValueError("Unknown padding option %s" % padding)
     pad_top = (pad_h + 1) // 2
