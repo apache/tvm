@@ -37,7 +37,7 @@
 #endif
 #include <algorithm>
 #include <thread>
-#define CURRENT_THREAD_HANDLE ((pthread_t)-1)
+#define CURRENT_THREAD_HANDLE (reinterpret_cast<std::thread::native_handle_type>(nullptr))
 
 namespace tvm {
 namespace runtime {
