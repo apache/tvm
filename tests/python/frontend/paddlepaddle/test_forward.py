@@ -27,6 +27,7 @@ from tvm.contrib import graph_executor
 import pytest
 
 import paddle
+
 paddle.disable_signal_handler()
 import paddle.nn as nn
 
