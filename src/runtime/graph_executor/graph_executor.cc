@@ -56,6 +56,9 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
  * \brief Run all the operations one by one.
  */
 void GraphExecutor::Run() {
+  if (!params_set_) {
+    DLOG(WARNING) << "Params are not set, result may be invalid.";
+  }
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
     if (op_execs_[i]) op_execs_[i]();
@@ -79,6 +82,7 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
   this->Load(&reader);
   module_ = module;
   devices_ = devs;
+  params_set_ = false;
   lookup_linked_param_ = lookup_linked_param_func;
   if (lookup_linked_param_ == nullptr) {
     lookup_linked_param_ = PackedFunc(
@@ -130,6 +134,7 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
+  params_set_ = true;
 }
 /*!
  * \brief Check the legality of external DLTensor*.
@@ -257,6 +262,7 @@ void GraphExecutor::LoadParams(dmlc::Stream* strm) {
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     data_entry_[eid].CopyFrom(p.second);
   }
+  params_set_ = true;
 }
 
 void GraphExecutor::ShareParams(const GraphExecutor& other, dmlc::Stream* strm) {

@@ -454,6 +454,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
    */
   bool module_lookup_linked_param_valid_;
+  /*! \brief True when parameters are set.*/
+  bool params_set_;
 };
 
 std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
