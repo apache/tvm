@@ -353,6 +353,18 @@ def non_perfect_tiling_cache(a: T.handle, b: T.handle) -> None:
                 )
 
 
+@T.prim_func
+def uncovered_producer_region(A: T.Buffer[(128,), "float32"], B: T.Buffer[(128,), "float32"]):
+    for i in range(120):
+        with T.block("producer"):
+            vi = T.axis.S((0, 120), i)
+            A[vi] = 1.0
+    for i in range(120):
+        with T.block("consumer"):
+            vi = T.axis.S((8, 128), i + 8)
+            B[vi] = A[vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -750,6 +762,17 @@ def test_non_perfect_tiling_cache():
         stage_pipeline=True,
     )
     assert s._get_cached_flags(_get_block(s, "compute")) == CachedFlags(
+        affine_binding=True,
+        region_cover=False,
+        stage_pipeline=True,
+    )
+    # pylint: enable=protected-access
+
+
+def test_uncovered_producer_region():
+    s = tir.ScheduleState(uncovered_producer_region, debug_mask="all")
+    # pylint: disable=protected-access
+    assert s._get_cached_flags(_get_block(s, "consumer")) == CachedFlags(
         affine_binding=True,
         region_cover=False,
         stage_pipeline=True,
