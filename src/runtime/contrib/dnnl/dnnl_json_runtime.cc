@@ -103,15 +103,31 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         if ("nn.conv2d" == op_name) {
           Conv2d(nid);
         } else if ("dnnl.conv2d_relu" == op_name) {
-          Conv2d(nid, true, false);
+          Conv2d(nid, true, false, dnnl::algorithm::eltwise_relu);
+        } else if ("dnnl.conv2d_tanh" == op_name) {
+          Conv2d(nid, true, false, dnnl::algorithm::eltwise_tanh);
+        } else if ("dnnl.conv2d_sigmoid" == op_name) {
+          Conv2d(nid, true, false, dnnl::algorithm::eltwise_logistic);
+        } else if ("dnnl.conv2d_bias" == op_name) {
+          Conv2d(nid, false, true);
         } else if ("dnnl.conv2d_bias_relu" == op_name) {
-          Conv2d(nid, true, true);
+          Conv2d(nid, true, true, dnnl::algorithm::eltwise_relu);
+        } else if ("dnnl.conv2d_bias_tanh" == op_name) {
+          Conv2d(nid, true, true, dnnl::algorithm::eltwise_tanh);
+        } else if ("dnnl.conv2d_bias_sigmoid" == op_name) {
+          Conv2d(nid, true, true, dnnl::algorithm::eltwise_logistic);
         } else if ("nn.dense" == op_name) {
           Dense(nid);
+        } else if ("dnnl.dense_bias" == op_name) {
+          Dense(nid, true);
         } else if ("nn.batch_norm" == op_name) {
           BatchNorm(nid);
         } else if ("nn.relu" == op_name) {
-          Relu(nid);
+          Eltwise(nid, dnnl::algorithm::eltwise_relu);
+        } else if ("tanh" == op_name) {
+          Eltwise(nid, dnnl::algorithm::eltwise_tanh);
+        } else if ("sigmoid" == op_name) {
+          Eltwise(nid, dnnl::algorithm::eltwise_logistic);
         } else if ("add" == op_name) {
           Binary(nid, dnnl::algorithm::binary_add);
         } else if ("multiply" == op_name) {
@@ -150,7 +166,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     return entry_out_mem_[eid].first;
   }
 
-  void Conv2d(const size_t& nid, const bool has_relu = false, const bool has_bias = false) {
+  void Conv2d(const size_t& nid, const bool has_elt = false, const bool has_bias = false,
+              dnnl::algorithm algo = dnnl::algorithm::eltwise_relu) {
     auto node = nodes_[nid];
 
     // Setup attributes.
@@ -159,24 +176,29 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims input_shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     dnnl::memory::dims weight_shape = nodes_[weight_entry.id_].GetOpShape()[weight_entry.index_];
     std::vector<std::string> str_strides = node.GetAttr<std::vector<std::string>>("strides");
+    std::vector<std::string> str_dilates = node.GetAttr<std::vector<std::string>>("dilation");
     std::vector<std::string> str_padding = node.GetAttr<std::vector<std::string>>("padding");
     dnnl::memory::dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
 
-    dnnl::memory::dim N = input_shape[0],       // batch size
-        IC = input_shape[1],                    // input channels
-        IH = input_shape[2],                    // input height
-        IW = input_shape[3],                    // input width
-        OC = weight_shape[0],                   // output channels
-        KH = weight_shape[2],                   // weight height
-        KW = weight_shape[3],                   // weight width
-        PW_L = std::stoi(str_padding[1]),       // width padding: left
-        PW_R = std::stoi(str_padding[3]),       // width padding: right
-        PH_L = std::stoi(str_padding[0]),       // height padding: top
-        PH_R = std::stoi(str_padding[2]),       // height padding: bottom
-        SH = std::stoi(str_strides[0]),         // height-wise stride
-        SW = std::stoi(str_strides[1]),         // weight-wise stride
-        OH = (IH - KH + PH_L + PH_R) / SH + 1,  // output height
-        OW = (IW - KW + PW_L + PW_R) / SW + 1;  // output width
+    dnnl::memory::dim N = input_shape[0],        // batch size
+        IC = input_shape[1],                     // input channels
+        IH = input_shape[2],                     // input height
+        IW = input_shape[3],                     // input width
+        OC = weight_shape[0],                    // output channels
+        KH = weight_shape[2],                    // weight height
+        KW = weight_shape[3],                    // weight width
+        PW_L = std::stoi(str_padding[1]),        // width padding: left
+        PW_R = std::stoi(str_padding[3]),        // width padding: right
+        PH_L = std::stoi(str_padding[0]),        // height padding: top
+        PH_R = std::stoi(str_padding[2]),        // height padding: bottom
+        SH = std::stoi(str_strides[0]),          // height-wise stride
+        SW = std::stoi(str_strides[1]),          // weight-wise stride
+        DH = std::stoi(str_dilates[0]) - 1,      // height-wise dilate
+        DW = std::stoi(str_dilates[1]) - 1,      // weight-wise dilate
+        DKH = 1 + (KH - 1) * (DH + 1),           // dilated weight height
+        DKW = 1 + (KW - 1) * (DW + 1),           // dilated weight width
+        OH = (IH - DKH + PH_L + PH_R) / SH + 1,  // output height
+        OW = (IW - DKW + PW_L + PW_R) / SW + 1;  // output width
 
     // Memory shapes.
     dnnl::memory::dims src_dims = {N, IC, IH, IW};
@@ -187,6 +209,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims bias_dims = {OC};
     dnnl::memory::dims dst_dims = {N, OC, OH, OW};
     dnnl::memory::dims strides_dims = {SH, SW};
+    dnnl::memory::dims dilates_dims = {DH, DW};
     dnnl::memory::dims padding_dims_l = {PH_L, PW_L};
     dnnl::memory::dims padding_dims_r = {PH_R, PW_R};
 
@@ -199,13 +222,14 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Covn2d description.
     auto conv_desc = dnnl::convolution_forward::desc(
         dnnl::prop_kind::forward_inference, dnnl::algorithm::convolution_direct, conv_src_md,
-        conv_weights_md, conv_bias_md, conv_dst_md, strides_dims, padding_dims_l, padding_dims_r);
+        conv_weights_md, conv_bias_md, conv_dst_md, strides_dims, dilates_dims, padding_dims_l,
+        padding_dims_r);
 
-    // Enable ReLU
+    // Enable elementwise post-ops
     dnnl::primitive_attr attr;
-    if (has_relu) {
+    if (has_elt) {
       dnnl::post_ops ops;
-      ops.append_eltwise(1.f, dnnl::algorithm::eltwise_relu, 0.f, 0.f);
+      ops.append_eltwise(1.f, algo, 0.f, 0.f);
       attr.set_post_ops(ops);
     }
 
@@ -245,7 +269,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                          {DNNL_ARG_DST, conv2d_dst_memory}});
   }
 
-  void Dense(const size_t& nid) {
+  void Dense(const size_t& nid, const bool has_bias = false) {
     auto node = nodes_[nid];
 
     // Setup attributes.
@@ -281,9 +305,18 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Memories.
     auto data_memory = BindDNNLMemory(data_entry, data_md);
     auto weight_memory = BindDNNLMemory(weight_entry, weight_md);
+
+    // Bias memory.
     auto bias_memory = dnnl::memory(bias_md, engine_);
-    float bias[OC] = {0};
-    write_to_dnnl_memory(bias, bias_memory, OC * sizeof(float));
+    if (has_bias) {
+      auto bias_entry = node.GetInputs()[2];
+      BindDNNLMemory(bias_entry, bias_memory);
+    } else {
+      float bias[OC] = {0};
+      write_to_dnnl_memory(bias, bias_memory, OC * sizeof(float));
+    }
+
+    // Output memory.
     JSONGraphNodeEntry out_entry(nid, 0);
     auto dst_memory = BindDNNLMemory(out_entry, dense_prim_desc.dst_desc());
 
@@ -335,20 +368,20 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                          {DNNL_ARG_VARIANCE, variance_memory}});
   }
 
-  void Relu(const size_t& nid) {
+  void Eltwise(const size_t& nid, dnnl::algorithm algo) {
     auto node = nodes_[nid];
 
     auto data_entry = node.GetInputs()[0];
     dnnl::memory::dims shape = nodes_[data_entry.id_].GetOpShape()[data_entry.index_];
     dnnl::memory::desc data_md = GenDNNLMemDescByShape(shape, dt::f32);
 
-    auto relu_desc = dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference,
-                                                 dnnl::algorithm::eltwise_relu, data_md, 0);
-    auto relu_prim_desc = dnnl::eltwise_forward::primitive_desc(relu_desc, engine_);
-    ICHECK(data_md == relu_prim_desc.dst_desc());
+    auto elt_desc =
+        dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference, algo, data_md, 0);
+    auto elt_prim_desc = dnnl::eltwise_forward::primitive_desc(elt_desc, engine_);
+    ICHECK(data_md == elt_prim_desc.dst_desc());
 
-    auto relu = dnnl::eltwise_forward(relu_prim_desc);
-    net_.push_back(relu);
+    auto elt = dnnl::eltwise_forward(elt_prim_desc);
+    net_.push_back(elt);
 
     auto data_memory = BindDNNLMemory(data_entry, data_md);
     JSONGraphNodeEntry out_entry(nid, 0);
