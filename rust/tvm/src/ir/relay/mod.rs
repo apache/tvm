@@ -17,7 +17,7 @@
  * under the License.
  */
 use crate::runtime::array::Array;
-use crate::runtime::{object::*, IsObjectRef, String as TString, self};
+use crate::runtime::{self, object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
