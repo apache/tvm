@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
+from tvm import relay
 from tvm.ir.transform import Sequential, PassContext
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -95,6 +96,8 @@ def check_dtype(lhs, rhs):
 
 
 def get_root_call(call, root_op_name):
+    if not isinstance(call, relay.Call):
+        return None
     if str(call.op) == root_op_name:
         return call
     return get_root_call(call.args[0], root_op_name)
@@ -151,13 +154,17 @@ def partition_for_cutlass(mod, params=None):
         make_gemm_pattern(True, "gelu", out_dtype="float32"),
         check_gemm,
     )
-    cutlass_patterns = [
+
+    dense_patterns = [
         dense_bias_gelu_fp16_pat,
         dense_bias_gelu_fp32_pat,
         dense_bias_relu_pat,
         dense_bias_pat,
         dense_pat,
         ("cutlass.batch_matmul", make_batch_matmul_pattern(), check_batch_matmul),
+    ]
+
+    conv2d_patterns = [
         (
             "cutlass.conv2d_bias_hardswish",
             make_conv2d_pattern(with_bias=True, with_act="hardswish"),
@@ -181,6 +188,8 @@ def partition_for_cutlass(mod, params=None):
         ("cutlass.conv2d_bias", make_conv2d_pattern(with_bias=True), check_conv2d),
         ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
+
+    cutlass_patterns = dense_patterns + conv2d_patterns
 
     if params is not None:
         mod["main"] = bind_params_by_name(mod["main"], params)
