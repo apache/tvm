@@ -77,3 +77,14 @@ RUN bash /install/ubuntu_install_arduino.sh
 # Install ONNX
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+# Arm(R) Ethos(TM)-U NPU driver
+COPY install/ubuntu_install_ethosu_driver_stack.sh /install/ubuntu_install_ethosu_driver_stack.sh
+RUN bash /install/ubuntu_install_ethosu_driver_stack.sh
+
+# Install Vela compiler
+COPY install/ubuntu_install_vela.sh /install/ubuntu_install_vela.sh
+RUN bash /install/ubuntu_install_vela.sh
+
+# Update PATH
+ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:$PATH
