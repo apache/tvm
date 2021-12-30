@@ -186,7 +186,7 @@ class EmitConv2dInstance:
   >::Kernel;
 """
 
-    def emit(self, operation, no_beta_scaling=True):
+    def emit(self, operation, no_beta_scaling=False):
         """Instantiate a Conv2d kernel from given `operation`."""
         warp_shape = [
             int(
