@@ -39,7 +39,32 @@ def create_conv2d_operator_with_epilogue(
     Instantiate a cutlass kernel from the given configuration,
     along with the epilouge functor
     """
-    epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
+    if "residual" in op_type:
+        activation_map = {
+            "cutlass.conv2d_bias_hardswish": "cutlass::epilogue::thread::HardSwish",
+            "cutlass.conv2d_bias_silu": "cutlass::epilogue::thread::SiLu",
+            "cutlass.conv2d_bias_sigmoid": "cutlass::epilogue::thread::Sigmoid",
+            "cutlass.conv2d_bias_relu": "cutlass::epilogue::thread::ReLu",
+            "cutlass.conv2d_bias": "cutlass::epilogue::thread::Identity",
+        }
+        prefix = op_type[: op_type.find("_residual")]
+        activation = activation_map[prefix]
+        binary_op = "cutlass::multiplies" if "residual_multiply" in op_type else "cutlass::plus"
+        unary_op = (
+            "cutlass::epilogue::thread::ReLu"
+            if op_type.endswith("relu")
+            else "cutlass::epilogue::thread::Identity"
+        )
+        residual_block_info = {
+            "activation": activation,
+            "binary_op": binary_op,
+            "unary_op": unary_op,
+        }
+        epilogue = EpilogueFunctor.LinearCombinationResidualBlock
+        no_beta_scaling = False
+    else:
+        residual_block_info = None
+        epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
 
     element_a, element_b, element_c, element_epilogue = data_type
 
@@ -62,7 +87,9 @@ def create_conv2d_operator_with_epilogue(
     )
 
     name = op.procedural_name()
-    opdef = EmitConv2dInstance().emit(op, no_beta_scaling=no_beta_scaling)
+    opdef = EmitConv2dInstance().emit(
+        op, no_beta_scaling=no_beta_scaling, residual_block_info=residual_block_info
+    )
 
     return name, opdef
 
