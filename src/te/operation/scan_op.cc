@@ -40,6 +40,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
+
 Array<IterVar> ScanOpNode::root_iter_vars() const {
   Array<IterVar> ret{scan_axis};
   for (IterVar iv : spatial_axis_) {

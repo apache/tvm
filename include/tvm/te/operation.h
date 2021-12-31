@@ -59,8 +59,11 @@ class TVM_DLL OperationNode : public Object {
   std::string name;
   /*! \brief optional tag of the operation */
   std::string tag;
-  /*! \brief additional attributes of the operation*/
+  /*! \brief additional attributes of the operation */
   Map<String, ObjectRef> attrs;
+  /*! \brief output tensors */
+  Array<Tensor> outputs;
+
   // virtual destructor.
   virtual ~OperationNode() {}
   /*! \return number of outputs */
@@ -472,8 +475,6 @@ class HybridOpNode : public OperationNode {
  public:
   /*! \brief The input tensors */
   Array<Tensor> inputs;
-  /*! \brief Symbolic placeholder representation of outputs */
-  Array<Tensor> outputs;
   /*! \brief The axis of iterations */
   Array<IterVar> axis;
   /*! \brief the statement that generates the computation. This is
