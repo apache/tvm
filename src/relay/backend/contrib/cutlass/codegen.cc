@@ -254,13 +254,6 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs) {
   args["stride_w"] = GetDimAsStr(attrs["strides"].as<ArrayNode>()->at(1));
   args["dilation_h"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(0));
   args["dilation_w"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(1));
-
-  if (attrs.find("arg3_shape") != attrs.end()) {
-    auto arg3_shape = attrs["arg3_shape"].as<ArrayNode>();
-    args["residual_N"] = GetDimAsStr(arg3_shape->at(0));
-    args["residual_H"] = GetDimAsStr(arg3_shape->at(1));
-    args["residual_W"] = GetDimAsStr(arg3_shape->at(2));
-  }
   return args;
 }
 
@@ -336,16 +329,8 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                "TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(N, H, W, C)));\n");
   CutlassPrint(conv2d_decl,
                "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
-
-  if (has_residual_block) {
-    ICHECK(attrs.at("P") == attrs.at("residual_H") && attrs.at("Q") == attrs.at("residual_W"));
-    CutlassPrint(conv2d_decl,
-                 "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
-  } else {
-    CutlassPrint(conv2d_decl,
-                 "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
-  }
-
+  CutlassPrint(conv2d_decl,
+               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
   CutlassPrint(conv2d_decl,
                "TensorNHWC layout_D(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
 
