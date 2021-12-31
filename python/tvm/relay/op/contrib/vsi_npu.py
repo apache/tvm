@@ -191,6 +191,9 @@ class QnnQuantizeConstFold(tvm.relay.dataflow_pattern.DFPatternCallback):
         data = pre.args[0].data.numpy()
         scale = pre.args[1].data.numpy()
         zp = pre.args[2].data.numpy()
+        if pre.attrs.axis == 0:  # for perchannel quantize
+            shape = [scale.shape[0]]+[1]*(data.ndim-1)
+            scale = np.reshape(scale, shape)
         data = np.around(data / scale + zp)
         dtype = pre.checked_type.dtype
         if (dtype == "int8"):

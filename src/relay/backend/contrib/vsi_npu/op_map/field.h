@@ -58,9 +58,20 @@ struct Field_Quant_Operand {
       for (uint32_t i = 1; i < scales.size(); i++) {
         zps.push_back(0);
       }
-      quant_spec = tim::vx::Quantization(tim::vx::QuantType::SYMMETRIC_PER_CHANNEL, 0, scales, zps);
+      // for qnn.dense
+      if (shape.size() == 2) {
+        quant_spec = tim::vx::Quantization(tim::vx::QuantType::SYMMETRIC_PER_CHANNEL, 1, scales, zps);
+      } else if (shape.size() == 4) {
+      // for qnn.conv2d
+        quant_spec = tim::vx::Quantization(tim::vx::QuantType::SYMMETRIC_PER_CHANNEL, 3, scales, zps);
+      } else {
+          for (uint32_t i = 0; i < shape.size(); i++) {
+            if (shape[i] == scales.size()) {
+              quant_spec = tim::vx::Quantization(tim::vx::QuantType::SYMMETRIC_PER_CHANNEL, i, scales, zps);
+            }
+          }
+        }
     }
-
     tim::vx::TensorSpec spec(dataType, shape, role, quant_spec);
     return spec;
   }
