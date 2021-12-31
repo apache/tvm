@@ -470,6 +470,7 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
            func_name.find("residual") != std::string::npos;
   }
 
+  // Is node `x` an ancestor of `y`?
   bool IsAncestor(const CallNode* x, const CallNode* y) {
     if (x == y) return true;
     for (auto arg : y->args) {
@@ -564,9 +565,11 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
                           Conv2dArgs(std::ref(attrs_)));
     } else if (IsConv2dResidualBlock(pattern_name.value())) {
       const CallNode* current_call = callee->body.as<CallNode>();
-      const CallNode* binop =
-          current_call->args.size() == 1 ? current_call->args[0].as<CallNode>() : current_call;
+      bool has_relu = current_call->args.size() == 1;
+      const CallNode* binop = has_relu ? current_call->args[0].as<CallNode>() : current_call;
       ICHECK(binop->args.size() == 2);
+      // Figure out which of the first or second argument corresponds to the residual input
+      // The root conv2d call can be reached via the other input of the binary op
       int residual_index;
       if (binop->args[1].as<VarNode>()) {
         residual_index = 1;
@@ -576,10 +579,11 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
         const CallNode* lhs = binop->args[0].as<CallNode>();
         const CallNode* rhs = binop->args[1].as<CallNode>();
         ICHECK(lhs && rhs);
+        // The residual input should be an ancestor of the non-residual input
         residual_index = IsAncestor(rhs, lhs) ? 1 : 0;
       }
-      const auto* conv2d_call =
-          GetRootCall(binop->args[!residual_index].as<CallNode>(), "nn.conv2d");
+      const auto* non_residual_input = binop->args[!residual_index].as<CallNode>();
+      const auto* conv2d_call = GetRootCall(non_residual_input, "nn.conv2d");
       ICHECK(conv2d_call);
       return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));

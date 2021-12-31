@@ -406,9 +406,10 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 
 /*!
  * \brief Retrieve the "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * Unlike the previous definition, it does not verify operator names of intermediate nodes. Instead,
+ * it recursively visit child nodes until it finds a call node with the given op_name.
  * \param call A Relay call node.
- * \param op_name The name of an op to look for.
- * "nn.relu"}
+ * \param op_name The name of an op to look for, such as ""nn.conv2d".
  * \return A CallNode corresponding to the root op with the given op_name
  */
 inline const CallNode* GetRootCall(const CallNode* current_call, const std::string& op_name) {
