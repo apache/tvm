@@ -91,6 +91,22 @@ def test_cast():
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
 
+def test_windows():
+    x = relay.var("x", relay.TensorType((2, 3, 32, 32), "float32"))
+    y = relay.windows(x, 1, [3, 4, 5], [1, 2, 3])
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType((2, 1, 15, 10, 3, 4, 5), "float32")
+
+    data = np.random.rand(2, 3, 32, 32).astype("float32")
+    intrp = create_executor()
+    result = intrp.evaluate(y, {x: relay.const(data)})
+    result_np = result.numpy()
+    assert result_np.shape == (2, 1, 15, 10, 3, 4, 5)
+    assert np.array_equal(result_np[0, 0, 0, 0, :, :, :], data[0, :, 0:4, 0:5])
+    assert np.array_equal(result_np[1, 0, 7, 3, :, :, :], data[1, :, 14:18, 9:14])
+    assert np.array_equal(result_np[1, 0, 14, 9, :, :, :], data[1, :, 28:32, 27:32])
+
+
 def test_clip():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
     y = relay.clip(a, 1.0, 4.0)

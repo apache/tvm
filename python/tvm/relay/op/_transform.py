@@ -70,6 +70,15 @@ _reg.register_injective_schedule("adv_index")
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
 
+# windows
+@_reg.register_compute("windows")
+def compute_windows(attrs, inputs, output_type):
+    """Compute definition of windows"""
+    return [topi.windows(inputs[0], attrs.axis, attrs.window_shape, attrs.strides)]
+
+
+_reg.register_strategy("windows", strategy.windows_strategy)
+
 # strided_set
 @_reg.register_compute("strided_set")
 def compute_strided_set(attrs, inputs, output_type):
