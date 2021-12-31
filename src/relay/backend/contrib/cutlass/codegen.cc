@@ -338,15 +338,9 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
 
   if (has_residual_block) {
-    if (attrs.at("P") == attrs.at("residual_H") && attrs.at("Q") == attrs.at("residual_W")) {
-      CutlassPrint(conv2d_decl,
-                   "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
-    } else {
-      ICHECK(attrs.at("residual_H") == "1" && attrs.at("residual_W") == "1");
-      // Handle broadcast ops (MobilenetV3 and EfficientNetV2) in a residual block-like pattern
-      CutlassPrint(conv2d_decl, "// Broadcast in a residual block \n");
-      CutlassPrint(conv2d_decl, "TensorNHWC layout_C(TensorNHWC(0, 0, K));\n\n");
-    }
+    ICHECK(attrs.at("P") == attrs.at("residual_H") && attrs.at("Q") == attrs.at("residual_W"));
+    CutlassPrint(conv2d_decl,
+                 "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
   } else {
     CutlassPrint(conv2d_decl,
                  "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
