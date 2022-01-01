@@ -17,7 +17,6 @@
  * under the License.
  */
 #include "../utils.h"
-#include "tvm/tir/schedule/schedule.h"
 
 namespace tvm {
 namespace meta_schedule {

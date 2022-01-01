@@ -41,7 +41,7 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   n->sch_rules = sch_rules.value_or({});
   n->postprocs = postprocs.value_or({});
   n->mutator_probs = mutator_probs.value_or({});
-  n->task_name = task_name.value_or("main");
+  n->task_name = task_name;
   if (rand_state == -1) {
     rand_state = support::LinearCongruentialEngine::DeviceRandom();
   }

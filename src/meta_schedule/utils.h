@@ -300,12 +300,17 @@ struct ThreadedTraceApply {
   }
 
  private:
+  /*! \brief A helper data structure that stores the fail count for each postprocessor. */
   struct Item {
+    /*! \brief The postprocessor. */
     Postproc postproc{nullptr};
+    /*! \brief The thread-safe postprocessor failure counter. */
     std::atomic<int> fail_counter{0};
   };
 
+  /*! \brief The number of total postprocessors. */
   int n_;
+  /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
 };
 
