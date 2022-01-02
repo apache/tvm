@@ -62,15 +62,13 @@ def test_meta_schedule_cost_model():
 
         def update(
             self,
-            tune_context: TuneContext,
+            context: TuneContext,
             candidates: List[MeasureCandidate],
             results: List[RunnerResult],
         ) -> None:
             pass
 
-        def predict(
-            self, tune_context: TuneContext, candidates: List[MeasureCandidate]
-        ) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     model = FancyCostModel()
@@ -91,15 +89,13 @@ def test_meta_schedule_cost_model_as_string():
 
         def update(
             self,
-            tune_context: TuneContext,
+            context: TuneContext,
             candidates: List[MeasureCandidate],
             results: List[RunnerResult],
         ) -> None:
             pass
 
-        def predict(
-            self, tune_context: TuneContext, candidates: List[MeasureCandidate]
-        ) -> np.ndarray:
+        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
             return np.random.rand(10)
 
     cost_model = NotSoFancyCostModel()

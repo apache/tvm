@@ -37,11 +37,11 @@ class FeatureExtractorNode : public runtime::Object {
 
   /*!
    * \brief Extract features from the given measure candidate.
-   * \param tune_context The tuning context for feature extraction.
+   * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
    * \return The feature ndarray extracted.
    */
-  virtual Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& tune_context,
+  virtual Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
                                                    const Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.FeatureExtractor";
@@ -53,12 +53,12 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
  public:
   /*!
    * \brief Extract features from the given measure candidate.
-   * \param tune_context The tuning context for feature extraction.
+   * \param context The tuning context for feature extraction.
    * \param candidates The measure candidates to extract features from.
    * \return The feature ndarray extracted.
    */
   using FExtractFrom = runtime::TypedPackedFunc<Array<tvm::runtime::NDArray>(
-      const TuneContext& tune_context, const Array<MeasureCandidate>& candidates)>;
+      const TuneContext& context, const Array<MeasureCandidate>& candidates)>;
   /*!
    * \brief Get the feature extractor as string with name.
    * \return The string of the feature extractor.
@@ -75,10 +75,10 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
     // `f_as_string` is not visited
   }
 
-  Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& tune_context,
+  Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
                                            const Array<MeasureCandidate>& candidates) {
     ICHECK(f_extract_from != nullptr) << "PyFeatureExtractor's ExtractFrom method not implemented!";
-    return f_extract_from(tune_context, candidates);
+    return f_extract_from(context, candidates);
   }
 
   static constexpr const char* _type_key = "meta_schedule.PyFeatureExtractor";
