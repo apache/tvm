@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Replay Trace Search Strategy"""
+from typing import NamedTuple
 
 from tvm._ffi import register_object
 from .search_strategy import SearchStrategy
@@ -41,7 +42,17 @@ class ReplayTrace(SearchStrategy):
     def __init__(self, num_trials_per_iter: int, num_trials_total: int):
         """Constructor"""
         self.__init_handle_by_constructor__(
-            _ffi_api.ReplayTrace,  # type: ignore # pylint: disable=no-member
+            _ffi_api.SearchStrategyReplayTrace,  # type: ignore # pylint: disable=no-member
             num_trials_per_iter,
             num_trials_total,
         )
+
+
+class ReplayTraceConfig(NamedTuple):
+    """Configuration for ReplayTrace"""
+
+    num_trials_per_iter: int
+    num_trials_total: int
+
+    def create_strategy(self) -> ReplayTrace:
+        return ReplayTrace(self.num_trials_per_iter, self.num_trials_total)

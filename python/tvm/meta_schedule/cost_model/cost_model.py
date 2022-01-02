@@ -55,7 +55,7 @@ class CostModel(Object):
 
     def update(
         self,
-        tune_context: TuneContext,
+        context: TuneContext,
         candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -63,21 +63,21 @@ class CostModel(Object):
 
         Parameters
         ----------
-        tune_context : TuneContext,
+        context : TuneContext,
             The tuning context.
         candidates : List[MeasureCandidate]
             The measure candidates.
         results : List[RunnerResult]
             The running results of the measure candidates.
         """
-        _ffi_api.CostModelUpdate(self, tune_context, candidates, results)  # type: ignore # pylint: disable=no-member
+        _ffi_api.CostModelUpdate(self, context, candidates, results)  # type: ignore # pylint: disable=no-member
 
-    def predict(self, tune_context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
         """Update the cost model given running results.
 
         Parameters
         ----------
-        tune_context : TuneContext,
+        context : TuneContext,
             The tuning context.
         candidates : List[MeasureCandidate]
             The measure candidates.
@@ -91,7 +91,7 @@ class CostModel(Object):
         results = np.zeros(shape=(n,), dtype="float64")
         _ffi_api.CostModelPredict(  # type: ignore # pylint: disable=no-member
             self,
-            tune_context,
+            context,
             candidates,
             results.ctypes.data_as(ctypes.c_void_p),
         )
@@ -115,20 +115,18 @@ class PyCostModel(CostModel):
 
         @check_override(self.__class__, CostModel)
         def f_update(
-            tune_context: TuneContext,
+            context: TuneContext,
             candidates: List[MeasureCandidate],
             results: List[RunnerResult],
         ) -> None:
-            self.update(tune_context, candidates, results)
+            self.update(context, candidates, results)
 
         @check_override(self.__class__, CostModel)
-        def f_predict(
-            tune_context: TuneContext, candidates: List[MeasureCandidate], return_ptr
-        ) -> None:
+        def f_predict(context: TuneContext, candidates: List[MeasureCandidate], return_ptr) -> None:
             n = len(candidates)
             return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_double))
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
-            array_wrapper[:] = self.predict(tune_context, candidates)
+            array_wrapper[:] = self.predict(context, candidates)
             assert (
                 array_wrapper.dtype == "float64"
             ), "ValueError: Invalid data type returned from CostModel Predict!"

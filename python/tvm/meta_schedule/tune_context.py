@@ -16,13 +16,14 @@
 # under the License.
 """Meta Schedule tuning context."""
 
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List, Dict, TYPE_CHECKING
 
 from tvm import IRModule
 from tvm._ffi import register_object
 from tvm.meta_schedule.utils import cpu_count
 from tvm.runtime import Object
 from tvm.target import Target
+from tvm.tir import PrimFunc
 
 from . import _ffi_api
 
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from .space_generator import SpaceGenerator
     from .search_strategy import SearchStrategy
     from .schedule_rule import ScheduleRule
+    from .postproc import Postproc
+    from .mutator import Mutator
 
 
 @register_object("meta_schedule.TuneContext")
@@ -53,6 +56,10 @@ class TuneContext(Object):
         The search strategy.
     sch_rules: Optional[List[ScheduleRule]] = None,
         The schedule rules.
+    postprocs: Optional[List[Postproc"]] = None,
+        The postprocessors.
+    mutator_probs: Optional[Dict[Mutator, float]]
+        Mutators and their probability mass.
     task_name : Optional[str] = None
         The name of the tuning task.
     rand_state : int = -1
@@ -71,23 +78,31 @@ class TuneContext(Object):
 
     mod: Optional[IRModule]
     target: Optional[Target]
-    space_generator: "SpaceGenerator"
-    search_strategy: "SearchStrategy"
-    task_name: Optional[str]
+    space_generator: Optional["SpaceGenerator"]
+    search_strategy: Optional["SearchStrategy"]
+    sch_rules: List["ScheduleRule"]
+    postprocs: List["Postproc"]
+    mutator_probs: Optional[Dict["Mutator", float]]
+    task_name: str
     rand_state: int
     num_threads: int
 
     def __init__(
         self,
         mod: Optional[IRModule] = None,
+        *,
         target: Optional[Target] = None,
         space_generator: Optional["SpaceGenerator"] = None,
         search_strategy: Optional["SearchStrategy"] = None,
         sch_rules: Optional[List["ScheduleRule"]] = None,
-        task_name: Optional[str] = None,
+        postprocs: Optional[List["Postproc"]] = None,
+        mutator_probs: Optional[Dict["Mutator", float]] = None,
+        task_name: str = "main",
         rand_state: int = -1,
         num_threads: Optional[int] = None,
     ):
+        if isinstance(mod, PrimFunc):
+            mod = IRModule.from_expr(mod)
         if num_threads is None:
             num_threads = cpu_count()
 
@@ -98,6 +113,8 @@ class TuneContext(Object):
             space_generator,
             search_strategy,
             sch_rules,
+            postprocs,
+            mutator_probs,
             task_name,
             rand_state,
             num_threads,
