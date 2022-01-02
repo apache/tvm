@@ -52,16 +52,23 @@ class RoundRobinNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks,  //
-                                        Builder builder,           //
-                                        Runner runner,             //
-                                        Database database) {
+TaskScheduler TaskScheduler::RoundRobin(Array<TuneContext> tasks,        //
+                                        Builder builder,                 //
+                                        Runner runner,                   //
+                                        Database database,               //
+                                        Optional<CostModel> cost_model,  //
+                                        Optional<Array<MeasureCallback>> measure_callbacks) {
   ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
   n->tasks = tasks;
   n->builder = builder;
   n->runner = runner;
   n->database = database;
+  n->cost_model = cost_model;
+  n->measure_callbacks = measure_callbacks.value_or({});
   n->task_id = -1;
+  for (const TuneContext& task : tasks) {
+    task->task_scheduler = n.get();
+  }
   return TaskScheduler(n);
 }
 

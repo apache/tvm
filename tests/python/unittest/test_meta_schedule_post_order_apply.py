@@ -135,7 +135,7 @@ def _check_correct(schedule: Schedule):
 
 
 class WowSoFancyScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -151,7 +151,7 @@ class WowSoFancyScheduleRule(PyScheduleRule):
 
 
 class DoubleScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -175,7 +175,7 @@ class DoubleScheduleRule(PyScheduleRule):
 
 
 class ReorderScheduleRule(PyScheduleRule):
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
         pass
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -262,7 +262,7 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
 
 def test_meta_schedule_post_order_apply_remove_block():
     class TrinityDouble(PyScheduleRule):
-        def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+        def initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
         def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -283,7 +283,7 @@ def test_meta_schedule_post_order_apply_remove_block():
             return result
 
     class RemoveBlock(PyScheduleRule):
-        def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+        def initialize_with_tune_context(self, context: "TuneContext") -> None:
             pass
 
         def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:

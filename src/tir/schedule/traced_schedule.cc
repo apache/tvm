@@ -29,7 +29,7 @@ Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRand
   n->symbol_table_ = {};
   n->analyzer_ = std::make_unique<arith::Analyzer>();
   n->trace_ = Trace();
-  support::LinearCongruentialEngine(&n->rand_state_).Seed(seed);
+  n->Seed(seed);
   return Schedule(std::move(n));
 }
 

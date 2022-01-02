@@ -84,7 +84,7 @@ class RandomModel(PyCostModel):
 
     def update(
         self,
-        tune_context: TuneContext,
+        context: TuneContext,
         candidates: List[MeasureCandidate],
         results: List[RunnerResult],
     ) -> None:
@@ -92,7 +92,7 @@ class RandomModel(PyCostModel):
 
         Parameters
         ----------
-        tune_context : TuneContext,
+        context : TuneContext,
             The tuning context.
         candidates : List[MeasureCandidate]
             The measure candidates.
@@ -100,12 +100,12 @@ class RandomModel(PyCostModel):
             The running results of the measure candidates.
         """
 
-    def predict(self, tune_context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
         """Update the cost model given running results.
 
         Parameters
         ----------
-        tune_context : TuneContext,
+        context : TuneContext,
             The tuning context.
         candidates : List[MeasureCandidate]
             The measure candidates.

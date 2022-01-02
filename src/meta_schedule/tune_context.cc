@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <random>
 #include <utility>
 
 #include "./utils.h"
@@ -24,21 +23,13 @@
 namespace tvm {
 namespace meta_schedule {
 
-/*!
- * \brief Constructor function of TuneContext class.
- * \param mod The mod to be optimized.
- * \param target The target to be optimized for.
- * \param space_generator The design space generator.
- * \param task_name The name of the tuning task.
- * \param rand_state The random state.
- * \param num_threads The number of threads to be used.
- * \param verbose The verbosity level.
- */
 TuneContext::TuneContext(Optional<IRModule> mod,                                    //
                          Optional<Target> target,                                   //
                          Optional<SpaceGenerator> space_generator,                  //
                          Optional<SearchStrategy> search_strategy,                  //
                          Optional<Array<ScheduleRule>> sch_rules,                   //
+                         Optional<Array<Postproc>> postprocs,                       //
+                         Optional<Map<Mutator, FloatImm>> mutator_probs,            //
                          Optional<String> task_name,                                //
                          support::LinearCongruentialEngine::TRandState rand_state,  //
                          int num_threads) {
@@ -48,9 +39,11 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   n->space_generator = space_generator;
   n->search_strategy = search_strategy;
   n->sch_rules = sch_rules.value_or({});
+  n->postprocs = postprocs.value_or({});
+  n->mutator_probs = mutator_probs.value_or({});
   n->task_name = task_name;
   if (rand_state == -1) {
-    rand_state = std::random_device()();
+    rand_state = support::LinearCongruentialEngine::DeviceRandom();
   }
   support::LinearCongruentialEngine(&n->rand_state).Seed(rand_state);
   n->num_threads = num_threads;
@@ -58,6 +51,26 @@ TuneContext::TuneContext(Optional<IRModule> mod,                                
   n->runner_futures = NullOpt;
   n->measure_candidates = NullOpt;
   data_ = std::move(n);
+}
+
+void TuneContextNode::Initialize() {
+  if (this->space_generator.defined()) {
+    this->space_generator.value()->InitializeWithTuneContext(GetRef<TuneContext>(this));
+  }
+  if (this->search_strategy.defined()) {
+    this->search_strategy.value()->InitializeWithTuneContext(GetRef<TuneContext>(this));
+  }
+  for (const ScheduleRule& sch_rule : sch_rules) {
+    sch_rule->InitializeWithTuneContext(GetRef<TuneContext>(this));
+  }
+  for (const Postproc& postproc : postprocs) {
+    postproc->InitializeWithTuneContext(GetRef<TuneContext>(this));
+  }
+  if (mutator_probs.defined()) {
+    for (const auto& kv : mutator_probs) {
+      kv.first->InitializeWithTuneContext(GetRef<TuneContext>(this));
+    }
+  }
 }
 
 TVM_REGISTER_NODE_TYPE(TuneContextNode);
@@ -68,11 +81,13 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
                        Optional<SpaceGenerator> space_generator,                  //
                        Optional<SearchStrategy> search_strategy,                  //
                        Optional<Array<ScheduleRule>> sch_rules,                   //
+                       Optional<Array<Postproc>> postprocs,                       //
+                       Optional<Map<Mutator, FloatImm>> mutator_probs,            //
                        Optional<String> task_name,                                //
                        support::LinearCongruentialEngine::TRandState rand_state,  //
                        int num_threads) -> TuneContext {
-      return TuneContext(mod, target, space_generator, search_strategy, sch_rules, task_name,
-                         rand_state, num_threads);
+      return TuneContext(mod, target, space_generator, search_strategy, sch_rules, postprocs,
+                         mutator_probs, task_name, rand_state, num_threads);
     });
 }  // namespace meta_schedule
 }  // namespace tvm

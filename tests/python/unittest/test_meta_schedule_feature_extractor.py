@@ -28,7 +28,7 @@ def test_meta_schedule_feature_extractor():
     class FancyFeatureExtractor(PyFeatureExtractor):
         def extract_from(
             self,
-            tune_context: TuneContext,  # pylint: disable = unused-argument
+            context: TuneContext,  # pylint: disable = unused-argument
             candidates: List[MeasureCandidate],  # pylint: disable = unused-argument
         ) -> List[np.ndarray]:
             return [np.random.rand(4, 5)]
@@ -43,7 +43,7 @@ def test_meta_schedule_feature_extractor_as_string():
     class NotSoFancyFeatureExtractor(PyFeatureExtractor):
         def extract_from(
             self,
-            tune_context: TuneContext,  # pylint: disable = unused-argument
+            context: TuneContext,  # pylint: disable = unused-argument
             candidates: List[MeasureCandidate],  # pylint: disable = unused-argument
         ) -> List[np.ndarray]:
             return []
