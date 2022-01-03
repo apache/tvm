@@ -9,7 +9,7 @@ from ..utils import simplify, get_const_tuple
 from ..nn.utils import get_pad_tuple1d, get_pad_tuple
 
 
-def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=True, kernel_is_last_axis=True, dilation=1, axis_reordered=False):
+def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=True, kernel_is_last_axis=True, dilation=1):
 
     flip = False
     if data_dtype.startswith("u"):
@@ -34,7 +34,6 @@ def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=Tru
     b = te.placeholder(b_shape, kernel_dtype, "b")
 
     k = te.reduce_axis((0, vec_length), "k")
-    l = te.reduce_axis((0, 1), "l")
 
     ak = a[k * dilation] if data_is_last_axis else a[k * dilation, 0]
     ak = ak.astype(out_dtype)
@@ -42,8 +41,7 @@ def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=Tru
     bk = b[k] if kernel_is_last_axis else b[k, 0]
     bk = bk.astype(out_dtype)
 
-    reduce_axis = [k, l] if axis_reordered else [k]
-    c = te.compute((1,), lambda _: te.sum(ak * bk, reduce_axis), "c")
+    c = te.compute((1,), lambda _: te.sum(ak * bk, [k]), "c")
 
     def intrin_func(ins, outs):
         aa, bb = ins
@@ -212,7 +210,7 @@ def schedule_conv1d_nwc(cfg, outs):
     data, weight = out.op.input_tensors
     s = te.create_schedule([out.op])
     n, w, c = out.op.axis
-    rc, rw = out.op.reduce_axis
+    rw, rc = out.op.reduce_axis
 
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rw)
@@ -222,9 +220,7 @@ def schedule_conv1d_nwc(cfg, outs):
 
     if vec_length != 1:
         t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length,
-                    kernel_is_last_axis=False, axis_reordered=True)
-        s[out].reorder(rw, rc)
+                  vec_length, kernel_is_last_axis=False)
         rco, rci = s[out].split(rc, vec_length)
         s[out].tensorize(rci, t)
 
@@ -304,7 +300,7 @@ def conv1d_nwc(cfg, data, kernel, strides=1, padding="VALID", dilation=1, out_dt
         lambda b, w, c: te.sum(
             temp[b, w * strides + rw * dilation, rc].astype(out_dtype)
             * kernel[rw, rc, c].astype(out_dtype),
-            axis=[rc, rw],
+            axis=[rw, rc],
         ),
         tag="conv1d_nwc",
     )
