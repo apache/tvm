@@ -89,6 +89,17 @@ def sdotp(data_dtype, kernel_dtype, out_dtype, vec_length, data_is_last_axis=Tru
     return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 
+def get_vec_length(out, data, weight):
+    if Target.current().kind.name == "llvm" and re.match("u?int(8|16|32)", out):
+
+        if re.match("u?int8", data) and re.match("u?int8", weight):
+            return 4
+        elif re.match("u?int16", data) and re.match("u?int16", weight):
+            return 2
+
+    return 1
+
+
 @autotvm.register_topi_schedule("conv1d_ncw.pulp")
 def schedule_conv1d_ncw(cfg, outs):
     out = outs[0]
@@ -100,36 +111,27 @@ def schedule_conv1d_ncw(cfg, outs):
     workload = out.op.attrs["workload"]
     dilation = get_const_tuple(workload[5])
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rw)
     s[weight].compute_at(s[out], rw)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        rwo, rwi = s[out].split(rw, vec_length)
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length, dilation=dilation[0])
+        s[out].tensorize(rwi, t)
 
-        if vec_length:
-            rwo, rwi = s[out].split(rw, vec_length)
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length, dilation=dilation[0])
-            s[out].tensorize(rwi, t)
+        cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        wo, wi = cfg["tile_w"].apply(s, out, w)
+        cfg.define_split("tile_rwo", rwo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rwoo, rwoi = cfg["tile_rwo"].apply(s, out, rwo)
 
-            cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            wo, wi = cfg["tile_w"].apply(s, out, w)
-            cfg.define_split("tile_rwo", rwo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rwoo, rwoi = cfg["tile_rwo"].apply(s, out, rwo)
+        s[out].reorder(n, wo, rwoo, c, rc, wi, rwoi, rwi)
 
-            s[out].reorder(n, wo, rwoo, c, rc, wi, rwoi, rwi)
-
-            s[data].compute_at(s[out], rwoi)
-            s[weight].compute_at(s[out], rwoi)
+        s[data].compute_at(s[out], rwoi)
+        s[weight].compute_at(s[out], rwoi)
 
     return s
 
@@ -185,13 +187,7 @@ def conv1d_ncw(cfg, data, kernel, strides=1, padding="VALID", dilation=1, out_dt
     temp = pad(data, pad_before, pad_after, name="pad_temp")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", data.dtype) and re.match("u?int8", kernel.dtype):
-            pad_tensorize = -kernel_size % 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", kernel.dtype):
-            pad_tensorize = -kernel_size % 2
-
+    pad_tensorize = -kernel_size % get_vec_length(out_dtype, data.dtype, kernel.dtype)
     temp = pad(temp, (0, 0, 0), (0, 0, pad_tensorize * dilation))
     kernel = pad(kernel, (0, 0, 0), (0, 0, pad_tensorize))
 
@@ -218,38 +214,29 @@ def schedule_conv1d_nwc(cfg, outs):
     n, w, c = out.op.axis
     rc, rw = out.op.reduce_axis
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rw)
     s[weight].compute_at(s[out], rw)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length,
+                    kernel_is_last_axis=False, axis_reordered=True)
+        s[out].reorder(rw, rc)
+        rco, rci = s[out].split(rc, vec_length)
+        s[out].tensorize(rci, t)
 
-        if vec_length:
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length,
-                      kernel_is_last_axis=False, axis_reordered=True)
-            s[out].reorder(rw, rc)
-            rco, rci = s[out].split(rc, vec_length)
-            s[out].tensorize(rci, t)
+        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        co, ci = cfg["tile_c"].apply(s, out, c)
+        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-            cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            co, ci = cfg["tile_c"].apply(s, out, c)
-            cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+        s[out].reorder(n, co, rcoo, w, rw, ci, rcoi)
 
-            s[out].reorder(n, co, rcoo, w, rw, ci, rcoi)
-
-            s[data].compute_at(s[out], rcoi)
-            s[weight].compute_at(s[out], rcoi)
+        s[data].compute_at(s[out], rcoi)
+        s[weight].compute_at(s[out], rcoi)
 
     return s
 
@@ -304,13 +291,7 @@ def conv1d_nwc(cfg, data, kernel, strides=1, padding="VALID", dilation=1, out_dt
     temp = pad(data, pad_before, pad_after, name="pad_temp")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", data.dtype) and re.match("u?int8", kernel.dtype):
-            pad_tensorize = -in_channels % 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", kernel.dtype):
-            pad_tensorize = -in_channels % 2
-
+    pad_tensorize = -in_channels % get_vec_length(out_dtype, data.dtype, kernel.dtype)
     temp = pad(temp, (0, 0, 0), (0, 0, pad_tensorize))
     kernel = pad(kernel, (0, 0, 0), (0, pad_tensorize, 0))
 
@@ -337,36 +318,27 @@ def schedule_conv1d_nwc_owi(cfg, outs):
     n, w, c = out.op.axis
     rw, rc = out.op.reduce_axis
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rc)
     s[weight].compute_at(s[out], rc)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length)
+        rco, rci = s[out].split(rc, vec_length)
+        s[out].tensorize(rci, t)
 
-        if vec_length:
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length)
-            rco, rci = s[out].split(rc, vec_length)
-            s[out].tensorize(rci, t)
+        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        co, ci = cfg["tile_c"].apply(s, out, c)
+        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-            cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            co, ci = cfg["tile_c"].apply(s, out, c)
-            cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+        s[out].reorder(n, rcoo, w, rw, co, ci, rcoi, rci)
 
-            s[out].reorder(n, rcoo, w, rw, co, ci, rcoi, rci)
-
-            s[data].compute_at(s[out], rcoi)
-            s[weight].compute_at(s[out], rcoi)
+        s[data].compute_at(s[out], rcoi)
+        s[weight].compute_at(s[out], rcoi)
 
     return s
 
@@ -421,13 +393,7 @@ def conv1d_nwc_owi(cfg, data, kernel, strides=1, padding="VALID", dilation=1, ou
     temp = pad(data, pad_before, pad_after, name="pad_temp")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", data.dtype) and re.match("u?int8", kernel.dtype):
-            pad_tensorize = -in_channels % 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", kernel.dtype):
-            pad_tensorize = -in_channels % 2
-
+    pad_tensorize = -in_channels % get_vec_length(out_dtype, data.dtype, kernel.dtype)
     temp = pad(temp, (0, 0, 0), (0, 0, pad_tensorize))
     kernel = pad(kernel, (0, 0, 0), (0, 0, pad_tensorize))
 
@@ -458,36 +424,27 @@ def schedule_conv2d_nchw(cfg, outs):
     workload = out.op.attrs["workload"]
     dilation = get_const_tuple(workload[5])
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rx)
     s[weight].compute_at(s[out], rx)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length, dilation=dilation[1])
+        rxo, rxi = s[out].split(rx, vec_length)
+        s[out].tensorize(rxi, t)
 
-        if vec_length and weight.shape[2] % vec_length == 0:
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length, dilation=dilation[1])
-            rxo, rxi = s[out].split(rx, vec_length)
-            s[out].tensorize(rxi, t)
+        cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        wo, wi = cfg["tile_w"].apply(s, out, w)
+        cfg.define_split("tile_rxo", rxo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rxoo, rxoi = cfg["tile_rxo"].apply(s, out, rxo)
 
-            cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            wo, wi = cfg["tile_w"].apply(s, out, w)
-            cfg.define_split("tile_rxo", rxo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rxoo, rxoi = cfg["tile_rxo"].apply(s, out, rxo)
+        s[out].reorder(n, wo, rxoo, h, c, rc, ry, wi, rxoi)
 
-            s[out].reorder(n, wo, rxoo, h, c, rc, ry, wi, rxoi)
-
-            s[data].compute_at(s[out], rxoi)
-            s[weight].compute_at(s[out], rxoi)
+        s[data].compute_at(s[out], rxoi)
+        s[weight].compute_at(s[out], rxoi)
 
     return s
 
@@ -556,13 +513,7 @@ def conv2d_nchw(cfg, Input, Filter, stride, padding, dilation, out_dtype=None):
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", Input.dtype) and re.match("u?int8", Filter.dtype):
-            pad_tensorize = -kernel_w % 4
-        elif re.match("u?int16", Input.dtype) and re.match("u?int16", Filter.dtype):
-            pad_tensorize = -kernel_w % 2
-
+    pad_tensorize = -kernel_w % get_vec_length(out_dtype, Input.dtype, Filter.dtype)
     temp = pad(temp, (0, 0, 0, 0), (0, 0, 0, pad_tensorize * dilation_w))
     Filter = pad(Filter, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
 
@@ -591,36 +542,27 @@ def schedule_conv2d_nhwc(cfg, outs):
     n, h, w, c = out.op.axis
     ry, rx, rc = out.op.reduce_axis
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rc)
     s[weight].compute_at(s[out], rc)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length, kernel_is_last_axis=False)
+        rco, rci = s[out].split(rc, vec_length)
+        s[out].tensorize(rci, t)
 
-        if vec_length:
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length, kernel_is_last_axis=False)
-            rco, rci = s[out].split(rc, vec_length)
-            s[out].tensorize(rci, t)
+        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        co, ci = cfg["tile_c"].apply(s, out, c)
+        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-            cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            co, ci = cfg["tile_c"].apply(s, out, c)
-            cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+        s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
 
-            s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
-
-            s[data].compute_at(s[out], rcoi)
-            s[weight].compute_at(s[out], rcoi)
+        s[data].compute_at(s[out], rcoi)
+        s[weight].compute_at(s[out], rcoi)
 
     return s
 
@@ -699,13 +641,7 @@ def conv2d_nhwc(
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", Input.dtype) and re.match("u?int8", Filter.dtype):
-            pad_tensorize = -in_channel % 4
-        elif re.match("u?int16", Input.dtype) and re.match("u?int16", Filter.dtype):
-            pad_tensorize = -in_channel % 2
-
+    pad_tensorize = -in_channel % get_vec_length(out_dtype, Input.dtype, Filter.dtype)
     PaddedInput = pad(PaddedInput, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
     Filter = pad(Filter, (0, 0, 0, 0), (0, 0, pad_tensorize, 0))
 
@@ -736,36 +672,27 @@ def schedule_conv2d_nhwc_ohwi(cfg, outs):
     n, h, w, c = out.op.axis
     ry, rx, rc = out.op.reduce_axis
 
-    target = Target.current()
-
     s[data.op.input_tensors[0]].compute_inline()
     s[data].compute_at(s[out], rc)
     s[weight].compute_at(s[out], rc)
 
-    if re.match("u?int(8|16|32)", out.dtype) and target.kind.name == "llvm":
+    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        if re.match("u?int8", data.dtype) and re.match("u?int8", weight.dtype):
-            vec_length = 4
-        elif re.match("u?int16", data.dtype) and re.match("u?int16", weight.dtype):
-            vec_length = 2
-        else:
-            vec_length = 0
+    if vec_length != 1:
+        t = sdotp(data.dtype, weight.dtype, out.dtype,
+                    vec_length)
+        rco, rci = s[out].split(rc, vec_length)
+        s[out].tensorize(rci, t)
 
-        if vec_length:
-            t = sdotp(data.dtype, weight.dtype, out.dtype,
-                      vec_length)
-            rco, rci = s[out].split(rc, vec_length)
-            s[out].tensorize(rci, t)
+        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        co, ci = cfg["tile_c"].apply(s, out, c)
+        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-            cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            co, ci = cfg["tile_c"].apply(s, out, c)
-            cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-            rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+        s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
 
-            s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
-
-            s[data].compute_at(s[out], rcoi)
-            s[weight].compute_at(s[out], rcoi)
+        s[data].compute_at(s[out], rcoi)
+        s[weight].compute_at(s[out], rcoi)
 
     return s
 
@@ -843,13 +770,7 @@ def conv2d_nhwc_ohwi(
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
 
     # Apply padding for tensorization
-    pad_tensorize = 0
-    if re.match("u?int(8|16|32)", out_dtype):
-        if re.match("u?int8", Input.dtype) and re.match("u?int8", Filter.dtype):
-            pad_tensorize = -in_channel % 4
-        elif re.match("u?int16", Input.dtype) and re.match("u?int16", Filter.dtype):
-            pad_tensorize = -in_channel % 2
-
+    pad_tensorize = -in_channel % get_vec_length(out_dtype, Input.dtype, Filter.dtype)
     PaddedInput = pad(PaddedInput, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
     Filter = pad(Filter, (0, 0, 0, 0), (0, 0, 0, pad_tensorize))
 
