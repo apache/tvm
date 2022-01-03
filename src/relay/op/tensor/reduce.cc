@@ -176,7 +176,7 @@ InferCorrectLayoutOutput ReduceInferCorrectLayout(const Attrs& attrs,
           if (params->exclude) {
             // The primal axis is not reduced, so keep the input packed dim.
             inferred_out_string += packed_dim;
-          } else {
+          } else if (params->keepdims) {
             // If the primal axis is part of reduce axes in the original layout, the inner dim
             // becomes 1 after reduction.
             inferred_out_string += "1" + layout_dim;
