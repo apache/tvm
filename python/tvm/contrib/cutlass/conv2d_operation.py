@@ -150,6 +150,7 @@ class EmitConv2dInstance:
       ${element_accumulator},
       ${element_epilogue}
     >"""
+
         self.epilogue_no_beta_scaling = """
     ${epilogue_functor}<
       ${element_c},
@@ -159,10 +160,22 @@ class EmitConv2dInstance:
       cutlass::epilogue::thread::ScaleType::NoBetaScaling
     >"""
 
+        self.epilogue_residual_block = """
+    ${epilogue_functor}<
+      ${element_c},
+      ${element_accumulator},
+      ${element_epilogue},
+      ${element_c},
+      ${epilogue_vector_length},
+      ${activation},
+      ${binary_op},
+      ${unary_op}
+    >"""
+
         self.template = """
   // Conv2d${conv_kind_name} ${iterator_algorithm_name} kernel instance "${operation_name}"
   using ${operation_name} =
-  typename cutlass::conv::kernel::DefaultConv2d${conv_kind_name}<
+  typename cutlass::conv::kernel::DefaultConv2d${conv_kind_name}${conv_kernel_postfix}<
     ${element_a},
     ${layout_a},
     ${element_b},
@@ -186,7 +199,7 @@ class EmitConv2dInstance:
   >::Kernel;
 """
 
-    def emit(self, operation, no_beta_scaling=False):
+    def emit(self, operation, no_beta_scaling=False, residual_block_info=False):
         """Instantiate a Conv2d kernel from given `operation`."""
         warp_shape = [
             int(
@@ -246,14 +259,26 @@ class EmitConv2dInstance:
             ],
             "align_a": str(operation.A.alignment),
             "align_b": str(operation.B.alignment),
+            "conv_kernel_postfix": "",
         }
 
-        template = substitute_template(
-            self.template,
-            {
-                "epilogue": self.epilogue_no_beta_scaling
-                if no_beta_scaling
-                else self.epilogue_default
-            },
-        )
+        if residual_block_info:
+            template = substitute_template(
+                self.template, {"epilogue": self.epilogue_residual_block}
+            )
+            values.update(
+                {
+                    "unary_op": residual_block_info["unary_op"],
+                    "binary_op": residual_block_info["binary_op"],
+                    "activation": residual_block_info["activation"],
+                    "conv_kernel_postfix": "WithBroadcast",
+                }
+            )
+        elif no_beta_scaling:
+            template = substitute_template(
+                self.template, {"epilogue": self.epilogue_no_beta_scaling}
+            )
+        else:
+            template = substitute_template(self.template, {"epilogue": self.epilogue_default})
+
         return substitute_template(template, values)
