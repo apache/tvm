@@ -258,7 +258,7 @@ Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs) {
 }
 
 std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
-                     const std::vector<std::string>& func_args) {
+                     const std::vector<std::string>& func_args, bool has_residual_block = false) {
   bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
   bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid" &&
                          attrs.at("op_type") != "cutlass.conv2d_bias_silu" &&
@@ -268,8 +268,8 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(conv2d_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
   CutlassPrint(conv2d_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
   CutlassPrint(conv2d_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-
   CutlassPrint(conv2d_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
+
   CutlassPrint(conv2d_decl, attrs.at("op_def"));
   CutlassPrint(conv2d_decl, "using Operation_" + attrs.at("op_name") +
                                 " = cutlass::conv::device::ImplicitGemmConvolution<" +
@@ -308,14 +308,18 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   ICHECK(func_args.size() >= 2);
   CutlassPrint(conv2d_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
   CutlassPrint(conv2d_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
-  if (has_bias) {
+  if (has_residual_block) {
+    ICHECK(func_args.size() >= 4);
+    CutlassPrint(conv2d_decl, "void* ptr_bias = (void*)(" + func_args[2] + "->data);\n");
+    CutlassPrint(conv2d_decl, "void* ptr_residual = (void*)(" + func_args[3] + "->data);\n");
+  } else if (has_bias) {
     ICHECK(func_args.size() >= 3);
     CutlassPrint(conv2d_decl, "void* ptr_c_bias = (void*)(" + func_args[2] + "->data);\n");
   }
 
   CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0->data);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (has_bias && no_bias_scaling) {
+  if (has_bias && no_bias_scaling && !has_residual_block) {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   } else {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
@@ -326,24 +330,38 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
   CutlassPrint(conv2d_decl,
                "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n");
+               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
+  CutlassPrint(conv2d_decl,
+               "TensorNHWC layout_D(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
+
   CutlassPrint(conv2d_decl, "typename Conv2d::Arguments arguments{\n");
   CutlassPrint(conv2d_decl, " problem_size,\n");
   CutlassPrint(conv2d_decl, " {static_cast<ElementInputA*>(ptr_a), layout_A},\n");
   CutlassPrint(conv2d_decl, " {static_cast<ElementInputB*>(ptr_b), layout_B},\n");
-  if (has_bias) {
+
+  if (has_residual_block) {
+    CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_residual), layout_C},\n");
+  } else if (has_bias) {
     CutlassPrint(
         conv2d_decl,
         " {static_cast<ElementOutput*>(ptr_c_bias), cutlass::layout::TensorNHWC::Stride(0)},\n");
   } else {
-    CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_C},\n");
+    CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out), layout_C},\n");
   }
-  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_C},\n");
-  if (has_bias && no_bias_scaling) {
+
+  CutlassPrint(conv2d_decl, " {static_cast<ElementOutput*>(ptr_out),layout_D},\n");
+
+  if (has_residual_block) {
+    CutlassPrint(conv2d_decl, "{alpha, beta},\n");
+    CutlassPrint(conv2d_decl, "cutlass::conv::SplitKMode::kSerial,\n");  // split_k_slices
+    CutlassPrint(conv2d_decl, "static_cast<ElementOutput*>(ptr_bias),\n");
+    CutlassPrint(conv2d_decl, "nullptr, 0, K};\n");
+  } else if (has_bias && no_bias_scaling) {
     CutlassPrint(conv2d_decl, " {alpha}\n};\n");
   } else {
     CutlassPrint(conv2d_decl, "{alpha, beta}\n};\n");
   }
+
   CutlassPrint(conv2d_decl, "Conv2d conv2d_op;\n");
 
   CutlassPrint(conv2d_decl, "size_t workspace_size = conv2d_op.get_workspace_size(arguments);\n");
@@ -432,6 +450,21 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
     return arg_names;
   }
 
+  bool IsConv2dResidualBlock(const std::string& func_name) {
+    return func_name.find("conv2d") != std::string::npos &&
+           func_name.find("residual") != std::string::npos;
+  }
+
+  // Is node `x` an ancestor of `y`?
+  bool IsAncestor(const CallNode* x, const CallNode* y) {
+    if (x == y) return true;
+    for (auto arg : y->args) {
+      const CallNode* arg_ptr = arg.as<CallNode>();
+      if (arg_ptr && IsAncestor(x, arg_ptr)) return true;
+    }
+    return false;
+  }
+
   GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
                                                    const CallNode* caller) {
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
@@ -515,6 +548,30 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", add_or_bias_add, "multiply"});
       return GenerateBody(conv2d_call, "cutlass_conv2d_bias_hardswish", GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
+    } else if (IsConv2dResidualBlock(pattern_name.value())) {
+      const CallNode* current_call = callee->body.as<CallNode>();
+      bool has_relu = current_call->args.size() == 1;
+      const CallNode* binop = has_relu ? current_call->args[0].as<CallNode>() : current_call;
+      ICHECK(binop->args.size() == 2);
+      // Figure out which of the first or second argument corresponds to the residual input
+      // The root conv2d call can be reached via the other input of the binary op
+      int residual_index;
+      if (binop->args[1].as<VarNode>()) {
+        residual_index = 1;
+      } else if (binop->args[0].as<VarNode>()) {
+        residual_index = 0;
+      } else {
+        const CallNode* lhs = binop->args[0].as<CallNode>();
+        const CallNode* rhs = binop->args[1].as<CallNode>();
+        ICHECK(lhs && rhs);
+        // The residual input should be an ancestor of the non-residual input
+        residual_index = IsAncestor(rhs, lhs) ? 1 : 0;
+      }
+      const auto* non_residual_input = binop->args[!residual_index].as<CallNode>();
+      const auto* conv2d_call = GetRootCall(non_residual_input, "nn.conv2d");
+      ICHECK(conv2d_call);
+      return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
+                          Conv2dArgs(std::ref(attrs_)));
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
@@ -560,6 +617,8 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ret.decl = DenseOp(ext_func_id_, attribute_args, func_args);
     } else if (func_name == "cutlass_batch_matmul") {
       ret.decl = BatchMatmulOp(ext_func_id_, attribute_args, func_args);
+    } else if (IsConv2dResidualBlock(func_name)) {
+      ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args, true);
     } else if (func_name.find("conv2d") != std::string::npos) {
       ret.decl = Conv2dOp(ext_func_id_, attribute_args, func_args);
     }
@@ -623,6 +682,8 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_sigmoid.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_silu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_hardswish.h>\n";
+    code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_residual_block.h>\n";
+    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop_with_broadcast.h>\n";
 
     ICHECK(ref->IsInstance<FunctionNode>());
     auto res = GenCutlassFunc(Downcast<Function>(ref));

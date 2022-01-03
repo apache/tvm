@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Patterns supported CUTLASS."""
+from functools import partial
 from tvm import relay
 from tvm.ir.transform import Sequential, PassContext
 from tvm.relay import transform
@@ -89,6 +90,19 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
     return conv2d_out
 
 
+def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu"):
+    """Add pattern for residual blocks."""
+    residual_input = wildcard()
+    binary_out = is_op(binary_op)(tensor_op_out, residual_input) | is_op(binary_op)(
+        residual_input, tensor_op_out
+    )
+
+    if with_act is not None and with_act == "relu":
+        return is_op("nn.relu")(binary_out)
+
+    return binary_out
+
+
 def check_dtype(lhs, rhs):
     """Check if dtypes in the given workload are supported by CUTLASS."""
     # Only fp16 inputs are supported for now.
@@ -137,6 +151,25 @@ def check_conv2d(call):
     IC = data.shape[3]
     OC = weight.shape[0]
     return not is_depthwise_conv2d(IC, OC, conv2d.attrs.groups)
+
+
+def check_conv2d_residual(call, binary_op):
+    """Check if the given conv2d workload can be offloaded to CUTLASS."""
+    conv2d = get_root_call(call, "nn.conv2d")
+    if not check_conv2d(call):
+        return False
+
+    residual_binop = get_root_call(call, binary_op)
+    lhs = residual_binop.args[0]
+    rhs = residual_binop.args[1]
+
+    # residual_input is pattern-matched as a wildcard. Make sure it does not sit between
+    # residual binary op and the root conv2d of this pattern.
+    # If the root conv2d is the parent of both lhs and rhs, we should reject this pattern.
+    if get_root_call(lhs, "nn.conv2d") == conv2d and get_root_call(rhs, "nn.conv2d") == conv2d:
+        return False
+
+    return all(x == y for (x, y) in zip(lhs.checked_type.shape, rhs.checked_type.shape))
 
 
 def partition_for_cutlass(mod, params=None):
@@ -189,7 +222,20 @@ def partition_for_cutlass(mod, params=None):
         ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
 
-    cutlass_patterns = dense_patterns + conv2d_patterns
+    residual_block_patterns = []
+
+    for with_act, postfix in [("relu", "_relu"), (None, "")]:
+        for name, pat, _ in conv2d_patterns[:-1]:
+            for bin_op in ["add", "multiply"]:
+                residual_block_patterns.append(
+                    (
+                        name + "_residual_" + bin_op + postfix,
+                        make_residual_block_pattern(pat, bin_op, with_act=with_act),
+                        partial(check_conv2d_residual, binary_op=bin_op),
+                    )
+                )
+
+    cutlass_patterns = residual_block_patterns + dense_patterns + conv2d_patterns
 
     if params is not None:
         mod["main"] = bind_params_by_name(mod["main"], params)
