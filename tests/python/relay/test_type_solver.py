@@ -347,7 +347,6 @@ def test_integer_compatibility_in_layout_transform():
         x,
         relay.var("weight", shape=(1, 3, 1, 1), dtype="float32"),
         strides=[47, 47],
-        padding=[0, 0, 0, 0],
         channels=1,
         kernel_size=[1, 1],
     )
@@ -355,18 +354,11 @@ def test_integer_compatibility_in_layout_transform():
     broadcast_out = relay.op.broadcast_to(bias_out, relay.const([2, 1, 2, 2], dtype="int64"))
     y = relay.add(bias_out, broadcast_out)
 
-    mod, params = testing.create_workload(y)
+    mod, _ = testing.create_workload(y)
     with tvm.transform.PassContext(opt_level=3):
-        executor = relay.build_module.create_executor(
-            "graph",
-            mod,
-            tvm.cpu(),
-            "llvm",
-            params={
-                "weight": np.zeros((1, 3, 1, 1), dtype="float32"),
-                "bias": np.zeros((1), dtype="float32"),
-            },
-        ).evaluate()
+        with tvm.target.Target("llvm"):
+            mod = relay.transform.CanonicalizeOps()(mod)
+            mod = relay.transform.AlterOpLayout()(mod)
 
 
 if __name__ == "__main__":
