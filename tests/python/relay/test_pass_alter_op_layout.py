@@ -1455,12 +1455,14 @@ def test_conv2d_strided_slice_packed_to_unpacked():
 
 def test_conv2d_reduce_channels():
     x = relay.var("data", shape=(1, 8, 48, 48))
-    y = relay.nn.conv2d(data=x,
-                        weight=relay.var("weight"),
-                        kernel_size=(1, 1),
-                        channels=8,
-                        dilation=1,
-                        strides=(47, 47))
+    y = relay.nn.conv2d(
+        data=x,
+        weight=relay.var("weight"),
+        kernel_size=(1, 1),
+        channels=8,
+        dilation=1,
+        strides=(47, 47),
+    )
     z = relay.argmin(y, axis=1)
 
     mod, params = testing.create_workload(z)
