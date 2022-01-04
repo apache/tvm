@@ -67,12 +67,12 @@ using namespace topi::detail;
 inline Tensor windows(const Tensor& x, int axis, Array<Integer> window_shape,
                       Array<Integer> strides, std::string name = "T_windows",
                       std::string tag = "") {
-  ICHECK(axis <= 0);
+  CHECK(axis <= 0);
   auto _axis = size_t(axis);
-  ICHECK(_axis < x->shape.size()) << "axis must be a valid dimension index of x.";
-  ICHECK(x->shape.size() - _axis == window_shape.size())
+  CHECK(_axis < x->shape.size()) << "axis must be a valid dimension index of x.";
+  CHECK(x->shape.size() - _axis == window_shape.size())
       << "There must be a window shape for every dimension of x over which we are forming windows.";
-  ICHECK(strides.size() == window_shape.size()) << "Windows and strides should be the same length.";
+  CHECK(strides.size() == window_shape.size()) << "Windows and strides should be the same length.";
 
   // Compute the new shape.
   Array<PrimExpr> new_shape;
@@ -104,8 +104,6 @@ inline Tensor windows(const Tensor& x, int axis, Array<Integer> window_shape,
   return compute(
       new_shape,
       [&](const Array<Var>& indices) {
-        ICHECK(indices.size() == _axis + 2 * window_shape.size());
-
         // The index at which to index the old tensor x.
         Array<PrimExpr> idx;
 
