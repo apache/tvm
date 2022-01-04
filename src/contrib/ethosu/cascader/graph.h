@@ -106,7 +106,7 @@ class TensorNode : public Object {
   /*! \return The consumers of the tensor */
   const std::vector<Part> GetConsumers() const { return consumers_; }
   /*! \return The size of the tensor in bytes */
-  size_t GetSize() const { return size_ * compression_ratio_; }
+  int GetSize() const { return size_ * compression_ratio_; }
 
   /*! \brief Add a producer of the tensor */
   inline void AddProducer(const Part& part) { producers_.push_back(part); }
@@ -132,7 +132,7 @@ class TensorNode : public Object {
   /*! \brief The consumers of the tensor */
   std::vector<Part> consumers_;
   /*! \brief The size of the tensor in bytes */
-  size_t size_;
+  int size_;
 };
 
 /*!
