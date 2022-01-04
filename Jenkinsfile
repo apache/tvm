@@ -435,7 +435,7 @@ stage('Unit Test') {
               label: "Run test_arm_compute_lib test",
             )
             junit "build/pytest-results/*.xml"
-          // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
+            // sh "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh"
           }
         }
       }
