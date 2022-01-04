@@ -100,7 +100,8 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
     all_fields_unchanged = false;
   }
 
-  all_fields_unchanged = all_fields_unchanged && span.same_as(tuple->span);
+  all_fields_unchanged = all_fields_unchanged && virtual_device.same_as(tuple->virtual_device_) &&
+                         span.same_as(tuple->span);
   if (!all_fields_unchanged) {
     TupleNode* cow_tuple_node = tuple.CopyOnWrite();
     cow_tuple_node->fields = fields;
@@ -139,7 +140,7 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
   Span span = opt_span.value_or(var->span);
 
   bool unchanged = vid.same_as(var->vid) && type_annotation.same_as(var->type_annotation) &&
-                   span.same_as(var->span);
+                   virtual_device.same_as(var->virtual_device_) && span.same_as(var->span);
 
   if (!unchanged) {
     VarNode* cow_var_node = var.CopyOnWrite();
@@ -188,7 +189,8 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
   VirtualDevice virtual_device = opt_virtual_device.value_or(call->virtual_device());
   Span span = opt_span.value_or(call->span);
 
-  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) && span.same_as(call->span);
+  bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) &&
+                   virtual_device.same_as(call->virtual_device_) && span.same_as(call->span);
 
   // Check that the args are unchanged
   if (unchanged) {
@@ -261,7 +263,7 @@ Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optiona
   Span span = opt_span.value_or(let->span);
 
   bool unchanged = var.same_as(let->var) && value.same_as(let->value) && body.same_as(let->body) &&
-                   span.same_as(let->span);
+                   virtual_device.same_as(let->virtual_device_) && span.same_as(let->span);
 
   if (!unchanged) {
     LetNode* cow_let_node = let.CopyOnWrite();
@@ -305,7 +307,8 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
   Span span = opt_span.value_or(if_expr->span);
 
   bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
-                   false_branch.same_as(if_expr->false_branch) && span.same_as(if_expr->span);
+                   false_branch.same_as(if_expr->false_branch) &&
+                   virtual_device.same_as(if_expr->virtual_device_) && span.same_as(if_expr->span);
 
   if (!unchanged) {
     IfNode* cow_if_node = if_expr.CopyOnWrite();
@@ -349,6 +352,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
+                   virtual_device.same_as(tuple_get_item->virtual_device_) &&
                    span.same_as(tuple_get_item->span);
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
@@ -385,7 +389,9 @@ RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
   VirtualDevice virtual_device = opt_virtual_device.value_or(ref_create->virtual_device());
   Span span = opt_span.value_or(ref_create->span);
 
-  bool unchanged = value.same_as(ref_create->value) && span.same_as(ref_create->span);
+  bool unchanged = value.same_as(ref_create->value) &&
+                   virtual_device.same_as(ref_create->virtual_device_) &&
+                   span.same_as(ref_create->span);
   if (!unchanged) {
     RefCreateNode* cow_ref_create_node = ref_create.CopyOnWrite();
     cow_ref_create_node->value = value;
@@ -420,7 +426,9 @@ RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref,
   VirtualDevice virtual_device = opt_virtual_device.value_or(ref_read->virtual_device());
   Span span = opt_span.value_or(ref_read->span);
 
-  bool unchanged = ref.same_as(ref_read->ref) && span.same_as(ref_read->span);
+  bool unchanged = ref.same_as(ref_read->ref) &&
+                   virtual_device.same_as(ref_read->virtual_device_) &&
+                   span.same_as(ref_read->span);
   if (!unchanged) {
     RefReadNode* cow_ref_read_node = ref_read.CopyOnWrite();
     cow_ref_read_node->ref = ref;
@@ -456,6 +464,7 @@ RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> o
   Span span = opt_span.value_or(ref_write->span);
 
   bool unchanged = ref.same_as(ref_write->ref) && value.same_as(ref_write->value) &&
+                   virtual_device.same_as(ref_write->virtual_device_) &&
                    span.same_as(ref_write->span);
   if (!unchanged) {
     RefWriteNode* cow_ref_write_node = ref_write.CopyOnWrite();

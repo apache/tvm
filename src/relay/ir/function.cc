@@ -53,7 +53,9 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params, Optional
   Span span = opt_span.value_or(function->span);
 
   bool unchanged = body.same_as(function->body) && ret_type.same_as(function->ret_type) &&
-                   attrs.same_as(function->attrs) && span.same_as(function->span);
+                   attrs.same_as(function->attrs) &&
+                   virtual_device.same_as(function->virtual_device_) &&
+                   span.same_as(function->span);
 
   // Check that all the type params are unchanged
   if (unchanged) {
