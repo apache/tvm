@@ -92,8 +92,18 @@ def test_cast():
 
 
 def test_windows():
+    # Slide a window of shape (3, 4, 5) over the x tensor, beginning with
+    # dimension 1, which slides the window over the two subtensors of shape (3,
+    # 32, 32).
     x = relay.var("x", relay.TensorType((2, 3, 32, 32), "float32"))
     y = relay.windows(x, 1, [3, 4, 5], [1, 2, 3])
+
+    # The resulting shape still has batch size 2. Each dimension in (1, 15, 10)
+    # represents the locations where we were able to form a window; that is, we
+    # were able to place the window in one place along the dimension of length
+    # 3, 15 places along the dimension of length 32 (when striding by 2), and 10
+    # places along the second dimension of length 32 (when striding by 3). The
+    # remaining dimensions (3, 4, 5) represent the formed windows.
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((2, 1, 15, 10, 3, 4, 5), "float32")
 
