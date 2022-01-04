@@ -252,6 +252,48 @@ struct InputConnectionConfig {
 };
 
 /*!
+ * \brief A map includes global module parameters groups and graph modudles.
+ */
+struct ParamConnectionConfig {
+  /*!\brief Mapping from the name of a global module parameters group to the index of a runtime
+   *  module.
+   */
+  std::unordered_map<std::string, int> param_connection;
+  bool Empty() { return param_connection.empty(); }
+  int operator[](const std::string key) {
+    if (param_connection.find(key) == param_connection.end()) {
+      LOG(FATAL) << "do not support key " << key;
+    }
+    return param_connection[key];
+  }
+  /*!
+   * \brief Load from JSONReader.
+   * \param reader Json reader.
+   */
+  void Load(dmlc::JSONReader* reader) {
+    reader->BeginArray();
+    while (reader->NextArrayItem()) {
+      reader->BeginObject();
+      std::string key;
+      std::string global_param_name;
+      int mod_idx = -1;
+      while (reader->NextObjectItem(&key)) {
+        if (key == "global_param_name") {
+          reader->Read(&global_param_name);
+        } else if (key == "mod_idx") {
+          reader->Read(&mod_idx);
+        } else {
+          LOG(FATAL) << "do not support key " << key;
+        }
+      }
+      ICHECK(mod_idx >= 0) << "Invalid module index value " << mod_idx;
+      ICHECK(!global_param_name.empty()) << "Invalid global parameter group name value";
+      param_connection[global_param_name] = mod_idx;
+    }
+  }
+};
+
+/*!
  * \brief The information used to initialize the graph executor module, the information
  *  come from the export library function call.
  */

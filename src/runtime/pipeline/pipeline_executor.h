@@ -75,14 +75,27 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \param The global input name.
    * \return Returning the index and the input interface name of corresponding subgraph.
    */
-  Array<String> GetInputPipeplineMapping(std::string input_name);
+  Array<String> GetInputPipeplineMap(std::string input_name);
+  /*!
+   * \brief This function return a module index for the global parameters group name.
+   * \param name The parameters group name.
+   * \return Returning a runtime module index.
+   */
+  int GetParamsGroupPipelineMap(const std::string& name);
+  /*!
+   * \brief Use the parameters group name to get the specific backend runtime then use
+   *  the param_key_name to set param data for the said backend runtime.
+   * \param param_group_name The parameters group name.
+   * \param param_key_name The parameter key name.
+   * \param data_in The parameter value.
+   */
+  void SetParam(std::string param_group_name, std::string param_key_name, DLTensor* data_in);
   /*!
    * \brief Get the number of outputs.
    *
    * \return The number of outputs.
    */
   int NumOutputs() const { return num_outputs_; }
-
   /*!\brief Load the module files information.*/
   ModuleConfig& LoadModuleConfig(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -126,6 +139,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   ConfigPipelineExecution pipeline_config_;
   /*!\brief The map of global input and subgraph input.*/
   InputConnectionConfig input_connection_config;
+  /*!\brief The map includes global parameters groups and runtime modules.*/
+  ParamConnectionConfig param_connection_config;
   /*!\brief The module information used to create the graph runtimes.*/
   ModuleConfig mod_config_;
   /*!\brief How many outputs are in this pipeline executor.*/
@@ -139,6 +154,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
         reader->Read(&pipeline_config_);
       } else if (key == "input_connection") {
         reader->Read(&input_connection_config);
+      } else if (key == "param_connection") {
+        reader->Read(&param_connection_config);
       } else {
         LOG(FATAL) << "do not support key " << key;
       }
