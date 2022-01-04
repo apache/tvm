@@ -59,8 +59,9 @@ bool WindowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
-    ICHECK(types[0].as<IncompleteTypeNode>())
-        << "windows: expect input type to be TensorType but get " << types[0];
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Windows operator expects input to be of TensorType "
+                                     << "but got " << PrettyPrint(types[0]));
     return false;
   }
   const auto* param = attrs.as<WindowsAttrs>();
