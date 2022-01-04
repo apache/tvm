@@ -66,7 +66,6 @@ using namespace topi::detail;
  */
 inline Tensor windows(const Tensor& x, int axis, Array<Integer> window_shape,
                       Array<Integer> strides, std::string name = "T_windows",
-                      // TODO(@gussmith23) what to tag it?
                       std::string tag = "") {
   ICHECK(axis <= 0);
   auto _axis = size_t(axis);
