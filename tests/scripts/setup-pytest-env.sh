@@ -26,6 +26,8 @@ else
 fi
 set -u
 
+set -x
+
 export TVM_PATH=`pwd`
 export PYTHONPATH="${TVM_PATH}/python"
 
@@ -37,14 +39,33 @@ function run_pytest() {
     shift
     local test_suite_name="$1"
     shift
-    if [ -z "${ffi_type}" -o -z "${test_suite_name}" ]; then
+
+    # Default to -n0 (which disables pytest-xdist entirely), but use PYTEST_CPUS
+    # if it was set manually by the caller
+    xdist_cpus="-n${PYTEST_CPUS:-0}"
+    if [[ -n ${PYTEST_CPUS+x} ]] && [ "$PYTEST_CPUS" == "auto" ]; then
+        # If PYTEST_CPUS is set to 'auto', use max(nproc - 1, 0) CPUs
+        num_cpus="$(nproc)"
+
+        if [ "$num_cpus" -gt 3 ]; then
+            # Limit concurrency to 2 jobs max in CI
+            num_cpus=3
+        fi
+
+        xdist_cpus=-n$((num_cpus == 1 ? 1 : num_cpus - 1))
+    fi
+
+    if [ -z "${ffi_type}" ] || [ -z "${test_suite_name}" ]; then
         echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name} $@"
         echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
         exit 2
     fi
+    echo "running with $xdist_cpus"
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "--junit-prefix=${ffi_type}" \
+           "--durations=20" \
+           "$xdist_cpus" \
            "$@"
 }

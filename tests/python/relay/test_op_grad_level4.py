@@ -45,6 +45,7 @@ def verify_max_grad(d_shape, axis=None, keepdims=False, exclude=False):
     check_grad(fwd_func, scale=1e-3)
 
 
+@pytest.mark.forked
 def test_max_grad():
     verify_max_grad((10, 10), axis=None)
     verify_max_grad((10, 10), axis=-1)

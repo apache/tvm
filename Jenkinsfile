@@ -91,17 +91,15 @@ def per_exec_ws(folder) {
 
 // initialize source codes
 def init_git() {
+  checkout scm
   // Add more info about job node
   sh (
-    script: """
-     echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
-     """,
+    script: './tests/scripts/task_show_node_info.sh',
      label: "Show executor node info",
   )
-  checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
-      sh (script: 'git submodule update --init -f', label: "Update git submodules")
+      sh(script: 'git submodule update --init -f', label: "Update git submodules")
     }
   }
 }

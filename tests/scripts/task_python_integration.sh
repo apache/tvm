@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
@@ -26,6 +25,7 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
+export PYTEST_CPUS=auto
 
 # NOTE: also set by task_python_integration_gpuonly.sh.
 if [ -z "${TVM_INTEGRATION_TESTSUITE_NAME:-}" ]; then
