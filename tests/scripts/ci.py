@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT_DIR = REPO_ROOT / ".cipy-scripts"
+SCRIPT_DIR = REPO_ROOT / ".ci-py-scripts"
 NPROC = multiprocessing.cpu_count()
 
 
@@ -97,26 +97,35 @@ def check_docker():
 
 
 def check_gpu():
-    if sys.platform == "linux" and shutil.which("lshw"):
-        # See if we can check if a GPU is present in case of later failures,
-        # but don't block on execution since this isn't critical
-        try:
-            proc = cmd(
-                ["lshw", "-json", "-C", "display"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding="utf-8",
-            )
-            stdout = proc.stdout.strip().strip(",")
-            stdout = json.loads(stdout)
-            if isinstance(stdout, dict):
-                stdout = [stdout]
-            products = [s.get("product", "").lower() for s in stdout]
-            if not any("nvidia" in product for product in products):
-                warnings.append("nvidia GPU not found in 'lshw', maybe use --cpu flag?")
-        except Exception as e:
-            # Do nothing if any step failed
-            pass
+    if not (sys.platform == "linux" and shutil.which("lshw")):
+        # Can't check GPU on non-Linux platforms
+        return
+
+    # See if we can check if a GPU is present in case of later failures,
+    # but don't block on execution since this isn't critical
+    try:
+        proc = cmd(
+            ["lshw", "-json", "-C", "display"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        stdout = proc.stdout.strip().strip(",")
+        stdout = json.loads(stdout)
+    except (subprocess.CalledProcessError, json.decoder.JSONDecodeError) as e:
+        # Do nothing if any step failed
+        return
+
+    if isinstance(stdout, dict):
+        # Sometimes lshw outputs a single item as a dict instead of a list of
+        # dicts, so wrap it up if necessary
+        stdout = [stdout]
+    if not isinstance(stdout, list):
+        return
+
+    products = [s.get("product", "").lower() for s in stdout]
+    if not any("nvidia" in product for product in products):
+        warnings.append("nvidia GPU not found in 'lshw', maybe use --cpu flag?")
 
 
 def check_build():
@@ -130,6 +139,11 @@ def check_build():
 def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     """
     Invoke a set of bash scripts through docker/bash.sh
+
+    name: container name
+    image: docker image name
+    scripts: list of bash commands to run
+    env: environment to set
     """
     check_docker()
 
@@ -182,12 +196,12 @@ def docs(
     image = "ci_gpu"
     if cpu:
         image = "ci_cpu"
-        # The docs import tvm.micro, so it has to be enabled in the build
         config = " && ".join(
             [
                 "mkdir -p build",
                 "pushd build",
                 "cp ../cmake/config.cmake .",
+                # The docs import tvm.micro, so it has to be enabled in the build
                 "echo set\(USE_MICRO ON\) >> config.cmake",
                 "popd",
             ]
