@@ -15,11 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 """Python bindings for creating VirtualDevices."""
+
+import tvm
+from tvm.runtime import Object
+
 from . import _ffi_api
 
 
-# TODO(mbs): We need an official Python class representation given the importance of this structure.
+@tvm._ffi.register_object
+class VirtualDevice(Object):
+    """A compile time representation for where data is to be stored at runtime,
+    and how to compile code to compute it."""
 
+    def __init__(self, device, target=None, memory_scope="") -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope, device, target, memory_scope
+        )
 
-def make_virtual_device(device, target=None, memory_scope=""):
-    return _ffi_api.VirtualDevice_ForDeviceTargetAndMemoryScope(device, target, memory_scope)
+    @property
+    def device_type(self) -> int:
+        return self.device_type_int
