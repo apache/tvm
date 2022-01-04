@@ -50,10 +50,10 @@ TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 // The passing value in attrs and args doesn't seem super great.
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
-Expr AllocStorage(Expr size, Expr alignment, SEScope se_scope, DataType dtype_hint) {
+Expr AllocStorage(Expr size, Expr alignment, VirtualDevice virtual_device, DataType dtype_hint) {
   auto attrs = make_object<AllocStorageAttrs>();
   attrs->dtype = dtype_hint;
-  attrs->se_scope = std::move(se_scope);
+  attrs->virtual_device = std::move(virtual_device);
   static const Op& op = Op::Get("memory.alloc_storage");
   return Call(op, {std::move(size), std::move(alignment)}, Attrs(std::move(attrs)), {});
 }

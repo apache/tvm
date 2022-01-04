@@ -19,6 +19,5 @@ The tvm.meta_schedule.search_strategy package.
 Meta Schedule search strategy utilizes the design spaces given
 to generate measure candidates.
 """
-
-from .search_strategy import SearchStrategy, PySearchStrategy
+from .search_strategy import MeasureCandidate, PySearchStrategy, SearchStrategy
 from .replay_trace import ReplayTrace

@@ -137,7 +137,7 @@ Definition of a scope that is a stage pipeline:
   }
   // Step 3. Handle `require_subtree_compact_dataflow`
   if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_sref);
+    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
     for (const StmtSRef& block_sref : child_block_srefs) {
       if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
           !IsReductionBlock(self, block_sref, scope_root_sref)) {
@@ -415,12 +415,14 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
+  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<arith::IterSumExpr> results = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*require_bijective=*/false,
-      /*analyzer=*/analyzer);
+      /*analyzer=*/analyzer,
+      /*diag_ctx*/ diag_ctx);
   if (results.empty()) {
     return false;
   }
@@ -1341,6 +1343,37 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   for (; p->parent != nullptr; p = p->parent) {
   }
   return GetRef<StmtSRef>(p);
+}
+
+/******** Storage Scope ********/
+
+void CheckStorageScope(const ScheduleState& self, String storage_scope) {
+  class InvalidStorageScopeError : public ScheduleError {
+   public:
+    explicit InvalidStorageScopeError(IRModule mod, String storage_scope)
+        : mod_(std::move(mod)), storage_scope_(std::move(storage_scope)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The input storage scope is invalid";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "The input storage scope \"" + storage_scope_ + "\" is invalid.";
+    }
+
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    IRModule mod() const final { return mod_; }
+
+   private:
+    IRModule mod_;
+    String storage_scope_;
+  };
+
+  try {
+    runtime::StorageScope::Create(std::string(storage_scope));
+  } catch (...) {
+    throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
+  }
 }
 
 }  // namespace tir

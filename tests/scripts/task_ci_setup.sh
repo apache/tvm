@@ -28,7 +28,7 @@ set -o pipefail
 #
 # command: python3 -m pip install --user <package>==<version>
 #
-echo "Addtiional setup in" ${CI_IMAGE_NAME}
+echo "Additional setup in ${CI_IMAGE_NAME}"
 
 python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0
 

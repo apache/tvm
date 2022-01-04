@@ -23,11 +23,11 @@ from . import _make
 from .. import op as reg
 
 
-def _make_se_scope(device):
+def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return target.make_se_scope(device)
+        return target.make_virtual_device(device)
     if isinstance(device, str):
-        return target.make_se_scope(_nd.device(device))
+        return target.make_virtual_device(_nd.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
@@ -59,7 +59,7 @@ def on_device(body, device, constrain_result=False, constrain_body=True):
     result : tvm.relay.Expr
         The annotated expression.
     """
-    return _make.OnDevice(body, _make_se_scope(device), constrain_result, constrain_body)
+    return _make.OnDevice(body, _make_virtual_device(device), constrain_result, constrain_body)
 
 
 def function_on_device(function, param_devices, result_device):
@@ -83,7 +83,9 @@ def function_on_device(function, param_devices, result_device):
         The annotated function.
     """
     return _make.FunctionOnDevice(
-        function, [_make_se_scope(d) for d in param_devices], _make_se_scope(result_device)
+        function,
+        [_make_virtual_device(d) for d in param_devices],
+        _make_virtual_device(result_device),
     )
 
 

@@ -27,6 +27,7 @@ from .library import (
     OpcodeClass,
     MathOperation,
     TileDescription,
+    EpilogueFunctor,
 )
 
 logger = logging.getLogger("cutlass")
@@ -152,9 +153,34 @@ def generate_sm80_tensor_op_16816(out_dtype, op_creator):
             TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
         ]
 
-    return generate_tensor_op_common(
+    sm75_kernels = generate_sm75_tensor_op_1688(out_dtype, op_creator)
+    sm80_kernels = generate_tensor_op_common(
         math_instructions, alignment_constraints, get_tile_descriptions, op_creator
     )
+    return sm75_kernels + sm80_kernels
+
+
+GENERATOR_FUNC_TABLE = {
+    75: generate_sm75_tensor_op_1688,
+    80: generate_sm80_tensor_op_16816,
+}
+
+
+# (Epilogue functor name, no_beta_scaling)
+EPILOGUE_MAP = {
+    "cutlass.dense": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.dense_bias": (EpilogueFunctor.LinearCombinationBias, True),
+    "cutlass.dense_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
+    "cutlass.dense_bias_gelu_fp16": (EpilogueFunctor.LinearCombinationGelu, False),
+    "cutlass.dense_bias_gelu_fp32": (EpilogueFunctor.LinearCombinationGelu, False),
+    "cutlass.batch_matmul": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.conv2d_bias_hardswish": (EpilogueFunctor.LinearCombinationHardSwish, False),
+    "cutlass.conv2d_bias_silu": (EpilogueFunctor.LinearCombinationSilu, False),
+    "cutlass.conv2d_bias_sigmoid": (EpilogueFunctor.LinearCombinationSigmoid, False),
+    "cutlass.conv2d_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
+    "cutlass.conv2d_bias": (EpilogueFunctor.LinearCombinationBias, True),
+    "cutlass.conv2d": (EpilogueFunctor.LinearCombination, False),
+}
 
 
 class ProfilerEngine:
@@ -202,16 +228,12 @@ class ProfilerEngine:
         if not os.path.exists(opath):
             self._compile(op)
         cmd = [opath]
-        if args is not None:
-            cmd.append(str(args[0]))
-            cmd.append(str(args[1]))
-            cmd.append(str(args[2]))
-            if len(args) > 3:
-                cmd.append(str(args[3]))
+        for arg in args:
+            cmd.append(str(arg))
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
             logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
-            rt = -1
+            rt = float("inf")
         return rt

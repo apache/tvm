@@ -848,6 +848,29 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# batch_norm
+def wrap_compute_batch_norm(topi_compute):
+    """wrap batch_norm topi compute"""
+
+    def _compute_batch_norm(attrs, inputs, out_type):
+        return topi_compute(*inputs, attrs.axis, attrs.epsilon, attrs.center, attrs.scale)
+
+    return _compute_batch_norm
+
+
+@override_native_generic_func("batch_norm_strategy")
+def batch_norm_strategy(attrs, inputs, out_type, target):
+    """batch_norm generic strategy"""
+    logger.warning("batch_norm is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_batch_norm(topi.nn.batch_norm),
+        wrap_topi_schedule(topi.generic.schedule_batch_norm),
+        name="batch_norm.generic",
+    )
+    return strategy
+
+
 # sparse dense
 def wrap_compute_sparse_dense(topi_compute):
     """wrap sparse dense topi compute"""

@@ -30,22 +30,22 @@ TEST(OnDeviceOp, Name) { EXPECT_EQ(OnDeviceOp()->name, "on_device"); }
 
 TEST(OnDevice, Default) {
   Var body("x", {});
-  SEScope se_scope = SEScope::ForDeviceType(kDLCPU, 3);
-  Call call = OnDevice(body, se_scope);
+  VirtualDevice virtual_device = VirtualDevice::ForDeviceType(kDLCPU, 3);
+  Call call = OnDevice(body, virtual_device);
   EXPECT_EQ(call->op, OnDeviceOp());
   EXPECT_EQ(call->args.size(), 1);
   EXPECT_EQ(call->args[0], body);
   const auto* attrs = call->attrs.as<OnDeviceAttrs>();
   ASSERT_TRUE(attrs != nullptr);
-  EXPECT_EQ(attrs->se_scope, se_scope);
+  EXPECT_EQ(attrs->virtual_device, virtual_device);
   EXPECT_FALSE(attrs->constrain_result);
   EXPECT_TRUE(attrs->constrain_body);
 }
 
 TEST(OnDevice, Fixed) {
   Var body("x", {});
-  SEScope se_scope = SEScope::ForDeviceType(kDLCPU, 3);
-  Call call = OnDevice(body, se_scope, /*constrain_result=*/true);
+  VirtualDevice virtual_device = VirtualDevice::ForDeviceType(kDLCPU, 3);
+  Call call = OnDevice(body, virtual_device, /*constrain_result=*/true);
   const auto* attrs = call->attrs.as<OnDeviceAttrs>();
   ASSERT_TRUE(attrs != nullptr);
   EXPECT_TRUE(attrs->constrain_result);
@@ -54,8 +54,8 @@ TEST(OnDevice, Fixed) {
 
 TEST(OnDevice, Free) {
   Var body("x", {});
-  SEScope se_scope = SEScope::ForDeviceType(kDLCPU, 3);
-  Call call = OnDevice(body, se_scope, /*constrain_result=*/false, /*constrain_body=*/false);
+  VirtualDevice virtual_device = VirtualDevice::ForDeviceType(kDLCPU, 3);
+  Call call = OnDevice(body, virtual_device, /*constrain_result=*/false, /*constrain_body=*/false);
   const auto* attrs = call->attrs.as<OnDeviceAttrs>();
   ASSERT_TRUE(attrs != nullptr);
   EXPECT_FALSE(attrs->constrain_result);
@@ -64,23 +64,23 @@ TEST(OnDevice, Free) {
 
 TEST(GetOnDeviceProps, Correct) {
   Var body("x", {});
-  SEScope se_scope = SEScope::ForDeviceType(kDLCPU, 3);
-  Call call = OnDevice(body, se_scope, /*constrain_result=*/true, /*constrain_body=*/false);
+  VirtualDevice virtual_device = VirtualDevice::ForDeviceType(kDLCPU, 3);
+  Call call = OnDevice(body, virtual_device, /*constrain_result=*/true, /*constrain_body=*/false);
   OnDeviceProps props = GetOnDeviceProps(call);
   ASSERT_TRUE(props.body.defined());
-  ASSERT_EQ(props.se_scope, se_scope);
+  ASSERT_EQ(props.virtual_device, virtual_device);
   ASSERT_TRUE(props.constrain_result);
   ASSERT_FALSE(props.constrain_body);
 }
 
 TEST(MaybeOnDevice, Wrapped) {
-  SEScope se_scope = SEScope::ForDeviceType(kDLCPU, 3);
+  VirtualDevice virtual_device = VirtualDevice::ForDeviceType(kDLCPU, 3);
   Var body("x", {});
-  Call inner = OnDevice(body, se_scope);
-  Call outer = OnDevice(inner, se_scope);
+  Call inner = OnDevice(body, virtual_device);
+  Call outer = OnDevice(inner, virtual_device);
   OnDeviceProps props = GetOnDeviceProps(outer);
   ASSERT_TRUE(props.body.defined());
-  ASSERT_EQ(props.se_scope, se_scope);
+  ASSERT_EQ(props.virtual_device, virtual_device);
   ASSERT_FALSE(props.constrain_result);
   ASSERT_TRUE(props.constrain_body);
 }

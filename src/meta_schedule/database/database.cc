@@ -135,10 +135,12 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
 
 /******** PyDatabase ********/
 
-Database Database::PyDatabase(PyDatabaseNode::FCommitWorkload f_commit_workload,
+Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
+                              PyDatabaseNode::FCommitWorkload f_commit_workload,
                               PyDatabaseNode::FCommitTuningRecord f_commit_tuning_record,
                               PyDatabaseNode::FGetTopK f_get_top_k, PyDatabaseNode::FSize f_size) {
   ObjectPtr<PyDatabaseNode> n = make_object<PyDatabaseNode>();
+  n->f_has_workload = f_has_workload;
   n->f_commit_workload = f_commit_workload;
   n->f_commit_tuning_record = f_commit_tuning_record;
   n->f_get_top_k = f_get_top_k;
@@ -166,6 +168,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuningRecord")
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordAsJSON")
     .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
 TVM_REGISTER_GLOBAL("meta_schedule.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
+TVM_REGISTER_GLOBAL("meta_schedule.DatabaseHasWorkload")
+    .set_body_method<Database>(&DatabaseNode::HasWorkload);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseCommitWorkload")
     .set_body_method<Database>(&DatabaseNode::CommitWorkload);
 TVM_REGISTER_GLOBAL("meta_schedule.DatabaseCommitTuningRecord")

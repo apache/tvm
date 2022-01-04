@@ -81,13 +81,6 @@ ${BUILD_DIR}/libcmsis_startup.a: $(CMSIS_STARTUP_SRCS)
 	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libcmsis_startup.a) $(abspath $(BUILD_DIR))/libcmsis_startup/*.o
 	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libcmsis_startup.a)
 
-# Build UART code
-${BUILD_DIR}/libuart.a: $(UART_SRCS)
-	$(QUIET)mkdir -p $(abspath $(BUILD_DIR)/libuart)
-	$(QUIET)cd $(abspath $(BUILD_DIR)/libuart) && $(CC) -c $(PKG_CFLAGS) $^
-	$(QUIET)$(AR) -cr $(abspath $(BUILD_DIR)/libuart.a) $(abspath $(BUILD_DIR))/libuart/*.o
-	$(QUIET)$(RANLIB) $(abspath $(BUILD_DIR)/libuart.a)
-
 # Build Arm(R) Ethos(TM)-U core driver
 ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)mkdir -p $(@D)
@@ -95,12 +88,12 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
 # Build demo application
-$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/libuart.a
+$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
 
 clean:
-	$(QUIET)rm -rf $(BUILD_DIR)/crt
+	$(QUIET)rm -rf $(BUILD_DIR)/codegen
 
 cleanall:
 	$(QUIET)rm -rf $(BUILD_DIR)

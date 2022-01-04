@@ -32,7 +32,7 @@
 #include "./device_constraint_utils.h"
 
 #include <tvm/relay/attrs/memory.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -104,11 +104,11 @@ void CheckNoRemainingPointerParams(const tir::PrimFunc& prim_func,
  * using \p prim_func parameters at or after \p *current_primfunc_param_index. Currently
  * only memory scope is extracted. Fails if constraints are not consistent, ie \p type is a tuple
  * type and the \p prim_func is attempting to map different fields of that tuple to different memory
- * scopes. Returns the fully unconstrained \p SEScope if no memory scopes constraints arise from
- * the \p prim_func, ie all storage scope strings in pointer types are empty.
+ * scopes. Returns the fully unconstrained \p VirtualDevice if no memory scopes constraints arise
+ * from the \p prim_func, ie all storage scope strings in pointer types are empty.
  */
-SEScope ConsistentParamConstraint(const tir::PrimFunc& prim_func, const Type& type,
-                                  size_t* current_primfunc_param_index) {
+VirtualDevice ConsistentParamConstraint(const tir::PrimFunc& prim_func, const Type& type,
+                                        size_t* current_primfunc_param_index) {
   std::string memory_scope;  // default empty => no constraint
   for (size_t i = 0; i < relay::FlattenTupleType(type).size(); ++i) {
     std::pair<tir::Var, tir::Buffer> kv = FindPointerParam(prim_func, current_primfunc_param_index);
@@ -120,25 +120,26 @@ SEScope ConsistentParamConstraint(const tir::PrimFunc& prim_func, const Type& ty
     } else if (buffer_memory_scope.empty()) {
       // No constraint.
     } else {
-      // Tuples must be homogenous on their SEScope and thus memory scope.
+      // Tuples must be homogenous on their VirtualDevice and thus memory scope.
       ICHECK_EQ(buffer_memory_scope, memory_scope);
     }
     ++*current_primfunc_param_index;
   }
-  return SEScope::ForMemoryScope(memory_scope);
+  return VirtualDevice::ForMemoryScope(memory_scope);
 }
 
 /*!
  * \brief Insert into param_constraints an entry for each parameter of \p prim_func starting from
  * \p *current_primfunc_param_index for the flattened form of a Rleay parameters of \p type. Each
- * entry maps to \p se_scope.
+ * entry maps to \p virtual_device.
  */
-void InsertParamConstraints(const tir::PrimFunc& prim_func, const Type& type,
-                            const SEScope& se_scope, size_t* current_primfunc_param_index,
-                            std::unordered_map<const tir::VarNode*, SEScope>* param_constraints) {
+void InsertParamConstraints(
+    const tir::PrimFunc& prim_func, const Type& type, const VirtualDevice& virtual_device,
+    size_t* current_primfunc_param_index,
+    std::unordered_map<const tir::VarNode*, VirtualDevice>* param_constraints) {
   for (size_t i = 0; i < relay::FlattenTupleType(type).size(); ++i) {
     std::pair<tir::Var, tir::Buffer> kv = FindPointerParam(prim_func, current_primfunc_param_index);
-    param_constraints->emplace(kv.first.get(), se_scope);
+    param_constraints->emplace(kv.first.get(), virtual_device);
     ++*current_primfunc_param_index;
   }
 }
@@ -186,22 +187,22 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
    * memory scopes needed to change.
    */
   PrimFunc Rewrite(const PrimFunc& prim_func, const FuncType& relay_func_type,
-                   const Array<SEScope>& arg_and_result_se_scopes) {
+                   const Array<VirtualDevice>& arg_and_result_virtual_devices) {
     size_t current_primfunc_param_index = 0;
-    std::unordered_map<const tir::VarNode*, SEScope> param_constraints;
+    std::unordered_map<const tir::VarNode*, VirtualDevice> param_constraints;
 
     // For each Relay function parameter...
     for (size_t i = 0; i < relay_func_type->arg_types.size(); ++i) {
       const Type& param_type = relay_func_type->arg_types[i];
-      const SEScope& param_se_scope = arg_and_result_se_scopes[i];
-      InsertParamConstraints(prim_func, param_type, param_se_scope, &current_primfunc_param_index,
-                             &param_constraints);
+      const VirtualDevice& param_virtual_device = arg_and_result_virtual_devices[i];
+      InsertParamConstraints(prim_func, param_type, param_virtual_device,
+                             &current_primfunc_param_index, &param_constraints);
     }
 
     // For the Relay function result...
     const Type& ret_type = relay_func_type->ret_type;
-    const SEScope& ret_se_scope = arg_and_result_se_scopes.back();
-    InsertParamConstraints(prim_func, ret_type, ret_se_scope, &current_primfunc_param_index,
+    const VirtualDevice& ret_virtual_device = arg_and_result_virtual_devices.back();
+    InsertParamConstraints(prim_func, ret_type, ret_virtual_device, &current_primfunc_param_index,
                            &param_constraints);
 
     // Make sure we accounted for all prim_func parameters.
@@ -214,10 +215,10 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     // For each constrained parameter...
     for (const auto& kv : param_constraints) {
       const tir::Var param = GetRef<tir::Var>(kv.first);
-      const SEScope& se_scope = kv.second;
+      const VirtualDevice& virtual_device = kv.second;
       const tir::Buffer& buffer = prim_func->buffer_map[param];
       // Rewrite the buffer to account for constraint.
-      const Buffer new_buffer = RewriteBuffer(buffer, se_scope);
+      const Buffer new_buffer = RewriteBuffer(buffer, virtual_device);
       if (!new_buffer.same_as(buffer)) {
         any_change = true;
       }
@@ -357,10 +358,10 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     BufferRegion new_source = VisitItem(match_buffer_region_node->source.get());
     // The buffer field however is a definitional occurrence, aliased on top of the source.
     // Transfer any memory scope from the source to the destination.
-    Optional<SEScope> opt_se_scope = GetBufferConstraint(new_source->buffer);
+    Optional<VirtualDevice> opt_virtual_device = GetBufferConstraint(new_source->buffer);
     tir::Buffer new_buffer;
-    if (opt_se_scope.defined()) {
-      new_buffer = RewriteBuffer(match_buffer_region_node->buffer, opt_se_scope.value());
+    if (opt_virtual_device.defined()) {
+      new_buffer = RewriteBuffer(match_buffer_region_node->buffer, opt_virtual_device.value());
     } else {
       new_buffer = match_buffer_region_node->buffer;
     }
@@ -407,21 +408,21 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   }
 
   /*!
-   * \brief Rewrites \p buffer so as to follow the constraints in \p se_scope
+   * \brief Rewrites \p buffer so as to follow the constraints in \p virtual_device
    * (currently just memory scope).
    *
    * Updates both the var_subst_ and buffer_subst_ to capture the rewrite, but
    * also returns the new buffer.
    */
-  Buffer RewriteBuffer(const Buffer& buffer, const SEScope& se_scope) {
+  Buffer RewriteBuffer(const Buffer& buffer, const VirtualDevice& virtual_device) {
     ICHECK(buffer->data->type_annotation.defined());
     const auto* pointer_type_node = buffer->data->type_annotation.as<PointerTypeNode>();
     ICHECK(pointer_type_node);
-    if (pointer_type_node->storage_scope == se_scope->memory_scope) {
+    if (pointer_type_node->storage_scope == virtual_device->memory_scope) {
       // No change.
       return buffer;
     }
-    PointerType new_pointer_type(pointer_type_node->element_type, se_scope->memory_scope);
+    PointerType new_pointer_type(pointer_type_node->element_type, virtual_device->memory_scope);
     Var new_data(buffer->data->name_hint, new_pointer_type, buffer->data->span);
     var_subst_.emplace(buffer->data.get(), new_data);
     Buffer new_buffer(new_data, buffer->dtype, buffer->shape, buffer->strides, buffer->elem_offset,
@@ -432,14 +433,15 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
   }
 
   /*!
-   * \brief Returns the SEScope capturing any memory scope in \p buffer. Returns nullptr if
+   * \brief Returns the VirtualDevice capturing any memory scope in \p buffer. Returns nullptr if
    * buffer's data var does not have a type annotation of \p PointerType. Returns the fully
-   * unconstrained \p SEScope if no memory scope is given.
+   * unconstrained \p VirtualDevice if no memory scope is given.
    */
-  static Optional<SEScope> GetBufferConstraint(const tir::Buffer& buffer) {
+  static Optional<VirtualDevice> GetBufferConstraint(const tir::Buffer& buffer) {
     const auto* pointer_type_node = PointerInBuffer(buffer);
-    return pointer_type_node == nullptr ? Optional<SEScope>()
-                                        : SEScope::ForMemoryScope(pointer_type_node->storage_scope);
+    return pointer_type_node == nullptr
+               ? Optional<VirtualDevice>()
+               : VirtualDevice::ForMemoryScope(pointer_type_node->storage_scope);
   }
 
   /*!
@@ -455,59 +457,60 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
 
 }  // namespace
 
-Array<SEScope> GetPrimFuncArgAndResultConstraints(const tir::PrimFunc& prim_func,
-                                                  const FuncType& relay_func_type) {
+Array<VirtualDevice> GetPrimFuncArgAndResultConstraints(const tir::PrimFunc& prim_func,
+                                                        const FuncType& relay_func_type) {
   // Build the implied domain (in terms of the function's Relay type) implied by any memory scope
   // constrains in the function's buffers, for both arguments and results.
-  Array<SEScope> se_scopes;
-  se_scopes.reserve(relay_func_type->arg_types.size() + 1);
+  Array<VirtualDevice> virtual_devices;
+  virtual_devices.reserve(relay_func_type->arg_types.size() + 1);
 
   // For each Relay function parameter...
   size_t current_primfunc_param_index = 0;
   for (const auto& param_type : relay_func_type->arg_types) {
-    SEScope param_se_scope =
+    VirtualDevice param_virtual_device =
         ConsistentParamConstraint(prim_func, param_type, &current_primfunc_param_index);
-    se_scopes.push_back(param_se_scope);
+    virtual_devices.push_back(param_virtual_device);
   }
 
   // For the Relay function result...
   const Type& ret_type = relay_func_type->ret_type;
-  SEScope ret_se_scope =
+  VirtualDevice ret_virtual_device =
       ConsistentParamConstraint(prim_func, ret_type, &current_primfunc_param_index);
-  se_scopes.push_back(ret_se_scope);
+  virtual_devices.push_back(ret_virtual_device);
 
   // Make sure all parameters of the prim_func have been accounted for.
   CheckNoRemainingPointerParams(prim_func, &current_primfunc_param_index);
 
-  return se_scopes;
+  return virtual_devices;
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.GetPrimFuncArgAndResultMemoryConstraints")
     .set_body_typed([](const PrimFunc& prim_func, const FuncType& relay_func_type) {
       Array<String> memory_scopes;
       memory_scopes.reserve(relay_func_type->type_params.size() + 1);
-      for (const auto& se_scope : GetPrimFuncArgAndResultConstraints(prim_func, relay_func_type)) {
-        memory_scopes.push_back(se_scope->memory_scope);
+      for (const auto& virtual_device :
+           GetPrimFuncArgAndResultConstraints(prim_func, relay_func_type)) {
+        memory_scopes.push_back(virtual_device->memory_scope);
       }
       return memory_scopes;
     });
 
-PrimFunc ApplyPrimFuncArgAndResultConstraints(const PrimFunc& prim_func,
-                                              const FuncType& relay_func_type,
-                                              const Array<SEScope>& arg_and_result_se_scopes) {
+PrimFunc ApplyPrimFuncArgAndResultConstraints(
+    const PrimFunc& prim_func, const FuncType& relay_func_type,
+    const Array<VirtualDevice>& arg_and_result_virtual_devices) {
   return ApplyDeviceConstraintsMutator().Rewrite(prim_func, relay_func_type,
-                                                 arg_and_result_se_scopes);
+                                                 arg_and_result_virtual_devices);
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.ApplyPrimFuncArgAndResultMemoryConstraints")
     .set_body_typed([](const PrimFunc& prim_func, const FuncType& relay_func_type,
                        const Array<String>& arg_and_result_memory_scopes) {
-      Array<SEScope> se_scopes;
-      se_scopes.reserve(arg_and_result_memory_scopes.size());
+      Array<VirtualDevice> virtual_devices;
+      virtual_devices.reserve(arg_and_result_memory_scopes.size());
       for (const auto& memory_scope : arg_and_result_memory_scopes) {
-        se_scopes.push_back(SEScope::ForMemoryScope(memory_scope));
+        virtual_devices.push_back(VirtualDevice::ForMemoryScope(memory_scope));
       }
-      return ApplyPrimFuncArgAndResultConstraints(prim_func, relay_func_type, se_scopes);
+      return ApplyPrimFuncArgAndResultConstraints(prim_func, relay_func_type, virtual_devices);
     });
 
 }  // namespace tir

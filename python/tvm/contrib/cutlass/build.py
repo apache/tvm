@@ -40,7 +40,7 @@ def _get_cutlass_path():
     return cutlass_path
 
 
-def _get_cutlass_compile_options(sm, threads):
+def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     cutlass_root = _get_cutlass_path()
     cutlass_include = os.path.join(cutlass_root, "include")
     cutlass_util_include = os.path.join(cutlass_root, "tools/util/include")
@@ -58,6 +58,8 @@ def _get_cutlass_compile_options(sm, threads):
         "-I" + cutlass_include,
         "-I" + cutlass_util_include,
     ]
+    if use_fast_math:
+        kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
     cuda_path = find_cuda_path()
     cuda_ver = get_cuda_version(cuda_path)
     if cuda_ver >= 11.2:
@@ -87,17 +89,22 @@ class OpAnnotator(tvm.relay.ExprVisitor):
         if str(op) == "nn.conv2d":
             self.op_attrs = call.attrs
 
+        for arg in call.args:
+            self.visit(arg)
+
 
 def select_gemm_kernel(
-    cutlass_profiler, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
+    cutlass_profiler, op_type, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
 ):
     """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
     workloads."""
     if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-        out = cutlass_profiler.get_default(out_dtype, batched=batched)
-        logger.info("Picked the default kernel %s", out["name"])
+        out = cutlass_profiler.get_default(op_type, out_dtype, batched=batched)
+        name, cutlass_op_def = out["name"], out["opdef"]
+        logger.info("Picked the default kernel %s", name)
     else:
-        out = cutlass_profiler.profile(
+        name, cutlass_op_def, _ = cutlass_profiler.profile(
+            op_type,
             MM,
             NN,
             KK,
@@ -107,10 +114,11 @@ def select_gemm_kernel(
             use_multiprocessing=use_multiprocessing,
         )
         if profile_all:
-            logger.info("The best kernel is %s", out["name"])
+            logger.info("The best kernel is %s", name)
         else:
-            logger.info("Picked the first kernel found %s", out["name"])
-    return out
+            logger.info("Picked the first kernel found %s", name)
+
+    return name, cutlass_op_def
 
 
 def handle_batch_matmul(
@@ -121,16 +129,9 @@ def handle_batch_matmul(
     KK = arg0_shape[2]
     NN = arg1_shape[1]
 
-    out = select_gemm_kernel(
-        cutlass_profiler, MM, KK, NN, out_dtype, True, profile_all, use_multiprocessing
+    name, cutlass_op_def = select_gemm_kernel(
+        cutlass_profiler, op_type, MM, KK, NN, out_dtype, True, profile_all, use_multiprocessing
     )
-
-    if op_type == "cutlass.batch_matmul":
-        cutlass_op_def = out["opdef"]
-    else:
-        raise ValueError("%s pattern is not implemented." % op_type)
-
-    assert "tn_align" in out["name"], "Only supports (row_major, col_major) input layout for now."
 
     return {
         "batch": arg0_shape[0],
@@ -138,7 +139,7 @@ def handle_batch_matmul(
         "batch_stride_B": arg1_shape[1] * arg1_shape[2],
         "batch_stride_C": arg0_shape[1] * arg1_shape[1],
         "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": out["name"],
+        "cutlass_op_name": name,
         "lda": "K",
         "ldb": "K",
         "ldc": "N",
@@ -153,26 +154,15 @@ def handle_dense(
     KK = arg0_shape[1]
     NN = arg1_shape[0]
 
-    out = select_gemm_kernel(
-        cutlass_profiler, MM, KK, NN, out_dtype, False, profile_all, use_multiprocessing
+    name, cutlass_op_def = select_gemm_kernel(
+        cutlass_profiler, op_type, MM, KK, NN, out_dtype, False, profile_all, use_multiprocessing
     )
 
-    if op_type == "cutlass.dense":
-        cutlass_op_def = out["opdef"]
-    elif op_type == "cutlass.dense_bias":
-        cutlass_op_def = out["opdef_bias"]
-    elif op_type == "cutlass.dense_bias_relu":
-        cutlass_op_def = out["opdef_bias_relu"]
-    elif "cutlass.dense_bias_gelu" in op_type:
-        cutlass_op_def = out["opdef_bias_gelu"]
-    else:
-        raise ValueError("%s pattern is not implemented." % op_type)
-
-    assert "tn_align" in out["name"], "Only supports (row_major, col_major) input layout for now."
+    assert "tn_align" in name, "Only supports (row_major, col_major) input layout for now."
 
     return {
         "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": out["name"],
+        "cutlass_op_name": name,
         "lda": "K",
         "ldb": "K",
         "ldc": "N",
@@ -184,37 +174,38 @@ def handle_conv2d(
     op_type,
     d_shape,
     w_shape,
-    out_shape,
+    padding,
+    strides,
+    dilation,
     out_dtype,
     profile_all,
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(out_dtype)
-        logger.info("Picked the default kernel %s", out["name"])
+        out = cutlass_profiler.get_default(op_type, out_dtype)
+        name, cutlass_op_def = out["name"], out["opdef"]
+        logger.info("Picked the default kernel %s", name)
     else:
-        out = cutlass_profiler.profile(
+        name, cutlass_op_def, _ = cutlass_profiler.profile(
+            op_type,
             d_shape,
             w_shape,
-            out_shape,
+            padding,
+            strides,
+            dilation,
             out_dtype,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )
         if profile_all:
-            logger.info("The best kernel is %s", out["name"])
+            logger.info("The best kernel is %s", name)
         else:
-            logger.info("Picked the first kernel found %s", out["name"])
-
-    if op_type == "cutlass.conv2d":
-        cutlass_op_def = out["opdef"]
-    else:
-        raise ValueError("%s pattern is not implemented." % op_type)
+            logger.info("Picked the first kernel found %s", name)
 
     return {
         "cutlass_op_def": cutlass_op_def,
-        "cutlass_op_name": out["name"],
+        "cutlass_op_name": name,
     }
 
 
@@ -278,7 +269,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         op_type,
                         arg0_shape,
                         arg1_shape,
-                        annotator.signature["ret_shape"],
+                        annotator.op_attrs.padding,
+                        annotator.op_attrs.strides,
+                        annotator.op_attrs.dilation,
                         out_dtype,
                         profile_all,
                         use_multiprocessing,
@@ -324,7 +317,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
     return mod, num_cutlass_partition
 
 
-def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threads=-1):
+def build_cutlass_kernels(
+    lib, sm, tmp_dir="./tmp", lib_path="compile.so", threads=-1, use_fast_math=False
+):
     """Compile CUTLASS kernels in lib and return the runtime module ready to run.
 
     Parameters
@@ -346,18 +341,27 @@ def build_cutlass_kernels(lib, sm, tmp_dir="./tmp", lib_path="compile.so", threa
         The number of threads to use for compiling generated kernels. Only available for
         CUDA 11.2 or later. Use all physical cores by default.
 
+    use_fast_math : bool, optional
+        Whether or not to use faster but less accurate math intrinsics.
+
     Returns
     -------
     updated_lib : runtime.Module
         The updated module with compiled cutlass kernels.
     """
-    kwargs = _get_cutlass_compile_options(sm, threads)
+    kwargs = _get_cutlass_compile_options(sm, threads, use_fast_math)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)
     return runtime.load_module(lib_path)
 
 
 def build_cutlass_kernels_vm(
-    vm_exec, sm, tmp_dir="./tmp", lib_path="compile.so", vmcode_path="vmcode.ro", threads=-1
+    vm_exec,
+    sm,
+    tmp_dir="./tmp",
+    lib_path="compile.so",
+    vmcode_path="vmcode.ro",
+    threads=-1,
+    use_fast_math=False,
 ):
     """Compile CUTLASS kernels in vm_exec and return a VM executable ready to run.
 
@@ -383,13 +387,16 @@ def build_cutlass_kernels_vm(
         The number of threads to use for compiling generated kernels. Only available for
         CUDA 11.2 or later. Use all physical cores by default.
 
+    use_fast_math : bool, optional
+        Whether or not to use faster but less accurate math intrinsics.
+
     Returns
     -------
     updated_vm_exec: vm.Executable
         The updated exectuable with compiled cutlass kernels.
     """
     code, lib = vm_exec.save()
-    kwargs = _get_cutlass_compile_options(sm, threads)
+    kwargs = _get_cutlass_compile_options(sm, threads, use_fast_math)
     lib_path = os.path.join(tmp_dir, lib_path)
     vmcode_path = os.path.join(tmp_dir, vmcode_path)
     lib.export_library(lib_path, workspace_dir=tmp_dir, **kwargs)

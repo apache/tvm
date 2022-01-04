@@ -49,16 +49,26 @@ def build(pipe_configs):
         Common interface for pipeline executor factory modules.
     """
     libs = {}
-    mod_n_configs = pipe_configs.get_config()
+    config = pipe_configs.get_config()
+    if "module_connection" not in config:
+        raise RuntimeError('"module_connection" is missing')
+    if "input_connection" not in config:
+        raise RuntimeError('"input_connection" is missing')
+
+    mod_n_configs = config["module_connection"]
     config_len = len(mod_n_configs)
-    string_config = [{} for _ in range(config_len)]
+    module_string_config = [{} for _ in range(config_len)]
+    # Use hardware configurations to build backend modules for each subgraph.
     for ir_mod, mod_config in mod_n_configs.items():
-        mconf = mod_config["pipeline"].copy()
-        mod_idx = mconf["mod_idx"]
+        pipe_config = mod_config["pipeline"].copy()
+        mod_idx = pipe_config["mod_idx"]
         dev = mod_config["dev"]
         target = mod_config["target"]
         build_func = relay.build
-        # Check whether there is a customized build function.
+        # Callers may need to use a customized building function to wrap the pre-building logic
+        # and the backend building logic. For example, in order to support a backend which only
+        # can do "int8" computation, the caller may need to merge the "quantization" logic
+        # into the building logic to creat a customized building function.
         if "build" in mod_config and mod_config["build"]:
             build_func = mod_config["build"]
 
@@ -70,10 +80,19 @@ def build(pipe_configs):
             mod_name=mod_config["mod_name"],
         )
 
-        mconf["dev"] = "{},{}".format(dev.device_type, dev.device_id)
-        # Create a pipeline configuration.
-        string_config[mod_idx] = mconf
+        pipe_config["dev"] = "{},{}".format(dev.device_type, dev.device_id)
+        # Use "mod_idx" as the key to create a "module_connection" map which is not only
+        # for the module index but also for the module connection used to build the pipeline.
+        module_string_config[mod_idx] = pipe_config
         libs[mod_idx] = {"lib": lib, "dev": dev}
+
+    # Creating a text form configuration to record the "input_connection" and the
+    # "module_connection" information. The "input_connection" is used to record the
+    # map of global input and subgraph input, and the "module_connection" is used to
+    # record module dependency.
+    string_config = {}
+    string_config["input_connection"] = config["input_connection"]
+    string_config["module_connection"] = module_string_config
 
     return PipelineExecutorFactoryModule(libs, string_config)
 
@@ -94,6 +113,17 @@ class PipelineModule(object):
             self.module = module
         # Get the packed functions from the pipeline executor.
         self._get_num_outputs = self.module["get_num_outputs"]
+        self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
+
+    def get_input_pipeline_map(self, name):
+        """Using the "name" to get the corresponding subgraph index and also get the "input name"
+        of the corresponding subgraph interface.
+        Returns
+        -------
+        input map: Array[str]
+            Returning the index and "input name" of the subgraph.
+        """
+        return self._get_input_pipeline_map(name)
 
     @property
     def num_outputs(self):
@@ -199,12 +229,48 @@ class PipelineConfig(object):
             return not isinstance(self.io_owner, PipelineConfig.ModuleWrapper)
 
         def __repr__(self):
-            # Get all binding information.
-            ret = "  |{}: ".format(self.name)
+            # Geting the binding information in the form of text.
+            str_format = "  |{}: ".format(self.name)
             for binding in self.bindings:
                 mname, dname = binding.get_name()
-                ret += "{0}:{1} ".format(mname, dname)
-            return ret
+                str_format += "{0}:{1} ".format(mname, dname)
+
+            return str_format
+
+        def check_binding_dict(self, connection_dict):
+            """Checking the binding dictionary.
+            Parameter
+            ---------
+            connection_dict : Dict[str, Any]
+                It is a dictionary of module connections.
+            """
+            if "interface_name" not in connection_dict:
+                raise RuntimeError('"inteface_name" is missing in global config!"')
+            if "connection" not in connection_dict:
+                raise RuntimeError(f'"connection" is missing!"')
+            # The global interface mapping should be one-to-one.
+            if not connection_dict["connection"]:
+                raise RuntimeError("The global interface map is empty!")
+            if len(connection_dict["connection"]) > 1:
+                raise RuntimeError("A global interface maps multiple module interfaces!")
+            if "mod_idx" not in connection_dict["connection"][0]:
+                raise RuntimeError('"mod_idx" is missing!')
+
+        def get_binding_dict(self):
+            """Returning the binding information in the form of dictionary.
+            Returns
+            -------
+            data : Dict[str, Any]
+                The binding information is in the form of dictionary.
+            """
+            dict_format = {"interface_name": self.name, "connection": []}
+            for binding in self.bindings:
+                _, dname = binding.get_name()
+                midx = binding.get_owner_idx()
+                dict_format["connection"].append({"mod_idx": midx, "interface_name": dname})
+
+            self.check_binding_dict(dict_format)
+            return dict_format
 
         def check_dag_acyclic(self, start, inputs):
             """This is to check whether the DAG containing these input interfaces is acyclic.
@@ -243,30 +309,34 @@ class PipelineConfig(object):
 
             # Check whether the binding setting is correct or not.
             if self.io_owner == binding.io_owner:
-                raise RuntimeError(f"Can not bind itself.")
+                raise RuntimeError("Can not bind itself.")
 
             if not self.is_pipeline_executor_interface() and self.io_type == "input":
-                raise RuntimeError(f"Module can only bind from output interface!")
+                raise RuntimeError("Module can only bind from output interface!")
 
             if (
                 not self.is_pipeline_executor_interface()
                 and not binding.is_pipeline_executor_interface()
                 and binding.io_type == "output"
             ):
-                raise RuntimeError(f"Can not bind module output with another module output!")
+                raise RuntimeError("Can not bind module output with another module output!")
 
             if (
                 not self.is_pipeline_executor_interface()
                 and binding.is_pipeline_executor_interface()
                 and binding.io_type == "input"
             ):
-                raise RuntimeError(f"Can not bind module output with pipeline input!")
+                raise RuntimeError("Can not bind module output with pipeline input!")
 
             if self.is_pipeline_executor_interface() and self.io_type == "output":
-                raise RuntimeError(f"Global output can not be used as binding start point.")
+                raise RuntimeError("Global output can not be used as binding start point.")
 
-            if self.is_pipeline_executor_interface() and binding.io_type != "input":
-                raise RuntimeError(f"Global input can only bind with module input.")
+            if (
+                self.is_pipeline_executor_interface()
+                and self.io_type == "input"
+                and binding.io_type != "input"
+            ):
+                raise RuntimeError("Global input can only bind with module input.")
 
             self.bindings.append(binding)
             if not self.is_pipeline_executor_interface():
@@ -288,7 +358,7 @@ class PipelineConfig(object):
                 if not self.check_dag_acyclic(
                     binding.io_owner, self.io_owner.input_bindings.bindings
                 ):
-                    raise RuntimeError(f"Illegal connection: Cause a cycle!")
+                    raise RuntimeError("Illegal connection: Cause a cycle!")
 
     class BindingList:
         """Container for bindings(input or output interface).
@@ -357,7 +427,9 @@ class PipelineConfig(object):
                 if key == "output":
                     return self.output_bindings
 
-            raise RuntimeError(f"{key} not found!")
+                raise RuntimeError(f"{key} not found!")
+
+            raise RuntimeError('The data type of "key" is not supported!')
 
         def get_data_type(self, key, interface_type):
             """Get the module interface data type according to the key value and interface type.
@@ -468,6 +540,8 @@ class PipelineConfig(object):
         # Use topological sort to get the correct order of modules.
         self.dag_topology_sort()
         mconfig = {}
+        module_connection = {}
+        input_connection = {}
         for mod in self.mod_wrapper:
             # Generate pipeline configuration.
             mconf = {}
@@ -495,7 +569,7 @@ class PipelineConfig(object):
             mconf["mod_idx"] = module.idx
             mconf["output"] = output_conf
 
-            mconfig[mod] = {
+            module_connection[mod] = {
                 "pipeline": mconf,
                 "target_host": module.target_host,
                 "mod_name": "default",
@@ -505,6 +579,22 @@ class PipelineConfig(object):
                 "dev": module.dev,
             }
 
+            # Create a map of pipeline input and subgraph input.
+            input_connection = []
+            for input_name in self.input_bindings.bindings:
+                input_dict = self.input_bindings.bindings[input_name].get_binding_dict()
+                if "interface_name" not in input_dict["connection"][0]:
+                    raise RuntimeError("interface_name is missing in connection config!")
+                # Creating the map of global interface and subgraph interface.
+                input_map = {
+                    "global_interface_name": input_dict["interface_name"],
+                    "mod_idx": input_dict["connection"][0]["mod_idx"],
+                    "module_interface_name": input_dict["connection"][0]["interface_name"],
+                }
+                input_connection.append(input_map)
+
+        mconfig["module_connection"] = module_connection
+        mconfig["input_connection"] = input_connection
         return mconfig
 
     def dag_topology_sort(self):
@@ -601,11 +691,11 @@ class PipelineExecutorFactoryModule(object):
             Export the files to this directory.
         """
         if not self.pipeline_mods:
-            raise RuntimeError(f"The pipeline executor has not been initialized.")
+            raise RuntimeError("The pipeline executor has not been initialized.")
 
         # Check if the directory_path exists.
         if not os.path.exists(directory_path):
-            raise RuntimeError(f"The directory {directory_path} does not exist.")
+            raise RuntimeError("The directory {directory_path} does not exist.")
         # Create an load configuration.
         load_config_file_name = "{}/load_config".format(directory_path)
         pipeline_config_file_name = "{}/pipeline_config".format(directory_path)

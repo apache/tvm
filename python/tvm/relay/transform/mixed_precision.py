@@ -130,6 +130,8 @@ DEFAULT_NEVER_LIST = [
     "nn.adaptive_avg_pool3d",
     "sum",
     "mean",
+    "variance",
+    "nn.layer_norm",
 ]
 
 

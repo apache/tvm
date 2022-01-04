@@ -3,6 +3,7 @@ project(tvm C CXX)
 
 # Utility functions
 include(cmake/utils/Utils.cmake)
+include(cmake/utils/Summary.cmake)
 include(cmake/utils/FindCUDA.cmake)
 include(cmake/utils/FindOpenCL.cmake)
 include(cmake/utils/FindVulkan.cmake)
@@ -94,6 +95,7 @@ tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
 tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
 tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
+tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -238,13 +240,13 @@ if(BUILD_FOR_ANDROID)
 endif()
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
+tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
+tvm_file_glob(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
 
 # Source file lists
-file(GLOB_RECURSE COMPILER_SRCS
+tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     src/auto_scheduler/*.cc
     src/meta_schedule/*.cc
     src/node/*.cc
@@ -260,29 +262,29 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/support/*.cc
     )
 
-file(GLOB CODEGEN_SRCS
+tvm_file_glob(GLOB CODEGEN_SRCS
   src/target/*.cc
   src/target/source/*.cc
     )
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
-file(GLOB_RECURSE RELAY_OP_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_OP_SRCS
     src/relay/op/*.cc
     )
-file(GLOB_RECURSE RELAY_PASS_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
     src/relay/analysis/*.cc
     src/relay/transforms/*.cc
     src/relay/quantize/*.cc
     )
-file(GLOB RELAY_BACKEND_SRCS
+tvm_file_glob(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc
     src/relay/backend/vm/*.cc
     )
-file(GLOB_RECURSE RELAY_IR_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
     src/relay/ir/*.cc
     )
-file(GLOB_RECURSE RELAY_QNN_SRCS
+tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
     src/relay/qnn/*.cc
 )
 list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
@@ -291,11 +293,11 @@ list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
 list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
 
-file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
+tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
-file(GLOB RUNTIME_SRCS
+tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
 )
@@ -331,12 +333,12 @@ endif()
 
 if(USE_RPC)
   message(STATUS "Build with RPC support...")
-  file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
+  tvm_file_glob(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
 
-file(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
-file(GLOB STACKVM_CODEGEN_SRCS src/target/stackvm/*.cc)
+tvm_file_glob(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
+tvm_file_glob(GLOB STACKVM_CODEGEN_SRCS src/target/stackvm/*.cc)
 list(APPEND COMPILER_SRCS ${STACKVM_CODEGEN_SRCS})
 if(USE_STACKVM_RUNTIME)
   message(STATUS "Build with stackvm support in runtime...")
@@ -361,7 +363,7 @@ endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
 
 if(USE_GRAPH_EXECUTOR)
   message(STATUS "Build with Graph Executor support...")
-  file(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
+  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
 
 endif(USE_GRAPH_EXECUTOR)
@@ -381,12 +383,12 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
-  file(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
+  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
     PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_EXECUTOR_DEBUG")
 
-  file(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
+  tvm_file_glob(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
 endif(USE_PROFILER)
 
@@ -411,7 +413,7 @@ endif()
 
 if(USE_PIPELINE_EXECUTOR)
   message(STATUS "Build with Pipeline Executor support...")
-  file(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
+  tvm_file_glob(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
 endif(USE_PIPELINE_EXECUTOR)
 
@@ -608,8 +610,10 @@ endif()
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
 # targets that give the user an informative error message.
 if(GTEST_FOUND)
-  file(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
+  tvm_file_glob(GLOB_RECURSE TEST_SRCS tests/cpp/*.cc)
   add_executable(cpptest ${TEST_SRCS})
+  # include runtime files for unit testing
+  target_include_directories(cpptest PUBLIC "src/runtime")
   target_link_libraries(cpptest PRIVATE ${TVM_TEST_LIBRARY_NAME} GTest::GTest GTest::Main pthread dl)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -713,3 +717,7 @@ if(USE_CCACHE) # True for AUTO, ON, /path/to/ccache
   # Set the flag for ccache
   set(CXX_COMPILER_LAUNCHER PATH_TO_CCACHE)
 endif(USE_CCACHE)
+
+if(${SUMMARIZE})
+  print_summary()
+endif()

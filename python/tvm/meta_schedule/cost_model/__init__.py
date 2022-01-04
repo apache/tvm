@@ -14,9 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Python bindings for creating SEScopes."""
-from . import _ffi_api
-
-
-def make_se_scope(device, target=None, memory_scope=""):
-    return _ffi_api.SEScope_ForDeviceTargetAndMemoryScope(device, target, memory_scope)
+"""
+The tvm.meta_schedule.cost_model package.
+"""
+from .cost_model import CostModel, PyCostModel
+from .random_model import RandomModel

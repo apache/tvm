@@ -69,6 +69,10 @@ class JSONDatabaseNode : public DatabaseNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(JSONDatabaseNode, DatabaseNode);
 
  public:
+  bool HasWorkload(const IRModule& mod) {
+    return workloads2idx_.find(Workload(mod, tvm::StructuralHash()(mod))) != workloads2idx_.end();
+  }
+
   Workload CommitWorkload(const IRModule& mod) {
     // Try to insert `mod` into `workloads_`
     decltype(this->workloads2idx_)::iterator it;

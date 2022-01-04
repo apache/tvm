@@ -16,8 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Conv2d kernel generator and profiler for CUTLASS."""
+import re
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
 from .gen_gemm import CutlassGemmProfiler
+from .conv2d_profiler import Conv2dProfilerEmitter
+from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
@@ -29,7 +32,69 @@ from .library import (
 )
 
 
-def create_conv2d_operator(
+def create_conv2d_operator_with_epilogue(
+    op_type, tile_description, data_type, alignment, swizzling_functor
+):
+    """
+    Instantiate a cutlass kernel from the given configuration,
+    along with the epilouge functor
+    """
+    if "residual" in op_type:
+        activation_map = {
+            "cutlass.conv2d_bias_hardswish": "cutlass::epilogue::thread::HardSwish",
+            "cutlass.conv2d_bias_silu": "cutlass::epilogue::thread::SiLu",
+            "cutlass.conv2d_bias_sigmoid": "cutlass::epilogue::thread::Sigmoid",
+            "cutlass.conv2d_bias_relu": "cutlass::epilogue::thread::ReLu",
+            "cutlass.conv2d_bias": "cutlass::epilogue::thread::Identity",
+        }
+        prefix = op_type[: op_type.find("_residual")]
+        activation = activation_map[prefix]
+        binary_op = "cutlass::multiplies" if "residual_multiply" in op_type else "cutlass::plus"
+        unary_op = (
+            "cutlass::epilogue::thread::ReLu"
+            if op_type.endswith("relu")
+            else "cutlass::epilogue::thread::Identity"
+        )
+        residual_block_info = {
+            "activation": activation,
+            "binary_op": binary_op,
+            "unary_op": unary_op,
+        }
+        epilogue = EpilogueFunctor.LinearCombinationResidualBlock
+        no_beta_scaling = False
+    else:
+        residual_block_info = None
+        epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
+
+    element_a, element_b, element_c, element_epilogue = data_type
+
+    A = TensorDescription(element_a, LayoutType.TensorNHWC, alignment)
+    B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
+    C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
+
+    op = Conv2dOperation(
+        ConvKind.Fprop,
+        IteratorAlgorithm.Optimized,
+        tile_description.minimum_compute_capability,
+        tile_description,
+        A,
+        B,
+        C,
+        element_epilogue,
+        StrideSupport.Strided,
+        epilogue,
+        swizzling_functor,
+    )
+
+    name = op.procedural_name()
+    opdef = EmitConv2dInstance().emit(
+        op, no_beta_scaling=no_beta_scaling, residual_block_info=residual_block_info
+    )
+
+    return name, opdef
+
+
+def enumerate_conv2d_operators(
     tile_descriptions,
     data_type,
     alignment_constraints,
@@ -39,70 +104,41 @@ def create_conv2d_operator(
     ret = []
 
     kernel_emitter = EmitConv2dInstance()
+    profiler_emitter = Conv2dProfilerEmitter()
 
     element_a, element_b, element_c, element_epilogue = data_type
-    iterator_algorithms = [IteratorAlgorithm.Optimized]
 
-    layout = (LayoutType.TensorNHWC, LayoutType.TensorNHWC, LayoutType.TensorNHWC)
     for tile in tile_descriptions:
         for alignment in alignment_constraints:
 
-            alignment_c = min(8, alignment)
+            A = TensorDescription(element_a, LayoutType.TensorNHWC, alignment)
+            B = TensorDescription(element_b, LayoutType.TensorNHWC, alignment)
+            C = TensorDescription(element_c, LayoutType.TensorNHWC, alignment)
 
-            A = TensorDescription(element_a, layout[0], alignment)
-            B = TensorDescription(element_b, layout[1], alignment)
-            C = TensorDescription(element_c, layout[2], alignment_c)
+            op = Conv2dOperation(
+                ConvKind.Fprop,
+                IteratorAlgorithm.Optimized,
+                tile.minimum_compute_capability,
+                tile,
+                A,
+                B,
+                C,
+                element_epilogue,
+                StrideSupport.Strided,
+                EpilogueFunctor.LinearCombination,
+                swizzling_functor,
+            )
 
-            swizzling_functor_ = swizzling_functor
-
-            for iterator_algorithm in iterator_algorithms:
-                op_entry = {}
-
-                op = Conv2dOperation(
-                    ConvKind.Fprop,
-                    iterator_algorithm,
-                    tile.minimum_compute_capability,
-                    tile,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    StrideSupport.Strided,
-                    EpilogueFunctor.LinearCombination,
-                    swizzling_functor_,
-                )
-
-                # TODO(masahi): Add profiler source here
-                op_entry["opdef"] = kernel_emitter.emit(op)
-                op_entry["op"] = op
-                op_entry["name"] = op.procedural_name()
-                op_entry["runtime"] = 9999999
-
-                # fused ops
-                for epilogue, opdef in zip(
-                    [
-                        EpilogueFunctor.LinearCombinationBias,
-                        EpilogueFunctor.LinearCombinationRelu,
-                    ],
-                    ["opdef_bias", "opdef_bias_relu"],
-                ):
-                    op = Conv2dOperation(
-                        ConvKind.Fprop,
-                        iterator_algorithm,
-                        tile.minimum_compute_capability,
-                        tile,
-                        A,
-                        B,
-                        C,
-                        element_epilogue,
-                        StrideSupport.Strided,
-                        epilogue,
-                        swizzling_functor_,
-                    )
-
-                    op_entry[opdef] = kernel_emitter.emit(op)
-
-                ret.append(op_entry)
+            ret.append(
+                {
+                    "src": profiler_emitter.emit(kernel_emitter.emit(op), op.procedural_name()),
+                    "name": op.procedural_name(),
+                    "tile_description": tile,
+                    "alignment": alignment,
+                    "data_type": data_type,
+                    "swizzle_functor": swizzling_functor,
+                }
+            )
 
     return ret
 
@@ -113,35 +149,117 @@ class CutlassConv2DProfiler:
     def __init__(self, sm, cutlass_path, binary_path):
         self.gemm_profiler = CutlassGemmProfiler(sm, cutlass_path, binary_path)
         self.sm = sm
+        assert sm in GENERATOR_FUNC_TABLE, "sm%d not supported yet." % sm
+        self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
+        self.cache = {}
 
-    def get_default(self, out_dtype):
-        gemm_profile_result = self.gemm_profiler.get_default(out_dtype)
+    def get_default(self, op_type, out_dtype):
+        gemm_profile_result = self.gemm_profiler.get_default(op_type, out_dtype)
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
         data_type = gemm_profile_result["data_type"]
-        return create_conv2d_operator([tile_description], data_type, [alignment])[0]
+        name, opdef = create_conv2d_operator_with_epilogue(
+            op_type, tile_description, data_type, alignment, SwizzlingFunctor.Identity4
+        )
+        return {"name": name, "opdef": opdef}
+
+    def check_align(self, op_name, C, K):
+        """Filter out kernels that cannot be supported."""
+        aligns = re.findall(r"align[1|2|4|8]", op_name)
+        assert len(aligns) == 1
+        align = int(aligns[0][-1])
+        return all([dim % align == 0 for dim in [C, K]])
+
+    def select_op(
+        self,
+        d_shape,
+        w_shape,
+        padding,
+        stride,
+        dilation,
+        out_dtype,
+        profile_all=True,
+        use_multiprocessing=False,
+    ):
+        """
+        Profile and select the best kernel from candidate kernels.
+        See the documentation for the profile method below.
+        """
+        N, H, W, IC = d_shape
+        OC, R, S, _ = w_shape
+        workload = (
+            N,
+            H,
+            W,
+            IC,
+            OC,
+            R,
+            S,
+            padding[0],
+            padding[1],
+            stride[0],
+            stride[1],
+            dilation[0],
+            dilation[1],
+        )
+
+        if workload in self.cache:
+            return self.cache[workload]
+
+        ops = GENERATOR_FUNC_TABLE[self.sm](
+            out_dtype,
+            op_creator=enumerate_conv2d_operators,
+        )
+        ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
+
+        if profile_all:
+            self.engine.compile_all(ops, use_multiprocessing)
+
+        args = (
+            "--n=%d --h=%d --w=%d --c=%d --k=%d --r=%d --s=%d --pad_h=%d --pad_w=%d "
+            "--stride_h=%d --stride_w=%d --dilation_h=%d --dilation_w=%d"
+        ) % workload
+
+        for op in ops:
+            out = self.engine.evaluate(op, args.split(" "))
+            op["runtime"] = out
+            if out < float("inf") and not profile_all:
+                self.cache[workload] = op
+                return op
+
+        op = min(ops, key=lambda i: i["runtime"])
+        self.cache[workload] = op
+        return op
 
     def profile(
-        self, d_shape, w_shape, out_shape, out_dtype, profile_all=True, use_multiprocessing=False
+        self,
+        op_type,
+        d_shape,
+        w_shape,
+        padding,
+        stride,
+        dilation,
+        out_dtype,
+        profile_all=True,
+        use_multiprocessing=False,
     ):
         """Profile and select the best kernel from candidate kernels.
         If profile_all is False, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
-        B, H, W, C = d_shape
-        K, R, S, _ = w_shape
-        _, P, Q, _ = out_shape
-
-        M = B * H * W
-        K = R * S * C
-        N = B * P * Q
-
-        gemm_profile_result = self.gemm_profiler.profile(
-            M, K, N, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+        op = self.select_op(
+            d_shape,
+            w_shape,
+            padding,
+            stride,
+            dilation,
+            out_dtype,
+            profile_all=profile_all,
+            use_multiprocessing=use_multiprocessing,
         )
 
-        tile_description = gemm_profile_result["tile_description"]
-        alignment = gemm_profile_result["alignment"]
-        data_type = gemm_profile_result["data_type"]
+        name, opdef = create_conv2d_operator_with_epilogue(
+            op_type, op["tile_description"], op["data_type"], op["alignment"], op["swizzle_functor"]
+        )
 
-        return create_conv2d_operator([tile_description], data_type, [alignment])[0]
+        return name, opdef, op["runtime"]

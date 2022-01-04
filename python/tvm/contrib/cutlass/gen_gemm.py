@@ -16,15 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """GEMM kernel generator and profiler for CUTLASS."""
-from functools import partial
 import re
 from .gemm_operation import GemmOperation, EmitGemmInstance
 from .gemm_profiler import GemmProfilerEmitter
-from .gen_tensor_op import (
-    ProfilerEngine,
-    generate_sm75_tensor_op_1688,
-    generate_sm80_tensor_op_16816,
-)
+from .gen_tensor_op import ProfilerEngine, GENERATOR_FUNC_TABLE, EPILOGUE_MAP
 from .library import (
     EpilogueFunctor,
     SwizzlingFunctor,
@@ -34,12 +29,50 @@ from .library import (
 )
 
 
-def create_gemm_operator(
+def create_gemm_operator_with_epilogue(
+    op_type,
+    tile_description,
+    data_type,
+    alignment,
+    swizzling_functor,
+    batched=False,
+):
+    """
+    Instantiate a cutlass kernel from the given configuration,
+    along with the epilouge functor
+    """
+    element_a, element_b, element_c, element_epilogue = data_type
+
+    A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
+    B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
+    C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
+
+    if batched:
+        swizzling_functor = SwizzlingFunctor.Batched
+
+    epilogue, no_beta_scaling = EPILOGUE_MAP[op_type]
+
+    op = GemmOperation(
+        tile_description.minimum_compute_capability,
+        tile_description,
+        A,
+        B,
+        C,
+        element_epilogue,
+        epilogue,
+        swizzling_functor,
+    )
+
+    return op.procedural_name(), EmitGemmInstance().emit(
+        op, no_beta_scaling=no_beta_scaling, batched=batched
+    )
+
+
+def enumerate_gemm_operators(
     tile_descriptions,
     data_type,
     alignment_constraints,
     swizzling_functor=SwizzlingFunctor.Identity8,
-    batched=False,
 ):
     """Exhaustively instantiate all kernels from a given configuration."""
     ret = []
@@ -48,105 +81,57 @@ def create_gemm_operator(
 
     element_a, element_b, element_c, element_epilogue = data_type
 
-    if batched:
-        swizzling_functor = SwizzlingFunctor.Batched
+    for tile_description in tile_descriptions:
+        for alignment in alignment_constraints:
+            A = TensorDescription(element_a, LayoutType.RowMajor, alignment)
+            B = TensorDescription(element_b, LayoutType.ColumnMajor, alignment)
+            C = TensorDescription(element_c, LayoutType.RowMajor, alignment)
 
-    layouts = [
-        (LayoutType.RowMajor, LayoutType.ColumnMajor, LayoutType.RowMajor),
-    ]
+            op = GemmOperation(
+                tile_description.minimum_compute_capability,
+                tile_description,
+                A,
+                B,
+                C,
+                element_epilogue,
+                EpilogueFunctor.LinearCombination,
+                swizzling_functor,
+            )
 
-    for layout in layouts:
-        for tile_description in tile_descriptions:
-            for alignment in alignment_constraints:
-                alignment_c = min(8, alignment)
+            src = profiler_emitter.emit(
+                op.procedural_name(),
+                kernel_emitter.emit(op, batched=False),
+                DataTypeTag[element_a],
+                DataTypeTag[element_b],
+                DataTypeTag[element_c],
+                op.leading_dim(),
+            )
 
-                A = TensorDescription(element_a, layout[0], alignment)
-                B = TensorDescription(element_b, layout[1], alignment)
-                C = TensorDescription(element_c, layout[2], alignment_c)
+            ret.append(
+                {
+                    "src": src,
+                    "op": op,
+                    "name": op.procedural_name(),
+                    "tile_description": tile_description,
+                    "alignment": alignment,
+                    "data_type": data_type,
+                    "swizzle_functor": swizzling_functor,
+                }
+            )
 
-                op_entry = {}
-                op = GemmOperation(
-                    tile_description.minimum_compute_capability,
-                    tile_description,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    EpilogueFunctor.LinearCombination,
-                    swizzling_functor,
-                )
-                op_bias = GemmOperation(
-                    tile_description.minimum_compute_capability,
-                    tile_description,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    EpilogueFunctor.LinearCombinationBias,
-                    swizzling_functor,
-                )
-                op_bias_relu = GemmOperation(
-                    tile_description.minimum_compute_capability,
-                    tile_description,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    EpilogueFunctor.LinearCombinationRelu,
-                    swizzling_functor,
-                )
-                op_bias_gelu = GemmOperation(
-                    tile_description.minimum_compute_capability,
-                    tile_description,
-                    A,
-                    B,
-                    C,
-                    element_epilogue,
-                    EpilogueFunctor.LinearCombinationGelu,
-                    swizzling_functor,
-                )
-
-                op_entry["op"] = op
-                op_entry["name"] = op.procedural_name()
-                op_entry["opdef"] = kernel_emitter.emit(op, batched=batched)
-                op_entry["opdef_bias"] = kernel_emitter.emit(
-                    op_bias, no_beta_scaling=True, batched=batched
-                )
-                op_entry["opdef_bias_relu"] = kernel_emitter.emit(
-                    op_bias_relu, no_beta_scaling=True, batched=batched
-                )
-                op_entry["opdef_bias_gelu"] = kernel_emitter.emit(op_bias_gelu, batched=batched)
-                op_entry["src"] = profiler_emitter.emit(
-                    op.procedural_name(),
-                    kernel_emitter.emit(op, batched=False),
-                    DataTypeTag[element_a],
-                    DataTypeTag[element_b],
-                    DataTypeTag[element_c],
-                    op.leading_dim(),
-                )
-                op_entry["runtime"] = 9999999
-                op_entry["tile_description"] = tile_description
-                op_entry["alignment"] = alignment
-                op_entry["data_type"] = data_type
-                ret.append(op_entry)
     return ret
-
-
-GENERATOR_FUNC_TABLE = {
-    75: generate_sm75_tensor_op_1688,
-    80: generate_sm80_tensor_op_16816,
-}
 
 
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     75: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align4",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align4",
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
+    # align1 variants do not seem to be available for sm80
     80: {
-        "float16": "cutlass_tensorop_h16816gemm_128x256_32x3_tn_align4",
-        "float32": "cutlass_tensorop_s16816gemm_f16_128x128_32x3_tn_align4",
+        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
 }
 
@@ -160,44 +145,51 @@ class CutlassGemmProfiler:
         self.sm = sm
         self.cache = {}
 
-    def check_align(self, op_name, M):
+    def check_align(self, op_name, M, N, K):
         """Filter out kernels that cannot be supported."""
         aligns = re.findall(r"align[1|2|4|8]", op_name)
         assert len(aligns) == 1
+        # The same alignment is used for all axes
         align = int(aligns[0][-1])
-        if M % align != 0:
-            return False
-        return True
+        # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
+        # See https://github.com/NVIDIA/cutlass/issues/362.
+        # When the above issue is resolved, we can remove the alignment check on M below.
+        return all([dim % align == 0 for dim in [M, N, K]])
 
-    def get_default(self, out_dtype, batched=False):
+    def get_default(self, op_type, out_dtype, batched=False):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
-        ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
-        )
+        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, op_creator=enumerate_gemm_operators)
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
-        return filtered[0]
+        op = filtered[0]
+        name, opdef = create_gemm_operator_with_epilogue(
+            op_type,
+            op["tile_description"],
+            op["data_type"],
+            op["alignment"],
+            op["swizzle_functor"],
+            batched=batched,
+        )
+        op.update({"name": name, "opdef": opdef})
+        return op
 
-    def profile(
-        self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False, batched=False
-    ):
-        """Profile and select the best kernel from candidate kernels.
-        If profile_all is False, return immediately after the first applicable kernel is found.
-        If use_multiprocessing is True, compile all profiler executables in parallel.
+    def select_op(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+        """
+        Profile and select the best kernel from candidate kernels.
+        See the documentation for the profile method below.
         """
         if (M, N, K) in self.cache:
-            return self.cache[(M, N, K)]
+            op = self.cache[(M, N, K)]
+            return op
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, op_creator=partial(create_gemm_operator, batched=batched)
+            out_dtype,
+            op_creator=enumerate_gemm_operators,
         )
-        ops = list(filter(lambda op: self.check_align(op["name"], M), ops))
-
-        for op in ops:
-            op["runtime"] = -1
+        ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
@@ -205,10 +197,40 @@ class CutlassGemmProfiler:
         for op in ops:
             out = self.engine.evaluate(op, [M, N, K])
             op["runtime"] = out
-            if out > 0 and profile_all is False:
-                break
+            if out < float("inf") and not profile_all:
+                self.cache[(M, N, K)] = op
+                return op
 
-        valid_ops = filter(lambda op: op["runtime"] > 0, ops)
-        output = sorted(valid_ops, key=lambda i: i["runtime"])
-        self.cache[(M, N, K)] = output[0]
-        return output[0]
+        op = min(ops, key=lambda i: i["runtime"])
+        self.cache[(M, N, K)] = op
+        return op
+
+    def profile(
+        self,
+        op_type,
+        M,
+        N,
+        K,
+        out_dtype,
+        profile_all=True,
+        use_multiprocessing=False,
+        batched=False,
+    ):
+        """Profile and select the best kernel from candidate kernels.
+        If profile_all is False, return immediately after the first applicable kernel is found.
+        If use_multiprocessing is True, compile all profiler executables in parallel.
+        """
+        op = self.select_op(
+            M, N, K, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+        )
+
+        name, opdef = create_gemm_operator_with_epilogue(
+            op_type,
+            op["tile_description"],
+            op["data_type"],
+            op["alignment"],
+            op["swizzle_functor"],
+            batched=batched,
+        )
+
+        return name, opdef, op["runtime"]

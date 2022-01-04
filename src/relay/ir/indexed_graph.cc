@@ -51,6 +51,26 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
       graph_.node_map_[expr] = node;
       graph_.topological_order_.push_back(node);
     }
+
+    void VisitExpr_(const LetNode* let) override {
+      auto pre_visit = [&](const LetNode* op) {
+        this->VisitSpan(op->span);
+        this->VisitExpr(op->value);
+        this->VisitExpr(op->var);
+      };
+      auto post_visit = [&](const LetNode* op) {
+        this->VisitExpr(op->body);
+        if (let != op) {
+          Expr expr = GetRef<Expr>(op);
+          visit_counter_[op]++;
+          auto node = std::make_shared<IndexedGraph<Expr>::Node>(expr, index_++);
+          graph_.node_map_[expr] = node;
+          graph_.topological_order_.push_back(node);
+        }
+      };
+      ExpandANormalForm(let, pre_visit, post_visit);
+    }
+
     IndexedGraph<Expr> graph_;
     size_t index_ = 0;
   };

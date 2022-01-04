@@ -134,7 +134,14 @@ class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods,
         This function is for Buffer[...] syntax sugar
         Note that args is the list of all arguments
         """
-        pass  # pylint: disable=unnecessary-pass
+        if len(args) < 2:
+            raise ValueError("T.Buffer[...] needs at least two arguments: shape and dtype.")
+        shape = args[0]
+        if not isinstance(shape, tuple):
+            raise ValueError(
+                "The first argument of T.Buffer[...] needs to be a tuple, "
+                "followed by the second argument dtype as a string"
+            )
 
 
 uint8 = ConcreteType("uint8")
