@@ -53,7 +53,7 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The probability of using certain mutator. */
   Map<Mutator, FloatImm> mutator_probs;
   /*! \brief The name of the tuning task. */
-  String task_name;
+  Optional<String> task_name;
   /*! \brief The random state. */
   support::LinearCongruentialEngine::TRandState rand_state;
   /*! \brief The number of threads to be used. */
