@@ -194,10 +194,7 @@ def workload_key_to_tensors(workload_key):
     assert callable(value)
 
     args = deserialize_args(workload[1:])
-    result = value(*args)
-    if isinstance(result, tuple):
-        result = list(result)
-    return result
+    return value(*args)
 
 
 def serialize_workload_registry_entry(workload_key):
