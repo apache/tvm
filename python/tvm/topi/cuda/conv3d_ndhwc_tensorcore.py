@@ -21,84 +21,17 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import autotvm
-from ..utils import get_const_tuple, traverse_inline, simplify
-from ..nn.pad import pad
-from ..nn.utils import get_pad_tuple3d
+from ..utils import get_const_tuple, traverse_inline
 from .tensor_intrin import intrin_wmma_load_matrix_A
 from .tensor_intrin import intrin_wmma_load_matrix_W
 from .tensor_intrin import intrin_wmma_store_matrix
 from .tensor_intrin import intrin_wmma_gemm
+from ..nn.conv2d import conv
 
 
 def ndhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtype):
     """Compute declaration for conv3d tensorcore function"""
-    assert isinstance(stride, int) or len(stride) == 3
-    assert isinstance(dilation, int) or len(dilation) == 3
-
-    if isinstance(stride, int):
-        stride_d = stride_h = stride_w = stride
-    else:
-        stride_d, stride_h, stride_w = stride
-
-    if isinstance(dilation, int):
-        dilation_d = dilation_h = dilation_w = dilation
-    else:
-        dilation_d, dilation_h, dilation_w = dilation
-
-    batch, in_depth, in_height, in_width, in_channel = get_const_tuple(Input.shape)
-    kernel_d, kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
-    assert (
-        (batch % 16 == 0 and in_channel % 16 == 0 and num_filter % 16 == 0)
-        or (batch % 8 == 0 and in_channel % 16 == 0 and num_filter % 32 == 0)
-        or (batch % 32 == 0 and in_channel % 16 == 0 and num_filter % 8 == 0)
-    ), (
-        "The shape of (batch, in_channel, num_filter) "
-        "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
-    )
-
-    # compute the output shape
-    dilated_kernel_d = (kernel_d - 1) * dilation_d + 1
-    dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
-    dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
-    pad_front, pad_top, pad_left, pad_back, pad_down, pad_right = get_pad_tuple3d(
-        padding, (dilated_kernel_d, dilated_kernel_h, dilated_kernel_w)
-    )
-    out_channel = num_filter
-    out_depth = simplify((in_depth - dilated_kernel_d + pad_front + pad_back) // stride_d + 1)
-    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
-    pad_before = [0, pad_front, pad_top, pad_left, 0]
-    pad_after = [0, pad_back, pad_down, pad_right, 0]
-    PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rc = te.reduce_axis((0, in_channel), name="rc")
-    rz = te.reduce_axis((0, kernel_d), name="rz")
-    ry = te.reduce_axis((0, kernel_h), name="ry")
-    rx = te.reduce_axis((0, kernel_w), name="rx")
-    # convert data type of input feature maps and weights
-    # TODO: add checking here, datatype casting may cause precision loss
-    TransPaddedInput = te.compute(
-        PaddedInput.shape, lambda n, d, h, w, c: PaddedInput[n, d, h, w, c].astype("float16")
-    )
-    TransFilter = te.compute(
-        Filter.shape, lambda d, h, w, i, o: Filter[d, h, w, i, o].astype("float16")
-    )
-    Output = te.compute(
-        (batch, out_depth, out_height, out_width, out_channel),
-        lambda nn, zz, yy, xx, ff: te.sum(
-            TransPaddedInput[
-                nn,
-                zz * stride_d + rz * dilation_d,
-                yy * stride_h + ry * dilation_h,
-                xx * stride_w + rx * dilation_w,
-                rc,
-            ].astype(out_dtype)
-            * TransFilter[rz, ry, rx, rc, ff].astype(out_dtype),
-            axis=[rz, ry, rx, rc],
-        ),
-        name="Conv3dOutput",
-        tag="conv3d_ndhwc_tensorcore",
-    )
-    return Output
+    return conv(Input, Filter, stride, padding, dilation, 1, "NDHWC", out_dtype)
 
 
 def schedule_ndhwc_tensorcore_cuda(cfg, s, Conv):
@@ -109,12 +42,9 @@ def schedule_ndhwc_tensorcore_cuda(cfg, s, Conv):
     in_dtype = trans_paddata.dtype
     batch, _, _, _, _ = get_const_tuple(Conv.shape)
     _, _, _, _, out_channels = get_const_tuple(kernel.shape)
-    paddata = s[trans_paddata].op.input_tensors
 
-    # inline the pad and dtype transform
+    # inline the pad
     s[trans_paddata].compute_inline()
-    s[kernel].compute_inline()
-    s[paddata[0]].compute_inline()
 
     # Designate the memory hierarchy
     AS = s.cache_read(trans_paddata, "shared", [Conv])
@@ -172,6 +102,8 @@ def schedule_ndhwc_tensorcore_cuda(cfg, s, Conv):
         wmma_n = 32
     elif wmma_m == 32:
         wmma_n = 8
+    else:
+        raise RuntimeError("Invalid wmma size")
 
     warp_size = 32
 
@@ -335,8 +267,9 @@ def schedule_ndhwc_tensorcore_cuda(cfg, s, Conv):
 
 
 @autotvm.register_topi_compute("conv3d_ndhwc_tensorcore.cuda")
-def conv3d_ndhwc_tensorcore(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def conv3d_ndhwc_tensorcore(cfg, data, kernel, strides, padding, dilation, groups, out_dtype):
     """Compute conv3d with tensorcore for NDHWC layout"""
+    assert groups == 1, "tensorcore conv3d does not support groups"
     return ndhwc_tensorcore_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype)
 
 
@@ -346,7 +279,7 @@ def schedule_conv3d_ndhwc_tensorcore(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "conv3d_ndhwc_tensorcore" in op.tag:
+        if "conv3d_ndhwc" in op.tag:
             schedule_ndhwc_tensorcore_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)

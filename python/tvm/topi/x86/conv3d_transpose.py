@@ -30,7 +30,7 @@ def conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, output_pad
     )
 
     # reuse conv3d_ncdhw implementation
-    return conv3d_ncdhw(data_pad, kernel_transform, (1, 1, 1), (0, 0, 0), (1, 1, 1), out_dtype)
+    return conv3d_ncdhw(data_pad, kernel_transform, (1, 1, 1), (0, 0, 0), (1, 1, 1), 1, out_dtype)
 
 
 def schedule_conv3d_transpose_ncdhw(outs):

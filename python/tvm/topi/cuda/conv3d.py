@@ -26,7 +26,7 @@ from .conv3d_direct import schedule_direct_conv3d_cuda
 
 
 @autotvm.register_topi_compute("conv3d_ncdhw.cuda")
-def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
+def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
     """Conv3D operator in NCDHW layout for cuda backend.
 
     Parameters
@@ -49,6 +49,9 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype="float
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
+    groups: int
+        Number of groups
+
     out_dtype: str
         The output type. This is used for mixed precision.
 
@@ -57,7 +60,7 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype="float
     output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
+    return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, groups, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv3d_ncdhw.cuda")
@@ -82,7 +85,7 @@ def schedule_conv3d_ncdhw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "conv3d_ncdhw":
+        if "conv3d_ncdhw" in op.tag:
             schedule_direct_conv3d_cuda(cfg, s, op.output(0), "NCDHW", "conv3d_ncdhw.cuda")
 
     traverse_inline(s, outs[0].op, _callback)
@@ -90,7 +93,7 @@ def schedule_conv3d_ncdhw(cfg, outs):
 
 
 @autotvm.register_topi_compute("conv3d_ndhwc.cuda")
-def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
+def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
     """Conv3d operator in NDHWC layout for cuda backend.
 
     Parameters
@@ -110,12 +113,15 @@ def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
+    groups: int
+        Number of groups
+
     Returns
     -------
     Output : tvm.te.Tensor
         5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
-    return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, out_dtype)
+    return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, groups, out_dtype)
 
 
 @autotvm.register_topi_schedule("conv3d_ndhwc.cuda")
@@ -140,7 +146,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "conv3d_ndhwc":
+        if "conv3d_ndhwc" in op.tag:
             schedule_direct_conv3d_cuda(cfg, s, op.output(0), "NDHWC", "conv3d_ndhwc.cuda")
 
     traverse_inline(s, outs[0].op, _callback)
@@ -149,7 +155,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
 
 @autotvm.register_topi_compute("conv3d_cudnn.cuda")
 def conv3d_cudnn(
-    cfg, data, kernel, strides, padding, dilation, layout="NCDHW", out_dtype="float32"
+    cfg, data, kernel, strides, padding, dilation, groups, layout="NCDHW", out_dtype="float32"
 ):
     """Conv3D operator for cuda backend.
 
@@ -193,6 +199,8 @@ def conv3d_cudnn(
     else:
         raise ValueError("Unsupported layout %s in cudnn" % layout)
     CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
+
+    assert groups == 1, "conv3d_cudnn does not support groups"
 
     # handle dilation
     stride_d, stride_h, stride_w = (

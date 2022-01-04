@@ -43,6 +43,7 @@ def verify_conv3d_ncdhw(
     stride,
     padding,
     dilation=1,
+    groups=1,
     add_bias=False,
     add_relu=False,
 ):
@@ -80,7 +81,7 @@ def verify_conv3d_ncdhw(
     in_depth = in_height = in_width = in_size
 
     A = te.placeholder((batch, in_channel, in_depth, in_height, in_width), name="A")
-    W = te.placeholder((num_filter, in_channel, kernel_d, kernel_h, kernel_w), name="W")
+    W = te.placeholder((num_filter, in_channel // groups, kernel_d, kernel_h, kernel_w), name="W")
     bias = te.placeholder((num_filter, 1, 1, 1), name="bias")
 
     a_shape = get_const_tuple(A.shape)
@@ -94,7 +95,7 @@ def verify_conv3d_ncdhw(
         w_np = np.random.uniform(size=w_shape).astype(dtype)
         b_np = np.random.uniform(size=bias_shape).astype(dtype)
         dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation, dilation))
-        c_np = tvm.topi.testing.conv3d_ncdhw_python(a_np, dw_np, stride, padding)
+        c_np = tvm.topi.testing.conv3d_ncdhw_python(a_np, dw_np, stride, padding, groups)
         if add_bias:
             c_np += b_np
         if add_relu:
@@ -108,7 +109,13 @@ def verify_conv3d_ncdhw(
         fcompute, fschedule = tvm.topi.testing.dispatch(target, _conv3d_ncdhw_implement)
         with tvm.target.Target(target):
             C = fcompute(
-                A, W, (stride, stride, stride), padding, (dilation, dilation, dilation), dtype
+                A,
+                W,
+                (stride, stride, stride),
+                padding,
+                (dilation, dilation, dilation),
+                groups,
+                dtype,
             )
             if add_bias:
                 C = topi.add(C, bias)
@@ -125,7 +132,7 @@ def verify_conv3d_ncdhw(
                 s,
                 [A, W, bias, C],
                 target,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
                     in_channel,
@@ -137,6 +144,7 @@ def verify_conv3d_ncdhw(
                     stride,
                     padding_sum,
                     dilation,
+                    groups,
                 ),
             )
             func(a, w, b, c)
@@ -145,7 +153,7 @@ def verify_conv3d_ncdhw(
                 s,
                 [A, W, C],
                 target,
-                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d"
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (
                     batch,
                     in_channel,
@@ -157,6 +165,7 @@ def verify_conv3d_ncdhw(
                     stride,
                     padding_sum,
                     dilation,
+                    groups,
                 ),
             )
             func(a, w, c)
@@ -204,6 +213,12 @@ def test_conv3d_ncdhw():
     verify_conv3d_ncdhw(1, 3, 56, 16, (3, 7, 7), 2, (1, 2, 3, 0, 3, 2))
     verify_conv3d_ncdhw(1, 3, 56, 16, (3, 3, 7), 2, (1, 2, 3))
     verify_conv3d_ncdhw(1, 3, 56, 16, (3, 7, 3), 2, (1, 3, 1))
+
+    # grouped workloads
+    verify_conv3d_ncdhw(1, 32, 32, 8, 1, 1, 0, groups=4)
+    verify_conv3d_ncdhw(1, 32, 32, 4, 1, 1, 0, groups=4)
+    verify_conv3d_ncdhw(1, 32, 32, 8, 1, 1, 1, groups=4)
+    verify_conv3d_ncdhw(1, 32, 32, 4, 1, 1, 1, groups=4)
 
 
 if __name__ == "__main__":
