@@ -28,10 +28,7 @@
 namespace tvm {
 
 VirtualDevice RelayExprNode::virtual_device() const {
-  if (virtual_device_.defined()) {
-    return Downcast<VirtualDevice>(this->virtual_device_);
-  }
-  return VirtualDevice::FullyUnconstrained();
+  return Downcast<VirtualDevice>(this->virtual_device_);
 }
 
 namespace relay {
@@ -76,6 +73,7 @@ TensorType ConstantNode::tensor_type() const {
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -100,7 +98,7 @@ Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields,
     all_fields_unchanged = false;
   }
 
-  all_fields_unchanged = all_fields_unchanged && virtual_device.same_as(tuple->virtual_device_) &&
+  all_fields_unchanged = all_fields_unchanged && virtual_device.same_as(tuple->virtual_device()) &&
                          span.same_as(tuple->span);
   if (!all_fields_unchanged) {
     TupleNode* cow_tuple_node = tuple.CopyOnWrite();
@@ -121,6 +119,7 @@ Var::Var(Id vid, Type type_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -140,13 +139,13 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
   Span span = opt_span.value_or(var->span);
 
   bool unchanged = vid.same_as(var->vid) && type_annotation.same_as(var->type_annotation) &&
-                   virtual_device.same_as(var->virtual_device_) && span.same_as(var->span);
+                   virtual_device.same_as(var->virtual_device()) && span.same_as(var->span);
 
   if (!unchanged) {
     VarNode* cow_var_node = var.CopyOnWrite();
     cow_var_node->vid = vid;
     cow_var_node->type_annotation = type_annotation;
-    cow_var_node->virtual_device_ = virtual_device;
+    cow_var_node->virtual_device_ = var->virtual_device();
     cow_var_node->span = span;
   }
   return var;
@@ -175,6 +174,7 @@ Call::Call(Expr op, Array<Expr> args, Attrs attrs, Array<Type> type_args, Span s
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -190,7 +190,7 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
   Span span = opt_span.value_or(call->span);
 
   bool unchanged = op.same_as(call->op) && attrs.same_as(call->attrs) &&
-                   virtual_device.same_as(call->virtual_device_) && span.same_as(call->span);
+                   virtual_device.same_as(call->virtual_device()) && span.same_as(call->span);
 
   // Check that the args are unchanged
   if (unchanged) {
@@ -250,6 +250,7 @@ Let::Let(Var var, Expr value, Expr body, Span span) {
   n->var = std::move(var);
   n->value = std::move(value);
   n->body = std::move(body);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -263,7 +264,7 @@ Let WithFields(Let let, Optional<Var> opt_var, Optional<Expr> opt_value, Optiona
   Span span = opt_span.value_or(let->span);
 
   bool unchanged = var.same_as(let->var) && value.same_as(let->value) && body.same_as(let->body) &&
-                   virtual_device.same_as(let->virtual_device_) && span.same_as(let->span);
+                   virtual_device.same_as(let->virtual_device()) && span.same_as(let->span);
 
   if (!unchanged) {
     LetNode* cow_let_node = let.CopyOnWrite();
@@ -293,6 +294,7 @@ If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -308,7 +310,7 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
 
   bool unchanged = cond.same_as(if_expr->cond) && true_branch.same_as(if_expr->true_branch) &&
                    false_branch.same_as(if_expr->false_branch) &&
-                   virtual_device.same_as(if_expr->virtual_device_) && span.same_as(if_expr->span);
+                   virtual_device.same_as(if_expr->virtual_device()) && span.same_as(if_expr->span);
 
   if (!unchanged) {
     IfNode* cow_if_node = if_expr.CopyOnWrite();
@@ -339,6 +341,7 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
   ObjectPtr<TupleGetItemNode> n = make_object<TupleGetItemNode>();
   n->tuple = std::move(tuple);
   n->index = index;
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -352,7 +355,7 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
   Span span = opt_span.value_or(tuple_get_item->span);
 
   bool unchanged = tuple.same_as(tuple_get_item->tuple) && (index == tuple_get_item->index) &&
-                   virtual_device.same_as(tuple_get_item->virtual_device_) &&
+                   virtual_device.same_as(tuple_get_item->virtual_device()) &&
                    span.same_as(tuple_get_item->span);
   if (!unchanged) {
     TupleGetItemNode* cow_tuple_get_item_node = tuple_get_item.CopyOnWrite();
@@ -379,6 +382,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 RefCreate::RefCreate(Expr value, Span span) {
   ObjectPtr<RefCreateNode> n = make_object<RefCreateNode>();
   n->value = std::move(value);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -390,7 +394,7 @@ RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value,
   Span span = opt_span.value_or(ref_create->span);
 
   bool unchanged = value.same_as(ref_create->value) &&
-                   virtual_device.same_as(ref_create->virtual_device_) &&
+                   virtual_device.same_as(ref_create->virtual_device()) &&
                    span.same_as(ref_create->span);
   if (!unchanged) {
     RefCreateNode* cow_ref_create_node = ref_create.CopyOnWrite();
@@ -416,6 +420,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 RefRead::RefRead(Expr ref, Span span) {
   ObjectPtr<RefReadNode> n = make_object<RefReadNode>();
   n->ref = std::move(ref);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -427,7 +432,7 @@ RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref,
   Span span = opt_span.value_or(ref_read->span);
 
   bool unchanged = ref.same_as(ref_read->ref) &&
-                   virtual_device.same_as(ref_read->virtual_device_) &&
+                   virtual_device.same_as(ref_read->virtual_device()) &&
                    span.same_as(ref_read->span);
   if (!unchanged) {
     RefReadNode* cow_ref_read_node = ref_read.CopyOnWrite();
@@ -452,6 +457,7 @@ RefWrite::RefWrite(Expr ref, Expr value, Span span) {
   ObjectPtr<RefWriteNode> n = make_object<RefWriteNode>();
   n->ref = std::move(ref);
   n->value = std::move(value);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -464,7 +470,7 @@ RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref, Optional<Expr> o
   Span span = opt_span.value_or(ref_write->span);
 
   bool unchanged = ref.same_as(ref_write->ref) && value.same_as(ref_write->value) &&
-                   virtual_device.same_as(ref_write->virtual_device_) &&
+                   virtual_device.same_as(ref_write->virtual_device()) &&
                    span.same_as(ref_write->span);
   if (!unchanged) {
     RefWriteNode* cow_ref_write_node = ref_write.CopyOnWrite();
