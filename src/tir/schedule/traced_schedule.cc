@@ -367,6 +367,20 @@ BlockRV TracedScheduleNode::Blockize(const LoopRV& loop_rv) {
   return new_block;
 }
 
+void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin_name) {
+  ConcreteScheduleNode::Tensorize(loop_rv, intrin_name);
+  static const InstructionKind& kind = InstructionKind::Get("Tensorize");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{loop_rv},
+      /*attrs=*/{intrin_name},
+      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const TensorIntrin& tensor_intrin) {
+  LOG(FATAL) << "TensorIntrin cannot be directly passed to meta schedule. Please register the tensor intrin and pass the intrin name instead.";
+}
+
 /******** Schedule: Annotation ********/
 
 void TracedScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,

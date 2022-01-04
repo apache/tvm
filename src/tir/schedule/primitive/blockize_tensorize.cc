@@ -24,6 +24,36 @@ namespace tvm {
 namespace tir {
 
 /*!
+ * \brief ScheduleError that the bindings of the inner block are not divisible by the subspace
+ * represented by the outer loops.
+ */
+class SubspaceNotDivisibleError : public ScheduleError {
+ public:
+  explicit SubspaceNotDivisibleError(IRModule mod, For scope_loop, Block inner_block)
+      : mod_(std::move(mod)),
+        scope_loop_(std::move(scope_loop)),
+        inner_block_(std::move(inner_block)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The bindings of the inner block can not be blockized.";
+  }
+
+  String DetailRenderTemplate() const final {
+    return "ScheduleError: The bindings of the inner block {0} can not be blockized by the loops "
+           "starting at {1}.";
+  }
+
+  IRModule mod() const final { return mod_; }
+
+  Array<ObjectRef> LocationsOfInterest() const final { return {inner_block_, scope_loop_}; }
+
+ private:
+  IRModule mod_;
+  For scope_loop_;
+  Block inner_block_;
+};
+
+/*!
  * \brief Detect if bindings are a trivial case of the subspace division where we can divide the
  * block iter bindings into two categories:
  *   1. The binding covers no inner loop vars.
@@ -53,6 +83,8 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
   for (const Var& var : inner_iters) {
     inner_loop_vars.insert(var.get());
   }
+  const arith::IterMark unit_iter_mark(arith::IterSumExpr({}, 0), 1);
+
   for (size_t i = 0; i < bindings.size(); ++i) {
     bool outer = UsesVar(
         bindings[i], [&outer_loop_vars](const VarNode* var) { return outer_loop_vars.count(var); });
@@ -69,16 +101,16 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
     if (outer && !inner) {
       arith::IterMark outer{nullptr};
       const auto& outer_iter = iter_mark;
-      arith::IterMark inner_iter(arith::IterSumExpr({}, 0), 1);
-      res.push_back(Array<arith::IterMark>({outer_iter, inner_iter}));
+      const auto& inner_iter = unit_iter_mark;
+      res.push_back({outer_iter, inner_iter});
     } else if (inner && !outer) {
+      const auto& outer_iter = unit_iter_mark;
       const auto& inner_iter = iter_mark;
-      arith::IterMark outer_iter(arith::IterSumExpr({}, 0), 1);
-      res.push_back(Array<arith::IterMark>({outer_iter, inner_iter}));
+      res.push_back({outer_iter, inner_iter});
     } else if (!outer && !inner) {
-      arith::IterMark outer_iter(arith::IterSumExpr({}, 0), 1);
-      arith::IterMark inner_iter(arith::IterSumExpr({}, 0), 1);
-      res.push_back(Array<arith::IterMark>({outer_iter, inner_iter}));
+      const auto& outer_iter = unit_iter_mark;
+      const auto& inner_iter = unit_iter_mark;
+      res.push_back({outer_iter, inner_iter});
     } else {
       return {};
     }
@@ -88,21 +120,13 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
   return res;
 }
 
-class SubspaceNotDivisibleError : public ScheduleError {};
-
 /*!
- * \brief Regenerate outer loops of a statement
- * \param
+ * \brief Generate the blockized init block.
+ * \param block The original block with init.
+ * \param inner_block_realize The block realize of the inner block after blockize.
+ * \param inner_loops The inner loops after blockize.
+ * \return The subtree of the init block and its outer loops.
  */
-Stmt RegenerateLoops(const std::vector<const ForNode*>& loops, Stmt body) {
-  for (const ForNode* loop : loops) {
-    ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
-    new_loop->body = std::move(body);
-    body = For(new_loop);
-  }
-  return body;
-}
-
 Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_realize,
                            const std::vector<const ForNode*>& inner_loops) {
   Array<IterVar> init_block_iters;
@@ -151,10 +175,9 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
                    /*body=*/block->init.value(),              //
                    /*init=*/NullOpt};
   Stmt new_init = BlockRealize(
-          /*iter_values=*/init_bindings,
-          /*predicate=*/inner_block_realize->predicate,
-                        /*block=*/          std::move(init_block)
-          );
+      /*iter_values=*/init_bindings,
+      /*predicate=*/inner_block_realize->predicate,
+      /*block=*/std::move(init_block));
 
   // Step 5: Generate the parent loops for the init block
   for (const ForNode* init_loop : init_loops) {
@@ -219,21 +242,24 @@ class LoopSubspaceCollector {
 /*!
  * \brief Check the bindings of the block iters can be divided by a subspace collected by the
  * collector.
+ * \param mod The current IR module.
  * \param block_realize The block realize to be checked.
  * \param collector The collector which has collected the loops of the block.
  * \param analyzer The arithmetic analyzer.
  * \return The result of the subspace division.
  * \throws ScheduleError If the bindings are not divisible by the subspace.
  */
-Array<Array<arith::IterMark>> CheckSubspaceDivisible(const BlockRealize& block_realize,
+Array<Array<arith::IterMark>> CheckSubspaceDivisible(const IRModule& mod,
+                                                     const BlockRealize& block_realize,
                                                      const LoopSubspaceCollector& collector,
                                                      arith::Analyzer* analyzer) {
   const Block& block = block_realize->block;
+  DiagnosticContext diag_ctx(DiagnosticContext::Default(mod));
 
   Array<Array<arith::IterMark>> division =
       arith::SubspaceDivide(block_realize->iter_values, collector.loop_var_domain,
                             collector.inner_loop_vars, block_realize->predicate,
-                            /*require_bijective=*/false, analyzer);
+                            /*require_bijective=*/false, analyzer, diag_ctx);
 
   if (division.empty()) {
     // If we can't do perfect subspace division, check if it is a trivial case of subspace division.
@@ -242,13 +268,23 @@ Array<Array<arith::IterMark>> CheckSubspaceDivisible(const BlockRealize& block_r
                                        collector.outer_loop_vars, collector.inner_loop_vars,
                                        block_realize->predicate);
   }
-  // TODO: raise schedule error
-  CHECK(!division.empty()) << "ValueError: The bindings of the block below can not be blockized";
+  if (division.empty()) {
+    throw SubspaceNotDivisibleError(mod, GetRef<For>(collector.inner_loops.back()), block);
+  }
   return division;
 }
 
+/*!
+ * \brief The binding extractor to compute the bindings of the outer and the inner blocks after
+ * blockize.
+ */
 class BlockizedBindingExtractor {
  public:
+  /*!
+   * \brief Extract bindings for blockize.
+   * \param iter_vars The iter vars of the original inner block.
+   * \param division The result of the subspace division.
+   */
   void ExtractBindings(const Array<IterVar>& iter_vars,
                        const Array<Array<arith::IterMark>>& division) {
     ICHECK(iter_vars.size() + 1 == division.size());
@@ -278,8 +314,6 @@ class BlockizedBindingExtractor {
         outer_bindings.push_back(
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(outer_binding)));
         outer_iter_vars.push_back(outer_var);
-        // generate a new iter var for outer block
-        // TODO: add test case outer extent is zero
         PrimExpr base = is_one(division[i][0]->extent) ? 0 : outer_var * division[i][1]->extent;
         if (const auto* op = division[i][1]->source.as<arith::IterSumExprNode>()) {
           base = base + op->base;
@@ -290,9 +324,8 @@ class BlockizedBindingExtractor {
               base + arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(inner_binding)));
         }
         inner_iter_vars.push_back(iter_var);
-        // bv_iter: inner block iter -> division inner extent
         inner_iter_relaxed_range.Set(iter_var->var,
-                                     Range::FromMinExtent(base, division[i][1]->extent));
+                                     arith::IntSet::FromMinExtent(base, division[i][1]->extent));
       }
     }
   }
@@ -306,34 +339,43 @@ class BlockizedBindingExtractor {
   Array<PrimExpr> inner_bindings;
 
   /*! \brief The range of the inner block iters Note that this is different from the domain of the
-   * inner block iters. */
-  Map<Var, Range> inner_iter_relaxed_range;
+   * inner block iters.
+   */
+  Map<Var, arith::IntSet> inner_iter_relaxed_range;
 };
 
-
 /*!
- * \brief
+ * \brief Compute the access region of the outer block by relaxing the inner loops.
+ * \param buffer_region The original buffer region.
+ * \param The range of the inner loops.
+ * \param analyzer The arithmetic analyzer.
+ * \return The new buffer region.
  */
 BufferRegion RelaxBlockizedInnerIters(const BufferRegion& buffer_region,
-                                      const Map<Var, Range>& inner_iter_relaxed_range,
+                                      const Map<Var, arith::IntSet>& inner_iter_relaxed_range,
                                       arith::Analyzer* analyzer) {
   Array<Range> new_region;
   new_region.reserve(buffer_region->region.size());
-  for (const auto& range : buffer_region->region) {
-    const Array<arith::IterSumExpr>& res =
-        arith::DetectIterMap({range->min}, inner_iter_relaxed_range, true, false, analyzer);
-    ICHECK_EQ(res.size(), 1);
-    const arith::IterSumExpr& normalized_expr = res[0];
-    PrimExpr extent = 1;
-    if (normalized_expr->args.size() == 1) {
-      ICHECK(analyzer->CanProve(normalized_expr->args[0]->scale - range->extent == 0));
-      extent = normalized_expr->args[0]->extent;
-    }
-    new_region.push_back(Range::FromMinExtent(normalized_expr->base, extent * range->extent));
+  Array<arith::IntSet> relaxed_int_set =
+      arith::EvalSet(buffer_region->region, inner_iter_relaxed_range);
+  ICHECK(buffer_region->region.size() == buffer_region->buffer->shape.size());
+  for (size_t i = 0; i < buffer_region->region.size(); i++) {
+    Range max_range = Range::FromMinExtent(0, buffer_region->buffer->shape[i]);
+    new_region.push_back(relaxed_int_set[i].CoverRange(max_range));
   }
   return BufferRegion(buffer_region->buffer, std::move(new_region));
 };
 
+/*!
+ * \brief Generate the outer block after blockize.
+ * \param extractor The binding extractor which has extracted the blockized bindings.
+ * \param block The original inner block.
+ * \param inner_block_realize The block realize of the inner block after blockize.
+ * \param inner_loops The inner loops after blockize.
+ * \param predicate The outer predicate of the subspace division.
+ * \param analyzer The arithmetic analyzer.
+ * \return The block realize of the outer block after blockize.
+ */
 BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extractor,
                                          const Block& block, BlockRealize inner_block_realize,
                                          const std::vector<const ForNode*>& inner_loops,
@@ -354,7 +396,16 @@ BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extrac
   new_reads.MutateByApply(f_mutate);
   new_writes.MutateByApply(f_mutate);
 
-  Stmt outer_block_body = RegenerateLoops(inner_loops, inner_block_realize);
+  // Step 3: Generate the body of the outer block. The body of the outer block is the inner block
+  // realize and its surounding loops.
+  Stmt outer_block_body = inner_block_realize;
+  for (const ForNode* loop : inner_loops) {
+    ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
+    new_loop->body = std::move(outer_block_body);
+    outer_block_body = For(new_loop);
+  }
+
+  // Step 4: Generate the outer block and block realize.
   Block outer_block{/*iter_vars=*/extractor.outer_iter_vars,        //
                     /*reads=*/new_reads,                            //
                     /*writes=*/new_writes,                          //
@@ -368,14 +419,6 @@ BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extrac
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
-  /*!
-   * Check:
-   *   - The sub AST is one-line with only one block
-   *
-   * Mutate:
-   *   - extra block var from the only block
-   *   - Update block binding
-   */
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   arith::Analyzer analyzer;
 
@@ -390,7 +433,7 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
 
   // Step 3: Calculate subspace division for the inner loops.
   Array<Array<arith::IterMark>> division =
-      CheckSubspaceDivisible(block_realize, collector, &analyzer);
+      CheckSubspaceDivisible(self->mod, block_realize, collector, &analyzer);
 
   // Step 4: Generate bindings for the outer block and the inner block based on the result of
   // the subspace division.
@@ -416,14 +459,129 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
 
   // Step 8: Update the cached flags
   const StmtSRef& outer_block_sref = self->stmt2ref.at(outer_realize->block.get());
-  BlockInfo& outer_block_info = self->block_info[outer_block_sref];
-  const BlockInfo& inner_block_info = self->block_info.at(block_sref);
-  outer_block_info.affine_binding = inner_block_info.affine_binding;
-  outer_block_info.region_cover = inner_block_info.region_cover;
-  outer_block_info.scope->stage_pipeline = inner_block_info.scope->stage_pipeline;
-
+  StmtSRef scope_root = tir::GetScopeRoot(self, outer_block_sref, /*require_stage_pipeline=*/false,
+                                          /*require_subtree_compact_dataflow=*/false);
+  BlockInfo old_block_info = self->GetBlockInfo(scope_root);
+  self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
+  // 'affine_binding' depends on the outer loops and are not changed.
+  self->block_info[scope_root].affine_binding = old_block_info.affine_binding;
   return outer_block_sref;
 }
+
+/*!
+ * \brief Update the map from the buffers in the description to the implementation of the tensor
+ * intrinsic. \param intrinsic The tensor intrinsic. \param buffer_map The map to be updated.
+ */
+void RemapTensorIntrinBuffers(
+    const TensorIntrin& intrinsic,
+    std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_map) {
+  ICHECK_EQ(intrinsic->description->params.size(), intrinsic->implementation->params.size());
+  for (size_t i = 0; i < intrinsic->description->params.size(); ++i) {
+    const auto& lhs_var = intrinsic->description->params[i];
+    const auto& lhs_buffer = intrinsic->description->buffer_map[lhs_var];
+    const auto& rhs_var = intrinsic->implementation->params[i];
+    const auto& rhs_buffer = intrinsic->implementation->buffer_map[rhs_var];
+    (*buffer_map)[rhs_buffer] = lhs_buffer;
+  }
+}
+
+void Tensorize(ScheduleState self, const StmtSRef& loop_sref, const TensorIntrin& intrinsic) {
+  /*!
+   * Check:
+   *   - Check buffer binding, including type, alignment, shape and etc.
+   *   - Check the sub AST is equal to the description function.
+   *
+   * Mutate:
+   *   - Blockize the sub AST (please refer blockize for details)
+   *   - Bind buffers
+   *   - Mutate the implementation of the tensor intrinsic by replacing its buffers with new
+   *     buffers created via match buffer region.
+   *   - Replace the sub tree with the mutated function.
+   */
+  const auto* loop = loop_sref->StmtAs<ForNode>();
+  CHECK(loop) << "Only support tensorize a loop for now";
+
+  const auto* desc_block_realize =
+      Downcast<BlockRealize>(intrinsic->description->body)->block->body.as<BlockRealizeNode>();
+  const Block& desc_block = desc_block_realize->block;
+  const auto* impl_block_realize =
+      Downcast<BlockRealize>(intrinsic->implementation->body)->block->body.as<BlockRealizeNode>();
+  Block impl_block = impl_block_realize->block;
+
+  // Step 1: Blockize the subtree rooted at the given loop
+  const StmtSRef& block_sref = Blockize(self, loop_sref);
+  const BlockRealize& block_realize = GetBlockRealize(self, block_sref);
+
+  // Step 2: Compare the block with the description of the tensor intrinsic, find the correspondence
+  // between buffers in the block and the description.
+  TensorizeComparator comparator(/*assert_mode=*/true);
+  comparator.VisitStmt(block_realize, GetRef<Stmt>(desc_block_realize));
+
+  // Step 3: Find the correspondence between buffers in the current AST and the implementation of
+  // the tensor intrinsic
+
+  // Step 3.1: Map from intrinsic func buffer to description func buffer
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> intrin_buffer_map;
+  RemapTensorIntrinBuffers(intrinsic, &intrin_buffer_map);
+  // Step 3.2: Map form intrinsic func buffer to current AST buffer
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map;
+  for (const auto& pair : intrin_buffer_map) {
+    auto it = comparator.rhs_buffer_map_.find(pair.second);
+    ICHECK(it != comparator.rhs_buffer_map_.end());
+    buffer_map[pair.first] = it->second;
+  }
+
+  // Step 4: Create MatchBufferRegion for the params of the implementation function of the tensor
+  // intrin to make them subregions of the buffer in the original IR.
+  std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> buffer_region_map;
+  for (const auto& read : impl_block->reads) {
+    buffer_region_map.emplace(read->buffer, read->region);
+  }
+  for (const auto& write : impl_block->writes) {
+    buffer_region_map.emplace(write->buffer, write->region);
+  }
+  Array<MatchBufferRegion> match_buffer_regions;
+  for (size_t i = 0; i < intrinsic->implementation->params.size(); ++i) {
+    const auto& param = intrinsic->implementation->params[i];
+    const auto& buffer = intrinsic->implementation->buffer_map.at(param);
+    const auto& source = buffer_map.at(buffer);
+    Region region = buffer_region_map.at(buffer);
+    auto extra_indices = comparator.buffer_indices_.at(source);
+    std::vector<Range> extra_buffer_ranges;
+    std::transform(extra_indices.begin(), extra_indices.end(),
+                   std::back_inserter(extra_buffer_ranges),
+                   [](const PrimExpr& index) { return Range::FromMinExtent(index, 1); });
+    region.insert(region.begin(), extra_buffer_ranges.begin(), extra_buffer_ranges.end());
+    match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, region)));
+  }
+
+  // Step 5: Replace the subtree in the original IR with the tensor intrin implementation.
+  ObjectPtr<BlockNode> new_block_ptr = make_object<BlockNode>(*block_realize->block.get());
+  new_block_ptr->body = impl_block->body;
+  ICHECK(new_block_ptr->match_buffers.empty());
+  new_block_ptr->match_buffers = std::move(match_buffer_regions);
+  Block new_block(new_block_ptr);
+
+  // Substitution map for the intrin block to get the correct bindings.
+  Map<Var, PrimExpr> bv_map;
+  for (size_t i = 0; i < desc_block->iter_vars.size(); ++i) {
+    auto it = comparator.equal_map_.find(desc_block->iter_vars[i]->var);
+    if (it != comparator.equal_map_.end()) {
+      bv_map.Set(impl_block->iter_vars[i]->var, Downcast<PrimExpr>(it->second));
+    } else {
+      bv_map.Set(impl_block->iter_vars[i]->var, Integer(0));
+    }
+  }
+  new_block = Downcast<Block>(SubstituteInScope(new_block, bv_map));
+  self->Replace(block_sref, new_block, {{block_realize->block, new_block}});
+
+  // Step 6: Update the cached flags.
+  StmtSRef scope_root = tir::GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
+                                          /*require_subtree_compact_dataflow=*/false);
+  self->UpdateScopeBlockInfo(static_cast<const BlockNode*>(scope_root->stmt)->body);
+}
+
+/******** InstructionKind Registration ********/
 
 struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   static constexpr const char* kName = "Blockize";
@@ -446,10 +604,35 @@ struct BlockizeTraits : public UnpackedInstTraits<BlockizeTraits> {
   }
 
   template <typename>
-  friend struct UnpackedInstTraits;
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
+struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
+  static constexpr const char* kName = "Tensorize";
+  static constexpr bool kIsPure = false;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumDecisions = 0;
+
+  static void UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, String intrin_name) {
+    return sch->Tensorize(loop_rv, intrin_name);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, String intrin_name) {
+    PythonAPICall py("tensorize");
+    py.Input("loop", loop_rv);
+    py.Input("intrin", intrin_name);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
 TVM_REGISTER_INST_KIND_TRAITS(BlockizeTraits);
+TVM_REGISTER_INST_KIND_TRAITS(TensorizeTraits);
 
 }  // namespace tir
 }  // namespace tvm

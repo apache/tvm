@@ -187,6 +187,18 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_method<Schedule>(&ScheduleNode::Blockize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
+    .set_body_typed([](Schedule self, LoopRV loop_rv, ObjectRef intrin) {
+      if (const auto* str = intrin.as<runtime::StringObj>()) {
+        return self->Tensorize(loop_rv, GetRef<String>(str));
+      }
+      if (const auto* p_intrin = intrin.as<TensorIntrinNode>()) {
+        return self->Tensorize(loop_rv, GetRef<TensorIntrin>(p_intrin));
+      }
+      LOG(FATAL) << "TypeError: Cannot handle type: " << intrin->GetTypeKey();
+      throw;
+    });
+
 /******** (FFI) Annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
     .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,

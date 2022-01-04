@@ -88,6 +88,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) final;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv) final;
+  void Tensorize(const LoopRV& loop_rv, const TensorIntrin& tensor_intrin) final;
+  void Tensorize(const LoopRV& loop_rv, const String& intrin_name) final;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;

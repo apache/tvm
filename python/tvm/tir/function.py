@@ -162,3 +162,30 @@ class PrimFunc(BaseFunc):
         return tvm._ffi.get_global_func("script.AsTVMScript")(
             self, tir_prefix, show_meta
         )  # type: ignore
+
+
+@tvm._ffi.register_object("tir.TensorIntrin")
+class TensorIntrin(Object):
+    """A tensor intrinsic.
+
+    Parameters
+    ----------
+    desc_func: PrimFunc
+        The function to describe the computation
+
+    intrin_func: PrimFunc
+        The function for execution
+    """
+
+    def __init__(self, desc_func, intrin_func):
+        self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc_func, intrin_func)
+
+    @staticmethod
+    def register(name: str, desc_func: PrimFunc, intrin_func: PrimFunc):
+        return _ffi_api.TensorIntrinRegister(  # type: ignore
+            name, desc_func, intrin_func
+        )
+
+    @staticmethod
+    def get(name: str):
+        return _ffi_api.TensorIntrinGet(name)  # pylint: type: ignore

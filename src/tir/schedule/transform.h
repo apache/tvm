@@ -104,6 +104,14 @@ Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, c
 void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_sref,
                           Stmt* src_stmt, Stmt* tgt_stmt);
 
+/******** IR Substitution ********/
+
+/*!
+ * \param var_map The mapping of var
+ * \return The converted stmt
+ */
+Stmt SubstituteInScope(const Stmt& stmt, const Map<Var, PrimExpr>& subst_map);
+
 }  // namespace tir
 }  // namespace tvm
 

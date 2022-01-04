@@ -188,6 +188,56 @@ class LinkedParam : public ObjectRef {
 };
 
 /*!
+ * \brief Tensor intrinsics for tensorization
+ */
+class TensorIntrinNode : public Object {
+ public:
+  /*! \brief The function to describe the computation. */
+  PrimFunc description;
+  /*! \brief The intrinsic function for lower-level implementation. */
+  PrimFunc implementation;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("description", &description);
+    v->Visit("implementation", &implementation);
+  }
+
+  static constexpr const char* _type_key = "tir.TensorIntrin";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
+};
+
+/*!
+ * \brief Managed reference to TensorIntrinNode.
+ */
+class TensorIntrin : public ObjectRef {
+ public:
+  /*!
+   * \brief Constructor
+   * \param desc_func The function to describe the computation.
+   * \param intrin_func The intrinsic function for lower-level implementation.
+   */
+  TVM_DLL explicit TensorIntrin(PrimFunc desc_func, PrimFunc intrin_func);
+
+  /*!
+   * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
+   * up with its name.
+   * \param name The name of the TensorIntrin to register
+   * \param desc_func The function to describe the computation.
+   * \param intrin_func The intrinsic function for lower-level implementation.
+   * \return The created TensorIntrin.
+   */
+  TVM_DLL static TensorIntrin Register(String name, PrimFunc desc_func, PrimFunc intrin_func);
+
+  /*!
+   * \brief Look up TensorIntrin by name. Raises an exception if not found.
+   * \param name The name of the TensorIntrin.
+   */
+  TVM_DLL static TensorIntrin Get(String name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+};
+
+/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.

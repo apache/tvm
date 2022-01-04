@@ -21,7 +21,7 @@ from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import IRModule, PrimExpr
 from tvm.runtime import Object, String
-from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc
+from tvm.tir import Block, FloatImm, For, IntImm, PrimFunc, TensorIntrin
 
 from . import _ffi_api
 from .state import ScheduleState, StmtSRef, _parse_debug_mask, _parse_mod
@@ -1761,7 +1761,85 @@ class Schedule(Object):
 
     @type_checked
     def blockize(self, loop: LoopRV) -> BlockRV:
+        """Convert the subtree rooted at a specific loop into a block.
+
+        Parameters
+        ----------
+        loop : LoopRV
+            The root of the subtree.
+
+        Returns
+        -------
+        result : BlockRV
+            The new block.
+
+        Examples
+        --------
+
+        Before blockize, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_blockize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            ) -> None:
+                for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
+                    with T.block("B"):
+                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
+                        T.reads(A[vi, vj])
+                        T.writes(B[vi, vj])
+                        B[vi, vj] = A[vi, vj] * T.float32(2)
+            
+        Create the schedule and do set_scope:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_blockize)
+            B = sch.get_block("B")
+            _, _, i1, _ = sch.get_loops(B)
+            sch.blockize(i1)
+            print(sch.mod["main"].script())
+
+        After applying blockize, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_blockize(
+                A: T.Buffer[(128, 128), "float32"],
+                B: T.Buffer[(128, 128), "float32"]
+            )-> None:
+                for i_0, j_0 in T.grid(8, 8):
+                    with T.block("blockized_B"):
+                        vio, vjo = T.axis.remap("SS", [i_0, j_0])
+                        T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        for i_1, j_1 in T.grid(16, 16):
+                            with T.block("B"):
+                                vi = T.axis.spatial(128, vio * 16 + i_1)
+                                vj = T.axis.spatial(128, vjo * 16 + j_1)
+                                T.reads(A[vi, vj])
+                                T.writes(B[vi, vj])
+                                B[vi, vj] = A[vi, vj] * T.float32(2)
+
+        Note
+        ----
+        blockize requires there is exactly one block under the given loop and the bindings of the
+        block are divisible by the subspace represented by the loops starting at the given loop.
+            
+        """
+        
         return _ffi_api.ScheduleBlockize(self, loop)  # type: ignore # pylint: disable=no-member
+
+    @type_checked
+    def tensorize(self, loop: LoopRV, tensor_intrin: Union[str, TensorIntrin]) -> None:
+        if isinstance(tensor_intrin, str):
+            tensor_intrin = String(tensor_intrin)
+        _ffi_api.ScheduleTensorize(  # type: ignore # pylint: disable=no-member
+            self, loop, tensor_intrin)
 
     ########## Schedule: Annotation ##########
 
