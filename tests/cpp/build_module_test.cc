@@ -102,6 +102,7 @@ TEST(BuildModule, Heterogeneous) {
   auto elemwise_add = compute(
       A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "elemwise_add");
 
+  // TODO(mbs): device_copy cleanup.
   auto copy = placeholder(shape, DataType::Float(32), "__copy");
   auto elemwise_sub = compute(
       C->shape, [&copy, &C](PrimExpr i) { return copy[i] - C[i]; }, "elemwise_sub");

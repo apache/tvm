@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Meta Schedule builders that translate IRModule to runtime.Module, and then export"""
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from tvm._ffi import register_object
 from tvm.ir import IRModule
-from tvm.runtime import Object
+from tvm.runtime import NDArray, Object
 from tvm.target import Target
 
 from .. import _ffi_api
+from ..utils import check_override
 
 
 @register_object("meta_schedule.BuilderInput")
@@ -35,12 +36,19 @@ class BuilderInput(Object):
         The IRModule to be built.
     target : Target
         The target to be built for.
+    params: Optional[Dict[str, NDArray]]
+        The parameters for Relay build module
     """
 
     mod: IRModule
     target: Target
 
-    def __init__(self, mod: IRModule, target: Target) -> None:
+    def __init__(
+        self,
+        mod: IRModule,
+        target: Target,
+        params: Optional[Dict[str, NDArray]] = None,
+    ) -> None:
         """Constructor.
 
         Parameters
@@ -49,11 +57,14 @@ class BuilderInput(Object):
             The IRModule to be built.
         target : Target
             The target to be built for.
+        params: Optional[Dict[str, NDArray]]
+            The parameters for Relay build module
         """
         self.__init_handle_by_constructor__(
             _ffi_api.BuilderInput,  # type: ignore # pylint: disable=no-member
             mod,
             target,
+            params,
         )
 
 
@@ -119,6 +130,7 @@ class PyBuilder(Builder):
     def __init__(self):
         """Constructor."""
 
+        @check_override(self.__class__, Builder)
         def f_build(build_inputs: List[BuilderInput]) -> List[BuilderResult]:
             return self.build(build_inputs)
 
@@ -126,6 +138,3 @@ class PyBuilder(Builder):
             _ffi_api.BuilderPyBuilder,  # type: ignore # pylint: disable=no-member
             f_build,
         )
-
-    def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
-        raise NotImplementedError

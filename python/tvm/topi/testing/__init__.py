@@ -49,6 +49,7 @@ from .gather_python import gather_python
 from .gather_nd_python import gather_nd_python
 from .strided_slice_python import strided_slice_python, strided_set_python
 from .batch_matmul import batch_matmul
+from .batch_norm import batch_norm
 from .slice_axis_python import slice_axis_python
 from .sequence_mask_python import sequence_mask
 from .poolnd_python import poolnd_python
@@ -73,3 +74,4 @@ from .space_to_batch_nd import space_to_batch_nd_python
 from .batch_to_space_nd import batch_to_space_nd_python
 from .nll_loss import nll_loss
 from .dense import dense
+from .searchsorted import searchsorted_ref

@@ -38,6 +38,7 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
+    autopad,
     AttrCvt,
     Renamer,
     ensure_scalar_shape,
@@ -51,6 +52,7 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    shape_of,
     try_resolve_var_to_const,
     unbind,
 )
@@ -214,6 +216,77 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def matmul_out_dtype(inputs, out_dtype):
+    """Common function to handle MatMul and MatMulInteger16"""
+    a_shape = shape_of(inputs[0])
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(inputs[1])
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+
+        def flatten_to_nd(x, x_shape, nd=3):
+            ndims = infer_shape(x_shape)[0]
+            if ndims == nd:
+                return x
+            newshape = _op.concatenate(
+                [
+                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+                ],
+                0,
+            )
+            out = _op.reshape(x, fold_constant(newshape))
+            return out
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(inputs[0], a_shape, 3)
+            b = flatten_to_nd(inputs[1], b_shape, 3)
+            # Perform a NN batch matmul.
+            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
+        # Determine the output batch dimension.
+        if a_rank > b_rank:
+            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
+        elif a_rank < b_rank:
+            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
+        # If its unclear how broadcasting should be applied, the output
+        # shape is determined by choosing the maximum value from each input.
+        else:
+            out_batch = _op.concatenate(
+                [
+                    _op.maximum(
+                        _op.strided_slice(a_shape, [i], [i + 1]),
+                        _op.strided_slice(b_shape, [i], [i + 1]),
+                    )
+                    for i in range(a_rank - 2)
+                ],
+                0,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(
+                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                ),
+                _op.strided_slice(
+                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                ),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+    # Otherwise a simple dense op will get the job done.
+    input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+    return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -315,7 +388,6 @@ class Pool(OnnxOpConverter):
                         attr.get("strides", [1] * (ndim - 2)),
                         attr["kernel_shape"],
                         [1] * ndim,
-                        ndim,
                         pad_value=pad_val,
                         mode=attr["auto_pad"],
                     )
@@ -397,10 +469,15 @@ class BatchNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
+        # TODO(vvchernov): 'training_mode' (onnx tag) is not correctly handled, ignore for now
         out = AttrCvt(
-            op_name="batch_norm", ignores=["spatial", "is_test", "consumed_inputs", "momentum"]
+            op_name="batch_norm",
+            ignores=["spatial", "is_test", "consumed_inputs", "momentum", "training_mode"],
         )(inputs, attr, params)
-        return out[0]
+        # We only support test mode, so we return data, moving_mean, moving_var,
+        # and then moving_mean and moving_var again as placeholders for
+        # the expected "saved_mean", "saved_var".
+        return _expr.TupleWrapper(_expr.Tuple((*out, out[1], out[2])), 5)
 
 
 class InstanceNorm(OnnxOpConverter):
@@ -409,69 +486,6 @@ class InstanceNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
-
-
-def autopad(
-    data,
-    strides,
-    kernel_shape,
-    dilations,
-    ndim,
-    pad_type="constant",
-    deconv=False,
-    mode="SAME_UPPER",
-    pad_value=0.0,
-):
-    """
-    Perform autopadding with dynamic input shapes
-    """
-    # get attributes as constants
-    strides = _op.const(np.array(strides), dtype="int64")
-    dilated_kernel_shape = _op.const(
-        np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        ),
-        dtype="int64",
-    )
-    # get input shape
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
-
-    # set up integer constants
-    zero = _op.const(0, dtype="int64")
-    one = _op.const(1, dtype="int64")
-    two = _op.const(2, dtype="int64")
-
-    # Calculate total padding
-    mod = _op.mod(shape, strides)
-
-    left = _op.maximum(dilated_kernel_shape - strides, zero)
-    right = _op.maximum(dilated_kernel_shape - mod, zero)
-
-    total_pad = _op.where(_op.equal(mod, zero), left, right)
-    if deconv:
-        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
-
-    # split total padding into before and after
-    pad_before = _op.floor_divide(total_pad, two)
-    pad_after = total_pad - pad_before
-
-    # combine
-    if "LOWER" in mode:
-        pad = _op.concatenate(
-            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
-        )
-    else:
-        pad = _op.concatenate(
-            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-        )
-
-    # pad N and C with zeros
-    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
-
-    if isinstance(pad_value, (float, int)):
-        pad_value = _op.const(pad_value)
-
-    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -501,7 +515,6 @@ class Conv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -582,7 +595,6 @@ class ConvTranspose(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     deconv=True,
                     mode=attr["auto_pad"],
                 )
@@ -771,7 +783,8 @@ class Gemm(OnnxOpConverter):
         assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
             len(inputs)
         )
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        input0_state = infer_type(inputs[0])
+        dtype = input0_state.checked_type.dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -783,7 +796,8 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        if len(input0_state.checked_type.shape) != 2:
+            inputs[0] = _op.nn.batch_flatten(inputs[0])
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
@@ -799,80 +813,24 @@ class MatMul(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         # Need to check input shape as batch matmul must be supported.
-        a_shape = shape_of(inputs[0])
-        a_rank = infer_shape(a_shape)[0]
-        b_shape = shape_of(inputs[1])
-        b_rank = infer_shape(b_shape)[0]
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if a_rank > 2 or b_rank > 2:
+        return matmul_out_dtype(inputs, out_dtype=infer_type(inputs[0]).checked_type.dtype)
 
-            def flatten_to_nd(x, x_shape, nd=3):
-                ndims = infer_shape(x_shape)[0]
-                if ndims == nd:
-                    return x
-                newshape = _op.concatenate(
-                    [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                    ],
-                    0,
-                )
-                out = _op.reshape(x, fold_constant(newshape))
-                return out
 
-            b_type = infer_type(inputs[1])
-            # Convert to dense if the second matrix is 2d and non-dynamic
-            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-                a = flatten_to_nd(inputs[0], a_shape, 2)
-                b = _op.transpose(inputs[1])
-                output = _op.nn.dense(a, b)
-            else:
-                # Convert a and b into 3 dimensional tensors.
-                a = flatten_to_nd(inputs[0], a_shape, 3)
-                b = flatten_to_nd(inputs[1], b_shape, 3)
-                if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
-                    # Transpose matrix dimensions of b.
-                    b = _op.transpose(b, [0, 2, 1])
-                    # Perform a NT batch matmul.
-                    output = _op.nn.batch_matmul(a, b)
-                else:
-                    # Perform a NN batch matmul.
-                    output = _op.nn.batch_matmul(a, b, transpose_b=False)
-            # Determine the output batch dimension.
-            if a_rank > b_rank:
-                out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-            elif a_rank < b_rank:
-                out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-            # If its unclear how broadcasting should be applied, the output
-            # shape is determined by choosing the maximum value from each input.
-            else:
-                out_batch = _op.concatenate(
-                    [
-                        _op.maximum(
-                            _op.strided_slice(a_shape, [i], [i + 1]),
-                            _op.strided_slice(b_shape, [i], [i + 1]),
-                        )
-                        for i in range(a_rank - 2)
-                    ],
-                    0,
-                )
-            # Reshape output to original dimensions.
-            final_shape = _op.concatenate(
-                [
-                    out_batch,
-                    _op.strided_slice(
-                        a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
-                    ),
-                    _op.strided_slice(
-                        b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
-                    ),
-                ],
-                0,
-            )
-            return _op.reshape(output, fold_constant(final_shape))
-        # Otherwise a simple dense op will get the job done.
-        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-        return _op.nn.dense(inputs[0], input_1_t)
+class MatMulInteger16(OnnxOpConverter):
+    """Operator converter for MatMulInteger16 from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        assert len(inputs) == 2, "MatMulInteger16 op take 2 inputs, {} given".format(len(inputs))
+        a_dtype = infer_type(inputs[0]).checked_type.dtype
+        b_dtype = infer_type(inputs[1]).checked_type.dtype
+        # Check input data types
+        assert a_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for first input"
+        assert b_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for second input"
+        out_dtype = "int32"
+        if a_dtype == "uint16" and b_dtype == "uint16":
+            out_dtype = "uint32"
+        return matmul_out_dtype(inputs, out_dtype)
 
 
 class Mod(OnnxOpConverter):
@@ -974,7 +932,6 @@ class LpPool(OnnxOpConverter):
                     attr["strides"],
                     attr["kernel_shape"],
                     [1] * ndim,
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -1410,14 +1367,6 @@ class Upsample(OnnxOpConverter):
         return out
 
 
-def shape_of(x, dtype="int64"):
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
-    return _op.shape_of(x, dtype)
-
-
 class Shape(OnnxOpConverter):
     """Operator converter for Shape."""
 
@@ -1534,13 +1483,37 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         splits = attr.get("split", None)
-        if splits is not None:
+        if splits is not None and len(splits) > 1:
             indices = []
-            attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
                 indices.append(index)
+        # When splits isnt specified divide evenly over axis.
+        else:
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        splits = inputs[1]
+        splits_rank = None
+        if splits is not None:
+            splits_rank = len(infer_shape(splits))
+        if splits is not None and splits_rank > 0:
+            if isinstance(splits, _expr.Constant):
+                splits = splits.data.asnumpy()
+                indices = []
+                index = 0
+                for i in splits[:-1]:
+                    index += i
+                    indices.append(index)
+            else:
+                raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
@@ -1596,6 +1569,15 @@ class Slice(OnnxOpConverter):
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 
+        if axes is not None:
+            # Normalize for negative axes
+            axes_dtype = infer_type(axes).checked_type.dtype
+            axes = fold_constant(
+                _op.where(
+                    axes < _op.const(0, axes_dtype), axes + _op.const(data_rank, axes_dtype), axes
+                )
+            )
+
         def has_static_axes():
             return (
                 isinstance(axes, _expr.Constant)
@@ -1612,7 +1594,6 @@ class Slice(OnnxOpConverter):
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
                 strides_np = steps.data.numpy().astype("int64")
-
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
                     inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
@@ -2684,13 +2665,13 @@ class Resize(OnnxOpConverter):
         out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+            out = _op.image.resize1d(inputs[0], out_size, None, "NCW", method, "asymmetric")
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+            out = _op.image.resize2d(inputs[0], out_size, None, "NCHW", method, "asymmetric")
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+            out = _op.image.resize3d(inputs[0], out_size, None, "NCDHW", method, "asymmetric")
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
         return out
@@ -2713,6 +2694,12 @@ class Resize(OnnxOpConverter):
     def _impl_v13(cls, inputs, attr, params):
         scale = inputs[2]
         size = inputs[3]
+
+        # Some versions of onnx exporters produce an opset 13 model with the opset 11
+        # resize op, handle that edge case
+        if scale is not None and size is not None:
+            return cls._impl_v11(inputs, attr, params)
+
         if size is not None:
             assert scale is None, "One of scale or size should be passed, not both."
         else:
@@ -2731,6 +2718,9 @@ class Resize(OnnxOpConverter):
         they handle the passing of scale and size. This utility
         provides the implementation for both
         """
+        roi = inputs[1]
+        if roi is not None and infer_shape(roi)[0] == 0:
+            roi = None
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2748,23 +2738,60 @@ class Resize(OnnxOpConverter):
         nearest_mode = attr.get("nearest_mode", b"round_prefer_floor").decode("ascii")
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
+        extrapolation_value = attr.get("extrapolation_value", 0.0)
 
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+        if roi is not None:
+            roi = fold_constant(
+                _op.concatenate(
+                    [
+                        _op.strided_slice(roi, [2], [ndims]),
+                        _op.strided_slice(roi, [ndims + 2], [2 * ndims]),
+                    ],
+                    axis=0,
+                )
+            )
+
+        out_size = fold_constant(_op.strided_slice(size, [2], [ndims]))
+
         out = None
         if ndims == 3:
-            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
             out = _op.image.resize1d(
-                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 4:
-            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
             out = _op.image.resize2d(
-                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 5:
-            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
             out = _op.image.resize3d(
-                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCDHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
@@ -3198,6 +3225,225 @@ class If(OnnxOpConverter):
         return ret
 
 
+class Scan(OnnxOpConverter):
+    """Operator converter for Scan"""
+
+    @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        new_inputs = inputs[1:]
+        batch_num = infer_shape(inputs[1])[0]
+        out = []
+        for i in range(batch_num):
+            v9_inputs = [
+                _op.take(new_inputs[j], _expr.const(i), axis=0) for j in range(len(new_inputs))
+            ]
+            results = cls._impl_v9(v9_inputs, attr, params)
+            results = [_op.expand_dims(results[j], axis=0) for j in range(len(results))]
+            if i == 0:
+                out = results
+            else:
+                out = [_op.concatenate([out[j], results[j]], axis=0) for j in range(len(results))]
+
+        out = _expr.TupleWrapper(_expr.Tuple(out), len(out))
+        return out
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        body = attr.get("body")
+        num_scan_inputs = attr.get("num_scan_inputs")
+        num_all_inputs = len(inputs)
+        num_state_inputs = len(body.input) - num_scan_inputs
+        num_state_outputs = num_state_inputs
+        num_all_outputs = len(body.output)
+        num_scan_outputs = num_all_outputs - num_state_outputs
+        scan_input_axes = attr.get("scan_input_axes", [0] * num_scan_inputs)
+        scan_input_directions = attr.get("scan_input_directions", [0] * num_scan_inputs)
+        scan_output_axes = list(attr.get("scan_output_axes", [0] * num_scan_outputs))
+        scan_output_directions = attr.get("scan_output_directions", [0] * num_scan_outputs)
+        # loop count are the same for all scan inputs, so get loop count by first input scan
+        # strided_slice not support dynamic axes, so assume input shape are static
+        max_loop_count = infer_shape(inputs[num_state_inputs])[scan_input_axes[0]]
+
+        # Create a copy of the body function to prevent the original
+        # from being modified.
+        body = copy.copy(attr["body"])
+
+        # Loop inputs will be packed as
+        # [iter_count, loop_deps, scan_outputs]
+        def cond_fn(*loop_inputs):
+            i = loop_inputs[0]
+            return _op.less(i, relay.const(max_loop_count, "int32"))
+
+        # Get the current graph proto and create a clone for the subgraph
+        graph_scope = GraphProto.current
+        subgraph_scope = GraphProto(
+            graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params
+        )
+        # Load nodes from outer graph into inner graph.
+        subgraph_scope._nodes = graph_scope._nodes.copy()
+
+        # Create a list of variables for each value updated in the loop.
+        def get_var(name, val, scan=False):
+            checked_type = infer_type(val)
+            if hasattr(checked_type, "type_annotation"):
+                checked_type = checked_type.type_annotation
+            if hasattr(checked_type, "checked_type"):
+                checked_type = checked_type.checked_type
+            shape = get_const_tuple(checked_type.shape)
+            actual_shape = []
+            for dim in shape:
+                if isinstance(dim, int) and dim == 0:
+                    actual_shape.append(_ty.Any())
+                else:
+                    actual_shape.append(dim)
+            if scan:
+                return _expr.var(name, shape=[_ty.Any()] + actual_shape, dtype=checked_type.dtype)
+
+            return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+
+        # Construct variables and initial empty tensors for any scan outputs.
+        # To do this, we'll figure out the output shapes of the body subgraph by importing
+        # it and doing type inference.
+        scan_output_vars = []
+        scan_output_init = []
+        if num_scan_outputs > 0:
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            loop_outputs = _expr.TupleWrapper(loop_outputs, len(body.output))
+
+        for i in range(num_scan_outputs):
+            name, _, _, _ = get_info(body.output[i + num_state_outputs])
+            output_node = infer_type(loop_outputs[i + num_state_outputs])
+            shape = list(get_const_tuple(output_node.checked_type.shape))
+            if scan_output_axes[i] < 0:
+                scan_output_axes[i] = len(shape) + scan_output_axes[i] + 1
+            shape.insert(scan_output_axes[i], max_loop_count)
+            dtype = output_node.checked_type.dtype
+            scan_output_vars.append(_expr.var(name, shape=shape, dtype=dtype))
+            scan_output_init.append(_op.zeros(shape, dtype))
+
+        # loop vars = [iter_count, scan_state, scan_out]
+        loop_vars = [
+            _expr.var("iter", shape=(), dtype="int32"),  # iteration count
+        ]
+        loop_vars += [
+            get_var(body.input[i].name, v) for i, v in enumerate(inputs) if i < num_state_inputs
+        ]
+        loop_vars += scan_output_vars
+        body_input_var_names = ["iter"] + [body.input[i].name for i in range(len(body.input))]
+
+        # # Now we can remove loop iter variables from our inner loop's inputs.
+        # # This is kind of a hack since we have graph inputs that we don't
+        # # want to treat as actual inputs.
+        while len(body.input) != 0:
+            body.input.pop(0)
+
+        # Define the loop body, in this function we need to unpack loop inputs,
+        # convert the loop subgraph, and pack outputs for the next iteration.
+        def body_fn(*loop_inputs):
+            # Unpack inputs
+            loop_count = loop_inputs[0]
+            state_vars = list(loop_inputs[1 : 1 + num_state_inputs])
+            scan_vars = list(loop_inputs[1 + num_state_inputs :])
+            # body take scan graph scan inputs as original input
+            input_scan_exprs = []
+            for i in range(num_state_inputs, num_all_inputs):
+                if scan_input_directions[i - num_state_inputs] != 0:
+                    input_scan_exprs.append(
+                        relay.take(
+                            inputs[i],
+                            relay.const(max_loop_count - 1, "int32") - loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
+                        )
+                    )
+                else:
+                    input_scan_exprs.append(
+                        relay.take(
+                            inputs[i],
+                            loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
+                        )
+                    )
+
+            # Prepare body inputs by adding them to node dictionary.
+            body_inputs = [loop_count] + state_vars + input_scan_exprs
+            for i, inp in enumerate(body_inputs):
+                subgraph_scope._nodes[body_input_var_names[i]] = inp
+
+            # Get the output of the current loop using the updated inputs.
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            # Unpack the body outputs and prepare variables for next iteration.
+            new_state_vars = [loop_outputs[i] for i in range(num_state_outputs)]
+            new_scan_vars = [loop_outputs[i] for i in range(num_state_outputs, num_all_outputs)]
+
+            # Add new scan outputs to tracking
+            combined_scan_outputs = []
+            for i in range(num_scan_outputs):
+                if scan_output_directions[i] == 0:
+                    # append new scan output
+                    combined_scan = _op.concatenate(
+                        [scan_vars[i], _op.expand_dims(new_scan_vars[i], axis=scan_output_axes[i])],
+                        axis=scan_output_axes[i],
+                    )
+                    # pop head scan output
+                    combined_scan = _op.strided_slice(
+                        combined_scan,
+                        begin=[1],
+                        end=[max_loop_count + 1],
+                        strides=[1],
+                        axes=[scan_output_axes[i]],
+                    )
+                else:
+                    # prepend new scan output
+                    combined_scan = _op.concatenate(
+                        [_op.expand_dims(new_scan_vars[i], axis=scan_output_axes[i]), scan_vars[i]],
+                        axis=scan_output_axes[i],
+                    )
+                    # pop tail scan output
+                    combined_scan = _op.strided_slice(
+                        combined_scan,
+                        begin=[0],
+                        end=[max_loop_count],
+                        strides=[1],
+                        axes=[scan_output_axes[i]],
+                    )
+                combined_scan_outputs.append(combined_scan)
+
+            incr = _expr.const(1, dtype="int32")
+            loop_count = loop_count + incr
+
+            # Pack loop outputs for next iteration
+            # [iter_count, state_var, scan_var]
+            return [loop_count] + new_state_vars + combined_scan_outputs
+
+        # Create the loop function.
+        loop = fold_constant(_loops.while_loop(cond_fn, loop_vars, body_fn))
+
+        # Now need to run initial values through the graph.
+        init_count = _expr.const(0, dtype="int32")
+
+        input_states = [inputs[i] for i in range(num_state_inputs)]
+        loop_vals = loop(init_count, *input_states, *scan_output_init)
+
+        outputs = _expr.TupleWrapper(
+            _expr.Tuple([_expr.TupleGetItem(loop_vals, i + 1) for i in range(num_all_outputs)]),
+            num_all_outputs,
+        )
+
+        # Update outer graph with constants found in the subgraph.
+        free_vars = analysis.free_vars(loop)
+        graph_scope._params.update(subgraph_scope._params)
+        graph_scope._nodes.update(subgraph_scope._nodes)
+        for var in free_vars:
+            graph_scope._nodes.update({var.name_hint: var})
+        return outputs
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -3440,7 +3686,6 @@ class QLinearConv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=x_zero_point.data,
                     mode=attr["auto_pad"],
                 )
@@ -3810,7 +4055,6 @@ class ConvInteger(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=data_zp,
                     mode=attr["auto_pad"],
                 )
@@ -3894,9 +4138,9 @@ class Unique(OnnxOpConverter):
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = trim_unique_lambda(unique[1])
-        inverse_indices = unique[2]
-        counts = trim_unique_lambda(unique[4])
+        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
+        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
+        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
@@ -3908,6 +4152,62 @@ class Einsum(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         equation = attr["equation"].decode("utf-8")
         return _op.einsum(inputs, equation)
+
+
+class RandomNormal(OnnxOpConverter):
+    """Operator converter for random_normal"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = get_type(attr.get("dtype", 1))
+        mean = attr.get("mean", 0.0)
+        scale = attr.get("scale", 1.0)
+        seed = attr.get("seed", None)
+        shape = attr["shape"]
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomNormalLike(OnnxOpConverter):
+    """Operator converter for random_normal_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        scale = attr.get("scale", 1.0)
+        mean = attr.get("mean", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
 
 
 class RandomUniform(OnnxOpConverter):
@@ -3928,6 +4228,38 @@ class RandomUniform(OnnxOpConverter):
 
         if seed is None:
             seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomUniformLike(OnnxOpConverter):
+    """Operator converter for random_uniform_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        high = attr.get("high", 1.0)
+        low = attr.get("low", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
         key = _random.threefry_key(seed)
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
@@ -4349,6 +4681,7 @@ def _get_convert_map(opset):
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
+        "MatMulInteger16": MatMulInteger16.get_converter(opset),
         "Mod": Mod.get_converter(opset),
         "Xor": Renamer("logical_xor"),
         # defs/nn
@@ -4447,7 +4780,10 @@ def _get_convert_map(opset):
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
+        "RandomNormal": RandomNormal.get_converter(opset),
+        "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
+        "RandomUniformLike": RandomUniformLike.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
@@ -4455,6 +4791,7 @@ def _get_convert_map(opset):
         "Adam": Adam.get_converter(opset),
         "Momentum": Momentum.get_converter(opset),
         "Trilu": Trilu.get_converter(opset),
+        "Scan": Scan.get_converter(opset),
     }
 
 

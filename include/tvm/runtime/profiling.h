@@ -198,13 +198,20 @@ class ReportNode : public Object {
    */
   String AsCSV() const;
   /*! \brief Create a human readable table of profiling metrics.
-   *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
-   *  \param sort Whether or not to sort call frames by descending duration. If
-   *  false and if `aggregate` is false, frames will be sorted by order of
-   *  appearance in the program. Order is undefined if `sort` is false and
-   *  `aggregate` is true.
+   *
+   *  \param aggregate Whether or not to join multiple calls to the
+   *      same op into a single line.
+   *
+   *  \param sort Whether or not to sort call frames by descending
+   *      duration. If false and if `aggregate` is false, frames will
+   *      be sorted by order of appearance in the program. Order is
+   *      undefined if `sort` is false and `aggregate` is true.
+   *
+   *  \param compute_col_sums Whether or not to include sum totals for
+   *      the Count, Duation, and Percent columns.
+   *
    */
-  String AsTable(bool sort = true, bool aggregate = true) const;
+  String AsTable(bool sort = true, bool aggregate = true, bool compute_col_sums = true) const;
   /*! \brief Convert this report to JSON.
    *
    * Output JSON will be of this format:
@@ -452,11 +459,23 @@ class CountNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
 };
 
-/*! \brief String representation of an array or NDArray shapes
+/*! \brief String representation of an array of NDArray shapes
  *  \param shapes Array of NDArrays to get the shapes of.
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
 String ShapeString(const std::vector<NDArray>& shapes);
+/*! \brief String representation of shape encoded as an NDArray
+ *  \param shape NDArray containing the shape.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(NDArray shape, DLDataType dtype);
+/*! \brief String representation of a shape encoded as a vector
+ *  \param shape Shape as a vector of integers.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
 
 }  // namespace profiling
 }  // namespace runtime

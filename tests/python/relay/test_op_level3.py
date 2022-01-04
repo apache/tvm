@@ -1422,7 +1422,8 @@ def test_sparse_to_dense(target, dev, executor_kind):
     verify_sparse_to_dense(
         [0, 1, 4], [3.1, 3.1, 3.1], 3.5, [5], [3.1, 3.1, 3.5, 3.5, 3.1]
     )  # floats
-    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])  # default value not specified
+    # default value not specified
+    verify_sparse_to_dense(1, 3, None, [5], [0, 3, 0, 0, 0])
 
     # negative test cases
     # sparse indices should be ints
@@ -1757,7 +1758,7 @@ def verify_func(target, dev, func, data, ref_res):
                 tvm.testing.assert_allclose(op_result.numpy(), ref_result, rtol=1e-5)
         else:
             tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
-        relay.backend.compile_engine.get().clear()
+        relay.backend.te_compiler.get().clear()
 
 
 def test_adv_index(target, dev, executor_kind):
@@ -1970,7 +1971,8 @@ def test_unique(target, dev):
             uniq = uniq[order].astype(data.dtype)
             inverse = np.array([reverse_order[i] for i in inverse]).astype("int32")
             counts = counts[order].astype("int32")
-            index = np.sort(index)  # In unsorted case, need to sort the index of first occurence
+            # In unsorted case, need to sort the index of first occurence
+            index = np.sort(index)
         return [
             uniq.astype(data.dtype),
             index.astype("int32"),

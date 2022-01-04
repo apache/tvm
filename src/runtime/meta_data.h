@@ -58,8 +58,14 @@ class MetadataNode : public Object {
   Array<String> inputs;
   /*! \brief number of outputs of the main function */
   int num_outputs = 1;
+  /*! \brief device contexts information for the main function */
+  Array<String> devices;
   /*! \brief the executor to be used to run the model */
   String executor = kTvmExecutorGraph;
+  /*! \brief The external API (packed or c) in use */
+  String interface_api;
+  /*! \brief The internal API (packed or unpacked) in use */
+  bool unpacked_api;
 
   String mod_name = "";
 
@@ -73,11 +79,15 @@ class MetadataNode : public Object {
  */
 class Metadata : public ObjectRef {
  public:
-  TVM_DLL Metadata(Array<String> inputs, int num_outputs, String executor, String mod_name) {
+  TVM_DLL Metadata(Array<String> inputs, Array<String> devices, int num_outputs, String executor,
+                   String mod_name, String interface_api = "packed", bool unpacked_api = false) {
     auto n = make_object<MetadataNode>();
     n->inputs = inputs;
+    n->devices = devices;
     n->num_outputs = num_outputs;
     n->executor = executor;
+    n->interface_api = interface_api;
+    n->unpacked_api = unpacked_api;
     n->mod_name = mod_name;
     data_ = std::move(n);
   }

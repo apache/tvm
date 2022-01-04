@@ -37,6 +37,7 @@
 
 #include "../analysis/dependency_graph.h"
 #include "../op/annotation/annotation.h"
+#include "../op/memory/on_device.h"
 #include "./let_list.h"
 
 namespace tvm {
@@ -118,9 +119,8 @@ inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr&
  *   is it atomic?
  *   if so, the compute cost of the expression is bounded so it can be copy without graph mode.
  */
-inline bool IsAtomic(const Expr& e) {
-  auto props = GetOnDeviceProps(e);
-  Expr true_expr = props.body.defined() ? props.body : e;
+inline bool IsAtomic(const Expr& expr) {
+  Expr true_expr = IgnoreOnDevice(expr);
   return true_expr.as<VarNode>() || true_expr.as<OpNode>() || true_expr.as<ConstructorNode>() ||
          true_expr.as<GlobalVarNode>() ||
          true_expr.as<ConstantNode>();  // Constant is always by reference.

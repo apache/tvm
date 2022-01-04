@@ -39,7 +39,7 @@ import tvm.ir.transform
 from tvm import nd
 from tvm import rpc as _rpc
 from tvm.autotvm.env import AutotvmGlobalScope, reset_global_scope
-from tvm.contrib import ndk, nvcc, stackvm, tar
+from tvm.contrib import ndk, stackvm, tar
 from tvm.contrib.popen_pool import PopenPoolExecutor
 from tvm.driver import build
 from tvm.error import TVMError
@@ -89,10 +89,18 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     do_fork: bool
         If False, do not fork when building. Requires n_parallel=1.
+    runtime: Optional[Runtime]
+        Specify the runtime to generate artifacts for
     """
 
     def __init__(
-        self, timeout=10, n_parallel=None, build_kwargs=None, build_func="default", do_fork=False
+        self,
+        timeout=10,
+        n_parallel=None,
+        build_kwargs=None,
+        build_func="default",
+        do_fork=False,
+        runtime=None,
     ):
         super(LocalBuilder, self).__init__(timeout, n_parallel, build_kwargs)
 
@@ -105,7 +113,7 @@ class LocalBuilder(Builder):
                 build_func = stackvm.build
             else:
                 raise ValueError("Invalid build_func" + build_func)
-        self.build_func = _WrappedBuildFunc(build_func)
+        self.build_func = _WrappedBuildFunc(build_func, runtime)
         if not do_fork:
             assert n_parallel in (
                 None,
@@ -314,9 +322,6 @@ class RPCRunner(Runner):
                 "max_thread_z": max_dims[2],
             }
 
-            if "cuda" in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(dev.compute_version.split("."))
-
         return kwargs
 
     def run(self, measure_inputs, build_results):
@@ -455,7 +460,7 @@ class LocalRunner(RPCRunner):
         return server, tracker
 
 
-def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
+def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option=None):
     """Common part for building a configuration"""
     target, task, config = measure_input
     target, task.target_host = Target.check_and_update_host_consist(target, task.target_host)
@@ -470,8 +475,6 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
         opts = build_option or {}
         if check_gpu:  # Add verify pass to filter out invalid configs in advance.
             opts["tir.add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
-        if cuda_arch:
-            set_cuda_target_arch(cuda_arch)
 
         # if target is vta, we need to use vta build
         if (
@@ -484,7 +487,7 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
-                func = build(s, args, target_host=task.target_host)
+                func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
@@ -499,6 +502,8 @@ class _WrappedBuildFunc:
     ----------
     build_func : The compilation function
         We expect fcompile to contain an attr "output_format".
+    runtime : Optional[Runtime]
+        The runtime to generate artifacts for
 
     Returns
     -------
@@ -506,10 +511,11 @@ class _WrappedBuildFunc:
         The wrapped build function
     """
 
-    def __init__(self, build_func):
+    def __init__(self, build_func, runtime=None):
         if not hasattr(build_func, "output_format"):
             raise AttributeError("Expect build_func to have the attribute output_format.")
         self.build_func = build_func
+        self.runtime = runtime
 
     def __call__(self, measure_input, tmp_dir, **kwargs):
         """
@@ -529,14 +535,13 @@ class _WrappedBuildFunc:
                 tmp_dir, "tmp_func_%0x.%s" % (getrandbits(64), self.build_func.output_format)
             )
             # TODO(tvm-team) consider linline _build_func_common
-            func, arg_info = _build_func_common(measure_input, **kwargs)
+            func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
             if self.build_func.output_format == ".model-library-format":
                 # Late import to preserve autoTVM with USE_MICRO OFF
                 try:
                     from tvm import micro  # pylint: disable=import-outside-toplevel
                 except ImportError:
                     raise ImportError("Requires USE_MICRO")
-
                 micro.export_model_library_format(func, filename)
             else:
                 func.export_library(filename, self.build_func)
@@ -777,21 +782,10 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     return not t.is_alive()
 
 
-@tvm._ffi.register_func
-def tvm_callback_cuda_compile(code):
-    """use nvcc to generate ptx code for better optimization"""
-    curr_cuda_target_arch = AutotvmGlobalScope.current.cuda_target_arch
-    # e.g., target arch could be [
-    #   "-gencode", "arch=compute_52,code=sm_52",
-    #   "-gencode", "arch=compute_70,code=sm_70"
-    # ]
-    target = "fatbin" if isinstance(curr_cuda_target_arch, list) else "ptx"
-    ptx = nvcc.compile_cuda(code, target=target, arch=AutotvmGlobalScope.current.cuda_target_arch)
-    return ptx
-
-
 def set_cuda_target_arch(arch):
-    """set target architecture of nvcc compiler
+    """THIS API IS DEPRECATED.
+
+    set target architecture of nvcc compiler
 
     Parameters
     ----------
@@ -800,7 +794,11 @@ def set_cuda_target_arch(arch):
         it can also be a count of gencode arguments pass to nvcc command line,
         e.g., ["-gencode", "arch=compute_52,code=sm_52", "-gencode", "arch=compute_70,code=sm_70"]
     """
-    AutotvmGlobalScope.current.cuda_target_arch = arch
+    raise ValueError(
+        "The API 'autotvm.measure.set_cuda_target_arch' is deprecated."
+        "Try specifying it by adding '-arch=sm_xx' to your target, such as 'cuda -arch=sm_86'."
+        "See https://github.com/apache/tvm/pull/9544 for the upgrade guide."
+    )
 
 
 def gpu_verify_pass(**kwargs):

@@ -21,4 +21,6 @@ from . import builder
 from . import runner
 from . import space_generator
 from . import search_strategy
+from . import schedule_rule
+from . import integration
 from .tune_context import TuneContext

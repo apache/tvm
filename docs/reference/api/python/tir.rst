@@ -15,6 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _api-python-tir:
+
 tvm.tir
 -------
 .. automodule:: tvm.tir

@@ -32,6 +32,7 @@ import subprocess
 import pathlib
 
 import tvm
+from tvm.relay.backend import Executor, Runtime
 
 ####################
 # Defining the model
@@ -69,13 +70,15 @@ params = {"weight": weight_sample}
 # Defining the target #
 #######################
 # Now we define the TVM target that describes the execution environment. This looks very similar
-# to target definitions from other microTVM tutorials.
+# to target definitions from other microTVM tutorials. Alongside this we pick the C Runtime to code
+# generate our model against.
 #
 # When running on physical hardware, choose a target and a board that
 # describe the hardware. There are multiple hardware targets that could be selected from
 # PLATFORM list in this tutorial. You can chose the platform by passing --platform argument when running
 # this tutorial.
 #
+RUNTIME = Runtime("crt", {"system-lib": True})
 TARGET = tvm.target.target.micro("host")
 
 # Compiling for physical hardware
@@ -113,12 +116,9 @@ assert len(tasks) > 0
 # choose other options by choosing from `PLATFORM` list.
 #
 
-repo_root = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
-)
 
 module_loader = tvm.micro.AutoTvmModuleLoader(
-    template_project_dir=repo_root / "src" / "runtime" / "crt" / "host",
+    template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("crt")),
     project_options={"verbose": False},
 )
 builder = tvm.autotvm.LocalBuilder(
@@ -126,6 +126,7 @@ builder = tvm.autotvm.LocalBuilder(
     build_kwargs={"build_option": {"tir.disable_vectorize": True}},
     do_fork=True,
     build_func=tvm.micro.autotvm_build_func,
+    runtime=RUNTIME,
 )
 runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=module_loader)
 
@@ -134,7 +135,7 @@ measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    module_loader = tvm.micro.AutoTvmModuleLoader(
-#        template_project_dir=repo_root / "apps" / "microtvm" / "zephyr" / "template_project",
+#        template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        project_options={
 #            "zephyr_board": BOARD,
 #            "west_cmd": "west",
@@ -178,12 +179,12 @@ for task in tasks:
 # the tuned operator.
 
 with pass_context:
-    lowered = tvm.relay.build(relay_mod, target=TARGET, params=params)
+    lowered = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
 
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    str(tvm.micro.get_microtvm_template_projects("crt")),
     lowered,
     temp_dir / "project",
     {"verbose": False},
@@ -192,7 +193,7 @@ project = tvm.micro.generate_project(
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    project = tvm.micro.generate_project(
-#        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+#        str(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        lowered,
 #        temp_dir / "project",
 #        {
@@ -221,12 +222,12 @@ with tvm.micro.Session(project.transport()) as session:
 
 with tvm.autotvm.apply_history_best("microtvm_autotune.log.txt"):
     with pass_context:
-        lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, params=params)
+        lowered_tuned = tvm.relay.build(relay_mod, target=TARGET, runtime=RUNTIME, params=params)
 
 temp_dir = tvm.contrib.utils.tempdir()
 
 project = tvm.micro.generate_project(
-    str(repo_root / "src" / "runtime" / "crt" / "host"),
+    str(tvm.micro.get_microtvm_template_projects("crt")),
     lowered_tuned,
     temp_dir / "project",
     {"verbose": False},
@@ -235,7 +236,7 @@ project = tvm.micro.generate_project(
 # Compiling for physical hardware
 # --------------------------------------------------------------------------
 #    project = tvm.micro.generate_project(
-#        str(repo_root / "apps" / "microtvm" / "zephyr" / "template_project"),
+#        str(tvm.micro.get_microtvm_template_projects("zephyr")),
 #        lowered_tuned,
 #        temp_dir / "project",
 #        {

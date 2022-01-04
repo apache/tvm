@@ -628,6 +628,40 @@ def factorized_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
                         B[vi] = 0.0
                     B[vi] = B[vi] + B_rf_local[vk, vi]
 
+@T.prim_func
+def not_all_compact_data_flow(a: T.handle, c: T.handle):
+    A = T.match_buffer(a, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj]
+    for i, j in T.grid(128, 64):
+        with T.block("C_1"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj * 2] = B[vi, vj * 2] + 1.0
+        with T.block("C_2"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
+
+@T.prim_func
+def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
+    A = T.match_buffer(a, (128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    C = T.match_buffer(c, (128, 128), "float32")
+    for i, j in T.grid(128, 64):
+        for t in range(2):
+            with T.block("B"):
+                vi = T.axis.S(128, i)
+                vj = T.axis.S(128, j * 2 + t)
+                B[vi, vj] = A[vi, vj]
+        with T.block("C_1"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj * 2] = B[vi, vj * 2] + 1.0
+        with T.block("C_2"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
 
 @T.prim_func
 def fail_subtree_compact_dataflow(a: T.handle, c: T.handle) -> None:
@@ -833,6 +867,15 @@ def test_read_out_of_bound():
     sch.compute_at(block, loop)
     tvm.ir.assert_structural_equal(read_out_of_bound_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=read_out_of_bound)
+
+
+def test_compact_dataflow():
+    sch = tir.Schedule(not_all_compact_data_flow, debug_mask="all")
+    block = sch.get_block("B")
+    _, loop = sch.get_loops(sch.get_block("C_1"))
+    sch.compute_at(block, loop)
+    tvm.ir.assert_structural_equal(not_all_compact_data_flow_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
 def test_fail_subtree_compact_dataflow():

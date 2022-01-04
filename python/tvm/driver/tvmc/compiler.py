@@ -25,7 +25,9 @@ from pathlib import Path
 import tvm
 from tvm import autotvm, auto_scheduler
 from tvm import relay
+from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registry_entity
 from tvm.target import Target
+from tvm.relay.backend import Executor, Runtime
 
 from . import common, composite_target, frontends
 from .model import TVMCModel, TVMCPackage
@@ -38,7 +40,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_compile_parser(subparsers):
+def add_compile_parser(subparsers, _):
     """Include parser for 'compile' subcommand"""
 
     parser = subparsers.add_parser("compile", help="compile a model.")
@@ -74,7 +76,7 @@ def add_compile_parser(subparsers):
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
+        help="output the compiled module to a specified archive. Defaults to 'module.tar'.",
     )
     parser.add_argument(
         "-f",
@@ -92,6 +94,7 @@ def add_compile_parser(subparsers):
         "times, each one to set one configuration value, "
         "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
     )
+
     generate_target_args(parser)
     parser.add_argument(
         "--tuning-records",
@@ -100,11 +103,23 @@ def add_compile_parser(subparsers):
         help="path to an auto-tuning log file by AutoTVM. If not presented, "
         "the fallback/tophub configs will be used.",
     )
+    generate_registry_args(parser, Executor, "graph")
+    generate_registry_args(parser, Runtime, "cpp")
+
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     # TODO (@leandron) This is a path to a physical file, but
     #     can be improved in future to add integration with a modelzoo
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file.")
+    parser.add_argument(
+        "-O",
+        "--opt-level",
+        default=3,
+        type=int,
+        choices=range(0, 4),
+        metavar="[0-3]",
+        help="specify which optimization level to use. Defaults to '3'.",
+    )
     parser.add_argument(
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
@@ -141,6 +156,9 @@ def drive_compile(args):
     compile_model(
         tvmc_model,
         args.target,
+        opt_level=args.opt_level,
+        executor=reconstruct_registry_entity(args, Executor),
+        runtime=reconstruct_registry_entity(args, Runtime),
         tuning_records=args.tuning_records,
         package_path=args.output,
         cross=args.cross_compiler,
@@ -160,6 +178,9 @@ def drive_compile(args):
 def compile_model(
     tvmc_model: TVMCModel,
     target: str,
+    opt_level: int = 3,
+    executor: Optional[Executor] = Executor("graph"),
+    runtime: Optional[Runtime] = Runtime("cpp"),
     tuning_records: Optional[str] = None,
     package_path: Optional[str] = None,
     cross: Optional[Union[str, Callable]] = None,
@@ -185,6 +206,8 @@ def compile_model(
     target : str
         The target for which to compile. Can be a plain string or
         a path.
+    opt_level : int
+        The option that controls various sorts of optimizations.
     tuning_records : str
         A path to tuning records produced using tvmc.tune. When provided,
         compilation will use more optimized kernels leading to better results.
@@ -237,9 +260,11 @@ def compile_model(
     for codegen_from_cli in extra_targets:
         codegen = composite_target.get_codegen_by_target(codegen_from_cli["name"])
         partition_function = codegen["pass_pipeline"]
-        mod = partition_function(mod, params, **codegen_from_cli["opts"])
+
         if codegen["config_key"] is not None:
             config[codegen["config_key"]] = codegen_from_cli["opts"]
+        with tvm.transform.PassContext(config=config):
+            mod = partition_function(mod, params, **codegen_from_cli["opts"])
 
     if tuning_records and os.path.exists(tuning_records):
         logger.debug("tuning records file provided: %s", tuning_records)
@@ -254,21 +279,29 @@ def compile_model(
             with auto_scheduler.ApplyHistoryBest(tuning_records):
                 config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = relay.build(
+                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    )
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with tuning records")
-                    graph_module = relay.build(mod, target=tvm_target, params=params)
+                    graph_module = relay.build(
+                        mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+                    )
     else:
-        with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
+        with tvm.transform.PassContext(
+            opt_level=opt_level, config=config, disabled_pass=disabled_pass
+        ):
             logger.debug("building relay graph (no tuning records provided)")
-            graph_module = relay.build(mod, target=tvm_target, params=params)
+            graph_module = relay.build(
+                mod, target=tvm_target, executor=executor, runtime=runtime, params=params
+            )
 
     # Generate output dump files with sources
     if dump_code is None:

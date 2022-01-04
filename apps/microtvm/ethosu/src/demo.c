@@ -45,7 +45,12 @@ int main(int argc, char** argv) {
   struct tvmgen_default_inputs inputs = {
       .input = input,
   };
-  tvmgen_default_run(&inputs, &outputs);
+  struct ethosu_driver* driver = ethosu_reserve_driver();
+  struct tvmgen_default_devices devices = {
+      .ethos_u = driver,
+  };
+  tvmgen_default_run(&inputs, &outputs, &devices);
+  ethosu_release_driver(driver);
 
   // Calculate index of max value
   uint8_t max_value = 0;

@@ -25,7 +25,7 @@ from tvm.tir.schedule import Trace
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
-from ..utils import _json_de_tvm
+from ..utils import _json_de_tvm, check_override
 
 
 @register_object("meta_schedule.Workload")
@@ -147,6 +147,19 @@ class TuningRecord(Object):
 class Database(Object):
     """The abstract database interface."""
 
+    def has_workload(self, mod: IRModule) -> bool:
+        """Check if the database has the given workload.
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        Returns
+        -------
+        result : bool
+            Whether the database has the given workload.
+        """
+        return _ffi_api.DatabaseHasWorkload(self, mod)  # type: ignore # pylint: disable=no-member
+
     def commit_workload(self, mod: IRModule) -> Workload:
         """Commit a workload to the database if missing.
 
@@ -207,34 +220,31 @@ class PyDatabase(Database):
     def __init__(self):
         """Constructor."""
 
+        @check_override(self.__class__, Database)
+        def f_has_workload(mod: IRModule) -> bool:
+            return self.has_workload(mod)
+
+        @check_override(self.__class__, Database)
         def f_commit_workload(mod: IRModule) -> Workload:
             return self.commit_workload(mod)
 
+        @check_override(self.__class__, Database)
         def f_commit_tuning_record(record: TuningRecord) -> None:
             self.commit_tuning_record(record)
 
+        @check_override(self.__class__, Database)
         def f_get_top_k(workload: Workload, top_k: int) -> List[TuningRecord]:
             return self.get_top_k(workload, top_k)
 
+        @check_override(self.__class__, Database, func_name="__len__")
         def f_size() -> int:
             return len(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.DatabasePyDatabase,  # type: ignore  # pylint: disable=no-member
+            f_has_workload,
             f_commit_workload,
             f_commit_tuning_record,
             f_get_top_k,
             f_size,
         )
-
-    def commit_workload(self, mod: IRModule) -> Workload:
-        raise NotImplementedError
-
-    def commit_tuning_record(self, record: TuningRecord) -> None:
-        raise NotImplementedError
-
-    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
-        raise NotImplementedError
-
-    def __len__(self) -> int:
-        raise NotImplementedError

@@ -46,6 +46,8 @@ def get_conv2d_params(stmt, producers, consumers):
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
 
     """
     attrs, body = get_op_attrs(stmt)
@@ -53,7 +55,7 @@ def get_conv2d_params(stmt, producers, consumers):
     rh = inner
     rw = rh.body
     rc = rw.body
-    # loads = [output, input, weights, scale_bias, scale_bias]
+    # loads = [output, input, weights, scale_bias, scale_bias, LUT, LUT]
     loads = get_loads(rc.body)
     # stores = [output]
     stores = get_stores(rc.body)
@@ -61,7 +63,7 @@ def get_conv2d_params(stmt, producers, consumers):
     output_pointer = stores[0].buffer_var
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
     # Get kernel info
     serial_kernel = SerialKernel(
         width=int(rw.extent),
@@ -99,8 +101,10 @@ def get_conv2d_params(stmt, producers, consumers):
             scale_bias=serial_scale_bias,
             padding=serial_padding,
             activation=serial_activation,
+            rounding_mode=attrs["rounding_mode"],
             upscale="NONE",
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

@@ -49,6 +49,7 @@
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tir/var.h>
 
@@ -275,13 +276,14 @@ class IterSumExpr : public IterMapExpr {
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
+ * \param diag_ctx Diagnostic context.
  *
  * \return The detected pattern if a match exists,
  *         otherwise return an empty array.
  */
 Array<IterSumExpr> DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                  const PrimExpr& predicate, bool require_bijective,
-                                 arith::Analyzer* analyzer);
+                                 arith::Analyzer* analyzer, DiagnosticContext diag_ctx);
 /*!
  * \brief Use IterVarMap detector to rewrite and simplify the indices
  *
@@ -333,6 +335,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
  * \param predicate The predicate constraints on the input iterators
  * \param require_bijective A boolean flag that indicates whether the mapping should be bijective.
  * \param analyzer Analyzer used to get context information.
+ * \param diag_ctx Diagnostic context.
  *
  * \return The result list has length len(bindings) + 1
         [0, len(bindings)): The iter map matching result. The inner list is of length 2.
@@ -344,7 +347,8 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
 Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
                                       const Map<Var, Range>& input_iters,
                                       const Array<Var>& sub_iters, const PrimExpr& predicate,
-                                      bool require_bijective, arith::Analyzer* analyzer);
+                                      bool require_bijective, arith::Analyzer* analyzer,
+                                      DiagnosticContext diag_ctx);
 
 }  // namespace arith
 }  // namespace tvm

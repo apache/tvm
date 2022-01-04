@@ -61,6 +61,11 @@ class LabelOpsMutator : public MixedModeMutator {
   using MixedModeMutator::VisitExpr_;
   std::unordered_map<std::string, ObjectRef> body_attrs;
   Expr VisitExpr_(const FunctionNode* op) final {
+    if (op->GetAttr<String>("hash").defined()) {
+      // Already labelled.
+      return ExprMutator::VisitExpr_(op);
+    }
+
     // body_attrs collects attrs from Calls in the body of this Function. Reset
     // it so we only get attrs from this Function.
     body_attrs = {};
@@ -77,6 +82,7 @@ class LabelOpsMutator : public MixedModeMutator {
     }
     return std::move(f);
   }
+
   Expr VisitExpr_(const LetNode* op) final {
     auto pre_visit = [this](const LetNode* op) {
       this->Mutate(op->var);

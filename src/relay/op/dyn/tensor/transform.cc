@@ -467,6 +467,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   int64_t num_axis = dshape.size();
 
   const auto* begin = types[1].as<TensorTypeNode>();
+  if (begin == nullptr) {
+    return false;
+  }
   ICHECK(begin);
 
   // calculate output shape

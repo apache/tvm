@@ -29,6 +29,7 @@
 #include <tvm/runtime/logging.h>
 
 #include <cstdint>  // for uint64_t
+#include <random>
 
 namespace tvm {
 namespace support {
@@ -74,6 +75,12 @@ class LinearCongruentialEngine {
   static constexpr result_type max() { return modulus - 1; }
 
   /*!
+   * \brief Get a device random state
+   * \return The random state
+   */
+  static TRandState DeviceRandom() { return (std::random_device()()) % modulus; }
+
+  /*!
    * \brief Operator to move the random state to the next and return the new random state. According
    *  to definition of linear congruential engine, the new random state value is computed as
    *  new_random_state = (current_random_state * multiplier + increment) % modulus.
@@ -93,6 +100,7 @@ class LinearCongruentialEngine {
    * \param rand_state The random state given in result_type.
    */
   void Seed(TRandState rand_state = 1) {
+    ICHECK(rand_state != -1) << "The seed can't be -1 which should be changed to random seed!";
     rand_state %= modulus;  // Make sure the seed is within the range of modulus.
     if (rand_state == 0)
       rand_state = 1;  // Avoid getting all 0 given the current parameter set.

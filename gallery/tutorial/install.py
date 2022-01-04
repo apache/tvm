@@ -29,22 +29,22 @@ methods for installing TVM. These include:
 """
 
 ################################################################################
-# Installing from Source
+# Installing From Source
 # ----------------------
 # Installing from source is the recommended method for installing TVM. It will
 # allow you to enable specific features such as GPU support, microcontroller
 # support (microTVM), and a debugging runtime, and other features. You will also
 # want to install from source if you want to actively contribute to the TVM
-# project. The full instructions are on the `Install TVM From Source
-# <https://tvm.apache.org/docs/install/from_source.html>`_ page.
+# project. The full instructions are on the :ref:`Install TVM From Source
+# <install-from-source>` page.
 
 ################################################################################
 # Installing From Binary Packages
 # --------------------------------
-# You may install convenient third-party binary package distributions to
-# quickly try things out. TLCPack is a thirdparty volunteer community that
-# builds binary packages from TVM source. It offers support matrix with
+# You may install convenient third party binary package distributions to
+# quickly try things out. TLCPack is a third party volunteer community that
+# builds binary packages from TVM source. It offers a support matrix with
 # instructions to install on different platforms, with different features.
-# Checkout  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
-# thirdparty binary packages could contain additional licensing terms for
+# Check out  `TLCPack <https://tlcpack.ai>`_ to learn more. Note that the
+# third party binary packages could contain additional licensing terms for
 # the hardware drivers that are bundled with it.

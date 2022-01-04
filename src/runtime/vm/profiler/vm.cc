@@ -25,6 +25,7 @@
 #include "vm.h"
 
 #include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -32,6 +33,7 @@
 #include <iomanip>
 #include <memory>
 #include <numeric>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -88,11 +90,61 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineDebug::LoadExecutable(const Executable* exec) {
+void VirtualMachineDebug::LoadExecutable(Executable* exec) {
   VirtualMachine::LoadExecutable(exec);
   ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
+  }
+}
+
+void VirtualMachineDebug::OpStartHook(Instruction instr) {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    if (instr.op == Opcode::LoadConst) {
+      Device dev = GetDevice(exec_->const_device_indexes[instr.const_index]);
+      prof_.operator*().StartCall("VM::LoadConst", dev, {});
+    } else if (instr.op == Opcode::DeviceCopy) {
+      Device dst_dev = GetDevice(instr.device_copy.dst_device_index);
+      prof_.operator*().StartCall("VM::DeviceCopy", dst_dev, {});
+    } else if (instr.op == Opcode::ReshapeTensor) {
+      prof_.operator*().StartCall("VM::ReshapeTensor", devices_[exec_->host_device_index], {});
+    } else if (instr.op == Opcode::AllocTensor) {
+      auto shape = std::vector<int64_t>(instr.alloc_tensor.ndim);
+
+      for (uint32_t i = 0; i < instr.alloc_tensor.ndim; ++i) {
+        shape[i] = instr.alloc_tensor.shape[i];
+      }
+      auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      prof_.operator*().StartCall(
+          "VM::AllocTensor", storage->buffer.device,
+          {{"Argument Shapes", profiling::ShapeString(shape, instr.alloc_tensor.dtype)}});
+    } else if (instr.op == Opcode::AllocTensorReg) {
+      auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
+      auto storage = Downcast<Storage>(storage_obj);
+      Device cpu_dev = GetDevice(exec_->host_device_index);
+      auto shape_obj = ReadRegister(instr.alloc_tensor_reg.shape_register);
+      NDArray shape_tensor = Downcast<NDArray>(shape_obj).CopyTo(cpu_dev);
+      prof_.operator*().StartCall(
+          "VM::AllocTensorReg", storage->buffer.device,
+          {{"Argument Shapes",
+            profiling::ShapeString(shape_tensor, instr.alloc_tensor_reg.dtype)}});
+    } else if (instr.op == Opcode::AllocStorage) {
+      auto size = LoadScalarInt(instr.alloc_storage.allocation_size);
+      std::ostringstream shape;
+      shape << DLDataType2String(instr.alloc_storage.dtype_hint) << "[" << size << "]";
+      Device dev = GetDevice(instr.alloc_storage.device_index);
+      prof_.operator*().StartCall("VM::AllocStorage", dev,
+                                  {{"VM::Argument Shapes", String(shape.str())}});
+    } else {
+      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+    }
+  }
+}
+
+void VirtualMachineDebug::OpStopHook() {
+  if (prof_ && prof_.operator*().IsRunning()) {
+    prof_.operator*().StopCall();
   }
 }
 
@@ -150,7 +202,7 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
   }
 }
 
-runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
+runtime::Module CreateVirtualMachineDebug(Executable* exec) {
   auto vm = make_object<VirtualMachineDebug>();
   vm->LoadExecutable(exec);
   return runtime::Module(vm);
@@ -158,7 +210,7 @@ runtime::Module CreateVirtualMachineDebug(const Executable* exec) {
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
-  const auto* exec = dynamic_cast<Executable*>(mod.operator->());
+  auto* exec = dynamic_cast<Executable*>(mod.operator->());
   ICHECK(exec) << "Virtual machine has not been defined yet."
                << "\n";
   *rv = CreateVirtualMachineDebug(exec);

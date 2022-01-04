@@ -99,8 +99,8 @@ class SubgraphExtractor : public ExprVisitor {
     if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
         expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
         expr.as<ConstantNode>() == nullptr) {
-      LOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
-                << " a fake quantize region, aborting this rewrite";
+      DLOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
+                 << " a fake quantize region, aborting this rewrite";
       is_fake_quantized_ = false;
     } else {
       ExprVisitor::VisitExpr(expr);
@@ -141,8 +141,8 @@ class SubgraphExtractor : public ExprVisitor {
 
 class SubgraphMutator : public ExprMutator {
  public:
-  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types)
-      : subgraph_(subgraph), affine_types_(affine_types) {}
+  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
+      : subgraph_(subgraph), affine_types_(affine_types), hard_fail_(hard_fail) {}
 
   Expr MutateSubgraph(const Expr& expr) {
     if (subgraph_.size() == 0) {
@@ -155,13 +155,28 @@ class SubgraphMutator : public ExprMutator {
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
     for (auto node : subgraph_) {
-      if (!fqfq.count(Downcast<Op>(node.as<CallNode>()->op))) {
+      const Op op = Downcast<Op>(node.as<CallNode>()->op);
+      if (!fqfq.count(Downcast<Op>(op))) {
         // Only modify the subgraph if we have translation
         // rules for every op
+        if (hard_fail_) {
+          LOG(FATAL) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+        } else {
+          DLOG(INFO) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+          return expr;
+        }
+      }
+    }
+    try {
+      return Mutate(expr);
+    } catch (std::exception& e) {
+      if (hard_fail_) {
+        throw e;
+      } else {
+        DLOG(INFO) << "Ran into an error rewriting a subgraph, skipping" << expr << std::endl;
         return expr;
       }
     }
-    return Mutate(expr);
   }
 
  protected:
@@ -218,11 +233,15 @@ class SubgraphMutator : public ExprMutator {
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   AffineType out_type_;
+  const bool hard_fail_;
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };
 
 class FakeQuantizationRewriter : public MixedModeMutator {
+ public:
+  explicit FakeQuantizationRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
+
  protected:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (const CallNode* call_node = post.as<CallNode>()) {
@@ -245,25 +264,27 @@ class FakeQuantizationRewriter : public MixedModeMutator {
         for (auto expr : subgraph) {
           post_subgraph.insert(memo_[expr]);
         }
-        Expr out = SubgraphMutator(post_subgraph, post_affine_types).MutateSubgraph(post);
+        Expr out =
+            SubgraphMutator(post_subgraph, post_affine_types, hard_fail_).MutateSubgraph(post);
         return out;
       }
     }
     return post;
   }
   const Op quantize_op_ = Op::Get("qnn.quantize");
+  const bool hard_fail_;
 };
 
-Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod) {
-  return FakeQuantizationRewriter().Mutate(expr);
+Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail) {
+  return FakeQuantizationRewriter(hard_fail).Mutate(expr);
 }
 
 namespace transform {
 
-Pass FakeQuantizationToInteger() {
+Pass FakeQuantizationToInteger(bool hard_fail) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FakeQuantizationToInteger(f, m));
+        return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail));
       };
   return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
 }
