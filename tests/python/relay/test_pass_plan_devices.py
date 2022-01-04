@@ -41,13 +41,13 @@ TARGETS = {
     tvm.tir.IntImm("int32", GPU_DEVICE.device_type): GPU_TARGET,
 }
 
-HOST = tvm.target.make_virtual_device(HOST_DEVICE, HOST_TARGET)  # device_type=1
-CPU = tvm.target.make_virtual_device(CPU_DEVICE, CPU_TARGET)  # device_type=1
-GPU = tvm.target.make_virtual_device(GPU_DEVICE, GPU_TARGET)  # device_type=2
+HOST = tvm.target.VirtualDevice(HOST_DEVICE, HOST_TARGET)  # device_type=1
+CPU = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET)  # device_type=1
+GPU = tvm.target.VirtualDevice(GPU_DEVICE, GPU_TARGET)  # device_type=2
 DEFAULT = GPU
 
-CPU_SCOPE_A = tvm.target.make_virtual_device(CPU_DEVICE, CPU_TARGET, memory_scope="scopeA")
-CPU_SCOPE_B = tvm.target.make_virtual_device(CPU_DEVICE, CPU_TARGET, memory_scope="scopeB")
+CPU_SCOPE_A = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET, memory_scope="scopeA")
+CPU_SCOPE_B = tvm.target.VirtualDevice(CPU_DEVICE, CPU_TARGET, memory_scope="scopeB")
 
 CTXT = tvm.transform.PassContext(config={"relay.fallback_device_type": DEFAULT.device_type_int})
 
