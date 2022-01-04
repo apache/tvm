@@ -97,14 +97,28 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod
  * \brief Partition all matches of a DFPattern inside an Expr into separate Function calls
  *
  * \param pattern The pattern to match
- * \param expr The expression to patition
+ * \param expr The expression to partition
  * \param attrs A set of parameter names and values to apply to the partitioned function
  * \param check A callback function for checking more complicated properties of the matched
  * expressions, returns true if the match is accepted and false otherwise
  *
- * \return Return the paritioned Expr.
+ * \return Return the partitioned Expr.
  */
 Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs, PackedFunc check);
+
+/*!
+ * \brief Partition all matches of a DFPattern inside an Expr into separate Function calls
+ *
+ * \param patterns An array of patterns to match in hierarchical order.
+ * \param expr The expression to partition
+ * \param attrs A set of parameter names and values to apply to the partitioned function
+ * \param check A callback function for checking more complicated properties of the matched
+ * expressions, returns true if the match is accepted and false otherwise
+ *
+ * \return Return the partitioned Expr.
+ */
+Expr PartitionPattern(Array<DFPattern> patterns, Expr expr, Map<String, ObjectRef> attrs,
+                      PackedFunc check);
 
 }  // namespace relay
 }  // namespace tvm
