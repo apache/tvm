@@ -34,8 +34,7 @@ def test_lower_to_tir():
         kernel_layout="HWIO",
         out_dtype="int32",
     )
-    multiply = relay.multiply(relay.const(-22, dtype="int32"), p2)
-    tile = relay.tile(multiply, reps=(1, 1, 1, 1001))
+    tile = relay.tile(p2, reps=(1, 1, 1, 1001))
     subtract = relay.subtract(conv, tile)
     func = subtract
     expr = relay.Function(relay.analysis.free_vars(func), func)
