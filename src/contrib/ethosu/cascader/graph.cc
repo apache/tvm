@@ -38,10 +38,12 @@ namespace ethosu {
 namespace cascader {
 
 void PerformanceInfoNode::VisitAttrs(AttrVisitor* v) {
-  v->Visit("_compute_cycles", &compute_cycles);
+  int compute_cycles_int = static_cast<int>(compute_cycles);
+  v->Visit("_compute_cycles", &compute_cycles_int);
   Array<Integer> tmp_reads = make_array(read_bytes);
   v->Visit("_read_bytes", &tmp_reads);
-  v->Visit("_write_bytes", &write_bytes);
+  int write_bytes_int = static_cast<int>(write_bytes);
+  v->Visit("_write_bytes", &write_bytes_int);
 }
 
 TVM_REGISTER_NODE_TYPE(PerformanceInfoNode);
