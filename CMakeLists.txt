@@ -115,7 +115,7 @@ set(TVM_RUNTIME_LINKER_LIBS "")
 # If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
 get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
 
-if(NOT IS_SUBPROJECT AND "${CMAKE_EXPORT_COMPILE_COMMANDS}" STREQUAL "")
+if(NOT IS_SUBPROJECT AND NOT DEFINED "${CMAKE_EXPORT_COMPILE_COMMANDS}")
   # If not set manually, change the default to ON
   set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 endif()
