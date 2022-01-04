@@ -5,7 +5,7 @@ from tvm import te, tir, autotvm
 from tvm.target import Target
 import re
 from ..nn.pad import pad
-from ..utils import simplify, get_const_tuple
+from ..utils import simplify, get_const_tuple, traverse_inline
 from ..nn.utils import get_pad_tuple1d, get_pad_tuple
 
 
@@ -100,36 +100,41 @@ def get_vec_length(out, data, weight):
 
 @autotvm.register_topi_schedule("conv1d_ncw.pulp")
 def schedule_conv1d_ncw(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
-    s = te.create_schedule([out.op])
-    n, c, w = out.op.axis
-    rc, rw = out.op.reduce_axis
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    workload = out.op.attrs["workload"]
-    dilation = get_const_tuple(workload[5])
+    def _callback(op):
+        if op.tag == "conv1d_ncw":
+            data, weight = op.input_tensors
+            out = op.output(0)
+            n, c, w = op.axis
+            rc, rw = op.reduce_axis
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rw)
-    s[weight].compute_at(s[out], rw)
+            workload = op.attrs["workload"]
+            dilation = get_const_tuple(workload[5])
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rw)
+            s[weight].compute_at(s[out], rw)
 
-    if vec_length != 1:
-        rwo, rwi = s[out].split(rw, vec_length)
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length, dilation=dilation[0])
-        s[out].tensorize(rwi, t)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        wo, wi = cfg["tile_w"].apply(s, out, w)
-        cfg.define_split("tile_rwo", rwo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rwoo, rwoi = cfg["tile_rwo"].apply(s, out, rwo)
+            if vec_length != 1:
+                rwo, rwi = s[out].split(rw, vec_length)
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length, dilation=dilation[0])
+                s[out].tensorize(rwi, t)
 
-        s[out].reorder(n, wo, rwoo, c, rc, wi, rwoi, rwi)
+                cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                wo, wi = cfg["tile_w"].apply(s, out, w)
+                cfg.define_split("tile_rwo", rwo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rwoo, rwoi = cfg["tile_rwo"].apply(s, out, rwo)
 
-        s[data].compute_at(s[out], rwoi)
-        s[weight].compute_at(s[out], rwoi)
+                s[out].reorder(n, wo, rwoo, c, rc, wi, rwoi, rwi)
+
+                s[data].compute_at(s[out], rwoi)
+                s[weight].compute_at(s[out], rwoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
@@ -206,33 +211,38 @@ def conv1d_ncw(cfg, data, kernel, strides=1, padding="VALID", dilation=1, out_dt
 
 @autotvm.register_topi_schedule("conv1d_nwc.pulp")
 def schedule_conv1d_nwc(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
-    s = te.create_schedule([out.op])
-    n, w, c = out.op.axis
-    rw, rc = out.op.reduce_axis
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rw)
-    s[weight].compute_at(s[out], rw)
+    def _callback(op):
+        if op.tag == "conv1d_nwc":
+            data, weight = op.input_tensors
+            out = op.output(0)
+            n, w, c = op.axis
+            rw, rc = op.reduce_axis
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rw)
+            s[weight].compute_at(s[out], rw)
 
-    if vec_length != 1:
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                  vec_length, kernel_is_last_axis=False)
-        rco, rci = s[out].split(rc, vec_length)
-        s[out].tensorize(rci, t)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        co, ci = cfg["tile_c"].apply(s, out, c)
-        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+            if vec_length != 1:
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length, kernel_is_last_axis=False)
+                rco, rci = s[out].split(rc, vec_length)
+                s[out].tensorize(rci, t)
 
-        s[out].reorder(n, co, rcoo, w, rw, ci, rcoi)
+                cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                co, ci = cfg["tile_c"].apply(s, out, c)
+                cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-        s[data].compute_at(s[out], rcoi)
-        s[weight].compute_at(s[out], rcoi)
+                s[out].reorder(n, co, rcoo, w, rw, ci, rcoi)
+
+                s[data].compute_at(s[out], rcoi)
+                s[weight].compute_at(s[out], rcoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
@@ -308,33 +318,38 @@ def conv1d_nwc(cfg, data, kernel, strides=1, padding="VALID", dilation=1, out_dt
 
 @autotvm.register_topi_schedule("conv1d_nwc_owi.pulp")
 def schedule_conv1d_nwc_owi(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
-    s = te.create_schedule([out.op])
-    n, w, c = out.op.axis
-    rw, rc = out.op.reduce_axis
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rc)
-    s[weight].compute_at(s[out], rc)
+    def _callback(op):
+        if op.tag == "conv1d_nwc_owi":
+            data, weight = op.input_tensors
+            out = op.output(0)
+            n, w, c = op.axis
+            rw, rc = op.reduce_axis
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rc)
+            s[weight].compute_at(s[out], rc)
 
-    if vec_length != 1:
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length)
-        rco, rci = s[out].split(rc, vec_length)
-        s[out].tensorize(rci, t)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        co, ci = cfg["tile_c"].apply(s, out, c)
-        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+            if vec_length != 1:
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length)
+                rco, rci = s[out].split(rc, vec_length)
+                s[out].tensorize(rci, t)
 
-        s[out].reorder(n, rcoo, w, rw, co, ci, rcoi, rci)
+                cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                co, ci = cfg["tile_c"].apply(s, out, c)
+                cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-        s[data].compute_at(s[out], rcoi)
-        s[weight].compute_at(s[out], rcoi)
+                s[out].reorder(n, rcoo, w, rw, co, ci, rcoi, rci)
+
+                s[data].compute_at(s[out], rcoi)
+                s[weight].compute_at(s[out], rcoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
@@ -410,37 +425,41 @@ def conv1d_nwc_owi(cfg, data, kernel, strides=1, padding="VALID", dilation=1, ou
 
 @autotvm.register_topi_schedule("conv2d_nchw.pulp")
 def schedule_conv2d_nchw(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    s = te.create_schedule([out.op])
-    n, c, h, w = out.op.axis
-    rc, ry, rx = out.op.reduce_axis
+    def _callback(op):
+        if op.tag == "conv1d_nchw":
+            data, weight = op.input_tensors
+            out = op.output(0)
+            n, c, h, w = op.axis
+            rc, ry, rx = op.reduce_axis
 
-    workload = out.op.attrs["workload"]
-    dilation = get_const_tuple(workload[5])
+            workload = op.attrs["workload"]
+            dilation = get_const_tuple(workload[5])
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rx)
-    s[weight].compute_at(s[out], rx)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rx)
+            s[weight].compute_at(s[out], rx)
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-    if vec_length != 1:
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length, dilation=dilation[1])
-        rxo, rxi = s[out].split(rx, vec_length)
-        s[out].tensorize(rxi, t)
+            if vec_length != 1:
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length, dilation=dilation[1])
+                rxo, rxi = s[out].split(rx, vec_length)
+                s[out].tensorize(rxi, t)
 
-        cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        wo, wi = cfg["tile_w"].apply(s, out, w)
-        cfg.define_split("tile_rxo", rxo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rxoo, rxoi = cfg["tile_rxo"].apply(s, out, rxo)
+                cfg.define_split("tile_w", w, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                wo, wi = cfg["tile_w"].apply(s, out, w)
+                cfg.define_split("tile_rxo", rxo, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rxoo, rxoi = cfg["tile_rxo"].apply(s, out, rxo)
 
-        s[out].reorder(n, wo, rxoo, h, c, rc, ry, wi, rxoi)
+                s[out].reorder(n, wo, rxoo, h, c, rc, ry, wi, rxoi)
 
-        s[data].compute_at(s[out], rxoi)
-        s[weight].compute_at(s[out], rxoi)
+                s[data].compute_at(s[out], rxoi)
+                s[weight].compute_at(s[out], rxoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
@@ -532,33 +551,38 @@ def conv2d_nchw(cfg, Input, Filter, stride, padding, dilation, out_dtype=None):
 
 @autotvm.register_topi_schedule("conv2d_nhwc.pulp")
 def schedule_conv2d_nhwc(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
-    s = te.create_schedule([out.op])
-    n, h, w, c = out.op.axis
-    ry, rx, rc = out.op.reduce_axis
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rc)
-    s[weight].compute_at(s[out], rc)
+    def _callback(op):
+        if op.tag == "conv1d_nhwc":
+            data, weight = op.input_tensors
+            out = op.output(0)
+            n, h, w, c = op.axis
+            ry, rx, rc = op.reduce_axis
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rc)
+            s[weight].compute_at(s[out], rc)
 
-    if vec_length != 1:
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length, kernel_is_last_axis=False)
-        rco, rci = s[out].split(rc, vec_length)
-        s[out].tensorize(rci, t)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        co, ci = cfg["tile_c"].apply(s, out, c)
-        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+            if vec_length != 1:
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length, kernel_is_last_axis=False)
+                rco, rci = s[out].split(rc, vec_length)
+                s[out].tensorize(rci, t)
 
-        s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
+                cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                co, ci = cfg["tile_c"].apply(s, out, c)
+                cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-        s[data].compute_at(s[out], rcoi)
-        s[weight].compute_at(s[out], rcoi)
+                s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
+
+                s[data].compute_at(s[out], rcoi)
+                s[weight].compute_at(s[out], rcoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
@@ -662,33 +686,39 @@ def conv2d_nhwc(
 
 @autotvm.register_topi_schedule("conv2d_nhwc_ohwi.pulp")
 def schedule_conv2d_nhwc_ohwi(cfg, outs):
-    out = outs[0]
-    data, weight = out.op.input_tensors
-    s = te.create_schedule([out.op])
-    n, h, w, c = out.op.axis
-    ry, rx, rc = out.op.reduce_axis
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    s[data.op.input_tensors[0]].compute_inline()
-    s[data].compute_at(s[out], rc)
-    s[weight].compute_at(s[out], rc)
+    def _callback(op):
+        if op.tag == "conv1d_nhwc_ohwi":
+            data, weight = op.input_tensors
+            out = op.output[0]
+            s = te.create_schedule([out.op])
+            n, h, w, c = op.axis
+            ry, rx, rc = op.reduce_axis
 
-    vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
+            s[data.op.input_tensors[0]].compute_inline()
+            s[data].compute_at(s[out], rc)
+            s[weight].compute_at(s[out], rc)
 
-    if vec_length != 1:
-        t = sdotp(data.dtype, weight.dtype, out.dtype,
-                    vec_length)
-        rco, rci = s[out].split(rc, vec_length)
-        s[out].tensorize(rci, t)
+            vec_length = get_vec_length(out.dtype, data.dtype, weight.dtype)
 
-        cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        co, ci = cfg["tile_c"].apply(s, out, c)
-        cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
-        rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
+            if vec_length != 1:
+                t = sdotp(data.dtype, weight.dtype, out.dtype, vec_length)
+                rco, rci = s[out].split(rc, vec_length)
+                s[out].tensorize(rci, t)
 
-        s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
+                cfg.define_split("tile_c", c, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                co, ci = cfg["tile_c"].apply(s, out, c)
+                cfg.define_split("tile_rco", rco, num_outputs=2, policy="candidate", candidate=[[-1, 1],[-1, 2],[-1, 4],[-1, 8]])
+                rcoo, rcoi = cfg["tile_rco"].apply(s, out, rco)
 
-        s[data].compute_at(s[out], rcoi)
-        s[weight].compute_at(s[out], rcoi)
+                s[out].reorder(n, co, rcoo, h, w, ry, rx, ci, rcoi)
+
+                s[data].compute_at(s[out], rcoi)
+                s[weight].compute_at(s[out], rcoi)
+
+    traverse_inline(s, outs[0].op, _callback)
 
     return s
 
