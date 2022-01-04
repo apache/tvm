@@ -176,13 +176,17 @@ class MixedPrecisionPass : public MixedModeMutator {
   }
 
   Type GetType(const Expr& expr) const {
-    auto mod = IRModule::FromExpr(expr);
-    mod = transform::InferType()(mod);
-    if (expr.as<FunctionNode>()) {
-      return mod->Lookup("main")->checked_type();
-    } else {
-      return mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+    // The expression has not been changed AND it's existing type
+    // is known to still be valid. (See special handling for tuples etc
+    // below for where we null out checked_type_ when we can not
+    // sure it is still valid.
+    Type checked_type = expr->checked_type_;
+    if (checked_type.defined()) {
+      return checked_type;
     }
+
+    // This also populates the checked_type_ field for expr
+    return transform::InferTypeLocal(expr);
   }
 
   bool IsMixedPrecisionType(const Type& t, bool ignore_non_float = false) const {
@@ -379,6 +383,18 @@ class MixedPrecisionPass : public MixedModeMutator {
     }
 
     return Call(cur_op, new_args, pre_call_node->attrs, new_arg_types, pre_call_node->span);
+  }
+
+  Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) {
+    // The old checked type in the expression may not be valid so clear it
+    post->checked_type_ = Type(nullptr);
+    return post;
+  }
+
+  Expr Rewrite_(const TupleNode* pre, const Expr& post) {
+    // The old checked type in the expression may not be valid so clear it
+    post->checked_type_ = Type(nullptr);
+    return post;
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {
