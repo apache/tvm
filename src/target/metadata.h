@@ -98,6 +98,7 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
         outputs_{new struct TVMTensorInfo[outputs.size()]()},
         outputs_objs_{outputs},
         devices_{new const char*[devices.size()]()},
+        devices_objs_{devices},
         executor_{executor},
         mod_name_{mod_name},
         interface_api_{interface_api},
@@ -125,7 +126,7 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
     storage_.devices = devices_.get();
     storage_.num_devices = devices.size();
     for (unsigned int i = 0; i < devices.size(); ++i) {
-      devices_.get()[i] = devices[i].c_str();
+      devices_.get()[i] = devices_objs_[i].c_str();
     }
   }
 
@@ -135,6 +136,7 @@ class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNo
   ::std::unique_ptr<struct TVMTensorInfo> outputs_;
   std::vector<::tvm::runtime::metadata::TensorInfo> outputs_objs_;
   ::std::unique_ptr<const char*> devices_;
+  std::vector<::std::string> devices_objs_;
   ::std::string executor_;
   ::std::string mod_name_;
   ::std::string interface_api_;
