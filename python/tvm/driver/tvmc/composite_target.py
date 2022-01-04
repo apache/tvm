@@ -31,7 +31,7 @@ from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 
 
-from .common import TVMCException
+from tvm.driver.tvmc import TVMCException
 
 
 # pylint: disable=invalid-name
