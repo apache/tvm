@@ -55,6 +55,7 @@ def windows(data, axis, window_shape, strides):
     Examples
     --------
     .. code-block:: python
+
         # Slide a window of shape (3, 4, 5) over the x tensor, beginning with
         # dimension 1, which slides the window over the two subtensors of
         # shape (3, 32, 32).
