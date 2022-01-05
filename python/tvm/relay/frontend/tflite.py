@@ -1917,7 +1917,7 @@ class OperatorConverter(object):
         if keep_num_dims:
             output_shape = tuple(input_shape)
         else:
-            output_shape = list(input_shape[0], weight_shape[0])
+            output_shape = (input_shape[0], weight_shape[0])
 
         if input_tensor.qnn_params:
             out = _qnn.op.dense(
