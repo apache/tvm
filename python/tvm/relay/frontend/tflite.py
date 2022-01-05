@@ -1914,10 +1914,10 @@ class OperatorConverter(object):
         # Change the output shape calculation based on keep_dim option
         input_shape = _infer_shape(in_expr)
         keep_num_dims = fully_connected_options.KeepNumDims()
-        if keep_num_dims == False:
-            output_shape = tuple(input_shape[0], weight_shape[0])
-        else:
+        if keep_num_dims:
             output_shape = tuple(input_shape)
+        else:
+            output_shape = tuple(input_shape[0], weight_shape[0])
 
         if input_tensor.qnn_params:
             out = _qnn.op.dense(
