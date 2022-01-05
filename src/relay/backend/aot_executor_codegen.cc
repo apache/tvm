@@ -445,7 +445,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
-    } else if (use_call_cpacked_) {
+    } else if (use_call_cpacked_ && !use_unpacked_api_) {
       // call_cpacked calling convention needs a blank context
       args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
