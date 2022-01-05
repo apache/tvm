@@ -14,19 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Parts used by the NPU cascader."""
+from typing import List
+import tvm._ffi
 
-if(USE_ETHOSU)
-  tvm_file_glob(GLOB COMPILER_ETHOSU_SRCS
-                src/relay/backend/contrib/ethosu/*
-                src/contrib/ethosu/cascader/*
-                src/contrib/ethosu/cascader/parts/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
-else()
-  # Keeping just utils.cc because it has Object definitions
-  # used by python side
-  tvm_file_glob(GLOB COMPILER_ETHOSU_SRCS
-                src/relay/backend/contrib/ethosu/utils.cc
-                src/contrib/ethosu/cascader/*
-                src/contrib/ethosu/cascader/parts/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_ETHOSU_SRCS})
-endif(USE_ETHOSU)
+from .propagator import Propagator
+from .graph import Part, TESubgraph
+from . import _ffi_api
+
+
+@tvm._ffi.register_object("contrib.ethosu.cascader.InlinePart")
+class InlinePart(Part):
+    """InlinePart class"""
+
+    def __init__(
+        self,
+        te_subgraph: TESubgraph,
+        propagators: List[Propagator],
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.InlinePart,
+            te_subgraph.input_tensors,
+            te_subgraph.output_tensor,
+            propagators,
+        )
