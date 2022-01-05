@@ -1911,6 +1911,14 @@ class OperatorConverter(object):
             weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
         weight_shape = _infer_shape(weight_expr)
 
+        # Change the output shape calculation based on keep_dim option
+        input_shape = _infer_shape(in_expr)
+        keep_num_dims = fully_connected_options.KeepNumDims()
+        if keep_num_dims == False:
+            output_shape = tuple(input_shape[0], weight_shape[0])
+        else:
+            output_shape = tuple(input_shape)
+
         if input_tensor.qnn_params:
             out = _qnn.op.dense(
                 in_expr,
@@ -1974,7 +1982,7 @@ class OperatorConverter(object):
 
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
-
+        out = _op.reshape(out, output_shape)
         return out
 
     def convert_squeeze(self, op):
