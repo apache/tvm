@@ -78,11 +78,17 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
 
     for (auto field : tuple_node->fields) {
       auto new_field = Mutate(field);
-      if (new_field->IsInstance<ConstantNode>()) {
-        VirtualDevice virtual_device = GetVirtualDevice(field);
-        ICHECK(!virtual_device->IsFullyUnconstrained());
-        Var const_var("const", Type(nullptr));
-        new_field = scope.Push(const_var, MaybeOnDeviceFixed(new_field, virtual_device));
+      if (const auto* op = new_field.as<ConstantNode>()) {
+        DataType dtype(op->data->dtype);
+        bool is_simple_const = (dtype == DataType::Int(32) || dtype == DataType::Int(64) ||
+                                dtype == DataType::Float(32) || dtype == DataType::Float(64) ||
+                                dtype == DataType::Bool());
+        if (!op->is_scalar() || !is_simple_const) {
+          VirtualDevice virtual_device = GetVirtualDevice(field);
+          ICHECK(!virtual_device->IsFullyUnconstrained());
+          Var const_var("const", Type(nullptr));
+          new_field = scope.Push(const_var, MaybeOnDeviceFixed(new_field, virtual_device));
+        }
       }
       new_fields.push_back(new_field);
     }
