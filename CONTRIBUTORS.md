@@ -37,6 +37,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
+- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
