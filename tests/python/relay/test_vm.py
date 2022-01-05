@@ -1125,7 +1125,7 @@ def test_let_bound_constants():
     compiler = VMCompiler()
     compiler.optimize(mod, "llvm")
 
-    
+
 def test_large_constants():
     """Large constants can be serialized outside of executable"""
     target = tvm.target.Target("llvm")
