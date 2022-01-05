@@ -23,6 +23,7 @@
 #include "codegen_c_host.h"
 
 #include <tvm/relay/executor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
@@ -441,7 +442,8 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(aot_executor_fn);
   }
 
-  if (aot_executor_fn.defined()) {
+  relay::Runtime runtime = mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value();
+  if (aot_executor_fn.defined() && runtime->name == relay::kTvmRuntimeCpp) {
     cg.InitGlobalContext();
   }
 
