@@ -6014,7 +6014,7 @@ def test_trilu(target, dev):
     verify_trilu(in_shape, [-1], 0)
     verify_trilu(in_shape, [-1], 1)
 
-    
+
 def test_scan(target, dev):
     def verify_scan(
         input_shapes,
