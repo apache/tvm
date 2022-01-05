@@ -136,7 +136,9 @@ def check_build():
         )
 
 
-def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
+def docker(
+    name: str, image: str, scripts: List[str], env: Dict[str, str], use_sccache: bool = True
+):
     """
     Invoke a set of bash scripts through docker/bash.sh
 
@@ -146,6 +148,15 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     env: environment to set
     """
     check_docker()
+
+    if use_sccache:
+        scripts = [
+            "sccache --start-server",
+        ] + scripts
+        # Set the C/C++ compiler so CMake picks them up in the build
+        env["CC"] = "/opt/sccache/cc"
+        env["CXX"] = "/opt/sccache/c++"
+        env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
     command = [docker_bash, "--name", name]
