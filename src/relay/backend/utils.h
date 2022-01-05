@@ -31,7 +31,6 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
-#include <tvm/generated/target/metadata.h>
 #include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
 
