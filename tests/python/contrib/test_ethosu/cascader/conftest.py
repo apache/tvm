@@ -14,6 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import tvm
 from tvm import relay
 from tvm.relay.testing import run_opt_pass
@@ -21,8 +25,6 @@ from tvm.relay.testing import run_opt_pass
 import tvm.contrib.ethosu.cascader as cs
 from .infra import create_te_graph
 from ..infra import make_ethosu_conv2d
-
-import pytest
 
 
 def make_TwoConv2DTE():

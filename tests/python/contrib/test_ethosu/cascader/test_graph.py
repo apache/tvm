@@ -16,6 +16,8 @@
 # under the License.
 import pytest
 
+pytest.importorskip("ethosu.vela")
+
 import tvm.contrib.ethosu.cascader as cs
 
 
