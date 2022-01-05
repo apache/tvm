@@ -113,6 +113,10 @@ RUN bash /install/ubuntu_install_universal.sh
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh "cuda rocm"
 
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
+
 # Environment variables
 ENV PATH=/usr/local/nvidia/bin:${PATH}
 ENV PATH=/usr/local/cuda/bin:${PATH}

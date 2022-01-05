@@ -126,3 +126,7 @@ ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Lin
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh

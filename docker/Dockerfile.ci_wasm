@@ -42,6 +42,10 @@ RUN bash /install/ubuntu_install_nodejs.sh
 COPY install/ubuntu_install_emscripten.sh /install/ubuntu_install_emscripten.sh
 RUN bash /install/ubuntu_install_emscripten.sh
 
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
+
 ENV EMSDK=/emsdk
 ENV PATH=${PATH}:${EMSDK}:${EMSDK}/upstream/emscripten
 ENV EMSCRIPTEN=${EMSDK}/upstream/emscripten
