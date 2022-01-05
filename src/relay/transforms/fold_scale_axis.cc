@@ -1021,8 +1021,8 @@ RELAY_REGISTER_OP("nn.conv2d")
 Message BiasAddBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   const BiasAddAttrs* attrs = call->attrs.as<BiasAddAttrs>();
   ICHECK(attrs);
-  if(in_messages[0].defined() && in_messages[0]->axes.size() == 1 &&
-     attrs->axis == static_cast<int>(in_messages[0]->axes[0]->value)) {
+  if (in_messages[0].defined() && in_messages[0]->axes.size() == 1 &&
+      attrs->axis == static_cast<int>(in_messages[0]->axes[0]->value)) {
     return in_messages[0];
   } else {
     return NullValue<Message>();
@@ -1074,8 +1074,7 @@ Expr DenseBackwardTransform(const Call& call, const Message& message, const Expr
   return Call(call->op, {data, weight}, call->attrs, call->type_args);
 }
 
-RELAY_REGISTER_OP("nn.dense")
-    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", DenseBackwardPrep);
+RELAY_REGISTER_OP("nn.dense").set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", DenseBackwardPrep);
 
 RELAY_REGISTER_OP("nn.dense")
     .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", DenseBackwardTransform);
