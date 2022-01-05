@@ -234,9 +234,10 @@ class MapNode : public Object {
     using pointer = KVType*;
     using reference = KVType&;
     /*! \brief Default constructor */
-    iterator() : index(0), self(nullptr) {}
+    iterator() : state_marker(0), index(0), self(nullptr) {}
     /*! \brief Compare iterators */
     bool operator==(const iterator& other) const {
+      fail_if_changed();
       return index == other.index && self == other.self;
     }
     /*! \brief Compare iterators */
@@ -244,27 +245,37 @@ class MapNode : public Object {
     /*! \brief De-reference iterators */
     pointer operator->() const;
     /*! \brief De-reference iterators */
-    reference operator*() const { return *((*this).operator->()); }
+    reference operator*() const {
+      fail_if_changed();
+      return *((*this).operator->());
+    }
     /*! \brief Prefix self increment, e.g. ++iter */
     iterator& operator++();
     /*! \brief Prefix self decrement, e.g. --iter */
     iterator& operator--();
     /*! \brief Suffix self increment */
     iterator operator++(int) {
+      fail_if_changed();
       iterator copy = *this;
       ++(*this);
       return copy;
     }
     /*! \brief Suffix self decrement */
     iterator operator--(int) {
+      fail_if_changed();
       iterator copy = *this;
       --(*this);
       return copy;
     }
 
    protected:
+    uint64_t state_marker;
+    inline void fail_if_changed() const {
+      ICHECK(state_marker == self->state_marker) << "Concurrent modification of the Map";
+    }
     /*! \brief Construct by value */
-    iterator(uint64_t index, const MapNode* self) : index(index), self(self) {}
+    iterator(uint64_t index, const MapNode* self)
+        : state_marker(self->state_marker), index(index), self(self) {}
     /*! \brief The position on the array */
     uint64_t index;
     /*! \brief The container it points to */
@@ -280,6 +291,7 @@ class MapNode : public Object {
   static inline ObjectPtr<MapNode> Empty();
 
  protected:
+  uint64_t state_marker;
   /*!
    * \brief Create the map using contents from the given iterators.
    * \param first Begin of iterator
@@ -1118,10 +1130,12 @@ class DenseMapNode : public MapNode {
   }
 
 inline MapNode::iterator::pointer MapNode::iterator::operator->() const {
+  fail_if_changed();
   TVM_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
 }
 
 inline MapNode::iterator& MapNode::iterator::operator++() {
+  fail_if_changed();
   TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->IncItr(index);
     return *this;
@@ -1129,6 +1143,7 @@ inline MapNode::iterator& MapNode::iterator::operator++() {
 }
 
 inline MapNode::iterator& MapNode::iterator::operator--() {
+  fail_if_changed();
   TVM_DISPATCH_MAP_CONST(self, p, {
     index = p->DecItr(index);
     return *this;
@@ -1200,6 +1215,7 @@ inline ObjectPtr<Object> MapNode::CreateFromRange(IterType first, IterType last)
 inline void MapNode::InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
   constexpr uint64_t kSmallMapMaxSize = SmallMapNode::kMaxSize;
   MapNode* base = static_cast<MapNode*>(map->get());
+  base->state_marker++;
   if (base->slots_ < kSmallMapMaxSize) {
     SmallMapNode::InsertMaybeReHash(kv, map);
   } else if (base->slots_ == kSmallMapMaxSize) {
