@@ -18,12 +18,11 @@
 # pylint: disable=missing-function-docstring
 import sys
 import pytest
-from typing import List
-
 import tvm
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.runner import RunnerResult
 from tvm.meta_schedule.search_strategy import (
+    ReplayFunc,
     ReplayTrace,
     SearchStrategy,
 )
@@ -75,17 +74,17 @@ def _schedule_matmul(sch: Schedule):
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3)
 
 
-@pytest.mark.parametrize("TestClass", [ReplayTrace])
+@pytest.mark.parametrize("TestClass", [ReplayFunc, ReplayTrace])
 def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disable = invalid-name
     num_trials_per_iter = 7
     num_trials_total = 20
 
     strategy = TestClass(num_trials_per_iter=num_trials_per_iter, num_trials_total=num_trials_total)
-    context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
-    context.space_generator.initialize_with_tune_context(context)
-    spaces = context.space_generator.generate_design_space(context.mod)
+    tune_context = TuneContext(mod=Matmul, space_generator=ScheduleFn(sch_fn=_schedule_matmul))
+    tune_context.space_generator.initialize_with_tune_context(tune_context)
+    spaces = tune_context.space_generator.generate_design_space(tune_context.mod)
 
-    strategy.initialize_with_tune_context(context)
+    strategy.initialize_with_tune_context(tune_context)
     strategy.pre_tuning(spaces)
     (correct_sch,) = ScheduleFn(sch_fn=_schedule_matmul).generate_design_space(Matmul)
     num_trials_each_iter: List[int] = []
@@ -100,7 +99,7 @@ def test_meta_schedule_replay_func(TestClass: SearchStrategy):  # pylint: disabl
                 remove_decisions=(isinstance(strategy, ReplayTrace)),
             )
             runner_results.append(RunnerResult(run_secs=[0.11, 0.41, 0.54], error_msg=None))
-        strategy.notify_runner_results(context, candidates, runner_results)
+        strategy.notify_runner_results(tune_context, candidates, runner_results)
         candidates = strategy.generate_measure_candidates()
     strategy.post_tuning()
     assert num_trials_each_iter == [7, 7, 6]
