@@ -820,7 +820,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
-    use_call_cpacked_ = Bool(interface_api == "c");
+    use_call_cpacked_ =
+      (Bool(interface_api == "c") ||
+       // for now, C runtime does not support calling functions on other devices. therefore,
+       // opt to call PackedFunc directly by name rather than TVMBackendGetFuncFromEnv.
+       runtime_config->name == kTvmRuntimeCrt);
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
