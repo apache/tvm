@@ -27,6 +27,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/container/array.h>
 
+#include <functional>
+#include <numeric>
 #include <vector>
 
 namespace tvm {
@@ -42,6 +44,22 @@ namespace cascader {
  * type conversion fails. This is why this helper is required.
  */
 inline Array<Integer> make_array(const std::vector<int>& vec) {
+  Array<Integer> arr;
+  arr.resize(vec.size());
+  for (unsigned int i = 0; i < vec.size(); ++i) {
+    arr.Set(i, Integer(vec[i]));
+  }
+  return arr;
+}
+
+/*!
+ * \brief Make a tvm::Array<Integer> from a size_t vector.
+ * \param vec The size_t vector.
+ * \return The Integer Array.
+ * \note Array<Integer>(std::vector<size_t>) doesn't work as this implicit
+ * type conversion fails. This is why this helper is required.
+ */
+inline Array<Integer> make_array(const std::vector<size_t>& vec) {
   Array<Integer> arr;
   arr.resize(vec.size());
   for (unsigned int i = 0; i < vec.size(); ++i) {
@@ -69,7 +87,7 @@ inline Array<FloatImm> make_array(const std::vector<float>& vec) {
  * \param arr The Array.
  * \return The vector.
  */
-template <class T, class tvm_T>
+template <typename T, typename tvm_T>
 inline std::vector<T> make_vector(const Array<tvm_T>& arr) {
   std::vector<T> vec(arr.size());
   for (unsigned int i = 0; i < arr.size(); ++i) {
@@ -101,6 +119,11 @@ inline std::size_t hash_vector(const std::vector<T>& vec) {
     hash_combine(&seed, elem);
   }
   return seed;
+}
+
+template <class T>
+inline T mul_reduce(const std::vector<T>& vec) {
+  return std::accumulate(vec.begin(), vec.end(), 1, std::multiplies<T>());
 }
 
 }  // namespace cascader
