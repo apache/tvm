@@ -40,7 +40,7 @@ Therefore, let's review the Range and IterVar classes:
    	public:
    		Expr min;
    		Expr extent;
-   		// remainder ommitted
+   		// remainder omitted
    	};
    	}}
 
@@ -49,7 +49,7 @@ Therefore, let's review the Range and IterVar classes:
    	public:
    		Range dom;
    		Var var;
-   		// remainder ommitted
+   		// remainder omitted
    	};
    }
 
@@ -413,7 +413,7 @@ If stage C is computed at axis j of stage D, we say that C is  *attached*  to ax
 
    class StageNode : public Node {
    public:
-       // ommitted
+       // omitted
 
        // For compute_at, attach_type = kScope
        AttachType attach_type;
@@ -425,7 +425,7 @@ If stage C is computed at axis j of stage D, we say that C is  *attached*  to ax
        // The stage passed to compute_at, e.g., D
        Stage attach_stage;
 
-       // ommitted
+       // omitted
    };
 
 Consider the above examples again. In order for InferBound to determine how many elements of C must be computed, it is important to know whether the computation of C occurs within the scope of a leaf variable of D, or above that scope. For example, in Ex. 1, the computation of C occurs  *above*  the scopes of all of D's leaf variables. In Ex. 2, the computation of C occurs  *within*  the scope of all of D's leaf variables. In Ex. 3, C occurs within the scope of D's i, but above the scope of D's j.
