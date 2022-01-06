@@ -28,6 +28,10 @@
 namespace tvm {
 
 VirtualDevice RelayExprNode::virtual_device() const {
+  ICHECK(this->virtual_device_.defined())
+      << "Virtual device should always be defined for all RelayNodes except Match and Clause. "
+         "Found this relay expression without a virtual device: \n"
+      << PrettyPrint(GetRef<ObjectRef>(this));
   return Downcast<VirtualDevice>(this->virtual_device_);
 }
 
@@ -145,7 +149,7 @@ Var WithFields(Var var, Optional<Id> opt_vid, Optional<Type> opt_type_annotation
     VarNode* cow_var_node = var.CopyOnWrite();
     cow_var_node->vid = vid;
     cow_var_node->type_annotation = type_annotation;
-    cow_var_node->virtual_device_ = var->virtual_device();
+    cow_var_node->virtual_device_ = virtual_device;
     cow_var_node->span = span;
   }
   return var;

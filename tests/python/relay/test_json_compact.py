@@ -52,7 +52,13 @@ def test_var():
         {"type_key": ""},
         {
             "type_key": "relay.Var",
-            "attrs": {"_checked_type_": "0", "span": "0", "type_annotation": "0", "vid": "2"},
+            "attrs": {
+                "_checked_type_": "0",
+                "span": "0",
+                "type_annotation": "0",
+                "vid": "2",
+                "virtual_device_": "0",
+            },
         },
         {"type_key": "relay.Id", "attrs": {"name_hint": "a3"}},
         {"type_key": "relay.TensorType", "attrs": {"dtype": "float32", "shape": "4", "span": "0"}},
@@ -120,7 +126,7 @@ def test_global_var():
         {"type_key": ""},
         {
             "type_key": "relay.GlobalVar",
-            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "virtual_device_": "0"},
         },
     ]
     data = {
@@ -133,7 +139,10 @@ def test_global_var():
     assert isinstance(tvar, tvm.ir.GlobalVar)
     nodes = [
         {"type_key": ""},
-        {"type_key": "GlobalVar", "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"}},
+        {
+            "type_key": "GlobalVar",
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "virtual_device_": "0"},
+        },
     ]
     data = {
         "root": 1,
