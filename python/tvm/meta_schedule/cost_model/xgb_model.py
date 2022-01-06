@@ -23,7 +23,7 @@ import os
 import tempfile
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, TYPE_CHECKING, Tuple
 
-import numpy as np
+import numpy as np  # type: ignore
 
 from ...contrib.tar import tar, untar
 from ..cost_model import PyCostModel
@@ -35,7 +35,7 @@ from .metric import max_curve
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
-    import xgboost as xgb
+    import xgboost as xgb  # type: ignore
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -590,13 +590,13 @@ def custom_callback(
     def callback(env: "xgb.core.CallbackEnv"):
         # pylint:disable = import-outside-toplevel
         import xgboost as xgb
-        from xgboost.callback import _fmt_metric
-        from xgboost.core import EarlyStopException
+        from xgboost.callback import _fmt_metric  # type: ignore
+        from xgboost.core import EarlyStopException  # type: ignore
 
         try:
-            from xgboost.training import aggcv
+            from xgboost.training import aggcv  # type: ignore
         except ImportError:
-            from xgboost.callback import _aggcv as aggcv
+            from xgboost.callback import _aggcv as aggcv  # type: ignore
         # pylint:enable = import-outside-toplevel
 
         if not state:
