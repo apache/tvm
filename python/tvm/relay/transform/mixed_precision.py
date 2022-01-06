@@ -28,6 +28,7 @@ MIXED_PRECISION_ALWAYS = 0
 MIXED_PRECISION_FOLLOW = 1
 MIXED_PRECISION_NEVER = 2
 
+
 # Default lists inspired from TF's classifications:
 # github.com/tensorflow/tensorflow/blob/v2.5.0/tensorflow/core/grappler/optimizers/auto_mixed_precision_lists.h
 # They have a bias toward Nvidia Tensor Cores so modify lists per your hardware choice.
@@ -65,6 +66,7 @@ DEFAULT_FOLLOW_LIST = [
     "scatter",
     "full",
     "dyn.full",
+    "nn.depth_to_space",
     # Comparison
     "less",
     "greater",
@@ -88,6 +90,8 @@ DEFAULT_FOLLOW_LIST = [
     "min",
     "maximum",
     "minimum",
+    "argmax",
+    "argmin",
     "nn.relu",
     "nn.leaky_relu",
     "nn.prelu",
@@ -95,6 +99,10 @@ DEFAULT_FOLLOW_LIST = [
     # Complicated activations which saturate in a narrow range
     "sigmoid",
     "tanh",
+    "fast_tanh",  # Some coefficients outside of representable range, but probably ok
+    "fast_exp",
+    "fast_erf",
+    "clip",  # Usually safe, my result in oddity if clip greater than fp16 range
     # Pooling operations
     "nn.max_pool1d",
     "nn.max_pool2d",
@@ -108,6 +116,7 @@ DEFAULT_FOLLOW_LIST = [
     "nn.adaptive_max_pool1d",
     "nn.adaptive_max_pool2d",
     "nn.adaptive_max_pool3d",
+    "image.resize2d",
 ]
 DEFAULT_NEVER_LIST = [
     # In general if |f(x)| >> |x| for expected inputs then put the op here.
@@ -133,7 +142,6 @@ DEFAULT_NEVER_LIST = [
     "variance",
     "nn.layer_norm",
 ]
-
 
 # Returns a decorator which registers for every given op, the function under FTVMMixedPrecisionConversionType
 def register_func_to_op_list(list_ops: List):
