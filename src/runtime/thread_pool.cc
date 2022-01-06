@@ -24,11 +24,11 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
-#include <tvm/runtime/container/array.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
