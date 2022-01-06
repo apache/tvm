@@ -1167,6 +1167,9 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
       if (!target_host.defined() && it.second->kind->device_type == kDLCPU) {
         target_host = it.second;
       }
+      if (!target_host.defined() && it.second->kind->device_type == kDLHexagon) {
+        target_host = *(new Target("c"));
+      }
       ICHECK(dev_type);
       targets[static_cast<DLDeviceType>(dev_type->value)] = it.second;
     }

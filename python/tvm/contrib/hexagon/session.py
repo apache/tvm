@@ -22,6 +22,7 @@ import pathlib
 from typing import Union
 from tvm import rpc as _rpc
 
+
 class Session:
     """Hexagon Device Session
 
