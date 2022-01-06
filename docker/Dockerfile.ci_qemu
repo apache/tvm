@@ -65,6 +65,10 @@ COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.s
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
+# FreeRTOS deps
+COPY install/ubuntu_install_freertos.sh /install/ubuntu_install_freertos.sh
+RUN bash /install/ubuntu_install_freertos.sh
+
 # Arduino deps
 # NOTE: override Arduino directories so packages are installed in a
 # CI-accessible location.
