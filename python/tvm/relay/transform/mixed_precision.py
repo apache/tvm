@@ -28,7 +28,6 @@ MIXED_PRECISION_ALWAYS = 0
 MIXED_PRECISION_FOLLOW = 1
 MIXED_PRECISION_NEVER = 2
 
-
 # Default lists inspired from TF's classifications:
 # github.com/tensorflow/tensorflow/blob/v2.5.0/tensorflow/core/grappler/optimizers/auto_mixed_precision_lists.h
 # They have a bias toward Nvidia Tensor Cores so modify lists per your hardware choice.
