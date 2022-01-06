@@ -387,6 +387,9 @@ def test_graph_executor_remote_run(host, port):
     tvm.testing.assert_allclose(out.numpy(), a + b)
 
 
+@pytest.mark.xfail(
+    strict=False, reason="flaky test (see https://github.com/apache/tvm/issues/9824)"
+)
 @pytest.mark.dependency(depends=["test_rpc_tracker"])
 @ios_rpc_bundle_description_required
 @setup_rpc_tracker_configuration
