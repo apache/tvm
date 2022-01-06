@@ -55,13 +55,26 @@ class BufferNode : public Object {
   Var data;
   /*! \brief data type in the content of the tensor */
   DataType dtype;
-  /*! \brief The shape of the buffer
+  /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
    * BufferLoad/BufferStore nodes, and used by the low-level code
    * generators.
    */
   Array<PrimExpr> shape;
+  /*! \brief The shape of the buffer prior to flattening
+   *
+   * This contains the shape as it exists prior to flattening, and is
+   * used for validating the shape of the tensor passed into the
+   * packed API.
+   *
+   * TODO(Lunderberg): Should this be a reference to the entire
+   * pre-flattened Buffer instead of just the shape?  That would also
+   * allow the PackedFunc to know how ArgBinder::BindDLTensor (called
+   * from MakePackedAPI) to know how the tensor should be flattened as
+   * it is being transferred from the device.
+   */
+  DataType pre_flattened_dtype;
   /*! \brief The shape of the buffer prior to flattening
    *
    * This contains the shape as it exists prior to flattening, and is
@@ -119,6 +132,7 @@ class BufferNode : public Object {
     v->Visit("data", &data);
     v->Visit("dtype", &dtype);
     v->Visit("shape", &shape);
+    v->Visit("pre_flattened_type", &pre_flattened_dtype);
     v->Visit("pre_flattened_shape", &pre_flattened_shape);
     v->Visit("pre_flattened_strides", &pre_flattened_strides);
     v->Visit("strides", &strides);
@@ -135,6 +149,7 @@ class BufferNode : public Object {
     // in its semantics, skip name as name is not important.
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
            equal.DefEqual(shape, other->shape) &&
+           equal(pre_flattened_dtype, other->pre_flattened_dtype) &&
            equal.DefEqual(pre_flattened_shape, other->pre_flattened_shape) &&
            equal.DefEqual(pre_flattened_strides, other->pre_flattened_strides) &&
            equal.DefEqual(strides, other->strides) &&
@@ -146,6 +161,7 @@ class BufferNode : public Object {
     hash_reduce.DefHash(data);
     hash_reduce(dtype);
     hash_reduce.DefHash(shape);
+    hash_reduce(pre_flattened_dtype);
     hash_reduce.DefHash(pre_flattened_shape);
     hash_reduce.DefHash(pre_flattened_strides);
     hash_reduce.DefHash(strides);

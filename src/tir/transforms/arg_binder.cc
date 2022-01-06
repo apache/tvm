@@ -164,6 +164,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       << "Please run StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules) first.";
   auto pre_flattened_strides = buffer->pre_flattened_strides.value();
 
+  ICHECK_NE(buffer->pre_flattened_dtype, DataType::Void())
+      << "Cannot bind tensor argument to an unflattened buffer.  "
+      << "Please run StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules) first.";
+  DataType pre_flattened_dtype = buffer->pre_flattened_dtype;
+
   // Helper functions for shape/stride name formatting
   auto shape_handle_name = [&]() { return arg_name + ".shape"; };
   auto stride_handle_name = [&]() { return arg_name + ".strides"; };
@@ -181,16 +186,16 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   auto msg = tvm::tir::StringImm(ndim_err_msg.str());
   asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
   // type checks
-  DataType dtype = buffer->dtype;
   std::ostringstream type_err_msg;
-  type_err_msg << arg_name << ".dtype is expected to be " << dtype;
+  type_err_msg << arg_name << ".dtype is expected to be " << pre_flattened_dtype;
   PrimExpr cond = (TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeCode) ==
-                       IntImm(DataType::UInt(8), dtype.code()) &&
+                       IntImm(DataType::UInt(8), pre_flattened_dtype.code()) &&
                    TVMArrayGet(DataType::UInt(8), handle, builtin::kArrTypeBits) ==
-                       IntImm(DataType::UInt(8), dtype.bits()) &&
+                       IntImm(DataType::UInt(8), pre_flattened_dtype.bits()) &&
                    TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
-                       IntImm(DataType::UInt(16), dtype.lanes()));
-  if (!(dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1))) {
+                       IntImm(DataType::UInt(16), pre_flattened_dtype.lanes()));
+  if (!(pre_flattened_dtype == DataType::Int(4) || pre_flattened_dtype == DataType::UInt(4) ||
+        pre_flattened_dtype == DataType::Int(1))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
     asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
@@ -213,7 +218,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   init_nest_.emplace_back(
       LetStmt(buf_shape->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrShape), nop));
   for (size_t k = 0; k < pre_flattened_shape.size(); ++k) {
-    if (dtype == DataType::Int(4) || dtype == DataType::UInt(4) || dtype == DataType::Int(1)) {
+    if (pre_flattened_dtype == DataType::Int(4) || pre_flattened_dtype == DataType::UInt(4) ||
+        pre_flattened_dtype == DataType::Int(1)) {
       break;
     }
     Bind_(
