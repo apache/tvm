@@ -135,5 +135,81 @@ def test_meta_schedule_random_model_reload():
     assert (res1 == res2).all()
 
 
+def _dummy_candidate():
+    return MeasureCandidate(Schedule(Matmul), [])
+
+
+def _dummy_result(num_samples: int = 4, max_run_sec: int = 10):
+    return RunnerResult(list(np.random.rand(num_samples) * max_run_sec + 1e-6), None)
+
+
+def test_meta_schedule_xgb_model():
+    extractor = RandomFeatureExtractor()
+    model = XGBModel(extractor=extractor, num_warmup_samples=2)
+    update_sample_count = 10
+    predict_sample_count = 100
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+
+
+def test_meta_schedule_xgb_model_reload():
+    extractor = RandomFeatureExtractor()
+    model = XGBModel(extractor=extractor, num_warmup_samples=10)
+    update_sample_count = 20
+    predict_sample_count = 30
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+    random_state = model.extractor.random_state  # save feature extractor's random state
+    path = os.path.join(tempfile.mkdtemp(), "test_output_meta_schedule_xgb_model.bin")
+    cached = (model.cached_features.copy(), model.cached_mean_costs.copy())
+    model.save(path)
+    res1 = model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+    model.extractor.random_state = random_state  # load feature extractor's random state
+    model.cached_features = None
+    model.cached_mean_costs = None
+    model.load(path)
+    new_cached = (model.cached_features.copy(), model.cached_mean_costs.copy())
+    res2 = model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+    shutil.rmtree(os.path.dirname(path))
+    assert (res1 == res2).all()
+    # cached feature does not change
+    assert len(cached[0]) == len(new_cached[0])
+    for i in range(len(cached[0])):
+        assert (cached[0][i] == new_cached[0][i]).all()
+    # cached meaen cost does not change
+    assert (cached[1] == new_cached[1]).all()
+
+
+def test_meta_schedule_xgb_model_reupdate():
+    extractor = RandomFeatureExtractor()
+    model = XGBModel(extractor=extractor, num_warmup_samples=2)
+    update_sample_count = 60
+    predict_sample_count = 100
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.update(
+        TuneContext(),
+        [_dummy_candidate() for i in range(update_sample_count)],
+        [_dummy_result() for i in range(update_sample_count)],
+    )
+    model.predict(TuneContext(), [_dummy_candidate() for i in range(predict_sample_count)])
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
