@@ -24,9 +24,12 @@ from typing import List
 
 import numpy as np
 import pytest
+
 import tvm
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel
+from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
+from tvm.meta_schedule.cost_model import XGBModel
 from tvm.meta_schedule.search_strategy import MeasureCandidate
 from tvm.meta_schedule.tune_context import TuneContext
 from tvm.script import tir as T
