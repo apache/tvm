@@ -326,33 +326,40 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
   }
 
+  /*! \brief Return a PrimExpr which contains the arg to be passed down to a PrimFunc.
+   *
+   * TODO(areusch): Document the various cases which could necessitate us synthesizing
+   * a DLTensor on stack.
+   */
   PrimExpr MakeDLTensor(Expr relay_arg, TensorType ttype, PrimExpr data) {
-    for (Var v : input_vars_) {
-      if (v == relay_arg) {
-        return data;
-      }
-    }
-    for (int return_sid : return_sid_) {
-      auto return_expr = sids_table_[return_sid];
-      if (return_expr == relay_arg) {
-        return data;
-      }
-    }
     return data;
   }
+  //   for (Var v : input_vars_) {
+  //     if (v == relay_arg) {
+  //       return data;
+  //     }
+  //   }
+  //   for (int return_sid : return_sid_) {
+  //     auto return_expr = sids_table_[return_sid];
+  //     if (return_expr == relay_arg) {
+  //       return data;
+  //     }
+  //   }
+  //   return data;
+  // }
 
-  void PushTuple(Tuple tuple, std::vector<tir::Var> sids, Array<PrimExpr> args) {
-    CHECK_EQ(sids.size(), tuple->fields.size())
-        << "Relay tuple does not map 1:1 into TIR; AOT can't handle this type of Relay Expr in a "
-           "CallNode.";
+  void PushTuple(Expr tuple, std::vector<tir::Var> sids, Array<PrimExpr>* args) {
+//    CHECK_EQ(sids.size(), tuple->fields.size())
+//        << "Relay tuple does not map 1:1 into TIR; AOT can't handle this type of Relay Expr in a "
+//           "CallNode.";
     StorageInfo& sinfo = storage_device_map_[tuple];
     for (unsigned int i = 0; i < sids.size(); ++i) {
       if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[i]) !=
           return_sid_.end()) {
-        args.push_back(sids[i]);
+        args->push_back(sids[i]);
       } else {
-        args.push_back(MakeDLTensor(
-            tuple->fields[i], Downcast<TensorType>(tuple->fields[i]->checked_type()), sids[i]));
+        args->push_back(sids[i]); //MakeDLTensor(
+//            tuple->fields[i], Downcast<TensorType>(tuple->fields[i]->checked_type()), sids[i]));
       }
     }
   }
@@ -379,8 +386,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       } else {
         auto sids = FindExpr(arg);
         if (sids.size() > 1) {
-          auto tuple = Downcast<Tuple>(arg);
-          PushTuple(tuple, sids, args);
+//          auto tuple = Downcast<Tuple>(arg);
+          PushTuple(arg, sids, &args);
         } else {
           StorageInfo& sinfo = storage_device_map_[arg];
           if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) !=
@@ -396,8 +403,19 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Pack the return(s) value. A call node can produce multiple outputs
     auto result_expr_sid = PackSid(result_expr);
     if (result_expr_sid.size() > 1) {
-      auto tuple = Downcast<Tuple>(result_expr);
-      PushTuple(tuple, result_expr_sid, args);
+      LOG(INFO) << "RESULT EXPR " << result_expr;
+      LOG(INFO) << "RESULT TYPE " << result_expr->checked_type();
+      auto result_storage_device_map = storage_device_map_[result_expr];
+      LOG(INFO) << "RESULT STORAGE DEVICE MAP " << result_storage_device_map;
+      std::stringstream rsid;
+      for (auto s : result_expr_sid) {
+        rsid << s << ",";
+      }
+      LOG(INFO) << "RESULT_EXPR SID " << rsid.str() << "(end)";
+//      auto tuple = Downcast<Tuple>(result_expr);
+
+      PushTuple(result_expr, result_expr_sid, &args);
+
     } else {
       StorageInfo& sinfo = storage_device_map_[result_expr];
       if (std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]) !=
@@ -821,10 +839,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
     use_call_cpacked_ =
-      (Bool(interface_api == "c") ||
+      (!use_unpacked_api_ ||
        // for now, C runtime does not support calling functions on other devices. therefore,
        // opt to call PackedFunc directly by name rather than TVMBackendGetFuncFromEnv.
        runtime_config->name == kTvmRuntimeCrt);
+    LOG(INFO) << "Use call cpacked? " << bool(use_call_cpacked_) << "; " << interface_api << ", unpacked=" << use_unpacked_api_;
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_
     if (runtime_config->name == kTvmRuntimeCrt) {
