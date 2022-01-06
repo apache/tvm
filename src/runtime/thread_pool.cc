@@ -28,7 +28,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
-#include <tvm/tir/expr.h>
+#include <tvm/runtime/container/array.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
 #endif
@@ -378,9 +378,9 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   std::vector<unsigned int> cpus;
   int max_concurrency = 0;
   if (args.num_args == 3) {
-    Array<Integer> cpu_array = args[2];
+    Array<String> cpu_array = args[2];
     for (auto cpu : cpu_array) {
-      cpus.push_back(cpu);
+      cpus.push_back(std::stoi(cpu));
     }
   }
   if (args.num_args == 4) {
