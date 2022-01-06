@@ -316,8 +316,9 @@ class XGBModel(PyCostModel):
 
         Note
         ----
-        Since XGBoost model trains from scratch, each time we can only load the model without the
-        previous cached features / results so any call of update won't use previous training data.
+        Since XGBoost model trains from scratch, each time this method loads the model together with
+        previously cached feature vectors and results, so that the subsequent training process could
+        use all the existing data being stored on disk.
         """
         import xgboost as xgb  # pylint: disable=import-outside-toplevel
 
@@ -343,8 +344,9 @@ class XGBModel(PyCostModel):
 
         Note
         ----
-        Since XGBoost model trains from scratch, each time we can only save the model without the
-        previous cached features / results so any call of update won't use previous training data.
+        Since XGBoost model trains from scratch, each time this method saves the model together with
+        previously cached feature vectors and results, so that the subsequent training process could
+        use all the existing data being stored on disk.
         """
         import xgboost as xgb  # pylint: disable=import-outside-toplevel
 
