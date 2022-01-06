@@ -26,7 +26,11 @@ N_FEATURES = 164
 
 
 @T.prim_func
-def matmul(A: T.Buffer[(512, 512), "float32"], B: T.Buffer[(512, 512), "float32"], C: T.Buffer[(512, 512), "float32"]) -> None:
+def matmul(
+    A: T.Buffer[(512, 512), "float32"],
+    B: T.Buffer[(512, 512), "float32"],
+    C: T.Buffer[(512, 512), "float32"],
+) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tir.noalias": True})
     # body
