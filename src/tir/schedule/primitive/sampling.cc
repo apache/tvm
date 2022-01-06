@@ -187,6 +187,28 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
   return candidates[i];
 }
 
+std::function<int32_t()> MakeMultinomialSampler(
+    support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights) {
+  ICHECK(!weights.empty());
+  std::vector<double> sums;
+  sums.reserve(weights.size());
+  double sum = 0.0;
+  for (double w : weights) {
+    sums.push_back(sum += w);
+  }
+  return [rng = support::LinearCongruentialEngine(rand_state).ForkSeed(),
+          dist = std::uniform_real_distribution<double>(0.0, sum),
+          sums = std::move(sums)]() mutable -> int32_t {
+    support::LinearCongruentialEngine rand_(&rng);
+    double p = dist(rand_);
+    int32_t idx = std::lower_bound(sums.begin(), sums.end(), p) - sums.begin();
+    int32_t n = sums.size();
+    CHECK_LE(0, idx);
+    CHECK_LE(idx, n);
+    return (idx == n) ? (n - 1) : idx;
+  };
+}
+
 std::vector<int64_t> SamplePerfectTile(support::LinearCongruentialEngine::TRandState* rand_state,
                                        int32_t extent, int32_t n_splits) {
   CHECK_GE(extent, 1) << "ValueError: Cannot tile a loop with 0 or negative extent";
