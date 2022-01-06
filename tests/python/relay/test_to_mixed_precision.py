@@ -468,8 +468,8 @@ def test_convert_follow_node_with_integer_arguments():
 
     data = relay.var("data", shape=[1, 10], dtype="float32")
 
-    # We add have an addition to make sure the input indices to take are not a
-    # var (which are always casted if safe)
+    # We use an addition to make sure the input indices are not a var
+    # (which are always casted if safe)
     indices = relay.var("indices", shape=[1, 1], dtype="int32") + relay.const(0, dtype="int32")
     take = relay.take(data, indices, axis=0)
     mod = tvm.IRModule.from_expr(take)
