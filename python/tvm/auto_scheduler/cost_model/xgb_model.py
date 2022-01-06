@@ -110,6 +110,7 @@ class XGBModel(PythonBasedModel):
         seed=None,
         model_file=None,
         adapative_training=False,
+
     ):
         global xgb
         try:
@@ -130,8 +131,12 @@ class XGBModel(PythonBasedModel):
             "min_child_weight": 0,
             "eta": 0.2,
             # todo(merrymercy): automatically decrease learning rate when the loss is too large
-            "n_gpus": 0,
-            "nthread": multiprocessing.cpu_count() // 2,
+            "gpu_id": 0,
+            "tree_method": "gpu_hist",
+            "predictor": "gpu_predictor",
+            "nthread": multiprocessing.cpu_count(),
+            #"n_gpus": 0,
+            #"nthread": multiprocessing.cpu_count() // 2,
             "verbosity": 0,
             "seed": seed or 43,
             "disable_default_eval_metric": 1,
@@ -143,6 +148,8 @@ class XGBModel(PythonBasedModel):
         self.model_file = model_file
         self.adapative_training = adapative_training
 
+
+        
         super().__init__()
 
         # cache measurement input/result pairs and extracted features
@@ -167,7 +174,7 @@ class XGBModel(PythonBasedModel):
 
         self.inputs.extend(inputs)
         self.results.extend(results)
-
+            
         if (
             self.adapative_training
             and len(self.inputs) - self.last_train_length < self.last_train_length / 5
@@ -236,7 +243,6 @@ class XGBModel(PythonBasedModel):
             ret = predict_throughput_pack_sum(raw_preds, pack_ids)
         else:
             ret = np.random.uniform(0, 1, (len(states),))
-
         # Predict -inf for invalid states that failed to be lowered.
         for idx, feature in enumerate(features):
             if feature.min() == feature.max() == 0:
@@ -342,7 +348,6 @@ class XGBModel(PythonBasedModel):
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)
         self.num_warmup_sample = -1
-
 
 def feature_to_pack_sum_xgbmatrix(xs):
     """Convert an extracted multi-stage feature vector to a xgbmatrx in pack-sum format

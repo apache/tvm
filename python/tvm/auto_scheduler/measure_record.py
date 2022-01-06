@@ -340,11 +340,109 @@ def distill_record_file(in_file, out_file):
     save_records(out_file, inputs, results)
     logger.info("Extract %d best records from %s to %s", len(inputs), in_file, out_file)
 
+def top5_record_file(in_file, out_file):
+    """
+    Pick the top5 entries from a record file and store them to another file using the stupidest way.
+    This function distills the useful log entries from a large log file.
+    If out_file already exists, the best entries from both
+    in_file and out_file will be saved.
+
+    Parameters
+    ----------
+    in_file: str
+        The filename of input
+    out_file: str or file
+        The filename of output
+    """
+    # pylint: disable=import-outside-toplevel
+    from .dispatcher import ApplyHistoryBest
+
+    context = load_records(in_file)
+    if os.path.isfile(out_file):
+        out_context = load_records(out_file)
+        context = itertools.chain(context, out_context)
+
+    def measure_input_str_key(inp):
+        return _ffi_api.SerializeMeasureInput(inp)
+
+    # Dict[target key,
+    #   Dict[workload hash,
+    #     Dict[workload args, (cost, (MeasureInput, MeasureResult))]]]
+    # Full type: Dict[str, Dict[str, Dict[Tuple, Tuple[float, Tuple[Measureinput, MeasureResult]]]]]
+
+    record_cost = []
+
+    for inp, res in context:
+        if res.error_no != 0:
+            continue
+
+        # Keep the best record for each target and workload.
+        costs = [x.value for x in res.costs if isinstance(x, tvm.tir.expr.FloatImm)]
+        cost = np.mean(costs)
+        
+        record_cost.append(cost)
+    
+    import re
+    record_top5 = {}
+    record_min_stack = {}
+    record_list = {}
+
+    idx = 0
+    for line in open(in_file):
+        error_no = re.search(r'\[\["\[\\"(.*?)\]"(.*?)"r":(.*?)\], (.*?), (.*?), (.*?)\],(.*?)', line, re.M|re.I).group(4)
+        if int(error_no) != 0:
+            continue
+        #speed = re.search(r'\[\["\[\\"(.*?)\]"(.*?)"r":(.*?)\], (.*?), (.*?), (.*?)\],(.*?)', line, re.M|re.I).group(5)
+        speed = record_cost[idx]
+        
+        workload_key = re.search(r'\[\["\[\\"(.*?)\]"(.*?)"r":(.*?)\], (.*?), (.*?), (.*?)\],(.*?)', line, re.M|re.I).group(1)
+        if workload_key not in record_min_stack:
+            record_min_stack[workload_key] = []
+            record_list[workload_key] = []
+        else:
+            if len(record_min_stack[workload_key]) < 2:
+                record_min_stack[workload_key].append(speed)
+                record_list[workload_key].append(line)
+            else:
+                #idy = 0
+                for temp_speed in record_min_stack[workload_key]:
+                    if temp_speed > speed:
+                        idy = record_min_stack[workload_key].index(max(record_min_stack[workload_key]))
+                        record_min_stack[workload_key].remove(max(record_min_stack[workload_key]))
+                        record_list[workload_key].pop(idy)
+                        record_min_stack[workload_key].append(speed)
+                        record_list[workload_key].append(line)
+                    #idy = idy + 1
+        idx = idx + 1
+    
+    # sort to minimum list
+    for workload_key,key_list in record_list.items():
+        lpi = 0 
+        while lpi < len(record_min_stack[workload_key]):
+            lpj = lpi + 1
+            while lpj < len(record_min_stack[workload_key]):
+                if(record_min_stack[workload_key][lpi] > record_min_stack[workload_key][lpj]):
+                    temp = record_min_stack[workload_key][lpi]
+                    record_min_stack[workload_key][lpi] = record_min_stack[workload_key][lpj]
+                    record_min_stack[workload_key][lpj] = temp
+
+                    temp = record_list[workload_key][lpi]
+                    record_list[workload_key][lpi] = record_list[workload_key][lpj]
+                    record_list[workload_key][lpj] = temp 
+                lpj = lpj + 1
+            lpi = lpi + 1
+    # create a new file and save the best records
+    f = open(out_file, "w")
+    for re_list in record_list.values():
+        for line in re_list:
+            f.write(line)
+    logger.info("Extract %d best records from %s to %s", len(record_list)*2, in_file, out_file)
+
 
 def main():
     """The main function for CLI."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["distill"], default="distill")
+    parser.add_argument("--mode", choices=["distill", "top5"], default="distill")
     parser.add_argument("-i", "--input", type=str, help="input file")
     parser.add_argument("-o", "--output", type=str, default=None, help="output file")
 
@@ -355,7 +453,9 @@ def main():
     if args.mode == "distill":
         args.output = args.output or args.input + ".best.json"
         distill_record_file(args.input, args.output)
-
+    elif args.mode == "top5":
+        args.output = args.output or args.input + ".top5.json"
+        top5_record_file(args.input, args.output)
 
 """
 Usage:

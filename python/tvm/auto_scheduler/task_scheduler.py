@@ -28,6 +28,7 @@ import math
 import logging
 
 import numpy as np
+from tvm.auto_scheduler.cost_model import cost_model
 
 from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
@@ -45,9 +46,12 @@ def make_search_policies(
     tasks,
     num_measures_per_round,
     verbose,
+    family_group,
     load_model_file=None,
     load_log_file=None,
     adapative_training=False,
+    
+    
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -80,34 +84,41 @@ def make_search_policies(
     policies: List[SearchPolicy]
         The list of search policies
     """
+
     if search_policy == "default":
         search_policy = "sketch.xgb"
 
     if isinstance(search_policy, str):
-        policy_type, model_type = search_policy.split(".")
-        if model_type == "xgb":
-            cost_model = XGBModel(
-                num_warmup_sample=len(tasks) * num_measures_per_round,
-                model_file=load_model_file,
-                adapative_training=adapative_training,
-            )
-            if load_model_file and os.path.isfile(load_model_file):
-                logger.info("TaskScheduler: Load pretrained model...")
-                cost_model.load(load_model_file)
-            elif load_log_file:
-                logger.info("TaskScheduler: Reload measured states and train the model...")
-                cost_model.update_from_file(load_log_file)
-        elif model_type == "random":
-            cost_model = RandomModel()
-        else:
-            raise ValueError("Invalid search policy: " + search_policy)
-
+        policy = search_policy.split(".")
+        if len(policy) == 2:
+            policy_type, model_type = policy
+            model_group = None
+        elif len(policy) == 3:
+            policy_type, model_type, model_group = policy
+        
         if policy_type == "sketch":
             if load_log_file:
                 # use the log file to restore the status of search policies.
                 init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
             else:
                 init_search_callbacks = None
+        if model_group == None:
+            if model_type == "xgb":
+                cost_model = XGBModel(
+                    num_warmup_sample=len(tasks) * num_measures_per_round,
+                    model_file=load_model_file,
+                    adapative_training=adapative_training,
+                )
+                if load_model_file and os.path.isfile(load_model_file):
+                    logger.info("TaskScheduler: Load pretrained model...")
+                    cost_model.load(load_model_file)
+                elif load_log_file:
+                    logger.info("TaskScheduler: Reload measured states and train the model...")
+                    cost_model.update_from_file(load_log_file)
+            elif model_type == "random":
+                cost_model = RandomModel()
+            else:
+                raise ValueError("Invalid search policy: " + search_policy)
             search_policies = [
                 SketchPolicy(
                     task,
@@ -118,6 +129,39 @@ def make_search_policies(
                 )
                 for task in tasks
             ]
+        elif "family" in model_group:
+            cost_model_pool = []
+            for _,group in family_group.items():
+                if model_type == "xgb":
+                    cost_model = XGBModel(
+                        num_warmup_sample=len(group) * num_measures_per_round,
+                        model_file=load_model_file,
+                        adapative_training=adapative_training,
+                    )
+                    if load_model_file and os.path.isfile(load_model_file):
+                        logger.info("TaskScheduler: Load pretrained model...")
+                        cost_model.load(load_model_file)
+                    elif load_log_file:
+                        logger.info("TaskScheduler: Reload measured states and train the model...")
+                        cost_model.update_from_file(load_log_file)
+                elif model_type == "random":
+                    cost_model = RandomModel()
+                else:
+                    raise ValueError("Invalid search policy: " + search_policy)
+                cost_model_pool.append(cost_model)
+            search_policies = []
+            for task_idx,task in enumerate(tasks):
+                for group_idx,group in enumerate(family_group.values()):
+                    if task_idx in group:
+                        search_policies.append(
+                            SketchPolicy(
+                                task,
+                                cost_model_pool[group_idx],
+                                params=search_policy_params,
+                                verbose=verbose,
+                                init_search_callbacks=init_search_callbacks,
+                            )
+                        )
         else:
             raise ValueError("Invalid search policy: " + search_policy)
     else:
@@ -159,6 +203,58 @@ def derive_similarity_tag(dag, log_base=1.618):
         ret += "%d" % int(math.log(dag.flop_ct + 1, log_base))
     return ret
 
+
+def make_family_group(
+    tasks,
+    search_policy,
+):
+    if search_policy == "default":
+        search_policy = "sketch.xgb"
+
+    if isinstance(search_policy, str):
+        policy = search_policy.split(".")
+        if len(policy) == 2:
+            return {}
+        elif len(policy) == 3:
+            policy_type, model_type, model_group = policy
+            _, class_type = model_group.split("_")
+        else:
+            raise ValueError("Invalid search policy: " + search_policy)
+        
+
+    family_group = {}
+    if class_type == "op":
+        for idx, task in enumerate(tasks):
+            task_layers=task.desc.split('_')
+            if task_layers[1] not in family_group:
+                family_group[task_layers[1]] = []
+                family_group[task_layers[1]].append(idx)
+            else:
+                family_group[task_layers[1]].append(idx)
+
+    elif class_type == "hash":
+        for idx, task in enumerate(tasks):
+            task_hash=task.workload_key[2:34]
+            if task_hash not in family_group:
+                family_group[task_hash] = []
+                family_group[task_hash].append(idx)
+            else:
+                family_group[task_hash].append(idx)
+
+    elif class_type == "ind":
+        for idx, task in enumerate(tasks):
+            if task.workload_key not in family_group:
+                family_group[task.workload_key] = []
+                family_group[task.workload_key].append(idx)
+            else:
+                family_group[task.workload_key].append(idx)
+        
+
+    if family_group is not None:
+        for key,value in family_group.items():
+            print("family group :", key, "---", value)
+
+    return family_group
 
 class TaskScheduler:
     """
@@ -219,6 +315,7 @@ class TaskScheduler:
         callbacks=None,
     ):
         self.tasks = tasks
+        self.task_weights = task_weights
         if objective_func:  # use custom objective function
             self.objective_func = objective_func
         else:  # use weighted sum
@@ -257,6 +354,7 @@ class TaskScheduler:
         self.cur_score = self._compute_score(self.best_costs)
 
         self.tune_option = self.measurer = self.search_policies = None
+        #ct: number of trial
         self.ct = self.best_ct = self.best_score = self.tic = None
         self.num_measures_per_round = None
         self.dead_tasks = set()
@@ -277,6 +375,10 @@ class TaskScheduler:
                 self.tag_to_group_id[tag] = len(self.tag_to_group_id)
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
+
+
+        self.family_group = {}
+
 
     def tune(
         self,
@@ -338,6 +440,12 @@ class TaskScheduler:
         if self.load_log_file:
             self._restore_status(self.load_log_file, self.num_measures_per_round)
 
+        # make group family for tasks
+        self.family_group = make_family_group(
+            self.tasks,
+            search_policy,
+        )
+
         # make one search policy for one task
         self.search_policies = make_search_policies(
             search_policy,
@@ -345,6 +453,7 @@ class TaskScheduler:
             self.tasks,
             self.num_measures_per_round,
             tune_option.verbose,
+            self.family_group,
             self.load_model_file,
             self.load_log_file,
             adapative_training,
@@ -357,6 +466,10 @@ class TaskScheduler:
                 self._tune_task(idx)
         self.best_ct = self.ct
         self.best_score = self.cur_score
+        
+        # set each cost model to activate prediction
+        #for cm in self.cost_model_pool.values():
+        #    cm.set_warmup()
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
@@ -415,6 +528,7 @@ class TaskScheduler:
                     grad = chain_grad * (
                         self.alpha * backward_grad + (1 - self.alpha) * forward_grad
                     )
+
                     assert grad <= 0
                     gradients.append(grad)
 
@@ -422,10 +536,37 @@ class TaskScheduler:
                     task_idx = np.random.choice(len(gradients))
                 else:
                     task_idx = np.argmin(gradients)
+                
             else:
                 raise ValueError("Invalid strategy: " + self.strategy)
 
             self._tune_task(task_idx)
+            
+            #TODO family group code
+            if self.family_group is not None:
+                tune_task_family = []
+                for task_family in self.family_group.values():
+                    if task_idx in task_family:
+                        tune_task_family =list(task_family)
+                        tune_task_family.remove(task_idx)
+                        for dead_task_idx in self.dead_tasks:
+                            if dead_task_idx in tune_task_family:
+                                tune_task_family.remove(dead_task_idx)
+                print (tune_task_family)
+                if tune_task_family:
+                    family_gradients= []   
+                    for family_task_idx in tune_task_family:
+                        family_gradients.append(gradients[family_task_idx])
+                    
+                    if max(family_gradients) == min(family_gradients):
+                        family_task_idx = tune_task_family[np.random.choice(len(family_gradients))]
+                    else:
+                        family_task_idx = tune_task_family[np.argmin(family_gradients)]
+                    print (family_gradients)
+                    print("family next id:",family_task_idx)
+                    self._tune_family_task([family_task_idx],16)
+
+            
             self._adjust_similarity_group(task_idx)
 
             if self.cur_score < self.best_score:
@@ -441,6 +582,48 @@ class TaskScheduler:
                         + " measurement trials."
                     )
                 break
+    
+    def _tune_family_task(self, task_idx_groups,skip_measures_per_round):
+        """Tune the select family task for one round.
+           The family task 
+        
+        
+        """
+        for task_idx in task_idx_groups:
+            # Run pre-tune callbacks
+            for callback in self.callbacks:
+                callback.pre_tune(self, task_idx)
+
+            measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(
+                skip_measures_per_round, self.measurer
+            )
+
+            #self.task_cts[task_idx] += 1
+
+            for res in measure_results:
+                cost = array_mean(res.costs)
+                if cost < self.best_costs[task_idx]:
+                    self.task_best_cts[task_idx] = self.task_cts[task_idx]
+                    self.best_costs[task_idx] = cost
+
+            # Stop tuning this task in the rest of the process if its search space has been
+            # fully explored or it has no improvement for a long while.
+            no_change_trials = (
+                self.task_cts[task_idx] - self.task_best_cts[task_idx]
+            ) * skip_measures_per_round
+            if len(measure_inputs) == 0 or no_change_trials > self.early_stopping_task:
+                self.dead_tasks.add(task_idx)
+                
+            self.task_costs_history[task_idx].append(self.best_costs[task_idx])
+            if (len(measure_inputs) == skip_measures_per_round):
+                self.ct += skip_measures_per_round
+            else:
+                self.ct +=len(measure_inputs)
+            self.cur_score = self._compute_score(self.best_costs)
+
+            # Run post-tune callbacks
+            for callback in self.callbacks:
+                callback.post_tune(self, task_idx)
 
     def _tune_task(self, task_idx):
         """Tune the select task for one round"""
@@ -468,7 +651,7 @@ class TaskScheduler:
         ) * self.num_measures_per_round
         if len(measure_inputs) == 0 or no_change_trials > self.early_stopping_task:
             self.dead_tasks.add(task_idx)
-
+            
         self.task_costs_history[task_idx].append(self.best_costs[task_idx])
 
         self.ct += len(measure_inputs)
@@ -577,8 +760,8 @@ class PrintTableInfo(TaskSchedulerCallback):
             return
 
         _ffi_api.PrintTitle("Task Scheduler")
-        print("|  ID  | Latency (ms) | Speed (GFLOPS) | Trials |")
-        print("-------------------------------------------------")
+        print("|  ID  | Latency (ms) | Total Latency (ms) | Speed (GFLOPS) | Trials |")
+        print("----------------------------------------------------------------------")
 
         # content
         for i in range(len(task_scheduler.tasks)):
@@ -588,15 +771,21 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
+            t_latency_str = (
+                "%.3f" % (1e3 * task_scheduler.best_costs[i] * task_scheduler.task_weights[i])
+                if task_scheduler.best_costs[i] < 1e9
+                else "-"
+            )
             speed_str = (
                 "%.2f"
                 % (task_scheduler.tasks[i].compute_dag.flop_ct / task_scheduler.best_costs[i] / 1e9)
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
+            
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print("| %4s | %12s | % 14s | %6s |" % (id_str, latency_str, speed_str, trials_str))
-        print("-------------------------------------------------")
+            print("| %4s | %12s | % 18s | % 14s | %6s |" % (id_str, latency_str, t_latency_str, speed_str, trials_str))
+        print("----------------------------------------------------------------------")
 
         # overall info
         if all(cost < 1e9 for cost in task_scheduler.best_costs):
