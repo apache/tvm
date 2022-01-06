@@ -800,6 +800,49 @@ llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
   return it->second;
 }
 
+void CodeGenLLVM::CreatePrintf(const std::string& format,
+                               const std::vector<llvm::Value*> format_args) {
+  llvm::Function* func_printf = module_->getFunction("printf");
+  if (func_printf == nullptr) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, true);
+    func_printf =
+        llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, "printf", module_.get());
+  }
+
+  llvm::Function* func_fflush = module_->getFunction("fflush");
+  if (!func_fflush) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, {t_void_p_}, false);
+    func_fflush =
+        llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, "fflush", module_.get());
+  }
+
+  llvm::Value* str = builder_->CreateGlobalStringPtr(format);
+  str->setName("printf_format_str");
+
+  std::vector<llvm::Value*> printf_args = {str};
+  for (auto arg : format_args) {
+    printf_args.push_back(arg);
+  }
+  builder_->CreateCall(func_printf, printf_args);
+
+  // Call fflush() immediately, as this utility is intended for debug
+  // purposes.  A segfault occurring within the generated LLVM code
+  // would otherwise leave the stdout buffer unflushed.
+  llvm::Value* null_stream = llvm::ConstantPointerNull::get(t_void_p_);
+  null_stream->setName("null_stream");
+  builder_->CreateCall(func_fflush, {null_stream});
+}
+
+llvm::Value* CodeGenLLVM::CreateLookupReturnAddress(unsigned int level) {
+  llvm::Value* level_val = llvm::ConstantInt::get(t_int32_, level);
+  llvm::Function* builtin =
+      llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::returnaddress);
+  llvm::Value* call = builder_->CreateCall(builtin, level_val);
+  call->setName("return_addr");
+
+  return call;
+}
+
 llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, String global_symbol,
                                            const Array<PrimExpr>& args, bool skip_first_arg) {
   std::vector<llvm::Value*> arg_value;
