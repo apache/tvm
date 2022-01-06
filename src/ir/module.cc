@@ -262,22 +262,19 @@ void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
     ConstArrayType constant_array_;
   };
 
-  std::pair<const char*, const ObjectRef> default_value = {IRModule::_constants_attrs_key,
-                                                           Array<runtime::NDArray>()};
-  if (attrs.defined()) {
-    if (!attrs->dict.count(IRModule::_constants_attrs_key))
-      attrs.CopyOnWrite()->dict.Set(default_value.first, default_value.second);
-  } else {
-    Map<String, ObjectRef> dict = {default_value};
-    attrs = DictAttrs(dict);
-  }
-
   ConstArrayType constant_array_ =
-      Downcast<ConstArrayType>(attrs->dict[IRModule::_constants_attrs_key]);
+      (attrs.defined() && attrs->dict.count(IRModule::_constants_attrs_key))
+          ? Downcast<ConstArrayType>(attrs->dict[IRModule::_constants_attrs_key])
+          : ConstArrayType();
 
   const ConstArrayType constant_list =
       Applicator().Apply(func.CopyOnWrite()->body, constant_array_);
-  attrs.CopyOnWrite()->dict.Set(IRModule::_constants_attrs_key, constant_list);
+  if (constant_list.size()) {
+    if (!attrs.defined()) {
+      attrs = DictAttrs(Map<String, ObjectRef>());
+    }
+    attrs.CopyOnWrite()->dict.Set(IRModule::_constants_attrs_key, constant_list);
+  }
 }
 
 void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {
