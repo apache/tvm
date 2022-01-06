@@ -206,6 +206,42 @@ def test_str_map():
     assert bool(x["z"] == 2)
 
 
+def test_default_fields():
+    # Node with all fields set
+    nodes = [
+        {"type_key": ""},
+        {
+            "type_key": "relay.GlobalVar",
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "virtual_device_": "0"},
+        },
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, tvm.ir.GlobalVar)
+    # Construct node without virtual_device_ field
+    nodes = [
+        {"type_key": ""},
+        {
+            "type_key": "relay.GlobalVar",
+            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
+        },
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar_default = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar_default, tvm.ir.GlobalVar)
+    assert not tvar_default.virtual_device_
+
+
 if __name__ == "__main__":
     test_op()
     test_type_var()

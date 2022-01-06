@@ -221,6 +221,7 @@ class GlobalVarNode : public RelayExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
