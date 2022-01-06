@@ -218,7 +218,7 @@ inline bool GetStoreRule(Array<PrimExpr>* rule, const Layout& src_layout,
           PrimExpr orig_var = orig_axis_impl->var;
           const int32_t factor = src_layout.FactorOf(orig_axis);
           if (factor > 0) {
-            orig_var = orig_var * PrimExpr(factor);
+            orig_var = orig_var * factor;
           }
           store = store + orig_var;
         } else {
@@ -304,9 +304,11 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
               << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = PrimExpr(0);
+      bind_map[orig_axis->var.get()] = IntImm(orig_axis->var->dtype, 0);
     } else {
-      bind_map[orig_axis->var.get()] = orig_shape;
+      bind_map[orig_axis->var.get()] = orig_axis->var->dtype == orig_shape->dtype
+                                           ? orig_shape
+                                           : cast(orig_axis->var->dtype, orig_shape);
     }
   }
   // infer the target shape,
