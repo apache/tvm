@@ -101,7 +101,7 @@ DEFAULT_FOLLOW_LIST = [
     "fast_tanh",  # Some coefficients outside of representable range, but probably ok
     "fast_exp",
     "fast_erf",
-    "clip",  # Usually safe, my result in oddity if clip greater than fp16 range
+    "clip",  # Usually safe, may result in oddity if clip greater than fp16 range
     # Pooling operations
     "nn.max_pool1d",
     "nn.max_pool2d",
