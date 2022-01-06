@@ -3299,7 +3299,8 @@ class PyTorchOpConverter:
                     assert operator.endswith("_")
                     logger.warning(
                         "An in-place op %s found, the result will not be correct "
-                        "if the model depends on side-effects by this op." % operator
+                        "if the model depends on side-effects by this op.",
+                        operator,
                     )
                     relay_op = self.convert_map[operator[:-1]]
                 else:
