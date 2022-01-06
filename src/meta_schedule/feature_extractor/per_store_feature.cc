@@ -822,7 +822,6 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
     ICHECK_EQ(access_shape.size(), buffer_shape.size());
     for (int i = ndim - 1; i >= 0; --i) {
       if (access_shape[i] == buffer_shape[i]) {
-        // TODO
         num_continuous_bytes = buffer_shape[i] * buffer->dtype.bytes();
         break;
       }
@@ -843,7 +842,7 @@ void Feature::SubFeature::SetStride(const LoopNest& loop_nest, arith::Analyzer* 
   // Calculate this->prod
   int64_t& prod = this->prod_non_strided_loop_extent = 1;
   for (int j = n_loops - 1; j > i; --j) {
-    if (const int64_t* extent = GetLoopIntExtent(loops[n_loops - 1])) {  // TODO
+    if (const int64_t* extent = GetLoopIntExtent(loops[n_loops - 1])) {
       prod *= *extent;
     }
   }
