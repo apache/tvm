@@ -524,6 +524,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   std::vector<llvm::Type*> arg_types;
   for (Var v : vargs) {
     llvm::Value* value = MakeValue(v);
+    value->setName(v->name_hint.c_str());
     arg_values.push_back(value);
     arg_types.push_back(value->getType());
   }
@@ -575,7 +576,8 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 }
 
 CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
-                                                      uint64_t* num_bytes) {
+                                                      uint64_t* num_bytes,
+                                                      std::string struct_name) {
   if (vfields.size() == 0) {
     *num_bytes = 0U;
     return TypedPointer(t_void_p_, llvm::Constant::getNullValue(t_void_p_));
@@ -586,7 +588,8 @@ CodeGenLLVM::TypedPointer CodeGenCPU::PackClosureData(const Array<Var>& vfields,
     ICHECK(it != var_map_.end());
     fields.push_back(it->second->getType());
   }
-  llvm::StructType* ctype = llvm::StructType::create(fields);
+  llvm::StructType* ctype = struct_name.size() ? llvm::StructType::create(fields, struct_name)
+                                               : llvm::StructType::create(fields);
   llvm::Value* cvalue = builder_->CreateAlloca(ctype, ConstInt32(1));
   llvm::Value* zero = ConstInt32(0);
   for (size_t i = 0; i < vfields.size(); ++i) {
@@ -607,7 +610,7 @@ void CodeGenCPU::UnpackClosureData(TypedPointer cdata, const Array<Var>& vfields
   }
 }
 
-void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
+void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::string name) {
   using llvm::BasicBlock;
   // closure data
   llvm::Function* f =
@@ -616,7 +619,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   // allocate and setup the closure, call the closure.
   Array<Var> vfields = tir::UndefinedVars(body, {});
   uint64_t nbytes;
-  TypedPointer cdata = PackClosureData(vfields, &nbytes);
+  TypedPointer cdata = PackClosureData(vfields, &nbytes, "closure_" + name);
 #if TVM_LLVM_VERSION >= 90
   auto launch_callee = llvm::FunctionCallee(ftype_tvm_parallel_launch_, RuntimeTVMParallelLaunch());
 #else
@@ -626,7 +629,7 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
       launch_callee,
       {f, builder_->CreatePointerCast(cdata.addr, t_void_p_), ConstInt32(num_task)}));
   // Setup the closure function.
-  BasicBlock* lambda_entry = BasicBlock::Create(*ctx_, "entry", f);
+  BasicBlock* lambda_entry = BasicBlock::Create(*ctx_, "parallel_closure_entry", f);
   builder_->SetInsertPoint(lambda_entry);
   auto it = f->arg_begin();
   llvm::Value* task_id = &(*it++);
@@ -1070,7 +1073,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       parallel_env_.stride_pattern = true;
       this->VisitStmt(op->body);
     } else if (op->attr_key == "pragma_parallel_launch_point") {
-      CreateParallelLaunch(op->body, 0);
+      CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
       ICHECK(parallel_env_.penv != nullptr) << "Cannot run barrier without parallel environment";
       ICHECK(!parallel_env_.in_parallel_loop)
@@ -1106,7 +1109,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
     if (parallel_env_.penv == nullptr) {
       CreateParallelLaunch(For(op->loop_var, op->min, op->extent, op->kind, op->body,
                                op->thread_binding, op->annotations),
-                           0);
+                           0, std::string("loop_parallel_") + op->loop_var->name_hint.c_str());
     } else {
       // already in parallel env.
       ICHECK(parallel_env_.task_id.defined());
