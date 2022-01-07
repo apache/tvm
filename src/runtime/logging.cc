@@ -18,6 +18,7 @@
  */
 #include <tvm/runtime/logging.h>
 
+#include <stdexcept>
 #include <string>
 
 #if TVM_LOG_STACK_TRACE
@@ -25,6 +26,7 @@
 
 #include <backtrace.h>
 #include <cxxabi.h>
+#include <unistd.h>
 
 #include <iomanip>
 #include <iostream>
@@ -87,6 +89,15 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
   std::stringstream s;
 
+  auto RESET = "";
+  auto GREEN = "";
+  auto YELLOW = "";
+  if (isatty(fileno(stdout))) {
+    RESET = "\x1B[0m";
+    GREEN = "\x1B[32m";
+    YELLOW = "\x1B[33m";
+  }
+
   std::unique_ptr<std::string> symbol_str = std::make_unique<std::string>("<unknown>");
   if (symbol != nullptr) {
     *symbol_str = DemangleName(symbol);
@@ -95,10 +106,11 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
                       symbol_str.get());
   }
-  s << *symbol_str;
+  s << YELLOW << *symbol_str << RESET;
 
   if (filename != nullptr) {
-    s << std::endl << "        at " << filename;
+    s << std::endl << "        at " << GREEN << filename;
+    s << RESET;
     if (lineno != 0) {
       s << ":" << lineno;
     }
@@ -120,7 +132,22 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 
 std::string Backtrace() {
   BacktraceInfo bt;
-  bt.max_size = 500;
+
+  // Limit backtrace length based on TVM_BACKTRACE_LIMIT env variable
+  auto user_limit_s = getenv("TVM_BACKTRACE_LIMIT");
+  const auto default_limit = 500;
+
+  if (user_limit_s == nullptr) {
+    bt.max_size = default_limit;
+  } else {
+    // Parse out the user-set backtrace limit
+    try {
+      bt.max_size = std::stoi(user_limit_s);
+    } catch (const std::invalid_argument& e) {
+      bt.max_size = default_limit;
+    }
+  }
+
   if (_bt_state == nullptr) {
     return "";
   }
