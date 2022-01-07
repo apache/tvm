@@ -116,6 +116,7 @@ int64_t FirstLoopExtent(const ForVec& loops, int64_t default_value) {
  */
 IntVec RelaxAndUnion(const std::vector<MultiIndex>& multi_indices, int64_t* numel,
                      arith::Analyzer* analyzer) {
+  *numel = 1;
   if (multi_indices.empty()) {
     return {};
   }
@@ -274,7 +275,7 @@ Pass SimplifyForFeatureExtraction() {
     n->body = Simplifier::Run(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.SimplifyConstMatrix", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.SimplifyForFeatureExtraction", {});
 }
 
 /*!
@@ -436,7 +437,6 @@ struct Feature {
       kPosMiddleReduce = 5,   // The annotated iterator is a middle reduce iterator
       kPosOuterReduce = 6,    // The annotated iterator is the outermost reduce iterator
       kPosMixed = 7,          // The annotated iterator is a mixed space and reduce iterator
-      kEnd = 8,
     };
     int64_t num = 0;           // The number of iterators with the annotation
     int64_t prod = 0;          // The product of the lengths of iterators with the annotation
@@ -608,48 +608,73 @@ namespace group2 {
 /*! \brief Group 2 features */
 struct Feature {
   enum class AccessType : int {
-    kRead = 0,       // The buffer is read but not written
-    kWrite = 1,      // The buffer is written but not read
-    kReadWrite = 2,  // The buffer is both read and written
-    kUnknownRW = 3,  // Unknown type
-    kEnd = 4,
+    /*! The buffer is read but not written */
+    kRead = 0,
+    /*! The buffer is written but not read */
+    kWrite = 1,
+    /*! The buffer is both read and written */
+    kReadWrite = 2,
+    /*! Unknown type */
+    kUnknownRW = 3,
   };
   enum class ReuseType : int {
-    kLoopMultipleRead = 0,         // Buffer reuse because accessed on each iteration of a loop
-    kSerialMultipleReadWrite = 1,  // Buffer reuse because it is serially accessed
-    kNoReuse = 2,                  // No buffer reuse
-    kEnd = 3,
+    /*! Buffer reuse because accessed on each iteration of a loop */
+    kLoopMultipleRead = 0,
+    /*! Buffer reuse because it is serially accessed */
+    kSerialMultipleReadWrite = 1,
+    /*! No buffer reuse */
+    kNoReuse = 2,
   };
 
   struct SubFeature {
-    //
+    /*! \brief The buffer this feature is for */
     const BufferNode* buffer = nullptr;
+    /*! \brief The access type of the buffer */
     AccessType access_type = AccessType::kUnknownRW;
+    /*! \brief A list of multi-dimensonal indices used to access the buffer */
     std::vector<MultiIndex> multi_indices = {};
-    //
+    // Access information
     /*! \brief loop_accessed_numel[i][...] means the number of elements accessed by loops[i] */
     std::vector<std::unordered_map<const BufferNode*, int64_t>> loop_accessed_numel = {};
+    /*! \brief The shape of the data access */
     IntVec access_shape;
+    /*! \brief The bytes that are continuously accessed */
     int64_t num_continuous_bytes = 1;
     // Stride information
+    /*! \brief The min stride of the access */
     int64_t min_stride = 0;
+    /*! \brief The innermost stride */
     int64_t innermost_stride = 0;
+    /*! \brief The product of the non-strided loops */
     int64_t prod_non_strided_loop_extent = 0;
     // Reuse information
+    /*! The type of data reuse */
     ReuseType reuse_type = ReuseType::kNoReuse;
+    /*! The reuse distance in terms of number of iterations */
     double reuse_dis_iter = 0.0;
+    /*! The reuse distance in terms of bytes */
     double reuse_dis_bytes = 0.0;
+    /*! The reuse count */
     int64_t reuse_ct = 0;
     // Features
-    double bytes;                    // The touched memory in bytes
-    double unique_bytes;             // The touched unique memory in bytes
-    double lines;                    // The number of touched cache lines
-    double unique_lines;             // The number touched unique cache lines
-    double bytes_d_reuse_ct;         // bytes / reuse_ct
-    double unique_bytes_d_reuse_ct;  // unique_bytes / reuse_ct
-    double lines_d_reuse_ct;         // lines / reuse_ct
-    double unique_lines_d_reuse_ct;  // unique_lines / reuse_ct
-    double stride;                   // The stride in access
+    /*! The touched memory in bytes */
+    double bytes;
+    /*! The touched unique memory in bytes */
+    double unique_bytes;
+    /*! The number of touched cache lines */
+    double lines;
+    /*! The number touched unique cache lines */
+    double unique_lines;
+    /*! bytes / reuse_ct */
+    double bytes_d_reuse_ct;
+    /*! unique_bytes / reuse_ct */
+    double unique_bytes_d_reuse_ct;
+    /*! lines / reuse_ct */
+    double lines_d_reuse_ct;
+    /*! unique_lines / reuse_ct */
+    double unique_lines_d_reuse_ct;
+    /*! The stride in access */
+    double stride;
 
     static constexpr int64_t kCount = 18;
 
@@ -791,7 +816,7 @@ void Feature::SetRegion(const LoopNest& loop_nest, IntVec* for_touched_bytes,
       const BufferNode* buffer = feature.buffer;
       // Note: `feature.access_shape` for `i == 0` is the only one preserved,
       // while others are discarded
-      int64_t numel = 1;
+      int64_t numel;
       feature.access_shape = utils::RelaxAndUnion(feature.multi_indices, &numel, analyzer);
       feature.loop_accessed_numel[i][buffer] = numel;
       touched_bytes += numel * buffer->dtype.bytes();
@@ -994,6 +1019,7 @@ namespace group3 {
 
 /*! \brief Group 3 feature */
 struct Feature {
+  /*! \brief See https://en.wikipedia.org/wiki/Roofline_model for details */
   std::vector<double> arith_intensity_curve;
 
   void Export(std::vector<double>* v) const {

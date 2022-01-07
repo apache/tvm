@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
+import sys
 from typing import Callable, List
 
 from numpy.testing import assert_allclose
+import pytest
+
 import tvm
 from tvm import meta_schedule as ms, te, tir
 from tvm.script import tir as T
@@ -1549,6 +1552,4 @@ def test_gpu():
 
 
 if __name__ == "__main__":
-    test_cpu_matmul()
-    test_cpu_fusion()
-    test_gpu()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
