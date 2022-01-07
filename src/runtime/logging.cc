@@ -26,10 +26,10 @@
 
 #include <backtrace.h>
 #include <cxxabi.h>
-#include <unistd.h>
 
 #include <iomanip>
 #include <iostream>
+#include <rang.hpp>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
@@ -89,15 +89,6 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   auto stack_trace = reinterpret_cast<BacktraceInfo*>(data);
   std::stringstream s;
 
-  auto RESET = "";
-  auto GREEN = "";
-  auto YELLOW = "";
-  if (isatty(fileno(stdout))) {
-    RESET = "\x1B[0m";
-    GREEN = "\x1B[32m";
-    YELLOW = "\x1B[33m";
-  }
-
   std::unique_ptr<std::string> symbol_str = std::make_unique<std::string>("<unknown>");
   if (symbol != nullptr) {
     *symbol_str = DemangleName(symbol);
@@ -106,15 +97,22 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
     backtrace_syminfo(_bt_state, pc, BacktraceSyminfoCallback, BacktraceErrorCallback,
                       symbol_str.get());
   }
-  s << YELLOW << *symbol_str << RESET;
+
+  if (rang::rang_implementation::isTerminal(std::cout.rdbuf())) {
+    // This will eventually find its way to stdout, but rang is printing to a
+    // regular stringstream so pipe through the isatty() result manually
+    rang::setControlMode(rang::control::Force);
+  }
+  s << rang::fg::yellow << *symbol_str << rang::style::reset;
 
   if (filename != nullptr) {
-    s << std::endl << "        at " << GREEN << filename;
-    s << RESET;
+    s << std::endl << "        at " << rang::fg::green << filename;
+    s << rang::style::reset;
     if (lineno != 0) {
       s << ":" << lineno;
     }
   }
+  rang::setControlMode(rang::control::Auto);
   // Skip tvm::backtrace and tvm::LogFatal::~LogFatal at the beginning of the trace as they don't
   // add anything useful to the backtrace.
   if (!(stack_trace->lines.size() == 0 &&
