@@ -27,17 +27,41 @@ import tvm.contrib.ethosu.cascader as cs
 
 @pytest.fixture
 def FLASH():
-    return cs.MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
+    return cs.MemoryRegion(
+        name="FLASH",
+        size=10 ** 7,
+        read_bandwidth=4,
+        write_bandwidth=4,
+        read_latency=0,
+        write_latency=0,
+        burst_length=1,
+    )
 
 
 @pytest.fixture
 def DRAM():
-    return cs.MemoryRegion(name="DRAM", size=10 ** 9, read_bandwidth=8, write_bandwidth=8)
+    return cs.MemoryRegion(
+        name="DRAM",
+        size=10 ** 9,
+        read_bandwidth=8,
+        write_bandwidth=8,
+        read_latency=0,
+        write_latency=0,
+        burst_length=1,
+    )
 
 
 @pytest.fixture
 def SRAM():
-    return cs.MemoryRegion(name="SRAM", size=10 ** 6, read_bandwidth=16, write_bandwidth=16)
+    return cs.MemoryRegion(
+        name="SRAM",
+        size=10 ** 6,
+        read_bandwidth=16,
+        write_bandwidth=16,
+        read_latency=0,
+        write_latency=0,
+        burst_length=1,
+    )
 
 
 if ethosu_enabled:

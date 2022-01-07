@@ -42,6 +42,7 @@ void PerformanceInfoNode::VisitAttrs(AttrVisitor* v) {
   Array<IntImm> tmp_reads = make_array(read_bytes);
   v->Visit("_read_bytes", &tmp_reads);
   v->Visit("_write_bytes", &write_bytes);
+  v->Visit("_block_config", &block_config);
 }
 
 TVM_REGISTER_NODE_TYPE(PerformanceInfoNode);
