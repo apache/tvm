@@ -56,8 +56,10 @@ def create_updater(node_map, from_ver, to_ver):
 
     return _updater
 
+def create_updater_08_to_09():
+    pass
 
-def create_updater_06_to_07():
+def create_updater_06_to_09():
     """Create an update to upgrade json from v0.6 to v0.7
 
     Returns
@@ -90,6 +92,15 @@ def create_updater_06_to_07():
             return item
 
         return _convert
+
+    def _initialize_virtual_device(item, _):
+        print(item)
+        item["attrs"]["virtual_device_"] = "0"
+        return item
+    
+    def _initialize_module_attributes(item, _):
+        item["attrs"]["attrs"] = "0"
+        return item
 
     def _update_global_key(item, _):
         if "global_key" in item:
@@ -128,17 +139,28 @@ def create_updater_06_to_07():
         "relay.TypeRelation": _rename("TypeRelation"),
         "relay.TypeCall": _rename("TypeCall"),
         "relay.Constructor": [_update_from_std_str("name_hint")],
-        "relay.Module": _rename("IRModule"),
+        "relay.Module": [_rename("IRModule"), _initialize_module_attributes],
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
-        "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
-        "GlobalVar": _update_from_std_str("name_hint"),
+        "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint"), _initialize_virtual_device],
+        "GlobalVar": [_update_from_std_str("name_hint"), _initialize_virtual_device],
+        "relay.Var": _initialize_virtual_device,
+        "relay.Function": _initialize_virtual_device,
+        "relay.Tuple": _initialize_virtual_device,
+        "relay.Call": _initialize_virtual_device,
+        "relay.Let": _initialize_virtual_device,
+        "relay.If": _initialize_virtual_device, 
+        "relay.TupleGetItem": _initialize_virtual_device,
+        "relay.RefCreate": _initialize_virtual_device,
+        "relay.RefRead": _initialize_virtual_device,
+        "relay.RefWrite": _initialize_virtual_device,
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequential": _rename("transform.Sequential"),
         "StrMap": _rename("Map"),
+        
         # TIR
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
         "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
@@ -207,7 +229,9 @@ def upgrade_json(json_str):
     data = json.loads(json_str)
     from_version = data["attrs"]["tvm_version"]
     if from_version.startswith("0.6"):
-        data = create_updater_06_to_07()(data)
+        data = create_updater_06_to_09()(data)
+    elif from_version.startswith("0.8"):
+        data = create_updater_08_to_09()(data)
     else:
         raise ValueError("Cannot update from version %s" % from_version)
     return json.dumps(data, indent=2)
