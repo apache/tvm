@@ -203,5 +203,8 @@ def test_depthwise_conv2d_single(trial):
         105 if activation == "CLIP" else 0,
         rounding_mode,
         "NONE",
+        0,
+        0,
+        0,
     ]
     assert data[0] == answer, data[0]
