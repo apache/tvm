@@ -38,3 +38,27 @@ class InlinePart(Part):
             te_subgraph.output_tensor,
             propagators,
         )
+
+
+@tvm._ffi.register_object("contrib.ethosu.cascader.EthosuPart")
+class EthosuPart(Part):
+    """A class to describe a Part to be executed on an Arm(R) Ethos(TM)-U NPU.
+
+    EthosuParts must be provided with an output quantum and the cycles taken to
+    compute an output quantum which depend on the operator the NPU is computing."""
+
+    def __init__(
+        self,
+        te_subgraph: TESubgraph,
+        propagators: List[Propagator],
+        output_quantum: List[int],
+        quantum_cycles: int,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.EthosuPart,
+            te_subgraph.input_tensors,
+            te_subgraph.output_tensor,
+            propagators,
+            output_quantum,
+            quantum_cycles,
+        )

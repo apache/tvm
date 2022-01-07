@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tensor Expressions for the NPU"""
+import tvm
+from tvm import relay
+from tvm.relay.backend.contrib.ethosu.tir.compiler import extract_constants, lower_to_te
 
-from .convolution import *
-from .depthwise import *
-from .pooling import *
-from .binary_elementwise import *
-from .identity import *
-from .unary_elementwise import *
-from .inline import *
+
+def create_te_graph(func):
+    func, consts = extract_constants(func)
+    mod = tvm.IRModule.from_expr(func)
+    func = relay.transform.InferType()(mod)["main"]
+    te_graph = lower_to_te(func)
+    return te_graph, consts
