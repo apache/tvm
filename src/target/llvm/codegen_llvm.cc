@@ -705,12 +705,14 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
                                   const Var& loop_var, const Stmt& body) {
   using llvm::BasicBlock;
   BasicBlock* pre_block = builder_->GetInsertBlock();
-  BasicBlock* for_begin = BasicBlock::Create(*ctx_, "for_begin", function_);
-  BasicBlock* for_body = BasicBlock::Create(*ctx_, "for_body", function_);
-  BasicBlock* for_end = BasicBlock::Create(*ctx_, "for_end", function_);
+  std::string loop_var_name = loop_var->name_hint;
+  BasicBlock* for_begin = BasicBlock::Create(*ctx_, "for_begin_" + loop_var_name, function_);
+  BasicBlock* for_body = BasicBlock::Create(*ctx_, "for_body_" + loop_var_name, function_);
+  BasicBlock* for_end = BasicBlock::Create(*ctx_, "for_end_" + loop_var_name, function_);
   builder_->CreateBr(for_begin);
   builder_->SetInsertPoint(for_begin);
   llvm::PHINode* loop_value = builder_->CreatePHI(begin->getType(), 2);
+  loop_value->setName(loop_var->name_hint.c_str());
   loop_value->addIncoming(begin, pre_block);
   ICHECK(!var_map_.count(loop_var.get()));
   var_map_[loop_var.get()] = loop_value;
@@ -796,6 +798,49 @@ llvm::Value* CodeGenLLVM::GetVarValue(const VarNode* v) const {
   auto it = var_map_.find(v);
   ICHECK(it != var_map_.end()) << "cannot find variable " << v->name_hint;
   return it->second;
+}
+
+void CodeGenLLVM::CreatePrintf(const std::string& format,
+                               const std::vector<llvm::Value*> format_args) {
+  llvm::Function* func_printf = module_->getFunction("printf");
+  if (func_printf == nullptr) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, true);
+    func_printf =
+        llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, "printf", module_.get());
+  }
+
+  llvm::Function* func_fflush = module_->getFunction("fflush");
+  if (!func_fflush) {
+    llvm::FunctionType* ftype = llvm::FunctionType::get(t_int32_, {t_void_p_}, false);
+    func_fflush =
+        llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, "fflush", module_.get());
+  }
+
+  llvm::Value* str = builder_->CreateGlobalStringPtr(format);
+  str->setName("printf_format_str");
+
+  std::vector<llvm::Value*> printf_args = {str};
+  for (auto arg : format_args) {
+    printf_args.push_back(arg);
+  }
+  builder_->CreateCall(func_printf, printf_args);
+
+  // Call fflush() immediately, as this utility is intended for debug
+  // purposes.  A segfault occurring within the generated LLVM code
+  // would otherwise leave the stdout buffer unflushed.
+  llvm::Value* null_stream = llvm::ConstantPointerNull::get(t_void_p_);
+  null_stream->setName("null_stream");
+  builder_->CreateCall(func_fflush, {null_stream});
+}
+
+llvm::Value* CodeGenLLVM::CreateLookupReturnAddress(unsigned int level) {
+  llvm::Value* level_val = llvm::ConstantInt::get(t_int32_, level);
+  llvm::Function* builtin =
+      llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::returnaddress);
+  llvm::Value* call = builder_->CreateCall(builtin, level_val);
+  call->setName("return_addr");
+
+  return call;
 }
 
 llvm::Value* CodeGenLLVM::CreateCallExtern(Type ret_type, String global_symbol,
@@ -1183,7 +1228,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LetNode* op) {
   } else {
     let_binding_[op->var] = op;
   }
-  var_map_[op->var.get()] = MakeValue(op->value);
+  auto var_value = MakeValue(op->value);
+  var_map_[op->var.get()] = var_value;
+  var_value->setName(op->var->name_hint.c_str());
   analyzer_->Bind(op->var, op->value);
   return MakeValue(op->body);
 }
@@ -1462,6 +1509,8 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
 
   buf = builder_->CreatePointerCast(
       buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+  buf->setName(op->buffer_var->name_hint.c_str());
+
   ICHECK(!var_map_.count(op->buffer_var.get()));
   var_map_[op->buffer_var.get()] = buf;
   this->VisitStmt(op->body);
@@ -1505,7 +1554,9 @@ void CodeGenLLVM::VisitStmt_(const LetStmtNode* op) {
       alias_var_set_.insert(v);
     }
   }
-  var_map_[v] = MakeValue(op->value);
+  llvm::Value* value = MakeValue(op->value);
+  value->setName(v->name_hint.c_str());
+  var_map_[v] = value;
   analyzer_->Bind(op->var, op->value);
   if (alloc_storage_info_.count(v) && alloc_storage_info_[v].alignment > 1) {
     builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
