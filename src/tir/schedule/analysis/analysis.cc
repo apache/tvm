@@ -1659,7 +1659,7 @@ void CheckStorageScope(const ScheduleState& self, String storage_scope) {
   } catch (...) {
     throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
   }
-};
+}
 
 /******** Tensorize Comparator ********/
 

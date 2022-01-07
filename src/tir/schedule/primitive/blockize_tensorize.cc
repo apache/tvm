@@ -364,7 +364,7 @@ BufferRegion RelaxBlockizedInnerIters(const BufferRegion& buffer_region,
     new_region.push_back(relaxed_int_set[i].CoverRange(max_range));
   }
   return BufferRegion(buffer_region->buffer, std::move(new_region));
-};
+}
 
 /*!
  * \brief Generate the outer block after blockize.

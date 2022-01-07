@@ -378,7 +378,8 @@ void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const String& intrin_n
 }
 
 void TracedScheduleNode::Tensorize(const LoopRV& loop_rv, const TensorIntrin& tensor_intrin) {
-  LOG(FATAL) << "TensorIntrin cannot be directly passed to meta schedule. Please register the tensor intrin and pass the intrin name instead.";
+  LOG(FATAL) << "TensorIntrin cannot be directly passed to meta schedule. Please register the "
+                "tensor intrin and pass the intrin name instead.";
 }
 
 /******** Schedule: Annotation ********/

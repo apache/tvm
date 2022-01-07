@@ -563,9 +563,13 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
 using ExprComparator = ExprFunctor<bool(const PrimExpr& n, const PrimExpr& other)>;
 using StmtComparator = StmtFunctor<bool(const Stmt& n, const Stmt& other)>;
 
-/* \brief Deep comparison to check if two IR ASTs are equivalent */
+/*! \brief Deep comparison to check if two IR ASTs are equivalent */
 class TensorizeComparator : public ExprComparator, public StmtComparator {
  public:
+  /*!
+   * \brief Constructor of TensorizeComparator
+   * \param assert_mode Whether to raise an error if the two IR ASTs do not match.
+   */
   explicit TensorizeComparator(bool assert_mode = true) : assert_mode_(assert_mode) {}
 
   // Map from rhs buffer to lhs buffer
@@ -623,7 +627,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
 
  protected:
   bool assert_mode_;
-  bool is_scope_block = true, is_inner_block = true;
+  bool is_scope_block = true;
+  bool is_inner_block = true;
 };
 
 }  // namespace tir

@@ -1792,7 +1792,7 @@ class Schedule(Object):
                         T.reads(A[vi, vj])
                         T.writes(B[vi, vj])
                         B[vi, vj] = A[vi, vj] * T.float32(2)
-            
+
         Create the schedule and do set_scope:
 
         .. code-block:: python
@@ -1829,9 +1829,9 @@ class Schedule(Object):
         ----
         blockize requires there is exactly one block under the given loop and the bindings of the
         block are divisible by the subspace represented by the loops starting at the given loop.
-            
+
         """
-        
+
         return _ffi_api.ScheduleBlockize(self, loop)  # type: ignore # pylint: disable=no-member
 
     @type_checked
@@ -1886,7 +1886,7 @@ class Schedule(Object):
                 A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
                 C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
-            
+
                 with T.block("root"):
                     vi = T.axis.S(16, 0)
                     vj = T.axis.S(16, 0)
@@ -1897,14 +1897,14 @@ class Schedule(Object):
                             vjj = T.axis.S(16, vj + j)
                             vkk = T.axis.R(16, vk + k)
                             C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
-            
-            
+
+
             @T.prim_func
             def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
                 A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
                 B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
                 C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
-            
+
                 with T.block("root"):
                     vi = T.axis.S(16, 0)
                     vj = T.axis.S(16, 0)
@@ -2003,12 +2003,13 @@ class Schedule(Object):
                                     dtype="handle",
                                 )
                             )
-            
+
         """
         if isinstance(tensor_intrin, str):
             tensor_intrin = String(tensor_intrin)
         _ffi_api.ScheduleTensorize(  # type: ignore # pylint: disable=no-member
-            self, loop, tensor_intrin)
+            self, loop, tensor_intrin
+        )
 
     ########## Schedule: Annotation ##########
 

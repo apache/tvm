@@ -80,8 +80,10 @@ TensorIntrin::TensorIntrin(PrimFunc desc_func, PrimFunc intrin_func) {
   CHECK_EQ(desc_func->buffer_map.size(), intrin_func->buffer_map.size());
 
   // check both functions' bodies are directly block
-  const auto* desc_realize = Downcast<BlockRealize>(desc_func->body)->block->body.as<BlockRealizeNode>();
-  const auto* intrin_realize = Downcast<BlockRealize>(intrin_func->body)->block->body.as<BlockRealizeNode>();
+  const auto* desc_realize =
+      Downcast<BlockRealize>(desc_func->body)->block->body.as<BlockRealizeNode>();
+  const auto* intrin_realize =
+      Downcast<BlockRealize>(intrin_func->body)->block->body.as<BlockRealizeNode>();
   CHECK(desc_realize != nullptr) << "description function's body expect a directly block";
   CHECK(intrin_realize != nullptr) << "intrinsic function's body expect a directly block";
 
@@ -143,7 +145,6 @@ TVM_REGISTER_GLOBAL("tir.PrimFunc")
                        Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
       return PrimFunc(params, body, ret_type, buffer_map, attrs, span);
     });
-
 
 TVM_REGISTER_GLOBAL("tir.TensorIntrin")
     .set_body_typed([](PrimFunc desc_func, PrimFunc intrin_func) {

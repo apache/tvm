@@ -182,9 +182,7 @@ class TensorIntrin(Object):
 
     @staticmethod
     def register(name: str, desc_func: PrimFunc, intrin_func: PrimFunc):
-        return _ffi_api.TensorIntrinRegister(  # type: ignore
-            name, desc_func, intrin_func
-        )
+        return _ffi_api.TensorIntrinRegister(name, desc_func, intrin_func)  # type: ignore
 
     @staticmethod
     def get(name: str):
