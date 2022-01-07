@@ -38,11 +38,16 @@ void MemoryRegionNode::VisitAttrs(AttrVisitor* v) {
   v->Visit("size", &size);
   v->Visit("read_bandwidth", &read_bandwidth);
   v->Visit("write_bandwidth", &write_bandwidth);
+  v->Visit("read_latency", &read_latency);
+  v->Visit("write_latency", &write_latency);
+  v->Visit("burst_length", &burst_length);
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.MemoryRegion")
-    .set_body_typed([](String name, int size, int read_bandwidth, int write_bandwidth) {
-      return MemoryRegion(name, size, read_bandwidth, write_bandwidth);
+    .set_body_typed([](String name, int size, int read_bandwidth, int write_bandwidth,
+                       int read_latency, int write_latency, int burst_length) {
+      return MemoryRegion(name, size, read_bandwidth, write_bandwidth, read_latency, write_latency,
+                          burst_length);
     });
 
 TVM_REGISTER_NODE_TYPE(MemoryRegionNode);
