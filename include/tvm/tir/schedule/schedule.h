@@ -481,13 +481,13 @@ class ScheduleNode : public runtime::Object {
   virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with tensor_intrin
-   * \param loop_rv the loop/block to be tensorized
+   * \param loop_rv the loop to be tensorized
    * \param intrin the tensor intrinsic
    */
   virtual void Tensorize(const LoopRV& loop_rv, const TensorIntrin& intrin) = 0;
   /*!
    * \brief Tensorize the computation enclosed by loop with tensor_intrin
-   * \param loop_rv The loop/block to be tensorized
+   * \param loop_rv The loop to be tensorized
    * \param intrin_name Name of the tensor intrinsic
    */
   virtual void Tensorize(const LoopRV& loop_rv, const String& intrin_name) = 0;
