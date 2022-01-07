@@ -879,7 +879,7 @@ def conv(
             ),
             # Schedules depend on reduction axes being in the same order as the
             # layout, so we reorder here.
-            axis=np.array([rc, *rs])[permutation_from_reductions].tolist()
+            axis=np.array([rc, *rs])[permutation_from_reductions].tolist(),
         )
 
     return te.compute(
