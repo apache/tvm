@@ -315,8 +315,7 @@ class FieldDependencyFinder : public AttrVisitor {
   std::string GetValue(const char* key) const {
     auto it = jnode_->attrs.find(key);
     if (it == jnode_->attrs.end()) {
-      // If we encounter a field that hasn't been set, initialize it to null.
-      return "0";
+      LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
     return it->second;
   }
@@ -373,8 +372,7 @@ class JSONAttrSetter : public AttrVisitor {
   std::string GetValue(const char* key) const {
     auto it = jnode_->attrs.find(key);
     if (it == jnode_->attrs.end()) {
-      // If we encounter a field that hasn't been set, initialize it to null.
-      return "0";
+      LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
     return it->second;
   }
