@@ -822,6 +822,9 @@ def conv(
     ]
     # transform from NCHW to order
     permutation_from = np.argsort(permutation_to)
+    # transform from CHW to order
+    permutation_from_reductions = permutation_from[1:].copy()
+    permutation_from_reductions[permutation_from_reductions > permutation_from[0]] -= 1
 
     # kernel permutation, if C appears before HW then num_filter is first, otherwise it is last
     # tkonolige: I don't really understand kernel ordering for NHWC, it seems
@@ -874,7 +877,9 @@ def conv(
             * filt.__getitem__(tuple(np.array([ff, rc] + rs)[permutation_from_kernel])).astype(
                 out_dtype
             ),
-            axis=[rc, *rs],
+            # Schedules depend on reduction axes being in the same order as the
+            # layout, so we reorder here.
+            axis=np.array([rc, *rs])[permutation_from_reductions].tolist()
         )
 
     return te.compute(
@@ -882,6 +887,7 @@ def conv(
         compute,
         # tag is expected to be lowercase
         tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
+        name=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
     )
 
 
