@@ -105,8 +105,11 @@ def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu")
 
 def check_dtype(lhs, rhs):
     """Check if dtypes in the given workload are supported by CUTLASS."""
-    # Only fp16 inputs are supported for now.
-    return lhs.dtype == rhs.dtype and lhs.dtype == "float16" and rhs.dtype == "float16"
+    return (
+        (lhs.dtype == "float16" and rhs.dtype == "float16")
+        or (lhs.dtype == "float32" and rhs.dtype == "float32")
+        or (lhs.dtype in ["int8", "uint8"] and rhs.dtype in ["int8", "uint8"])
+    )
 
 
 def get_root_call(call, root_op_name):
@@ -119,7 +122,10 @@ def get_root_call(call, root_op_name):
 
 def check_gemm(call):
     """Check if the given dense workload can be offloaded to CUTLASS."""
-    return True
+    dense = get_root_call(call, "nn.dense")
+    lhs = dense.args[0].checked_type
+    rhs = dense.args[1].checked_type
+    return check_dtype(lhs, rhs)
 
 
 def check_batch_matmul(call):
@@ -143,7 +149,7 @@ def check_conv2d(call):
     kernel_layout = conv2d.attrs.kernel_layout
     data = conv2d.args[0].checked_type
     weight = conv2d.args[1].checked_type
-    if data_layout != "NHWC" or kernel_layout != "OHWI":
+    if data_layout != "NHWC" or kernel_layout != "OHWI" or not check_dtype(data, weight):
         return False
     IC = data.shape[3]
     OC = weight.shape[0]
