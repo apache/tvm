@@ -119,10 +119,7 @@ def get_root_call(call, root_op_name):
 
 def check_gemm(call):
     """Check if the given dense workload can be offloaded to CUTLASS."""
-    dense = get_root_call(call, "nn.dense")
-    lhs = dense.args[0].checked_type
-    rhs = dense.args[1].checked_type
-    return check_dtype(lhs, rhs)
+    return True
 
 
 def check_batch_matmul(call):
