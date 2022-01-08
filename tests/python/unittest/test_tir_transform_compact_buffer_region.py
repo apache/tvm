@@ -413,6 +413,13 @@ def compacted_padding_pattern_func(a: T.handle, c: T.handle) -> None:
                 B[i, j] = A[i, j]
         for i, j in T.grid(20, 20):
             with T.block():
+                T.reads(
+                    B[
+                        T.max(i - 2, 0) : T.min(i + -2, 15) + 1,
+                        T.max(j - 2, 0) : T.min(j + -2, 15) + 1,
+                    ]
+                )
+                T.writes(C[i, j])
                 C[i, j] = T.if_then_else(
                     2 <= i and i < 18 and 2 <= j and j < 18, B[i - 2, j - 2], 0.0, dtype="float32"
                 )

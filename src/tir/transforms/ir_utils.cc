@@ -300,11 +300,18 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
   Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
   Map<Var, Range> ranges;
   for (const Var& v : vars) {
-    auto it = dom_map_->find(v.get());
-    if (it != dom_map_->end()) {
-      const auto& int_set = it->second;
-      ranges.Set(v, Range::FromMinExtent(int_set.min(),
-                                         analyzer.Simplify(int_set.max() - int_set.min() + 1)));
+    arith::IntSet dom;
+    auto relax_it = relax_map_->find(v.get());
+    if (relax_it != relax_map_->end()) {
+      dom = relax_it->second;
+    } else {
+      auto hint_it = hint_map_->find(v.get());
+      if (hint_it != hint_map_->end()) {
+        dom = hint_it->second;
+      }
+    }
+    if (dom.defined()) {
+      ranges.Set(v, Range::FromMinExtent(dom.min(), analyzer.Simplify(dom.max() - dom.min() + 1)));
     }
   }
   // solve constraints
@@ -314,24 +321,53 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
-    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
-    bool is_true_branch)
-    : condition_(condition), dom_map_(dom_map), is_true_branch_(is_true_branch) {}
+    const PrimExpr& condition, std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+    std::unordered_map<const VarNode*, arith::IntSet>* hint_map, bool is_true_branch)
+    : condition_(condition),
+      relax_map_(relax_map),
+      hint_map_(hint_map),
+      is_true_branch_(is_true_branch) {}
 
 void ConditionalBoundsContext::EnterWithScope() {
   for (const auto& p : GetVarBoundsFromCondition()) {
     const auto* var = p.first.get();
-    auto it = dom_map_->find(var);
-    if (it != dom_map_->end()) {
-      origin_map_.emplace(var, it->second);
-      it->second = arith::Intersect({it->second, arith::IntSet::FromRange(p.second)});
+    arith::IntSet new_dom = arith::IntSet::FromRange(p.second);
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // this is a bound for relaxed var
+      origin_map_.emplace(var, relax_it->second);
+      relax_it->second = arith::Intersect({relax_it->second, new_dom});
+    } else {
+      // this is a bound for free var
+      auto hint_it = hint_map_->find(var);
+      if (hint_it != hint_map_->end()) {
+        origin_map_.emplace(var, hint_it->second);
+        hint_it->second = arith::Intersect({hint_it->second, new_dom});
+      } else {
+        origin_map_.emplace(var, arith::IntSet::Nothing());
+        hint_map_->insert(hint_it, {var, new_dom});
+      }
     }
   }
 }
 
 void ConditionalBoundsContext::ExitWithScope() {
   for (const auto& p : origin_map_) {
-    (*dom_map_)[p.first] = p.second;
+    const auto* var = p.first;
+    auto relax_it = relax_map_->find(var);
+    if (relax_it != relax_map_->end()) {
+      // recover bound for relaxed var
+      relax_it->second = p.second;
+    } else {
+      // recover bound for free var
+      auto hint_it = hint_map_->find(var);
+      ICHECK(hint_it != hint_map_->end());
+      if (p.second.IsNothing()) {
+        hint_map_->erase(hint_it);
+      } else {
+        hint_it->second = p.second;
+      }
+    }
   }
 }
 
