@@ -322,9 +322,9 @@ std::vector<int64_t> SamplePerfectTile(
     const tir::StmtSRef& loop_sref, int32_t n_splits, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
-  int64_t extent = GetLoopIntExtent(loop);
+  const int64_t* extent = GetLoopIntExtent(loop);
   std::vector<int64_t> result;
-  if (extent == -1) {
+  if (extent == nullptr) {
     // Case 1. Handle loops with non-constant length
     result = std::vector<int64_t>(n_splits, 1);
     result[0] = -1;
@@ -333,7 +333,7 @@ std::vector<int64_t> SamplePerfectTile(
     result = support::AsVector<Integer, int64_t>(decision->value());
     int n = result.size();
     ICHECK_GE(n, 2);
-    int64_t len = extent;
+    int64_t len = *extent;
     for (int i = n - 1; i > 0; --i) {
       int64_t& l = result[i];
       // A previous decision could become invalid because of the change of outer tiles
@@ -347,7 +347,7 @@ std::vector<int64_t> SamplePerfectTile(
     result[0] = len;
   } else {
     // Case 3. Use fresh new sampling result
-    result = SamplePerfectTile(rand_state, extent, n_splits, max_innermost_factor);
+    result = SamplePerfectTile(rand_state, *extent, n_splits, max_innermost_factor);
     ICHECK_LE(result.back(), max_innermost_factor);
   }
   *decision = support::AsArray<int64_t, Integer>(result);
