@@ -214,6 +214,7 @@ def test_str_map():
 
 def test_irmodule_attributes():
     nodes = [
+        {"type_key": ""},
         {
             "type_key": "IRModule",
             "attrs": {
@@ -223,7 +224,7 @@ def test_irmodule_attributes():
                 "source_map": "0",
                 "type_definitions": "0",
             },
-        }
+        },
     ]
     data = {
         "root": 1,
@@ -239,9 +240,9 @@ def test_irmodule_attributes():
 
 # 0.8 BACKWARDS COMPATIBILITY TESTS
 
-# Does this break with functions? Yes. Seems bad. Probably should remove json dep checker?
-def test_func_cycle():
+def test_virtual_device():
     nodes = [
+        {"type_key": ""},
         {
             "type_key": "relay.Function",
             "attrs": {
@@ -253,7 +254,7 @@ def test_func_cycle():
                 "span": "0",
                 "type_params": "0",
             },
-        }
+        },
     ]
     data = {
         "root": 1,

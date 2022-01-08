@@ -68,7 +68,8 @@ def create_updater_08_to_09():
     """
 
     def _initialize_virtual_device(item, _):
-        item["attrs"]["virtual_device_"] = "0"
+        if ("virtual_device_" not in item["attrs"].keys()):
+            item["attrs"]["virtual_device_"] = "0"
         return item
 
     node_map = {
@@ -95,7 +96,8 @@ def create_updater_07_to_08():
 
     def _initialize_module_attributes(item, _):
         assert item["type_key"] == "IRModule", "Only initialize the attributes for IRModules"
-        item["attrs"]["attrs"] = "0"
+        if "attrs" not in item["attrs"].keys():
+            item["attrs"]["attrs"] = "0"
         return item
 
     node_map = {"IRModule": _initialize_module_attributes}
