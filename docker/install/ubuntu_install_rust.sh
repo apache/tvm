@@ -24,9 +24,10 @@ set -o pipefail
 export RUSTUP_HOME=/opt/rust
 export CARGO_HOME=/opt/rust
 # this rustc is one supported by the installed version of rust-sgx-sdk
-curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain stable
+curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
 export PATH=$CARGO_HOME/bin:$PATH
 rustup component add rustfmt
+rustup component add clippy
 
 # install wasmtime
 apt-get install -y --no-install-recommends libc6-dev-i386
