@@ -313,24 +313,14 @@ class FieldDependencyFinder : public AttrVisitor {
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   std::string GetValue(const char* key) const {
-    std::cout << "Dependency finder" << std::endl;
-    std::cout << "Key: " << key << std::endl;
-    std::cout << "All keys: [";
-
-    for (auto kv : jnode_->attrs) {
-      std::cout << kv.first << ", ";
-    }
-    std::cout << "]" << std::endl;
-
     auto it = jnode_->attrs.find(key);
     if (it == jnode_->attrs.end()) {
-      LOG(FATAL) << "JSONReader (DependencyFinder): cannot find field " << key;
+      LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
     return it->second;
   }
   template <typename T>
   void ParseValue(const char* key, T* value) const {
-    std::cout << "ParseValue for " << key << std::endl;
     std::istringstream is(GetValue(key));
     is >> *value;
     if (is.fail()) {
@@ -347,7 +337,6 @@ class FieldDependencyFinder : public AttrVisitor {
   void Visit(const char* key, DataType* value) final {}
   void Visit(const char* key, runtime::NDArray* value) final {}
   void Visit(const char* key, ObjectRef* value) final {
-    std::cout << "Object: " << PrettyPrint(*value) << std::endl;
     size_t index;
     ParseValue(key, &index);
     jnode_->fields.push_back(index);
@@ -381,16 +370,9 @@ class JSONAttrSetter : public AttrVisitor {
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   std::string GetValue(const char* key) const {
-    std::cout << "Key: " << key << std::endl;
-    std::cout << "All keys: [";
-
-    for (auto kv : jnode_->attrs) {
-      std::cout << kv.first << ", ";
-    }
-    std::cout << "]" << std::endl;
     auto it = jnode_->attrs.find(key);
     if (it == jnode_->attrs.end()) {
-      LOG(FATAL) << "JSONReader (AttrSetter): cannot find field " << key;
+      LOG(FATAL) << "JSONReader: cannot find field " << key;
     }
     return it->second;
   }
@@ -575,7 +557,7 @@ struct JSONGraph {
         }
       }
     }
-    // ICHECK_EQ(topo_order.size(), n_nodes) << "Cyclic reference detected in JSON file";
+    ICHECK_EQ(topo_order.size(), n_nodes) << "Cyclic reference detected in JSON file";
     std::reverse(std::begin(topo_order), std::end(topo_order));
     return topo_order;
   }

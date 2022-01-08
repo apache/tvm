@@ -68,9 +68,7 @@ def create_updater_08_to_09():
     """
 
     def _initialize_virtual_device(item, _):
-        print("Item before: ", item)
         item["attrs"]["virtual_device_"] = "0"
-        print("Item after: ", item)
         return item
 
     node_map = {
@@ -97,9 +95,7 @@ def create_updater_07_to_08():
 
     def _initialize_module_attributes(item, _):
         assert item["type_key"] == "IRModule", "Only initialize the attributes for IRModules"
-        print("Module before: ", item)
         item["attrs"]["attrs"] = "0"
-        print("Module after:", item)
         return item
 
     node_map = {"IRModule": _initialize_module_attributes}
@@ -254,21 +250,13 @@ def upgrade_json(json_str):
         The updated version.
     """
     data = json.loads(json_str)
-    print("Completed loading")
     from_version = data["attrs"]["tvm_version"]
 
     if from_version.startswith("0.6"):
-        print("From 0.6")
         data = create_updater_08_to_09()(create_updater_07_to_08()(create_updater_06_to_07()(data)))
     elif from_version.startswith("0.7"):
-        print("From 0.7")
-        data1 = create_updater_07_to_08()(data)
-        print("First updater done")
-        data2 = create_updater_08_to_09()(data1)
-        print("2nd updater done")
-        data = data2
+        data = create_updater_08_to_09()(create_updater_07_to_08()(data))
     elif from_version.startswith("0.8"):
-        print("From 0.8")
         data = create_updater_08_to_09()(data)
     else:
         raise ValueError("Cannot update from version %s" % from_version)

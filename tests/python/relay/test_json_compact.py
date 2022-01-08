@@ -262,7 +262,6 @@ def test_func_cycle():
         "b64ndarrays": [],
     }
     dump = json.dumps(data)
-    print("Done dumping")
     func = tvm.ir.load_json(dump)
     assert isinstance(func, relay.Function)
     assert not func.virtual_device_

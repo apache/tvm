@@ -135,13 +135,9 @@ def load_json(json_str):
     """
 
     try:
-        loaded = tvm.runtime._ffi_node_api.LoadJSON(json_str)
-        print("LOADED COMPLETE")
-        return loaded
+        return tvm.runtime._ffi_node_api.LoadJSON(json_str)
     except tvm.error.TVMError:
-        print("Upgrading Json")
         json_str = json_compact.upgrade_json(json_str)
-        print("Loading again")
         return tvm.runtime._ffi_node_api.LoadJSON(json_str)
 
 
