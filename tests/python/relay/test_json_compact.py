@@ -21,6 +21,9 @@ from tvm import te
 import json
 
 
+# 0.6 BACKWARDS COMPATIBILITY TESTS
+
+
 def test_type_var():
     # type var in 0.6
     nodes = [
@@ -206,41 +209,70 @@ def test_str_map():
     assert bool(x["z"] == 2)
 
 
-def test_default_fields():
-    # Node with all fields set
-    nodes = [
-        {"type_key": ""},
-        {
-            "type_key": "relay.GlobalVar",
-            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0", "virtual_device_": "0"},
-        },
-    ]
-    data = {
-        "root": 1,
-        "nodes": nodes,
-        "attrs": {"tvm_version": "0.6.0"},
-        "b64ndarrays": [],
-    }
-    tvar = tvm.ir.load_json(json.dumps(data))
-    assert isinstance(tvar, tvm.ir.GlobalVar)
-    # Construct node without virtual_device_ field
-    nodes = [
-        {"type_key": ""},
-        {
-            "type_key": "relay.GlobalVar",
-            "attrs": {"_checked_type_": "0", "name_hint": "x", "span": "0"},
-        },
-    ]
-    data = {
-        "root": 1,
-        "nodes": nodes,
-        "attrs": {"tvm_version": "0.6.0"},
-        "b64ndarrays": [],
-    }
-    tvar_default = tvm.ir.load_json(json.dumps(data))
-    assert isinstance(tvar_default, tvm.ir.GlobalVar)
-    assert not tvar_default.virtual_device_
+# 0.7 BACKWARDS COMPATIBILITY TESTS
 
+
+def test_irmodule_attributes():
+    nodes = [
+        {
+            "type_key": "IRModule",
+            "attrs": {
+                "functions": "0",
+                "global_type_var_map_": "0",
+                "global_var_map_": "0",
+                "source_map": "0",
+                "type_definitions": "0",
+            },
+        }
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.7.0"},
+        "b64ndarrays": [],
+    }
+    mod = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(mod, tvm.ir.IRModule)
+    # IRModule attributes should defualt to null
+    assert not mod.attrs
+
+
+# 0.8 BACKWARDS COMPATIBILITY TESTS
+
+# Does this break with functions? Yes. Seems bad. Probably should remove json dep checker?
+def test_func_cycle():
+    nodes = [
+        {
+            "type_key": "relay.Function",
+            "attrs": {
+                "_checked_type_": "0",
+                "attrs": "0",
+                "body": "0",
+                "params": "0",
+                "ret_type": "0",
+                "span": "0",
+                "type_params": "0",
+            },
+        }
+    ]
+    data = {
+        "root": 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.8.0"},
+        "b64ndarrays": [],
+    }
+    dump = json.dumps(data)
+    print("Done dumping")
+    func = tvm.ir.load_json(dump)
+    assert isinstance(func, relay.Function)
+    assert not func.virtual_device_
+
+
+# add module attributes and virtual device test
+
+# BACKWARD COMPAT WITH 0.8 TESTS
+
+# add test module attrs and test virtual device
 
 if __name__ == "__main__":
     test_op()
