@@ -68,11 +68,13 @@ DataTypeSize = {
 class MathOperation(enum.Enum):
     multiply_add = enum_auto()
     multiply_add_saturate = enum_auto()
+    multiply_add_fast_f32 = enum_auto()
 
 
 MathOperationTag = {
     MathOperation.multiply_add: "cutlass::arch::OpMultiplyAdd",
     MathOperation.multiply_add_saturate: "cutlass::arch::OpMultiplyAddSaturate",
+    MathOperation.multiply_add_fast_f32: 'cutlass::arch::OpMultiplyAddFastF32'
 }
 
 
