@@ -553,31 +553,32 @@ def test_int8():
     w_shape = (32, 16, 3, 3)
     padding = (1, 1)
 
-    data = relay.var("data", shape=d_shape, dtype="int8")
-    weight = relay.var("weight", shape=w_shape, dtype="int8")
-    out_channel = w_shape[0]
-    expr = relay.nn.conv2d(
-        data=data,
-        weight=weight,
-        kernel_size=w_shape[2:],
-        channels=out_channel,
-        padding=padding,
-        out_dtype="int32",
-    )
+    for data_dtype in ["int8", "uint8"]:
+        data = relay.var("data", shape=d_shape, dtype=data_dtype)
+        weight = relay.var("weight", shape=w_shape, dtype="int8")
+        out_channel = w_shape[0]
+        expr = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=w_shape[2:],
+            channels=out_channel,
+            padding=padding,
+            out_dtype="int32",
+        )
 
-    verify_conv2d(
-        expr,
-        expr,
-        d_shape,
-        w_shape,
-        sm=80,
-        atol=1e-5,
-        rtol=1e-5,
-        run_benchmark=False,
-        data_dtype="int8",
-        weight_dtype="int8",
-        ref_target="llvm",
-    )
+        verify_conv2d(
+            expr,
+            expr,
+            d_shape,
+            w_shape,
+            sm=80,
+            atol=1e-5,
+            rtol=1e-5,
+            run_benchmark=False,
+            data_dtype=data_dtype,
+            weight_dtype="int8",
+            ref_target="llvm",
+        )
 
 
 def test_3xtf32():
@@ -608,9 +609,11 @@ def test_3xtf32():
         run_benchmark=False,
         data_dtype="float32",
         weight_dtype="float32",
+        ref_target="llvm"
     )
 
 
 if __name__ == "__main__":
     # pytest.main([__file__])
-    test_int8()
+    # test_int8()
+    test_3xtf32()
