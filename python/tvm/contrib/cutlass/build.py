@@ -178,6 +178,8 @@ def handle_conv2d(
     strides,
     dilation,
     out_dtype,
+    data_dtype,
+    weight_dtype,
     profile_all,
     use_multiprocessing,
 ):
@@ -195,6 +197,8 @@ def handle_conv2d(
             strides,
             dilation,
             out_dtype,
+            data_dtype,
+            weight_dtype,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )
@@ -258,6 +262,8 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             new_attrs.update(func.attrs)
             arg0_shape = new_attrs["arg0_shape"]
             arg1_shape = new_attrs["arg1_shape"]
+            arg0_dtype = new_attrs["arg0_dtype"]
+            arg1_dtype = new_attrs["arg1_dtype"]
 
             if "conv2d" in op_type:
                 new_attrs["padding"] = annotator.op_attrs.padding
@@ -273,6 +279,8 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         annotator.op_attrs.strides,
                         annotator.op_attrs.dilation,
                         out_dtype,
+                        arg0_dtype,
+                        arg1_dtype,
                         profile_all,
                         use_multiprocessing,
                     )

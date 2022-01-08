@@ -36,8 +36,7 @@ class DataType(enum.Enum):
 ShortDataTypeNames = {
     DataType.f16: "h",
     DataType.f32: "s",
-    DataType.s32: 'i',
-
+    DataType.s32: "i",
 }
 
 
@@ -70,9 +69,10 @@ class MathOperation(enum.Enum):
     multiply_add = enum_auto()
     multiply_add_saturate = enum_auto()
 
+
 MathOperationTag = {
     MathOperation.multiply_add: "cutlass::arch::OpMultiplyAdd",
-    MathOperation.multiply_add_saturate: 'cutlass::arch::OpMultiplyAddSaturate',
+    MathOperation.multiply_add_saturate: "cutlass::arch::OpMultiplyAddSaturate",
 }
 
 

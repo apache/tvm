@@ -33,6 +33,9 @@ from .library import (
 logger = logging.getLogger("cutlass")
 
 
+dtype_map = {"int8": DataType.s8, "uint8": DataType.u8}
+
+
 def generate_tensor_op_common(
     math_instructions, alignment_constraints, get_tile_descriptions, op_creator
 ):
@@ -100,9 +103,8 @@ def generate_sm75_tensor_op_1688(out_dtype, op_creator):
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype, op_creator):
+def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator):
     """Generate GEMM or Conv2D kernels for Ampere."""
-    assert out_dtype in ["float32", "float16"]
     if "float" in out_dtype:
         math_instructions = {
             "float32": [
@@ -126,59 +128,96 @@ def generate_sm80_tensor_op_16816(out_dtype, op_creator):
                 )
             ],
         }[out_dtype]
-    elif out_dtype == "int32":
-        # TODO: add input types
-        math_instructions = {
-            "int8": [
-                MathInstruction(
-                    [16, 8, 32],
-                    DataType.s8,
-                    DataType.s8,
-                    DataType.s32,
-                    OpcodeClass.TensorOp,
-                    MathOperation.multiply_add_saturate,
-                ),
-            ],
-            "uint8": [
-                MathInstruction(
-                    [16, 8, 32],
-                    DataType.u8,
-                    DataType.u8,
-                    DataType.s32,
-                    OpcodeClass.TensorOp,
-                    MathOperation.multiply_add_saturate,
-                ),
-            ],
-        }["int8"]
-
-    alignment_constraints = [8, 4, 2]
+        alignment_constraints = [8, 4, 2]
+        block_k_factor = 1
+    else:
+        assert out_dtype == "int32"
+        math_instructions = [
+            MathInstruction(
+                [16, 8, 32],
+                dtype_map[arg0_dtype],
+                dtype_map[arg1_dtype],
+                DataType.s32,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add_saturate,
+            ),
+        ]
+        # TODO: Is this the only possible value?
+        alignment_constraints = [
+            16,
+        ]
+        block_k_factor = 2
 
     def get_tile_descriptions(math_inst):
         min_cc = 80
         max_cc = 1024
         max_cc_smem_limited = 80
         return [
-            TileDescription([256, 128, 32], 3, [4, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 256, 32], 3, [2, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([256, 64, 32], 4, [4, 1, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 256, 32], 4, [1, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 4, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 5, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 32], 6, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 32], 10, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([256, 128, 64], 3, [4, 2, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([128, 256, 64], 3, [2, 4, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([256, 64, 64], 4, [4, 1, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([64, 256, 64], 4, [1, 4, 1], math_inst, min_cc, max_cc_smem_limited),
-            TileDescription([128, 128, 64], 4, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 64], 3, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 64], 5, [2, 2, 1], math_inst, min_cc, max_cc),
+            TileDescription(
+                [256, 128, 32 * block_k_factor], 3, [4, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 256, 32 * block_k_factor], 3, [2, 4, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [256, 64, 32 * block_k_factor], 4, [4, 1, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [64, 256, 32 * block_k_factor], 4, [1, 4, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 128, 32 * block_k_factor], 3, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 128, 32 * block_k_factor], 4, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 128, 32 * block_k_factor], 5, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 64, 32 * block_k_factor], 6, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [64, 128, 32 * block_k_factor], 6, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [64, 64, 32 * block_k_factor], 10, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [256, 128, 64 * block_k_factor],
+                3,
+                [4, 2, 1],
+                math_inst,
+                min_cc,
+                max_cc_smem_limited,
+            ),
+            TileDescription(
+                [128, 256, 64 * block_k_factor],
+                3,
+                [2, 4, 1],
+                math_inst,
+                min_cc,
+                max_cc_smem_limited,
+            ),
+            TileDescription(
+                [256, 64, 64 * block_k_factor], 4, [4, 1, 1], math_inst, min_cc, max_cc_smem_limited
+            ),
+            TileDescription(
+                [64, 256, 64 * block_k_factor], 4, [1, 4, 1], math_inst, min_cc, max_cc_smem_limited
+            ),
+            TileDescription(
+                [128, 128, 64 * block_k_factor], 4, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [128, 64, 64 * block_k_factor], 3, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription(
+                [64, 128, 64 * block_k_factor], 3, [2, 2, 1], math_inst, min_cc, max_cc
+            ),
+            TileDescription([64, 64, 64 * block_k_factor], 5, [2, 2, 1], math_inst, min_cc, max_cc),
         ]
 
-    sm75_kernels = generate_sm75_tensor_op_1688(out_dtype, op_creator)
+    sm75_kernels = [] # generate_sm75_tensor_op_1688(out_dtype, op_creator)
     sm80_kernels = generate_tensor_op_common(
         math_instructions, alignment_constraints, get_tile_descriptions, op_creator
     )

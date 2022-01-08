@@ -178,6 +178,8 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
+        data_dtype,
+        weight_dtype,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -208,6 +210,8 @@ class CutlassConv2DProfiler:
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
+            data_dtype,
+            weight_dtype,
             op_creator=enumerate_conv2d_operators,
         )
         ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
@@ -240,6 +244,8 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
+        data_dtype,
+        weight_dtype,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -254,6 +260,8 @@ class CutlassConv2DProfiler:
             stride,
             dilation,
             out_dtype,
+            data_dtype,
+            weight_dtype,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )

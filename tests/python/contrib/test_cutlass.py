@@ -371,6 +371,14 @@ def convert_conv2d_layout(mod, desired_layouts):
         return seq(mod)
 
 
+def get_random_ndarray(shape, dtype):
+    if dtype == "int8":
+        return np.random.randint(-128, 128, shape).astype(dtype)
+    elif dtype == "uint8":
+        return np.random.randint(0, 256, shape).astype(dtype)
+    return np.random.uniform(-1, 1, shape).astype(dtype)
+
+
 def verify_conv2d(
     expr_nchw,  # can be dynamic batch
     expr_ref,  # always static batch
@@ -382,6 +390,8 @@ def verify_conv2d(
     use_cudnn_ref=False,
     run_benchmark=False,
     use_fast_math=False,
+    data_dtype="float16",
+    weight_dtype="float16",
 ):
     if not has_cutlass():
         return
@@ -392,9 +402,9 @@ def verify_conv2d(
     typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
     out_dtype = typ.dtype
 
-    np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
-    np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
-    np_bias = np.random.uniform(-1, 1, (w_shape[0],)).astype(out_dtype)
+    np_data = get_random_ndarray(d_shape, data_dtype)
+    np_weight = get_random_ndarray(w_shape, weight_dtype)
+    np_bias = get_random_ndarray((w_shape[0],), out_dtype)
 
     params = {"weight": np_weight, "bias": np_bias}
 
@@ -535,6 +545,40 @@ def test_conv2d_residual_block():
         (relay.nn.relu(hardswish(bias_add) + residual_input), 1e-3),
     ]:
         verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
+
+
+def get_conv2d_nchw_int8(d_shape, w_shape, padding, activation_dtype="int8"):
+    data = relay.var("data", shape=d_shape, dtype=activation_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype="int8")
+    out_channel = w_shape[0]
+    return relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        out_dtype="int32",
+    )
+
+
+def test_int8():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
+    mod_nchw = get_conv2d_nchw_int8(d_shape, w_shape, padding)
+
+    verify_conv2d(
+        mod_nchw,
+        mod_nchw,
+        d_shape,
+        w_shape,
+        sm=80,
+        atol=1e-5,
+        rtol=1e-5,
+        run_benchmark=False,
+        data_dtype="int8",
+        weight_dtype="int8",
+    )
 
 
 if __name__ == "__main__":
