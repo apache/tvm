@@ -74,7 +74,7 @@ class MathOperation(enum.Enum):
 MathOperationTag = {
     MathOperation.multiply_add: "cutlass::arch::OpMultiplyAdd",
     MathOperation.multiply_add_saturate: "cutlass::arch::OpMultiplyAddSaturate",
-    MathOperation.multiply_add_fast_f32: 'cutlass::arch::OpMultiplyAddFastF32'
+    MathOperation.multiply_add_fast_f32: "cutlass::arch::OpMultiplyAddFastF32",
 }
 
 

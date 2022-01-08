@@ -156,11 +156,13 @@ class CutlassGemmProfiler:
         # When the above issue is resolved, we can remove the alignment check on M below.
         return all([dim % align == 0 for dim in [M, N, K]])
 
-    def get_default(self, op_type, out_dtype, batched=False):
+    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, batched=False):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, op_creator=enumerate_gemm_operators)
+        ops = GENERATOR_FUNC_TABLE[self.sm](
+            out_dtype, arg0_dtype, arg1_dtype, op_creator=enumerate_gemm_operators
+        )
         default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
@@ -176,7 +178,17 @@ class CutlassGemmProfiler:
         op.update({"name": name, "opdef": opdef})
         return op
 
-    def select_op(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+    def select_op(
+        self,
+        M,
+        N,
+        K,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        profile_all=True,
+        use_multiprocessing=False,
+    ):
         """
         Profile and select the best kernel from candidate kernels.
         See the documentation for the profile method below.
@@ -187,6 +199,8 @@ class CutlassGemmProfiler:
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
+            arg0_dtype,
+            arg1_dtype,
             op_creator=enumerate_gemm_operators,
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
@@ -212,6 +226,8 @@ class CutlassGemmProfiler:
         N,
         K,
         out_dtype,
+        arg0_dtype,
+        arg1_dtype,
         profile_all=True,
         use_multiprocessing=False,
         batched=False,
@@ -221,7 +237,14 @@ class CutlassGemmProfiler:
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
-            M, N, K, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+            M,
+            N,
+            K,
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            profile_all=profile_all,
+            use_multiprocessing=use_multiprocessing,
         )
 
         name, opdef = create_gemm_operator_with_epilogue(
