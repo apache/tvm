@@ -547,11 +547,15 @@ def test_conv2d_residual_block():
         verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
 
 
-def get_conv2d_nchw_int8(d_shape, w_shape, padding, activation_dtype="int8"):
-    data = relay.var("data", shape=d_shape, dtype=activation_dtype)
+def test_int8():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
+
+    data = relay.var("data", shape=d_shape, dtype="int8")
     weight = relay.var("weight", shape=w_shape, dtype="int8")
     out_channel = w_shape[0]
-    return relay.nn.conv2d(
+    expr = relay.nn.conv2d(
         data=data,
         weight=weight,
         kernel_size=w_shape[2:],
@@ -560,16 +564,9 @@ def get_conv2d_nchw_int8(d_shape, w_shape, padding, activation_dtype="int8"):
         out_dtype="int32",
     )
 
-
-def test_int8():
-    d_shape = (16, 16, 32, 32)
-    w_shape = (32, 16, 3, 3)
-    padding = (1, 1)
-    mod_nchw = get_conv2d_nchw_int8(d_shape, w_shape, padding)
-
     verify_conv2d(
-        mod_nchw,
-        mod_nchw,
+        expr,
+        expr,
         d_shape,
         w_shape,
         sm=80,
@@ -578,6 +575,37 @@ def test_int8():
         run_benchmark=False,
         data_dtype="int8",
         weight_dtype="int8",
+    )
+
+
+def test_3xtf32():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (32, 16, 3, 3)
+    padding = (1, 1)
+
+    data = relay.var("data", shape=d_shape, dtype="float32")
+    weight = relay.var("weight", shape=w_shape, dtype="float32")
+    out_channel = w_shape[0]
+    expr = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        out_dtype="float32",
+    )
+
+    verify_conv2d(
+        expr,
+        expr,
+        d_shape,
+        w_shape,
+        sm=80,
+        atol=1e-5,
+        rtol=1e-5,
+        run_benchmark=False,
+        data_dtype="float32",
+        weight_dtype="float32",
     )
 
 
