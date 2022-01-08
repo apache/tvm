@@ -125,13 +125,14 @@ def enumerate_gemm_operators(
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     75: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
     # align1 variants do not seem to be available for sm80
     80: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        ("float32", "float32"): "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
     },
 }
 
@@ -163,7 +164,7 @@ class CutlassGemmProfiler:
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype, arg0_dtype, arg1_dtype, op_creator=enumerate_gemm_operators
         )
-        default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
+        default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
         op = filtered[0]
