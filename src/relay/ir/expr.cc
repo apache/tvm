@@ -28,10 +28,12 @@
 namespace tvm {
 
 VirtualDevice RelayExprNode::virtual_device() const {
-  ICHECK(this->virtual_device_.defined())
-      << "Virtual device should always be defined for all RelayNodes except Match and Clause. "
-         "Found this relay expression without a virtual device: \n"
-      << PrettyPrint(GetRef<ObjectRef>(this));
+  if (!this->virtual_device_.defined()) {
+    // virtual_device_ should always be defined, unless we imported this node from JSON using an old
+    // version of TVM, in which case we want to set it to the default, which is
+    // VirtualDevice::FullyUnconstrained().
+    return VirtualDevice::FullyUnconstrained();
+  }
   return Downcast<VirtualDevice>(this->virtual_device_);
 }
 
