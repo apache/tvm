@@ -33,7 +33,12 @@ from .library import (
 logger = logging.getLogger("cutlass")
 
 
-dtype_map = {"int8": DataType.s8, "uint8": DataType.u8, "float32": DataType.f32}
+dtype_map = {
+    "int8": DataType.s8,
+    "uint8": DataType.u8,
+    "float32": DataType.f32,
+    "float16": DataType.f16,
+}
 
 
 def generate_tensor_op_common(
@@ -57,45 +62,65 @@ def generate_tensor_op_common(
     return ops
 
 
-def generate_sm75_tensor_op_1688(out_dtype, op_creator):
+def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
     """Generate GEMM or Conv2D kernels for Turing."""
-    assert out_dtype in ["float32", "float16"]
-    math_instructions = {
-        "float32": [
-            MathInstruction(
-                [16, 8, 8],
-                DataType.f16,
-                DataType.f16,
-                DataType.f32,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-        "float16": [
-            MathInstruction(
-                [16, 8, 8],
-                DataType.f16,
-                DataType.f16,
-                DataType.f16,
-                OpcodeClass.TensorOp,
-                MathOperation.multiply_add,
-            )
-        ],
-    }[out_dtype]
+    assert out_dtype in ["float32", "float16", "int32"]
+    min_cc = 75
+    max_cc = 1024
 
-    alignment_constraints = [8, 4, 2, 1]
+    if arg0_dtype == "float16" and arg1_dtype == "float16":
+        math_instructions = [
+            MathInstruction(
+                [16, 8, 8],
+                DataType.f16,
+                DataType.f16,
+                dtype_map[out_dtype],
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add,
+            )
+        ]
+        alignment_constraints = [8, 4, 2, 1]
+        tile_descriptions = [
+            ([256, 128, 32], 2, [4, 2, 1], min_cc, max_cc),
+            ([128, 256, 32], 2, [2, 4, 1], min_cc, max_cc),
+            ([128, 128, 32], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 128, 32], 2, [2, 2, 1], min_cc, max_cc),
+            ([128, 64, 32], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 64, 32], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 128, 64], 2, [1, 2, 2], min_cc, max_cc),
+        ]
+
+    else:
+        assert out_dtype == "int32"
+        math_instructions = [
+            MathInstruction(
+                [8, 8, 16],
+                dtype_map[arg0_dtype],
+                dtype_map[arg1_dtype],
+                DataType.s32,
+                OpcodeClass.TensorOp,
+                MathOperation.multiply_add_saturate,
+            ),
+        ]
+        # TODO: Is this the only possible value?
+        alignment_constraints = [
+            16,
+        ]
+        tile_descriptions = [
+            ([256, 128, 64], 2, [4, 2, 1], min_cc, max_cc),
+            ([128, 256, 64], 2, [2, 4, 1], min_cc, max_cc),
+            ([128, 128, 64], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 256, 64], 2, [1, 4, 1], min_cc, max_cc),
+            ([256, 64, 64], 2, [4, 1, 1], min_cc, max_cc),
+            ([64, 128, 64], 2, [2, 2, 1], min_cc, max_cc),
+            ([128, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
+            ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
+        ]
 
     def get_tile_descriptions(math_inst):
-        min_cc = 75
-        max_cc = 1024
         return [
-            TileDescription([256, 128, 32], 2, [4, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 256, 32], 2, [2, 4, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([128, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 64, 32], 2, [2, 2, 1], math_inst, min_cc, max_cc),
-            TileDescription([64, 128, 64], 2, [1, 2, 2], math_inst, min_cc, max_cc),
+            TileDescription(threadblock_shape, stages, warp_count, math_inst, min_cc, max_cc)
+            for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
         ]
 
     return generate_tensor_op_common(
@@ -195,7 +220,12 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator)
             for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
         ]
 
-    sm75_kernels = []  # generate_sm75_tensor_op_1688(out_dtype, op_creator)
+    if arg0_dtype != "float32" and arg1_dtype != "float32":
+        sm75_kernels = generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator)
+    else:
+        # TF32 (float32 + float32 case) is only supported on sm80
+        sm75_kernels = []
+
     sm80_kernels = generate_tensor_op_common(
         math_instructions, alignment_constraints, get_tile_descriptions, op_creator
     )

@@ -235,7 +235,7 @@ def handle_conv2d(
 ):
     """Profile and select a kernel for conv2d op workload."""
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(op_type, out_dtype)
+        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype)
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:

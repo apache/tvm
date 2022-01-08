@@ -153,8 +153,10 @@ class CutlassConv2DProfiler:
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 
-    def get_default(self, op_type, out_dtype):
-        gemm_profile_result = self.gemm_profiler.get_default(op_type, out_dtype)
+    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype):
+        gemm_profile_result = self.gemm_profiler.get_default(
+            op_type, out_dtype, arg0_dtype, arg1_dtype
+        )
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
         data_type = gemm_profile_result["data_type"]
@@ -214,6 +216,7 @@ class CutlassConv2DProfiler:
             weight_dtype,
             op_creator=enumerate_conv2d_operators,
         )
+
         ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
 
         if profile_all:
