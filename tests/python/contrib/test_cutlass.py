@@ -182,7 +182,6 @@ def get_conv2d_nchw_bias_residual(d_shape, w_shape, padding, out_dtype="float16"
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False):
     mod = partition_for_cutlass(mod)
-    print(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
     )
