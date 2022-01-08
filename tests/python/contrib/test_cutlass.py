@@ -307,7 +307,7 @@ def verify_batch_matmul(
         print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
-M = 1024
+M = 1820
 N = 768
 K = 768
 
@@ -601,39 +601,6 @@ def test_conv2d_residual_block():
         (relay.nn.relu(hardswish(bias_add) + residual_input), 1e-3),
     ]:
         verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
-
-
-def test_conv2d_int8():
-    d_shape = (16, 16, 32, 32)
-    w_shape = (32, 16, 3, 3)
-    padding = (1, 1)
-
-    for data_dtype in ["int8", "uint8"]:
-        data = relay.var("data", shape=d_shape, dtype=data_dtype)
-        weight = relay.var("weight", shape=w_shape, dtype="int8")
-        out_channel = w_shape[0]
-        expr = relay.nn.conv2d(
-            data=data,
-            weight=weight,
-            kernel_size=w_shape[2:],
-            channels=out_channel,
-            padding=padding,
-            out_dtype="int32",
-        )
-
-        verify_conv2d(
-            expr,
-            expr,
-            d_shape,
-            w_shape,
-            sm=80,
-            atol=1e-5,
-            rtol=1e-5,
-            run_benchmark=False,
-            data_dtype=data_dtype,
-            weight_dtype="int8",
-            ref_target="llvm",
-        )
 
 
 if __name__ == "__main__":

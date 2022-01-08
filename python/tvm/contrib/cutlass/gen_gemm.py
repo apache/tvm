@@ -147,10 +147,10 @@ class CutlassGemmProfiler:
 
     def check_align(self, op_name, M, N, K):
         """Filter out kernels that cannot be supported."""
-        aligns = re.findall(r"align[1|2|4|8]", op_name)
-        assert len(aligns) == 1
+        match = re.match(".*_align([1-9]+)", op_name)
+        assert match is not None and len(match.groups()) == 1
         # The same alignment is used for all axes
-        align = int(aligns[0][-1])
+        align = int(match.groups()[0])
         # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
         # See https://github.com/NVIDIA/cutlass/issues/362.
         # When the above issue is resolved, we can remove the alignment check on M below.

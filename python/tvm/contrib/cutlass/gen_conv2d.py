@@ -167,9 +167,10 @@ class CutlassConv2DProfiler:
 
     def check_align(self, op_name, C, K):
         """Filter out kernels that cannot be supported."""
-        aligns = re.findall(r"align[1|2|4|8]", op_name)
-        assert len(aligns) == 1
-        align = int(aligns[0][-1])
+        match = re.match(".*_align([1-9]+)", op_name)
+        assert match is not None and len(match.groups()) == 1
+        # The same alignment is used for all axes
+        align = int(match.groups()[0])
         return all([dim % align == 0 for dim in [C, K]])
 
     def select_op(

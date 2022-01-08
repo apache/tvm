@@ -102,9 +102,8 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
                 MathOperation.multiply_add_saturate,
             ),
         ]
-        # TODO: Is this the only possible value?
         alignment_constraints = [
-            16,
+            16, 8, 4, 2, 1
         ]
         tile_descriptions = [
             ([256, 128, 64], 2, [4, 2, 1], min_cc, max_cc),
@@ -208,9 +207,8 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator)
                 MathOperation.multiply_add_saturate,
             ),
         ]
-        # TODO: Is this the only possible value?
         alignment_constraints = [
-            16,
+            16, 8, 4
         ]
         tile_descriptions = get_default_tile_descriptions(2)
 
