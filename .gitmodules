@@ -19,3 +19,4 @@
 [submodule "3rdparty/mlas"]
 	path = 3rdparty/mlas
 	url = https://github.com/ymwangg/mlas.git
+
