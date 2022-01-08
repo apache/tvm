@@ -68,7 +68,9 @@ def get_output_vm(vm, names, inputs):
     return vm.invoke("main", **params).numpy()
 
 
-def get_dense_with_shape(data_shape, weight_shape, out_dtype="float16", data_dtype="float16", weight_dtype="float16"):
+def get_dense_with_shape(
+    data_shape, weight_shape, out_dtype="float16", data_dtype="float16", weight_dtype="float16"
+):
     data = relay.var("data", shape=data_shape, dtype=data_dtype)
     weight = relay.var("weight", shape=weight_shape, dtype=weight_dtype)
     return relay.nn.dense(data, weight, out_dtype=out_dtype)
@@ -110,9 +112,11 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
-def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
-    data = relay.var("data", shape=d_shape, dtype="float16")
-    weight = relay.var("weight", shape=w_shape, dtype="float16")
+def get_conv2d_nchw(
+    d_shape, w_shape, padding, out_dtype="float16", data_dtype="float16", weight_dtype="float16"
+):
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
     out_channel = w_shape[0]
     return relay.nn.conv2d(
         data=data,
@@ -313,9 +317,18 @@ def test_dense():
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
     # Test align1 case
     verify_dense(get_dense_bias(M, N + 1, K), M, N + 1, K)
-    verify_dense(get_dense(M, N, K, "int32", "int8", "int8"), M, N, K, data_dtype="int8", weight_dtype="int8")
+    verify_dense(
+        get_dense(M, N, K, "int32", "int8", "int8"), M, N, K, data_dtype="int8", weight_dtype="int8"
+    )
     # Test 3xtf32 kernels
-    verify_dense(get_dense(M, N, K, "float32", "float32", "float32"), M, N, K, data_dtype="float32", weight_dtype="float32")
+    verify_dense(
+        get_dense(M, N, K, "float32", "float32", "float32"),
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+    )
 
 
 def test_dense_bias():
@@ -494,6 +507,34 @@ def test_conv2d():
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
 
+    for data_dtype, weight_dtype, out_dtype in [
+        ("float32", "float32", "float32"),  # 3xtf32
+        ("int8", "int8", "int32"),
+        ("uint8", "int8", "int32"),
+    ]:
+        expr = get_conv2d_nchw(
+            d_shape,
+            w_shape,
+            padding,
+            out_dtype=out_dtype,
+            data_dtype=data_dtype,
+            weight_dtype=weight_dtype,
+        )
+
+        verify_conv2d(
+            expr,
+            expr,
+            d_shape,
+            w_shape,
+            sm=80,
+            atol=1e-5,
+            rtol=1e-5,
+            run_benchmark=False,
+            data_dtype=data_dtype,
+            weight_dtype=weight_dtype,
+            ref_target="llvm",
+        )
+
 
 def test_conv2d_fusion():
     d_shape = (16, 16, 32, 32)
@@ -595,39 +636,5 @@ def test_conv2d_int8():
         )
 
 
-def test_conv2d_3xtf32():
-    d_shape = (16, 16, 32, 32)
-    w_shape = (32, 16, 3, 3)
-    padding = (1, 1)
-
-    data = relay.var("data", shape=d_shape, dtype="float32")
-    weight = relay.var("weight", shape=w_shape, dtype="float32")
-    out_channel = w_shape[0]
-    expr = relay.nn.conv2d(
-        data=data,
-        weight=weight,
-        kernel_size=w_shape[2:],
-        channels=out_channel,
-        padding=padding,
-        out_dtype="float32",
-    )
-
-    verify_conv2d(
-        expr,
-        expr,
-        d_shape,
-        w_shape,
-        sm=80,
-        atol=1e-5,
-        rtol=1e-5,
-        run_benchmark=False,
-        data_dtype="float32",
-        weight_dtype="float32",
-        ref_target="llvm",
-    )
-
-
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_dense()
-    # test_3xtf32()
+    pytest.main([__file__])
