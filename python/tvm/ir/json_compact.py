@@ -68,7 +68,7 @@ def create_updater_08_to_09():
     """
 
     def _initialize_virtual_device(item, _):
-        if ("virtual_device_" not in item["attrs"].keys()):
+        if "virtual_device_" not in item["attrs"].keys():
             item["attrs"]["virtual_device_"] = "0"
         return item
 

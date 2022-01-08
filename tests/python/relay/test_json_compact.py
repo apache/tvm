@@ -240,6 +240,7 @@ def test_irmodule_attributes():
 
 # 0.8 BACKWARDS COMPATIBILITY TESTS
 
+
 def test_virtual_device():
     nodes = [
         {"type_key": ""},
@@ -267,12 +268,6 @@ def test_virtual_device():
     assert isinstance(func, relay.Function)
     assert not func.virtual_device_
 
-
-# add module attributes and virtual device test
-
-# BACKWARD COMPAT WITH 0.8 TESTS
-
-# add test module attrs and test virtual device
 
 if __name__ == "__main__":
     test_op()
