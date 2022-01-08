@@ -1019,7 +1019,11 @@ namespace group3 {
 
 /*! \brief Group 3 feature */
 struct Feature {
-  /*! \brief See https://en.wikipedia.org/wiki/Roofline_model for details */
+  /*!
+   * \brief See the wiki page [1] for details
+   *
+   * [1] https://en.wikipedia.org/wiki/Roofline_model
+   */
   std::vector<double> arith_intensity_curve;
 
   void Export(std::vector<double>* v) const {
