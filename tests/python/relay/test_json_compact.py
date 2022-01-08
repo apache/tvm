@@ -263,8 +263,7 @@ def test_virtual_device():
         "attrs": {"tvm_version": "0.8.0"},
         "b64ndarrays": [],
     }
-    dump = json.dumps(data)
-    func = tvm.ir.load_json(dump)
+    func = tvm.ir.load_json(json.dumps(data))
     assert isinstance(func, relay.Function)
     assert not func.virtual_device_
 
