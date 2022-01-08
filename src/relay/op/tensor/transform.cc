@@ -38,6 +38,7 @@
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/transform.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -704,9 +705,17 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     data_shape_sum *= Downcast<tvm::Integer>(x)->value;
   }
-  if (!found_dynamic) {
+  if (!found_dynamic && oshape_sum != data_shape_sum) {
+    std::ostringstream oshape_str, data_shape_str;
+    for (auto iter = oshape.begin(); iter != oshape.end(); iter++) {
+      oshape_str << (iter != oshape.begin() ? "," : "") << *iter;
+    }
+    for (auto iter = data_shape.begin(); iter != data_shape.end(); iter++) {
+      data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
+    }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape and reshaped shape are not compatible";
+        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
+        << data_shape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
