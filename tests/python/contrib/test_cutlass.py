@@ -392,6 +392,7 @@ def verify_conv2d(
     use_fast_math=False,
     data_dtype="float16",
     weight_dtype="float16",
+    ref_target="cuda",
 ):
     if not has_cutlass():
         return
@@ -436,7 +437,7 @@ def verify_conv2d(
         rt_mod_ref, dev = get_ref_rt_mod(
             convert_conv2d_layout(mod_ref, {"nn.conv2d": ["NHWC", "HWIO"]}),
             params,
-            target="cuda",
+            target=ref_target,
         )
 
     ref_out = get_output(rt_mod_ref, ["data"], [np_data])
@@ -575,6 +576,7 @@ def test_int8():
         run_benchmark=False,
         data_dtype="int8",
         weight_dtype="int8",
+        ref_target="llvm",
     )
 
 
@@ -610,4 +612,5 @@ def test_3xtf32():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    # pytest.main([__file__])
+    test_int8()
