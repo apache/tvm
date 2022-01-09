@@ -125,7 +125,7 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator):
+def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator, use_3xtf32=True):
     """Generate GEMM or Conv2D kernels for Ampere."""
     min_cc = 80
     max_cc = 1024
@@ -174,25 +174,29 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator)
                 DataType.f32,
                 DataType.f32,
                 OpcodeClass.TensorOp,
-                MathOperation.multiply_add_fast_f32,
+                MathOperation.multiply_add_fast_f32 if use_3xtf32 else MathOperation.multiply_add,
             ),
         ]
         alignment_constraints = [4, 2, 1]
-        tile_descriptions = [
-            ([128, 128, 16], 4, [4, 2, 1], min_cc, max_cc),
-            ([128, 128, 16], 3, [4, 2, 1], min_cc, max_cc),
-            ([256, 64, 16], 3, [4, 2, 1], min_cc, max_cc),
-            ([64, 256, 16], 3, [2, 4, 1], min_cc, max_cc),
-            ([128, 64, 16], 4, [2, 2, 1], min_cc, max_cc),
-            ([64, 128, 16], 4, [2, 2, 1], min_cc, max_cc),
-            ([64, 64, 16], 3, [2, 2, 1], min_cc, max_cc),
-            ([128, 128, 32], 3, [4, 2, 1], min_cc, max_cc),
-            ([256, 64, 32], 3, [4, 2, 1], min_cc, max_cc_smem_limited),
-            ([64, 256, 32], 3, [2, 4, 1], min_cc, max_cc_smem_limited),
-            ([128, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
-            ([64, 128, 32], 3, [2, 2, 1], min_cc, max_cc),
-            ([64, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
-        ]
+
+        if use_3xtf32:
+            tile_descriptions = [
+                ([128, 128, 16], 4, [4, 2, 1], min_cc, max_cc),
+                ([128, 128, 16], 3, [4, 2, 1], min_cc, max_cc),
+                ([256, 64, 16], 3, [4, 2, 1], min_cc, max_cc),
+                ([64, 256, 16], 3, [2, 4, 1], min_cc, max_cc),
+                ([128, 64, 16], 4, [2, 2, 1], min_cc, max_cc),
+                ([64, 128, 16], 4, [2, 2, 1], min_cc, max_cc),
+                ([64, 64, 16], 3, [2, 2, 1], min_cc, max_cc),
+                ([128, 128, 32], 3, [4, 2, 1], min_cc, max_cc),
+                ([256, 64, 32], 3, [4, 2, 1], min_cc, max_cc_smem_limited),
+                ([64, 256, 32], 3, [2, 4, 1], min_cc, max_cc_smem_limited),
+                ([128, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
+                ([64, 128, 32], 3, [2, 2, 1], min_cc, max_cc),
+                ([64, 64, 32], 3, [2, 2, 1], min_cc, max_cc),
+            ]
+        else:
+            tile_descriptions = get_default_tile_descriptions(0.5)
     else:
         assert out_dtype == "int32"
         math_instructions = [

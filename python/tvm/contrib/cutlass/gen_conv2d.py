@@ -153,9 +153,9 @@ class CutlassConv2DProfiler:
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 
-    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype):
+    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32):
         gemm_profile_result = self.gemm_profiler.get_default(
-            op_type, out_dtype, arg0_dtype, arg1_dtype
+            op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32
         )
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
@@ -183,6 +183,7 @@ class CutlassConv2DProfiler:
         out_dtype,
         data_dtype,
         weight_dtype,
+        use_3xtf32,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -212,10 +213,7 @@ class CutlassConv2DProfiler:
             return self.cache[workload]
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype,
-            data_dtype,
-            weight_dtype,
-            op_creator=enumerate_conv2d_operators,
+            out_dtype, data_dtype, weight_dtype, enumerate_conv2d_operators, use_3xtf32
         )
 
         ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
@@ -250,6 +248,7 @@ class CutlassConv2DProfiler:
         out_dtype,
         data_dtype,
         weight_dtype,
+        use_3xtf32=True,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -266,6 +265,7 @@ class CutlassConv2DProfiler:
             out_dtype,
             data_dtype,
             weight_dtype,
+            use_3xtf32,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )

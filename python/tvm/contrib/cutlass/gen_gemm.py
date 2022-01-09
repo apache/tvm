@@ -157,12 +157,14 @@ class CutlassGemmProfiler:
         # When the above issue is resolved, we can remove the alignment check on M below.
         return all([dim % align == 0 for dim in [M, N, K]])
 
-    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, batched=False):
+    def get_default(
+        self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32=True, batched=False
+    ):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, arg0_dtype, arg1_dtype, op_creator=enumerate_gemm_operators
+            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32
         )
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
@@ -187,6 +189,7 @@ class CutlassGemmProfiler:
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        use_3xtf32,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -202,7 +205,8 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
-            op_creator=enumerate_gemm_operators,
+            enumerate_gemm_operators,
+            use_3xtf32=use_3xtf32,
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
@@ -229,6 +233,7 @@ class CutlassGemmProfiler:
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        use_3xtf32=True,
         profile_all=True,
         use_multiprocessing=False,
         batched=False,
@@ -244,6 +249,7 @@ class CutlassGemmProfiler:
             out_dtype,
             arg0_dtype,
             arg1_dtype,
+            use_3xtf32,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )

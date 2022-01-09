@@ -102,6 +102,7 @@ def select_gemm_kernel(
     out_dtype,
     arg0_dtype,
     arg1_dtype,
+    use_3xtf32,
     batched,
     profile_all,
     use_multiprocessing,
@@ -110,7 +111,7 @@ def select_gemm_kernel(
     workloads."""
     if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
         out = cutlass_profiler.get_default(
-            op_type, out_dtype, arg0_dtype, arg1_dtype, batched=batched
+            op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32, batched=batched
         )
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
@@ -123,6 +124,7 @@ def select_gemm_kernel(
             out_dtype,
             arg0_dtype,
             arg1_dtype,
+            use_3xtf32,
             batched=batched,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
@@ -143,6 +145,7 @@ def handle_batch_matmul(
     out_dtype,
     arg0_dtype,
     arg1_dtype,
+    use_3xtf32,
     profile_all,
     use_multiprocessing,
 ):
@@ -160,6 +163,7 @@ def handle_batch_matmul(
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        use_3xtf32,
         True,
         profile_all,
         use_multiprocessing,
@@ -186,6 +190,7 @@ def handle_dense(
     out_dtype,
     arg0_dtype,
     arg1_dtype,
+    use_3xtf32,
     profile_all,
     use_multiprocessing,
 ):
@@ -203,6 +208,7 @@ def handle_dense(
         out_dtype,
         arg0_dtype,
         arg1_dtype,
+        use_3xtf32,
         False,
         profile_all,
         use_multiprocessing,
@@ -230,12 +236,13 @@ def handle_conv2d(
     out_dtype,
     data_dtype,
     weight_dtype,
+    use_3xtf32,
     profile_all,
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype)
+        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32)
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
@@ -249,6 +256,7 @@ def handle_conv2d(
             out_dtype,
             data_dtype,
             weight_dtype,
+            use_3xtf32,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )
@@ -263,7 +271,9 @@ def handle_conv2d(
     }
 
 
-def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"):
+def tune_cutlass_kernels(
+    mod, sm, use_3xtf32=True, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
+):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
 
@@ -331,6 +341,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         out_dtype,
                         arg0_dtype,
                         arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )
@@ -345,6 +356,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         out_dtype,
                         arg0_dtype,
                         arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )
@@ -359,6 +371,7 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         out_dtype,
                         arg0_dtype,
                         arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )
