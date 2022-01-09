@@ -17,6 +17,32 @@
  * under the License.
  */
 
-pub mod nn;
-pub mod reduce;
-pub mod transform;
+use crate::ir::attrs::BaseAttrsNode;
+use crate::ir::PrimExpr;
+use crate::runtime::array::Array;
+use tvm_macros::Object;
+
+type IndexExpr = PrimExpr;
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "ReduceAttrs"]
+#[type_key = "relay.attrs.ReduceAttrs"]
+pub struct ReduceAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: Array<IndexExpr>,
+    pub keepdims: bool,
+    pub exclude: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "VarianceAttrs"]
+#[type_key = "relay.attrs.ReduceAttrs"]
+pub struct VarianceAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: Array<IndexExpr>,
+    pub keepdims: bool,
+    pub exclude: bool,
+    pub unbiased: bool,
+}

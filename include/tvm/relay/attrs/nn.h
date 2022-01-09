@@ -1232,7 +1232,7 @@ struct UpSampling3DAttrs : public tvm::AttrsNode<UpSampling3DAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Array<Integer>> pad_width;
-  std::string pad_mode;
+  tvm::String pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
     TVM_ATTR_FIELD(pad_width).describe(
