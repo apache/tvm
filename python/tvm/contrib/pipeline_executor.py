@@ -717,13 +717,13 @@ class PipelineExecutorFactoryModule(object):
             )
 
             # Get the graph, lib, and parameters from GraphExecutorFactoryModule.
-            graph, lib, params = self.pipeline_mods[lib_index]["lib"]
+            lib = self.pipeline_mods[lib_index]["lib"]
             # Export the lib, graph, and parameters to disk.
             lib.export_library(mconfig["lib_name"])
             with open(mconfig["json_name"], "w") as file_handle:
-                file_handle.write(graph)
+                file_handle.write(lib.graph_json)
             with open(mconfig["params_name"], "wb") as file_handle:
-                file_handle.write(relay.save_param_dict(params))
+                file_handle.write(relay.save_param_dict(lib.params))
 
             load_config.append(mconfig)
 
