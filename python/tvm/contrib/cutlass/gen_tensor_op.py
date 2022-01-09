@@ -227,6 +227,15 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
     sm80_kernels = generate_tensor_op_common(
         math_instructions, alignment_constraints, get_tile_descriptions, op_creator
     )
+
+    # TODO(masahi): For int8 kernels, The CUTLASS generator modifies the output tensor alignment
+    # after ops are created. Revisit how important this modification is.
+    # for op in operations:
+    #     if op.tile_description.threadblock_shape[1] >= 128:
+    #         op.C.alignment = 16
+    #     else:
+    #         op.C.alignment = 8
+
     return sm75_kernels + sm80_kernels
 
 
