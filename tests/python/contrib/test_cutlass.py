@@ -180,10 +180,17 @@ def get_conv2d_nchw_bias_residual(d_shape, w_shape, padding, out_dtype="float16"
     return bias_add, data
 
 
-def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False):
+def profile_and_build(
+    mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False, use_3xtf32=True
+):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+        mod,
+        sm,
+        use_3xtf32=use_3xtf32,
+        profile_all=False,
+        use_multiprocessing=False,
+        tmp_dir=tmp_dir,
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -201,9 +208,12 @@ def profile_and_build_vm(
     lib_path="compile.so",
     vmcode_path="vmcode.ro",
     use_fast_math=False,
+    use_3xtf32=True,
 ):
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = tune_cutlass_kernels(mod, sm, tmp_dir=tmp_dir)
+    mod, num_cutlass_partition = tune_cutlass_kernels(
+        mod, sm, use_3xtf32=use_3xtf32, tmp_dir=tmp_dir
+    )
     with tvm.transform.PassContext(opt_level=3):
         vm_exec = relay.vm.compile(mod, target="cuda", params=params)
     vm_exec = build_cutlass_kernels_vm(
@@ -225,6 +235,7 @@ def verify_dense(
     run_benchmark=False,
     data_dtype="float16",
     weight_dtype="float16",
+    use_3xtf32=True,
 ):
     if not has_cutlass():
         return
@@ -249,7 +260,9 @@ def verify_dense(
             )
             return
         else:
-            rt_mod, dev, num_partition = profile_and_build_vm(mod, params, sm)
+            rt_mod, dev, num_partition = profile_and_build_vm(
+                mod, params, sm, use_3xtf32=use_3xtf32
+            )
 
         rt_mod_ref, dev = get_ref_vm(mod, params, target=ref_target)
         x = tvm.nd.array(np_data, device=dev)
@@ -257,7 +270,7 @@ def verify_dense(
         ref_out = get_output_vm(rt_mod_ref, ["data"], [x])
     else:
         rt_mod_ref, dev = get_ref_rt_mod(mod, params, target=ref_target)
-        rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
+        rt_mod, dev, num_partition = profile_and_build(mod, params, sm, use_3xtf32=use_3xtf32)
         x = tvm.nd.array(np_data, device=dev)
         out = get_output(rt_mod, ["data"], [x])
         ref_out = get_output(rt_mod_ref, ["data"], [x])
@@ -316,12 +329,27 @@ def test_dense():
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
     # Test align1 case
     verify_dense(get_dense_bias(M, N + 1, K), M, N + 1, K)
+    # int8
     verify_dense(
         get_dense(M, N, K, "int32", "int8", "int8"), M, N, K, data_dtype="int8", weight_dtype="int8"
     )
-    # Test 3xtf32 kernels
+
+    dense_fp32 = get_dense(M, N, K, "float32", "float32", "float32")
+    # tf32
     verify_dense(
-        get_dense(M, N, K, "float32", "float32", "float32"),
+        dense_fp32,
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_3xtf32=False,
+        atol=1e-2,
+        rtol=1e-2,
+    )
+    # 3xtf32
+    verify_dense(
+        dense_fp32,
         M,
         N,
         K,
