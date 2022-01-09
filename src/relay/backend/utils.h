@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -44,23 +45,26 @@
 
 namespace tvm {
 namespace relay {
-namespace transform {
-Pass InlinePrimitives();
+
+namespace tec {
+class TECompiler;
 }
 
 namespace backend {
 using Pass = tvm::transform::Pass;
 
 /*!
- * \brief The static storage information produced by memory planning.
+ * \brief The static storage information for each Tensor in the result of a Relay expression
+ * (as per relay::FlattenTupleType).
  */
 class StorageInfoNode : public Object {
  public:
+  // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The type of "virtual devices" these expressions are stored on. */
-  std::vector<DLDeviceType> device_types;
-  /* \brief The sizes of each storage element. */
+  /* \brief The virtual devices these expressions are stored within. */
+  std::vector<VirtualDevice> virtual_devices;
+  /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
   // TODO(@jroesch): expose the fields
@@ -73,7 +77,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<VirtualDevice> virtual_devices,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
@@ -182,8 +186,10 @@ struct ConstantUpdater : public ExprVisitor {
  * \param func The function from which to get the constant params.
  * \param params The params to update with the constants.
  */
-inline void UpdateConstants(Function func,
+inline void UpdateConstants(BaseFunc func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -205,6 +211,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
@@ -317,7 +326,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -380,7 +389,6 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * "nn.relu"}
  * \return A CallNode corresponding to the root op, whose name is expected_op_names[0]
  */
-
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
   ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
@@ -394,6 +402,24 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
+}
+
+/*!
+ * \brief Retrieve the "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * Unlike the previous definition, it does not verify operator names of intermediate nodes. Instead,
+ * it recursively visit child nodes until it finds a call node with the given op_name.
+ * \param call A Relay call node.
+ * \param op_name The name of an op to look for, such as ""nn.conv2d".
+ * \return A CallNode corresponding to the root op with the given op_name
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, const std::string& op_name) {
+  if (current_call == nullptr) return nullptr;
+  if (IsOp(current_call, op_name)) return current_call;
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  const auto* next_call = current_call->args[0].as<CallNode>();
+  return GetRootCall(next_call, op_name);
 }
 
 /*!
@@ -418,11 +444,11 @@ inline bool IsAutoSchedulerEnabled() {
 }
 
 /*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
+ * \brief Return whether the meta schedule is enabled in the pass context.
  */
-inline bool IsCompileEngineCacheDisabled() {
+inline bool IsMetaScheduleEnabled() {
   return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
+      ->GetConfig<Bool>("relay.backend.use_meta_schedule", Bool(false))
       .value();
 }
 
@@ -432,11 +458,11 @@ inline bool IsCompileEngineCacheDisabled() {
  * difference. This function unifies the shared optimization pass prefix between vm and graph
  * runtime, and returns the pass prefix given the backend type.
  *
- * \param targets The device type to `Target` mapping.
- * \param is_vm A boolean indicating if the passes are used for vm or graph runtime.
+ * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_vm True if passes are to be used for the vm executor.
  * \return An array of passes.
  */
-Array<Pass> GetPassPrefix(const Map<tvm::Integer, tvm::Target>& targets, bool is_vm);
+Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 
 /*! \brief Target hash function */
 struct TargetStrHash {
@@ -491,6 +517,15 @@ TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
  */
 Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
     std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*!
+ * \brief Call "weight update callback" to communicate op weights seen during Relay module
+ * lowering back to the auto scheduler.
+ * Op weights refer to the number of times each distinct op/workload appears in a given module.
+ * It is called "use_count" in TECompiler.
+ * \param IRModule after lowering by LowerTEPass.
+ */
+void UpdateAutoSchedulerOpWeights(const IRModule& module);
 
 }  // namespace backend
 }  // namespace relay

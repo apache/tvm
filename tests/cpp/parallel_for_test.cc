@@ -22,6 +22,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/support/parallel_for.h>
 
+#include <thread>
 #include <vector>
 
 TEST(ParallelFor, Basic) {
@@ -90,7 +91,7 @@ TEST(ParallelFor, NestedWithNormalForLoop) {
   }
 }
 
-TEST(Parallelfor, NestedWithParallelFor) {
+TEST(ParallelFor, NestedWithParallelFor) {
   // Currently do not support using nested parallel_for
   using tvm::support::parallel_for;
 
@@ -113,6 +114,45 @@ TEST(ParallelFor, Exception) {
   bool exception = false;
   try {
     parallel_for(0, 100, [](int i) { LOG(FATAL) << "error"; });
+  } catch (const std::exception& e) {
+    exception = true;
+  }
+  ICHECK(exception);
+}
+
+TEST(ParallelForDynamic, Basic) {
+  using tvm::support::parallel_for_dynamic;
+  int a[1000];
+  int num_threads = std::thread::hardware_concurrency();
+  parallel_for_dynamic(0, 1000, num_threads, [&a](int thread_id, int i) { a[i] = i; });
+  for (int i = 0; i < 1000; i++) {
+    ICHECK_EQ(a[i], i);
+  }
+}
+
+TEST(ParallelForDynamic, ExceptionOnMain) {
+  using tvm::support::parallel_for_dynamic;
+  int num_threads = 1;
+  bool exception = false;
+  try {
+    parallel_for_dynamic(0, 10, num_threads, [](int thread_id, int task_id) {
+      if (thread_id == 0) {
+        LOG(FATAL) << "Error";
+      }
+    });
+  } catch (const std::exception& e) {
+    exception = true;
+  }
+  ICHECK(exception);
+}
+
+TEST(ParallelForDynamic, ExceptionOnArbitrary) {
+  using tvm::support::parallel_for_dynamic;
+  int num_threads = 3;
+  bool exception = false;
+  try {
+    parallel_for_dynamic(0, 100, num_threads,
+                         [](int thread_id, int task_id) { LOG(FATAL) << "Error"; });
   } catch (const std::exception& e) {
     exception = true;
   }

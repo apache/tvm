@@ -273,6 +273,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
       return make_const(t, op->value, op->span);
     }
+    ICHECK(!value.dtype().is_handle()) << "Can't cast a handle to other types.";
     return tir::Cast(t, value, span);
   } else {
     if (value.dtype().lanes() == 1) {

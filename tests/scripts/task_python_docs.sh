@@ -25,6 +25,8 @@ source tests/scripts/setup-pytest-env.sh
 # to avoid CI CPU thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=4
+IS_LOCAL=${IS_LOCAL:-0}
+PYTHON_DOCS_ONLY=${PYTHON_DOCS_ONLY:-0}
 
 cleanup()
 {
@@ -34,19 +36,18 @@ trap cleanup 0
 
 # cleanup old states
 rm -rf docs/_build
+rm -rf docs/_staging
 mkdir -p docs/_build/html
+mkdir -p docs/_staging/html
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
 
 # prepare auto scheduler tutorials
-rm -rf tutorials/auto_scheduler/*.json
-rm -rf tutorials/get_started/*.json
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/auto_scheduler
-cp -f tutorials/auto_scheduler/ci_logs/*.json tutorials/get_started
+rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
+rm -rf gallery/tutorial/*.json
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
+cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
 
-# remove stale tutorials and always build from scratch.
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
@@ -54,15 +55,22 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=`pwd`/../python make html |& tee /tmp/$$.log.txt
+PYTHONPATH=`pwd`/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1
 fi
 cd ..
 
+if [ "$IS_LOCAL" == "1" ] && [ "$PYTHON_DOCS_ONLY" == "1" ]; then
+    echo "PYTHON_DOCS_ONLY was set, skipping other doc builds"
+    rm -rf _docs
+    mv docs/_build/html _docs
+    exit 0
+fi
+
 # C++ doc
-make doc
+make cppdoc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 
 # Java doc
@@ -84,16 +92,18 @@ cd ..
 rm -rf _docs
 mv docs/_build/html _docs
 rm -f _docs/.buildinfo
-mkdir -p _docs/api
-mv docs/doxygen/html _docs/api/doxygen
-mv jvm/core/target/site/apidocs _docs/api/javadoc
+mkdir -p _docs/reference/api
+mv docs/doxygen/html _docs/reference/api/doxygen
+mv jvm/core/target/site/apidocs _docs/reference/api/javadoc
 # mv rust/target/doc _docs/api/rust
-mv web/dist/docs _docs/api/typedoc
+mv web/dist/docs _docs/reference/api/typedoc
 
-echo "Start creating the docs tarball.."
-# make the tarball
-tar -C _docs -czf docs.tgz .
-echo "Finish creating the docs tarball"
-du -h docs.tgz
+if [ "$IS_LOCAL" != "1" ]; then
+    echo "Start creating the docs tarball.."
+    # make the tarball
+    tar -C _docs -czf docs.tgz .
+    echo "Finish creating the docs tarball"
+    du -h docs.tgz
 
-echo "Finish everything"
+    echo "Finish everything"
+fi

@@ -411,6 +411,7 @@ class IRBuilder(object):
         scope : str, optional
             The scope of the buffer.
 
+
         Returns
         -------
         buffer : BufferVar

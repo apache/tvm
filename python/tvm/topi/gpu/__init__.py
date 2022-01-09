@@ -18,3 +18,4 @@
 # pylint: disable=redefined-builtin, wildcard-import
 """GPU specific declaration and schedules."""
 from .dense import *
+from .conv2d import *

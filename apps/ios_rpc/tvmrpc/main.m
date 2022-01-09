@@ -23,8 +23,10 @@
 
 #import <UIKit/UIKit.h>
 #import "AppDelegate.h"
+#import "RPCArgs.h"
 
 int main(int argc, char * argv[]) {
+    update_rpc_args(argc, argv);
     @autoreleasepool {
         return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
     }

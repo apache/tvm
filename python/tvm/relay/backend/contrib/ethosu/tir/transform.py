@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the transform operators in TIR."""
+"""Extract parameters from the transform operators in TIR."""
 import tvm
 from .spec import SerialCopy
 from .utils import get_base_address, get_op_attrs
@@ -41,7 +41,11 @@ def get_copy_params(stmt, producers, consumers):
         The parameters needed to construct a copy.
     tvm.tir.Var
         The output pointer of the copy operation.
-
+    replace_pointer : tvm.tir.Var
+        The output pointer of the DMA write operation, which is to replace
+        the convolution output pointer.
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     _, body = get_op_attrs(stmt)
     length = body.extent
@@ -58,4 +62,5 @@ def get_copy_params(stmt, producers, consumers):
         ),
         write_store.buffer_var,
         None,
+        True,
     )

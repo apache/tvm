@@ -624,6 +624,9 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
    *   - Copy the buffer with the consumed region.
    */
 
+  // Step 0. Check the input storage scope.
+  CheckStorageScope(self, storage_scope);
+
   // Step 1. Check index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer read_buffer =
@@ -692,6 +695,10 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
    *   - Find the lowest ancestor of the block and ANY ONE of the producer blocks.
    *   - Copy the buffer with the consumed region.
    */
+
+  // Step 0. Check the input storage scope.
+  CheckStorageScope(self, storage_scope);
+
   // Step 1. Checking index, getting the target buffer and the parent scope
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer write_buffer =

@@ -16,84 +16,118 @@
 # under the License.
 import pytest
 import tvm
-from tvm import tir, script
+from tvm import tir
+from tvm.script import tir as T
 from tvm.ir import Range
 
 
-@tvm.script.tir
+@T.prim_func
 def func() -> None:
-    A = tir.alloc_buffer((128, 128), "float32")
-    B = tir.alloc_buffer((128, 128), "float32")
-    C = tir.alloc_buffer((128, 128), "float32")
-    D = tir.alloc_buffer((128, 128), "float32")
-    with tir.block([]):
+    A = T.alloc_buffer((128, 128), "float32")
+    B = T.alloc_buffer((128, 128), "float32")
+    C = T.alloc_buffer((128, 128), "float32")
+    D = T.alloc_buffer((128, 128), "float32")
+    with T.block():
         # Need add read/write region manually to avoid triggering block access region detector
-        tir.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
-        tir.writes([A[0:12, 0:12]])
-        for i, j in tir.grid(8, 8):
+        T.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
+        T.writes([A[0:12, 0:12]])
+        for i, j in T.grid(8, 8):
             A[i, j] = B[0, 0] + C[0, 0]
-        with tir.block([2, 2]) as [vi, vj]:
-            tir.reads([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8], C[12:16, 12:16]])
-            tir.writes([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8]])
-            for i, j in tir.grid(4, 4):
-                A[vi * 4 + 4 + i, vj * 4 + 4 + j] += C[i + 12, j + 12]
-        tir.evaluate(D.data)
+        for i, j in T.grid(2, 2):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.reads([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8], C[12:16, 12:16]])
+                T.writes([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8]])
+                for i, j in T.grid(4, 4):
+                    A[vi * 4 + 4 + i, vj * 4 + 4 + j] += C[i + 12, j + 12]
+        T.evaluate(D.data)
 
 
-@tvm.script.tir
+@T.prim_func
 def match_buffer_func() -> None:
-    with tir.block([], "root"):
-        A = tir.alloc_buffer((128, 128), "float32")
-        B = tir.alloc_buffer((128, 128), "float32")
-        tir.reads([])
-        tir.writes([])
+    with T.block("root"):
+        A = T.alloc_buffer((128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32")
+        T.reads([])
+        T.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
-        with tir.block([8, 8], "block") as [vi, vj]:
-            tir.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
-            tir.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-            AA = tir.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
-            B0 = tir.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-            B1 = tir.match_buffer(B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8))
-            with tir.block([16, 16], "AAA") as [i, j]:
-                tir.reads([])
-                tir.writes(AA[i, j])
-                AAA = tir.match_buffer(AA[i, j], ())
-                AAA[()] = 1.0
-            tir.evaluate(B0.data)
-            tir.evaluate(B1.data)
+        for i, j in T.grid(8, 8):
+            with T.block("block"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
+                T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                AA = T.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
+                B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
+                B1 = T.match_buffer(
+                    B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8)
+                )
+                for ii, jj in T.grid(16, 16):
+                    with T.block("AAA"):
+                        vii, vjj = T.axis.remap("SS", [ii, jj])
+                        T.reads([])
+                        T.writes(AA[vii, vjj])
+                        AAA = T.match_buffer(AA[vii, vjj], ())
+                        AAA[()] = 1.0
+                T.evaluate(B0.data)
+                T.evaluate(B1.data)
 
 
-@tvm.script.tir
+@T.prim_func
 def opaque_block_func() -> None:
-    with tir.block([], "root"):
-        A = tir.alloc_buffer((16, 16), "float32")
-        B = tir.alloc_buffer((16, 16), "float32")
-        tir.reads([])
-        tir.writes([])
+    with T.block("root"):
+        A = T.alloc_buffer((16, 16), "float32")
+        B = T.alloc_buffer((16, 16), "float32")
+        T.reads([])
+        T.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
         for i in range(0, 16):
-            with tir.block([]):
-                tir.reads(A[i, 0:16])
-                tir.writes([B[i, 0:16]])
+            with T.block():
+                T.reads(A[i, 0:16])
+                T.writes([B[i, 0:16]])
                 for j in range(0, 16):
-                    with tir.block([]):
-                        tir.reads(A[i, j])
-                        tir.writes(B[i, j])
+                    with T.block():
+                        T.reads(A[i, j])
+                        T.writes(B[i, j])
                         B[i, j] = A[i, j] + 1.0
 
 
-@tvm.script.tir
+@T.prim_func
 def opaque_access_func() -> None:
-    A = tir.alloc_buffer([1024])
-    B = tir.alloc_buffer([1024])
-    for i in tir.serial(0, 8):
-        with tir.block([8]) as [v]:
-            tir.bind(v, i)
-            tir.reads([A[v * 128 : v * 128 + 128]])
-            tir.writes([B[v * 128 : v * 128 + 128]])
-            tir.evaluate(
-                tir.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
+    A = T.alloc_buffer([1024])
+    B = T.alloc_buffer([1024])
+    for i in T.serial(0, 8):
+        with T.block():
+            v = T.axis.S(8, i)
+            T.reads([A[v * 128 : v * 128 + 128]])
+            T.writes([B[v * 128 : v * 128 + 128]])
+            T.evaluate(
+                T.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
             )
+
+
+@T.prim_func
+def access_in_if_then_else_func() -> None:
+    A = T.alloc_buffer([8])
+    B = T.alloc_buffer([8])
+    with T.block():
+        T.reads([A[0:5]])
+        T.writes([B[0:8]])
+        for i in T.serial(0, 8):
+            B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
+
+
+@T.prim_func
+def access_in_branch_func() -> None:
+    A = T.alloc_buffer([8])
+    B = T.alloc_buffer([8])
+    with T.block():
+        T.reads([A[0:7]])
+        T.writes([B[0:8]])
+        for i in T.serial(0, 8):
+            if i < 5:
+                B[i] = A[i] + 1.0
+            else:
+                B[i] = A[i - 1]
 
 
 def test_block_access_region_detector():
@@ -166,8 +200,30 @@ def test_match_buffer():
     tvm.ir.assert_structural_equal(block_inner.writes, ret[1])
 
 
+def test_access_in_if_then_else_func():
+    block = access_in_if_then_else_func.body.block.body.block
+    alloc_buffers = access_in_if_then_else_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
+    ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+    tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
+def test_access_in_branch_func():
+    block = access_in_branch_func.body.block.body.block
+    alloc_buffers = access_in_branch_func.body.block.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+    ret0 = tir.analysis.get_block_read_write_region(block, buffer_var_map)
+    ret1 = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(ret0[0], ret1[0])
+    tvm.ir.assert_structural_equal(ret0[1], ret1[1])
+
+
 if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
     test_opaque_access()
     test_match_buffer()
+    test_access_in_if_then_else_func()
+    test_access_in_branch_func()

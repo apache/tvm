@@ -35,6 +35,8 @@ from tvm.contrib.nvcc import have_fp16
 import pytest
 
 sys.setrecursionlimit(10000)
+torch.backends.cuda.matmul.allow_tf32 = False
+torch.backends.cudnn.allow_tf32 = False
 
 
 def list_ops(expr):
@@ -210,7 +212,10 @@ def verify_model(
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
-        for target, dev in tvm.testing.enabled_targets():
+        for target in ["llvm", "cuda"]:
+            if not tvm.runtime.enabled(target):
+                continue
+            dev = tvm.device(target, 0)
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_executor.create(relay_graph, relay_lib, dev)
             relay_model.set_input(**relay_params)
@@ -240,6 +245,53 @@ def verify_model(
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
+
+
+def verify_span(model_name, input_data=[], custom_convert_map={}):
+    if isinstance(model_name, str):
+        baseline_model, baseline_input = load_model(model_name)
+    elif isinstance(input_data, list):
+        baseline_model = model_name
+        baseline_input = input_data
+    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
+        baseline_model = model_name
+        baseline_input = [input_data]
+    else:
+        assert False, "Unexpected input format"
+
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
+    if isinstance(baseline_model, torch.nn.Module):
+        trace = trace.float().eval()
+
+        if torch.cuda.is_available():
+            trace = trace.cuda()
+        else:
+            trace = trace.cpu()
+
+    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+
+    # collect fail cases for the convenience of further improvement
+    fail_cases = []
+    mod_main_start = False
+    for line in str(mod.__str__).split("\n"):
+        if "@main" in line:
+            mod_main_start = True
+            continue
+
+        if mod_main_start == True:
+            if "}" == line:
+                break
+            elif not ("/*" in line and "*/" in line):
+                fail_cases.append(line)
+
+    print(fail_cases)
+    assert len(fail_cases) == 0
+
+
+def test_span():
+    verify_span("resnet18")
 
 
 # Single operator tests
@@ -735,12 +787,29 @@ def test_forward_log_sigmoid():
 
 
 @tvm.testing.uses_gpu
-def test_forward_adaptiveavgpool():
+def test_forward_adaptive_avgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AdaptiveAvgPool2d([1, 1]).eval(), input_data=input_data)
     verify_model(torch.nn.AdaptiveAvgPool2d([10, 10]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 10]).float()
+    verify_model(torch.nn.AdaptiveAvgPool1d([1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool1d([5]).eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
+def test_forward_adaptive_maxpool():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AdaptiveMaxPool2d([1, 1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveMaxPool2d([10, 10]).eval(), input_data=input_data)
+
+    input_data = torch.rand([1, 3, 10]).float()
+    verify_model(torch.nn.AdaptiveMaxPool1d([1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveMaxPool1d([5]).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu
@@ -1602,6 +1671,8 @@ def test_forward_linear():
     verify_model(LinearNoBias(), input_data=[input2d, weight1d])
     # 3D input, 2D weight, no bias
     verify_model(LinearNoBias(), input_data=[input3d, weight3x2])
+    # 3D input, 2D weight, 1D bias
+    verify_model(Linear(), input_data=[input3d, weight2d, bias1d])
 
     verify_model(LinearNested(), input_data=[torch.randn(10, 10) for _ in range(3)])
 
@@ -1963,8 +2034,9 @@ def test_forward_nms():
         boxes = torch.rand(num_boxes, box_len, dtype=torch.float) * 0.5
         boxes[:, 2] += boxes[:, 0]
         boxes[:, 3] += boxes[:, 1]
-        scores = torch.from_numpy(np.random.uniform(-1, 1, size=(num_boxes,)).astype(np.float32))
-        return boxes, scores
+        scores = np.linspace(0, 1, num=num_boxes).astype("float32")
+        np.random.shuffle(scores)
+        return boxes, torch.from_numpy(scores)
 
     targets = ["llvm", "cuda"]
 
@@ -2174,7 +2246,7 @@ def test_3d_models():
 
 
 def _get_default_vm_targets():
-    return [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+    return ["llvm", "cuda"]
 
 
 def verify_script_model(pt_model, ishapes, targets, idtype=None):
@@ -2247,7 +2319,10 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
     for tgt in targets:
+        if not tvm.runtime.enabled(tgt):
+            continue
         print("Running on target", tgt)
+
         dev = tvm.device(tgt, 0)
 
         evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
@@ -3875,7 +3950,7 @@ def test_masked_select():
     for shape in [(10,), (3, 4), (16, 32, 64)]:
         x = torch.randn(*shape)
         mask = x.ge(0.5)
-        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda"])
 
 
 def test_unique():
@@ -3883,7 +3958,7 @@ def test_unique():
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
 
     in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
-    targets = ["llvm", "cuda", "nvptx"]
+    targets = ["llvm", "cuda"]
     verify_trace_model(test_fn(True, True, True), [in_data], targets)
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
     verify_trace_model(test_fn(True, True, False), [in_data], targets)
@@ -3945,6 +4020,71 @@ def test_annotate_span():
         trace, [("input", inp.shape)], use_parser_friendly_name=True
     )
     relay.transform.AnnotateSpans()(mod)
+
+
+@tvm.testing.uses_gpu
+def test_all_any():
+    def test_fn(f, dim=None, keepdim=False):
+        return lambda x: f(x, dim=dim, keepdim=keepdim)
+
+    for f in [torch.all, torch.any]:
+        verify_model(test_fn(f, 0), [torch.rand(1, 2).bool()])
+        verify_model(test_fn(f, 0), [torch.arange(0, 3).to(torch.uint8)])
+        verify_model(test_fn(f, 1), [torch.rand(4, 2).bool()])
+        verify_model(test_fn(f, 0, keepdim=True), [torch.rand(4, 2).bool()])
+
+
+@tvm.testing.uses_gpu
+def test_searchsorted():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.searchsorted(x, y, out_int32=out_int32, right=right)
+
+    sorted_sequence = torch.tensor([[1, 3, 5, 7, 9], [2, 4, 6, 8, 10]])
+    values = torch.tensor([[3, 6, 9], [3, 6, 9]])
+    verify_model(test_fn(), [sorted_sequence, values])
+    verify_model(test_fn(out_int32=True), [sorted_sequence[0], values[0]])
+    verify_model(test_fn(right=True), [sorted_sequence, values])
+
+    sorted_sequence_1d = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([[3, 6, 9], [4, 2, 7]])
+    verify_model(test_fn(), [sorted_sequence_1d, values])
+
+    verify_model(test_fn(), [sorted_sequence_1d, torch.tensor(6)])
+
+
+@tvm.testing.uses_gpu
+def test_bucketize():
+    def test_fn(out_int32=False, right=False):
+        return lambda x, y: torch.bucketize(x, y, out_int32=out_int32, right=right)
+
+    boundaries = torch.tensor([1, 3, 5, 7, 9])
+    values = torch.tensor([3, 6, 9])
+
+    verify_model(test_fn(), [values, boundaries])
+    verify_model(test_fn(out_int32=True, right=True), [values, boundaries])
+
+
+@tvm.testing.uses_gpu
+def test_roll():
+    def test_fn(shifts, dims):
+        return lambda x: torch.roll(x, shifts, dims)
+
+    x = torch.tensor([1, 2, 3, 4, 5, 6, 7, 8]).view(4, 2)
+    verify_model(test_fn(1, 0), [x])
+    verify_model(test_fn(-1, 0), [x])
+    verify_model(test_fn(shifts=(2, 1), dims=(0, 1)), [x])
+
+
+@tvm.testing.uses_gpu
+def test_einsum():
+    def test_fn(equation):
+        return lambda *x: torch.einsum(equation, *x)
+
+    x = torch.ones([2, 3])
+    y = torch.ones([3, 4])
+    z = torch.ones([4, 5])
+    verify_model(test_fn("ij,jk"), [x, y])
+    verify_model(test_fn("ij,jk,km->im"), [x, y, z])
 
 
 if __name__ == "__main__":

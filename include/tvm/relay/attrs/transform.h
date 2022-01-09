@@ -60,6 +60,18 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   }
 };  // struct ExpandDimsAttrs
 
+/*! \brief Attributes used in dynamic expand_dims operators */
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  int num_newaxis;
+
+  TVM_DECLARE_ATTRS(DynExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {
+    TVM_ATTR_FIELD(num_newaxis)
+        .describe("Number of axes to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
+        .set_default(1);
+  }
+};  // struct ExpandDimsAttrs
+
 /*! \brief Attributes used in concatenate operators */
 struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
   int axis;
@@ -161,7 +173,7 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer batch_dims;
   Integer axis;
-  std::string mode;
+  tvm::String mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(batch_dims)
@@ -309,7 +321,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> begin;
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
-  std::string slice_mode;
+  tvm::String slice_mode;
   Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {

@@ -188,6 +188,7 @@ class Serial2DConvolution(SerializableFormat):
         scale_bias: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -198,12 +199,13 @@ class Serial2DConvolution(SerializableFormat):
         self.scale_bias = scale_bias
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
 
 
 class Serial2DDepthwise(SerializableFormat):
     """Specialization class to retrieve arguments of
-    a ethosu.depthwise2d tir extern call on a predefined ordering"""
+    a ethosu.depthwise_conv2d TIR extern call on a predefined ordering"""
 
     def __init__(
         self,
@@ -215,6 +217,7 @@ class Serial2DDepthwise(SerializableFormat):
         scale_bias: SerialAddressRange,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -225,6 +228,7 @@ class Serial2DDepthwise(SerializableFormat):
         self.scale_bias = scale_bias
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
 
 
@@ -252,6 +256,7 @@ class SerialPooling(SerializableFormat):
         pool_shape: SerialKernel,
         padding: SerialPadding,
         activation: SerialActivation,
+        rounding_mode: str,
         upscale: str,
     ):
         self.ifm = ifm
@@ -260,4 +265,47 @@ class SerialPooling(SerializableFormat):
         self.pool_shape = pool_shape
         self.padding = padding
         self.activation = activation
+        self.rounding_mode = rounding_mode
         self.upscale = upscale
+
+
+class SerialBinaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.binary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ifm2: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        reversed_operands: bool,
+        activation: SerialActivation,
+        rounding_mode: str,
+    ):
+        self.ifm = ifm
+        self.ifm2 = ifm2
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.reversed_operands = reversed_operands
+        self.activation = activation
+        self.rounding_mode = rounding_mode
+
+
+class SerialUnaryElementwise(SerializableFormat):
+    """Specialization class to retrieve arguments of
+    a ethosu.unary_elementwise tir extern call on a predefined ordering"""
+
+    def __init__(
+        self,
+        ifm: SerialFeatureMap,
+        ofm: SerialFeatureMap,
+        operator_type: str,
+        activation: SerialActivation,
+        rounding_mode: str,
+    ):
+        self.ifm = ifm
+        self.ofm = ofm
+        self.operator_type = operator_type
+        self.activation = activation
+        self.rounding_mode = rounding_mode

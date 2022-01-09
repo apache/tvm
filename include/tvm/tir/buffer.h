@@ -121,6 +121,14 @@ class BufferNode : public Object {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
   }
 
+  /*! \brief Determine the offset in the buffer of the given index.
+   *
+   * Returns the buffer offset, in number of elements of type dtype,
+   * without adjusting for number of lanes.  (e.g. The number of
+   * float16x4 elements in a buffer of type float16x4.)
+   */
+  PrimExpr ElemOffset(Array<PrimExpr> index) const;
+
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -136,7 +144,7 @@ class Buffer : public ObjectRef {
  public:
   // User can specify data_alignment and offset_factor to be 0
   // A default value will be picked.
-  TVM_DLL Buffer(Var ptr, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
+  TVM_DLL Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> strides,
                  PrimExpr elem_offset, String name, int data_alignment, int offset_factor,
                  BufferType buffer_type, Span span = Span());
 

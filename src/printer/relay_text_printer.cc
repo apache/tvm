@@ -34,8 +34,10 @@
  */
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
+#include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 
 #include "../ir/attr_functor.h"
@@ -387,12 +389,21 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  return doc << ")";
+  doc << ")";
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  return doc << Print(op->tuple) << "." << op->index;
+  doc << Print(op->tuple) << "." << op->index;
+
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
@@ -440,7 +451,7 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   for (Var param : fn->params) {
     params.push_back(AllocVar(param));
   }
-  for (const Doc& d : PrintFuncAttrs(fn->attrs)) {
+  for (const Doc& d : PrintDictAttrs(fn->attrs)) {
     params.push_back(d);
   }
   doc << Doc::Concat(params) << ") ";
@@ -497,7 +508,11 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
   return PrintFunc(Doc::Text("fn "), GetRef<Function>(op));
 }
 
-Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) { return Doc::Text("@" + op->name_hint); }
+Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
+  Doc doc;
+  doc << "@" << op->name_hint;
+  return doc;
+}
 
 Doc RelayTextPrinter::VisitExpr_(const OpNode* op) { return Doc::Text(op->name); }
 
@@ -509,6 +524,11 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
+#if TVM_LOG_DEBUG
+  for (const Type& type_arg : op->type_args) {
+    args.push_back(Print(type_arg));
+  }
+#endif
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }
@@ -680,8 +700,10 @@ Doc RelayTextPrinter::VisitType_(const TensorTypeNode* node) {
   Doc doc;
   doc << "Tensor[(";
   std::vector<Doc> shapes;
-  for (ObjectRef shape : node->shape) {
-    shapes.push_back(PrintAttr(shape));
+  for (const PrimExpr& prim_expr : node->shape) {
+    // Though not bound within an attribute the attribute visitor will handle the PrimExprs we
+    // care about.
+    shapes.push_back(PrintAttributeValue(prim_expr));
   }
   doc << Doc::Concat(shapes);
   return doc << "), " << PrintDType(node->dtype) << "]";
@@ -762,34 +784,18 @@ Doc RelayTextPrinter::VisitType_(const TypeDataNode* node) {
 // Overload of Attr printing functions
 //------------------------------------
 
-Doc RelayTextPrinter::PrintAttr(const ObjectRef& value, bool meta) {
-  if (value.defined()) {
-    Doc printed_attr;
-    if (value.as<tvm::tir::AnyNode>()) {
-      printed_attr << "?";
-    } else if (auto str_obj = value.as<tvm::StringObj>()) {
-      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
-    } else if (meta) {
-      printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
-    } else {
-      printed_attr = VisitAttr(value);
-    }
-    return printed_attr;
-  } else {
-    return Doc::Text("None");
-  }
-}
-
 Doc RelayTextPrinter::VisitAttrDefault_(const Object* op) {
-  return PrintAttr(GetRef<ObjectRef>(op), true);
+  // Since we don't have any overload for a specific attribute type we'll need to force
+  // the meta[...] representation to avoid infinite regress.
+  return PrintAttributeValue(GetRef<ObjectRef>(op), /*force_meta=*/true);
 }
 
 Doc RelayTextPrinter::VisitAttr_(const ArrayNode* op) {
   Doc doc;
   doc << "[";
   std::vector<Doc> arr_vals;
-  for (auto val : *op) {
-    arr_vals.push_back(PrintAttr(val));
+  for (const auto& val : *op) {
+    arr_vals.push_back(PrintAttributeValue(val));
   }
   doc << Doc::Concat(arr_vals);
   doc << "]";
@@ -827,6 +833,7 @@ class RelayTextPrinter::AttrPrinter : public AttrVisitor {
     doc << key << "=" << *value << "f";
     docs->push_back(doc);
   }
+
   void Visit(const char* key, int64_t* value) final { PrintKV(key, *value); }
   void Visit(const char* key, uint64_t* value) final { PrintKV(key, *value); }
   void Visit(const char* key, int* value) final { PrintKV(key, *value); }
@@ -840,7 +847,7 @@ class RelayTextPrinter::AttrPrinter : public AttrVisitor {
     LOG(FATAL) << "do not allow NDarray as argument";
   }
   void Visit(const char* key, runtime::ObjectRef* obj) final {
-    PrintKV(key, parent_->PrintAttr(*obj));
+    PrintKV(key, parent_->PrintAttributeValue(*obj));
   }
 
  private:
@@ -848,46 +855,135 @@ class RelayTextPrinter::AttrPrinter : public AttrVisitor {
   RelayTextPrinter* parent_;
 };
 
-std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
-  std::vector<Doc> docs;
-  if (!attrs.defined()) return docs;
-  const auto* op_node = op.as<OpNode>();
-  if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
-    // fallback
-    Doc doc;
-    doc << meta_->GetMetaNode(attrs);
-    docs.push_back(doc);
-    return docs;
-  } else {
-    AttrPrinter printer(&docs, this);
-    const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
-    if (!op_node) {
-      // print call attr type key to restore expr for relay parser
-      std::string s = std::string(attrs->GetTypeKey());
-      printer.Visit("attrs_type_key", &s);
-    }
-    return docs;
+void RelayTextPrinter::AppendGenericAttrs(std::vector<Doc>* docs, const Attrs& attrs,
+                                          bool include_type_key) {
+  if (!attrs.defined()) {
+    return;
+  }
+  AttrPrinter printer(docs, this);
+  // Need to drop cost cast since in general VisitNonDefaultAttrs can mutate, but in this
+  // case we are read-only.
+  const_cast<BaseAttrsNode*>(attrs.get())->VisitNonDefaultAttrs(&printer);
+  if (include_type_key) {
+    std::string s = attrs->GetTypeKey();
+    printer.Visit("attrs_type_key", &s);
   }
 }
 
-std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
+std::vector<Doc> RelayTextPrinter::PrintCallAttrs(const Attrs& attrs, const Expr& op) {
   std::vector<Doc> docs;
-  if (!attrs.defined()) return docs;
-  const auto* dict_attrs = attrs.as<DictAttrsNode>();
-  ICHECK(dict_attrs);
-  for (const auto& k : dict_attrs->dict) {
+  if (!attrs.defined()) {
+    return docs;
+  }
+  const auto* op_node = op.as<OpNode>();
+  if (show_meta_data_ && op_node && (attrs->type_index() != op_node->attrs_type_index)) {
+    // The parser can only understand calls with attributes if they match the operator's
+    // declared attribute type. If that's not the case fall back to the meta[...] representation.
+    docs.push_back(meta_->GetMetaNode(attrs));
+  } else {
+    AppendGenericAttrs(&docs, attrs, /*include_type_key=*/!op_node);
+  }
+  return docs;
+}
+
+std::vector<Doc> RelayTextPrinter::PrintDictAttrs(const DictAttrs& dict_attrs) {
+  if (!dict_attrs.defined()) {
+    return {};
+  }
+  return PrintDictAttrs(dict_attrs->dict);
+}
+
+std::vector<Doc> RelayTextPrinter::PrintDictAttrs(const Map<String, ObjectRef>& dict_attrs) {
+  std::vector<Doc> docs;
+  if (!dict_attrs.defined()) {
+    return docs;
+  }
+  for (const auto& k : dict_attrs) {
     Doc doc;
-    doc << k.first << "=" << Print(k.second);
+    doc << k.first << "=" << PrintAttributeValue(k.second);
     docs.push_back(doc);
   }
   return docs;
 }
 
-Doc RelayTextPrinter::PrintSpan(const Span& span) {
+Doc RelayTextPrinter::PrintAttributeValue(const ObjectRef& value, bool force_meta) {
+  if (value.defined()) {
+    Doc printed_attr;
+    if (value.as<tvm::tir::AnyNode>()) {
+      printed_attr << "?";
+    } else if (auto str_obj = value.as<tvm::StringObj>()) {
+      printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
+    } else if (force_meta) {
+      printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
+    } else if (const auto* virtual_device_node = value.as<VirtualDeviceNode>()) {
+      if (show_meta_data_) {
+        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(virtual_device_node));
+      } else {
+        // Special case: The ReprPrinter for VirtualDeviceNodes is much easier to work with while
+        // debugging.
+        std::ostringstream os;
+        os << GetRef<VirtualDevice>(virtual_device_node);
+        return Doc::Text(os.str());
+      }
+    } else if (const auto* base_attr_node = value.as<BaseAttrsNode>()) {
+      if (show_meta_data_) {
+        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(base_attr_node));
+      } else {
+        // Special case: The non-meta form for attributes are much easier to work with while
+        // debugging.
+        printed_attr = PrintAttrsAsAttributeValue(GetRef<Attrs>(base_attr_node));
+      }
+    } else if (const auto* base_map_node = value.as<MapNode>()) {
+      if (show_meta_data_) {
+        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(base_map_node));
+      } else {
+        // Special case: Show maps fields as key=value pairs to help debugging.
+        printed_attr << PrintMapAsAttributeValue(GetRef<Map<ObjectRef, ObjectRef>>(base_map_node));
+      }
+    } else if (const auto* global_var_node = value.as<GlobalVarNode>()) {
+      if (show_meta_data_) {
+        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(global_var_node));
+      } else {
+        printed_attr << "'" << global_var_node->name_hint << "'";
+      }
+    } else {
+      printed_attr = VisitAttr(value);
+    }
+    return printed_attr;
+  } else {
+    return Doc::Text("None");
+  }
+}
+
+Doc RelayTextPrinter::PrintAttrsAsAttributeValue(const Attrs& attrs) {
+  std::vector<Doc> docs;
+  AppendGenericAttrs(&docs, attrs, /*include_type_key=*/false);
   Doc doc;
-  const auto* span_node = span.as<SpanNode>();
-  ICHECK(span_node);
-  doc << span_node->source_name->name;
+  doc << "{" << Doc::Concat(docs) << "}";
+  return doc;
+}
+
+Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map) {
+  std::vector<Doc> docs;
+  for (const auto& k : map) {
+    Doc doc;
+    doc << PrintAttributeValue(k.first);
+    doc << "=";
+    doc << PrintAttributeValue(k.second);
+    docs.push_back(doc);
+  }
+  Doc doc;
+  doc << "{" << Doc::Concat(docs) << "}";
+  return doc;
+}
+
+Doc RelayTextPrinter::PrintSpan(const Span& span, bool include_spans) {
+  Doc doc;
+  if (include_spans) {
+    const auto* span_node = span.as<SpanNode>();
+    ICHECK(span_node);
+    doc << span_node->source_name->name;
+  }
   return doc;
 }
 

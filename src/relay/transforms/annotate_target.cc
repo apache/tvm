@@ -266,11 +266,11 @@ class AnnotateTargetRewriter : public ExprRewriter {
 
   virtual std::unique_ptr<Call> RewriteVarCall(const Call& post_call) { return nullptr; }
 
-  Expr Rewrite_(const TupleNode* op, const Expr& post) override {
-    auto expr = Downcast<Tuple>(post);
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) override {
+    auto tuple = Downcast<Tuple>(post);
 
-    auto target_n_args = AnnotateArgs(expr->fields);
-    auto new_expr = Tuple(std::get<1>(target_n_args));
+    auto target_n_args = AnnotateArgs(tuple->fields);
+    auto new_expr = WithFields(std::move(tuple), std::move(std::get<1>(target_n_args)));
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return std::move(new_expr);
   }
@@ -370,13 +370,15 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     return new_call;
   }
 
-  Expr Rewrite_(const TupleNode* op, const Expr& post) override {
-    auto expr = Downcast<Tuple>(post);
+  Expr Rewrite_(const TupleNode* tuple_node, const Expr& post) override {
+    auto tuple = Downcast<Tuple>(post);
     Array<Expr> new_fields;
-    for (auto f : expr->fields) {
+    new_fields.reserve(tuple->fields.size());
+
+    for (auto f : tuple->fields) {
       new_fields.push_back(InsertCompilerEndAndPropogateTarget(f));
     }
-    return std::move(Tuple(new_fields));
+    return WithFields(std::move(tuple), std::move(new_fields));
   }
 
   Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {

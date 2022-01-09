@@ -99,6 +99,25 @@ def InferType():
     return _ffi_api.InferType()
 
 
+def InferTypeLocal(expr):
+    """Infer the type of a single expr, reusing type information to do so.
+
+    This populates the checked_type field in expr. We assume existing type information
+    in the graph is correct!
+
+    Parameters
+    ----------
+    expr: relay.Expr
+        The expression we want to know the type of
+
+    Returns
+    -------
+    type: relay.Type
+        The type of the expression
+    """
+    return _ffi_api.InferTypeLocal(expr)
+
+
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.
@@ -209,20 +228,22 @@ def CanonicalizeOps():
     return _ffi_api.CanonicalizeOps()
 
 
-def DeadCodeElimination(inline_once=False):
+def DeadCodeElimination(inline_once=False, ignore_impurity=False):
     """Remove expressions that do not have any users (dead code).
 
     Parameters
     ----------
     inline_once: Optional[Bool]
-        Whether to inline binding that occurs only once.
+        Whether to inline a binding that is referenced exactly once.
+    ignore_impurity: Optional[Bool]
+        Whether to ignore possible side-effects in let-bound expressions.
 
     Returns
     -------
     ret: tvm.transform.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _ffi_api.DeadCodeElimination(inline_once)
+    return _ffi_api.DeadCodeElimination(inline_once, ignore_impurity)
 
 
 def LazyGradientInit():
@@ -544,27 +565,6 @@ def MergeCompilerRegions():
     return _ffi_api.MergeCompilerRegions()
 
 
-def RewriteAnnotatedOps(fallback_device):
-    """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, mark which device an expression should be scheduled to.
-    This pass helps heterogeneous execution where different operators may need
-    to be allocated on various devices.
-
-    Parameters
-    ----------
-    fallback_device : int
-        The fallback device type. It is also used as the default device for
-        operators with no annotated device.
-
-    Returns
-    -------
-    ret: tvm.transform.Pass
-        The registered pass that rewrites an expression with annotated
-        `on_device` operators.
-    """
-    return _ffi_api.RewriteDeviceAnnotation(fallback_device)
-
-
 def ToANormalForm():
     """Turn Graph Normal Form expression into A Normal Form Expression.
     The scope of the root expression is the global scope.
@@ -714,9 +714,22 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph(mod_name="default"):
+def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
+    Parameters
+    ----------
+    mod_name : string
+        Controls the prefix of the name of each partitioned subraph.
+        If `mod_name` is None, then `tvmgen_` prefix is used.
+        Otherwise, `tvmgen_mod_name_` prefix is used.
+
+    bind_constants: bool
+        Whether or not to bind constants in partitioned subgraphs. Note that the codegen needs
+        to maintain the bound constants; Otherwise the constants will be maintained by
+        the metadata module. So it is recommended for C-source based codegens to
+        set bind_constants=False to avoid embedding large constants in a C source file.
 
     Returns
     -------
@@ -724,7 +737,7 @@ def PartitionGraph(mod_name="default"):
         The registered pass that partitions the Relay program.
     """
     mod_name = mangle_module_name(mod_name)
-    return _ffi_api.PartitionGraph(mod_name)
+    return _ffi_api.PartitionGraph(mod_name, bind_constants)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
@@ -912,6 +925,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             # initialize handle in cass pass_cls creation failed.fg
             self.handle = None
             inst = pass_cls(*args, **kwargs)
+
             # it is important not to capture self to
             # avoid a cyclic dependency
             def _pass_func(func, mod, ctx):
@@ -1167,6 +1181,28 @@ def SimplifyExpr():
     return _ffi_api.SimplifyExpr()
 
 
+def PlanDevices(config):
+    """
+    Uses existing "on_device" and "device_copy" calls to infer the virtual device on which
+    every Relay sub-expression should run and the result stored. Captures the result of that
+    analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
+    not otherwise constrained are assigned to the default primitive virtual device describe by
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
+
+    Parameters
+    ----------
+    config : tvm.CompilationConfig
+        The compilation configuration, specifying available targets and default devices.
+
+    Returns
+    -------
+    ret : tvm.transforms.Pass
+        The pass.
+    """
+    return _ffi_api.PlanDevices(config)
+
+
 def FoldExplicitPadding():
     """
     FoldExplicitPadding finds explict padding before an op that can support
@@ -1194,7 +1230,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger():
+def FakeQuantizationToInteger(hard_fail=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1204,7 +1240,7 @@ def FakeQuantizationToInteger():
         x    w
         |    |
         dq   dq
-         \   /
+         \\   /
           op1
            |
           op2
@@ -1216,12 +1252,19 @@ def FakeQuantizationToInteger():
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
+    Parameters
+    ----------
+    hard_fail : boolean
+        How do deal with errors during graph rewriting.
+        If true, raise an error.
+        If false, skip rewriting the subgraph.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered SimplifyExpr pass.
     """
-    return _ffi_api.FakeQuantizationToInteger()
+    return _ffi_api.FakeQuantizationToInteger(hard_fail)
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

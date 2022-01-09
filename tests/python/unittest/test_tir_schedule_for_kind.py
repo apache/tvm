@@ -21,222 +21,260 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def element_wise(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-
-
-@tvm.script.tir
-def element_wise_parallelized(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    for i0 in tir.parallel(0, 128):
-        for i1 in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i0)
-                tir.bind(vj, i1)
-                B[vi, vj] = A[vi, vj] * 2.0
-
-
-@tvm.script.tir
-def element_wise_i_bound(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    for i0 in tir.thread_binding(0, 128, thread="threadIdx.x"):
-        for i1 in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i0)
-                tir.bind(vj, i1)
-                B[vi, vj] = A[vi, vj] * 2.0
-
-
-@tvm.script.tir
-def element_wise_compute_at_split(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    for i in tir.serial(0, 128):
-        for j0 in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j0)
-                B[vi, vj] = A[vi, vj] * 2.0
-        for j1o, j1i in tir.grid(32, 4):
-            with tir.block([128, 128], "C") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j1o * 4 + j1i)
-                C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def element_wise_compute_at_split_vectorized(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    for i in tir.serial(0, 128):
-        for j0 in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j0)
-                B[vi, vj] = A[vi, vj] * 2.0
-        for j1o in tir.serial(0, 32):
-            for j1i in tir.vectorized(0, 4):
-                with tir.block([128, 128], "C") as [vi, vj]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j1o * 4 + j1i)
-                    C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def element_wise_split_predicate(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    for i, j_0, j_1 in tir.grid(128, 13, 10):
-        with tir.block([128, 128], "B") as [vi, vj]:
-            tir.where(j_0 * 10 + j_1 < 128)
-            tir.bind(vi, i)
-            tir.bind(vj, j_0 * 10 + j_1)
+@T.prim_func
+def element_wise(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def element_wise_split_predicate_parallelized(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    for i in tir.serial(0, 128):
-        for j_0 in tir.parallel(0, 13):
-            for j_1 in tir.serial(0, 10):
-                with tir.block([128, 128], "B") as [vi, vj]:
-                    tir.where(j_0 * 10 + j_1 < 128)
-                    tir.bind(vi, i)
-                    tir.bind(vj, j_0 * 10 + j_1)
-                    B[vi, vj] = A[vi, vj] * 2.0
-
-
-@tvm.script.tir
-def element_wise_split_predicate_vectorized(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    for i in tir.vectorized(0, 128):
-        for j_0, j_1 in tir.grid(13, 10):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.where(j_0 * 10 + j_1 < 128)
-                tir.bind(vi, i)
-                tir.bind(vj, j_0 * 10 + j_1)
+@T.prim_func
+def element_wise_parallelized(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    for i0 in T.parallel(0, 128):
+        for i1 in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i0, i1])
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def element_wise_compute_at_split_j0_j1o_bound(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    for i in tir.serial(0, 128):
-        for j0 in tir.thread_binding(0, 128, thread="threadIdx.x"):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j0)
+@T.prim_func
+def element_wise_i_bound(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    for i0 in T.thread_binding(0, 128, thread="threadIdx.x"):
+        for i1 in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i0, i1])
                 B[vi, vj] = A[vi, vj] * 2.0
-        for j1o in tir.thread_binding(0, 32, thread="threadIdx.x"):
-            for j1i in tir.serial(0, 4):
-                with tir.block([128, 128], "C") as [vi, vj]:
-                    tir.bind(vi, i)
-                    tir.bind(vj, j1o * 4 + j1i)
+
+
+@T.prim_func
+def element_wise_compute_at_split(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    for i in T.serial(0, 128):
+        for j0 in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j0])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for j1o, j1i in T.grid(32, 4):
+            with T.block("C"):
+                vi = T.axis.S(128, i)
+                vj = T.axis.S(128, j1o * 4 + j1i)
+                C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def element_wise_compute_at_split_vectorized(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    for i in T.serial(0, 128):
+        for j0 in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j0])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for j1o in T.serial(0, 32):
+            for j1i in T.vectorized(0, 4):
+                with T.block("C"):
+                    vi = T.axis.S(128, i)
+                    vj = T.axis.S(128, j1o * 4 + j1i)
                     C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-
-    with tir.block([128, 128, tir.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
-        with tir.init():
-            C[vi, vj] = 0.0
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
-
-
-@tvm.script.tir
-def rowsum(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128,))
-
-    with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vi, vk]:
-        with tir.init():
-            B[vi] = 0.0
-        B[vi] = B[vi] + A[vi, vk]
+@T.prim_func
+def element_wise_split_predicate(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    for i, j_0, j_1 in T.grid(128, 13, 10):
+        with T.block("B"):
+            T.where(j_0 * 10 + j_1 < 128)
+            vi = T.axis.S(128, i)
+            vj = T.axis.S(128, j_0 * 10 + j_1)
+            B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def rowsum_unrolled(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128,))
-    for i0 in tir.unroll(0, 128):
-        for i1 in tir.serial(0, 128):
-            with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vi, vk]:
-                tir.bind(vi, i0)
-                tir.bind(vk, i1)
-                with tir.init():
-                    B[vi] = 0.0
-                B[vi] = B[vi] + A[vi, vk]
+@T.prim_func
+def element_wise_split_predicate_parallelized(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    for i in T.serial(0, 128):
+        for j_0 in T.parallel(0, 13):
+            for j_1 in T.serial(0, 10):
+                with T.block("B"):
+                    T.where(j_0 * 10 + j_1 < 128)
+                    vi = T.axis.S(128, i)
+                    vj = T.axis.S(128, j_0 * 10 + j_1)
+                    B[vi, vj] = A[vi, vj] * 2.0
 
 
-@tvm.script.tir
-def rowsum_not_quasi_affine(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128,))
+@T.prim_func
+def element_wise_split_predicate_vectorized(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    for i in T.vectorized(0, 128):
+        for j_0, j_1 in T.grid(13, 10):
+            with T.block("B"):
+                T.where(j_0 * 10 + j_1 < 128)
+                vi = T.axis.S(128, i)
+                vj = T.axis.S(128, j_0 * 10 + j_1)
+                B[vi, vj] = A[vi, vj] * 2.0
 
-    for i, k in tir.grid(128, 16):
-        with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vi, vk]:
-            tir.bind(vi, i)
-            tir.bind(vk, tir.floordiv(k * k, 2))
-            with tir.init():
+
+@T.prim_func
+def element_wise_compute_at_split_j0_j1o_bound(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    for i in T.serial(0, 128):
+        for j0 in T.thread_binding(0, 128, thread="threadIdx.x"):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j0])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for j1o in T.thread_binding(0, 32, thread="threadIdx.x"):
+            for j1i in T.serial(0, 4):
+                with T.block("C"):
+                    vi = T.axis.S(128, i)
+                    vj = T.axis.S(128, j1o * 4 + j1i)
+                    C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("C"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def rowsum(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+
+    for i, k in T.grid(128, 128):
+        with T.block("B"):
+            vi, vk = T.axis.remap("SR", [i, k])
+            with T.init():
                 B[vi] = 0.0
             B[vi] = B[vi] + A[vi, vk]
 
 
-@tvm.script.tir
-def rowsum_not_compact_data_flow(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128,))
-
-    with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vi, vk]:
-        with tir.init():
-            B[vk] = 0.0
-        B[vk] = B[vk] + A[vi, vk]
-
-
-@tvm.script.tir
-def rowsum_cross_thread_reduction(a: ty.handle, b: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.match_buffer(b, (128,))
-    for i0 in tir.serial(0, 128):
-        for i1 in tir.thread_binding(0, 128, thread="threadIdx.x"):
-            with tir.block([128, tir.reduce_axis(0, 128)], "B") as [vi, vk]:
-                tir.bind(vi, i0)
-                tir.bind(vk, i1)
-                with tir.init():
+@T.prim_func
+def rowsum_unrolled(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+    for i0 in T.unroll(0, 128):
+        for i1 in T.serial(0, 128):
+            with T.block("B"):
+                vi, vk = T.axis.remap("SR", [i0, i1])
+                with T.init():
                     B[vi] = 0.0
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@tvm.script.tir
-def opaque_block(a: ty.handle) -> None:
-    A = tir.match_buffer(a, (16,))
-    for i in tir.serial(0, 15):
-        with tir.block([], "opaque"):
+@T.prim_func
+def rowsum_not_quasi_affine(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+
+    for i, k in T.grid(128, 16):
+        with T.block("B"):
+            vi = T.axis.S(128, i)
+            vk = T.axis.R(128, T.floordiv(k * k, 2))
+            with T.init():
+                B[vi] = 0.0
+            B[vi] = B[vi] + A[vi, vk]
+
+
+@T.prim_func
+def rowsum_not_compact_data_flow(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+
+    for i, k in T.grid(128, 16):
+        with T.block("B"):
+            vi, vk = T.axis.remap("SR", [i, k])
+            with T.init():
+                B[vk] = 0.0
+            B[vk] = B[vk] + A[vi, vk]
+
+
+@T.prim_func
+def rowsum_cross_thread_reduction(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.match_buffer(b, (128,))
+    for i0 in T.serial(0, 128):
+        for i1 in T.thread_binding(0, 128, thread="threadIdx.x"):
+            with T.block("B"):
+                vi, vk = T.axis.remap("SR", [i0, i1])
+                with T.init():
+                    B[vi] = 0.0
+                B[vi] = B[vi] + A[vi, vk]
+
+
+@T.prim_func
+def opaque_block(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,))
+    for i in T.serial(0, 15):
+        with T.block("opaque"):
             A[i + 1] = A[i + 1] + A[i]
+
+
+@T.prim_func
+def block_inside_init(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    for i in T.serial(0, 128):
+        with T.block("outer"):
+            vi = T.axis.S(128, i)
+            with T.init():
+                for j in T.serial(0, 128):
+                    with T.block("init"):
+                        vj = T.axis.S(128, j)
+                        B[vi, vj] = 0.0
+            for k in T.serial(0, 128):
+                for j in T.serial(0, 128):
+                    with T.block("inner"):
+                        vj, vk = T.axis.remap("SR", [j, k])
+                        B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
+
+
+@T.prim_func
+def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128, 128], dtype="float32")
+    B = T.match_buffer(b, [128, 128], dtype="float32")
+    for i in T.thread_binding(0, 128, thread="threadIdx.x"):
+        with T.block("outer"):
+            vi = T.axis.S(128, i)
+            with T.init():
+                for j in T.serial(0, 128):
+                    with T.block("init"):
+                        vj = T.axis.S(128, j)
+                        B[vi, vj] = 0.0
+            for k in T.serial(0, 128):
+                for j in T.serial(0, 128):
+                    with T.block("inner"):
+                        vj, vk = T.axis.remap("SR", [j, k])
+                        B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -359,6 +397,14 @@ def test_bind_after_bind():
     s.bind(i, "threadIdx.x")
     tvm.ir.assert_structural_equal(s.mod["main"], element_wise_i_bound)
     verify_trace_roundtrip(s, mod=element_wise)
+
+
+def test_block_inside_init():
+    s = tir.Schedule(block_inside_init, debug_mask="all")
+    (i,) = s.get_loops(s.get_block("outer"))
+    s.bind(i, "threadIdx.x")
+    tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_block_inside_init)
+    verify_trace_roundtrip(s, mod=block_inside_init)
 
 
 if __name__ == "__main__":

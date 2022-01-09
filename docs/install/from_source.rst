@@ -52,15 +52,15 @@ Build the Shared Library
 Our goal is to build the shared libraries:
 
    - On Linux the target library are `libtvm.so` and `libtvm_runtime.so`
-   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib` 
-   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll` 
+   - On macOS the target library are `libtvm.dylib` and `libtvm_runtime.dylib`
+   - On Windows the target library are `libtvm.dll` and `libtvm_runtime.dll`
 
 It is also possible to :ref:`build the runtime <deploy-and-integration>` library only.
 
 The minimal building requirements for the ``TVM`` libraries are:
 
    - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
-   - CMake 3.5 or higher
+   - CMake 3.10 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
@@ -74,14 +74,14 @@ linux operating systems, execute (in a terminal):
     sudo apt-get update
     sudo apt-get install -y python3 python3-dev python3-setuptools gcc libtinfo-dev zlib1g-dev build-essential cmake libedit-dev libxml2-dev
 
-Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by 
+Use Homebrew to install the required dependencies for macOS running either the Intel or M1 processors. You must follow the post-installation steps specified by
 Homebrew to ensure the dependencies are correctly installed and configured:
 
-.. code:: bash 
+.. code:: bash
 
-    brew install gcc git cmake 
-    brew install llvm 
-    brew install python@3.8 
+    brew install gcc git cmake
+    brew install llvm
+    brew install python@3.8
 
 
 We use cmake to build the library.
@@ -107,7 +107,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG=1
+          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -122,6 +122,9 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
     - Note that apt-package append ``llvm-config`` with version number.
       For example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 package
+
+  - If you are a PyTorch user, it is recommended to set ``(USE_LLVM "/path/to/llvm-config --link-static")`` and ``set(HIDE_PRIVATE_SYMBOLS ON)``
+    to avoid potential symbol conflicts between different versions LLVM used by TVM and PyTorch.
 
 - We can then build tvm and related libraries.
 
@@ -303,20 +306,20 @@ like ``virtualenv``.
 
        pip3 install --user tornado psutil xgboost cloudpickle
 
-Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed, 
-including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and 
+Note on M1 macs, you may have trouble installing xgboost / scipy. scipy and xgboost requires some additional dependencies to be installed,
+including openblas and its dependencies. Use the following commands to install scipy and xgboost with the required dependencies and
 configuration. A workaround for this is to do the following commands:
 
-    .. code:: bash 
+    .. code:: bash
 
         brew install openblas gfortran
 
-        pip install pybind11 cython pythran   
-        
-        export OPENBLAS=/opt/homebrew/opt/openblas/lib/ 
-        
+        pip install pybind11 cython pythran  
+
+        export OPENBLAS=/opt/homebrew/opt/openblas/lib/
+
         pip install scipy --no-use-pep517
-        
+
         pip install xgboost
 
 Install Contrib Libraries

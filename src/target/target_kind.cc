@@ -49,6 +49,14 @@ Array<String> TargetKindRegEntry::ListTargetKinds() {
   return TargetKindRegistry::Global()->ListAllNames();
 }
 
+Map<String, String> TargetKindRegEntry::ListTargetKindOptions(const TargetKind& target_kind) {
+  Map<String, String> options;
+  for (const auto& kv : target_kind->key2vtype_) {
+    options.Set(kv.first, kv.second.type_key);
+  }
+  return options;
+}
+
 TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_name) {
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
@@ -134,6 +142,33 @@ void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const Str
 }
 
 /**********  Target kind attribute updaters  **********/
+
+/*!
+ * \brief Update the attributes in the CUDA target.
+ * \param attrs The original attributes
+ * \return The updated attributes
+ */
+Map<String, ObjectRef> UpdateCUDAAttrs(Map<String, ObjectRef> attrs) {
+  // Update -arch=sm_xx
+  int archInt;
+  if (attrs.count("arch")) {
+    // If -arch has been specified, validate the correctness
+    String archStr = Downcast<String>(attrs.at("arch"));
+    archInt = ExtractIntWithPrefix(archStr, "sm_");
+    ICHECK(archInt != -1) << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
+  } else {
+    // Use the compute version of the first CUDA GPU instead
+    TVMRetValue version;
+    if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
+      LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_20\" instead";
+      archInt = 20;
+    } else {
+      archInt = std::stod(version.operator std::string()) * 10 + 0.1;
+    }
+    attrs.Set("arch", String("sm_") + std::to_string(archInt));
+  }
+  return attrs;
+}
 
 /*!
  * \brief Update the attributes in the LLVM NVPTX target.
@@ -222,6 +257,15 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Bool>("link-params", Bool(false))
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
+    // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
+    .add_attr_option<Bool>("fast-math")  // implies all the below
+    .add_attr_option<Bool>("fast-math-nnan")
+    .add_attr_option<Bool>("fast-math-ninf")
+    .add_attr_option<Bool>("fast-math-nsz")
+    .add_attr_option<Bool>("fast-math-arcp")
+    .add_attr_option<Bool>("fast-math-contract")
+    .add_attr_option<Bool>("fast-math-reassoc")
+    .add_attr_option<Integer>("opt-level")
     .set_default_keys({"cpu"});
 
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
@@ -232,6 +276,7 @@ TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("march")
     .add_attr_option<String>("executor")
     .add_attr_option<Integer>("workspace-byte-alignment")
+    .add_attr_option<Integer>("constants-byte-alignment")
     .add_attr_option<Bool>("unpacked-api")
     .add_attr_option<String>("interface-api")
     .set_default_keys({"cpu"});
@@ -245,7 +290,8 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<Integer>("shared_memory_per_block")
     .add_attr_option<Integer>("registers_per_block")
     .add_attr_option<Integer>("max_threads_per_block")
-    .set_default_keys({"cuda", "gpu"});
+    .set_default_keys({"cuda", "gpu"})
+    .set_attrs_preprocessor(UpdateCUDAAttrs);
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
@@ -354,10 +400,27 @@ TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev)  // line break
 TVM_REGISTER_TARGET_KIND("hybrid", kDLCPU)  // line break
     .add_attr_option<Bool>("system-lib");
 
-TVM_REGISTER_TARGET_KIND("composite", kDLCPU).add_attr_option<Array<Target>>("devices");
+TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
+    .add_attr_option<Array<Target>>("devices");
 
 /**********  Registry  **********/
 
+TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
+    .set_body_typed([](TargetKind kind, String attr_name) -> TVMRetValue {
+      auto target_attr_map = TargetKind::GetAttrMap<TVMRetValue>(attr_name);
+      TVMRetValue rv;
+      if (target_attr_map.count(kind)) {
+        rv = target_attr_map[kind];
+      }
+      return rv;
+    });
 TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
+    .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
+TVM_REGISTER_GLOBAL("target.ListTargetKindOptionsFromName")
+    .set_body_typed([](String target_kind_name) {
+      TargetKind kind = TargetKind::Get(target_kind_name).value();
+      return TargetKindRegEntry::ListTargetKindOptions(kind);
+    });
 
 }  // namespace tvm

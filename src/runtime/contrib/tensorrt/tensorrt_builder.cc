@@ -61,9 +61,6 @@ TensorRTBuilder::TensorRTBuilder(TensorRTLogger* logger,
   this->calibrator_ = calibrator;
   if (calibrator != nullptr) {
     use_int8_ = true;
-    builder_->setFp16Mode(true);
-    builder_->setInt8Mode(true);
-    builder_->setInt8Calibrator(calibrator);
   }
   network_ = builder_->createNetworkV2(flags);
 #else

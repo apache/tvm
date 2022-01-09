@@ -357,6 +357,31 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
   return input;
 }
 
+/*!
+ * \brief Copy the function or module, but overrides the attributes with the entries from \p attrs.
+ *
+ * \param input The thing to annotate (BaseFunc or IRModule)
+ * \param attrs Key/values attributes to add to \p input.
+ *
+ * \tparam TFunc The corresponding function or module type.
+ *
+ * \returns The new function or module with updated attributes.
+ */
+template <typename TFunc>
+inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
+  using TNode = typename TFunc::ContainerType;
+  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
+  TNode* node = input.CopyOnWrite();
+  if (node->attrs.defined()) {
+    for (const auto& pair : attrs) {
+      node->attrs.CopyOnWrite()->dict.Set(pair.first, pair.second);
+    }
+  } else {
+    node->attrs = DictAttrs(std::move(attrs));
+  }
+  return input;
+}
+
 // Namespace containing detail implementations
 namespace detail {
 using runtime::TVMArgValue;
@@ -464,7 +489,7 @@ struct AttrInitEntry {
   ~AttrInitEntry() DMLC_THROW_EXCEPTION {
     if (value_missing_) {
       std::ostringstream os;
-      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization."
+      os << type_key_ << ": Cannot find required field \'" << key_ << "\' during initialization. "
          << "If the key is defined check that its type matches the declared type.";
       throw AttrError(os.str());
     }
@@ -781,7 +806,7 @@ class AttrsNode : public BaseAttrsNode {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
-    // applies two stratgies to lookup
+    // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
       auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {

@@ -17,6 +17,6 @@
 
 if(USE_MICRO)
   message(STATUS "Build with Micro support")
-  file(GLOB RUNTIME_MICRO_SRCS src/runtime/micro/*.cc)
+  tvm_file_glob(GLOB RUNTIME_MICRO_SRCS src/runtime/micro/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_MICRO_SRCS})
 endif(USE_MICRO)

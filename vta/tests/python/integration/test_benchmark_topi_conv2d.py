@@ -218,11 +218,17 @@ def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, 
     # Build
     if "vta" in target.keys:
         mod = vta.build(
-            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
+            s,
+            [data, kernel, bias, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="conv2d",
         )
     else:
         mod = tvm.build(
-            s, [data, kernel, bias, res], target=target, target_host=env.target_host, name="conv2d"
+            s,
+            [data, kernel, bias, res],
+            target=tvm.target.Target(target, host=env.target_host),
+            name="conv2d",
         )
     temp = utils.tempdir()
     mod.save(temp.relpath("conv2d.o"))

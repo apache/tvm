@@ -22,6 +22,10 @@ set -o pipefail
 
 # We need to fix the onnx version because changing versions tends to break tests
 # TODO(mbrookhart): periodically update
+
+# onnx 1.9 removed onnx optimizer from the main repo (see
+# https://github.com/onnx/onnx/pull/2834).  When updating the CI image
+# to onnx>=1.9, onnxoptimizer should also be installed.
 pip3 install \
     onnx==1.8.1 \
     onnxruntime==1.7.0
@@ -31,5 +35,5 @@ pip3 install \
 pip3 install future
 
 pip3 install \
-    torch==1.7.0 \
-    torchvision==0.8.1
+    torch==1.10.1 \
+    torchvision==0.11.2

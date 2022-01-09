@@ -38,8 +38,10 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
+    autopad,
     AttrCvt,
     Renamer,
+    ensure_scalar_shape,
     fold_constant,
     get_name,
     get_relay_op,
@@ -50,6 +52,8 @@ from .common import (
     infer_value,
     lstm_cell,
     new_var,
+    shape_of,
+    try_resolve_var_to_const,
     unbind,
 )
 
@@ -212,6 +216,77 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def matmul_out_dtype(inputs, out_dtype):
+    """Common function to handle MatMul and MatMulInteger16"""
+    a_shape = shape_of(inputs[0])
+    a_rank = infer_shape(a_shape)[0]
+    b_shape = shape_of(inputs[1])
+    b_rank = infer_shape(b_shape)[0]
+    if a_rank > 2 or b_rank > 2:
+
+        def flatten_to_nd(x, x_shape, nd=3):
+            ndims = infer_shape(x_shape)[0]
+            if ndims == nd:
+                return x
+            newshape = _op.concatenate(
+                [
+                    _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
+                    _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
+                ],
+                0,
+            )
+            out = _op.reshape(x, fold_constant(newshape))
+            return out
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(inputs[0], a_shape, 3)
+            b = flatten_to_nd(inputs[1], b_shape, 3)
+            # Perform a NN batch matmul.
+            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
+        # Determine the output batch dimension.
+        if a_rank > b_rank:
+            out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
+        elif a_rank < b_rank:
+            out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
+        # If its unclear how broadcasting should be applied, the output
+        # shape is determined by choosing the maximum value from each input.
+        else:
+            out_batch = _op.concatenate(
+                [
+                    _op.maximum(
+                        _op.strided_slice(a_shape, [i], [i + 1]),
+                        _op.strided_slice(b_shape, [i], [i + 1]),
+                    )
+                    for i in range(a_rank - 2)
+                ],
+                0,
+            )
+        # Reshape output to original dimensions.
+        final_shape = _op.concatenate(
+            [
+                out_batch,
+                _op.strided_slice(
+                    a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
+                ),
+                _op.strided_slice(
+                    b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
+                ),
+            ],
+            0,
+        )
+        return _op.reshape(output, fold_constant(final_shape))
+    # Otherwise a simple dense op will get the job done.
+    input_1_t = _op.transpose(inputs[1], axes=(1, 0))
+    return _op.nn.dense(inputs[0], input_1_t, out_dtype=out_dtype)
+
+
 class OnnxOpConverter(object):
     """A helper class for holding onnx op converters."""
 
@@ -313,7 +388,6 @@ class Pool(OnnxOpConverter):
                         attr.get("strides", [1] * (ndim - 2)),
                         attr["kernel_shape"],
                         [1] * ndim,
-                        ndim,
                         pad_value=pad_val,
                         mode=attr["auto_pad"],
                     )
@@ -395,10 +469,15 @@ class BatchNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
+        # TODO(vvchernov): 'training_mode' (onnx tag) is not correctly handled, ignore for now
         out = AttrCvt(
-            op_name="batch_norm", ignores=["spatial", "is_test", "consumed_inputs", "momentum"]
+            op_name="batch_norm",
+            ignores=["spatial", "is_test", "consumed_inputs", "momentum", "training_mode"],
         )(inputs, attr, params)
-        return out[0]
+        # We only support test mode, so we return data, moving_mean, moving_var,
+        # and then moving_mean and moving_var again as placeholders for
+        # the expected "saved_mean", "saved_var".
+        return _expr.TupleWrapper(_expr.Tuple((*out, out[1], out[2])), 5)
 
 
 class InstanceNorm(OnnxOpConverter):
@@ -407,69 +486,6 @@ class InstanceNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         return AttrCvt(op_name="instance_norm")(inputs, attr, params)
-
-
-def autopad(
-    data,
-    strides,
-    kernel_shape,
-    dilations,
-    ndim,
-    pad_type="constant",
-    deconv=False,
-    mode="SAME_UPPER",
-    pad_value=0.0,
-):
-    """
-    Perform autopadding with dynamic input shapes
-    """
-    # get attributes as constants
-    strides = _op.const(np.array(strides), dtype="int64")
-    dilated_kernel_shape = _op.const(
-        np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        ),
-        dtype="int64",
-    )
-    # get input shape
-    shape = _op.strided_slice(shape_of(data, dtype="int64"), [2], [ndim])
-
-    # set up integer constants
-    zero = _op.const(0, dtype="int64")
-    one = _op.const(1, dtype="int64")
-    two = _op.const(2, dtype="int64")
-
-    # Calculate total padding
-    mod = _op.mod(shape, strides)
-
-    left = _op.maximum(dilated_kernel_shape - strides, zero)
-    right = _op.maximum(dilated_kernel_shape - mod, zero)
-
-    total_pad = _op.where(_op.equal(mod, zero), left, right)
-    if deconv:
-        total_pad = _op.const(np.array(kernel_shape), dtype="int64") - one - total_pad
-
-    # split total padding into before and after
-    pad_before = _op.floor_divide(total_pad, two)
-    pad_after = total_pad - pad_before
-
-    # combine
-    if "LOWER" in mode:
-        pad = _op.concatenate(
-            [_op.reshape(pad_after, [-1, 1]), _op.reshape(pad_before, [-1, 1])], axis=1
-        )
-    else:
-        pad = _op.concatenate(
-            [_op.reshape(pad_before, [-1, 1]), _op.reshape(pad_after, [-1, 1])], axis=1
-        )
-
-    # pad N and C with zeros
-    pad = _op.concatenate([_op.const(np.zeros([2, 2], dtype="int64"), dtype="int64"), pad], axis=0)
-
-    if isinstance(pad_value, (float, int)):
-        pad_value = _op.const(pad_value)
-
-    return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
 class Conv(OnnxOpConverter):
@@ -499,7 +515,6 @@ class Conv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -511,23 +526,6 @@ class Conv(OnnxOpConverter):
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
 
-        # Check if the requested convolution is a group conv1d, if so convert it to conv2d.
-        # TODO(jwfromm) Remove once proper group_conv1d is supported.
-        group_conv1d = False
-        if dimension_picker("conv")(attr) == "conv1d" and attr.get("group") != 1:
-            group_conv1d = True
-            # Expand input from NCW to NCHW
-            data = _op.expand_dims(data, axis=2)
-            # Expand kernel from OIW to OIHW
-            kernel = _op.expand_dims(kernel, axis=2)
-            # Add new value to kernel_shape, strices, dilation, pads, if needed
-            attr["kernel_shape"] = [1] + list(attr["kernel_shape"])
-            if "strides" in attr:
-                attr["strides"] = [1] + list(attr["strides"])
-            if "dilations" in attr:
-                attr["dilations"] = [1] + list(attr["dilations"])
-            if "pads" in attr:
-                attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
         attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
@@ -539,10 +537,6 @@ class Conv(OnnxOpConverter):
             },
             custom_check=dimension_constraint(),
         )([data, kernel], attr, params)
-
-        # If this was a group_conv1d, squish output back to NCW.
-        if group_conv1d:
-            out = _op.squeeze(out, axis=[2])
 
         use_bias = len(inputs) == 3
         if use_bias:
@@ -580,7 +574,6 @@ class ConvTranspose(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     deconv=True,
                     mode=attr["auto_pad"],
                 )
@@ -769,7 +762,8 @@ class Gemm(OnnxOpConverter):
         assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
             len(inputs)
         )
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        input0_state = infer_type(inputs[0])
+        dtype = input0_state.checked_type.dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -781,7 +775,8 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        if len(input0_state.checked_type.shape) != 2:
+            inputs[0] = _op.nn.batch_flatten(inputs[0])
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
@@ -797,80 +792,24 @@ class MatMul(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         # Need to check input shape as batch matmul must be supported.
-        a_shape = shape_of(inputs[0])
-        a_rank = infer_shape(a_shape)[0]
-        b_shape = shape_of(inputs[1])
-        b_rank = infer_shape(b_shape)[0]
-        # When performing a batch matmul, we need to properly handle N-dim shapes.
-        if a_rank > 2 or b_rank > 2:
+        return matmul_out_dtype(inputs, out_dtype=infer_type(inputs[0]).checked_type.dtype)
 
-            def flatten_to_nd(x, x_shape, nd=3):
-                ndims = infer_shape(x_shape)[0]
-                if ndims == nd:
-                    return x
-                newshape = _op.concatenate(
-                    [
-                        _expr.const([-1], dtype=infer_type(x_shape).checked_type.dtype),
-                        _op.strided_slice(x_shape, [ndims - nd + 1], [ndims]),
-                    ],
-                    0,
-                )
-                out = _op.reshape(x, fold_constant(newshape))
-                return out
 
-            b_type = infer_type(inputs[1])
-            # Convert to dense if the second matrix is 2d and non-dynamic
-            if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-                a = flatten_to_nd(inputs[0], a_shape, 2)
-                b = _op.transpose(inputs[1])
-                output = _op.nn.dense(a, b)
-            else:
-                # Convert a and b into 3 dimensional tensors.
-                a = flatten_to_nd(inputs[0], a_shape, 3)
-                b = flatten_to_nd(inputs[1], b_shape, 3)
-                if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
-                    # Transpose matrix dimensions of b.
-                    b = _op.transpose(b, [0, 2, 1])
-                    # Perform a NT batch matmul.
-                    output = _op.nn.batch_matmul(a, b)
-                else:
-                    # Perform a NN batch matmul.
-                    output = _op.nn.batch_matmul(a, b, transpose_b=False)
-            # Determine the output batch dimension.
-            if a_rank > b_rank:
-                out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
-            elif a_rank < b_rank:
-                out_batch = _op.strided_slice(b_shape, [0], [b_rank - 2])
-            # If its unclear how broadcasting should be applied, the output
-            # shape is determined by choosing the maximum value from each input.
-            else:
-                out_batch = _op.concatenate(
-                    [
-                        _op.maximum(
-                            _op.strided_slice(a_shape, [i], [i + 1]),
-                            _op.strided_slice(b_shape, [i], [i + 1]),
-                        )
-                        for i in range(a_rank - 2)
-                    ],
-                    0,
-                )
-            # Reshape output to original dimensions.
-            final_shape = _op.concatenate(
-                [
-                    out_batch,
-                    _op.strided_slice(
-                        a_shape, [infer_shape(a_shape)[0] - 2], [infer_shape(a_shape)[0] - 1]
-                    ),
-                    _op.strided_slice(
-                        b_shape, [infer_shape(b_shape)[0] - 1], [infer_shape(b_shape)[0]]
-                    ),
-                ],
-                0,
-            )
-            return _op.reshape(output, fold_constant(final_shape))
-        # Otherwise a simple dense op will get the job done.
-        input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-        return _op.nn.dense(inputs[0], input_1_t)
+class MatMulInteger16(OnnxOpConverter):
+    """Operator converter for MatMulInteger16 from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+        assert len(inputs) == 2, "MatMulInteger16 op take 2 inputs, {} given".format(len(inputs))
+        a_dtype = infer_type(inputs[0]).checked_type.dtype
+        b_dtype = infer_type(inputs[1]).checked_type.dtype
+        # Check input data types
+        assert a_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for first input"
+        assert b_dtype in ("int16", "uint16"), "MatMulInteger16: invalid dtype for second input"
+        out_dtype = "int32"
+        if a_dtype == "uint16" and b_dtype == "uint16":
+            out_dtype = "uint32"
+        return matmul_out_dtype(inputs, out_dtype)
 
 
 class Mod(OnnxOpConverter):
@@ -972,7 +911,6 @@ class LpPool(OnnxOpConverter):
                     attr["strides"],
                     attr["kernel_shape"],
                     [1] * ndim,
-                    ndim,
                     mode=attr["auto_pad"],
                 )
             elif attr["auto_pad"] == "VALID":
@@ -1006,6 +944,18 @@ class LpPool(OnnxOpConverter):
         kernels = attr["kernel_shape"]
         out = _op.abs(out) * _expr.const(np.prod(kernels).astype(dtype))
         return _op.power(out, reci_p)
+
+
+class GlobalLpPool(OnnxOpConverter):
+    """Operator converter for GlobalLpPool."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # TODO: GlobalLpPool does not yet support dynamic shapes
+        in_shape = infer_shape(inputs[0])
+        attr["kernel_shape"] = in_shape[2:]
+
+        return LpPool._impl_v1(inputs, attr, params)
 
 
 class Mul(Elemwise):
@@ -1396,14 +1346,6 @@ class Upsample(OnnxOpConverter):
         return out
 
 
-def shape_of(x, dtype="int64"):
-    ttype = infer_type(x).checked_type
-    if not _ty.is_dynamic(ttype):
-        shape = list(ttype.shape)
-        return _expr.const(shape, dtype)
-    return _op.shape_of(x, dtype)
-
-
 class Shape(OnnxOpConverter):
     """Operator converter for Shape."""
 
@@ -1456,11 +1398,62 @@ class Unsqueeze(OnnxOpConverter):
     """Operator converter for Unsqueeze."""
 
     @classmethod
-    def _impl_v1(cls, inputs, attr, params):
-        axes = sorted(attr["axes"])
+    def run_calculation(cls, tensor, axes):
+        axes = sorted(axes)
         for axis in axes:
-            inputs[0] = _op.expand_dims(inputs[0], axis=axis, num_newaxis=1)
-        return inputs[0]
+            tensor = _op.expand_dims(tensor, axis=axis, num_newaxis=1)
+        return tensor
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return cls.run_calculation(inputs[0], attr["axes"])
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        if isinstance(inputs[1], _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return cls.run_calculation(inputs[0], constant_axes)
+
+        rank_input = len(infer_type(inputs[0]).checked_type.shape)
+        num_new_axis = int(infer_type(inputs[1]).checked_type.shape[0])
+        axes = relay.split(inputs[1], num_new_axis).astuple()
+        result = inputs[0]
+
+        # TODO (AndrewZhaoLuo): investigate performance issues with consecutive
+        # dynamic expand_dims on non-llvm targets.
+        for i in range(num_new_axis):
+            axis = relay.TupleGetItem(axes, i)
+            # Unpack scalar
+            axis = relay.reshape(axis, [])
+            axis = relay.where(
+                axis >= relay.const(0, "int64"), axis, axis + relay.const(rank_input, "int64")
+            )
+            result = _op.expand_dims(result, axis)
+        return result
+
+
+class Squeeze(OnnxOpConverter):
+    """Operator converter for Squeeze."""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get("axes", None)
+        return _op.squeeze(inputs[0], axis)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        axis = inputs[1]
+        dtype = infer_type(axis).checked_type.dtype
+
+        if isinstance(axis, _expr.Constant):
+            constant_axes = list(inputs[1].data.numpy())
+            constant_axes = list(map(int, constant_axes))
+            return _op.squeeze(inputs[0], constant_axes)
+
+        rank = _op.shape_of(_op.shape_of(inputs[0], dtype), dtype)
+        axis = _op.where(axis < _op.const(0, dtype), axis + rank, axis)
+        return _op.squeeze(inputs[0], fold_constant(axis))
 
 
 class Split(OnnxOpConverter):
@@ -1469,13 +1462,37 @@ class Split(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         splits = attr.get("split", None)
-        if splits is not None:
+        if splits is not None and len(splits) > 1:
             indices = []
-            attr["indices_or_sections"] = []
             index = 0
             for i in splits[:-1]:
                 index += i
                 indices.append(index)
+        # When splits isnt specified divide evenly over axis.
+        else:
+            indices = attr["tvm_custom"]["num_outputs"]
+        output = _op.split(inputs[0], indices, attr.get("axis", 0))
+        # If the output of split is a single value, unpack if from the TupleWrapper
+        if len(output) == 1:
+            output = output[0]
+        return output
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        splits = inputs[1]
+        splits_rank = None
+        if splits is not None:
+            splits_rank = len(infer_shape(splits))
+        if splits is not None and splits_rank > 0:
+            if isinstance(splits, _expr.Constant):
+                splits = splits.data.asnumpy()
+                indices = []
+                index = 0
+                for i in splits[:-1]:
+                    index += i
+                    indices.append(index)
+            else:
+                raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
@@ -1531,6 +1548,15 @@ class Slice(OnnxOpConverter):
         ishape = infer_shape(inputs[0])
         data_rank = len(ishape)
 
+        if axes is not None:
+            # Normalize for negative axes
+            axes_dtype = infer_type(axes).checked_type.dtype
+            axes = fold_constant(
+                _op.where(
+                    axes < _op.const(0, axes_dtype), axes + _op.const(data_rank, axes_dtype), axes
+                )
+            )
+
         def has_static_axes():
             return (
                 isinstance(axes, _expr.Constant)
@@ -1547,7 +1573,6 @@ class Slice(OnnxOpConverter):
                 strides_np = np.ones_like(begin_np).astype("int64")
             else:
                 strides_np = steps.data.numpy().astype("int64")
-
             if all([isinstance(ishape[i], int) for i in axes_np]):
                 return _op.strided_slice(
                     inputs[0], list(begin_np), list(end_np), list(strides_np), axes=list(axes_np)
@@ -1583,7 +1608,7 @@ def normalize_gather_indices(data, indices, axis):
     """Make sure gather indicies aren't negative"""
     ind_dtype = infer_type(indices).checked_type.dtype
     # Normalize the indices to a positive range
-    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis))
+    s = _op.take(_op.shape_of(data, dtype=ind_dtype), _op.const(axis, dtype="int64"))
     cond = fold_constant(indices < _op.const(0, ind_dtype))
     if isinstance(cond, _expr.Constant):
         val = cond.data.numpy()
@@ -1644,6 +1669,26 @@ class GatherND(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         batch_dims = attr.get("batch_dims", 0)
         return cls._impl_common(inputs[0], inputs[1], batch_dims)
+
+
+class Compress(OnnxOpConverter):
+    """Operator converter for compress"""
+
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        input_tensor, condition_tensor = inputs
+
+        axis = attr.get("axis", None)
+
+        # Change one hot tensor to indices e.g. [0, 1, 1, 0, 1] -> [1, 2, 4]
+        condition_tensor = _op.reshape(_op.argwhere(condition_tensor), (-1,))
+
+        if axis is not None:
+            return _op.take(input_tensor, condition_tensor, axis=axis)
+
+        # if axis is None, flatten input tensor before selection
+        input_tensor = _op.reshape(input_tensor, (-1,))
+        return _op.take(input_tensor, condition_tensor, axis=0)
 
 
 class Scatter(OnnxOpConverter):
@@ -1761,14 +1806,31 @@ class Reduce(OnnxOpConverter):
     name = ""
 
     @classmethod
+    def run_calculation(cls, inputs, axis, keepdims):
+        attr = {"axis": axis, "keepdims": keepdims}
+        return AttrCvt(cls.name)(inputs, attr)
+
+    @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if "axes" in attr:
             axis = attr.get("axes", 0)
         else:
             axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
-        attr = {"axis": axis, "keepdims": attr.get("keepdims", True)}
-        return AttrCvt(cls.name)(inputs, attr)
+
+        return cls.run_calculation(inputs, axis, attr.get("keepdims", True))
+
+    @classmethod
+    def _impl_v12(cls, inputs, attr, params):
+        if len(inputs) == 2:
+            if isinstance(inputs[1], _expr.Constant):
+                # Get axis and unpack scalar
+                constant_axis = int(inputs[1].data.numpy()[0])
+                return cls.run_calculation([inputs[0]], constant_axis, attr.get("keepdims", True))
+
+            raise ValueError("Dynamic Reduce is not supported yet!")
+
+        return cls._impl_v1(inputs, attr, params)
 
 
 class ReduceMax(Reduce):
@@ -2582,19 +2644,62 @@ class Resize(OnnxOpConverter):
         out = None
         if ndims == 3:
             out_size = fold_constant(_op.strided_slice(size, [2], [3]))
-            out = _op.image.resize1d(inputs[0], out_size, "NCW", method, "asymmetric")
+            out = _op.image.resize1d(inputs[0], out_size, None, "NCW", method, "asymmetric")
         elif ndims == 4:
             out_size = fold_constant(_op.strided_slice(size, [2], [4]))
-            out = _op.image.resize2d(inputs[0], out_size, "NCHW", method, "asymmetric")
+            out = _op.image.resize2d(inputs[0], out_size, None, "NCHW", method, "asymmetric")
         elif ndims == 5:
             out_size = fold_constant(_op.strided_slice(size, [2], [5]))
-            out = _op.image.resize3d(inputs[0], out_size, "NCDHW", method, "asymmetric")
+            out = _op.image.resize3d(inputs[0], out_size, None, "NCDHW", method, "asymmetric")
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
         return out
 
     @classmethod
     def _impl_v11(cls, inputs, attr, params):
+        scale = inputs[2]
+        scale_shape = infer_shape(scale)
+        if len(inputs) == 4:
+            assert (
+                len(scale_shape) == 0 or scale_shape[0] == 0
+            ), "One of scale or size should be passed, not both."
+            size = inputs[3]
+        else:
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def _impl_v13(cls, inputs, attr, params):
+        scale = inputs[2]
+        size = inputs[3]
+
+        # Some versions of onnx exporters produce an opset 13 model with the opset 11
+        # resize op, handle that edge case
+        if scale is not None and size is not None:
+            return cls._impl_v11(inputs, attr, params)
+
+        if size is not None:
+            assert scale is None, "One of scale or size should be passed, not both."
+        else:
+            scale_type = infer_type(scale)
+            scale_shape = scale_type.checked_type.shape
+            scale_dtype = scale_type.checked_type.dtype
+            assert len(scale_shape) != 0, "One of scale or size should be passed."
+            size = _op.cast(shape_of(inputs[0]), scale_dtype) * scale
+
+        return cls.v11_13_common(inputs, size, attr, params)
+
+    @classmethod
+    def v11_13_common(cls, inputs, size, attr, params):
+        """
+        Resize v11 and Resize v13 are identical except in how
+        they handle the passing of scale and size. This utility
+        provides the implementation for both
+        """
+        roi = inputs[1]
+        if roi is not None and infer_shape(roi)[0] == 0:
+            roi = None
         ndims = len(infer_shape(inputs[0]))
         mode = attr.get("mode").decode("ascii")
         if mode == "nearest":
@@ -2612,33 +2717,60 @@ class Resize(OnnxOpConverter):
         nearest_mode = attr.get("nearest_mode", b"round_prefer_floor").decode("ascii")
         alpha = attr.get("cubic_coeff_a", -0.75)
         exclude = attr.get("exclude_outside", 0)
+        extrapolation_value = attr.get("extrapolation_value", 0.0)
 
-        scale = inputs[2]
-        scale_shape = infer_shape(scale)
-        if len(inputs) == 4:
-            assert (
-                len(scale_shape) == 0 or scale_shape[0] == 0
-            ), "One of scale or size should be passed, not both."
-            size = inputs[3]
-        else:
-            assert len(scale_shape) != 0, "One of scale or size should be passed."
-            size = _op.cast(shape_of(inputs[0]), infer_type(scale).checked_type.dtype) * scale
-        out_size = fold_constant(_op.strided_slice(size, [2], [4]))
+        if roi is not None:
+            roi = fold_constant(
+                _op.concatenate(
+                    [
+                        _op.strided_slice(roi, [2], [ndims]),
+                        _op.strided_slice(roi, [ndims + 2], [2 * ndims]),
+                    ],
+                    axis=0,
+                )
+            )
+
+        out_size = fold_constant(_op.strided_slice(size, [2], [ndims]))
+
         out = None
         if ndims == 3:
-            out_size = fold_constant(_op.strided_slice(size, [2], [3]))
             out = _op.image.resize1d(
-                inputs[0], out_size, "NCW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 4:
-            out_size = fold_constant(_op.strided_slice(size, [2], [4]))
             out = _op.image.resize2d(
-                inputs[0], out_size, "NCHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         elif ndims == 5:
-            out_size = fold_constant(_op.strided_slice(size, [2], [5]))
             out = _op.image.resize3d(
-                inputs[0], out_size, "NCDHW", method, coord_trans, nearest_mode, alpha, exclude
+                inputs[0],
+                out_size,
+                roi,
+                "NCDHW",
+                method,
+                coord_trans,
+                nearest_mode,
+                alpha,
+                exclude,
+                extrapolation_value,
             )
         else:
             raise NotImplementedError("Resize only supports 3, 4, or 5 dims")
@@ -2749,7 +2881,8 @@ class Celu(OnnxOpConverter):
         alpha = _op.const(attr.get("alpha", 1.0), dtype)
         zero = _op.const(0, dtype)
         one = _op.const(1, dtype)
-        return _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        out = _op.maximum(zero, x) + _op.minimum(zero, alpha * (_op.exp(x / alpha) - one))
+        return out
 
 
 class MaxRoiPool(OnnxOpConverter):
@@ -3071,6 +3204,225 @@ class If(OnnxOpConverter):
         return ret
 
 
+class Scan(OnnxOpConverter):
+    """Operator converter for Scan"""
+
+    @classmethod
+    def _impl_v8(cls, inputs, attr, params):
+        new_inputs = inputs[1:]
+        batch_num = infer_shape(inputs[1])[0]
+        out = []
+        for i in range(batch_num):
+            v9_inputs = [
+                _op.take(new_inputs[j], _expr.const(i), axis=0) for j in range(len(new_inputs))
+            ]
+            results = cls._impl_v9(v9_inputs, attr, params)
+            results = [_op.expand_dims(results[j], axis=0) for j in range(len(results))]
+            if i == 0:
+                out = results
+            else:
+                out = [_op.concatenate([out[j], results[j]], axis=0) for j in range(len(results))]
+
+        out = _expr.TupleWrapper(_expr.Tuple(out), len(out))
+        return out
+
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        body = attr.get("body")
+        num_scan_inputs = attr.get("num_scan_inputs")
+        num_all_inputs = len(inputs)
+        num_state_inputs = len(body.input) - num_scan_inputs
+        num_state_outputs = num_state_inputs
+        num_all_outputs = len(body.output)
+        num_scan_outputs = num_all_outputs - num_state_outputs
+        scan_input_axes = attr.get("scan_input_axes", [0] * num_scan_inputs)
+        scan_input_directions = attr.get("scan_input_directions", [0] * num_scan_inputs)
+        scan_output_axes = list(attr.get("scan_output_axes", [0] * num_scan_outputs))
+        scan_output_directions = attr.get("scan_output_directions", [0] * num_scan_outputs)
+        # loop count are the same for all scan inputs, so get loop count by first input scan
+        # strided_slice not support dynamic axes, so assume input shape are static
+        max_loop_count = infer_shape(inputs[num_state_inputs])[scan_input_axes[0]]
+
+        # Create a copy of the body function to prevent the original
+        # from being modified.
+        body = copy.copy(attr["body"])
+
+        # Loop inputs will be packed as
+        # [iter_count, loop_deps, scan_outputs]
+        def cond_fn(*loop_inputs):
+            i = loop_inputs[0]
+            return _op.less(i, relay.const(max_loop_count, "int32"))
+
+        # Get the current graph proto and create a clone for the subgraph
+        graph_scope = GraphProto.current
+        subgraph_scope = GraphProto(
+            graph_scope._shape, graph_scope._dtype, graph_scope._freeze_params
+        )
+        # Load nodes from outer graph into inner graph.
+        subgraph_scope._nodes = graph_scope._nodes.copy()
+
+        # Create a list of variables for each value updated in the loop.
+        def get_var(name, val, scan=False):
+            checked_type = infer_type(val)
+            if hasattr(checked_type, "type_annotation"):
+                checked_type = checked_type.type_annotation
+            if hasattr(checked_type, "checked_type"):
+                checked_type = checked_type.checked_type
+            shape = get_const_tuple(checked_type.shape)
+            actual_shape = []
+            for dim in shape:
+                if isinstance(dim, int) and dim == 0:
+                    actual_shape.append(_ty.Any())
+                else:
+                    actual_shape.append(dim)
+            if scan:
+                return _expr.var(name, shape=[_ty.Any()] + actual_shape, dtype=checked_type.dtype)
+
+            return _expr.var(name, shape=actual_shape, dtype=checked_type.dtype)
+
+        # Construct variables and initial empty tensors for any scan outputs.
+        # To do this, we'll figure out the output shapes of the body subgraph by importing
+        # it and doing type inference.
+        scan_output_vars = []
+        scan_output_init = []
+        if num_scan_outputs > 0:
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            loop_outputs = _expr.TupleWrapper(loop_outputs, len(body.output))
+
+        for i in range(num_scan_outputs):
+            name, _, _, _ = get_info(body.output[i + num_state_outputs])
+            output_node = infer_type(loop_outputs[i + num_state_outputs])
+            shape = list(get_const_tuple(output_node.checked_type.shape))
+            if scan_output_axes[i] < 0:
+                scan_output_axes[i] = len(shape) + scan_output_axes[i] + 1
+            shape.insert(scan_output_axes[i], max_loop_count)
+            dtype = output_node.checked_type.dtype
+            scan_output_vars.append(_expr.var(name, shape=shape, dtype=dtype))
+            scan_output_init.append(_op.zeros(shape, dtype))
+
+        # loop vars = [iter_count, scan_state, scan_out]
+        loop_vars = [
+            _expr.var("iter", shape=(), dtype="int32"),  # iteration count
+        ]
+        loop_vars += [
+            get_var(body.input[i].name, v) for i, v in enumerate(inputs) if i < num_state_inputs
+        ]
+        loop_vars += scan_output_vars
+        body_input_var_names = ["iter"] + [body.input[i].name for i in range(len(body.input))]
+
+        # # Now we can remove loop iter variables from our inner loop's inputs.
+        # # This is kind of a hack since we have graph inputs that we don't
+        # # want to treat as actual inputs.
+        while len(body.input) != 0:
+            body.input.pop(0)
+
+        # Define the loop body, in this function we need to unpack loop inputs,
+        # convert the loop subgraph, and pack outputs for the next iteration.
+        def body_fn(*loop_inputs):
+            # Unpack inputs
+            loop_count = loop_inputs[0]
+            state_vars = list(loop_inputs[1 : 1 + num_state_inputs])
+            scan_vars = list(loop_inputs[1 + num_state_inputs :])
+            # body take scan graph scan inputs as original input
+            input_scan_exprs = []
+            for i in range(num_state_inputs, num_all_inputs):
+                if scan_input_directions[i - num_state_inputs] != 0:
+                    input_scan_exprs.append(
+                        relay.take(
+                            inputs[i],
+                            relay.const(max_loop_count - 1, "int32") - loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
+                        )
+                    )
+                else:
+                    input_scan_exprs.append(
+                        relay.take(
+                            inputs[i],
+                            loop_count,
+                            axis=scan_input_axes[i - num_state_inputs],
+                        )
+                    )
+
+            # Prepare body inputs by adding them to node dictionary.
+            body_inputs = [loop_count] + state_vars + input_scan_exprs
+            for i, inp in enumerate(body_inputs):
+                subgraph_scope._nodes[body_input_var_names[i]] = inp
+
+            # Get the output of the current loop using the updated inputs.
+            with subgraph_scope:
+                loop_outputs = subgraph_scope.from_onnx(
+                    body, graph_scope.opset, get_output_expr=True
+                )
+            # Unpack the body outputs and prepare variables for next iteration.
+            new_state_vars = [loop_outputs[i] for i in range(num_state_outputs)]
+            new_scan_vars = [loop_outputs[i] for i in range(num_state_outputs, num_all_outputs)]
+
+            # Add new scan outputs to tracking
+            combined_scan_outputs = []
+            for i in range(num_scan_outputs):
+                if scan_output_directions[i] == 0:
+                    # append new scan output
+                    combined_scan = _op.concatenate(
+                        [scan_vars[i], _op.expand_dims(new_scan_vars[i], axis=scan_output_axes[i])],
+                        axis=scan_output_axes[i],
+                    )
+                    # pop head scan output
+                    combined_scan = _op.strided_slice(
+                        combined_scan,
+                        begin=[1],
+                        end=[max_loop_count + 1],
+                        strides=[1],
+                        axes=[scan_output_axes[i]],
+                    )
+                else:
+                    # prepend new scan output
+                    combined_scan = _op.concatenate(
+                        [_op.expand_dims(new_scan_vars[i], axis=scan_output_axes[i]), scan_vars[i]],
+                        axis=scan_output_axes[i],
+                    )
+                    # pop tail scan output
+                    combined_scan = _op.strided_slice(
+                        combined_scan,
+                        begin=[0],
+                        end=[max_loop_count],
+                        strides=[1],
+                        axes=[scan_output_axes[i]],
+                    )
+                combined_scan_outputs.append(combined_scan)
+
+            incr = _expr.const(1, dtype="int32")
+            loop_count = loop_count + incr
+
+            # Pack loop outputs for next iteration
+            # [iter_count, state_var, scan_var]
+            return [loop_count] + new_state_vars + combined_scan_outputs
+
+        # Create the loop function.
+        loop = fold_constant(_loops.while_loop(cond_fn, loop_vars, body_fn))
+
+        # Now need to run initial values through the graph.
+        init_count = _expr.const(0, dtype="int32")
+
+        input_states = [inputs[i] for i in range(num_state_inputs)]
+        loop_vals = loop(init_count, *input_states, *scan_output_init)
+
+        outputs = _expr.TupleWrapper(
+            _expr.Tuple([_expr.TupleGetItem(loop_vals, i + 1) for i in range(num_all_outputs)]),
+            num_all_outputs,
+        )
+
+        # Update outer graph with constants found in the subgraph.
+        free_vars = analysis.free_vars(loop)
+        graph_scope._params.update(subgraph_scope._params)
+        graph_scope._nodes.update(subgraph_scope._nodes)
+        for var in free_vars:
+            graph_scope._nodes.update({var.name_hint: var})
+        return outputs
+
+
 class NonMaxSuppression(OnnxOpConverter):
     """Operator converter for NonMaxSuppression."""
 
@@ -3313,7 +3665,6 @@ class QLinearConv(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=x_zero_point.data,
                     mode=attr["auto_pad"],
                 )
@@ -3405,6 +3756,156 @@ class QLinearAdd(OnnxOpConverter):
         return _qnn.op.quantize(out, c_scale, c_zero_point, out_dtype=dtype)
 
 
+class QLinearMatMul(OnnxOpConverter):
+    """
+    Operator converter for QLinearMatMul from Microsoft onnxruntime contrib opset.
+
+    Limitations:
+    - Only supports 2D input tensors.
+    - Not guaranteed to meet the integer-overflow behavior stipulated in the
+      ONNX documentation for this operator.
+    """
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        # Some of the ops used below take scalar-like inputs, and may require either
+        # of the following:
+        #
+        # - the input is Const node (not merely an expression that *could* be reduced
+        #   to a single Const at graph-compilation time)
+        #
+        # - the input has a specific dtype
+        #
+        # This function attempts to present 'x' in a form that meets both of those
+        # requirements.
+        def try_resolve_to_const_scalar(x, dtype_override=None):
+            x2 = try_resolve_var_to_const(x, params)
+            x3 = ensure_scalar_shape(x2)
+
+            x_dtype = infer_type(x).checked_type.dtype
+            if (dtype_override is not None) and (dtype_override != x_dtype):
+                x4 = _op.cast(x3, dtype_override)
+            else:
+                x4 = x3
+
+            x5 = fold_constant(x4)
+            return x5
+
+        # Unpack the inputs and obtain some type info...
+        a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
+
+        a_type = infer_type(a).checked_type  # 'T1' in ONNX doc for this op
+        a_scale_type = infer_type(a_scale).checked_type
+        a_zp_type = infer_type(a_zp).checked_type
+
+        b_type = infer_type(b).checked_type  # 'T2' in ONNX doc for this op
+        b_scale_type = infer_type(b_scale).checked_type
+        b_zp_type = infer_type(b_zp).checked_type
+
+        y_scale_type = infer_type(y_scale).checked_type
+        y_zp_type = infer_type(y_zp).checked_type  # 'T3' in ONNX doc for this op
+
+        a_shape = infer_shape(a)
+        b_shape = infer_shape(b)
+
+        # Verify type assumptions, based on the ONNX doc for this op...
+        assert a_type.dtype in ["int8", "uint8"]
+        assert a_scale_type.dtype == "float32"
+        assert a_zp_type.dtype == a_type.dtype
+
+        assert b_type.dtype in ["int8", "uint8"]
+        assert b_scale_type.dtype == "float32"
+        assert b_zp_type.dtype == b_type.dtype
+
+        assert y_scale_type.dtype == "float32"
+        assert y_zp_type.dtype in ["int8", "uint8"]
+
+        # TODO: relax this limitation in a future version of this importer.
+        a_rank = len(a_shape)
+        b_rank = len(b_shape)
+        assert (a_rank == 2) and (b_rank == 2), (
+            "QLinearMatMul importer currently requires both 'a' and 'b' tensors to be 2D, but"
+            " rank(a)={}, rank(b)={}".format(a_rank, b_rank)
+        )
+
+        # _qnn.op.dense requires the zero-point values to have dtype int32.
+        a_scale_scalar = try_resolve_to_const_scalar(a_scale)
+        a_zp_scalar = try_resolve_to_const_scalar(a_zp, "int32")
+
+        b_scale_scalar = try_resolve_to_const_scalar(b_scale)
+        b_zp_scalar = try_resolve_to_const_scalar(b_zp, "int32")
+
+        y_scale_scalar = try_resolve_to_const_scalar(y_scale)
+        y_zp_scalar = try_resolve_to_const_scalar(y_zp, "int32")
+
+        # TODO: Confirm that we're using 'num_hidden_units' correctly / as intended with
+        # the '_qnn.op.dense' instance below.
+        num_hidden_units = infer_shape(b)[-1]
+
+        # - Specify the matmul result dtype as int32, so that hopefully the matmul will use
+        #   a 32-bit accumulator as seems to be required by the ONNX op's documentation.
+        #
+        # TL;DR:
+        # The ONNX documentation for this op is clear about acceptable overflow
+        # behavior during the matmul operation:
+        #   - The scalar multiplication ops MAY NOT overflow.
+        #   - The scalar addition ops, which sum the results of the scalar multiplication,
+        #     MAY overflow, but if they do so, it must behave as one would expect during
+        #     32-bit integer-addition overflow.
+        # As of this writing, Relay's qnn.op.dense operator doesn't expose a way for us to
+        # express these constraints.
+        #
+        # TODO: Extend TVM / Relay / TIR / etc. to allow this kind of constraint to be
+        # expressed in a Relay graph. And then update this importer and various TVM
+        # backends accordingly.
+        matmul_result_dtype = "int32"
+
+        matmul_result = _qnn.op.dense(
+            a,
+            _op.transpose(b),
+            a_zp_scalar,
+            b_zp_scalar,
+            a_scale_scalar,
+            b_scale_scalar,
+            num_hidden_units,
+            matmul_result_dtype,
+        )
+
+        # This information might only be found in the C++ code-comments for the
+        # dense.matmul op, but the quantized tensor returned by _qnn.op.dense
+        # has scale==(a_scale_scalar * b_scale_scalar), and zero_point==0.
+        #
+        # 'matmul_result_zp_scalar' has type 'int32' to satisfy input requirements
+        # of the [de/re]quantize ops below.
+        matmul_result_scale_scalar = fold_constant(_op.multiply(a_scale_scalar, b_scale_scalar))
+        matmul_result_zp_scalar = _op.const(0, dtype="int32")
+
+        # requantize requires y_scale to be constant,
+        # if y_scale is not constant, doing dequantize -> quantize
+        if isinstance(y_scale_scalar, _expr.Constant):
+            y = _qnn.op.requantize(
+                matmul_result,
+                matmul_result_scale_scalar,
+                matmul_result_zp_scalar,
+                y_scale_scalar,
+                y_zp_scalar,
+                axis=-1,
+                rounding="TONEAREST",
+                out_dtype=y_zp_type.dtype,
+            )
+        else:
+            matmul_result_deq = _qnn.op.dequantize(
+                matmul_result, matmul_result_scale_scalar, matmul_result_zp_scalar, axis=0
+            )
+
+            y = _qnn.op.quantize(
+                matmul_result_deq, y_scale_scalar, y_zp_scalar, axis=0, out_dtype=y_zp_type.dtype
+            )
+
+        return y
+
+
 class QLinearMul(OnnxOpConverter):
     """Operator converter for QLinearMul from Microsoft onnxruntime contrib opset."""
 
@@ -3427,6 +3928,28 @@ class QLinearMul(OnnxOpConverter):
         a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
         b = _qnn.op.dequantize(inputs[3], b_scale, b_zero_point)
         out = _op.multiply(a, b)
+        return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
+
+
+class QLinearLeakyRelu(OnnxOpConverter):
+    """Operator converter for QLinearLeakyRelu from Microsoft onnxruntime contrib opset."""
+
+    @classmethod
+    def _impl_v10(cls, inputs, attr, params):
+
+        a_scale = get_scalar(inputs[1], params)
+        a_zero_point = get_scalar(inputs[2], params, "int32")
+        y_scale = fold_constant(get_scalar(inputs[3], params))
+        y_zero_point = get_scalar(inputs[4], params, "int32")
+        alpha = float(attr.get("alpha", 1.0))
+
+        dtype = infer_type(inputs[0]).checked_type.dtype
+
+        # Onnxruntime doesn't actually do this op in integer, they dequantize to fp32
+        # and then requantize afer (according to documentation below)
+        # https://github.com/microsoft/onnxruntime/blob/master/docs/ContribOperators.md#com.microsoft.QLinearLeakyRelu
+        a = _qnn.op.dequantize(inputs[0], a_scale, a_zero_point)
+        out = _op.nn.leaky_relu(a, alpha)
         return _qnn.op.quantize(out, y_scale, y_zero_point, out_dtype=dtype)
 
 
@@ -3511,7 +4034,6 @@ class ConvInteger(OnnxOpConverter):
                     attr.get("strides", [1] * (ndim - 2)),
                     attr["kernel_shape"],
                     attr.get("dilations", [1] * (ndim - 2)),
-                    ndim,
                     pad_value=data_zp,
                     mode=attr["auto_pad"],
                 )
@@ -3595,9 +4117,9 @@ class Unique(OnnxOpConverter):
         trim_unique_lambda = lambda input: _op.strided_slice(input, _op.const([0]), num_unique)
 
         unique_vals = trim_unique_lambda(unique[0])
-        indices = trim_unique_lambda(unique[1])
-        inverse_indices = unique[2]
-        counts = trim_unique_lambda(unique[4])
+        indices = _op.cast(trim_unique_lambda(unique[1]), "int64")  # ONNX always returns int64
+        inverse_indices = _op.cast(unique[2], "int64")  # ONNX always returns int64
+        counts = _op.cast(trim_unique_lambda(unique[4]), "int64")  # ONNX always returns int64
         # ONNX unique returns unique, indices, inverse_indices, (optional) counts
         return _expr.TupleWrapper(_expr.Tuple([unique_vals, indices, inverse_indices, counts]), 4)
 
@@ -3609,6 +4131,62 @@ class Einsum(OnnxOpConverter):
     def _impl_v12(cls, inputs, attr, params):
         equation = attr["equation"].decode("utf-8")
         return _op.einsum(inputs, equation)
+
+
+class RandomNormal(OnnxOpConverter):
+    """Operator converter for random_normal"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = get_type(attr.get("dtype", 1))
+        mean = attr.get("mean", 0.0)
+        scale = attr.get("scale", 1.0)
+        seed = attr.get("seed", None)
+        shape = attr["shape"]
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomNormalLike(OnnxOpConverter):
+    """Operator converter for random_normal_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        scale = attr.get("scale", 1.0)
+        mean = attr.get("mean", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.normal(key, shape, dtype=dtype, mean=mean, scale=scale)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
 
 
 class RandomUniform(OnnxOpConverter):
@@ -3629,6 +4207,38 @@ class RandomUniform(OnnxOpConverter):
 
         if seed is None:
             seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
+        key = _random.threefry_key(seed)
+        output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
+        _, vals = _expr.TupleWrapper(output, 2)
+        return vals
+
+
+class RandomUniformLike(OnnxOpConverter):
+    """Operator converter for random_uniform_like"""
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        dtype = attr.get("dtype", None)
+        high = attr.get("high", 1.0)
+        low = attr.get("low", 0.0)
+        seed = attr.get("seed", None)
+        shape = infer_shape(inputs[0])
+        if dtype is None:
+            dtype = infer_type(inputs[0]).checked_type.dtype
+        else:
+            dtype = get_type(dtype)
+
+        assert dtype in [
+            "float32",
+            "float64",
+        ], "Only float random value generation is currently supported."
+
+        if seed is None:
+            seed = np.random.randint(1e6)
+        else:
+            seed = int(seed)
         key = _random.threefry_key(seed)
         output = _op.random.uniform(key, shape, dtype=dtype, low=low, high=high)
         _, vals = _expr.TupleWrapper(output, 2)
@@ -3986,7 +4596,9 @@ def _get_convert_map(opset):
         "Elu": Elu.get_converter(opset),
         "Exp": Renamer("exp"),
         "Greater": Renamer("greater"),
+        "GreaterOrEqual": Renamer("greater_equal"),
         "Less": Renamer("less"),
+        "LessOrEqual": Renamer("less_equal"),
         "Log": Renamer("log"),
         "Acos": Renamer("acos"),
         "Acosh": Renamer("acosh"),
@@ -4019,11 +4631,13 @@ def _get_convert_map(opset):
         "Softsign": Softsign.get_converter(opset),
         "Gemm": Gemm.get_converter(opset),
         "MatMul": MatMul.get_converter(opset),
+        "MatMulInteger16": MatMulInteger16.get_converter(opset),
         "Mod": Mod.get_converter(opset),
         "Xor": Renamer("logical_xor"),
         # defs/nn
         "AveragePool": AveragePool.get_converter(opset),
         "LpPool": LpPool.get_converter(opset),
+        "GlobalLpPool": GlobalLpPool.get_converter(opset),
         "MaxPool": MaxPool.get_converter(opset),
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
@@ -4071,12 +4685,13 @@ def _get_convert_map(opset):
         "Gather": Gather.get_converter(opset),
         "GatherElements": GatherElements.get_converter(opset),
         "GatherND": GatherND.get_converter(opset),
+        "Compress": Compress.get_converter(opset),
         "Size": AttrCvt("ndarray_size", extras={"dtype": "int64"}),
         "Scatter": Scatter.get_converter(opset),
         "ScatterElements": Scatter.get_converter(opset),
         "ScatterND": ScatterND.get_converter(opset),
         "EyeLike": EyeLike.get_converter(opset),
-        "Squeeze": AttrCvt("squeeze", {"axes": "axis"}),
+        "Squeeze": Squeeze.get_converter(opset),
         "Unsqueeze": Unsqueeze.get_converter(opset),
         "Pad": Pad.get_converter(opset),
         "Shape": Shape.get_converter(opset),
@@ -4107,19 +4722,25 @@ def _get_convert_map(opset):
         "QLinearConv": QLinearConv.get_converter(opset),
         "QLinearConcat": QLinearConcat.get_converter(opset),
         "QLinearAdd": QLinearAdd.get_converter(opset),
+        "QLinearMatMul": QLinearMatMul.get_converter(opset),
         "QLinearMul": QLinearMul.get_converter(opset),
         "QLinearSigmoid": QLinearSigmoid.get_converter(opset),
         "ConvInteger": ConvInteger.get_converter(opset),
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
+        "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
         # Random number generation.
+        "RandomNormal": RandomNormal.get_converter(opset),
+        "RandomNormalLike": RandomNormalLike.get_converter(opset),
         "RandomUniform": RandomUniform.get_converter(opset),
+        "RandomUniformLike": RandomUniformLike.get_converter(opset),
         # Loss functions / training
         "NegativeLogLikelihoodLoss": NegativeLogLikelihoodLoss.get_converter(opset),
         "SoftmaxCrossEntropyLoss": SoftmaxCrossEntropyLoss.get_converter(opset),
         "Adagrad": Adagrad.get_converter(opset),
         "Adam": Adam.get_converter(opset),
         "Momentum": Momentum.get_converter(opset),
+        "Scan": Scan.get_converter(opset),
     }
 
 

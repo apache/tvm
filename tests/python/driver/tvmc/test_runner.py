@@ -48,7 +48,7 @@ def test_generate_tensor_data_random():
 
 
 def test_generate_tensor_data__type_unknown():
-    with pytest.raises(tvmc.common.TVMCException) as e:
+    with pytest.raises(tvmc.TVMCException) as e:
         tvmc.runner.generate_tensor_data((2, 3), "float32", "whatever")
 
 
