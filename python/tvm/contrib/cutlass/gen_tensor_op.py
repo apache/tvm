@@ -306,6 +306,9 @@ class ProfilerEngine:
         opath = os.path.join(self.binary_prefix, op_name)
         if not os.path.exists(opath):
             self._compile(op)
+        if not os.path.exists(opath):
+            # Bail out if compilation fails for a whatever reason (e.g. static assert failure)
+            return float("inf")
         cmd = [opath]
         for arg in args:
             cmd.append(str(arg))
