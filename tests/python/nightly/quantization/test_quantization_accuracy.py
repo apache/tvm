@@ -16,7 +16,6 @@
 # under the License.
 from collections import namedtuple
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import quantize as qtz
 import mxnet as mx
@@ -69,37 +68,33 @@ def get_val_data(model_name, rec_val, batch_size, num_workers=4):
     return val_data, batch_fn
 
 
-def get_model(model_name, batch_size, qconfig, target=None, original=False, simulated=False):
+def get_model(model_name, batch_size, qconfig, original=False):
     gluon_model = gluon.model_zoo.vision.get_model(model_name, pretrained=True)
     img_size = 299 if model_name == "inceptionv3" else 224
     data_shape = (batch_size, 3, img_size, img_size)
     mod, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
-    net = mod["main"]
 
-    with tvm.transform.PassContext(opt_level=3):
-        qfunc = relay.quantize.prerequisite_optimize(net, params=params)
     logging.debug("original")
-    logging.debug(qfunc.astext(show_meta_data=False))
+    logging.debug(mod.astext(show_meta_data=False))
     if original:
-        return qfunc
+        return mod, params
 
     with qconfig:
         logging.debug("current quantize config")
         logging.debug(qtz.current_qconfig())
-        qfunc = qtz.quantize(qfunc)
+        qfunc = qtz.quantize(mod, params)
         logging.debug("after quantize")
         logging.debug(qfunc.astext(show_meta_data=False))
-    return qfunc
+    return qfunc, params
 
 
 def eval_acc(
-    model, dataset, batch_fn, target=tvm.target.cuda(), device=tvm.cuda(), log_interval=100
+    model, params, dataset, batch_fn, target=tvm.target.cuda(), device=tvm.cuda(), log_interval=500
 ):
     with tvm.transform.PassContext(opt_level=3):
-        graph, lib, params = relay.build(model, target)
+        lib = relay.build(model, target, params=params)
     # create runtime module
-    m = tvm.contrib.graph_executor.create(graph, lib, device)
-    m.set_input(**params)
+    m = tvm.contrib.graph_executor.GraphModule(lib["default"](device))
 
     # setup evaluaiton metric
     dataset.reset()
@@ -111,7 +106,8 @@ def eval_acc(
     # Execute
     for i, batch in enumerate(dataset):
         data, label = batch_fn(batch, [mx.cpu(0)])
-        m.run(data=data[0].numpy())
+        m.set_input("data", tvm.nd.array(data[0].asnumpy()))
+        m.run()
         out_arr = m.get_output(0)
         acc_top1.update(label, [mx.nd.array(out_arr.numpy())])
         acc_top5.update(label, [mx.nd.array(out_arr.numpy())])
@@ -138,10 +134,11 @@ def test_quantize_acc(cfg, rec_val):
         debug_enabled_ops=None,
     )
 
-    model = get_model(cfg.model, 32, qconfig, tvm.target.cuda())
-    val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=32)
+    batch_size = 1
+    model, params = get_model(cfg.model, batch_size, qconfig)
+    val_data, batch_fn = get_val_data(cfg.model, rec_val=rec_val, batch_size=batch_size)
 
-    acc = eval_acc(model, val_data, batch_fn)
+    acc = eval_acc(model, params, val_data, batch_fn)
     assert acc > cfg.expected_acc
     return acc
 
@@ -152,12 +149,22 @@ if __name__ == "__main__":
 
     results = []
     configs = [
+        # TODO: need to fix accuracy and add AutoTVM log
         Config(
             "mobilenetv2_1.0",
             nbit_input=8,
             dtype_input="int8",
             nbit_output=32,
             dtype_output="int32",
+            global_scale=4.0,
+            expected_acc=0.666,
+        ),
+        Config(
+            "mobilenetv2_1.0",
+            nbit_input=8,
+            dtype_input="int8",
+            nbit_output=16,
+            dtype_output="int16",
             global_scale=4.0,
             expected_acc=0.666,
         ),
@@ -206,8 +213,6 @@ if __name__ == "__main__":
             global_scale=8.0,
             expected_acc=0.756,
         ),
-        # TODO: need to fix accuracy
-        # Config('mobilenetv2_1.0', nbit_input=8, dtype_input='int8', nbit_output=16, dtype_output='int16', global_scale=4.0),
     ]
 
     for config in configs:
