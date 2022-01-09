@@ -24,7 +24,6 @@ import pytest
 import tvm
 from tvm import relay, runtime
 from tvm.contrib import utils
-from tests.python.relay.aot.aot_test_utils import AOTTestModel, compile_and_run
 
 
 skip_windows = pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
