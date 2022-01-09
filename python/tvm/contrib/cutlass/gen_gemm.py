@@ -132,7 +132,11 @@ DEFAULT_KERNELS = {
     80: {
         ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
         ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
-        ("float32", "float32"): "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
+        # two kernels for tf32 and 3xtf32
+        ("float32", "float32"): (
+            "cutlass_tensorop_s1688gemm_128x64_32x3_tn_align1",
+            "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
+        ),
     },
 }
 
@@ -167,6 +171,12 @@ class CutlassGemmProfiler:
             out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32
         )
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
+
+        if arg0_dtype == "float32":
+            default_kernel_name = (
+                default_kernel_name[0] if not use_3xtf32 else default_kernel_name[1]
+            )
+
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
         op = filtered[0]
