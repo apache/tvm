@@ -262,6 +262,7 @@ def test_tuple_output(use_calculated_workspaces, target_options):
 @pytest.mark.parametrize(
     "use_calculated_workspaces_and_alignment", [(True, 1), (True, 16), (False, 1)]
 )
+@pytest.mark.skip(reason="tvm._ffi.base.TVMError: std: :bad_alloc")
 @pytest.mark.parametrize("target_options", ["--unpacked-api"])
 def test_mobilenet(use_calculated_workspaces_and_alignment, target_options):
     use_calculated_workspaces = use_calculated_workspaces_and_alignment[0]

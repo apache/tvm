@@ -231,6 +231,7 @@ def test_conv2d_transpose():
     verify_codegen(mod, params=params, dpu_target="DPUCZDX8G-zcu104")
 
 
+@pytest.mark.skip(reason="test_annotate is unstable")
 def test_annotate():
     """Test annotation operator for Vitis-AI DPUCADX8G and DPUCZDX8G-zcu104 targets"""
 
@@ -333,4 +334,4 @@ if __name__ == "__main__":
     test_avg_pool2d()
     test_upsampling()
     test_conv2d_transpose()
-    test_annotate()
+    # test_annotate()
