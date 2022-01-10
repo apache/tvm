@@ -163,6 +163,56 @@ class DeviceWrapper(Object):
         self.__init_handle_by_constructor__(_ffi_api.DeviceWrapper, dev)
 
 
+def profile_function(mod, dev, collectors, func_name="main", warmup_iters=10):
+    """Collect performance information of a function execution. Usually used with
+    a compiled PrimFunc.
+
+    This information can include performance counters like cache hits and FLOPs
+    that are useful in debugging performance issues of individual PrimFuncs.
+    Different metrics can be collected depending on which MetricCollector is
+    used.
+
+    Example
+    -------
+
+    .. code-block: python
+        f = tvm.build(my_func, target="llvm", name="my_func")
+        prof = tvm.runtime.profiling.profile_function(
+            f,
+            tvm.cpu(),
+            [tvm.runtime.profiling.PAPIMetricCollector({tvm.cpu(): ["PAPI_FP_OPS"]}),
+        )
+        counters = prof(*args)
+        print(counters)
+
+    Parameters
+    ----------
+    mod: Module
+        Module containing the function to profile.
+    dev: Device
+        Device to run the function on.
+
+    collectors: List[MetricCollector]
+        :py:class:`MetricCollector`s which will collect performance information.
+    func_name: str
+        Name of the function in `mod` to profile. Defaults to "main".
+    warmup_iters: int
+        Number of iterations to run the function before collecting performance
+        information. Recommended to set this larger than 0 for consistent cache
+        effects. Defaults to 10.
+
+    Returns
+    -------
+    prof: PackedFunc[args, Dict[str, ObjectRef]]
+        PackedFunc which takes the same arguments as the `mod[func_name]` and
+        returns performance metrics as a `Dict[str, ObjectRef]` where values
+        can be `CountNode`, `DurationNode`, `PercentNode`.
+    """
+    return _ffi_api.ProfileFunction(
+        mod, func_name, dev.device_type, dev.device_id, warmup_iters, collectors
+    )
+
+
 # We only enable this class when TVM is build with PAPI support
 if _ffi.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is not None:
 

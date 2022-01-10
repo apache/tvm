@@ -27,6 +27,8 @@ from tvm.contrib import graph_executor
 import pytest
 
 import paddle
+
+paddle.disable_signal_handler()
 import paddle.nn as nn
 
 PADDLE_TEST_DATA_ROOT_PATH = Path(Path("~").expanduser(), ".tvm_test_data", "paddle")

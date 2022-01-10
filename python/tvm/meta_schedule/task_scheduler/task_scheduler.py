@@ -16,14 +16,16 @@
 # under the License.
 """Auto-tuning Task Scheduler"""
 
-from typing import List
+from typing import List, Optional
 
 from tvm._ffi import register_object
+from tvm.meta_schedule.measure_callback.measure_callback import MeasureCallback
 from tvm.runtime import Object
 
 from ..runner import Runner
 from ..builder import Builder
 from ..database import Database
+from ..cost_model import CostModel
 from ..tune_context import TuneContext
 from .. import _ffi_api
 from ..utils import check_override
@@ -43,12 +45,16 @@ class TaskScheduler(Object):
         The runner of the scheduler.
     database: Database
         The database of the scheduler.
+    measure_callbacks: List[MeasureCallback] = None
+        The list of measure callbacks of the scheduler.
     """
 
     tasks: List[TuneContext]
     builder: Builder
     runner: Runner
     database: Database
+    cost_model: Optional[CostModel]
+    measure_callbacks: List[MeasureCallback]
 
     def tune(self) -> None:
         """Auto-tuning."""
@@ -59,7 +65,7 @@ class TaskScheduler(Object):
 
         Returns
         -------
-        int
+        next_task_id : int
             The next task id.
         """
         return _ffi_api.TaskSchedulerNextTaskId(self)  # type: ignore # pylint: disable=no-member
@@ -94,7 +100,7 @@ class TaskScheduler(Object):
 
         Returns
         -------
-        bool
+        running : bool
             Whether the task is running.
         """
         return _ffi_api.TaskSchedulerIsTaskRunning(self, task_id)  # type: ignore # pylint: disable=no-member
@@ -120,6 +126,8 @@ class PyTaskScheduler(TaskScheduler):
         builder: Builder,
         runner: Runner,
         database: Database,
+        cost_model: Optional[CostModel] = None,
+        measure_callbacks: Optional[List[MeasureCallback]] = None,
     ):
         """Constructor.
 
@@ -133,6 +141,10 @@ class PyTaskScheduler(TaskScheduler):
             The runner of the scheduler.
         database: Database
             The database of the scheduler.
+        cost_model: Optional[CostModel]
+            The cost model of the scheduler.
+        measure_callbacks: List[MeasureCallback]
+            The list of measure callbacks of the scheduler.
         """
 
         @check_override(self.__class__, TaskScheduler, required=False)
@@ -173,6 +185,8 @@ class PyTaskScheduler(TaskScheduler):
             builder,
             runner,
             database,
+            cost_model,
+            measure_callbacks,
             f_tune,
             f_initialize_task,
             f_set_task_stopped,

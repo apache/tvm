@@ -19,7 +19,7 @@ from tvm.relay import Function, transform
 from tvm.relay.testing import inception_v3
 import pytest
 
-cpu_scope = tvm.target.make_virtual_device(tvm.cpu(), tvm.target.Target("llvm"))
+cpu_scope = tvm.target.VirtualDevice(tvm.cpu(), tvm.target.Target("llvm"))
 metatable = {"VirtualDevice": [cpu_scope]}
 core = tvm.IRModule()
 core.import_from_std("core.rly")

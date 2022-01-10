@@ -72,6 +72,9 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
 # Command line driver test
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
+# Target test
+run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-target tests/python/target
+
 # Do not enable OpenGL
 # run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
 

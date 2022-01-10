@@ -51,7 +51,7 @@ class RandomFeatureExtractor(PyFeatureExtractor):
         self.random_state = np.random.get_state()
 
     def extract_from(
-        self, tune_context: TuneContext, candidates: List[MeasureCandidate]
+        self, context: TuneContext, candidates: List[MeasureCandidate]
     ) -> List[NDArray]:
         np.random.set_state(self.random_state)
         result = [

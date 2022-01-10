@@ -16,24 +16,22 @@
 # under the License.
 """ Test Meta Schedule Task Scheduler """
 
+import random
+import sys
 from typing import List
 
-import sys
-import random
-
 import pytest
-
 import tvm
-from tvm.script import tir as T
 from tvm.ir import IRModule
-from tvm.tir import Schedule
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.space_generator import ScheduleFn
-from tvm.meta_schedule.search_strategy import ReplayTrace
-from tvm.meta_schedule.builder import PyBuilder, BuilderInput, BuilderResult
-from tvm.meta_schedule.runner import PyRunner, RunnerInput, RunnerFuture, RunnerResult
+from tvm.meta_schedule import TuneContext, measure_callback
+from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.task_scheduler import RoundRobin, PyTaskScheduler
+from tvm.meta_schedule.runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from tvm.meta_schedule.search_strategy import ReplayTrace
+from tvm.meta_schedule.space_generator import ScheduleFn
+from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin
+from tvm.script import tir as T
+from tvm.tir import Schedule
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -140,7 +138,10 @@ class DummyDatabase(PyDatabase):
         self.records = []
         self.workload_reg = []
 
-    def has_workload(self, mod: IRModule) -> bool:
+    def has_workload(self, mod: IRModule) -> Workload:
+        for workload in self.workload_reg:
+            if tvm.ir.structural_equal(workload.mod, mod):
+                return True
         return False
 
     def commit_tuning_record(self, record: TuningRecord) -> None:
@@ -183,7 +184,13 @@ def test_meta_schedule_task_scheduler_single():
         rand_state=42,
     )
     database = DummyDatabase()
-    round_robin = RoundRobin([task], DummyBuilder(), DummyRunner(), database)
+    round_robin = RoundRobin(
+        [task],
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[measure_callback.AddToDatabase()],
+    )
     round_robin.tune()
     assert len(database) == num_trials_total
 
@@ -218,15 +225,29 @@ def test_meta_schedule_task_scheduler_multiple():
         ),
     ]
     database = DummyDatabase()
-    round_robin = RoundRobin(tasks, DummyBuilder(), DummyRunner(), database)
+    round_robin = RoundRobin(
+        tasks,
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[measure_callback.AddToDatabase()],
+    )
     round_robin.tune()
     assert len(database) == num_trials_total * len(tasks)
     print(database.workload_reg)
     for task in tasks:
-        assert len(database.get_top_k(database.commit_workload(task.mod), 1e9)) == num_trials_total
+        assert (
+            len(
+                database.get_top_k(
+                    database.commit_workload(task.mod),
+                    100000,
+                )
+            )
+            == num_trials_total
+        )
 
 
-def test_meta_schedule_task_scheduler_NIE():
+def test_meta_schedule_task_scheduler_not_implemented_error():  # pylint: disable=invalid-name
     class MyTaskScheduler(PyTaskScheduler):
         pass
 
@@ -234,7 +255,7 @@ def test_meta_schedule_task_scheduler_NIE():
         MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
 
 
-def test_meta_schedule_task_scheduler_override_next_task_id_only():
+def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
     class MyTaskScheduler(PyTaskScheduler):
         done = set()
 
@@ -291,11 +312,27 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():
         ),
     ]
     database = DummyDatabase()
-    scheduler = MyTaskScheduler(tasks, DummyBuilder(), DummyRunner(), database)
+    scheduler = MyTaskScheduler(
+        tasks,
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[
+            measure_callback.AddToDatabase(),
+        ],
+    )
     scheduler.tune()
     assert len(database) == num_trials_total * len(tasks)
     for task in tasks:
-        assert len(database.get_top_k(database.commit_workload(task.mod), 1e9)) == num_trials_total
+        assert (
+            len(
+                database.get_top_k(
+                    database.commit_workload(task.mod),
+                    100000,
+                )
+            )
+            == num_trials_total
+        )
 
 
 if __name__ == "__main__":

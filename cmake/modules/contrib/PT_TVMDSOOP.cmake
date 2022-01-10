@@ -44,7 +44,7 @@ if(NOT USE_PT_TVMDSOOP STREQUAL "OFF")
 
 
   set(LIBRARY_NAME pt_tvmdsoop)
-  file(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/**/*.cc)
+  tvm_file_glob(GLOB_RECURSE PTTVM_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/src/contrib/torch/**/*.cc)
   add_library(${LIBRARY_NAME} SHARED ${PTTVM_SRCS})
   set(PTTVM_LINK_FLAGS -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
 

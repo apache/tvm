@@ -212,7 +212,10 @@ def verify_model(
     compiled_input = dict(zip(input_names, [inp.clone().cpu().numpy() for inp in baseline_input]))
 
     with tvm.transform.PassContext(opt_level=3):
-        for target, dev in tvm.testing.enabled_targets():
+        for target in ["llvm", "cuda"]:
+            if not tvm.runtime.enabled(target):
+                continue
+            dev = tvm.device(target, 0)
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_executor.create(relay_graph, relay_lib, dev)
             relay_model.set_input(**relay_params)
@@ -242,6 +245,53 @@ def verify_model(
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
+
+
+def verify_span(model_name, input_data=[], custom_convert_map={}):
+    if isinstance(model_name, str):
+        baseline_model, baseline_input = load_model(model_name)
+    elif isinstance(input_data, list):
+        baseline_model = model_name
+        baseline_input = input_data
+    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
+        baseline_model = model_name
+        baseline_input = [input_data]
+    else:
+        assert False, "Unexpected input format"
+
+    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
+    if isinstance(baseline_model, torch.nn.Module):
+        trace = trace.float().eval()
+
+        if torch.cuda.is_available():
+            trace = trace.cuda()
+        else:
+            trace = trace.cpu()
+
+    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
+
+    # collect fail cases for the convenience of further improvement
+    fail_cases = []
+    mod_main_start = False
+    for line in str(mod.__str__).split("\n"):
+        if "@main" in line:
+            mod_main_start = True
+            continue
+
+        if mod_main_start == True:
+            if "}" == line:
+                break
+            elif not ("/*" in line and "*/" in line):
+                fail_cases.append(line)
+
+    print(fail_cases)
+    assert len(fail_cases) == 0
+
+
+def test_span():
+    verify_span("resnet18")
 
 
 # Single operator tests
@@ -2196,7 +2246,7 @@ def test_3d_models():
 
 
 def _get_default_vm_targets():
-    return [tgt for (tgt, _) in tvm.testing.enabled_targets()]
+    return ["llvm", "cuda"]
 
 
 def verify_script_model(pt_model, ishapes, targets, idtype=None):
@@ -2269,7 +2319,10 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
     mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
 
     for tgt in targets:
+        if not tvm.runtime.enabled(tgt):
+            continue
         print("Running on target", tgt)
+
         dev = tvm.device(tgt, 0)
 
         evaluator = relay.create_executor("vm", mod=mod, device=dev, target=tgt).evaluate()
@@ -3897,7 +3950,7 @@ def test_masked_select():
     for shape in [(10,), (3, 4), (16, 32, 64)]:
         x = torch.randn(*shape)
         mask = x.ge(0.5)
-        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda", "nvptx"])
+        verify_trace_model(test_fn, [x, mask], ["llvm", "cuda"])
 
 
 def test_unique():
@@ -3905,7 +3958,7 @@ def test_unique():
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)
 
     in_data = torch.randint(0, 20, (10,), dtype=torch.int32)
-    targets = ["llvm", "cuda", "nvptx"]
+    targets = ["llvm", "cuda"]
     verify_trace_model(test_fn(True, True, True), [in_data], targets)
     verify_trace_model(test_fn(True, False, True), [in_data], targets)
     verify_trace_model(test_fn(True, True, False), [in_data], targets)
