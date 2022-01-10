@@ -36,43 +36,54 @@ namespace transform {
 
 LexicalOnDeviceMixin::LexicalOnDeviceMixin(const Optional<IRModule>& maybe_mod) {
   if (maybe_mod) {
-    for (const auto& pair : maybe_mod.value()->functions) {
-      if (const auto* function_node = pair.second.as<FunctionNode>()) {
-        DLDeviceType device_type = GetFunctionResultDeviceType(function_node);
-        if (device_type != kInvalidDeviceType) {
-          global_var_device_types_.emplace(pair.first, device_type);
+    for (const auto& kv : maybe_mod.value()->functions) {
+      if (const auto* function_node = kv.second.as<FunctionNode>()) {
+        VirtualDevice virtual_device = GetFunctionResultVirtualDevice(function_node);
+        if (!virtual_device->IsFullyUnconstrained()) {
+          VLOG(2) << "global '" << kv.first->name_hint << "' has virtual device " << virtual_device;
+          global_var_virtual_devices_.emplace(kv.first, virtual_device);
         }
       }
     }
   }
 }
 
-DLDeviceType LexicalOnDeviceMixin::GetInScopeDeviceType(const Expr& expr) const {
-  auto props = GetOnDeviceProps(expr);
-  if (props.body.defined() && props.is_fixed) {
-    return props.device_type;
+VirtualDevice LexicalOnDeviceMixin::GetVirtualDevice(const Expr& expr) const {
+  OnDeviceProps props = GetOnDeviceProps(expr);
+  if (props.body.defined() && props.is_fixed()) {
+    return props.virtual_device;
   } else if (const auto* var_node = expr.as<VarNode>()) {
     // Lookup variable binding.
-    auto itr = var_device_types_.find(GetRef<Var>(var_node));
-    if (itr != var_device_types_.end()) {
+    auto itr = var_virtual_devices_.find(GetRef<Var>(var_node));
+    if (itr != var_virtual_devices_.end()) {
       return itr->second;
     }
-    // else: fallthrough to unknown
+    // else: fallthrough to unconstrained
   } else if (const auto* global_var_node = expr.as<GlobalVarNode>()) {
     // Lookup global variable.
-    auto itr = global_var_device_types_.find(GetRef<GlobalVar>(global_var_node));
-    if (itr != global_var_device_types_.end()) {
+    auto itr = global_var_virtual_devices_.find(GetRef<GlobalVar>(global_var_node));
+    if (itr != global_var_virtual_devices_.end()) {
       return itr->second;
     }
-    // else: fallthrough to unknown
-  } else {
-    if (!expr_device_types_.empty()) {
-      // Use the currently in-scope device type.
-      return expr_device_types_.back();
+    // else: fallthrough to unconstrained
+  } else if (const auto* function_node = expr.as<FunctionNode>()) {
+    if (function_node->HasNonzeroAttr(attr::kPrimitive)) {
+      if (!expr_virtual_devices_.empty()) {
+        // Use the currently in-scope device type.
+        return expr_virtual_devices_.back();
+      }
+      // else: fallthrough to unconstrained
+    } else {
+      return GetFunctionResultVirtualDevice(function_node);
     }
-    // else: fallthrough to unknown
+  } else {
+    if (!expr_virtual_devices_.empty()) {
+      // Use the currently in-scope device type.
+      return expr_virtual_devices_.back();
+    }
+    // else: fallthrough to unconstrained
   }
-  return kInvalidDeviceType;
+  return VirtualDevice::FullyUnconstrained();
 }
 
 void LexicalOnDeviceMixin::EnterFunctionBody() { ++function_nesting_; }
@@ -82,34 +93,34 @@ void LexicalOnDeviceMixin::ExitFunctionBody() {
   --function_nesting_;
 }
 
-void LexicalOnDeviceMixin::PushDeviceType(DLDeviceType device_type) {
-  if (device_type == kInvalidDeviceType) {
+void LexicalOnDeviceMixin::PushVirtualDevice(const VirtualDevice& virtual_device) {
+  if (virtual_device->IsFullyUnconstrained()) {
     return;
   }
-  expr_device_types_.emplace_back(device_type);
+  expr_virtual_devices_.emplace_back(virtual_device);
 }
 
-void LexicalOnDeviceMixin::PopDeviceType() {
-  if (expr_device_types_.empty()) {
+void LexicalOnDeviceMixin::PopVirtualDevice() {
+  if (expr_virtual_devices_.empty()) {
     return;
   }
-  expr_device_types_.pop_back();
+  expr_virtual_devices_.pop_back();
 }
 
-void LexicalOnDeviceMixin::PushBoundVar(Var var, DLDeviceType device_type) {
-  if (device_type == kInvalidDeviceType) {
+void LexicalOnDeviceMixin::PushBoundVar(Var var, const VirtualDevice& virtual_device) {
+  if (virtual_device->IsFullyUnconstrained()) {
     return;
   }
-  ICHECK(var_device_types_.find(var) == var_device_types_.end());
-  var_device_types_.emplace(std::move(var), device_type);
+  ICHECK(var_virtual_devices_.find(var) == var_virtual_devices_.end());
+  var_virtual_devices_.emplace(std::move(var), virtual_device);
 }
 
 void LexicalOnDeviceMixin::PopBoundVar(const Var& var) {
-  auto itr = var_device_types_.find(var);
-  if (itr == var_device_types_.end()) {
+  auto itr = var_virtual_devices_.find(var);
+  if (itr == var_virtual_devices_.end()) {
     return;
   }
-  var_device_types_.erase(itr);
+  var_virtual_devices_.erase(itr);
 }
 
 // TODO(mbs): We'd probably have less tedious code duplication if we redefined the memoizing
@@ -122,17 +133,17 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
   } else {
     // Function parameters come into scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamDeviceType(function_node, i));
+      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
     }
     // Entering scope of function body.
-    PushDeviceType(GetFunctionResultDeviceType(function_node));
+    PushVirtualDevice(GetFunctionResultVirtualDevice(function_node));
     EnterFunctionBody();
 
     DeviceAwareVisitExpr_(function_node);
 
     // Leaving scope of function body.
     ExitFunctionBody();
-    PopDeviceType();
+    PopVirtualDevice();
     // Function parameters go out of scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       PopBoundVar(function_node->params[i]);
@@ -147,7 +158,7 @@ void DeviceAwareExprVisitor::VisitExpr_(const LetNode* let_node) {
   while (const auto* inner_let_node = expr.as<LetNode>()) {
     // Let-bound var (in pre visited version) goes into scope.
     // (We'll just assume this is a letrec).
-    PushBoundVar(inner_let_node->var, GetInScopeDeviceType(inner_let_node->value));
+    PushBoundVar(inner_let_node->var, GetVirtualDevice(inner_let_node->value));
     PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
     bindings.emplace_back(inner_let_node);
     expr = inner_let_node->body;
@@ -164,13 +175,13 @@ void DeviceAwareExprVisitor::VisitExpr_(const LetNode* let_node) {
 }
 
 void DeviceAwareExprVisitor::VisitExpr_(const CallNode* call_node) {
-  auto props = GetOnDeviceProps(call_node);
-  if (props.body.defined() && props.is_fixed) {
+  OnDeviceProps props = GetOnDeviceProps(call_node);
+  if (props.body.defined() && props.is_fixed()) {
     // Entering lexical scope of fixed "on_device" call.
-    PushDeviceType(props.device_type);
+    PushVirtualDevice(props.virtual_device);
     VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
-    PopDeviceType();
+    PopVirtualDevice();
   } else {
     DeviceAwareVisitExpr_(call_node);
   }
@@ -208,17 +219,17 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
   } else {
     // Function parameters come into scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamDeviceType(function_node, i));
+      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
     }
     // Entering scope of function body.
-    PushDeviceType(GetFunctionResultDeviceType(function_node));
+    PushVirtualDevice(GetFunctionResultVirtualDevice(function_node));
     EnterFunctionBody();
 
     Expr result = DeviceAwareVisitExpr_(function_node);
 
     // Leaving scope of function body.
     ExitFunctionBody();
-    PopDeviceType();
+    PopVirtualDevice();
     // Function parameters go out of scope.
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       PopBoundVar(function_node->params[i]);
@@ -235,7 +246,7 @@ Expr DeviceAwareExprMutator::VisitExpr_(const LetNode* let_node) {
   while (const auto* inner_let_node = expr.as<LetNode>()) {
     // Let-bound var (in pre visited version) goes into scope.
     // (We'll just assume this is a letrec.)
-    PushBoundVar(inner_let_node->var, GetInScopeDeviceType(inner_let_node->value));
+    PushBoundVar(inner_let_node->var, GetVirtualDevice(inner_let_node->value));
     std::pair<Var, Expr> pair = PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
     bindings.emplace_back(pair.first, pair.second, inner_let_node->span, inner_let_node);
     expr = inner_let_node->body;
@@ -255,14 +266,14 @@ Expr DeviceAwareExprMutator::VisitExpr_(const LetNode* let_node) {
 }
 
 Expr DeviceAwareExprMutator::VisitExpr_(const CallNode* call_node) {
-  auto props = GetOnDeviceProps(call_node);
-  if (props.body.defined() && props.is_fixed) {
+  OnDeviceProps props = GetOnDeviceProps(call_node);
+  if (props.body.defined() && props.is_fixed()) {
     // Entering lexical scope of fixed "on_device" call.
-    PushDeviceType(props.device_type);
+    PushVirtualDevice(props.virtual_device);
     Expr expr = VisitExpr(props.body);
     // Leaving lexical scope of "on_device" call.
-    PopDeviceType();
-    return MaybeOnDevice(expr, props.device_type, props.is_fixed);
+    PopVirtualDevice();
+    return MaybeOnDeviceWithProps(expr, props);
   } else {
     return DeviceAwareVisitExpr_(call_node);
   }

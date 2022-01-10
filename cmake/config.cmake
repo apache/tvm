@@ -231,6 +231,10 @@ set(USE_ETHOSN_HW OFF)
 # Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
 set(USE_ETHOSU OFF)
 
+# Whether to build with CMSIS-NN external library support.
+# See https://github.com/ARM-software/CMSIS_5
+set(USE_CMSISNN OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -284,6 +288,9 @@ set(USE_HEXAGON_SDK /path/to/sdk)
 
 # Whether to build the hexagon launcher
 set(USE_HEXAGON_LAUNCHER OFF)
+
+# Whether to build the minimal support android rpc server for hexagon
+set(USE_HEXAGON_PROXY_RPC OFF)
 
 # Hexagon architecture to target when compiling TVM itself (not the target for
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
@@ -354,3 +361,6 @@ set(USE_GTEST AUTO)
 # Enable using CUTLASS as a BYOC backend
 # Need to have USE_CUDA=ON
 set(USE_CUTLASS OFF)
+
+# Enable to show a summary of TVM options
+set(SUMMARIZE OFF)

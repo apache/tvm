@@ -89,11 +89,10 @@ ExecutorRegEntry& ExecutorRegEntry::RegisterOrGet(const String& name) {
 
 TVM_REGISTER_EXECUTOR("aot")
     .add_attr_option<Bool>("unpacked-api")
-    .add_attr_option<String>("interface-api");
+    .add_attr_option<String>("interface-api")
+    .add_attr_option<Integer>("workspace-byte-alignment");
 
 TVM_REGISTER_EXECUTOR("graph").add_attr_option<Bool>("link-params", Bool(false));
-
-TVM_REGISTER_EXECUTOR("vm");
 
 /**********  Registry  **********/
 

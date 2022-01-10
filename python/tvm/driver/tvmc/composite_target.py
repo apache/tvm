@@ -31,7 +31,7 @@ from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 
 
-from .common import TVMCException
+from tvm.driver.tvmc import TVMCException
 
 
 # pylint: disable=invalid-name
@@ -53,7 +53,7 @@ REGISTERED_CODEGEN = {
         "pass_pipeline": partition_for_arm_compute_lib,
     },
     "cmsis-nn": {
-        "config_key": None,
+        "config_key": "relay.ext.cmsisnn.options",
         "pass_pipeline": partition_for_cmsisnn,
     },
     "ethos-n77": {
@@ -65,7 +65,7 @@ REGISTERED_CODEGEN = {
         "pass_pipeline": partition_for_ethosn78,
     },
     "ethos-u": {
-        "config_key": "relay.ext.ethosu.options",
+        "config_key": "relay.ext.ethos-u.options",
         "pass_pipeline": partition_for_ethosu,
     },
     "bnns": {

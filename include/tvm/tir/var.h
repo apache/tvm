@@ -52,7 +52,7 @@ class VarNode : public PrimExprNode {
    */
   String name_hint;
   /*!
-   * \brief type annotaion of the variable.
+   * \brief type annotation of the variable.
    *
    * It is an optional field that provides a refined type of the variable than dtype.
    *

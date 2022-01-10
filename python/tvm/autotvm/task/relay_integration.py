@@ -22,6 +22,7 @@ Decorator and utilities for the integration with TOPI and Relay
 """
 import threading
 import logging
+import warnings
 
 import tvm
 from tvm.autotvm.task.dispatcher import DispatchContext, FallbackContext
@@ -45,7 +46,7 @@ def _lower(mod, target, params):
         with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(mod["main"])
+            grc.codegen(mod, mod["main"])
             return
 
     compiler = relay.vm.VMCompiler()
@@ -77,6 +78,11 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     target, target_host = Target.check_and_update_host_consist(target, target_host)
     return extract_from_multiple_program([mod], [params], target, ops=ops)
 

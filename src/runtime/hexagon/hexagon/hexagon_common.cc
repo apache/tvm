@@ -20,6 +20,7 @@
 /*!
  * \file hexagon_common.cc
  */
+#define TVM_LOG_CUSTOMIZE 1
 
 #include "hexagon_common.h"
 
@@ -31,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../library_module.h"
 #include "hexagon_buffer.h"
 
 namespace tvm {
@@ -57,7 +59,9 @@ void HexagonLookupLinkedParam(TVMArgs args, TVMRetValue* rv) {
   std::vector<int64_t> shape_vec{template_tensor->shape,
                                  template_tensor->shape + template_tensor->ndim};
 
-  auto* param_buffer = new HexagonBuffer(static_cast<void*>(opaque_handle));
+  Optional<String> scope("global");
+  auto* param_buffer =
+      new HexagonBuffer(static_cast<void*>(opaque_handle), GetDataSize(*template_tensor), scope);
   auto* container = new NDArray::Container(static_cast<void*>(param_buffer), shape_vec,
                                            template_tensor->dtype, dev);
   container->SetDeleter([](Object* container) {
@@ -79,11 +83,13 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
 
     TVMValue* arg_values = const_cast<TVMValue*>(args.values);
     std::vector<std::pair<size_t, HexagonBuffer*>> buffer_args;
-    for (size_t i = 0; i < args.num_args; i++) {
+    for (int i = 0; i < args.num_args; i++) {
       if (args.type_codes[i] == kTVMDLTensorHandle) {
         DLTensor* tensor = static_cast<DLTensor*>(arg_values[i].v_handle);
         buffer_args.emplace_back(i, static_cast<HexagonBuffer*>(tensor->data));
-        tensor->data = buffer_args.back().second->GetPointer();
+        // Assumes a single contiguous allocation
+        // TODO(Straw): Enable discontiguous allocation after RFC 39 lands
+        tensor->data = buffer_args.back().second->GetPointer()[0];
       }
     }
     int ret = (*faddr)(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
@@ -132,5 +138,10 @@ void LogMessageImpl(const std::string& file, int lineno, const std::string& mess
 
 TVM_REGISTER_GLOBAL("tvm.runtime.hexagon.lookup_linked_params")
     .set_body(hexagon::HexagonLookupLinkedParam);
+
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
+  *rv = CreateModuleFromLibrary(n, hexagon::WrapPackedFunc);
+});
 }  // namespace runtime
 }  // namespace tvm

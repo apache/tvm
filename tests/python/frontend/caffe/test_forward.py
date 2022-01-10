@@ -199,11 +199,10 @@ def _run_tvm(data, proto_file, blob_file):
     mod, params = relay.frontend.from_caffe(init_net, predict_net, shape_dict, dtype_dict)
 
     target = "llvm"
-    target_host = "llvm"
 
     dev = tvm.cpu(0)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target=target, target_host=target_host, params=params)
+        lib = relay.build(mod, target=target, params=params)
     dtype = "float32"
     m = graph_executor.GraphModule(lib["default"](dev))
     if isinstance(data, (tuple, list)):

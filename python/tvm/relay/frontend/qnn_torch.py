@@ -16,16 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, import-outside-toplevel
 """ Functions to convert quantized torch models to QNN """
-import logging
 
 import numpy as np
-
 import tvm
 from tvm import relay
 from tvm.relay import expr as _expr
 from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
+from .common import logger
 from .pytorch_utils import is_version_greater_than
 
 
@@ -777,7 +776,7 @@ def _binop(relay_op, with_relu=False, fp32_piggy_back=False):
         input_zero_point_rhs = _expr.const(inputs[7])
 
         if fp32_piggy_back:
-            logging.info("Piggy backing to FP32 op (PyTorch way)")
+            logger.info("Piggy backing to FP32 op (PyTorch way)")
             return torch_impl(
                 lhs,
                 rhs,
@@ -1043,11 +1042,8 @@ def _quantized_conv_transpose2d(with_relu=False):
 
         weight_shape = list(infer_shape(weight))
 
-        # Swap I and O dims to match shape relay expects for OIHW
-        weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
-
         kernel_size = (weight_shape[2], weight_shape[3])
-        out_channels = weight_shape[0]
+        out_channels = weight_shape[1]
 
         conv_out = relay.qnn.op.conv2d_transpose(
             inputs[0],
@@ -1064,7 +1060,7 @@ def _quantized_conv_transpose2d(with_relu=False):
             channels=out_channels,
             output_padding=output_padding,
             out_dtype="int32",
-            kernel_layout="OIHW",
+            kernel_layout="IOHW",
         )
 
         return _do_bias_and_requantize(

@@ -37,6 +37,7 @@ def pooling_compute(
     activation: str,
     clip_min: int,
     clip_max: int,
+    rounding_mode: str,
     upscale: str,
     ifm_layout: str,
     ofm_layout: str,
@@ -78,6 +79,11 @@ def pooling_compute(
         The minimum clipping value if activation = "CLIP".
     clip_max : int
         The maximum clipping value if activation = "CLIP".
+    rounding_mode : str
+        The rounding mode to apply to the Output Feature Map tensor.
+            "TFL" - Tensorflow Lite rounding scheme.
+            "TRUNCATE" - Truncate towards zero.
+            "NATURAL" - Round to nearest value, with x.5 rounded up towards +infinity.
     upscale : str
         The 2x2 upscaling mode to apply to the Input Feature Map tensor.
             "NONE" - no upscaling.
@@ -113,13 +119,25 @@ def pooling_compute(
         "activation": activation,
         "clip_min": clip_min,
         "clip_max": clip_max,
+        "rounding_mode": rounding_mode,
         "upscale": upscale,
     }
+
+    has_lut = activation in ("TANH", "LUT", "SIGMOID")
+
+    # This is a trick to insert the LUT tensor into the TE graph if LUT is present
+    lut_expr = (lut[0] + lut[255]).astype(ifm.dtype) if has_lut else 0
+
+    # Add the LUT tensor to the attributes to be able to later tell which tensor is the LUT
+    if has_lut:
+        pooling_attrs["lut"] = lut
 
     pooling = te.compute(
         (1, ofm_height, ofm_width, ofm_channels),
         lambda nn, hh, ww, cc: te.max(
-            dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc).astype(ifm.dtype),
+            (dmaed_ifm(nn, hh * stride_h + rh, ww * stride_w + rw, cc) + lut_expr).astype(
+                ifm.dtype
+            ),
             axis=[rh, rw],
         ),
         name="ethosu_pooling",

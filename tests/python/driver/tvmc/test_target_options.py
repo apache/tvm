@@ -19,9 +19,8 @@ import argparse
 
 import pytest
 
-from tvm.driver import tvmc
-from tvm.driver.tvmc.common import TVMCException
-from tvm.driver.tvmc.target import generate_target_args, reconstruct_target_args
+from tvm.driver.tvmc import TVMCException
+from tvm.driver.tvmc.target import generate_target_args, reconstruct_target_args, target_from_cli
 
 
 def test_target_to_argparse():
@@ -42,14 +41,24 @@ def test_mapping_target_args():
     assert reconstruct_target_args(parsed) == {"llvm": {"mcpu": "cortex-m3"}}
 
 
+def test_skip_target_from_codegen():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, left = parser.parse_known_args(
+        ["--target=cmsis-nn, c", "--target-cmsis-nn-from_device=1", "--target-c-mcpu=cortex-m55"]
+    )
+    assert left == ["--target-cmsis-nn-from_device=1"]
+    assert reconstruct_target_args(parsed) == {"c": {"mcpu": "cortex-m55"}}
+
+
 def test_target_recombobulation_single():
-    tvm_target, _ = tvmc.common.target_from_cli("llvm", {"llvm": {"mcpu": "cortex-m3"}})
+    tvm_target, _ = target_from_cli("llvm", {"llvm": {"mcpu": "cortex-m3"}})
 
     assert str(tvm_target) == "llvm -keys=cpu -link-params=0 -mcpu=cortex-m3"
 
 
 def test_target_recombobulation_many():
-    tvm_target, _ = tvmc.common.target_from_cli(
+    tvm_target, _ = target_from_cli(
         "opencl -device=mali, llvm -mtriple=aarch64-linux-gnu",
         {"llvm": {"mcpu": "cortex-m3"}, "opencl": {"max_num_threads": 404}},
     )
@@ -65,7 +74,7 @@ def test_error_if_target_missing():
         TVMCException,
         match="Passed --target-opencl-max_num_threads but did not specify opencl target",
     ):
-        tvmc.common.target_from_cli(
+        target_from_cli(
             "llvm",
             {"opencl": {"max_num_threads": 404}},
         )

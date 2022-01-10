@@ -20,10 +20,15 @@
 #define TVM_META_SCHEDULE_UTILS_H_
 
 #include <dmlc/memory_io.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/feature_extractor.h>
+#include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
+#include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/meta_schedule/task_scheduler.h>
@@ -39,10 +44,16 @@
 #include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
+#include "../support/nd_int_set.h"
+#include "../support/utils.h"
 #include "../tir/schedule/primitive.h"
+#include "../tir/schedule/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
+
+/*! \brief The type of the random state */
+using TRandState = support::LinearCongruentialEngine::TRandState;
 
 /*!
  * \brief Read lines from a json file.
@@ -193,7 +204,7 @@ inline support::LinearCongruentialEngine::TRandState ForkSeed(
 
 /*!
  * \brief Fork a random state into another ones, i.e. PRNG splitting.
- * The given random state is also mutated.
+ *  The given random state is also mutated.
  * \param rand_state The random state to be forked
  * \param n The number of forks
  * \return The forked random states
@@ -207,6 +218,105 @@ inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
   }
   return results;
 }
+
+/*!
+ * \brief Get deep copy of an IRModule.
+ * \param mod The IRModule to make a deep copy.
+ * \return The deep copy of the IRModule.
+ */
+inline IRModule DeepCopyIRModule(IRModule mod) {
+  return Downcast<IRModule>(LoadJSON(SaveJSON(mod)));
+}
+
+/*!
+ * \brief Concatenate strings
+ * \param strs The strings to concatenate
+ * \param delim The delimiter
+ * \return The concatenated string
+ */
+inline std::string Concat(const Array<String>& strs, const std::string& delim) {
+  if (strs.empty()) {
+    return "";
+  }
+  std::ostringstream os;
+  os << strs[0];
+  for (int i = 1, n = strs.size(); i < n; ++i) {
+    os << delim << strs[i];
+  }
+  return os.str();
+}
+
+/*!
+ * \brief A helper data structure that replays a trace and collects failure counts
+ * for each postprocessor
+ */
+struct ThreadedTraceApply {
+  /*! \brief Constructor */
+  explicit ThreadedTraceApply(const Array<Postproc>& postprocs)
+      : n_(postprocs.size()), items_(new Item[n_]) {
+    for (int i = 0; i < n_; ++i) {
+      items_[i].postproc = postprocs[i];
+      items_[i].fail_counter = 0;
+    }
+  }
+
+  /*! \brief Destructor */
+  ~ThreadedTraceApply() { delete[] items_; }
+
+  /*!
+   * \brief Apply the trace and postprocessors to an IRModule
+   * \param mod The IRModule to be applied
+   * \param trace The trace to apply to the IRModule
+   * \param rand_state The random seed
+   * \return The schedule created, or NullOpt if any postprocessor fails
+   */
+  Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
+                                TRandState* rand_state) {
+    tir::Schedule sch =
+        tir::Schedule::Traced(mod,
+                              /*rand_state=*/ForkSeed(rand_state),
+                              /*debug_mode=*/0,
+                              /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
+    trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
+    sch->EnterPostproc();
+    for (int i = 0; i < n_; ++i) {
+      Item& item = items_[i];
+      if (!item.postproc->Apply(sch)) {
+        ++item.fail_counter;
+        return NullOpt;
+      }
+    }
+    return sch;
+  }
+
+  /*! \brief Returns a string summarizing the failures on each postprocessor */
+  std::string SummarizeFailures() const {
+    std::ostringstream os;
+    for (int i = 0; i < n_; ++i) {
+      const Item& item = items_[i];
+      os << "Postproc #" << i << " [" << item.postproc  //
+         << "]: " << item.fail_counter.load() << " failure(s)";
+      if (i != n_ - 1) {
+        os << "\n";
+      }
+    }
+    return os.str();
+  }
+
+ private:
+  /*! \brief A helper data structure that stores the fail count for each postprocessor. */
+  struct Item {
+    /*! \brief The postprocessor. */
+    Postproc postproc{nullptr};
+    /*! \brief The thread-safe postprocessor failure counter. */
+    std::atomic<int> fail_counter{0};
+  };
+
+  /*! \brief The number of total postprocessors. */
+  int n_;
+  /*! \brief The pointer to the list of postprocessor items. */
+  Item* items_;
+};
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include "../utils.h"
 
 namespace tvm {
@@ -29,9 +28,9 @@ namespace meta_schedule {
  * \param candidates The measure candidates.
  * \return An array of the builder results.
  */
-Array<BuilderResult> SendToBuilder(const Builder& builder,  //
-                                   const TuneContext& context,
+Array<BuilderResult> SendToBuilder(const Builder& builder, const TuneContext& context,
                                    const Array<MeasureCandidate>& candidates) {
+  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to builder";
   Target target = context->target.value();
   Array<BuilderInput> inputs;
   inputs.reserve(candidates.size());
@@ -45,14 +44,14 @@ Array<BuilderResult> SendToBuilder(const Builder& builder,  //
  * \brief Send the built measure candidates to runner.
  * \param runner The runner to send the candidates to.
  * \param context The tuning context.
- * \param candidates The mesure candidates.
+ * \param candidates The measure candidates.
  * \param builder_results The builder results.
  * \return An array of the runner results.
  */
-Array<RunnerFuture> SendToRunner(const Runner& runner,  //
-                                 const TuneContext& context,
+Array<RunnerFuture> SendToRunner(const Runner& runner, const TuneContext& context,
                                  const Array<MeasureCandidate>& candidates,
                                  const Array<BuilderResult>& builder_results) {
+  LOG(INFO) << "Sending " << candidates.size() << " sample(s) to runner";
   Target target = context->target.value();
   ICHECK_EQ(candidates.size(), builder_results.size());
   int n = candidates.size();
@@ -94,54 +93,60 @@ Array<RunnerFuture> SendToRunner(const Runner& runner,  //
 
 void TaskSchedulerNode::InitializeTask(int task_id) {
   TuneContext task = this->tasks[task_id];
-  // Derive the values.
-  IRModule mod = task->mod.value();
-  SpaceGenerator space = task->space_generator.value();
-  SearchStrategy strategy = task->search_strategy.value();
-  // Initialize Modules.
-  space->InitializeWithTuneContext(task);
-  strategy->InitializeWithTuneContext(task);
+  LOG(INFO) << "Initializing task " << task_id << ": " << task->task_name << ", mod =\n"
+            << tir::AsTVMScript(task->mod);
+  this->tasks[task_id]->Initialize();
 }
 
 void TaskSchedulerNode::Tune() {
   for (int i = 0; i < static_cast<int>(this->tasks.size()); i++) {
+    TuneContext task = tasks[i];
     // Check Optional value validity.
-    CHECK(tasks[i]->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";
-    CHECK(tasks[i]->space_generator.defined())
+    CHECK(task->mod.defined()) << "ValueError: Require `context.mod`, but it is not defined";
+    CHECK(task->space_generator.defined())
         << "ValueError: Require `context.space_generator`, but it is not defined";
-    CHECK(tasks[i]->search_strategy.defined())
+    CHECK(task->search_strategy.defined())
         << "ValueError: Require `context.search_strategy`, but it is not defined";
-
     InitializeTask(i);
-
-    tasks[i]->search_strategy.value()->PreTuning(
-        tasks[i]->space_generator.value()->GenerateDesignSpace(tasks[i]->mod.value()));
+    Array<tir::Schedule> design_spaces =
+        task->space_generator.value()->GenerateDesignSpace(task->mod.value());
+    LOG(INFO) << "Total " << design_spaces.size() << " design space(s) generated";
+    for (int i = 0, n = design_spaces.size(); i < n; ++i) {
+      tir::Schedule sch = design_spaces[i];
+      tir::Trace trace = sch->trace().value();
+      trace = trace->Simplified(true);
+      LOG(INFO) << "Design space #" << i << ":\n"
+                << tir::AsTVMScript(sch->mod()) << "\n"
+                << Concat(trace->AsPython(false), "\n");
+    }
+    task->search_strategy.value()->PreTuning(design_spaces);
   }
 
   int running_tasks = tasks.size();
-  while (running_tasks > 0) {
-    for (int task_id; (task_id = NextTaskId()) != -1;) {
-      TuneContext task = tasks[task_id];
-      ICHECK(!task->is_stopped);
-      ICHECK(!task->runner_futures.defined());
-      SearchStrategy strategy = task->search_strategy.value();
-      if ((task->measure_candidates = strategy->GenerateMeasureCandidates()).defined()) {
-        Array<BuilderResult> builder_results =
-            SendToBuilder(this->builder, task, task->measure_candidates.value());
-        task->runner_futures =
-            SendToRunner(this->runner, task, task->measure_candidates.value(), builder_results);
-      } else {
-        SetTaskStopped(task_id);
-        --running_tasks;
-      }
+  for (int task_id; (task_id = NextTaskId()) != -1;) {
+    LOG(INFO) << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
+    TuneContext task = tasks[task_id];
+    ICHECK(!task->is_stopped);
+    ICHECK(!task->runner_futures.defined());
+    SearchStrategy strategy = task->search_strategy.value();
+    if ((task->measure_candidates = strategy->GenerateMeasureCandidates()).defined()) {
+      Array<BuilderResult> builder_results =
+          SendToBuilder(this->builder, task, task->measure_candidates.value());
+      task->builder_results = builder_results;
+      task->runner_futures =
+          SendToRunner(this->runner, task, task->measure_candidates.value(), builder_results);
+    } else {
+      SetTaskStopped(task_id);
+      --running_tasks;
+      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
     }
-    int n_tasks = this->tasks.size();
-    for (int task_id = 0; task_id < n_tasks; ++task_id)
-      if (IsTaskRunning(task_id)) {
-        TuneContext task = tasks[task_id];
-        this->JoinRunningTask(task_id);
-        task->search_strategy.value()->PostTuning();
-      }
+  }
+  ICHECK_EQ(running_tasks, 0) << "Not all tasks are finished";
+  int n_tasks = this->tasks.size();
+  for (int task_id = 0; task_id < n_tasks; ++task_id) {
+    ICHECK(!IsTaskRunning(task_id)) << "Task #" << task_id << " is still running";
+    TuneContext task = tasks[task_id];
+    task->search_strategy.value()->PostTuning();
   }
 }
 
@@ -175,25 +180,20 @@ void TaskSchedulerNode::JoinRunningTask(int task_id) {
   for (const RunnerFuture future : task->runner_futures.value()) {
     results.push_back(future->Result());
   }
-  task->search_strategy.value()->NotifyRunnerResults(results);
-  task->runner_futures = NullOpt;
-  // Add to database
+  task->search_strategy.value()->NotifyRunnerResults(task, task->measure_candidates.value(),
+                                                     results);
+  // Invoke the callbacks
   ICHECK(task->measure_candidates.defined());
-  ICHECK(results.size() == task->measure_candidates.value().size());
-  int index = 0;
-  for (const RunnerResult& result : results) {
-    if (!result->error_msg.defined() && result->run_secs.defined()) {
-      Optional<tir::Trace> trace = task->measure_candidates.value()[index]->sch->trace();
-      ICHECK(trace.defined());
-      this->database->CommitTuningRecord(TuningRecord(
-          /*trace=*/trace.value(),
-          /*run_secs=*/result->run_secs.value(),
-          /*workload=*/this->database->CommitWorkload(task->mod.value()),
-          /*target=*/task->target.value(),
-          /*args_info=*/task->measure_candidates.value()[index]->args_info));
-    }
-    index++;
+  ICHECK(task->builder_results.defined());
+  ICHECK_EQ(results.size(), task->measure_candidates.value().size());
+  ICHECK_EQ(results.size(), task->builder_results.value().size());
+  for (const MeasureCallback& callback : this->measure_callbacks) {
+    callback->Apply(GetRef<TaskScheduler>(this), task_id, task->measure_candidates.value(),
+                    task->builder_results.value(), results);
   }
+  task->measure_candidates = NullOpt;
+  task->builder_results = NullOpt;
+  task->runner_futures = NullOpt;
 }
 
 TaskScheduler TaskScheduler::PyTaskScheduler(
@@ -201,6 +201,8 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
     Builder builder,                                            //
     Runner runner,                                              //
     Database database,                                          //
+    Optional<CostModel> cost_model,                             //
+    Optional<Array<MeasureCallback>> measure_callbacks,         //
     PyTaskSchedulerNode::FTune f_tune,                          //
     PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
     PyTaskSchedulerNode::FSetTaskStopped f_set_task_stopped,    //
@@ -212,6 +214,12 @@ TaskScheduler TaskScheduler::PyTaskScheduler(
   n->builder = builder;
   n->runner = runner;
   n->database = database;
+  n->cost_model = cost_model;
+  if (measure_callbacks.defined()) {
+    n->measure_callbacks = measure_callbacks.value();
+  } else {
+    n->measure_callbacks = {};
+  }
   n->f_tune = f_tune;
   n->f_initialize_task = f_initialize_task;
   n->f_set_task_stopped = f_set_task_stopped;

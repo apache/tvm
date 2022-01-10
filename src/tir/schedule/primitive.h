@@ -37,6 +37,15 @@ namespace tir {
 TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_state,
                           int32_t min_inclusive, int32_t max_exclusive);
 /*!
+ * \brief Sample k random integers from given range without replacement, i.e, no duplication.
+ * \param rand_state The pointer to schedule's random state
+ * \param n The range is defined as 0 to n-1.
+ * \param k The total number of samples.
+ * \return The randomly selected samples from the n candidates.
+ */
+std::vector<int32_t> SampleWithoutReplacement(
+    support::LinearCongruentialEngine::TRandState* rand_state, int32_t n, int32_t k);
+/*!
  * \brief Sample once category from candidates according to the probability weights.
  * \param rand_state The pointer to schedule's random state
  * \param candidates The candidates
@@ -47,6 +56,14 @@ TVM_DLL int32_t SampleInt(support::LinearCongruentialEngine::TRandState* rand_st
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
                                   const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                   Optional<Integer>* decision);
+/*!
+ * \brief Create a sampling function that does multinomial sampling.
+ * \param rand_state The random state.
+ * \param weights The weights for multinomial sampling.
+ * \return The multinomial sampling function.
+ */
+TVM_DLL std::function<int32_t()> MakeMultinomialSampler(
+    support::LinearCongruentialEngine::TRandState* rand_state, const std::vector<double>& weights);
 /*!
  * \brief Sample the factors to perfect tile a specific loop
  * \param rand_state The random state
@@ -329,6 +346,7 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  *        more friendly memory access pattern. For example, we can set alignment to be factor=2,
  *        offset=1 to avoid bank conflict for thread access on higher dimension in GPU shared
  *        memory.
+ * \param self The state of the schedule
  * \param block_sref The producer block of the buffer
  * \param buffer_index The index of the buffer in block's write region
  * \param axis The dimension to be specified for alignment
@@ -337,9 +355,36 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  */
 TVM_DLL void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           int axis, int factor, int offset);
+/*!
+ * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+ * write-index
+ * \param self The state of the schedule
+ * \param block_sref The sref of the producer block of the buffer
+ * \param buffer_index The index of the buffer in block's write region
+ * \param storage_scope The storage scope to be set
+ */
+TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                      const String& storage_scope);
 
 /******** Schedule: Blockize & Tensorize ********/
 /******** Schedule: Annotation ********/
+/*!
+ * \brief Annotate a block/loop with a key value pair
+ * \param self The state of the schedule
+ * \param sref The block/loop sref to be annotated
+ * \param ann_key The annotation key
+ * \param ann_val The annotation value
+ */
+TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
+                      const ObjectRef& ann_val);
+/*!
+ * \brief Unannotate a block/loop's annotation with key ann_key
+ * \param self The state of the schedule
+ * \param sref The block/loop to be unannotated
+ * \param ann_key The annotation key
+ */
+TVM_DLL void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key);
+
 /******** Schedule: Misc ********/
 
 }  // namespace tir

@@ -26,28 +26,16 @@
 
 #include "ethosu_55.h"
 
-struct ethosu_driver* ethosu0_driver = &ethosu_drv;
+struct ethosu_driver ethosu0_driver;
 
-void ethosuIrqHandler0() { ethosu_irq_handler(ethosu0_driver); }
+void ethosuIrqHandler0() { ethosu_irq_handler(&ethosu0_driver); }
 
 // Initialize Arm(R) Ethos(TM)-U NPU driver
 int EthosuInit() {
-  if (ethosu_init(ethosu0_driver, (void*)ETHOSU_BASE_ADDRESS, NULL, 0, 1, 1)) {
+  if (ethosu_init(&ethosu0_driver, (void*)ETHOSU_BASE_ADDRESS, NULL, 0, 1, 1)) {
     printf("Failed to initialize NPU.\n");
     return -1;
   }
-
-  // Display Arm(R) Ethos(TM)-U version information useful for debugging issues
-  struct ethosu_version version;
-  ethosu_get_version(ethosu0_driver, &version);
-  printf(
-      "version={major=%u, minor=%u, status=%u}, product={major=%u}, arch={major=%u, minor=%u, "
-      "patch=%u}\n",
-      version.id.version_major, version.id.version_minor, version.id.version_status,
-      version.id.product_major, version.id.arch_major_rev, version.id.arch_minor_rev,
-      version.id.arch_patch_rev);
-  printf("macs_per_cc=%u, cmd_stream_version=%u, shram_size=%u\n", version.cfg.macs_per_cc,
-         version.cfg.cmd_stream_version, version.cfg.shram_size);
 
   // Assumes SCB->VTOR points to RW memory
   NVIC_SetVector(ETHOSU_IRQ, (uint32_t)&ethosuIrqHandler0);

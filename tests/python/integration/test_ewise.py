@@ -281,9 +281,9 @@ def try_warp_memory():
     xo, xi = s[AA].split(s[AA].op.axis[0], warp_size)
     s[AA].bind(xi, tx)
 
-    @tvm.register_func
+    @tvm.register_func("tvm_callback_cuda_compile", override=True)
     def tvm_callback_cuda_compile(code):
-        ptx = nvcc.compile_cuda(code, target="ptx")
+        ptx = nvcc.compile_cuda(code, target_format="ptx")
         return ptx
 
     # one line to build the function.

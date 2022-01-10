@@ -20,6 +20,8 @@ The Relay Virtual Machine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
+import warnings
+
 import numpy as np
 
 import tvm
@@ -63,6 +65,11 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     target, target_host = Target.check_and_update_host_consist(
         target, target_host, target_is_dict_key=False
     )
@@ -132,6 +139,11 @@ class VMCompiler(object):
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.
         """
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
         target, target_host = Target.check_and_update_host_consist(
@@ -173,6 +185,11 @@ class VMCompiler(object):
         params : dict
             The parameters of the final module.
         """
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
         target, target_host = Target.check_and_update_host_consist(

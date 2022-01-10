@@ -145,13 +145,37 @@ class DependencyGraph::Creator : private MixedModeVisitor {
   }
 
   void VisitExpr_(const LetNode* l) final {
-    DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(l)];
-    DependencyGraph::Node* b = NewNode(true);
-    Depend(n, b);
-    Depend(b, l->var);
-    Depend(b, l->value);
-    Depend(b, l->body);
-    graph_.post_dfs_order.push_back(b);
+    std::unordered_map<const LetNode*, DependencyGraph::Node*> b_map;
+    auto pre_visit = [&](const LetNode* op) {
+      Expr e = GetRef<Expr>(op);
+      // Derived VisitLeaf
+      if (visited_.count(e) == 0) {
+        if (graph_.expr_node.count(e) == 0) {
+          graph_.expr_node[e] = NewNode(false);
+        }
+        visited_.insert(e);
+      }
+      DependencyGraph::Node* n = graph_.expr_node[e];
+      DependencyGraph::Node* b = NewNode(true);
+      Depend(n, b);
+      Depend(b, op->var);
+      Depend(b, op->value);
+      b_map[op] = b;
+    };
+    auto post_visit = [&](const LetNode* op) {
+      ICHECK(b_map.count(op));
+      DependencyGraph::Node* b = b_map[op];
+      Expr e = GetRef<Expr>(op);
+      Depend(b, op->body);
+      graph_.post_dfs_order.push_back(b);
+      if (op != l) {
+        // Base VisitLeaf
+        this->visit_counter_[op]++;
+        // Derived VisitLeaf
+        graph_.post_dfs_order.push_back(graph_.expr_node[e]);
+      }
+    };
+    ExpandANormalForm(l, pre_visit, post_visit);
   }
 
   void VisitExpr_(const MatchNode* m) final {

@@ -272,10 +272,11 @@ std::string NormalizeError(std::string err_msg) {
     if (!getline(is, line)) return false;
     // detect check message, rewrite to remote extra :
     if (line.compare(0, 13, "Check failed:") == 0) {
-      size_t end_pos = line.find(':', 13);
+      std::string ending = ": ";
+      size_t end_pos = line.find(ending, 13);
       if (end_pos == std::string::npos) return false;
-      check_msg = line.substr(0, end_pos + 1) + ' ';
-      line = line.substr(end_pos + 1);
+      check_msg = line.substr(0, end_pos + ending.size());
+      line = line.substr(end_pos + ending.size());
     }
     return true;
   };

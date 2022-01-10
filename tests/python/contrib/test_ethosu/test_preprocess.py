@@ -57,7 +57,7 @@ def test_single_io():
         mod = tvm.IRModule()
         x = relay.var("x", shape=(10, 10))
 
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         r = relay.Call(glb_symbol_f1, [x])
         main = relay.Function([x], r)
         mod["main"] = main
@@ -93,7 +93,7 @@ def test_2ins_single_out():
         x = relay.var("x", shape=(10, 10))
         w0 = relay.var("w0", shape=(10, 10))
 
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         r = relay.Call(glb_symbol_f1, [x, w0])
         main = relay.Function([x, w0], r)
         mod["main"] = main
@@ -130,7 +130,7 @@ def test_2ins_single_out():
         # concat
         ifms = relay.concatenate((x_reshaped, w0_reshaped), 0)
 
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         r = relay.Call(glb_symbol_f1, [ifms])
         main = relay.Function([x, w0], r)
         mod["main"] = main
@@ -165,7 +165,7 @@ def test_single_in_2outs():
 
         mod = tvm.IRModule()
         x = relay.var("x", shape=(10, 10))
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         pq_tuple = relay.Call(glb_symbol_f1, [x])
         p0 = relay.TupleGetItem(pq_tuple, 0)
         q0 = relay.TupleGetItem(pq_tuple, 1)
@@ -196,7 +196,7 @@ def test_single_in_2outs():
 
         mod = tvm.IRModule()
         x = relay.var("x", shape=(10, 10))
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         ofms = relay.Call(glb_symbol_f1, [x])
 
         # splits
@@ -254,7 +254,7 @@ def test_4ins_2outs():
         w1 = relay.var("w1", shape=(10, 10))
         w2 = relay.var("w2", shape=(10, 10))
 
-        glb_symbol_f1, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_symbol_f1, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         pq_tuple = relay.Call(glb_symbol_f1, [x, w0, w1, w2])
 
         p0 = relay.TupleGetItem(pq_tuple, 0)
@@ -313,7 +313,7 @@ def test_4ins_2outs():
         ifms = relay.concatenate((x_reshaped, w0_reshaped, w1_reshaped, w2_reshaped), 0)
 
         # call
-        glb_func, mod = create_external_func1(mod, "ethosu", "ethosu_0")
+        glb_func, mod = create_external_func1(mod, "ethos-u", "ethosu_0")
         ofms = relay.Call(glb_func, [ifms])
 
         # splits

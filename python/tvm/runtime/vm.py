@@ -72,9 +72,13 @@ class Executable(object):
         self._get_lib = self.mod["get_lib"]
         self._get_bytecode = self.mod["get_bytecode"]
         self._get_constants = self.mod["get_constants"]
+        self._get_virtual_devices = self.mod["get_virtual_devices"]
+        self._get_primitives = self.mod["get_primitives"]
         self._get_stats = self.mod["get_stats"]
         self._get_function_arity = self.mod["get_function_arity"]
         self._get_function_param_name = self.mod["get_function_param_name"]
+        self._move_late_bound_consts = self.mod["move_late_bound_consts"]
+        self._load_late_bound_consts = self.mod["load_late_bound_consts"]
 
     def save(self):
         """Save the Relay VM Executable.
@@ -160,11 +164,11 @@ class Executable(object):
             An executable constructed using the provided artifacts.
         """
         if isinstance(bytecode, (bytes, str)):
-            code = bytearray(bytecode)
+            bytecode = bytearray(bytecode)
         elif not isinstance(bytecode, (bytearray, TVMByteArray)):
             raise TypeError(
                 "bytecode is expected to be the type of bytearray "
-                + "or TVMByteArray, but received {}".format(type(code))
+                + "or TVMByteArray, but received {}".format(type(bytecode))
             )
 
         if lib is not None and not isinstance(lib, tvm.runtime.Module):
@@ -252,6 +256,17 @@ class Executable(object):
         return self._get_constants()
 
     @property
+    def virtual_devices(self):
+        """Returns a human-readable description of all the (virtual) devices in the executable."""
+        return self._get_virtual_devices()
+
+    @property
+    def primitives(self):
+        """Returns a human-readable description of all the primitives (ie PackedFuncs) in the
+        executable"""
+        return self._get_primitives()
+
+    @property
     def globals(self):
         """Get the globals used by the Relay VM executable.
 
@@ -285,6 +300,14 @@ class Executable(object):
         self._function_params[func_name] = params
         return params
 
+    def move_late_bound_consts(self, path, byte_limit):
+        """Move all constants of byte size greater or equal to byte_limit to file at path"""
+        return self._move_late_bound_consts(path, byte_limit)
+
+    def load_late_bound_consts(self, path):
+        """Re-load constants previously saved to file at path"""
+        return self._load_late_bound_consts(path, bytes)
+
 
 class VirtualMachine(object):
     """Relay VM runtime.
@@ -295,7 +318,8 @@ class VirtualMachine(object):
         The VM executable.
 
     device : tvm.runtime.Device or List[tvm.runtime.Device]
-        The device to deploy the module
+        The device(s) on which the model will run.
+        Currently at most one device per device type is supported.
 
     memory_cfg : str or Dict[tvm.runtime.Device, str], optional
         Config the type of memory allocator. The allocator type can be ["naive",
@@ -363,10 +387,7 @@ class VirtualMachine(object):
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
-                raise TypeError(
-                    "dev is expected to be Device or \
-                                List[Device]"
-                )
+                raise TypeError("dev is expected to be Device or List[Device]")
             devs = [dev]
 
         # CPU is required for executing shape functions

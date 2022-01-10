@@ -477,6 +477,40 @@ String ShapeString(NDArray shape, DLDataType dtype);
  */
 String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
 
+/*! \brief Collect performance information of a function execution. Usually
+ * used with a compiled PrimFunc (via tvm.build).
+ *
+ * This information can include performance counters like cache hits and FLOPs
+ * that are useful in debugging performance issues of individual PrimFuncs.
+ * Different metrics can be collected depending on which MetricCollector is
+ * used.
+ *
+ * Example usage:
+ * \code{.cpp}
+ * // Use PAPI to measure the number of floating point operations.
+ * PackedFunc profiler = ProfileModule(
+ *     mod, "main", kDLCPU, 0, {CreatePAPIMetricCollector({{kDLCPU, 0}, {"PAPI_FP_OPS"}})});
+ * Report r = profiler(arg1, arg2, arg);
+ * std::cout << r << std::endl;
+ * \endcode
+ *
+ * \param mod Module to profile. Usually a PrimFunc that has been compiled to machine code.
+ * \param func_name Name of function to run in the module.
+ * \param device_type Device type to run on. Profiling will include performance
+ *                    metrics specific to this device type.
+ * \param device_id Id of device to run on.
+ * \param warmup_iters Number of iterations of the function to run before collecting
+ *                     performance information. Recommend to set this larger
+ *                     than 0 so that cache effects are consistent.
+ * \param collectors List of different
+ *                   ways to collect metrics. See MetricCollector.
+ * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
+ *          and returns performance metrics as a `Map<String, ObjectRef>` where
+ *          values can be `CountNode`, `DurationNode`, `PercentNode`.
+ */
+PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                           int warmup_iters, Array<MetricCollector> collectors);
+
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

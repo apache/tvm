@@ -130,7 +130,7 @@ After that you need to compile new module with target corresponding to required 
 
     model = partition_for_bnns(model, params=params)  # to markup operations to be offloaded to BNNS
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(model, target=target, target_host=target, params=params)
+        lib = relay.build(model, target=target, params=params)
 
 Export the module.
 

@@ -29,7 +29,7 @@ def annot_func(f):
 
 def annot_expr(e):
     """Returns e wrapped with an on_device annotation."""
-    return relay.op.annotation.on_device(e, tvm.cpu(), is_fixed=True)
+    return relay.op.annotation.on_device(e, tvm.cpu(), constrain_result=True)
 
 
 def run_opt_pass(expr, opt_pass):

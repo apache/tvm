@@ -63,7 +63,7 @@ namespace tec {
 using TargetMap = std::unordered_map<DLDeviceType, Target, backend::EnumClassHash>;
 using DeviceMap =
     std::unordered_map<Expr, tvm::Device, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>;
-using ProcessFn = std::function<void(Function)>;
+using ProcessFn = std::function<void(BaseFunc)>;
 
 /*!
  * \brief A compiler which lowers primitive Relay functions to tensor expressions
@@ -109,7 +109,26 @@ class TECompilerNode : public Object {
    */
   virtual tvm::Array<tvm::runtime::Module> LowerExternalFunctions() = 0;
 
-  virtual std::unordered_map<std::string, int> GetOpWeights() = 0;
+  /*!
+   * \brief Update \p module to remove functions marked with the "Compiler" attribute and replace
+   * them with their 'external' representation using the "ExternalSymbol" attribute.
+   *
+   * TODO(mbs): This is a stepping stone while we migrate to a more official representation
+   * of 'external functions' in the IRModule and allow lowering to incrementally updatethe
+   * module stead of forcing everything via the cache.
+   *
+   */
+  virtual void AddExterns(IRModule module) = 0;
+
+  /*!
+   * \brief Get C Device API context mapping
+   * \return Map of GlobalVar to associated C Device API context name (either Target or kCompiler
+   * annotated)
+   */
+  virtual Map<GlobalVar, String> GetDeviceContexts() = 0;
+  virtual void SetDeviceContexts(const Map<GlobalVar, String>& device_contexts) = 0;
+
+  virtual Map<String, Integer> GetOpWeights() const = 0;
 
   /*! \brief clear the cache. */
   virtual void Clear() = 0;
@@ -123,7 +142,7 @@ class TECompilerNode : public Object {
 /*! \brief cache entry used in compile engine */
 class TECompiler : public ObjectRef {
  public:
-  TECompiler();
+  explicit TECompiler(Optional<IRModule> opt_mod = {});
   explicit TECompiler(ObjectPtr<Object> n) : ObjectRef(n) {}
   TECompilerNode* operator->() { return static_cast<TECompilerNode*>(get_mutable()); }
   using ContainerType = TECompilerNode;
@@ -133,11 +152,13 @@ class TECompiler : public ObjectRef {
 /*!
  * \brief A function to create the function metadata for an input function (ie calculate buffer
  * input/output sizes)
- * \param relay_func The function to calculate function metadata for
+ * \param func The function to calculate function metadata for
  * \param function_metadata The map that stores all the function metadatas
+ * \param workspace_byte_alignment Byte alignment for allocations
  */
-void UpdateFunctionMetadata(Function relay_func,
-                            Map<String, backend::FunctionInfo>& function_metadata);  // NOLINT(*)
+void UpdateFunctionMetadata(BaseFunc relay_func,
+                            Map<String, backend::FunctionInfo>& function_metadata,  // NOLINT(*)
+                            Integer workspace_byte_alignment = 16);
 
 /*!
  * \brief Obtain the Target from the device type.
@@ -160,7 +181,8 @@ Target GetTargetFromInteger(DLDeviceType dev_type, tec::TargetMap targets);
 backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMap targets,
                                               Map<Expr, backend::StorageInfo> storage_info_map);
 
-/*! \brief Utility to separate the functions in an IRModule by Target.
+/*! \brief Returns all the global \p PrimFunc functions in \p mod, but separated into an \p IRModule
+ * per \p Target.
  *
  * \param mod The IRModule to extract the per target module from
  * \return The map from Target to IRModule
@@ -173,7 +195,6 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * to TE expressions, schedules them, and then to TIR.
  *
  * \param module The IRModule.
- * \param targets The mapping for devices to targets.
  * \param memory_plan The memory plan used during lowering
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
@@ -181,8 +202,8 @@ Map<Target, IRModule> GetPerTargetModules(IRModule mod);
  * \return The lowered module, see above.
  */
 IRModule LowerTE(
-    const IRModule& module, TargetMap targets, backend::StaticMemoryPlan memory_plan,
-    const String& module_name, ProcessFn process_fn = [](Function f) {});
+    const IRModule& module, backend::StaticMemoryPlan memory_plan, const String& module_name,
+    ProcessFn process_fn = [](BaseFunc f) {});
 
 /*! \brief Pass to lower an IRModule's primitive functions to TIR.
  *
@@ -190,14 +211,14 @@ IRModule LowerTE(
  * to TE expressions, schedules them, and then to TIR. It annotates all functions
  * with their target.
  *
- * \param targets The mapping for devices to targets.
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \returns The pass which lowers primitive functions to TIR
+ * \param host_virtual_device \p VirtualDevice for host data and computations
+ * \returns The pass which lowers primative functions to TIR
  */
-transform::Pass LowerTEPass(TargetMap targets, const String& module_name,
-                            std::function<void(Function)> process_fn);
+transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
+                            VirtualDevice host_virtual_device);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

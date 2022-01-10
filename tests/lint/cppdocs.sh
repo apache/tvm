@@ -16,13 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+set -euxo pipefail
 
 function cleanup() {
     rm -f /tmp/$$.log.txt /tmp/$$.logclean.txt
 }
 trap cleanup EXIT
 
-make doc 2>/tmp/$$.log.txt
+make cppdoc 2>/tmp/$$.log.txt
 
 grep -v -E "ENABLE_PREPROCESSING|unsupported tag" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Error Log----------"

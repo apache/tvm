@@ -663,6 +663,7 @@ def test_resize():
         y = relay.image.resize2d(
             x,
             outsize,
+            None,
             layout="NCHW",
             method=method,
             coordinate_transformation_mode=coord_trans,

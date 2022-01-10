@@ -16,15 +16,12 @@
 # under the License.
 """Test alter op layout pass"""
 import pytest
-
 import tvm
-from tvm import te
-
-from tvm import relay
-from tvm.relay.op import register_alter_op_layout
-from tvm.relay import transform, analysis
-from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
+from tvm import relay, te
+from tvm.relay import analysis, transform
 from tvm.relay.op import op as reg
+from tvm.relay.op import register_alter_op_layout
+from tvm.relay.transform.infer_layout_utils import InferCorrectLayoutOutput
 
 
 def run_opt_pass(expr, passes):
@@ -182,7 +179,7 @@ def test_conv_transpose_convert_layout():
         x = relay.var("x", shape=(1, 56, 56, 64))
         weight = relay.var("weight", shape=(3, 3, 64, 64))
         x = relay.layout_transform(x, "NHWC", "NCHW")
-        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        weight = relay.layout_transform(weight, "HWIO", "IOHW")
         y = relay.nn.conv2d_transpose(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
         y = relay.nn.relu(y)
         y = relay.layout_transform(y, "NCHW", "NHWC")
@@ -190,7 +187,7 @@ def test_conv_transpose_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "OIHW"]}))
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "IOHW"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -1373,7 +1370,7 @@ def test_qnn_conv_transpose_requantize_convert_layout():
         x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
         weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
         x = relay.layout_transform(x, "NHWC", "NCHW")
-        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        weight = relay.layout_transform(weight, "HWIO", "IOHW")
         y = relay.qnn.op.conv2d_transpose(
             x,
             weight,
@@ -1403,7 +1400,6 @@ def test_qnn_conv_transpose_requantize_convert_layout():
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d_transpose": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
-
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
@@ -2325,6 +2321,117 @@ def test_conv_max_pool_uses_specified_convert_layout():
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+
+
+@pytest.mark.parametrize(
+    "data_layout, kernel_layout",
+    [
+        ("NCHW1c", "OIHW1i1o"),
+        ("NCHW4c", "OIHW4i4o"),
+        ("NCHW8c", "OIHW8i8o"),
+        ("NCHW16c", "OIHW16i16o"),
+    ],
+)
+def test_resnet_convert_layout_nchwc(data_layout, kernel_layout):
+    x = relay.var("x", shape=(1, 3, 224, 224))
+    weight1 = relay.var("weight1", shape=(64, 3, 7, 7))
+    weight2 = relay.var("weight2", shape=(64, 64, 3, 3))
+    weight3 = relay.var("weight3", shape=(64, 64, 1, 1))
+
+    def before():
+        y = relay.nn.conv2d(
+            x,
+            weight1,
+            strides=(2, 2),
+            padding=(3, 3),
+            channels=64,
+            kernel_size=(7, 7),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.nn.relu(y)
+        y = relay.nn.max_pool2d(y, pool_size=(3, 3), strides=(2, 2), padding=(1, 1))
+        y1 = relay.nn.conv2d(
+            y,
+            weight2,
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y1 = relay.nn.relu(y1)
+        y2 = relay.nn.conv2d(
+            y,
+            weight3,
+            channels=64,
+            kernel_size=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y2 = relay.nn.relu(y2)
+        y = y1 + y2
+        y = relay.nn.global_max_pool2d(y, layout="NCHW")
+        return y
+
+    def expected():
+        if data_layout == "NCHW1c":
+            y = relay.nn.contrib_conv2d_nchwc(
+                relay.layout_transform(x, "NCHW", data_layout),
+                relay.layout_transform(weight1, "OIHW", kernel_layout),
+                strides=(2, 2),
+                padding=(3, 3),
+                channels=64,
+                kernel_size=(7, 7),
+                data_layout=data_layout,
+                kernel_layout=kernel_layout,
+            )
+            y = relay.nn.relu(y)
+            y = relay.nn.max_pool2d(
+                y, pool_size=(3, 3), strides=(2, 2), padding=(1, 1), layout=data_layout
+            )
+        else:
+            y = relay.nn.conv2d(
+                x,
+                weight1,
+                strides=(2, 2),
+                padding=(3, 3),
+                channels=64,
+                kernel_size=(7, 7),
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+            )
+            y = relay.nn.relu(y)
+            y = relay.nn.max_pool2d(y, pool_size=(3, 3), strides=(2, 2), padding=(1, 1))
+            y = relay.layout_transform(y, "NCHW", data_layout)
+        y1 = relay.nn.contrib_conv2d_nchwc(
+            y,
+            relay.layout_transform(weight2, "OIHW", kernel_layout),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+        )
+        y1 = relay.nn.relu(y1)
+        y2 = relay.nn.contrib_conv2d_nchwc(
+            y,
+            relay.layout_transform(weight3, "OIHW", kernel_layout),
+            channels=64,
+            kernel_size=(1, 1),
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+        )
+        y2 = relay.nn.relu(y2)
+        y = y1 + y2
+        y = relay.nn.global_max_pool2d(y, layout=data_layout)
+        y = relay.layout_transform(y, data_layout, "NCHW")
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": [data_layout, kernel_layout]}))
+    b = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n Expect = \n" + str(b)
 
 
 if __name__ == "__main__":

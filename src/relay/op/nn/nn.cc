@@ -210,6 +210,10 @@ InferCorrectLayoutOutput DenseInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
                                                  const Array<tvm::relay::Type>& old_in_types) {
+  // Respect input layout, if explicitly specified (for example, "NW").
+  if (new_in_layouts.size() > 0 && new_in_layouts[0].defined()) {
+    return InferCorrectLayoutOutput({new_in_layouts[0], "NC"}, {"NC"}, attrs);
+  }
   return InferCorrectLayoutOutput({"NC", "NC"}, {"NC"}, attrs);
 }
 
@@ -279,6 +283,14 @@ InferCorrectLayoutOutput DensePackInferCorrectLayout(const Attrs& attrs,
                                                      const Array<tvm::relay::Type>& old_in_types) {
   auto params = attrs.as<DensePackAttrs>();
   ICHECK(params);
+  // Respect input layout, if explicitly specified (for example, "NW").
+  // However, a packed layout such as "NC8c" is not supported by dense_pack op. For such cases,
+  // we insert a layout transform "NC8c" -> "NC".
+  // We do not expect to get a packed layout like "NW8w", which is not compatitble with "NC",
+  // since packing is always done on the "C" axis.
+  if (new_in_layouts.size() > 0 && new_in_layouts[0].defined() && new_in_layouts[0].ndim() == 2) {
+    return InferCorrectLayoutOutput({new_in_layouts[0], params->weight_layout}, {"NC"}, attrs);
+  }
   return InferCorrectLayoutOutput({"NC", params->weight_layout}, {"NC"}, attrs);
 }
 
@@ -733,7 +745,8 @@ bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   reporter->Assign(types[4], TensorType({axis_size}, data->dtype));
 
   // output is a tuple of the normed data (same shape as input), new running mean,
-  // and new running average (the latter two are both vectors of length dim)
+  // new running variance, saved mean and saved variance (the latter are all
+  // vectors of length dim)
   std::vector<Type> fields;
   auto vec_ty = TensorType(Array<IndexExpr>({data->shape[axis]}), data->dtype);
   fields.push_back(TensorType(data->shape, data->dtype));

@@ -37,6 +37,7 @@ We do encourage everyone to work anything they are interested in.
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm - frontends, quantization, topi
+- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Animesh Jain](https://github.com/anijain2305): @anijain2305 - quantization, relay
@@ -47,6 +48,8 @@ We do encourage everyone to work anything they are interested in.
 - [Wuwei Lin](https://github.com/vinx13): @vinx13 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
+- [Eric Lunderberg](https://github.com/Lunderberg): @Lunderberg - CI, Vulkan
+  backend
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky - relay
 - [Masahiro Masuda](https://github.com/masahi) (PMC): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
@@ -54,10 +57,11 @@ We do encourage everyone to work anything they are interested in.
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron): @leandron - tvmc
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
-- [Andrew Reusch](https://github.com/areusch): @areusch - runtime, microTVM
+- [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
 - [Giuseppe Rossini](https://github.com/giuseros): @giuseros - aot, arm
 - [Siju Samuel](https://github.com/siju-samuel): @siju-samuel - frontends
+- [Christopher Sidebottom](https://github.com/Mousius): @Mousius - arm, ethos-u, relay
 - [Junru Shao](https://github.com/junrushao1994) (PMC): @junrushao1994 - relay, compiler
 - [Haichen Shen](https://github.com/icemelon) (PMC): @icemelon - relay, topi
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
@@ -102,6 +106,7 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
+- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005

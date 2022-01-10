@@ -29,8 +29,7 @@ def conv1d_ncw(cfg, data, kernel, strides, padding, dilation, out_dtype="float32
     return nn.conv1d_ncw(data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule("conv1d_ncw.cuda")
-def schedule_conv1d_ncw(cfg, outs):
+def _schedule_conv1d_ncw(cfg, outs):
     """TOPI schedule callback of conv1d ncw for cuda gpu
 
     Parameters
@@ -51,7 +50,7 @@ def schedule_conv1d_ncw(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "conv1d_ncw":
+        if op.tag == "conv1d_ncw" or op.tag == "group_conv1d_ncw":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -140,13 +139,27 @@ def schedule_conv1d_ncw(cfg, outs):
     return s
 
 
+@autotvm.register_topi_schedule("conv1d_ncw.cuda")
+def schedule_conv1d_ncw(cfg, outs):
+    return _schedule_conv1d_ncw(cfg, outs)
+
+
+@autotvm.register_topi_compute("group_conv1d_ncw.cuda")
+def group_conv1d_ncw(cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
+    return nn.group_conv1d_ncw(data, kernel, strides, padding, dilation, groups, out_dtype)
+
+
+@autotvm.register_topi_schedule("group_conv1d_ncw.cuda")
+def schedule_group_conv1d_ncw(cfg, outs):
+    return _schedule_conv1d_ncw(cfg, outs)
+
+
 @autotvm.register_topi_compute("conv1d_nwc.cuda")
 def conv1d_nwc(cfg, data, kernel, strides, padding, dilation, out_dtype="float32"):
     return nn.conv1d_nwc(data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule("conv1d_nwc.cuda")
-def schedule_conv1d_nwc(cfg, outs):
+def _schedule_conv1d_nwc(cfg, outs):
     """TOPI schedule callback of conv1d nwc for cuda gpu
 
     Parameters
@@ -167,7 +180,7 @@ def schedule_conv1d_nwc(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if op.tag == "conv1d_nwc":
+        if op.tag == "conv1d_nwc" or op.tag == "group_conv1d_nwc":
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
             conv = op.output(0)
@@ -254,3 +267,18 @@ def schedule_conv1d_nwc(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
 
     return s
+
+
+@autotvm.register_topi_schedule("conv1d_nwc.cuda")
+def schedule_conv1d_nwc(cfg, outs):
+    return _schedule_conv1d_nwc(cfg, outs)
+
+
+@autotvm.register_topi_compute("group_conv1d_nwc.cuda")
+def group_conv1d_nwc(cfg, data, kernel, strides, padding, dilation, groups, out_dtype="float32"):
+    return nn.group_conv1d_nwc(data, kernel, strides, padding, dilation, groups, out_dtype)
+
+
+@autotvm.register_topi_schedule("group_conv1d_nwc.cuda")
+def schedule_group_conv1d_nwc(cfg, outs):
+    return _schedule_conv1d_nwc(cfg, outs)

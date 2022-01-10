@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/backend/contrib/ethosn/codegen_ethosn.h
- * \brief The Relay -> Ethos-N command stream compiler.
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
  */
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_CODEGEN_ETHOSN_H_
@@ -248,7 +248,7 @@ struct EthosnCompilerConfigNode : public tvm::AttrsNode<EthosnCompilerConfigNode
   String compiler_algorithm;
 
   TVM_DECLARE_ATTRS(EthosnCompilerConfigNode, "ext.attrs.EthosnCompilerConfigNode") {
-    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N77");
+    TVM_ATTR_FIELD(variant).describe("See Ethos-N documentation.").set_default("Ethos-N78");
     TVM_ATTR_FIELD(sram_size)
         .describe("Optionally override the default sram size. See Ethos(TM)-N documentation.")
         .set_default("0");

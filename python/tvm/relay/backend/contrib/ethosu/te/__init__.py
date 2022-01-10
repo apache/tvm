@@ -19,3 +19,7 @@
 from .convolution import *
 from .depthwise import *
 from .pooling import *
+from .binary_elementwise import *
+from .identity import *
+from .unary_elementwise import *
+from .inline import *
