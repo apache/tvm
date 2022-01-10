@@ -2852,6 +2852,10 @@ class PyTorchOpConverter:
         equation, data = inputs
         return _op.einsum(data, equation)
 
+    def dot(self, inputs, _):
+        lhs, rhs = inputs
+        return _op.dot(lhs, rhs)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3076,6 +3080,7 @@ class PyTorchOpConverter:
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
             "aten::einsum": self.einsum,
+            "aten::dot": self.dot,
         }
 
     def update_convert_map(self, custom_map):
