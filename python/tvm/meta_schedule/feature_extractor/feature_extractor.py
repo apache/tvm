@@ -32,13 +32,13 @@ class FeatureExtractor(Object):
     """Extractor for features from measure candidates for use in cost model."""
 
     def extract_from(
-        self, tune_context: TuneContext, candidates: List[MeasureCandidate]
+        self, context: TuneContext, candidates: List[MeasureCandidate]
     ) -> List[NDArray]:
         """Extract features from the given measure candidate.
 
         Parameters
         ----------
-        tune_context : TuneContext
+        context : TuneContext
             The tuning context for feature extraction.
         candidates : List[MeasureCandidate]
             The measure candidates to extract features from.
@@ -49,7 +49,7 @@ class FeatureExtractor(Object):
             The feature numpy ndarray extracted.
         """
         result = _ffi_api.FeatureExtractorExtractFrom(  # type: ignore # pylint: disable=no-member
-            self, tune_context, candidates
+            self, context, candidates
         )
         return result
 
@@ -63,9 +63,9 @@ class PyFeatureExtractor(FeatureExtractor):
 
         @check_override(self.__class__, FeatureExtractor)
         def f_extract_from(
-            tune_context: TuneContext, candidates: List[MeasureCandidate]
+            context: TuneContext, candidates: List[MeasureCandidate]
         ) -> List[NDArray]:
-            features = self.extract_from(tune_context, candidates)
+            features = self.extract_from(context, candidates)
             return features
 
         def f_as_string() -> str:

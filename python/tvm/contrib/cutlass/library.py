@@ -151,6 +151,7 @@ class EpilogueFunctor(enum.Enum):
     LinearCombinationSigmoid = enum_auto()
     LinearCombinationSilu = enum_auto()
     LinearCombinationHardSwish = enum_auto()
+    LinearCombinationResidualBlock = enum_auto()
 
 
 EpilogueFunctorTag = {
@@ -161,6 +162,7 @@ EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombinationSigmoid: "cutlass::epilogue::thread::LinearCombinationSigmoid",
     EpilogueFunctor.LinearCombinationSilu: "cutlass::epilogue::thread::LinearCombinationSilu",
     EpilogueFunctor.LinearCombinationHardSwish: "cutlass::epilogue::thread::LinearCombinationHardSwish",
+    EpilogueFunctor.LinearCombinationResidualBlock: "cutlass::epilogue::thread::LinearCombinationResidualBlock",
 }
 
 

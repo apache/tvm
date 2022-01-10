@@ -228,6 +228,26 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
                                         const Array<PrimExpr>& args, bool skip_first_arg);
+
+  /*! \brief Insert a printf() call to the generated LLVM
+   *
+   * This is intended solely for debugging purposes.  After calling
+   * printf(), immediately calls fflush() to flush the stdout buffer
+   * in case of segfault.
+   */
+  void CreatePrintf(const std::string& format, const std::vector<llvm::Value*> format_args);
+
+  /*! \brief Lookup return address, for debugging purposes
+   *
+   * This is intended solely for debugging purposes.  Calls the
+   * `llvm::Intrinsic::returnaddress`, returning the return address of
+   * the current function call.
+   *
+   * \param level Look up the return address of a frame `level` steps
+   * above the current stack frame.
+   */
+  llvm::Value* CreateLookupReturnAddress(unsigned int level = 0);
+
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
