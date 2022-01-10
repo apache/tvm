@@ -407,7 +407,11 @@ class Module(object):
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
-                    assert module.format in ["c", "cc", "cpp"], "The module.format needs to be either c, cc or cpp"
+                    assert module.format in [
+                        "c",
+                        "cc",
+                        "cpp",
+                    ], "The module.format needs to be either c, cc or cpp"
                     object_format = module.format
                     has_c_module = True
                 else:
