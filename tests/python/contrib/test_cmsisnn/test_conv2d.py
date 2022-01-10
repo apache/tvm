@@ -354,9 +354,7 @@ def parameterize_for_invalid_model(test):
     all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point)
     all_combinations = filter(
         lambda parameters: not (
-            parameters[0] == "int8"
-            and parameters[1] == "int8"
-            and parameters[2] == 0
+            parameters[0] == "int8" and parameters[1] == "int8" and parameters[2] == 0
         ),
         all_combinations,
     )
