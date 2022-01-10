@@ -137,7 +137,7 @@ Definition of a scope that is a stage pipeline:
   }
   // Step 3. Handle `require_subtree_compact_dataflow`
   if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_sref);
+    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
     for (const StmtSRef& block_sref : child_block_srefs) {
       if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
           !IsReductionBlock(self, block_sref, scope_root_sref)) {
@@ -153,15 +153,15 @@ Definition of a scope that is a stage pipeline:
 /*!
  * \brief Check the dominant property of a block:
  * the block is the only writer of its output, dominating the reader of its output buffers
- * \param self The schedule state
+ * \param scope The block-scope of the block to be checked
  * \param block_sref The block whose dominant property is to be checked
  * \return A boolean indicating if the block is a dominant block
  */
-bool IsDominantBlock(const BlockScope& self, const StmtSRef& block_sref) {
+bool IsDominantBlock(const BlockScope& scope, const StmtSRef& block_sref) {
   // Check whether the input block is the only writer of its outputs
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   const std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual>& buffer_writers =
-      self->buffer_writers;
+      scope->buffer_writers;
   for (const BufferRegion& write_region : block->writes) {
     ICHECK(buffer_writers.count(write_region->buffer))
         << "InternalError: buffer \"" << write_region->buffer->name
@@ -279,14 +279,8 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
   }
   // Cond 3. All block vars are either data parallel block vars or reduction block vars. Meanwhile,
   // we collect all the reduction block vars.
-  std::unordered_set<const VarNode*> reduction_block_vars;
-  reduction_block_vars.reserve(block->iter_vars.size());
-  for (const IterVar& iter_var : block->iter_vars) {
-    if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-      return 3;
-    } else if (iter_var->iter_type == kCommReduce) {
-      reduction_block_vars.insert(iter_var->var.get());
-    }
+  if (!ContainsOnlyDataParAndReductionBlockIter(block->iter_vars)) {
+    return 3;
   }
   // Cond 4. Dominant: the block is the only writer of its output, dominating the reader of its
   // output buffers.
@@ -294,33 +288,7 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
     return 4;
   }
   // Cond 5. The reduction block vars are not used to index the output buffers.
-  std::unordered_set<const BufferNode*> buffer_written;
-  buffer_written.reserve(block->writes.size());
-  for (const BufferRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->buffer.get());
-  }
-  bool affected = false;
-  PreOrderVisit(block->body, [&](const ObjectRef& obj) {
-    if (affected) {
-      return false;
-    }
-    if (const auto* store = obj.as<BufferStoreNode>()) {
-      ICHECK(buffer_written.count(store->buffer.get()))
-          << "ValueError: The buffer \"" << store->buffer
-          << "\" is written in the block but is not in the block's signature";
-      for (const PrimExpr& index : store->indices) {
-        if (UsesVar(index, [&reduction_block_vars](const VarNode* var) {
-              return reduction_block_vars.count(var);
-            })) {
-          affected = true;
-          return false;
-        }
-      }
-      return false;
-    }
-    return true;
-  });
-  return !affected ? 0 : 5;
+  return ReductionIterNotIndexOutputBuffer(GetRef<Block>(block)) ? 0 : 5;
 }
 
 bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -447,12 +415,14 @@ bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_va
   if (loop_var_ranges.empty()) {
     return true;
   }
+  DiagnosticContext diag_ctx(DiagnosticContext::Default(IRModule()));
   Array<arith::IterSumExpr> results = arith::DetectIterMap(
       /*indices=*/realize->iter_values,
       /*input_iters=*/loop_var_ranges,
       /*predicate=*/realize->predicate,
       /*require_bijective=*/false,
-      /*analyzer=*/analyzer);
+      /*analyzer=*/analyzer,
+      /*diag_ctx*/ diag_ctx);
   if (results.empty()) {
     return false;
   }
@@ -505,8 +475,8 @@ Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (loop->kind == ForKind::kThreadBinding) {
           const String& thread_tag = loop->thread_binding.value()->thread_tag;
-          if (CanRelaxStorageUndereThread(extra_relax_scope,
-                                          runtime::ThreadScope::Create(thread_tag))) {
+          if (CanRelaxStorageUnderThread(extra_relax_scope,
+                                         runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
           }
         }
@@ -552,7 +522,9 @@ bool GetVarsTouchedByBlockIters(const BlockRealize& block_realize,
     } else {
       has_block_vars_of_other_types = true;
     }
-
+    if (set == nullptr) {
+      continue;
+    }
     Array<Var> vars_in_binding = UndefinedVars(iter_value);
     for (const Var& var : vars_in_binding) {
       set->insert(var.get());
@@ -1128,6 +1100,207 @@ class PatternMatcher : public ExprVisitor {
   std::unordered_map<const VarNode*, PrimExpr> filled_map_;
 };
 
+/******** Reduction Block Related ********/
+
+class InitBodyNotBufferStoreError : public ScheduleError {
+ public:
+  explicit InitBodyNotBufferStoreError(IRModule mod, Block block, bool init_is_bufferstore,
+                                       bool body_is_bufferstore)
+      : mod_(std::move(mod)),
+        block_(std::move(block)),
+        init_is_bufferstore_(init_is_bufferstore),
+        body_is_bufferstore_(body_is_bufferstore) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The `init` and `body` of reduction block are required to be both "
+           "BufferStore so that rfactor or cross-thread reduction can be applied";
+  }
+
+  String DetailRenderTemplate() const final {
+    if (!init_is_bufferstore_ && !body_is_bufferstore_) {
+      return "The `init` and `body` of block {0} are required to be BufferStore so that rfactor or "
+             "cross-thread reduction can be applied";
+    } else if (!init_is_bufferstore_) {
+      return "The `init` of block {0} is required to be BufferStore so that rfactor or cross-thread"
+             " reduction can be applied";
+    } else {
+      ICHECK(!body_is_bufferstore_);
+      return "The `body` of block {0} is required to be BufferStore so that rfactor or cross-thread"
+             " reduction can be applied";
+    }
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  IRModule mod_;
+  Block block_;
+  bool init_is_bufferstore_;
+  bool body_is_bufferstore_;
+};
+
+class InitBodyNotSameBufferAccessError : public ScheduleError {
+ public:
+  explicit InitBodyNotSameBufferAccessError(IRModule mod, Block block)
+      : mod_(std::move(mod)), block_(std::move(block)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: The `init` and `body` of the reduction block are required to have the "
+           "same buffer access pattern";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    const auto* init = block_->init.as<BufferStoreNode>();
+    const auto* update = block_->body.as<BufferStoreNode>();
+    os << "The `init` and `body` of the block {0} is required to have the same buffer access "
+          "pattern. However, in block {0} the `init` writes to "
+       << init->buffer->name << init->indices << ", and the `body` writes to "
+       << update->buffer->name << update->indices;
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {block_}; }
+
+  IRModule mod_;
+  Block block_;
+};
+
+std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
+    const Optional<ScheduleState>& self, const Block& block) {
+  static constexpr const char* error_str1 =
+      "ValueError: The `init` and `body` of the reduction block are required to be both "
+      "BufferStore so that rfactor or cross-thread reduction can be applied. However, a reduction "
+      "block that doesn't meet this requirement is ";
+  static constexpr const char* error_str2 =
+      "ValueError: The `init` and `body` of the reduction block are required to have the same "
+      "buffer access pattern so that rfactor or cross-thread reduction can be applied. However, a "
+      "reduction block that doesn't meet this requirement is ";
+
+  const auto* init = block->init.as<BufferStoreNode>();
+  const auto* body = block->body.as<BufferStoreNode>();
+  if (!(init && body)) {
+    if (self.defined()) {
+      throw InitBodyNotBufferStoreError(self.value()->mod, block, init != nullptr, body != nullptr);
+    } else {
+      LOG(FATAL) << error_str1 << block;
+    }
+  }
+  if (!init->buffer.same_as(body->buffer)) {
+    if (self.defined()) {
+      throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
+    } else {
+      LOG(FATAL) << error_str2 << block;
+    }
+  }
+  int ndim = static_cast<int>(init->buffer->shape.size());
+  for (int i = 0; i < ndim; ++i) {
+    if (!ExprDeepEqual()(init->indices[i], body->indices[i])) {
+      if (self.defined()) {
+        throw InitBodyNotSameBufferAccessError(self.value()->mod, block);
+      } else {
+        LOG(FATAL) << error_str2 << block;
+      }
+    }
+  }
+  return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
+}
+
+bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters) {
+  for (const IterVar& iter_var : iters) {
+    if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ReductionIterNotIndexOutputBuffer(const Block& block) {
+  // Step 1. Collect the reduction block iters.
+  std::unordered_set<const VarNode*> reduction_block_iters;
+  reduction_block_iters.reserve(block->iter_vars.size());
+  for (const IterVar& iter_var : block->iter_vars) {
+    if (iter_var->iter_type == kCommReduce) {
+      reduction_block_iters.insert(iter_var->var.get());
+    }
+  }
+  // Step 2. Check if the reduction block iters are used to index the output buffer.
+  std::unordered_set<const BufferNode*> buffer_written;
+  buffer_written.reserve(block->writes.size());
+  for (const BufferRegion& write_region : block->writes) {
+    buffer_written.insert(write_region->buffer.get());
+  }
+  auto f_uses_reduction_block_var = [&](const PrimExpr& expr) -> bool {
+    return UsesVar(expr, [&](const VarNode* var) {  //
+      return reduction_block_iters.count(var);
+    });
+  };
+  bool affected = false;
+  PreOrderVisit(block->body, [&](const ObjectRef& obj) {
+    if (affected) {
+      return false;
+    }
+    const auto* store = obj.as<BufferStoreNode>();
+    if (!store) {
+      return true;
+    }
+    ICHECK(buffer_written.count(store->buffer.get()))
+        << "ValueError: The buffer \"" << store->buffer
+        << "\" is written in the block but is not in the block's signature";
+    for (const PrimExpr& index : store->indices) {
+      if (f_uses_reduction_block_var(index)) {
+        affected = true;
+        return false;
+      }
+    }
+    return false;
+  });
+  return !affected;
+}
+
+class NoMatchedReducerError : public ScheduleError {
+ public:
+  explicit NoMatchedReducerError(IRModule mod, PrimExpr identity, BufferStore combiner)
+      : mod_(std::move(mod)), identity_(std::move(identity)), combiner_(std::move(combiner)) {}
+
+  String FastErrorString() const final {
+    return "ScheduleError: No matched reducer for the identity and the combiner of this reduction "
+           "block. So rfactor and cross-thread reduction cannot be applied.";
+  }
+
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "No matched reducer for identity " << identity_ << " and combiner " << combiner_
+       << "In this case rfactor cannot be applied. You can check tvm::tir::ReducerRegistry for "
+          "default reducers or registering new reducers.";
+    return os.str();
+  }
+
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+
+  IRModule mod_;
+  PrimExpr identity_;
+  BufferStore combiner_;
+};
+
+std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
+    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner) {
+  CommReducer reducer{nullptr};
+  PrimExpr combiner_lhs{nullptr}, combiner_rhs{nullptr};
+  bool matched = FromIdentityCombiner(identity, combiner, &reducer, &combiner_lhs, &combiner_rhs);
+  if (!matched) {
+    if (self.defined()) {
+      throw NoMatchedReducerError(self.value()->mod, identity, combiner);
+    } else {
+      LOG(FATAL) << "ValueError: No matched reducer for the identity and the combiner of the "
+                    "reduction block. So rfactor and cross-thread reduction cannot be applied.";
+    }
+  }
+  return std::make_tuple(std::move(reducer), std::move(combiner_lhs), std::move(combiner_rhs));
+}
+
 /******** Commutative Reducer ********/
 
 bool MatchReducer(const CommReducer& reducer, const PrimExpr& identity, const PrimExpr& combiner,
@@ -1170,6 +1343,37 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   for (; p->parent != nullptr; p = p->parent) {
   }
   return GetRef<StmtSRef>(p);
+}
+
+/******** Storage Scope ********/
+
+void CheckStorageScope(const ScheduleState& self, String storage_scope) {
+  class InvalidStorageScopeError : public ScheduleError {
+   public:
+    explicit InvalidStorageScopeError(IRModule mod, String storage_scope)
+        : mod_(std::move(mod)), storage_scope_(std::move(storage_scope)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The input storage scope is invalid";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "The input storage scope \"" + storage_scope_ + "\" is invalid.";
+    }
+
+    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+    IRModule mod() const final { return mod_; }
+
+   private:
+    IRModule mod_;
+    String storage_scope_;
+  };
+
+  try {
+    runtime::StorageScope::Create(std::string(storage_scope));
+  } catch (...) {
+    throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
+  }
 }
 
 }  // namespace tir

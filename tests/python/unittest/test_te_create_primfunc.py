@@ -17,7 +17,7 @@
 # pylint: disable=missing-function-docstring,missing-module-docstring
 import tvm
 from tvm.script import tir as T
-from tvm import te, tir
+from tvm import te, tir, topi
 import numpy as np
 import tvm.testing
 
@@ -50,6 +50,7 @@ def te_matmul():
 
 @T.prim_func
 def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -75,6 +76,7 @@ def te_element_wise():
 
 @T.prim_func
 def tir_element_wise(a: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     C = T.match_buffer(c, (128, 128))
     B = T.alloc_buffer((128, 128))
@@ -126,6 +128,7 @@ def te_conv2d():
 
 @T.prim_func
 def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, [16, 16, 14, 14])
     W = T.match_buffer(w, [16, 3, 3, 32])
     B = T.match_buffer(b, [16, 32, 14, 14])
@@ -135,7 +138,7 @@ def tir_conv2d(a: T.handle, w: T.handle, b: T.handle) -> None:
         with T.block("Apad"):
             nn, cc, yy, xx = T.axis.remap("SSSS", [n, c, y, x])
             Apad[nn, cc, yy, xx] = T.if_then_else(
-                yy >= 1 and yy - 1 < 14 and xx >= 1 and xx - 1 < 14,
+                1 <= yy and yy < 15 and 1 <= xx and xx < 15,
                 A[nn, cc, yy - 1, xx - 1],
                 0.0,
                 dtype="float32",
@@ -163,6 +166,7 @@ def te_multi_output():
 
 @T.prim_func
 def tir_multi_output(a0: T.handle, a1: T.handle, b0: T.handle, b1: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     m = T.var("int32")
     n = T.var("int32")
     A0 = T.match_buffer(a0, (m, n))
@@ -199,6 +203,7 @@ def te_extern():
 
 @T.prim_func
 def tir_extern(a: T.handle, b: T.handle, c: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -257,6 +262,7 @@ def te_reordered_matmul():
 
 @T.prim_func
 def tir_reordered_matmul(c: T.handle, a: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     A = T.match_buffer(a, (128, 128))
     B = T.match_buffer(b, (128, 128))
     C = T.match_buffer(c, (128, 128))
@@ -327,6 +333,32 @@ def test_data_dependent_access():
     tvm.testing.assert_allclose(a_np[b_np], c.numpy())
 
 
+def test_select_simplify():
+    placeholder = te.placeholder([1, 128, 10, 10, 4], dtype="float32")
+    tensor = topi.nn.adaptive_pool(placeholder, [1, 1], "avg", "NCHW4c")
+    result = te.create_prim_func([placeholder, tensor])
+    script_func = result.script()
+    # There should be no Select
+    assert script_func.find("Select") == -1
+    # There should be no undefined vars
+    assert script_func.find("Var") == -1
+
+
+def test_tensor_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    func = te.create_prim_func([A, B, C])
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -337,3 +369,5 @@ if __name__ == "__main__":
     test_arg_order()
     test_error_reporting()
     test_constant()
+    test_select_simplify()
+    test_tensor_attr()

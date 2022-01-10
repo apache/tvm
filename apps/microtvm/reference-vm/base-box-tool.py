@@ -475,6 +475,8 @@ def parse_args():
         description="Automates building, testing, and releasing a base box"
     )
     subparsers = parser.add_subparsers(help="Action to perform.")
+    subparsers.required = True
+    subparsers.dest = "action"
     parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,

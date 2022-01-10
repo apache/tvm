@@ -104,9 +104,9 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     arith::IntSet produced = arith::Intersect({produced_region[i], buffer_size});
     arith::IntSet consumed = arith::Intersect({consumed_region[i], buffer_size});
     PrimExpr produced_min = analyzer->Simplify(produced.min());
-    PrimExpr produced_max = analyzer->Simplify(produced.max() - produced_min + 1);
+    PrimExpr produced_max = analyzer->Simplify(produced.max());
     PrimExpr consumed_min = analyzer->Simplify(consumed.min());
-    PrimExpr consumed_max = analyzer->Simplify(consumed.max() - consumed_min + 1);
+    PrimExpr consumed_max = analyzer->Simplify(consumed.max());
     if (!analyzer->CanProve((produced_min <= consumed_min) && (consumed_max <= produced_max))) {
       return false;
     }

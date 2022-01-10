@@ -29,6 +29,7 @@ from tvm.contrib.debugger import debug_executor
 from tvm import rpc
 from tvm.contrib import utils
 from tvm.runtime.profiling import Report
+from tvm.script import tir as T
 
 
 def read_csv(report):
@@ -69,7 +70,22 @@ def test_vm(target, dev):
 
     csv = read_csv(report)
     assert "Hash" in csv.keys()
-    assert all([float(x) > 0 for x in csv["Duration (us)"]])
+    # Ops should have a duration greater than zero.
+    assert all(
+        [
+            float(dur) > 0
+            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            if name[:5] == "fused"
+        ]
+    )
+    # AllocTensor or AllocStorage may be cached, so their duration could be 0.
+    assert all(
+        [
+            float(dur) >= 0
+            for dur, name in zip(csv["Duration (us)"], csv["Name"])
+            if name[:5] != "fused"
+        ]
+    )
 
 
 @tvm.testing.parametrize_targets
@@ -195,5 +211,54 @@ def test_report_serialization():
     )
 
 
+@T.prim_func
+def axpy_cpu(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [10], "float64")
+    B = T.match_buffer(b, [10], "float64")
+    C = T.match_buffer(c, [10], "float64")
+    for i in range(10):
+        C[i] = A[i] + B[i]
+
+
+@T.prim_func
+def axpy_gpu(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [10], "float64")
+    B = T.match_buffer(b, [10], "float64")
+    C = T.match_buffer(c, [10], "float64")
+    for i in T.thread_binding(0, 10, "threadIdx.x"):
+        C[i] = A[i] + B[i]
+
+
+@tvm.testing.parametrize_targets("cuda", "llvm")
+@pytest.mark.skipif(
+    tvm.get_global_func("runtime.profiling.PAPIMetricCollector", allow_missing=True) is None,
+    reason="PAPI profiling not enabled",
+)
+def test_profile_function(target, dev):
+    target = tvm.target.Target(target)
+    if str(target.kind) == "llvm":
+        metric = "PAPI_FP_OPS"
+        func = axpy_cpu
+    elif str(target.kind) == "cuda":
+        metric = (
+            "cuda:::gpu__compute_memory_access_throughput.max.pct_of_peak_sustained_region:device=0"
+        )
+        func = axpy_gpu
+    else:
+        pytest.skip(f"Target {target.kind} not supported by this test")
+    f = tvm.build(func, target=target)
+    a = tvm.nd.array(np.ones(10), device=dev)
+    b = tvm.nd.array(np.ones(10), device=dev)
+    c = tvm.nd.array(np.zeros(10), device=dev)
+    report = tvm.runtime.profiling.profile_function(
+        f, dev, [tvm.runtime.profiling.PAPIMetricCollector({dev: [metric]})]
+    )(a, b, c)
+    assert metric in report.keys()
+    assert report[metric].value > 0
+
+
 if __name__ == "__main__":
-    test_papi("llvm", tvm.cpu())
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

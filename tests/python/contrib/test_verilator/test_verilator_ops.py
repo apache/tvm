@@ -192,3 +192,9 @@ def test_bias_add():
     """bias_add tests."""
     tbias(1)
     tbias(32)
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

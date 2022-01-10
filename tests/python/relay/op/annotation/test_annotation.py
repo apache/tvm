@@ -26,14 +26,18 @@ def test_on_device_via_string():
     assert isinstance(call, relay.Call)
     assert len(call.args) == 1
     assert call.args[0] == x
-    assert call.attrs.device_type == 2  # ie kDLCUDA
-    assert not call.attrs.is_fixed
+    assert call.attrs.virtual_device.device_type_int == 2  # ie kDLCUDA
+    assert call.attrs.virtual_device.virtual_device_id == 0
+    assert call.attrs.virtual_device.target is None
+    assert call.attrs.virtual_device.memory_scope == ""
+    assert call.attrs.constrain_body
+    assert not call.attrs.constrain_result
 
 
 def test_on_device_via_device():
     x = relay.Var("x")
-    call = relay.annotation.on_device(x, tvm.device("llvm"))
-    assert call.attrs.device_type == 1  # ie kDLCPU
+    call = relay.annotation.on_device(x, tvm.device("cpu"))
+    assert call.attrs.virtual_device.device_type_int == 1  # ie kDLCPU
 
 
 def test_on_device_invalid_device():
@@ -41,11 +45,20 @@ def test_on_device_invalid_device():
     pytest.raises(ValueError, lambda: relay.annotation.on_device(x, "bogus"))
 
 
-def test_on_device_is_fixed():
+def test_on_device_fixed():
     x = relay.Var("x")
-    call = relay.annotation.on_device(x, "cuda", True)
-    assert call.attrs.device_type == 2
-    assert call.attrs.is_fixed
+    call = relay.annotation.on_device(x, "cuda", constrain_result=True)
+    assert call.attrs.virtual_device.device_type_int == 2  # ie kDLCUDA
+    assert call.attrs.constrain_body
+    assert call.attrs.constrain_result
+
+
+def test_on_device_free():
+    x = relay.Var("x")
+    call = relay.annotation.on_device(x, "cuda", constrain_result=False, constrain_body=False)
+    assert call.attrs.virtual_device.device_type_int == -1  # ie kInvalidDeviceType
+    assert not call.attrs.constrain_body
+    assert not call.attrs.constrain_result
 
 
 def test_function_on_device():
@@ -54,15 +67,13 @@ def test_function_on_device():
     f = relay.Function([x, y], relay.add(x, y))
     func = relay.annotation.function_on_device(f, ["cpu", "cuda"], "cuda")
     assert isinstance(func, relay.Function)
-    assert len(func.attrs["param_device_types"]) == 2
-    assert func.attrs["param_device_types"][0] == 1  # ie kDLCPU
-    assert func.attrs["param_device_types"][1] == 2  # ie kDLCUDA
-    assert func.attrs["result_device_type"] == 2  # ie KDLCUDA
+    assert len(func.attrs["param_virtual_devices"]) == 2
+    assert func.attrs["param_virtual_devices"][0].device_type_int == 1  # ie kDLCPU
+    assert func.attrs["param_virtual_devices"][1].device_type_int == 2  # ie kDLCUDA
+    assert func.attrs["result_virtual_device"].device_type_int == 2  # ie KDLCUDA
 
 
 if __name__ == "__main__":
-    test_on_device_via_string()
-    test_on_device_via_device()
-    test_on_device_invalid_device()
-    test_on_device_is_fixed()
-    test_function_on_device()
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -89,6 +89,8 @@ struct Model {
 
   static tvm::Device device() { return tvm::Device{static_cast<DLDeviceType>(kDLHexagon), 0}; }
 
+  static tvm::Device external() { return tvm::Device{static_cast<DLDeviceType>(kDLCPU), 0}; }
+
   tvm::runtime::PackedFunc run;
 };
 

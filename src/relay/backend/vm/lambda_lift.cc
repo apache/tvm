@@ -112,7 +112,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     auto free_type_vars = FreeTypeVars(func, module_);
 
     Array<Var> captured_vars;
-    std::vector<DLDeviceType> captured_var_device_types;
+    std::vector<VirtualDevice> captured_var_virtual_devices;
     bool recursive = false;
     for (const auto& var : free_vars) {
       if (!letrec_.empty() && var == letrec_.back()) {
@@ -120,7 +120,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
         continue;
       }
       captured_vars.push_back(var);
-      captured_var_device_types.push_back(GetInScopeDeviceType(var));
+      captured_var_virtual_devices.push_back(GetVirtualDevice(var));
     }
 
     // Freshen all the captured vars.
@@ -132,7 +132,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       rebinding_map.Set(free_var, var);
     }
 
-    DLDeviceType result_device_type = GetInScopeDeviceType(func_node->body);
+    VirtualDevice result_virtual_device = GetVirtualDevice(func_node->body);
 
     if (recursive) {
       if (!captured_vars.empty()) {
@@ -196,7 +196,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
           Function(typed_captured_vars, rebound_body, /*ret_type=*/func->func_type_annotation(),
                    free_type_vars, /*attrs=*/{}, func->span);
       lifted_func =
-          MaybeFunctionOnDevice(lifted_func, captured_var_device_types, result_device_type);
+          MaybeFunctionOnDevice(lifted_func, captured_var_virtual_devices, result_virtual_device);
       lifted_func = MarkClosure(lifted_func);
     }
 

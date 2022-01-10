@@ -19,11 +19,16 @@
 #ifndef TVM_TIR_SCHEDULE_ANALYSIS_H_
 #define TVM_TIR_SCHEDULE_ANALYSIS_H_
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/schedule/state.h>
 
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
+
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace tir {
@@ -323,6 +328,49 @@ struct ProducerConsumerSplit {
  */
 Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, bool is_write);
 
+/******** Reduction Block Related ********/
+
+/*!
+ * \brief Convert the `init` and `body` of the input block to BufferStores
+ * \param self The schedule state
+ * \param block The block to be analyzed
+ * \return The BufferStores of the `init` and `body` of the input block
+ * \throw ScheduleError If the `init` or `body` is not BufferStore, or they don't write to the same
+ * buffer
+ */
+std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
+    const Optional<ScheduleState>& self, const Block& block);
+
+/*!
+ * \brief Check whether the input array of IterVars only contains data-parallel and reduction block
+ * iters
+ * \param iters The input array of IterVars to be checked
+ * \return A boolean indicating whether the input array of IterVars only contains data-parallel and
+ * reduction block iters
+ */
+bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters);
+
+/*!
+ * \brief Check whether the block's reduction block iters are not used to index the block's output
+ * buffers
+ * \param block The block to be checked
+ * \return A boolean indicating whether the block's reduction block iters are not used to index the
+ * block's output buffer
+ */
+bool ReductionIterNotIndexOutputBuffer(const Block& block);
+
+/*!
+ * \brief Given a reduction identity and a reduction combiner, detect the corresponding commutative
+ * reducer, and extract the combiner lhs and combiner rhs
+ * \param self The schedule state
+ * \param identity The reduction identity to be analyzed
+ * \param combiner The reduction combiner to be analyzed
+ * \return The corresponding CommReducer, the combiner lhs and the combiner rhs
+ * \throw ScheduleError If no corresponding commutative reducer can be matched
+ */
+std::tuple<CommReducer, PrimExpr, PrimExpr> GetReducerAndCombinerLhsRhs(
+    const Optional<ScheduleState>& self, const PrimExpr& identity, const BufferStore& combiner);
+
 /******** Commutative Reducer ********/
 
 /*!
@@ -330,7 +378,7 @@ Buffer GetNthAccessBuffer(const ScheduleState& self, const Block& block, int n, 
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
+std::vector<runtime::TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
 
 /*!
  * \brief Given the input identity and the combiner BufferStore of a reduction, extract the
@@ -344,6 +392,55 @@ std::vector<TypedPackedFunc<CommReducer(DataType)>> GetReducerGetters();
  */
 bool FromIdentityCombiner(const PrimExpr& identity, const BufferStore& combiner,
                           CommReducer* result_reducer, PrimExpr* lhs, PrimExpr* rhs);
+
+/******** Misc ********/
+
+/*!
+ * \brief Check whether the input storage scope string is valid. Throw an error if not.
+ * \param self The schedule state
+ * \param storage_scope The storage scope string to be checked
+ * \throw ScheduleError If the input storage scope is not valid
+ */
+void CheckStorageScope(const ScheduleState& self, String storage_scope);
+
+/*!
+ * \brief Checks if a block could be successfully computed inline into its consumer
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block could be successfully computed inline
+ */
+bool CanComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if a block could be successfully computed inline into its producer
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block could be successfully computed inline
+ */
+bool CanReverseComputeInline(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if a producer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully compute at the specific loop
+ */
+bool CanComputeAt(const ScheduleState& self, const StmtSRef& block_sref, const StmtSRef& loop_sref,
+                  bool preserve_unit_loops);
+
+/*!
+ * \brief Checks if a consumer block could be successfully computed at the specific loop.
+ * \param self The schedule state
+ * \param block_sref The block to be moved
+ * \param loop_sref The loop where the block to be moved to
+ * \param preserve_unit_loops Whether to keep the trivial loops whose extents are 1
+ * \return A boolean indicating whether the block could be successfully reverse compute at the
+ * specific loop
+ */
+bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
+                         const StmtSRef& loop_sref, bool preserve_unit_loops);
 
 }  // namespace tir
 }  // namespace tvm

@@ -191,24 +191,24 @@ constexpr const char* kTarget = "target";
 constexpr const char* kGlobalSymbol = "global_symbol";
 
 /*!
- * \brief The device type which will hold each of the functions parameters.
+ * \brief The \p VirtualDevice which will hold each of the functions parameters.
  *
  * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
  * may be included as an annotation on user programs.
  *
- * Type: Array<Integer> (but interpreted as Array<DLDeviceType>)
+ * Type: Array<VirtualDevice>
  */
-constexpr const char* kParamDeviceTypes = "param_device_types";
+constexpr const char* kParamVirtualDevice = "param_virtual_devices";
 
 /*!
- * \brief The device type which will hold the function result.
+ * \brief The \p VirtualDevice which will hold the function result.
  *
  * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
  * may be included as an annotation on user programs.
  *
- * Type: Integer (but interpreted as DLDeviceType)
+ * Type: VirtualDevice
  */
-constexpr const char* kResultDeviceType = "result_device_type";
+constexpr const char* kResultVirtualDevice = "result_virtual_device";
 
 }  // namespace attr
 }  // namespace tvm

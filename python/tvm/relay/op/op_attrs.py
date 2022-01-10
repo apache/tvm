@@ -509,6 +509,11 @@ class ReduceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""
 
 
+@tvm._ffi.register_object("relay.attrs.ArgReduceAttrs")
+class ArgReduceAttrs(Attrs):
+    """Attributes used in reduction operators (e.g. argmin/argmax)"""
+
+
 @tvm._ffi.register_object("relay.attrs.VarianceAttrs")
 class VarianceAttrs(Attrs):
     """Attributes used in reduction operators (e.g. sum)"""

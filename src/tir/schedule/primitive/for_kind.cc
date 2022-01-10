@@ -121,6 +121,11 @@ void CheckParallelizability(const ScheduleState& self, const For& loop, ForKind 
                             runtime::ThreadScope thread_scope) {
   PreOrderVisit(loop, [&](const ObjectRef& node) {
     if (const auto* realize = node.as<BlockRealizeNode>()) {
+      // If this block doesn't have corresponding StmtSRef in the schedule state, it must be a block
+      // inside `tir.init()`. We don't check the condition for such blocks.
+      if (!self->stmt2ref.count(realize->block.get())) {
+        return false;
+      }
       CheckLoopParallelizableInBlock(self, for_kind, loop->loop_var, GetRef<BlockRealize>(realize),
                                      thread_scope);
     }

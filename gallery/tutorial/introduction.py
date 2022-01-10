@@ -56,7 +56,7 @@ Contents
 #   :width: 100%
 #   :alt: A High Level View of TVM
 #
-# 1. Import the model from a framework like *Tensorflow*, *Pytorch*, or *Onnx*.
+# 1. Import the model from a framework like *Tensorflow*, *PyTorch*, or *Onnx*.
 #    The importer layer is where TVM can ingest models from other frameworks, like
 #    Tensorflow, PyTorch, or ONNX. The level of support that TVM offers for each
 #    frontend varies as we are constantly improving the open source project. If

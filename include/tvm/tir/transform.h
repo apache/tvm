@@ -288,6 +288,11 @@ TVM_DLL Pass LowerThreadAllreduce();
 TVM_DLL Pass InferFragment();
 
 /*!
+ * \brief This annotation is for nodes to be disabled for builtin lowering
+ */
+static constexpr const char* kDisableLowerTVMBuiltin = "disable_lower_builtin";
+
+/*!
  * \brief Lower builtin intrinsics.
  * \return The pass.
  */
@@ -356,6 +361,13 @@ TVM_DLL Pass PointerValueTypeRewrite();
  * \return The pass.
  */
 TVM_DLL Pass HoistIfThenElse();
+
+/*!
+ * \brief Lower cross-thread reduction from thread
+ * bindings to intrinsic function calls.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerCrossThreadReduction();
 
 /*!
  * \brief Lower block init stmt into IfThenElse stmts

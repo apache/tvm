@@ -124,12 +124,9 @@ model with Relay.
 
 import os
 import numpy as np
-import logging
 
 import tvm
-import tvm.micro as micro
 from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_executor, utils
 from tvm import relay
 
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
@@ -179,9 +176,10 @@ mod, params = relay.frontend.from_tflite(
 # Now we create a build config for relay, turning off two options and then calling relay.build which
 # will result in a C source file for the selected TARGET. When running on a simulated target of the
 # same architecture as the host (where this Python script is executed) choose "host" below for the
-# TARGET and a proper board/VM to run it (Zephyr will create the right QEMU VM based on BOARD. In
-# the example below the x86 arch is selected and a x86 VM is picked up accordingly:
+# TARGET, the C Runtime as the RUNTIME and a proper board/VM to run it (Zephyr will create the right
+# QEMU VM based on BOARD. In the example below the x86 arch is selected and a x86 VM is picked up accordingly:
 #
+RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 TARGET = tvm.target.target.micro("host")
 BOARD = "qemu_x86"
 #
@@ -210,7 +208,7 @@ BOARD = "qemu_x86"
 with tvm.transform.PassContext(
     opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
 ):
-    module = relay.build(mod, target=TARGET, params=params)
+    module = relay.build(mod, target=TARGET, runtime=RUNTIME, params=params)
 
 
 # Inspecting the compilation output
@@ -269,10 +267,7 @@ os.unlink(model_library_format_tar_path)
 import subprocess
 import pathlib
 
-repo_root = pathlib.Path(
-    subprocess.check_output(["git", "rev-parse", "--show-toplevel"], encoding="utf-8").strip()
-)
-template_project_path = repo_root / "src" / "runtime" / "crt" / "host"
+template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
 # Compiling for physical hardware (or an emulated board, like the mps_an521)
@@ -280,7 +275,7 @@ project_options = {}  # You can use options to provide platform-specific options
 #  For physical hardware, you can try out the Zephyr platform by using a different template project
 #  and options:
 #
-#     template_project_path = repo_root / "apps" / "microtvm" / "zephyr" / "template_project"
+#     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
 #     project_options = {"project_type": "host_driven", zephyr_board": "nucleo_f746zg"}}
 
 # Create a temporary directory

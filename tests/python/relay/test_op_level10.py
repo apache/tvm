@@ -17,7 +17,6 @@
 """ Support level10 operator test cases.
 """
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -59,7 +58,14 @@ def test_checkpoint_alpha_equal():
 
     # run PE and DCE
     with tvm.transform.PassContext(opt_level=3):
-        passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+        # The expected output assumes DCE can elide 'dead writes' to references. At the time this unit test was
+        # written DCE would elide all writes, which though unsound in general happens to work for this case. Preserve
+        # that legacy behaviour here using 'ignore_impurity=True'.
+        # TODO(mbs): Revisit once DCE supports dead reference writes.
+        passes = [
+            transform.PartialEvaluate(),
+            transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+        ]
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
@@ -118,7 +124,12 @@ def test_checkpoint_alpha_equal_tuple():
 
     # run PE and DCE
     with tvm.transform.PassContext(opt_level=3):
-        passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+        # See comment in test_checkpoint_alpha_equal above.
+        # TODO(mbs): Revisit once DCE supports dead reference writes.
+        passes = [
+            transform.PartialEvaluate(),
+            transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+        ]
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
@@ -612,4 +623,7 @@ def test_nll_loss(dev, target):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

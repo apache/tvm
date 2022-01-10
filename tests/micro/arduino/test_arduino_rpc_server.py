@@ -22,29 +22,29 @@ This unit test simulates an autotuning workflow, where we:
 
 """
 
-import datetime
 import pathlib
 import sys
-
 import numpy as np
 import onnx
 import pytest
+
 import tvm
 from PIL import Image
-from tvm import micro, relay
+from tvm import relay
 from tvm.relay.testing import byoc
+from tvm.relay.backend import Executor, Runtime
 
-import conftest
+import test_utils
 
 # # A new project and workspace dir is created for EVERY test
 @pytest.fixture
 def workspace_dir(board):
-    return conftest.make_workspace_dir("arduino_rpc_server", board)
+    return test_utils.make_workspace_dir("arduino_rpc_server", board)
 
 
 def _make_session(model, arduino_board, arduino_cli_cmd, workspace_dir, mod, build_config):
     project = tvm.micro.generate_project(
-        str(conftest.TEMPLATE_PROJECT_DIR),
+        str(test_utils.TEMPLATE_PROJECT_DIR),
         mod,
         workspace_dir / "project",
         {
@@ -85,7 +85,7 @@ def _make_add_sess(model, arduino_board, arduino_cli_cmd, workspace_dir, build_c
 def test_compile_runtime(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -110,7 +110,7 @@ def test_compile_runtime(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 def test_platform_timer(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Test compiling the on-device runtime."""
 
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.
@@ -139,7 +139,7 @@ def test_platform_timer(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 @pytest.mark.requires_hardware
 def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple relay graph"""
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     shape = (10,)
@@ -171,7 +171,7 @@ def test_relay(board, arduino_cli_cmd, tvm_debug, workspace_dir):
 @pytest.mark.requires_hardware
 def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """Testing a simple ONNX model."""
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # Load test images.
@@ -191,9 +191,11 @@ def test_onnx(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     relay_mod, params = relay.frontend.from_onnx(onnx_model, shape=shape, freeze_params=True)
     relay_mod = relay.transform.DynamicToStatic()(relay_mod)
 
-    target = tvm.target.target.micro(model, options=["-link-params=1"])
+    target = tvm.target.target.micro(model)
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(relay_mod, target, params=params)
+        executor = Executor("graph", {"link-params": True})
+        runtime = Runtime("crt", {"system-lib": True})
+        lowered = relay.build(relay_mod, target, params=params, executor=executor, runtime=runtime)
         graph = lowered.get_graph_json()
 
     with _make_session(
@@ -259,7 +261,7 @@ def check_result(
 @pytest.mark.requires_hardware
 def test_byoc_microtvm(board, arduino_cli_cmd, tvm_debug, workspace_dir):
     """This is a simple test case to check BYOC capabilities of microTVM"""
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     x = relay.var("x", shape=(10, 10))
@@ -343,7 +345,7 @@ def _make_add_sess_with_shape(
 @pytest.mark.requires_hardware
 def test_rpc_large_array(board, arduino_cli_cmd, tvm_debug, workspace_dir, shape):
     """Test large RPC array transfer."""
-    model = conftest.ARDUINO_BOARDS[board]
+    model = test_utils.ARDUINO_BOARDS[board]
     build_config = {"debug": tvm_debug}
 
     # NOTE: run test in a nested function so cPython will delete arrays before closing the session.

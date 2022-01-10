@@ -615,6 +615,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       value.push_back(ps);
       expr.push_back(ps->dynamic);
     }
+    // Note: The partial evaluator seems to do some weird stuff with sharing. Changing Tuple(expr)
+    // to WithFields(op, expr) causes failures in the partial evaluator tests.
     return HasStatic(MkSTuple(value), ll->Push(Tuple(expr)));
   }
 
@@ -840,7 +842,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     });
   }
 
-  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name = Var("x", Type())) {
+  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name) {
     Func f = VisitFuncStatic(func, name);
     Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
@@ -849,7 +851,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const FunctionNode* op, LetList* ll) final {
-    return VisitFunc(GetRef<Function>(op), ll);
+    return VisitFunc(GetRef<Function>(op), ll, Var::GenSym());
   }
 
   struct ReflectError : Error {
