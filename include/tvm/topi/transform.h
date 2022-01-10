@@ -71,7 +71,8 @@ inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_sh
   auto _axis = size_t(axis);
   CHECK_LT(_axis, x->shape.size()) << "axis must be a valid dimension index of x.";
   CHECK_EQ(x->shape.size() - _axis, window_shape.size())
-      << "There must be a window shape for every dimension of x over which we are sliding the window.";
+      << "There must be a window shape for every dimension of x "
+      << "over which we are sliding the window.";
   CHECK_EQ(strides.size(), window_shape.size()) << "Windows and strides should be the same length.";
 
   // Compute the new shape.
