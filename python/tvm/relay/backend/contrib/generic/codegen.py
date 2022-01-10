@@ -14,42 +14,61 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Codegen for Scale4Edge NPUs"""
+"""Generic codegen for NPUs"""
 
 import tvm
 from tvm import relay, te, tir
 
+class GenericCodegen(object):
+    def _lower_relay_to_tir(self, relay_prim_func : relay.Function) -> tvm.tir.PrimFunc:
+        """Lower a Relay primitive function to a S-TIR primitive function.
 
-@tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func")
-def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
-    """
-    This is the hook for python-based lowering of relay function
-    that gets offloaded to the target NPU.
+        Parameters
+        ----------
+        prim_func : tvm.relay.Function
+            The Relay function to lower.
 
-    Parameters
-    ----------
-    ext_func : relay.Function
-        This is the partitioned relay function
+        Returns
+        -------
+        out : tvm.tir.PrimFunc
+            The lowered schedulable TensorIR primitive function.
 
-    Returns
-    -------
-    primfunc : tir.PrimFunc
-        This returns the scheduled PrimFunc
-    """
-    f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
-    te_func = f(ext_func)
-    primfunc = te.create_prim_func_from_outputs(te_func.outputs)
-    primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
+        """
+        f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
+        te_cached_func = f(relay_prim_func)
+        tir_prim_func = te.create_prim_func_from_outputs(te_cached_func.outputs)
+        tir_prim_func = tir_prim_func.with_attr("global_symbol", relay_prim_func.attrs["global_symbol"])
+        return tir_prim_func
 
-    mod = tvm.IRModule()
-    mod["main"] = primfunc
-    mod = tir.transform.StorageFlatten(64, False)(mod)
-    mod = tir.transform.LowerInitBlock()(mod)
-    mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
-    mod = tir.transform.ConvertBlocksToOpaque()(mod)
-    mod = tir.transform.CompactBufferAllocation()(mod)
-    mod = tir.transform.LowerMatchBuffer()(mod)
-    mod = tir.transform.FlattenBuffer()(mod)
-    mod = tir.transform.Simplify()(mod)
+    def _lower_stir_to_nstir(self, prim_func : tvm.tir.PrimFunc) -> tvm.tir.PrimFunc:
+        mod = tvm.IRModule()
+        mod["main"] = prim_func
+        mod = tir.transform.StorageFlatten(64, False)(mod)
+        mod = tir.transform.LowerInitBlock()(mod)
+        mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
+        mod = tir.transform.ConvertBlocksToOpaque()(mod)
+        mod = tir.transform.CompactBufferAllocation()(mod)
+        mod = tir.transform.LowerMatchBuffer()(mod)
+        mod = tir.transform.FlattenBuffer()(mod)
+        mod = tir.transform.Simplify()(mod)
+        prim_func = mod["main"]
+        return prim_func
 
-    return mod["main"]
+    def relay_to_tir_func(self, ext_func: relay.Function) -> tvm.tir.PrimFunc:
+        """
+        This is the hook for python-based lowering of relay function
+        that gets offloaded to the target NPU.
+
+        Parameters
+        ----------
+        ext_func : relay.Function
+            The partitioned relay function.
+
+        Returns
+        -------
+        prim_func : tir.PrimFunc
+            The scheduled PrimFunc.
+        """
+        prim_func = self._lower_relay_to_tir(ext_func)
+        prim_func = self._lower_stir_to_nstir(prim_func)
+        return prim_func

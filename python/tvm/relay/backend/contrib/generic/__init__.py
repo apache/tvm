@@ -14,5 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic Scale4Edge NPUs codegen modules for Relay."""
+"""Generic NPU codegen modules."""
 from . import codegen
+from ultra_trail import codegen
+from rb_npu import codegen

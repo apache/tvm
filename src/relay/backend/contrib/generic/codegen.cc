@@ -75,7 +75,7 @@ class RelayToTIRMutator : public MixedModeMutator {
       auto codegen_name = func->GetAttr<String>(attr::kCompiler);
       if (codegen_name.defined() && codegen_name == target_name_) {
         auto relay_to_tir_func_pf =
-            tvm::runtime::Registry::Get("relay.ext.generic.relay_to_tir_func");
+            tvm::runtime::Registry::Get("relay.ext.generic.relay_to_tir_func_" + target_name_);
         ICHECK(relay_to_tir_func_pf);
         tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
         prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target("c"));
