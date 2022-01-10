@@ -91,12 +91,12 @@ def test_cast():
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
 
-def test_windows():
+def test_sliding_window():
     # Slide a window of shape (3, 4, 5) over the x tensor, beginning with
     # dimension 1, which slides the window over the two subtensors of shape (3,
     # 32, 32).
     x = relay.var("x", relay.TensorType((2, 3, 32, 32), "float32"))
-    y = relay.windows(x, 1, [3, 4, 5], [1, 2, 3])
+    y = relay.sliding_window(x, 1, [3, 4, 5], [1, 2, 3])
 
     # The resulting shape still has batch size 2. Each dimension in (1, 15, 10)
     # represents the locations where we were able to form a window; that is, we

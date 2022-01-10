@@ -51,20 +51,20 @@ namespace tvm {
 namespace relay {
 using tir::IntImmNode;
 
-TVM_REGISTER_NODE_TYPE(WindowsAttrs);
+TVM_REGISTER_NODE_TYPE(SlidingWindowAttrs);
 
-bool WindowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                 const TypeReporter& reporter) {
   // `types` contains: [data, result]
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Windows operator expects input to be of TensorType "
+                                     << "SlidingWindow operator expects input to be of TensorType "
                                      << "but got " << PrettyPrint(types[0]));
     return false;
   }
-  const auto* param = attrs.as<WindowsAttrs>();
+  const auto* param = attrs.as<SlidingWindowAttrs>();
   const int axis = param->axis;
 
   std::vector<IndexExpr> oshape;
@@ -96,30 +96,30 @@ bool WindowsRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Array<te::Tensor> WindowsCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+Array<te::Tensor> SlidingWindowCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
                                  const Type& out_type) {
-  const WindowsAttrs* param = attrs.as<WindowsAttrs>();
+  const SlidingWindowAttrs* param = attrs.as<SlidingWindowAttrs>();
   ICHECK(param != nullptr);
-  return {topi::windows(inputs[0], param->axis, param->window_shape, param->strides)};
+  return {topi::sliding_window(inputs[0], param->axis, param->window_shape, param->strides)};
 }
 
-Expr MakeWindows(Expr data, int axis, Array<Integer> window_shape, Array<Integer> strides) {
-  auto attrs = make_object<WindowsAttrs>();
+Expr MakeSlidingWindow(Expr data, int axis, Array<Integer> window_shape, Array<Integer> strides) {
+  auto attrs = make_object<SlidingWindowAttrs>();
   attrs->axis = axis;
   attrs->window_shape = window_shape;
   attrs->strides = strides;
-  static const Op& op = Op::Get("windows");
+  static const Op& op = Op::Get("sliding_window");
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.ir.windows").set_body_typed(MakeWindows);
+TVM_REGISTER_GLOBAL("relay.ir.sliding_window").set_body_typed(MakeSlidingWindow);
 
-RELAY_REGISTER_OP("windows")
-    .describe(R"code(Form windows over a tensor.)code" TVM_ADD_FILELINE)
+RELAY_REGISTER_OP("sliding_window")
+    .describe(R"code(Slide window over a tensor.)code" TVM_ADD_FILELINE)
     .set_num_inputs(1)
-    .set_attrs_type<WindowsAttrs>()
+    .set_attrs_type<SlidingWindowAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
-    .add_type_rel("Windows", WindowsRel)
+    .add_type_rel("SlidingWindow", SlidingWindowRel)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.cast

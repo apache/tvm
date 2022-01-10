@@ -33,15 +33,15 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Attributes used for the windows operator */
-struct WindowsAttrs : public tvm::AttrsNode<WindowsAttrs> {
+/*! \brief Attributes used for the sliding_window operator */
+struct SlidingWindowAttrs : public tvm::AttrsNode<SlidingWindowAttrs> {
   int axis;
   Array<Integer> window_shape;
   Array<Integer> strides;
-  TVM_DECLARE_ATTRS(WindowsAttrs, "relay.attrs.WindowsAttrs") {
+  TVM_DECLARE_ATTRS(SlidingWindowAttrs, "relay.attrs.SlidingWindowAttrs") {
     TVM_ATTR_FIELD(axis).describe(
-        "What axis the windows begin forming over."
-        "Windows will be formed over this axis and all following axes."
+        "What axis the sliding window begin forming over."
+        "Window will be slid over this axis and all following axes."
         "The axis value determines the window shape (and thus, the"
         "number of strides):"
         "window shape and strides must both be of length"
@@ -54,7 +54,7 @@ struct WindowsAttrs : public tvm::AttrsNode<WindowsAttrs> {
         "How to stride the window along each dimension."
         "Strides must be of length `data.ndim-axis`.");
   }
-};  // struct WindowsAttrs
+};  // struct SlidingWindowAttrs
 
 /*! \brief data type cast */
 struct CastAttrs : public tvm::AttrsNode<CastAttrs> {

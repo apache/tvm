@@ -25,8 +25,8 @@ from .dyn import _make as _dyn_make
 from .tensor import shape_of
 
 
-def windows(data, axis, window_shape, strides):
-    """Form windows over the data tensor.
+def sliding_window(data, axis, window_shape, strides):
+    """Slide a window over the data tensor.
 
     Parameters
     ----------
@@ -34,7 +34,7 @@ def windows(data, axis, window_shape, strides):
         The input data to the operator.
 
     axis : int
-        What axis the windows begin forming over. Windows will be formed over
+        What axis the window begins sliding over. Window will be slid over
         this axis and all following axes. The axis value determines the window
         shape (and thus, the number of strides): window shape and strides must
         both be of length `data.ndim-axis`.
@@ -60,7 +60,7 @@ def windows(data, axis, window_shape, strides):
         # dimension 1, which slides the window over the two subtensors of
         # shape (3, 32, 32).
         x = relay.var("x", relay.TensorType((2, 3, 32, 32), "float32"))
-        y = relay.windows(x, 1, [3, 4, 5], [1, 2, 3])
+        y = relay.sliding_window(x, 1, [3, 4, 5], [1, 2, 3])
 
         data = np.random.rand(2, 3, 32, 32).astype("float32")
         result = create_executor().evaluate(y, {x: relay.const(data)}).numpy()
@@ -80,7 +80,7 @@ def windows(data, axis, window_shape, strides):
     """
     from .. import _ffi_api as _relay_make
 
-    return _relay_make.windows(data, axis, window_shape, strides)
+    return _relay_make.sliding_window(data, axis, window_shape, strides)
 
 
 def cast(data, dtype):

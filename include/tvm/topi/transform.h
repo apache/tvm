@@ -48,10 +48,10 @@ using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
- * \brief Creates an operation to form windows over the input x.
+ * \brief Creates an operation to slide a window over the input x.
  *
  * \param x The input tensor.
- * \param axis What axis the windows begin forming over. Windows will be formed
+ * \param axis What axis the window begins sliding over. Window will be slid
  * over this axis and all following axes. The axis value determines the window
  * shape (and thus, the number of strides): window shape and strides must both
  * be of length `data.ndim-axis`.
@@ -62,16 +62,16 @@ using namespace topi::detail;
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the windows operation
+ * \return A Tensor whose op member is the sliding_window operation
  */
-inline Tensor windows(const Tensor& x, int axis, Array<Integer> window_shape,
-                      Array<Integer> strides, std::string name = "T_windows",
+inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_shape,
+                      Array<Integer> strides, std::string name = "T_sliding_window",
                       std::string tag = "") {
   CHECK_GE(axis, 0);
   auto _axis = size_t(axis);
   CHECK_LT(_axis, x->shape.size()) << "axis must be a valid dimension index of x.";
   CHECK_EQ(x->shape.size() - _axis, window_shape.size())
-      << "There must be a window shape for every dimension of x over which we are forming windows.";
+      << "There must be a window shape for every dimension of x over which we are sliding the window.";
   CHECK_EQ(strides.size(), window_shape.size()) << "Windows and strides should be the same length.";
 
   // Compute the new shape.

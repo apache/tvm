@@ -54,8 +54,8 @@ TVM_REGISTER_GLOBAL("topi.reshape").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = reshape(args[0], args[1]);
 });
 
-TVM_REGISTER_GLOBAL("topi.windows").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = windows(args[0], args[1], args[2], args[3]);
+TVM_REGISTER_GLOBAL("topi.sliding_window").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = sliding_window(args[0], args[1], args[2], args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.squeeze").set_body([](TVMArgs args, TVMRetValue* rv) {

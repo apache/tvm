@@ -1662,24 +1662,24 @@ def uniform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
-# windows
-def wrap_compute_windows():
-    """Wrap windows topi compute"""
+# sliding_window
+def wrap_compute_sliding_window():
+    """Wrap sliding_window topi compute"""
 
-    def _compute_windows(attrs, inputs, _):
-        return [topi.windows(inputs[0], attrs.axis, attrs.window_shape, attrs.strides)]
+    def _compute_sliding_window(attrs, inputs, _):
+        return [topi.sliding_window(inputs[0], attrs.axis, attrs.window_shape, attrs.strides)]
 
-    return _compute_windows
+    return _compute_sliding_window
 
 
-@override_native_generic_func("windows_strategy")
-def windows_strategy(attrs, inputs, out_type, target):
-    """windows generic strategy"""
+@override_native_generic_func("sliding_window_strategy")
+def sliding_window_strategy(attrs, inputs, out_type, target):
+    """sliding_window generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implementation(
-        wrap_compute_windows(),
+        wrap_compute_sliding_window(),
         wrap_topi_schedule(topi.generic.schedule_extern),
-        name="windows.generic",
+        name="sliding_window.generic",
     )
     return strategy
 
