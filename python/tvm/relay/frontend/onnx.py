@@ -1967,6 +1967,11 @@ class Softmax(OnnxOpConverter):
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
+        # Older ONNX Softmax op does not properly support inputs of dimension > 2
+        # But we can use our softmax when the axis is -1
+        if axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
+
         axes = list(range(axis, ndim))
         x = inputs[0]
         m = _op.max(x, axes, keepdims=True)
@@ -1974,16 +1979,12 @@ class Softmax(OnnxOpConverter):
         return e / _op.sum(e, axes, keepdims=True)
 
     @classmethod
-    def _impl_v13(cls, inputs, attr, params):
+    def _impl_v13(cls, inputs, attr, _):
         axis = attr.get("axis", -1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
-        axes = [axis]
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        return _op.nn.softmax(inputs[0], axis=axis)
 
 
 class LogSoftmax(OnnxOpConverter):
