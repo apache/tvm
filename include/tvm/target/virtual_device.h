@@ -18,12 +18,13 @@
  */
 
 /*!
- * \file tvm/target/se_scope.h
- * \brief A compile time representation for a Storage or Execution Scope.
+ * \file tvm/target/virtual_device.h
+ * \brief A compile time representation for where data is to be stored at runtime, and how to
+ * compile code to compute it.
  */
 
-#ifndef TVM_TARGET_SE_SCOPE_H_
-#define TVM_TARGET_SE_SCOPE_H_
+#ifndef TVM_TARGET_VIRTUAL_DEVICE_H_
+#define TVM_TARGET_VIRTUAL_DEVICE_H_
 
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
@@ -44,9 +45,13 @@ namespace tvm {
 using MemoryScope = String;
 
 /*!
- * \brief Describes at compile time where data is to be stored down to the device and memory
- * scope level, or where execution is to take place, down to the device level. It is a quadruple of:
- * - A \p device_type (\p DLDeviceType). May be kInvalidDeviceType if unconstrained.
+ * \brief Describes at compile time the constraints on where data is to be stored at runtime
+ * down to the (virtual) device and memory scope level, and how to compile code to compute that
+ * data. Used by the \p PlanDevices pass to collect and solve (virtual) device constraints for
+ * the whole Relay program.
+ *
+ * Is a quadruple of:
+ * - A \p device_type (\p DLDeviceType). May be \p kInvalidDeviceType if unconstrained.
  * - A \p virtual_device_id (\p int). This allows us to distinguish distinct devices
  *   with the same \p Target, for example in a multi-GPU system. May be -1 if unconstrained.
  *   See "Virtual Devices" below.
@@ -60,19 +65,19 @@ using MemoryScope = String;
  * choose a value consistent with the whole program. However if a \p target is given then the \p
  * device_type must equal \p target->kind->device_type.
  *
- * Note that currently we assume if a function returns its result on a particular device
+ * Note that currently we assume if a function returns its result on a particular (virtual) device
  * then the function body is also executed on that device. See the overview comment in
  * src/relay/transforms/device_planner.cc for more details.
  *
  * By 'data' we include both tensors and additional supporting datastructures such as shapes,
- * Relay AST items, Relay tuples, and Relay references. Typically non-tensor data must reside
- * on a 'CPU'-like device with good support for scalars.
+ * Relay ADT items (including tuples), Relay references, and Relay closures. Typically non-tensor
+ * data must reside on a 'CPU'-like host device with good support for scalars.
  *
  * By 'execution' we include both (fused) primitive operators, and all the Relay expressions
  * surrounding them which coordinates data and control flow. Again, typically non-primitive
  * operators must be executed on a 'CPU'-like device with good support for control flow.
  *
- * Since TVM targets such a wide range of systems it is not possible for \p SEScope to impose
+ * Since TVM targets such a wide range of systems it is not possible for \p VirtualDevice to impose
  * much semantics on these fields, particularly for \p virtual_device_id and \p memory_scope.
  * Instead we assume downstream passes and codegen will interpret an validate these fields
  * appropriately.
@@ -84,7 +89,7 @@ using MemoryScope = String;
  * compile time) describe a physical device on the target system. Obviously the target must agree
  * with the device's microarchitecture, but we otherwise don't impose any constraints between them:
  *  - It's ok to use different \p Targets for the same \p Device, eg to squeeze some extra perf
- *    out of a particular primitive.
+ *    out of a particular primitive using particular compiler flags.
  *  - It's ok to use the same \p Target for multiple \p Devices, eg if we have multiple CPUs.
  *
  * Traditionally TVM assumes at most one \p Target per \p DLDeviceType. We are moving away from that
@@ -133,14 +138,14 @@ using MemoryScope = String;
  * a memory scope to only be accessible to a device when code is compiled with particular
  * \p Target options.
  *
- * \p SEScopes themselves have no system-level understanding. Currently device planning will
- * simply insert "device_copy" operators wherever \p SEScopes are not exactly pointwise equal.
- * We may revisit this in the future as the work on memory pools matures.
+ * \p VirtualDevices themselves have no system-level understanding. Currently the \p PlanDevices
+ * pass will simply insert "device_copy" operators wherever \p VirtualDevices are not exactly
+ * pointwise equal. We may revisit this in the future as the work on memory pools matures.
  *
  * Joining and Defaulting
  * ----------------------
- * It is possible to 'join' two \p SEScopes to yield the most constrained \p SEScope which agrees
- * with both join arguments. Eg:
+ * It is possible to 'join' two \p VirtualDevices to yield the most constrained \p VirtualDevice
+ * which agrees with both join arguments. Eg:
  * \code
  * Join((kDLCPU, -1, "llvm", ""), (kInvalidDeviceType, 3, null, "global))
  *   => (kDLCPU, 3, "llvm", "global")
@@ -156,9 +161,8 @@ using MemoryScope = String;
  * \endcode
  *
  * These operations are needed during device planning.
- *
  */
-class SEScopeNode : public AttrsNode<SEScopeNode> {
+class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
  private:
   /*!
    * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
@@ -187,7 +191,7 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
   /*!
    * \brief The \p Target describing how to compile for the virtual device.
    *
-   * Null denotes unconstrained. Note that if a target later becomes known for this \p SEScope
+   * Null denotes unconstrained. Note that if a target later becomes known for this \p VirtualDevice
    * then it must be consistent with the \p device_type if already known. This is enforced by the
    * Join and Default methods.
    */
@@ -201,8 +205,8 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
   MemoryScope memory_scope;
 
   /*!
-   * \brief Returns true if scope is fully unconstrained, ie no target/device type, device id
-   * or memory scope is specified.
+   * \brief Returns true if virtual device is 'fully unconstrained', ie no target/device type,
+   * device id or memory scope is specified.
    */
   bool IsFullyUnconstrained() const {
     return !target.defined() && device_type() == kInvalidDeviceType && virtual_device_id == -1 &&
@@ -210,18 +214,18 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
   }
 
   /*!
-   * \brief Returns true if scope is fully constrained, ie target, device id and memory scope are
-   * all specified.
+   * \brief Returns true if virtual device is 'fully constrained', ie target, device id and memory
+   * scope are all specified.
    */
   bool IsFullyConstrained() const {
     return target.defined() && virtual_device_id != -1 && !memory_scope.empty();
   }
 
   /*!
-   * \brief Returns the (virtual) \p Device implied by this \p SEScope. Both the \p device_type and
-   * \p virtual_device_must be constrained. The returned \p Device may not correspond to any
-   * physical device available at compile time or even runtime: see "Virtual vs Physical Devices"
-   * above.
+   * \brief Returns the (virtual) \p Device implied by this \p VirtualDevice. Both the \p
+   * device_type and \p virtual_device_must be constrained. The returned \p Device may not
+   * correspond to any physical device available at compile time or even runtime: see "Virtual vs
+   * Physical Devices" above.
    */
   Device ToDevice() const {
     ICHECK(device_type() != kInvalidDeviceType);
@@ -232,7 +236,7 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
     return device;
   }
 
-  TVM_DECLARE_ATTRS(SEScopeNode, "SEScope") {
+  TVM_DECLARE_ATTRS(VirtualDeviceNode, "VirtualDevice") {
     TVM_ATTR_FIELD(device_type_int)
         .describe("The type of the virtual device.")
         .set_default(kInvalidDeviceType);
@@ -247,74 +251,72 @@ class SEScopeNode : public AttrsNode<SEScopeNode> {
         .set_default("");
   }
 
-  friend class SEScope;
+  friend class VirtualDevice;
 };
 
 /*!
- * \brief Managed reference class to \p SEScopeNode.
- *
- * \sa SEScopeNode.
+ * \brief Managed reference class to \p VirtualDeviceNode.
  */
-class SEScope : public ObjectRef {
+class VirtualDevice : public ObjectRef {
  public:
   /*!
-   * \brief Construct an SEScope.
-   * \param device_type The device type for the virtual device, or kInvalidDeviceType if
+   * \brief Construct a virtual device.
+   * \param device_type The device type for the virtual device, or \p kInvalidDeviceType if
    * unconstrained.  If \p target is defined then must match its \p target->kind->device_type.
    * \param virtual_device_id The device id for the virtual device, or -1 if unconstrained.
    * \param target The target describing how to compile for the virtual device, or null if
    * unconstrained.
    * \param memory_scope The memory scope w.r.t. the virtual device which holds data, or "" if
    * unconstrained.
-   * \return The SEScope
+   * \return The virtual device.
    */
-  explicit SEScope(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
-                   Target target = {}, MemoryScope memory_scope = {});
+  explicit VirtualDevice(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+                         Target target = {}, MemoryScope memory_scope = {});
 
-  /*! \brief Returns the unique fully unconstrained \p SEScope. */
-  static SEScope FullyUnconstrained();
+  /*! \brief Returns the unique fully unconstrained \p VirtualDevice. */
+  static VirtualDevice FullyUnconstrained();
 
   /*!
-   * \brief Returns the \p SEScope for \p device_type and (if not -1) \p virtual_device_id.
+   * \brief Returns the \p VirtualDevice for \p device_type and (if not -1) \p virtual_device_id.
    * The target and memory scope will be unconstrained.
    */
-  static SEScope ForDeviceType(DLDeviceType device_type, int virtual_device_id = -1) {
+  static VirtualDevice ForDeviceType(DLDeviceType device_type, int virtual_device_id = -1) {
     ICHECK_GT(device_type, 0);
-    return SEScope(device_type, virtual_device_id);
+    return VirtualDevice(device_type, virtual_device_id);
   }
-  static SEScope ForDeviceType(int device_type, int virtual_device_id = -1) {
+  static VirtualDevice ForDeviceType(int device_type, int virtual_device_id = -1) {
     return ForDeviceType(static_cast<DLDeviceType>(device_type), virtual_device_id);
   }
-  static SEScope ForDeviceType(const Integer& device_type, int virtual_device_id = -1) {
+  static VirtualDevice ForDeviceType(const Integer& device_type, int virtual_device_id = -1) {
     return ForDeviceType(static_cast<int>(device_type->value), virtual_device_id);
   }
 
-  /*! \brief Returns the \p SEScope for \p device. */
-  static SEScope ForDevice(const Device& device) {
+  /*! \brief Returns the \p VirtualDevice for \p device. */
+  static VirtualDevice ForDevice(const Device& device) {
     return ForDeviceType(device.device_type, device.device_id);
   }
 
-  /*! \brief Returns the \p SEScope for \p device and \p target. */
-  static SEScope ForDeviceAndTarget(const Device& device, Target target) {
-    return SEScope(device.device_type, device.device_id, std::move(target));
+  /*! \brief Returns the \p VirtualDevice for \p device and \p target. */
+  static VirtualDevice ForDeviceAndTarget(const Device& device, Target target) {
+    return VirtualDevice(device.device_type, device.device_id, std::move(target));
   }
 
-  /*! \brief Returns the \p SEScope for \p target. */
-  static SEScope ForTarget(Target target) {
+  /*! \brief Returns the \p VirtualDevice for \p target. */
+  static VirtualDevice ForTarget(Target target) {
     DLDeviceType device_type = static_cast<DLDeviceType>(target->kind->device_type);
-    return SEScope(device_type, /*virtual_device_id=*/0, std::move(target));
+    return VirtualDevice(device_type, /*virtual_device_id=*/0, std::move(target));
   }
 
-  /*! \brief Returns the \p SEScope for \p memory_scope alone. */
-  static SEScope ForMemoryScope(MemoryScope memory_scope) {
-    return SEScope(kInvalidDeviceType, -1, {}, std::move(memory_scope));
+  /*! \brief Returns the \p VirtualDevice for \p memory_scope alone. */
+  static VirtualDevice ForMemoryScope(MemoryScope memory_scope) {
+    return VirtualDevice(kInvalidDeviceType, -1, {}, std::move(memory_scope));
   }
 
-  /*! \brief Returns the \p SEScope for \p device, \p target and \p memory_scope. */
-  TVM_DLL static SEScope ForDeviceTargetAndMemoryScope(const Device& device, Target target,
-                                                       MemoryScope memory_scope) {
-    return SEScope(device.device_type, device.device_id, std::move(target),
-                   std::move(memory_scope));
+  /*! \brief Returns the \p VirtualDevice for \p device, \p target and \p memory_scope. */
+  TVM_DLL static VirtualDevice ForDeviceTargetAndMemoryScope(const Device& device, Target target,
+                                                             MemoryScope memory_scope) {
+    return VirtualDevice(device.device_type, device.device_id, std::move(target),
+                         std::move(memory_scope));
   }
 
   /*!
@@ -322,41 +324,43 @@ class SEScope : public ObjectRef {
    * \p lhs and \p rhs on all their constrained fields. Returns the null optional if no such
    * join exists, ie there's disagreement on at least one constrained field.
    */
-  static Optional<SEScope> Join(const SEScope& lhs, const SEScope& rhs);
+  static Optional<VirtualDevice> Join(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
   /*!
    * \brief Returns the 'default' of \p lhs and \p rhs. The result will be \p lhs, except any
    * unconstrained fields in \p lhs will take their value from \p rhs. Always well-defined.
    */
-  static SEScope Default(const SEScope& lhs, const SEScope& rhs);
+  static VirtualDevice Default(const VirtualDevice& lhs, const VirtualDevice& rhs);
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SEScope, ObjectRef, SEScopeNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(VirtualDevice, ObjectRef, VirtualDeviceNode);
 
-  friend class SEScopeCache;  // Private implementation helper.
+  friend class VirtualDeviceCache;  // Private implementation helper.
 };
 
 /*!
- * \brief A cache of \p SEScopes. This can be used:
- *  - To avoid ending up with lots of identical instances, since the space of SEScopes for any
+ * \brief A cache of \p VirtualDevices. This can be used:
+ *  - To avoid ending up with lots of identical instances, since the space of VirtualDevices for any
  *    one compilation is very small but the number of points they need to be constructed can
  *    be very large (eg during device planning).
- *  - So we can assume \p SEScopes are pointer equal if and only if they are structurally equal.
- *    This simplifies the unification of 'device domains' which are built on \p SEScopes.
+ *  - So we can assume \p VirtualDevices are pointer equal if and only if they are structurally
+ * equal. This simplifies the unification of 'device domains' which are built on \p VirtualDevices.
  */
-class SEScopeCache {
+class VirtualDeviceCache {
  public:
-  /*! \brief Returns the unique \p SEScope representing given fields. */
-  SEScope Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
-               Target target = {}, MemoryScope memory_scope = {});
+  /*! \brief Returns the unique \p VirtualDevice representing given fields. */
+  VirtualDevice Make(DLDeviceType device_type = kInvalidDeviceType, int virtual_device_id = -1,
+                     Target target = {}, MemoryScope memory_scope = {});
 
-  /*! \brief Returns the unique \p SEScope structurally equal to the given \p se_scope. */
-  SEScope Unique(const SEScope& scope);
+  /*!
+   * \brief Returns the unique \p VirtualDevice structurally equal to the given \p virtual_device.
+   */
+  VirtualDevice Unique(const VirtualDevice& virtual_device);
 
  private:
-  /*! \brief Already constructed SEScopes. */
-  std::unordered_set<SEScope, StructuralHash, StructuralEqual> cache_;
+  /*! \brief Already constructed VirtualDevices. */
+  std::unordered_set<VirtualDevice, StructuralHash, StructuralEqual> cache_;
 };
 
 }  // namespace tvm
 
-#endif  //  TVM_TARGET_SE_SCOPE_H_
+#endif  //  TVM_TARGET_VIRTUAL_DEVICE_H_

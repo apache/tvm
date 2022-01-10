@@ -185,6 +185,34 @@ def matmul_decompose_with_annotation(a: T.handle, b: T.handle, c: T.handle) -> N
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
+@T.prim_func
+def colsum_with_vectorization(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 32], dtype="float32")
+    B = T.match_buffer(b, [32], dtype="float32")
+    for k in T.serial(0, 128):
+        for i in T.vectorized(0, 32):
+            with T.block("B"):
+                vk, vi = T.axis.remap("RS", [k, i])
+                with T.init():
+                    B[vi] = T.float32(0)
+                B[vi] = B[vi] + A[vk, vi]
+
+
+@T.prim_func
+def colsum_decompose_with_vectorization(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [128, 32], dtype="float32")
+    B = T.match_buffer(b, [32], dtype="float32")
+    for i in T.vectorized(0, 32):
+        with T.block("B_init"):
+            vi = T.axis.S(32, i)
+            B[vi] = T.float32(0)
+    for k in T.serial(0, 128):
+        for i in T.vectorized(0, 32):
+            with T.block("B"):
+                vk, vi = T.axis.remap("RS", [k, i])
+                B[vi] = B[vi] + A[vk, vi]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
@@ -241,6 +269,17 @@ def test_reduction_decompose_with_annotation():
     s.decompose_reduction(C, i)
     tvm.ir.assert_structural_equal(matmul_decompose_with_annotation, s.mod["main"])
     verify_trace_roundtrip(s, mod=matmul_with_annotation)
+
+
+def test_reduction_decompose_with_different_for_kind():
+    s = tir.Schedule(colsum_with_vectorization, debug_mask="all")
+    B = s.get_block("B")
+    k, _ = s.get_loops(B)
+    B_init = s.decompose_reduction(B, k)
+    tvm.ir.assert_structural_equal(s.mod["main"], colsum_decompose_with_vectorization)
+    assert s.get(B).same_as(s.get(s.get_block("B_update")))
+    assert s.get(B_init).same_as(s.get(s.get_block("B_init")))
+    verify_trace_roundtrip(s, mod=colsum_with_vectorization)
 
 
 if __name__ == "__main__":

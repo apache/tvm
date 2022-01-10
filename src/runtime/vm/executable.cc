@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/debug.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
@@ -171,27 +172,13 @@ std::string Executable::GetBytecode() const {
   return oss.str();
 }
 
-namespace {
-String ShapeString(const ShapeTuple& shape_tuple, DLDataType dtype) {
-  std::stringstream sizes;
-  sizes << DLDataType2String(dtype) << "[";
-  for (size_t i = 0; i < shape_tuple.size(); i++) {
-    if (i != 0) {
-      sizes << ", ";
-    }
-    sizes << shape_tuple.data()[i];
-  }
-  sizes << "]";
-  return String(sizes.str());
-}
-}  // namespace
-
 std::string Executable::GetConstants() const {
   std::ostringstream oss;
   for (size_t i = 0; i < constants.size(); ++i) {
     const auto& constant = constants[i];
     auto ndarray = Downcast<NDArray>(constant);
-    oss << "VM Const[" << i << "]: has shape " << ShapeString(ndarray.Shape(), ndarray->dtype)
+    oss << "VM Const[" << i
+        << "]: " << RuntimeObject2String(ndarray, virtual_devices[host_device_index])
         << " on device index " << const_device_indexes[i] << std::endl;
   }
   return oss.str();

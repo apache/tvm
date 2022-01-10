@@ -24,6 +24,8 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/debug.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -292,13 +294,14 @@ Index VirtualMachine::PopFrame() {
 }
 
 void VirtualMachine::InvokeGlobal(const VMFunction& func, const std::vector<ObjectRef>& args) {
-  VLOG(2) << "Invoking global " << func.name << " " << args.size();
+  VLOG(2) << "Invoking global " << func.name << " with " << args.size() << " args";
 
   PushFrame(func.params.size(), this->pc_ + 1, func);
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(i, args[i]);
+    VLOG(2) << "arg " << i << " = "
+            << RuntimeObject2String(args[i], GetDevice(exec_->host_device_index));
   }
-  VLOG(2) << "func.params= " << func.params.size();
 
   code_ = func.instructions.data();
   pc_ = 0;
@@ -527,20 +530,35 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::InvokePacked: {
-        VLOG(2) << "InvokedPacked " << instr.packed_index << " arity=" << instr.arity;
         ICHECK_LE(instr.packed_index, packed_funcs_.size());
         const auto& func = packed_funcs_[instr.packed_index];
         const auto& arity = instr.arity;
         std::vector<ObjectRef> args;
         for (Index i = 0; i < arity; ++i) {
-          VLOG(2) << "arg" << i << " $" << instr.packed_args[i];
           auto arg = ReadRegister(instr.packed_args[i]);
           args.push_back(arg);
+#if TVM_LOG_DEBUG
+          if (i < arity) {
+            const bool is_input = i < arity - instr.output_size;
+            VLOG(2) << (is_input ? "input" : "placeholder") << " arg " << i << " = "
+                    << RuntimeObject2String(arg, GetDevice(exec_->host_device_index),
+                                            /*show_contents=*/is_input);
+          }
+#endif
         }
 
         // We no longer need to write the registers back, we write directly
         // through the registers mutably.
         InvokePacked(instr.packed_index, func, arity, instr.output_size, args);
+
+#if TVM_LOG_DEBUG
+        for (Index i = arity - instr.output_size; i < arity; ++i) {
+          auto arg = ReadRegister(instr.packed_args[i]);
+          VLOG(2) << "output arg " << i << " = "
+                  << RuntimeObject2String(arg, GetDevice(exec_->host_device_index));
+        }
+#endif
+
         pc_++;
         goto main_loop;
       }
@@ -606,19 +624,10 @@ void VirtualMachine::RunLoop() {
         auto storage_obj = ReadRegister(instr.alloc_tensor.storage);
         auto offset = LoadScalarInt(instr.alloc_tensor.offset);
         auto storage = Downcast<Storage>(storage_obj);
-#if TVM_LOG_DEBUG
-        std::ostringstream os;
-        os << "AllocTensor: ";
-        os << "offset=" << offset;
-        os << ", shape=[";
-        for (auto i : shape) {
-          os << i << ",";
-        }
-        os << "]";
-        os << ", dtype=" << DLDataType2String(instr.alloc_tensor.dtype);
-        VLOG(2) << os.str();
-#endif
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor.dtype);
+        VLOG(2) << "allocated "
+                << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
+                                        /*show_contents=*/false);
 
         WriteRegister(instr.dst, obj);
         OpStopHook();
@@ -635,6 +644,9 @@ void VirtualMachine::RunLoop() {
         auto storage = Downcast<Storage>(storage_obj);
         auto offset = LoadScalarInt(instr.alloc_tensor.offset);
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
+        VLOG(2) << "allocated "
+                << RuntimeObject2String(obj, GetDevice(exec_->host_device_index),
+                                        /*show_contents=*/false);
 
         WriteRegister(instr.dst, obj);
         OpStopHook();
@@ -668,7 +680,7 @@ void VirtualMachine::RunLoop() {
         auto storage_obj = SimpleObjAllocator().make_object<StorageObj>();
         Allocator* allocator = GetAllocator(instr.alloc_storage.device_index);
         ICHECK(allocator) << "Did you forget to init the VirtualMachine with devices?";
-        VLOG(2) << "AllocStorage: allocation_size=" << size << ", alignment=" << alignment
+        VLOG(2) << "allocating with allocation_size=" << size << ", alignment=" << alignment
                 << ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint)
                 << ", device_index=" << instr.alloc_storage.device_index;
 
@@ -688,6 +700,8 @@ void VirtualMachine::RunLoop() {
         for (int i = 0; i < ndim; ++i) {
           reinterpret_cast<int64_t*>(out_tensor->data)[i] = input_array->shape[i];
         }
+        VLOG(2) << "shape = "
+                << RuntimeObject2String(out_tensor, GetDevice(exec_->host_device_index));
         WriteRegister(instr.dst, out_tensor);
         pc_++;
         goto main_loop;
@@ -722,18 +736,10 @@ void VirtualMachine::RunLoop() {
         int64_t ndim = shape_tensor->shape[0];
         std::vector<int64_t> shape(dims, dims + ndim);
         // Reshape the input tensor
-#if TVM_LOG_DEBUG
-        std::ostringstream os;
-        os << "ReshapeTensor: ";
-        os << "shape=[";
-        for (auto i : shape) {
-          os << i << ",";
-        }
-        os << "]";
-        os << ", dtype=" << DLDataType2String(tensor_arr->dtype);
-        VLOG(2) << os.str();
-#endif
         auto out_tensor = tensor_arr.CreateView(shape, tensor_arr->dtype);
+        VLOG(2) << "reshaped "
+                << RuntimeObject2String(tensor_obj, GetDevice(exec_->host_device_index)) << " to "
+                << RuntimeObject2String(out_tensor, GetDevice(exec_->host_device_index));
         WriteRegister(instr.dst, out_tensor);
         OpStopHook();
         pc_++;

@@ -281,7 +281,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     body = For(/*loop_var=*/new_loop_var,
                /*min=*/old_loop->min,
                /*extent=*/old_loop->extent,
-               /*kind=*/ForKind::kSerial,
+               /*kind=*/old_loop->kind,
                /*body=*/body);
   }
   body = Substitute(body, loop_var_map);

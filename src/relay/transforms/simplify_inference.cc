@@ -151,7 +151,7 @@ Expr InstanceNormToInferUnpack(const Attrs attrs, Expr data, Expr gamma, Expr be
     if (i != axis) reduced_axes.push_back(i);
   }
 
-  Expr epsilon = MakeConstantScalar(DataType::Float(32), static_cast<float>(param->epsilon));
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
   Expr mean = Mean(data, reduced_axes, true, false);
   Expr var = Variance(data, mean, reduced_axes, true, false);
   Expr denom = Sqrt(Add(var, epsilon));

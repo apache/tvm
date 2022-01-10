@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Scheduling for Arm(R) Ethos(TM)-U NPU."""
 import tvm
+from tvm.contrib.ethosu.cascader import Propagator
 
 
 def schedule(cached_func, const_dict, cascader=None):
@@ -132,7 +133,7 @@ def copy_constants():
         planned = set()  # type: ignore
 
         def _visit(tensor, reader, lut):
-            if tensor is not planned:
+            if tensor not in planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor != lut:
                     index = list(cached_func.inputs).index(tensor)
@@ -164,7 +165,7 @@ def copy_luts():
         planned = set()  # type: ignore
 
         def _visit(tensor, reader, lut):
-            if tensor is not planned:
+            if tensor not in planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor == lut:
                     index = list(te_graph.inputs).index(tensor)
@@ -203,7 +204,7 @@ def schedule_pragmas(sch):
         if "op" in [attr for attr, val in stage.op.attrs.items()]:
             stage.pragma(ax, "op", stage.op.attrs["op"])
             for attr, val in stage.op.attrs.items():
-                if attr not in ("op", "lut"):
+                if attr not in ("op", "lut") and not isinstance(val, Propagator):
                     stage.pragma(ax, str(attr), val)
 
     for stage in sch.stages:

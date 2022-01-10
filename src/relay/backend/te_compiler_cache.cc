@@ -145,7 +145,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       candidate_name = truncated_name.str();
     }
 
-    // TODO(mbs): This should be the definititive global by which the PrimFunc is known and
+    // TODO(mbs): This should be the definitive global by which the PrimFunc is known and
     // no other GlobalVar ctors should appear inside the lowering machinery.
     auto prim_fn_var = GlobalVar(renamer(candidate_name));
     prim_fn_var->checked_type_ = relay_func->checked_type();
@@ -371,6 +371,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
 
   CachedFunc Create(const Function& prim_func, const Target& target,
                     std::function<std::string(std::string)> renamer) {
+    VLOG_CONTEXT << "MakeShapeFunc";
     TShapeDataDependent shape_func_param_states;
 
     for (auto param : prim_func->params) {
@@ -399,11 +400,12 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Setup the name;
     readable_name_stream_ << "shape_func";
 
-    // Create the `te::Tensor`s which represent the output.
-    auto outputs = VisitExpr(prim_func->body);
+    // Create the tensor expressions representing the output shapes.
+    Array<te::Tensor> outputs = VisitExpr(prim_func->body);
 
     // Generate a name.
     auto candidate_name = readable_name_stream_.str();
+
     constexpr static size_t kMaxFuncNameLength = 80;
     // WARNING: Please make sure to also update TVM_CRT_MAX_STRLEN_FUNCTION_NAME
     //          whenever the value of kMaxFuncNameLength changes
@@ -463,7 +465,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     for (auto t : outputs) {
       out_ops.push_back(t->op);
     }
-    auto schedule = te::create_schedule(out_ops);
+    te::Schedule schedule = te::create_schedule(out_ops);
     tvm::te::AutoInlineInjective(schedule);
     for (const auto& scalar : scalars_) {
       auto scalar_op = scalar->op;
@@ -589,12 +591,15 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
+    VLOG(1) << "considering call:" << std::endl << PrettyPrint(GetRef<Call>(call_node));
     if (auto* func = call_node->op.as<FunctionNode>()) {
+      VLOG(1) << "user function";
       for (size_t i = 0; i < func->params.size(); ++i) {
         param_arg_map_[func->params[i]] = call_node->args[i];
       }
       return VisitExpr(func->body);
     }
+
     static auto fshape_func = Op::GetAttrMap<FShapeFunc>("FShapeFunc");
     static auto tshape_data_dependent = Op::GetAttrMap<TShapeDataDependent>("TShapeDataDependent");
     ICHECK(call_node->op.as<OpNode>()) << "Primitive function only allows call into primitive ops";
@@ -635,20 +640,16 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     // Get output ndims
     auto ret_type = call_node->checked_type();
     Array<IndexExpr> out_ndims;
-    if (const auto* ttype = ret_type.as<TensorTypeNode>()) {
+    for (const auto& ttype : FlattenTupleType(ret_type)) {
       out_ndims.push_back(IntImm(DataType::Int(32), ttype->shape.size()));
-    } else {
-      auto rtype = ret_type.as<TupleTypeNode>();
-      // TODO(@icemelon): Allow recursive tuple
-      ICHECK(rtype);
-      for (size_t i = 0; i < rtype->fields.size(); ++i) {
-        auto ttype = rtype->fields[i].as<TensorTypeNode>();
-        ICHECK(ttype);
-        out_ndims.push_back(IntImm(DataType::Int(32), ttype->shape.size()));
-      }
     }
+
     // Call shape function
-    auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
+    Array<te::Tensor> outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
+    VLOG(1) << "shape function for '" << op->name << "' with inputs:" << std::endl
+            << inputs << std::endl
+            << "yielded outputs:" << std::endl
+            << outputs;
     readable_name_stream_ << "_" << op->name;
     return outputs;
   }

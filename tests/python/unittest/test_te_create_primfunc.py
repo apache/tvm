@@ -344,6 +344,21 @@ def test_select_simplify():
     assert script_func.find("Var") == -1
 
 
+def test_tensor_attr():
+    k = te.reduce_axis((0, 128), "k")
+    A = te.placeholder((128, 128), name="A")
+    B = te.placeholder((128, 128), name="B")
+    C = te.compute(
+        (128, 128),
+        lambda x, y: te.sum(A[x, k] * B[y, k], axis=k),
+        name="C",
+        attrs={"layout_free_placeholders": [B]},
+    )
+    func = te.create_prim_func([A, B, C])
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -355,3 +370,4 @@ if __name__ == "__main__":
     test_error_reporting()
     test_constant()
     test_select_simplify()
+    test_tensor_attr()

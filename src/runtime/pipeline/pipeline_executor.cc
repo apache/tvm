@@ -34,11 +34,30 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   if (name == "get_num_outputs") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->NumOutputs(); });
+  } else if (name == "get_input_pipeline_map") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        *rv = this->GetInputPipeplineMapping(args[0].operator String());
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
   }
   return nullptr;
+}
+
+/*!
+ * \brief Using the global input name to get the index, and also get the input interface name
+   of corresponding subgraph from the input connection configuration.
+ * \param The global input name.
+ * \return Returning the index and the input interface name of corresponding subgraph.
+ */
+Array<String> PipelineExecutor::GetInputPipeplineMapping(std::string input_name) {
+  std::pair<int, std::string> map = input_connection_config[input_name];
+  return {std::to_string(map.first), map.second};
 }
 
 /*!
@@ -108,11 +127,11 @@ void PipelineExecutor::Init(const std::vector<Module>& modules, const std::strin
   // Use JSONReader to load pipeline configuration.
   std::istringstream is(pipeline_json);
   dmlc::JSONReader reader(&is);
-  PipelineConfig& pipeline_config = this->LoadPipelineConfig(&reader);
-  ICHECK(!pipeline_config.Empty()) << "The pipeline config information is empty.";
+  this->LoadConfig(&reader);
+  ICHECK(!pipeline_config_.Empty()) << "The pipeline config information is empty.";
   // Initialize the pipeline function class used for pipeline thread pool management
   // and schedule etc. This function returns the number of output.
-  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config);
+  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config_);
   return;
 }
 

@@ -24,7 +24,7 @@ from synr import ast
 from tvm.ir.expr import PrimExpr, Range
 
 import tvm.tir
-from tvm.runtime import Object
+from tvm.runtime import Object, String
 from tvm import te
 from tvm.target import Target
 from tvm.ir import Span
@@ -430,8 +430,7 @@ class BlockAttr(SpecialStmt):
                     span,
                 )
             attrs = {
-                key: tvm.tir.StringImm(val) if isinstance(val, str) else val
-                for key, val in attrs.items()
+                key: String(val) if isinstance(val, str) else val for key, val in attrs.items()
             }
             block_scope.annotations = attrs
 

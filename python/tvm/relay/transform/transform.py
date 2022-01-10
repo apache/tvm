@@ -99,6 +99,25 @@ def InferType():
     return _ffi_api.InferType()
 
 
+def InferTypeLocal(expr):
+    """Infer the type of a single expr, reusing type information to do so.
+
+    This populates the checked_type field in expr. We assume existing type information
+    in the graph is correct!
+
+    Parameters
+    ----------
+    expr: relay.Expr
+        The expression we want to know the type of
+
+    Returns
+    -------
+    type: relay.Type
+        The type of the expression
+    """
+    return _ffi_api.InferTypeLocal(expr)
+
+
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.
@@ -1164,12 +1183,12 @@ def SimplifyExpr():
 
 def PlanDevices(config):
     """
-    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    Uses existing "on_device" and "device_copy" calls to infer the virtual device on which
     every Relay sub-expression should run and the result stored. Captures the result of that
-    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
-    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
-    computations which must be hosted on a CPU (such as shapes and shape functions) use the
-    cpu_se_scope.
+    analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
+    not otherwise constrained are assigned to the default primitive virtual device describe by
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
 
     Parameters
     ----------

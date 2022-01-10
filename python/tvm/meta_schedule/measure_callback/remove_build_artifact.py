@@ -14,9 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Python bindings for creating SEScopes."""
-from . import _ffi_api
+"""A callback that removes the build artifacts from the disk"""
+from tvm._ffi import register_object
+
+from .. import _ffi_api
+from .measure_callback import MeasureCallback
 
 
-def make_se_scope(device, target=None, memory_scope=""):
-    return _ffi_api.SEScope_ForDeviceTargetAndMemoryScope(device, target, memory_scope)
+@register_object("meta_schedule.RemoveBuildArtifact")
+class RemoveBuildArtifact(MeasureCallback):
+    def __init__(self) -> None:
+        """A callback that removes the build artifacts from the disk"""
+        self.__init_handle_by_constructor__(
+            _ffi_api.MeasureCallbackRemoveBuildArtifact,  # type: ignore # pylint: disable=no-member
+        )

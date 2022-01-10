@@ -526,23 +526,6 @@ class Conv(OnnxOpConverter):
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
 
-        # Check if the requested convolution is a group conv1d, if so convert it to conv2d.
-        # TODO(jwfromm) Remove once proper group_conv1d is supported.
-        group_conv1d = False
-        if dimension_picker("conv")(attr) == "conv1d" and attr.get("group") != 1:
-            group_conv1d = True
-            # Expand input from NCW to NCHW
-            data = _op.expand_dims(data, axis=2)
-            # Expand kernel from OIW to OIHW
-            kernel = _op.expand_dims(kernel, axis=2)
-            # Add new value to kernel_shape, strices, dilation, pads, if needed
-            attr["kernel_shape"] = [1] + list(attr["kernel_shape"])
-            if "strides" in attr:
-                attr["strides"] = [1] + list(attr["strides"])
-            if "dilations" in attr:
-                attr["dilations"] = [1] + list(attr["dilations"])
-            if "pads" in attr:
-                attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
         attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
@@ -554,10 +537,6 @@ class Conv(OnnxOpConverter):
             },
             custom_check=dimension_constraint(),
         )([data, kernel], attr, params)
-
-        # If this was a group_conv1d, squish output back to NCW.
-        if group_conv1d:
-            out = _op.squeeze(out, axis=[2])
 
         use_bias = len(inputs) == 3
         if use_bias:
@@ -783,7 +762,8 @@ class Gemm(OnnxOpConverter):
         assert len(inputs) == 3 or len(inputs) == 2, "Gemm op take 2 or 3 inputs, {} given".format(
             len(inputs)
         )
-        dtype = infer_type(inputs[0]).checked_type.dtype
+        input0_state = infer_type(inputs[0])
+        dtype = input0_state.checked_type.dtype
         # Y = alpha * A * B + beta * C
         alpha = float(attr.get("alpha", 1.0))
         beta = float(attr.get("beta", 1.0))
@@ -795,7 +775,8 @@ class Gemm(OnnxOpConverter):
             inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        if len(input0_state.checked_type.shape) != 2:
+            inputs[0] = _op.nn.batch_flatten(inputs[0])
         if alpha != 1.0:
             inputs[0] *= _expr.const(alpha, dtype=dtype)
         out = _op.nn.dense(inputs[0], inputs[1], units=channels)
