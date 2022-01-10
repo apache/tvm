@@ -54,7 +54,7 @@ using tir::IntImmNode;
 TVM_REGISTER_NODE_TYPE(SlidingWindowAttrs);
 
 bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                const TypeReporter& reporter) {
+                      const TypeReporter& reporter) {
   // `types` contains: [data, result]
   ICHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
@@ -97,7 +97,7 @@ bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& att
 }
 
 Array<te::Tensor> SlidingWindowCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                 const Type& out_type) {
+                                       const Type& out_type) {
   const SlidingWindowAttrs* param = attrs.as<SlidingWindowAttrs>();
   ICHECK(param != nullptr);
   return {topi::sliding_window(inputs[0], param->axis, param->window_shape, param->strides)};

@@ -65,8 +65,8 @@ using namespace topi::detail;
  * \return A Tensor whose op member is the sliding_window operation
  */
 inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_shape,
-                      Array<Integer> strides, std::string name = "T_sliding_window",
-                      std::string tag = "") {
+                             Array<Integer> strides, std::string name = "T_sliding_window",
+                             std::string tag = "") {
   CHECK_GE(axis, 0);
   auto _axis = size_t(axis);
   CHECK_LT(_axis, x->shape.size()) << "axis must be a valid dimension index of x.";
