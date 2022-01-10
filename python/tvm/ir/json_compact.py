@@ -68,7 +68,7 @@ def create_updater_08_to_09():
     """
 
     def _initialize_virtual_device(item, _):
-        if "virtual_device_" not in item["attrs"].keys():
+        if "virtual_device_" not in item["attrs"]:
             item["attrs"]["virtual_device_"] = "0"
         return item
 
@@ -96,7 +96,7 @@ def create_updater_07_to_08():
 
     def _initialize_module_attributes(item, _):
         assert item["type_key"] == "IRModule", "Only initialize the attributes for IRModules"
-        if "attrs" not in item["attrs"].keys():
+        if "attrs" not in item["attrs"]:
             item["attrs"]["attrs"] = "0"
         return item
 
