@@ -165,6 +165,7 @@ runtime::Module CreateMetadataModule(
   }
 
   if (is_targeting_crt) {
+    LOG(INFO) << "Create CRT metadata: " << metadata.defined();
     return CreateCrtMetadataModule(target_module, target, runtime, metadata,
                                    non_crt_exportable_modules, crt_exportable_modules,
                                    const_var_ndarray);

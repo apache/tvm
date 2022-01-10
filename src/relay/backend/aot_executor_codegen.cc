@@ -150,6 +150,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
                                     sid->storage_sizes_in_bytes.begin(),
                                     sid->storage_sizes_in_bytes.end());
     }
+    LOG(INFO) << "Visit tuple: " << GetRef<Expr>(op);
     storage_device_map_[expr] = StorageInfo(storage_ids, virtual_devices, storage_sizes_in_bytes);
     AssignReturnSid(expr);
   }
@@ -158,6 +159,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
     Expr expr = GetRef<Expr>(op);
     auto sids = GetStorage(op->tuple);
     ICHECK_LT(static_cast<size_t>(op->index), sids->storage_ids.size());
+    LOG(INFO) << "Visit TupleGetItem: " << expr;
     storage_device_map_[expr] =
         StorageInfo({sids->storage_ids[op->index]}, {sids->virtual_devices[op->index]},
                     {sids->storage_sizes_in_bytes[op->index]});
@@ -173,7 +175,9 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
  private:
   void AssignReturnSid(Expr e) {
     if (storage_device_map_.find(e) != storage_device_map_.end()) {
+      LOG(INFO) << "AssignReturnSid: is now " << e;
       StorageInfo& sinfo = storage_device_map_[e];
+      LOG(INFO) << "AssignReturnSid: storage_device_map_ " << sinfo;
       return_ids_.clear();
       for (auto sid : sinfo->storage_ids) {
         return_ids_.push_back(sid);
@@ -249,6 +253,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
       virtual_devices.push_back(virtual_device);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
+    LOG(INFO) << "CreateStorage: " << expr;
     storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                             std::move(storage_sizes_in_bytes));
   }
@@ -476,6 +481,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     tir::Stmt body = tir::SeqStmt(create_func_call_stmts);
     stmts_.push_back(body);
+    LOG(INFO) << "Create func call " << body;
   }
 
   /*!
@@ -865,6 +871,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     // TODO(mbs): Plumb from compiler config
     VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
+    VLOG(1) << "relay mod:" << std::endl << PrettyPrint(mod);
 
     IRModule lowered_mod = tec::LowerTEPass(
         mod_name,
@@ -923,6 +930,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
 
     CollectDeviceVariables(lowered_mod->GetAttr<Map<GlobalVar, String>>("device_contexts").value());
+    VLOG(1) << "lowered_main_func:" << std::endl << PrettyPrint(lowered_main_func);
     VisitExpr(lowered_main_func->body);
 
     // Create the runner function. Please note that the function is not legal yet

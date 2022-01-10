@@ -410,6 +410,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     Function func = Downcast<Function>(relay_module->Lookup("main"));
     IRModule func_module = WithAttrs(IRModule::FromExpr(func), {{tvm::attr::kExecutor, executor_},
                                                                 {tvm::attr::kRuntime, runtime_}});
+    LOG(INFO) << "Executor " << executor_;
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
