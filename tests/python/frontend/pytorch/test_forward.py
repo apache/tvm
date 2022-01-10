@@ -4086,12 +4086,13 @@ def test_einsum():
     verify_model(test_fn("ij,jk"), [x, y])
     verify_model(test_fn("ij,jk,km->im"), [x, y, z])
 
+
 @tvm.testing.uses_gpu
 def test_dot():
     def test_fn(x):
         return x.dot(x)
 
-    x = torch.ones([2])
+    x = torch.randn([4])
     verify_model(test_fn, [x])
 
 

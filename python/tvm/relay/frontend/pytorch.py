@@ -2854,7 +2854,7 @@ class PyTorchOpConverter:
 
     def dot(self, inputs, _):
         lhs, rhs = inputs
-        return _op.dot(lhs, rhs)
+        return _op.sum(_op.multiply(lhs, rhs))
 
     # Operator mappings
     def create_convert_map(self):

@@ -1136,25 +1136,6 @@ def einsum(data, equation):
     return _make.einsum(Tuple(data), equation)
 
 
-def dot(lhs, rhs):
-    """Compute the dot product of two 1D tensors
-
-    Parameters
-    ----------
-    lhs : relay.Expr input tensor
-    rhs : relay.Expr input tensor
-
-    Returns
-    -------
-    result : relay.Expr
-        The output tensor from the dot op.
-    """
-    mul_result = _make.multiply(lhs, rhs)
-    axis = None
-    keepdims = False
-    exclude = False
-    return _make.sum(mul_result, axis, keepdims, exclude)
-
 def stack(data, axis):
     """Join a sequence of arrays along a new axis.
 
