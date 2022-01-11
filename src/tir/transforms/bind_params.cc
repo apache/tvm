@@ -49,8 +49,8 @@ using ConstantMap = std::unordered_map<tir::Var, const relay::ConstantNode*, run
 
 class ParamsCollector : public StmtExprVisitor {
  public:
-  std::vector<const tir::VarNode*> CollectParams(tir::Stmt body, const ConstantMap& constant_map) {
-    constant_map_ = constant_map;
+  explicit ParamsCollector(const ConstantMap& constant_map) : constant_map_(constant_map) {}
+  std::vector<const tir::VarNode*> CollectParams(tir::Stmt body) {
     this->VisitStmt(body);
     return constant_list_;
   }
@@ -64,6 +64,23 @@ class ParamsCollector : public StmtExprVisitor {
       }
     }
     StmtExprVisitor::VisitExpr_(ln);
+  }
+
+  void VisitExpr_(const CallNode* cn) {
+    if (cn->op.same_as(builtin::tvm_access_ptr())) {
+      ICHECK_EQ(cn->args.size(), 5U);
+      // DataType dtype = cn->args[0].dtype();
+      const Var& var = Downcast<Var>(cn->args[1]);
+      const VarNode* buffer = cn->args[1].as<VarNode>();
+      auto it = constant_map_.find(var);
+      if (it != constant_map_.end()) {
+        auto it = std::find(constant_list_.begin(), constant_list_.end(), buffer);
+        if (it == constant_list_.end()) {
+          constant_list_.push_back(buffer);
+        }
+      }
+    }
+    StmtExprVisitor::VisitExpr_(cn);
   }
 
  private:
@@ -94,7 +111,7 @@ Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
       constant_map[b] = constants[i - start];
     }
     n->params = params;
-    auto constant_list = ParamsCollector().CollectParams(n->body, constant_map);
+    auto constant_list = ParamsCollector(constant_map).CollectParams(n->body);
 
     // Allocate constants within the primfunc
     for (auto i : constant_list) {

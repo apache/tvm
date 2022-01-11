@@ -842,7 +842,7 @@ def compile_and_run(
 
 def generate_ref_data(mod, input_data, params=None, target="llvm"):
     """Generate reference data through executing the relay module"""
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lib = relay.build(mod, target=target, params=params)
 
     lib_name = "mod.so"
