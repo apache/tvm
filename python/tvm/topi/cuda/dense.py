@@ -42,7 +42,7 @@ def _matmul_cublas_common(
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = tensor_a.dtype
-    if out_dtype != tensor_a.dtype and out_dtype != "int32":
+    if out_dtype not in [tensor_a.dtype, "int32"]:
         assert out_dtype == tensor_a.dtype, "Mixed precision other than int8 + int32 not supported."
     batch, in_dim = get_const_tuple(tensor_a.shape)
     out_dim, _ = get_const_tuple(tensor_b.shape)
