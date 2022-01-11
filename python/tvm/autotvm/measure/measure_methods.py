@@ -29,6 +29,7 @@ import shutil
 import tempfile
 import threading
 import time
+import traceback
 import typing
 from collections import namedtuple
 from random import getrandbits
@@ -150,14 +151,15 @@ class LocalBuilder(Builder):
                             )
 
                         else:
-                            if "InstantiationError" in str(res.error):
-                                msg = str(res.error)
+                            tb, exception = res.error
+                            if "InstantiationError" in str(exception):
+                                msg = str(exception)
                                 try:
                                     msg = msg.split("\n")[-2].split(": ")[1]
                                 except Exception:  # pylint: disable=broad-except
                                     pass
                                 res = MeasureResult(
-                                    (InstantiationError(msg),),
+                                    (tb, InstantiationError(msg),),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
@@ -165,18 +167,20 @@ class LocalBuilder(Builder):
 
                             else:  # tvm error
                                 res = MeasureResult(
-                                    (res.error,),
+                                    (tb, res.error,),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
                                 )
                 except TimeoutError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        (tb, ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
                     )
                 except ChildProcessError as ex:
+                    tb = traceback.format_exc()
                     res = MeasureResult(
-                        (ex,),
+                        (tb, ex,),
                         MeasureErrorNo.RUNTIME_DEVICE,
                         self.timeout,
                         time.time(),
@@ -364,9 +368,10 @@ class RPCRunner(Runner):
                     res = future.result()
                     results.append(res)
                 except Exception as ex:  # pylint: disable=broad-except
+                    tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (tb + "\n" + str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
                         )
                     )
 
@@ -546,7 +551,8 @@ class _WrappedBuildFunc:
             else:
                 func.export_library(filename, self.build_func)
         except Exception as e:  # pylint: disable=broad-except
-            return BuildResult(None, None, e, time.time() - tic)
+            tb = traceback.format_exc()
+            return BuildResult(None, None, (tb, e), time.time() - tic)
         return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
