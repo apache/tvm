@@ -16,11 +16,14 @@
 # under the License.
 """Generic codegen for NPUs"""
 
+from abc import abstractmethod
+from typing import Dict, List
 import tvm
 from tvm import relay, te, tir
 
+
 class GenericCodegen(object):
-    def _lower_relay_to_tir(self, relay_prim_func : relay.Function) -> tvm.tir.PrimFunc:
+    def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
         """Lower a Relay primitive function to a S-TIR primitive function.
 
         Parameters
@@ -37,12 +40,14 @@ class GenericCodegen(object):
         f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
         te_cached_func = f(relay_prim_func)
         tir_prim_func = te.create_prim_func_from_outputs(te_cached_func.outputs)
-        tir_prim_func = tir_prim_func.with_attr("global_symbol", relay_prim_func.attrs["global_symbol"])
+        tir_prim_func = tir_prim_func.with_attr(
+            "global_symbol", relay_prim_func.attrs["global_symbol"]
+        )
         return tir_prim_func
 
-    def _lower_stir_to_nstir(self, prim_func : tvm.tir.PrimFunc) -> tvm.tir.PrimFunc:
-        mod = tvm.IRModule()
-        mod["main"] = prim_func
+    def _lower_stir_to_nstir(self, schedule: tvm.tir.Schedule) -> tvm.tir.PrimFunc:
+        mod = schedule.mod
+        mod = self.apply_passes_before(mod)
         mod = tir.transform.StorageFlatten(64, False)(mod)
         mod = tir.transform.LowerInitBlock()(mod)
         mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
@@ -51,8 +56,19 @@ class GenericCodegen(object):
         mod = tir.transform.LowerMatchBuffer()(mod)
         mod = tir.transform.FlattenBuffer()(mod)
         mod = tir.transform.Simplify()(mod)
+        mod = self.apply_passes_after(mod)
         prim_func = mod["main"]
         return prim_func
+
+    @abstractmethod
+    def apply_schedules(self, schedule: tvm.tir.Schedule) -> tvm.tir.Schedule:
+        pass
+
+    def apply_passes_before(self, mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
+        return mod
+
+    def apply_passes_after(self, mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
+        return mod
 
     def relay_to_tir_func(self, ext_func: relay.Function) -> tvm.tir.PrimFunc:
         """
@@ -70,5 +86,7 @@ class GenericCodegen(object):
             The scheduled PrimFunc.
         """
         prim_func = self._lower_relay_to_tir(ext_func)
-        prim_func = self._lower_stir_to_nstir(prim_func)
+        schedule = tir.Schedule(prim_func)
+        schedule = self.apply_schedules(schedule)
+        prim_func = self._lower_stir_to_nstir(schedule)
         return prim_func

@@ -14,7 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic NPU codegen modules."""
-from . import codegen
-from .ultra_trail import codegen
-from .rb_npu import codegen
+"""Relay matching pattern for the UltraTrail accelerator"""
+
+import tvm
+from tvm import relay
+
+custom_target_name = "ultra_trail"
+
+
+def _register_external_op_helper(op_name, supported=True):
+    @tvm.ir.register_op_attr(op_name, f"target.{custom_target_name}")
+    def _func_wrapper(expr):
+        return supported
+
+    return _func_wrapper
+
+
+def match_ultra_trail(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
+    _register_external_op_helper("nn.conv1d")
+    mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
+    mod = relay.transform.MergeCompilerRegions()(mod)
+    mod = relay.transform.PartitionGraph()(mod)
+    return mod

@@ -20,9 +20,14 @@ import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.generic.codegen import GenericCodegen
 
+
 class RBNPUCodegen(GenericCodegen):
     def __init__(self):
         super(RBNPUCodegen, self).__init__()
+
+    def apply_schedules(self, schedule):
+        return schedule
+
 
 @tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_rb_npu")
 def relay_to_tir_func_rb_npu(ext_func: relay.Function) -> tvm.tir.PrimFunc:

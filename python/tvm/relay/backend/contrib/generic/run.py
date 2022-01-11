@@ -1,6 +1,7 @@
 import tvm
+import tvm.relay.backend.contrib.generic
 from tvm import relay
-from tvm.relay.backend.contrib import generic
+from tvm.relay.backend.contrib.generic.ultra_trail.pattern import match_ultra_trail
 
 import torch
 
@@ -16,19 +17,6 @@ class TorchModel(torch.nn.Module):
         x = self.conv(x)
         return x
 
-
-custom_target_name = "ultra_trail"
-def _register_external_op_helper(op_name, supported=True):
-    @tvm.ir.register_op_attr(op_name, f"target.{custom_target_name}")
-    def _func_wrapper(expr):
-        return supported
-
-    return _func_wrapper
-
-
-_register_external_op_helper("nn.conv1d")
-
-
 def main():
     torch_mod = TorchModel()
 
@@ -38,11 +26,7 @@ def main():
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
-    mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
-    print(mod)
-
+    mod = match_ultra_trail(mod)
     lib = relay.build(mod, tvm.target.Target("c"))
     print(lib)
 
