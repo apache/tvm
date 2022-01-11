@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotation operations."""
+from tvm import target
 from tvm.runtime import ndarray as _nd
 from tvm.runtime import Device as _Device
 
@@ -22,32 +23,70 @@ from . import _make
 from .. import op as reg
 
 
-def on_device(data, device):
-    """Annotate an expression with a certain device type.
+def _make_virtual_device(device):
+    if isinstance(device, _Device):
+        return target.VirtualDevice(device)
+    if isinstance(device, str):
+        return target.VirtualDevice(_nd.device(device))
+    raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
+
+
+def on_device(body, device, constrain_result=False, constrain_body=True):
+    """Annotates a body expression with device constraints. The constraint influences
+    how the body is compiled, where the body is evaluated, and where the result of
+    evaluation is stored.
+
+    Note that the defaults for the constrain_body and constrain_result parameters should
+    almost never need to be overridden by the user. These parameters are exposed here
+    to help unit tests exercise the PlanDevices pass machinery.
 
     Parameters
     ----------
-    data : tvm.relay.Expr
+    body : tvm.relay.Expr
         The expression to be annotated.
 
     device : Union[:py:class:`Device`, str]
-        The device type to annotate.
+        The device to annotate with.
+
+    constrain_result  : bool
+        If false (the default), the result of the on_device is not constrained to be on device.
+
+    constrain_body : bool
+        If true (the default), the body of the on_device is constrained to be on device.
 
     Returns
     -------
     result : tvm.relay.Expr
         The annotated expression.
     """
-    if isinstance(device, _Device):
-        device = device.device_type
-    elif isinstance(device, str):
-        device = _nd.device(device).device_type
-    else:
-        raise ValueError(
-            "device is expected to be the type of Device or "
-            "str, but received %s" % (type(device))
-        )
-    return _make.on_device(data, device)
+    return _make.OnDevice(body, _make_virtual_device(device), constrain_result, constrain_body)
+
+
+def function_on_device(function, param_devices, result_device):
+    """Annotates a Relay function with the device types on which its parameters and result should
+    be stored.
+
+    Parameters
+    ----------
+    function : tvm.relay.Function
+        The function to be annotated.
+
+    param_devices : Array[Union[:py:class:`Device`, str]]
+        The devices for each parameter.
+
+    result_device: Union[:py:class:`Device`, str]
+        The device for the function result.
+
+    Returns
+    -------
+    result : tvm.relay.Function
+        The annotated function.
+    """
+    return _make.FunctionOnDevice(
+        function,
+        [_make_virtual_device(d) for d in param_devices],
+        _make_virtual_device(result_device),
+    )
 
 
 def stop_fusion(data):

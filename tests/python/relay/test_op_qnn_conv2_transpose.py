@@ -15,13 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import te
 import numpy as np
-from tvm import relay
+import tvm
+from tvm import relay, te
+from tvm.contrib import graph_executor
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
-from tvm.contrib import graph_executor
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 
@@ -224,7 +223,7 @@ def test_no_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -248,7 +247,7 @@ def test_no_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -274,7 +273,7 @@ def test_kernel_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -298,7 +297,7 @@ def test_kernel_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -324,7 +323,7 @@ def test_input_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -348,7 +347,7 @@ def test_input_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -374,7 +373,7 @@ def test_both_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -398,8 +397,60 @@ def test_both_zero_point():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
+    )
+    verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+
+def test_different_dtype():
+    # uint8 input and int8 weight
+    data_shape = (2, 4, 2, 4)
+    data_dtype = "uint8"
+    kernel_shape = (4, 3, 2, 2)
+    kernel_dtype = "int8"
+    ref_func, qnn_func = get_funcs(
+        data_shape=data_shape,
+        data_dtype=data_dtype,
+        kernel_shape=kernel_shape,
+        kernel_dtype=kernel_dtype,
+        input_zero_point=5,
+        kernel_zero_point=3,
+        input_scale=1.0,
+        kernel_scale=1.0,
+        kernel_size=(2, 2),
+        padding=(0, 0),
+        strides=(1, 1),
+        dilation=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="IOHW",
+        out_dtype="int32",
+        channels=kernel_shape[1],
+    )
+    verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
+
+    # int8 input and uint8 weight
+    data_shape = (2, 4, 2, 4)
+    data_dtype = "int8"
+    kernel_shape = (4, 3, 2, 2)
+    kernel_dtype = "uint8"
+    ref_func, qnn_func = get_funcs(
+        data_shape=data_shape,
+        data_dtype=data_dtype,
+        kernel_shape=kernel_shape,
+        kernel_dtype=kernel_dtype,
+        input_zero_point=5,
+        kernel_zero_point=3,
+        input_scale=1.0,
+        kernel_scale=1.0,
+        kernel_size=(2, 2),
+        padding=(0, 0),
+        strides=(1, 1),
+        dilation=(1, 1),
+        data_layout="NCHW",
+        kernel_layout="IOHW",
+        out_dtype="int32",
+        channels=kernel_shape[1],
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
 
@@ -408,7 +459,7 @@ def test_layout():
     # uint8 input
     data_shape = (2, 2, 4, 4)  # NHWC
     data_dtype = "uint8"
-    kernel_shape = (2, 2, 3, 4)  # HWIO
+    kernel_shape = (2, 2, 3, 4)  # HWOI
     kernel_dtype = "uint8"
     ref_func, qnn_func = get_funcs(
         data_shape=data_shape,
@@ -424,14 +475,14 @@ def test_layout():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
 
     data_shape = (2, 2, 4, 3)  # NHWC
     data_dtype = "uint8"
-    kernel_shape = (2, 2, 1, 3)  # HWIO
+    kernel_shape = (2, 2, 1, 3)  # HWOI
     kernel_dtype = "uint8"
     ref_func, qnn_func = get_funcs(
         data_shape=data_shape,
@@ -447,7 +498,7 @@ def test_layout():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -473,7 +524,7 @@ def test_padding():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -481,7 +532,7 @@ def test_padding():
     # Try different layout
     data_shape = (2, 2, 4, 4)  # NHWC
     data_dtype = "uint8"
-    kernel_shape = (2, 2, 3, 4)  # HWIO
+    kernel_shape = (2, 2, 3, 4)  # HWOI
     kernel_dtype = "uint8"
     ref_func, qnn_func = get_funcs(
         data_shape=data_shape,
@@ -497,7 +548,7 @@ def test_padding():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -505,7 +556,7 @@ def test_padding():
     # Try asymmetric padding
     data_shape = (2, 8, 6, 4)  # NHWC
     data_dtype = "uint8"
-    kernel_shape = (2, 2, 3, 4)  # HWIO
+    kernel_shape = (2, 2, 3, 4)  # HWOI
     kernel_dtype = "uint8"
     ref_func, qnn_func = get_funcs(
         data_shape=data_shape,
@@ -521,7 +572,7 @@ def test_padding():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
         out_dtype="int32",
     )
     verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtype)
@@ -548,7 +599,7 @@ def test_const_folding():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
         channels=kernel_shape[1],
         groups=1,
@@ -562,7 +613,7 @@ def test_broadcast_layout():
     # Test broadcast support for NHWC layout.
     data_shape = (1, 229, 229, 3)  # NHWC
     data_dtype = "uint8"
-    kernel_shape = (7, 7, 64, 3)  # HWIO
+    kernel_shape = (7, 7, 64, 3)  # HWOI
     kernel_dtype = "int8"
     _, qnn_func = get_funcs(
         data_shape=data_shape,
@@ -578,7 +629,7 @@ def test_broadcast_layout():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NHWC",
-        kernel_layout="HWIO",
+        kernel_layout="HWOI",
         out_dtype="int32",
     )
     func = qnn_func["main"].body
@@ -618,7 +669,7 @@ def test_per_channel_kernel_scale():
         strides=(1, 1),
         dilation=(1, 1),
         data_layout="NCHW",
-        kernel_layout="OIHW",
+        kernel_layout="IOHW",
         out_dtype="int32",
     )
 
@@ -631,6 +682,7 @@ if __name__ == "__main__":
     test_input_zero_point()
     test_kernel_zero_point()
     test_both_zero_point()
+    test_different_dtype()
     test_layout()
     test_padding()
     test_const_folding()

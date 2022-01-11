@@ -27,9 +27,19 @@ RUN apt-get update && apt-get install -y wget git sudo make
 COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
-RUN apt-get update && apt-get install -y doxygen graphviz
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
 
-RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1
+RUN apt-get update && apt-get install -y doxygen graphviz curl
+
+RUN pip3 install cpplint pylint==2.4.4 mypy==0.902 black==20.8b1 flake8==3.9.2
+
+# Rust env (build early; takes a while)
+COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
+RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
 
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh

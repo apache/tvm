@@ -27,13 +27,12 @@ from tvm.relay.transform import InferType, ToMixedPrecision, mixed_precision
 
 def run_module(mod: tvm.runtime.Module, mod_params: Dict[str, Any]) -> List:
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("debug", mod, device=dev, target="llvm")
-    result = intrp.evaluate()(**mod_params)
+    result = relay.create_executor("debug", mod, device=dev, target="llvm").evaluate()(**mod_params)
     if isinstance(result, tvm.runtime.container.ADT):
-        result = [r.asnumpy() for r in result]
+        result = [r.numpy() for r in result]
         return result
     else:
-        return [result.asnumpy()]
+        return [result.numpy()]
 
 
 def verify_mixed_precision_output_close(
@@ -222,12 +221,36 @@ def test_do_not_convert_softmax():
     b = relay.nn.softmax(a)
     mod = tvm.IRModule.from_expr(b)
     mod = tvm.relay.transform.InferType()(mod)
+    out_mod = ToMixedPrecision("float16")(mod)
+    orig_mod = tvm.relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(orig_mod, out_mod)
 
-    mod_params = {
-        "a": np.random.uniform(-1, 1, size=shape).astype("float32"),
-    }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.0, rtol=0)
-    assert tvm.ir.structural_equal(mod, output_mod)
+
+def test_do_not_convert_arange():
+    """Arange is a red listed operation and therefore should never be fp16."""
+    dtype = "float32"
+    arange = relay.arange(relay.const(1, dtype), relay.const(128, dtype))
+    mod = tvm.IRModule.from_expr(arange)
+    out_mod = ToMixedPrecision("float16")(mod)
+    orig_mod = tvm.relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(orig_mod, out_mod)
+
+
+def test_do_not_convert_summation():
+    """Ops that could involve a large summation are not allowed in fp16."""
+    shape = [1, 3, 16, 16]
+    a = relay.var("a", shape=shape)
+    ops = [
+        relay.sum,
+        relay.mean,
+        relay.nn.global_avg_pool2d,
+        lambda inp: relay.nn.adaptive_avg_pool2d(inp, (1, 1)),
+    ]
+    for op in ops:
+        mod = tvm.IRModule.from_expr(op(a))
+        out_mod = ToMixedPrecision("float16")(mod)
+        orig_mod = tvm.relay.transform.InferType()(mod)
+        assert tvm.ir.structural_equal(orig_mod, out_mod)
 
 
 def test_green_gray_propagates_simple():
@@ -363,7 +386,7 @@ def test_let_statement_simple():
         "data": np.random.uniform(-1, 1, size=[1, 20]).astype("float32"),
         "weight": np.random.uniform(-1, 1, size=[20, 20]).astype("float32"),
     }
-    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.05, rtol=0.15)
 
     # Construct expected structure
     var1 = relay.var("var1", shape=[1, 20], dtype="float16")
@@ -432,6 +455,35 @@ def test_batch_matmul_simple():
     weight = relay.cast(relay.var("weight", shape=[1, 20, 20]), "float16")
     a = relay.nn.batch_matmul(data, weight, out_dtype="float16")
     expected_mod = tvm.IRModule.from_expr(a)
+    expected_mod = InferType()(expected_mod)
+    assert tvm.ir.structural_equal(expected_mod, output_mod)
+
+
+def test_convert_follow_node_with_integer_arguments():
+    """Tests the conversion of a follow op with integer arguments + constant float args.
+
+    The follow op should convert the floating point argument into fp16 as constants/vars
+    will always be converted if safe to do so.
+    """
+
+    data = relay.var("data", shape=[1, 10], dtype="float32")
+
+    # We use an addition to make sure the input indices are not a var
+    # (which are always casted if safe)
+    indices = relay.var("indices", shape=[1, 1], dtype="int32") + relay.const(0, dtype="int32")
+    take = relay.take(data, indices, axis=0)
+    mod = tvm.IRModule.from_expr(take)
+
+    mod_params = {
+        "data": np.random.uniform(-1, 1, size=[1, 10]).astype("float32"),
+        "indices": np.array([[0]]).astype("int32"),
+    }
+    output_mod = verify_mixed_precision_output_close(mod, mod_params, atol=0.01, rtol=0.01)
+
+    # Create expected module
+    data = relay.cast(relay.var("data", shape=[1, 10]), "float16")
+    take = relay.take(data, indices, axis=0)
+    expected_mod = tvm.IRModule.from_expr(take)
     expected_mod = InferType()(expected_mod)
     assert tvm.ir.structural_equal(expected_mod, output_mod)
 

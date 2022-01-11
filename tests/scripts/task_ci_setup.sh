@@ -28,11 +28,14 @@ set -o pipefail
 #
 # command: python3 -m pip install --user <package>==<version>
 #
-echo "Addtiional setup in" ${CI_IMAGE_NAME}
+echo "Additional setup in ${CI_IMAGE_NAME}"
 
-python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.3.0
+python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0
 
 # Rebuild standalone_crt in build/ tree. This file is not currently archived by pack_lib() in
 # Jenkinsfile. We expect config.cmake to be present from pack_lib().
 # TODO(areusch): Make pack_lib() pack all the data dependencies of TVM.
 (cd build && cmake .. && make standalone_crt)
+
+# Ensure no stale pytest-results remain from a previous test run.
+(cd build && rm -rf pytest-results)

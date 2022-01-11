@@ -53,7 +53,7 @@ class DispatchContext(object):
     def query(self, target, workload_key, has_complex_op, dag, func_name):
         """
         Query the context to get the specific config for a workload.
-        If cannot find the result inside this context, this function will query it
+        If this function cannot find the result inside this context, it will query the result
         from the upper contexts.
 
         Parameters

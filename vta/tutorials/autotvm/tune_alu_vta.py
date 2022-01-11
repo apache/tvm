@@ -28,7 +28,7 @@ from tvm import topi
 import tvm
 from tvm import te
 from tvm import rpc, autotvm, relay
-from tvm.contrib import graph_runtime, download
+from tvm.contrib import download
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.autotvm import record
@@ -285,8 +285,7 @@ def tune_and_evaluate(tuning_opt):
             relay.op.get("add"),
             relay.op.get("multiply"),
         ),
-        target=target,
-        target_host=env.target_host,
+        target=tvm.target.Target(target, host=env.target_host),
     )
 
     # filter out non-packed alu task

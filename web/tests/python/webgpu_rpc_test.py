@@ -24,6 +24,7 @@ import tvm
 from tvm import te
 from tvm import rpc
 from tvm.contrib import utils, emcc
+from tvm.relay.backend import Runtime
 import numpy as np
 
 proxy_host = "127.0.0.1"
@@ -34,8 +35,8 @@ def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
     # generate the wasm library
-    target_device = "webgpu"
-    target_host = "llvm -mtriple=wasm32-unknown-unknown-wasm -system-lib"
+    target = tvm.target.Target("webgpu", host="llvm -mtriple=wasm32-unknown-unknown-wasm")
+    runtime = Runtime("cpp", {"system-lib": True})
     if not tvm.runtime.enabled(target_host):
         raise RuntimeError("Target %s is not enbaled" % target_host)
 
@@ -49,7 +50,7 @@ def test_rpc():
     s[B].bind(xi, te.thread_axis("threadIdx.x"))
     s[B].bind(xo, te.thread_axis("blockIdx.x"))
 
-    fadd = tvm.build(s, [A, B], target_device, target_host=target_host, name="addone")
+    fadd = tvm.build(s, [A, B], target, runtime=runtime, name="addone")
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")
@@ -70,11 +71,11 @@ def test_rpc():
         a = tvm.nd.array(adata, dev)
         b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
 
-        np.testing.assert_equal(a.asnumpy(), adata)
+        np.testing.assert_equal(a.numpy(), adata)
         f1 = remote.system_lib()
         addone = f1.get_function("addone")
         addone(a, b)
-        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
         print("Test pass..")
 
     check(remote)

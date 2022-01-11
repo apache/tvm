@@ -236,7 +236,7 @@ class MeasureCallback : public ObjectRef {
  *  This class will call functions defined in the python */
 class PythonBasedMeasureCallbackNode : public MeasureCallbackNode {
  public:
-  /*! \brief Pointer to the callback funcion in python */
+  /*! \brief Pointer to the callback function in python */
   PackedFunc callback_func;
 
   void Callback(const SearchPolicy& policy, const Array<MeasureInput>& inputs,

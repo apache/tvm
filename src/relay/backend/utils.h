@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
 
 #include <string>
@@ -44,18 +45,26 @@
 
 namespace tvm {
 namespace relay {
+
+namespace tec {
+class TECompiler;
+}
+
 namespace backend {
+using Pass = tvm::transform::Pass;
 
 /*!
- * \brief The static storage information produced by memory planning.
+ * \brief The static storage information for each Tensor in the result of a Relay expression
+ * (as per relay::FlattenTupleType).
  */
 class StorageInfoNode : public Object {
  public:
+  // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The type of "virtual devices" these expressions are stored on. */
-  std::vector<DLDeviceType> device_types;
-  /* \brief The sizes of each storage element. */
+  /* \brief The virtual devices these expressions are stored within. */
+  std::vector<VirtualDevice> virtual_devices;
+  /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
   // TODO(@jroesch): expose the fields
@@ -68,7 +77,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<DLDeviceType> device_types,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<VirtualDevice> virtual_devices,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
@@ -134,11 +143,22 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
  */
 struct LoweredOutput {
   std::string graph_json;
-  Map<String, IRModule> lowered_funcs;
+  Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
   runtime::Metadata metadata;
+};
+
+/*!
+ * \brief This class is needed to avoid a GCC 5 bug that prevents maps containing enums from being
+ compiled. If i386 GCC version is increased, we can remove it.
+ */
+struct EnumClassHash {
+  template <typename T>
+  std::size_t operator()(T t) const {
+    return static_cast<std::size_t>(t);
+  }
 };
 
 /*!
@@ -166,8 +186,10 @@ struct ConstantUpdater : public ExprVisitor {
  * \param func The function from which to get the constant params.
  * \param params The params to update with the constants.
  */
-inline void UpdateConstants(Function func,
+inline void UpdateConstants(BaseFunc func,
                             std::unordered_map<std::string, runtime::NDArray>* params) {
+  VLOG_CONTEXT << "UpdateConstants";
+  VLOG(1) << "updating constants for:" << std::endl << PrettyPrint(func);
   auto codegen = func->GetAttr<String>(attr::kCompiler);
   ICHECK(codegen.defined()) << "No external codegen is set";
   std::string codegen_name = codegen.value();
@@ -189,6 +211,9 @@ inline void UpdateConstants(Function func,
           << "External constant names must start with compiler name";
       (*params)[const_name] = it.second;
     }
+  }
+  for (const auto& pair : *params) {
+    VLOG(1) << "Constants: " << pair.first << " = " << PrettyPrint(pair.second);
   }
 }
 
@@ -301,7 +326,7 @@ inline relay::Function BindParamsByName(
   for (auto arg : func->params) {
     const auto& name = arg->name_hint();
     if (name_dict.count(name)) {
-      repeat_var.insert(arg);
+      repeat_var.insert(name_dict[name]);
     } else {
       name_dict[name] = arg;
     }
@@ -364,7 +389,6 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * "nn.relu"}
  * \return A CallNode corresponding to the root op, whose name is expected_op_names[0]
  */
-
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
   ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
@@ -378,6 +402,24 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
+}
+
+/*!
+ * \brief Retrieve the "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * Unlike the previous definition, it does not verify operator names of intermediate nodes. Instead,
+ * it recursively visit child nodes until it finds a call node with the given op_name.
+ * \param call A Relay call node.
+ * \param op_name The name of an op to look for, such as ""nn.conv2d".
+ * \return A CallNode corresponding to the root op with the given op_name
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, const std::string& op_name) {
+  if (current_call == nullptr) return nullptr;
+  if (IsOp(current_call, op_name)) return current_call;
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  const auto* next_call = current_call->args[0].as<CallNode>();
+  return GetRootCall(next_call, op_name);
 }
 
 /*!
@@ -402,13 +444,88 @@ inline bool IsAutoSchedulerEnabled() {
 }
 
 /*!
- * \brief Return whether the compile engine cache is disabled in the pass context.
+ * \brief Return whether the meta schedule is enabled in the pass context.
  */
-inline bool IsCompileEngineCacheDisabled() {
+inline bool IsMetaScheduleEnabled() {
   return transform::PassContext::Current()
-      ->GetConfig<Bool>("relay.backend.disable_compile_engine_cache", Bool(false))
+      ->GetConfig<Bool>("relay.backend.use_meta_schedule", Bool(false))
       .value();
 }
+
+/*!
+ * \brief Get the sequence of Relay optimization passes based on backend type.
+ * The prefix of the Relay passes almost overlaps between the vm and graph backend, with some slight
+ * difference. This function unifies the shared optimization pass prefix between vm and graph
+ * runtime, and returns the pass prefix given the backend type.
+ *
+ * \param is_homogenous True if all primitives are to be executed on the same device and target.
+ * \param is_vm True if passes are to be used for the vm executor.
+ * \return An array of passes.
+ */
+Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
+
+/*! \brief Target hash function */
+struct TargetStrHash {
+  /*!
+   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   Note that this hash should NOT be used in new usecases, equality of targets based on their
+   value is not well-defined.
+   This will be removed when maps from Targets to IRModules are removed from the codebase.
+   * \param target The Target to hash
+   * \return String hash of the target
+   */
+  size_t operator()(const Target& target) const {
+    return String::HashBytes(target->str().c_str(), target->str().size());
+  }
+};
+
+/*! \brief Target equality function based on the string value of Target
+Note that this equality function should NOT be used in new usecases, equality of targets based on
+their value is not well-defined. This will be removed when maps from Targets to IRModules are
+removed from the codebase.*/
+struct TargetStrEqual {
+  /*!
+   * \brief Check if the two Targets are equal
+   * \param target One Target
+   * \param other_target The other Target
+   * \return String equality of the targets
+   */
+  const bool operator()(const Target& target, const Target& other_target) const {
+    TargetStrHash target_hash = TargetStrHash();
+    return target_hash(target) == target_hash(other_target);
+  }
+};
+
+/*!
+ * \brief Convert a Map<Target, IRModule> to std::unordered_map<Target, IRmodule, TargetStrHash,
+ * TargetStrEqual> Target equality is currently based on pointer equality, which is a problem since
+ * we have a lot of Map<Target, IRModule> in the codebase. This function converts the map to a
+ * version that is keyed based on string value of the Target instead. Note that once we remove
+ * Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual>
+TargetModuleMapToTargetStrModuleMap(Map<Target, IRModule> input_map);
+
+/*!
+ * \brief Convert a std::unordered_map<Target, IRmodule, TargetStrHash, TargetStrEqual> to
+ * Map<Target, IRModule> This function is a helper that undoes TargetModuleMapToTargetStr. Note that
+ * once we remove Map<Target, IRModule>, this function will be removed.
+ * \param input_map The map to convert
+ * \return The converted map
+ */
+Map<Target, IRModule> TargetStrModuleMapToTargetModuleMap(
+    std::unordered_map<Target, IRModule, TargetStrHash, TargetStrEqual> input_map);
+
+/*!
+ * \brief Call "weight update callback" to communicate op weights seen during Relay module
+ * lowering back to the auto scheduler.
+ * Op weights refer to the number of times each distinct op/workload appears in a given module.
+ * It is called "use_count" in TECompiler.
+ * \param IRModule after lowering by LowerTEPass.
+ */
+void UpdateAutoSchedulerOpWeights(const IRModule& module);
 
 }  // namespace backend
 }  // namespace relay

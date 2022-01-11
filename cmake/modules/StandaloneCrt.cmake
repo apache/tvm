@@ -16,19 +16,8 @@
 # under the License.
 
 if(USE_MICRO)
-  message(STATUS "Build standalone CRT for micro TVM")
-  file(GLOB crt_srcs src/runtime/crt/**)
-
-  function(tvm_crt_add_copy_file var src dest)
-    get_filename_component(basename "${src}" NAME)
-    get_filename_component(dest_parent_dir "${dest}" DIRECTORY)
-    add_custom_command(
-        OUTPUT "${dest}"
-        COMMAND "${CMAKE_COMMAND}" -E copy "${src}" "${dest}"
-        DEPENDS "${src}")
-    list(APPEND "${var}" "${dest}")
-    set("${var}" "${${var}}" PARENT_SCOPE)
-  endfunction(tvm_crt_add_copy_file)
+  message(STATUS "Build standalone CRT for microTVM")
+  tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
@@ -44,10 +33,10 @@ if(USE_MICRO)
          "src/runtime/crt/include *.h -> include"
          "src/runtime/crt/common *.c -> src/runtime/crt/common"
          "src/runtime/crt/graph_executor *.c -> src/runtime/crt/graph_executor"
-         "src/runtime/crt/aot_executor *.c -> src/runtime/crt/aot_executor"
          "src/runtime/crt/graph_executor_module *.c -> src/runtime/crt/graph_executor_module"
-         "src/runtime/crt/host crt_config.h -> template/host"
          "src/runtime/crt/host *.cc -> template/host"
+         "src/runtime/crt/host *.py -> template/host"
+         "src/runtime/crt/host Makefile -> template/host"
          "src/runtime/crt/memory *.c -> src/runtime/crt/memory"
          "src/runtime/crt/microtvm_rpc_common *.cc -> src/runtime/crt/microtvm_rpc_common"
          "src/runtime/crt/microtvm_rpc_server *.cc -> src/runtime/crt/microtvm_rpc_server"
@@ -74,7 +63,7 @@ if(USE_MICRO)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")
         list(GET job_spec ${copy_dest_index} copy_dest)
 
-        file(GLOB_RECURSE copy_files
+        tvm_file_glob(GLOB_RECURSE copy_files
              RELATIVE "${job_src_base}"
              "${job_src_base}/${copy_pattern}")
         list(LENGTH copy_files copy_files_length)
@@ -83,7 +72,7 @@ if(USE_MICRO)
         endif()
         foreach(copy_src IN LISTS copy_files)
           get_filename_component(dest_path "${standalone_crt_base}/${copy_dest}/${copy_src}" ABSOLUTE)
-          tvm_crt_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
+          tvm_micro_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
         endforeach()
       endforeach()
     endforeach()
@@ -98,13 +87,13 @@ if(USE_MICRO)
     set(make_quiet )
     endif(${VERBOSE})
 
-    list(APPEND crt_libraries memory graph_executor aot_executor microtvm_rpc_server microtvm_rpc_common common)  # NOTE: listed in link order.
+    list(APPEND crt_libraries memory graph_executor microtvm_rpc_server microtvm_rpc_common common)  # NOTE: listed in link order.
     foreach(crt_lib_name IN LISTS crt_libraries)
       list(APPEND crt_library_paths "host_standalone_crt/lib${crt_lib_name}.a")
     endforeach()
 
     set(make_common_args
-        "CRT_CONFIG=template/host/crt_config.h"
+        "CRT_CONFIG=${CMAKE_SOURCE_DIR}/src/runtime/micro/crt_config.h"
         "BUILD_DIR=${host_build_dir_abspath}"
         "EXTRA_CFLAGS=-fPIC"
         "EXTRA_CXXFLAGS=-fPIC"
@@ -132,34 +121,16 @@ if(USE_MICRO)
           PUBLIC_HEADER "${crt_headers}")
     endforeach()
 
-    # Standalone CRT tests
-    file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*_test.cc)
-    find_path(GTEST_INCLUDE_DIR gtest/gtest.h)
-    find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
-
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
-    if(GTEST_INCLUDE_DIR AND GTEST_LIB)
-      foreach(__srcpath ${TEST_SRCS})
-        get_filename_component(__srcname ${__srcpath} NAME)
-        string(REPLACE ".cc" "" __execname ${__srcname})
-        add_executable(${__execname} ${__srcpath})
-        list(APPEND TEST_EXECS ${__execname})
-        target_include_directories(${__execname} PUBLIC ${GTEST_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/crt/host)
-        target_compile_options(${__execname} PRIVATE -pthread)
-        target_link_libraries(${__execname} ${cmake_crt_libraries} ${GTEST_LIB} pthread)
-        set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_ALL 1)
-        set_target_properties(${__execname} PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-      endforeach()
-      add_custom_target(crttest DEPENDS ${TEST_EXECS})
-    elseif(NOT GTEST_INCLUDE_DIR)
-      add_custom_target(crttest
-          COMMAND echo "Missing Google Test headers in include path"
-          COMMAND exit 1)
-    elseif(NOT GTEST_LIB)
-      add_custom_target(crttest
-          COMMAND echo "Missing Google Test library"
-          COMMAND exit 1)
+    if(GTEST_FOUND)
+      tvm_file_glob(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+      add_executable(crttest ${TEST_SRCS})
+      target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
+      target_link_libraries(crttest PRIVATE ${cmake_crt_libraries} GTest::GTest GTest::Main pthread dl)
+      set_target_properties(crttest PROPERTIES EXCLUDE_FROM_ALL 1)
+      set_target_properties(crttest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
+      gtest_discover_tests(crttest)
     endif()
 
   endfunction()

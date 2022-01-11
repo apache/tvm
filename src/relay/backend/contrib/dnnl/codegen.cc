@@ -54,6 +54,15 @@ inline size_t GetShape1DSize(const Type& type) {
   return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
 }
 
+inline std::string GetShapeString(std::vector<int> shape) {
+  std::string v = "std::vector<long int>{";
+  for (auto s : shape) {
+    v += std::to_string(s) + ",";
+  }
+  v += "}";
+  return v;
+}
+
 std::vector<std::string> Conv2d(const CallNode* call) {
   std::vector<std::string> args;
   const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
@@ -67,11 +76,13 @@ std::vector<std::string> Conv2d(const CallNode* call) {
     args.push_back(std::to_string(s));
   }
 
-  // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
+  // Args: O, G, Ph0, Pw0, Ph1, Pw1, Kh, Kw, Sh, Sw
   args.push_back(std::to_string(wshape[0]));
   args.push_back(std::to_string(conv2d_attr->groups));
   args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
   args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[2].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[3].as<IntImmNode>()->value));
   args.push_back(std::to_string(wshape[2]));
   args.push_back(std::to_string(wshape[3]));
   args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));
@@ -96,12 +107,8 @@ std::vector<std::string> Dense(const CallNode* call) {
 std::vector<std::string> Relu(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-
   // Args: N, C, H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
-
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -121,15 +128,25 @@ std::vector<std::string> BatchNorm(const CallNode* call) {
   return args;
 }
 
+// should comply with src/runtime/contrib/dnnl/dnnl.cc
+#define DNNL_BINARY_ADD 0
+#define DNNL_BINARY_MUL 1
+
 std::vector<std::string> Add(const CallNode* call) {
   std::vector<std::string> args;
   auto ishape = GetShape(call->args[0]->checked_type());
-
+  args.push_back(std::to_string(DNNL_BINARY_ADD));
   // Args: H, W
-  for (auto s : ishape) {
-    args.push_back(std::to_string(s));
-  }
+  args.push_back(GetShapeString(ishape));
+  return args;
+}
 
+std::vector<std::string> Multiply(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+  args.push_back(std::to_string(DNNL_BINARY_MUL));
+  // Args: H, W
+  args.push_back(GetShapeString(ishape));
   return args;
 }
 
@@ -214,12 +231,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   }
 
  private:
-  struct GenerateBodyOutput {
-    std::string decl;
-    std::vector<std::string> buffers;
-    std::vector<Output> outputs;
-  };
-
   std::vector<std::string> GetArgumentNames(const CallNode* call) {
     std::vector<std::string> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -237,11 +248,9 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
 
     using ArgFunType = std::function<std::vector<std::string>(const CallNode*)>;
     static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
-        {"nn.conv2d", {"dnnl_conv2d", Conv2d}},
-        {"nn.dense", {"dnnl_dense", Dense}},
-        {"nn.relu", {"dnnl_relu", Relu}},
-        {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
-        {"add", {"dnnl_add", Add}},
+        {"nn.conv2d", {"dnnl_conv2d", Conv2d}}, {"nn.dense", {"dnnl_dense", Dense}},
+        {"nn.relu", {"dnnl_relu", Relu}},       {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
+        {"add", {"dnnl_binary_op", Add}},       {"multiply", {"dnnl_binary_op", Multiply}},
     };
 
     const auto op_name = GetRef<Op>(op_node)->name;
@@ -446,8 +455,26 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
 
       if (name == "dnnl.conv2d_bias_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
+      } else if (name == "dnnl.conv2d_bias_tanh") {
+        call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "tanh"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_bias_sigmoid") {
+        call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_bias") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "add"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name == "dnnl.conv2d_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_tanh") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "tanh"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_sigmoid") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.dense_bias") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.dense", "add"});
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else {
         LOG(FATAL) << "Unrecognized DNNL pattern: " << name;

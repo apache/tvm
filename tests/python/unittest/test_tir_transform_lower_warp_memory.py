@@ -20,6 +20,7 @@ from tvm.contrib.nvcc import have_fp16
 
 import numpy as np
 import tvm.testing
+import pytest
 
 
 @tvm.testing.requires_cuda
@@ -47,8 +48,9 @@ def test_lower_warp_memory_local_scope():
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)
     fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
-    assert fdevice.body.body.value.value == "local"
-    assert fdevice.body.body.body.extents[0].value == 2
+    allocate = fdevice.body.body
+    assert allocate.buffer_var.type_annotation.storage_scope == "local"
+    assert fdevice.body.body.extents[0].value == 2
 
 
 @tvm.testing.requires_cuda
@@ -282,10 +284,55 @@ def test_lower_warp_memory_roundup():
         check(device, m=65)
 
 
+@tvm.testing.requires_cuda
+def test_lower_warp_memory_same_thread():
+    m = n = 128
+    A = te.placeholder((m, n), name="A")
+    k = te.reduce_axis((0, n), name="k")
+    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=[k]))
+
+    s = te.create_schedule(B.op)
+    BB = s.cache_write(B, "warp")
+    tx = te.thread_axis("threadIdx.x")
+    xo, xi = s[B].split(B.op.axis[0], factor=32)
+    s[B].bind(xi, tx)
+    s[B].bind(xo, te.thread_axis("blockIdx.x"))
+    s[BB].compute_at(s[B], xo)
+    xo, xi = s[BB].split(s[BB].op.axis[0], factor=32)
+    s[BB].bind(xi, tx)
+
+    cuda_target = tvm.target.Target("cuda")
+    assert cuda_target.thread_warp_size == 32
+    mod = tvm.lower(s, [A, B], name="f")
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
+    mod = tvm.IRModule.from_expr(fdevice)
+    fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
+    assert "tvm_warp_shuffle" not in fdevice.astext()
+
+
+@tvm.testing.requires_cuda
+def test_lower_warp_memory_divide_by_factor():
+    ib = tvm.tir.ir_builder.IRBuilder()
+    bx = te.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+
+    with ib.new_scope():
+        ib.scope_attr(bx, "thread_extent", 32)
+        ib.scope_attr(tx, "thread_extent", 32)
+        t = ib.allocate("float32", 16, name="t", scope="warp")
+        n = ib.allocate("float32", 16, name="n", scope="local")
+        n[0] = t[0]
+
+    stmt = ib.get()
+    func = tvm.tir.PrimFunc([], stmt)
+    func = func.with_attr("from_legacy_te_schedule", True)
+    cuda_target = tvm.target.Target("cuda")
+    mod = tvm.lower(func, name="f")
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    with pytest.raises(tvm.error.TVMError, match="Divide by zero") as cm:
+        tvm.tir.transform.LowerWarpMemory()(mod)["f_kernel0"]
+
+
 if __name__ == "__main__":
-    test_lower_warp_memory_local_scope()
-    test_lower_warp_memory_correct_indices()
-    test_lower_warp_memory_cuda_end_to_end()
-    test_lower_warp_memory_cuda_half_a_warp()
-    test_lower_warp_memory_cuda_2_buffers()
-    test_lower_warp_memory_roundup()
+    pytest.main([__file__])

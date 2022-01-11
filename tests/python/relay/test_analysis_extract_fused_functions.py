@@ -96,7 +96,7 @@ def test_extract_conv_net():
 def test_extract_resnet():
     mod, _params = get_workload()
     items = relay.analysis.extract_fused_functions(mod)
-    assert len(items) == 6
+    assert len(items) == 7
 
 
 if __name__ == "__main__":

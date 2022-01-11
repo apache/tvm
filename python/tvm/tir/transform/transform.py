@@ -95,6 +95,21 @@ def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
     return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
 
 
+def TextureFlatten():
+    """Flatten the multi-dimensional read/write to 2D.
+
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.TextureFlatten()  # type: ignore
+
+
 def InjectCopyIntrin(pragma_key: str, fintrin):
     """Inject virtual thread loops.
 
@@ -189,6 +204,17 @@ def InjectDoubleBuffer():
         The result pass
     """
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
+
+
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
 
 
 def StorageRewrite():
@@ -331,14 +357,15 @@ def LowerCustomDatatypes():
     return _ffi_api.LowerCustomDatatypes()  # type: ignore
 
 
-def MakePackedAPI(num_unpacked_params: int = 0):
+def MakePackedAPI(num_unpacked_params: int = -1):
     """Transform the PrimFuncs in the module to a packed func API.
 
     Parameters
     ----------
     num_unpacked_params : int
         Number of parameters that we hope to directly pass via normal arguments
-        following the PackedFunc input signature.
+        following the PackedFunc input signature. If it is specified as -1 or it
+        is less than the number of arguments, the pass will packed arguments still.
 
     Returns
     -------
@@ -561,6 +588,18 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+def LowerCrossThreadReduction():
+    """Lower cross-thread reduction from thread bindings to
+    intrinsic function calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
+
+
 def LowerInitBlock():
     """Lower block init stmt into IfThenElse statements.
 
@@ -612,8 +651,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(16, 16)
+            with T.block():
+                B = T.alloc_buffer(16, 16)
                 for j in range(0, 16):
                     B[i, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -627,8 +666,8 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with tir.block([]):
-                B = tir.alloc_buffer(1, 16)
+            with T.block():
+                B = T.alloc_buffer(1, 16)
                 for j in range(0, 16):
                     B[0, j] = A[i, j] + 1
                 for j in range(0, 16):
@@ -643,6 +682,17 @@ def CompactBufferAllocation():
     return _ffi_api.CompactBufferAllocation()  # type: ignore
 
 
+def LowerMatchBuffer():
+    """Remove match buffers inside the block. Also, it will validate the binding.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerMatchBuffer()  # type: ignore
+
+
 def FlattenBuffer():
     """Flatten the multi-dimensional BufferLoad and BufferStore
     to single dimensional Load/Store. Also remove Block to
@@ -654,3 +704,48 @@ def FlattenBuffer():
         The result pass
     """
     return _ffi_api.FlattenBuffer()  # type: ignore
+
+
+def UnifyThreadBinding():
+    """Unify all the thread bindings for "blockIdx.x/y/z",
+    "threadIdx.x/y/z", and "vthread.x/y/z". Before the unification,
+    two vars that are bound to a thread axis (e.g., "threadIdx.x")
+    use different IterVars and variables in their AttrStmts. After
+    the unification, we use a consolidated IterVar and a variable
+    for them.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    Note
+    ----
+    `vthread` is a legacy behavior that will be deprecated, though
+    thread bindings of `vthread` are still also unified in this
+    pass. Please use `vthread.x`, `vthread.y` and `vthread.z` instead.
+    """
+    return _ffi_api.UnifyThreadBinding()  # type: ignore
+
+
+def MergeDynamicSharedMemoryAllocations():
+    """This pass merges multiple TIR-level dynamic shared memory allocations
+    into one allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+
+
+def ConvertForLoopsToSerial():
+    """Convert Parallel For Loops to Serial For Loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ConvertForLoopsToSerial()  # type: ignore

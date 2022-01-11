@@ -34,8 +34,8 @@ def is_version_greater_than(ver):
     import torch
     import re
 
-    return "".join(re.findall(r"(\d+\.)(\d+\.)(\d)", torch.__version__)[0]) > "".join(
-        re.findall(r"(\d+\.)(\d+\.)(\d)", ver)[0]
+    return int("".join(re.findall(r"(\d+)\.(\d+)\.(\d)", torch.__version__)[0])) > int(
+        "".join(re.findall(r"(\d+)\.(\d+)\.(\d)", ver)[0])
     )
 
 
@@ -90,7 +90,7 @@ def batched_nms_pattern(boxes, scores, idxs, iou_threshold, num_boxes, indices):
     """
     one = is_constant()
 
-    # Equivelent PyTorch code from above snippet
+    # Equivalent PyTorch code from above snippet
     # offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
     cast = is_op("cast")(idxs)
     mx = is_op("max")(boxes)

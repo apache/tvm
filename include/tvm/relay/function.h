@@ -64,6 +64,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("attrs", &attrs);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -120,13 +121,59 @@ class Function : public BaseFunc {
 };
 
 /*!
+ * \brief Returns the function with given properties. A null property denotes 'no change'.
+ * Returns function if all properties are unchanged. Otherwise, returns a copy with the new fields.
+ * \param function The function to copy.
+ * \param opt_params The (optional) params for the copied function. If none,
+ * ret_function->params = function->params.
+ * \param opt_body The (optional) body for the copied function. If none,
+ * ret_function->body = function->body.
+ * \param opt_ret_type The (optional) return type for the copied function. If none,
+ * ret_function->ret_type = function->ret_type.
+ * \param opt_ty_params The (optional) type params for the copied function. If none,
+ * ret_function->type_params = function->type_params.
+ * \param opt_attrs
+ * The (optional) attributes for the copied function. If none,
+ * ret_function->attrs = function->attrs.
+ * \param opt_virtual_device The (optional) virtual_device for the copied function. If none,
+ * ret_function->virtual_device = function->virtual_device.
+ * \param opt_span The (optional) span for the copied function. If none,
+ * ret_function->span = function->span.
+ * \return If all properties are null or the same as the property in the input function
+ * (i.e., opt_params is null or opt_params.value() == function->params, etc.), then we return
+ * function. Otherwise, we return a copy of function with the different fields overwritten. (i.e.,
+ * if opt_params.value() != function->params, then ret_function->params = opt_params.value()).
+ */
+Function WithFields(Function function, Optional<Array<Var>> opt_params = Optional<Array<Var>>(),
+                    Optional<Expr> opt_body = Optional<Expr>(),
+                    Optional<Type> opt_ret_type = Optional<Type>(),
+                    Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
+                    Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
+                    Optional<Span> opt_span = Optional<Span>());
+
+/*
+ * \brief Returns the Relay FunctionNode represented by base_func if it should be optimized,
+ * otherwise returns nullptr.
+ *
+ * This means returns nullptr:
+ *  - For PrimFuncs, since not Relay Functions.
+ *  - For Functions marked for external compilation (with "Compiler").
+ *  - For Functions marked as already having an external definition (with "ExternalSymbol").
+ *  - For Functions marked as not to be optimized (with "SkipOptimization").
+ *
+ * TODO(mbs): Audit all enumerations of IRModule::functions to use this or some family of such.
+ */
+const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
+
+/*!
  * \brief namespace of the attributes that can be attached to a relay::Function.
  */
 namespace attr {
 /*! \brief Mark the function as a primitive function. */
 constexpr const char* kPrimitive = "Primitive";
 /*!
- * \brief Indicate the compiler that should be used for builing this function.
+ * \brief Indicate the compiler that should be used for building this function.
  * When this is unset or set to "default", the default compilation pipeline will be used.
  */
 constexpr const char* kCompiler = "Compiler";
@@ -144,7 +191,6 @@ constexpr const char* kComposite = "Composite";
 constexpr const char* kInline = "Inline";
 /*! \brief Indicate the function was created by the Pattern Partitioning Pass. */
 constexpr const char* kPartitionedFromPattern = "PartitionedFromPattern";
-
 /*! \brief Mark the function as only composed of reshape operations. */
 constexpr const char* kReshapeOnly = "relay.reshape_only";
 }  // namespace attr

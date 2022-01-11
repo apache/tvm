@@ -20,14 +20,14 @@ A compiler from a Relay expression to TVM's graph executor.
 The compiler is built from a few pieces.
 
 First we define a compiler from a single Relay expression to the
-graph langauge. We require the expression to be a function.
+graph language. We require the expression to be a function.
 The function's parameters correspond to the placeholder/inputs
 and model parameters found in the computation graph representation.
 The body of the function represents the computation graph.
 
 The compiler's output is a program in the graph language, which is composed of
-graph langauge is composed of Node, NodeRef, InputNode, OpNode.
-This "little language" represents programs in TVM's graph format.
+Node, NodeRef, InputNode, OpNode. This "little language" represents programs in
+TVM's graph format.
 
 To connect to the graph executor, we use a printer that converts our graph format
 into TVM's JSON format. The resulting string can be loaded by
@@ -64,11 +64,13 @@ class GraphExecutorCodegen(object):
             tgts[_expr.IntImm("int32", 0)] = Target(target)
         self._init(mod, tgts)
 
-    def codegen(self, func):
+    def codegen(self, ir_module, func):
         """Compile a single function into a graph.
 
         Parameters
         ----------
+        ir_module: tvm.ir.Module
+            The module to compile
         func: tvm.relay.Expr
             The function to compile.
 
@@ -76,13 +78,13 @@ class GraphExecutorCodegen(object):
         -------
         graph_json : str
             The graph json that can be consumed by runtime.
-        mod : IRModule or Dict[str, IRModule]
+        mod : IRModule or Dict[Target, IRModule]
             The lowered functions.
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
         default_mod_name = mangle_module_name("default")
-        self._codegen(func, default_mod_name)
+        self._codegen(ir_module, func, default_mod_name)
         graph_json = self._get_graph_json()
         lowered_func = self._get_irmodule()
         param_names = self._list_params_name()

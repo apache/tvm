@@ -90,6 +90,10 @@ TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -
   return rv;
 });
 
+TVM_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -> bool {
+  return Op::HasAttrMap(attr_name);
+});
+
 TVM_REGISTER_GLOBAL("ir.OpSetAttr")
     .set_body_typed([](Op op, String attr_name, runtime::TVMArgValue value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();

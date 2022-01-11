@@ -44,6 +44,10 @@ typedef struct TVMNDArray {
 int TVMNDArray_Create(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
                       TVMNDArray* array);
 
+int64_t TVMNDArray_DataSizeBytes(TVMNDArray* array);
+
+int TVMNDArray_RandomFill(TVMNDArray* array);
+
 int TVMNDArray_Empty(int32_t ndim, const tvm_index_t* shape, DLDataType dtype, DLDevice dev,
                      TVMNDArray* array);
 

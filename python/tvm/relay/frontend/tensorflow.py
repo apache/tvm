@@ -37,6 +37,7 @@ from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from .common import set_span
 
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
@@ -52,6 +53,11 @@ TF_DEFAULT_CONFIGS = {
     # However, please note that `nn.matmul` is in experimental so it may have some performance
     # issues.
     "use_dense": True,
+    # By default, TVM converts `tf.batch_matmul` to `transpose(weight) + nn.batch_matmul_NT`.
+    # Change this flag to False to directly convert to `nn.batch_matmul`.
+    # Note that `nn.batch_matmul` with format other than NT is in experimental, it may have some
+    # performance issues.
+    "use_nt_batch_matmul": True,
 }
 
 # compatible operators that do NOT require any conversion.
@@ -117,7 +123,7 @@ def _in_while_loop(control_flow_node_map, op_name):
     Parameters
     ----------
     control_flow_node_map : Dict[str, Set[str]]
-        A dictionay contains the unique control flow execution frame name to
+        A dictionary contains the unique control flow execution frame name to
         a set of primitive operators mapping.
 
     op_name : str
@@ -139,7 +145,7 @@ class RewriteSubgraph(ExprMutator):
     Parameters
     ----------
     rewrite_map : Dict[expr, expr]
-        A dictionay contains a set of expr to var mapping.
+        A dictionary contains a set of expr to var mapping.
     """
 
     def __init__(self, rewrite_map):
@@ -1023,22 +1029,8 @@ class GraphProto(object):
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
 
-        sym = self._set_span(sym, node_name)
+        sym = set_span(sym, node_name)
 
-        return sym
-
-    @staticmethod
-    def _set_span(sym, node_name):
-        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
-        if isinstance(sym, _expr.Call) and sym.span is None:
-            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
-        elif isinstance(sym, _expr.TupleWrapper):
-            tuple_value = sym.tuple_value
-            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
-                tuple_value = _expr.Call(
-                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
-                )
-                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):
@@ -1214,7 +1206,7 @@ class SubGraphProto(GraphProto):
         return func, self._params
 
 
-def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op=True):
+def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, convert_config=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
@@ -1232,10 +1224,15 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
     outputs : List of output tensor names (Optional)
         if not specified then the last node is assumed as graph output.
 
-    use_dense_op : bool (Optional) = True
-        Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
-        The `nn.dense` op requires the data tensor to be non-transposed and weight tensor to be
-        transposed, may insert extra `transpose` to the original graph.
+    convert_config : Optional[Dict[str, Any]]
+        Default config:
+            use_dense : bool = True
+                Ture to convert `tf.matmul` to `nn.dense`, else to `nn.matmul`.
+                The `nn.dense` op requires the data tensor to be non-transposed and weight tensor
+                to be transposed, may insert extra `transpose` to the original graph.
+            use_nt_batch_matmul : bool = True
+                True to convert `tf.batch_matmul` to `nn.batch_matmul` strict to NT format
+                (transpose_a=False, transpose_b=True).
 
     Returns
     -------
@@ -1246,7 +1243,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None, use_dense_op
         Dict of converted parameters stored in tvm.nd.NDArray format
     """
     global TF_DEFAULT_CONFIGS
-    TF_DEFAULT_CONFIGS["use_dense"] = use_dense_op
+    if convert_config is not None:
+        TF_DEFAULT_CONFIGS.update(convert_config)
 
     g = GraphProto()
     mod, params = g.from_tensorflow(graph, layout, shape, outputs)

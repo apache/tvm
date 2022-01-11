@@ -21,7 +21,7 @@ import os.path
 import logging
 import time
 from copy import deepcopy
-from typing import Optional, Dict, List, Union
+from typing import Any, Optional, Dict, List, Union
 
 from urllib.parse import urlparse
 
@@ -34,10 +34,12 @@ from tvm.autotvm.tuner import RandomTuner
 from tvm.autotvm.tuner import XGBTuner
 from tvm.target import Target
 
-from . import common, composite_target, frontends
-from .common import TVMCException
+from . import TVMCException, composite_target, frontends
 from .main import register_parser
 from .model import TVMCModel
+from .target import target_from_cli, generate_target_args, reconstruct_target_args
+from .shape_parser import parse_shape_string
+from .transform import convert_graph_layout
 
 
 # pylint: disable=invalid-name
@@ -45,7 +47,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers):
+def add_tune_parser(subparsers, _):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
@@ -106,16 +108,14 @@ def add_tune_parser(subparsers):
         help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
         "e.g. '192.168.0.100:9999'",
     )
-    parser.add_argument(
-        "--target",
-        help="compilation target as plain string, inline JSON or path to a JSON file",
-        required=True,
-    )
+
+    generate_target_args(parser)
     parser.add_argument(
         "--target-host",
         help="the host compilation target, defaults to 'llvm'",
         default="llvm",
     )
+
     parser.add_argument("--timeout", type=int, default=10, help="compilation timeout, in seconds")
     parser.add_argument(
         "--trials",
@@ -221,7 +221,7 @@ def add_tune_parser(subparsers):
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
         '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
-        type=common.parse_shape_string,
+        type=parse_shape_string,
     )
 
 
@@ -257,9 +257,7 @@ def drive_tune(args):
         logger.info("RPC tracker port: %s", rpc_port)
 
         if not args.rpc_key:
-            raise common.TVMCException(
-                "need to provide an RPC tracker key (--rpc-key) for remote tuning"
-            )
+            raise TVMCException("need to provide an RPC tracker key (--rpc-key) for remote tuning")
     else:
         rpc_hostname = None
         rpc_port = None
@@ -286,6 +284,7 @@ def drive_tune(args):
         hardware_params=hardware_params,
         include_simple_tasks=args.include_simple_tasks,
         log_estimated_latency=args.log_estimated_latency,
+        additional_target_options=reconstruct_target_args(args),
     )
 
 
@@ -311,6 +310,7 @@ def tune_model(
     hardware_params: Optional[HardwareParams] = None,
     include_simple_tasks: bool = False,
     log_estimated_latency: bool = False,
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]] = None,
 ):
     """Use tuning to automatically optimize the functions in a model.
 
@@ -367,13 +367,15 @@ def tune_model(
         the autoscheduler.
     log_estimated_latency : bool, optional
         If using the autoscheduler, write the estimated latency at each step of tuning to file.
+    additional_target_options: Optional[Dict[str, Dict[str, Any]]]
+        Additional target options in a dictionary to combine with initial Target arguments
 
     Returns
     -------
     tuning_records : str
         The path to the produced tuning log file.
     """
-    target, extra_targets = common.target_from_cli(target)
+    target, extra_targets = target_from_cli(target, additional_target_options)
     target, target_host = Target.check_and_update_host_consist(target, target_host)
     # TODO(jwfromm) Remove this deepcopy once AlterOpLayout bug that mutates source
     # model is fixed. For now, creating a clone avoids the issue.
@@ -396,7 +398,7 @@ def tune_model(
 
     if rpc_key:
         if hostname is None or port is None:
-            raise common.TVMCException(
+            raise TVMCException(
                 "You must provide a hostname and port to connect to a remote RPC device."
             )
         if isinstance(port, str):
@@ -517,7 +519,7 @@ def autotvm_get_tuning_tasks(
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     if alter_layout:
-        mod = common.convert_graph_layout(mod, alter_layout)
+        mod = convert_graph_layout(mod, alter_layout)
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -566,7 +568,7 @@ def autoscheduler_get_tuning_tasks(
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 
     if alter_layout:
-        mod = common.convert_graph_layout(mod, alter_layout)
+        mod = convert_graph_layout(mod, alter_layout)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(

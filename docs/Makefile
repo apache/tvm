@@ -23,15 +23,16 @@ SPHINXOPTS    =
 SPHINXBUILD   = python3 -m sphinx
 PAPER         =
 BUILDDIR      = _build
+STAGINGDIR    = _staging
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
-ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
+ALLSPHINXOPTS   = -d $(PWD)/$(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 # the i18n builder cannot share the environment and doctrees with the others
 I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
-.PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest coverage gettext
+.PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest coverage gettext staging
 
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
@@ -61,44 +62,83 @@ help:
 	@echo "  coverage   to run coverage check of the documentation (if enabled)"
 
 clean:
-	rm -rf $(BUILDDIR)/*
+	rm -rf $(BUILDDIR)
+	rm -rf $(STAGINGDIR)
+
+	# TODO(Lunderberg): Remove these lines once the CI steps have
+	# propagated.
+
+	# Remove folders that have since been relocated into
+	# $(STAGINGDIR).  This allows `task_sphinx_precheck.sh` to
+	# run, even if a commit that predates $(STAGINGDIR) was
+	# previously run on that node.
 	rm -rf gen_modules
+	rm -rf user_tutorials
 	rm -rf tutorials
 	rm -rf vta/tutorials
 
-html:
-	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+staging:
+	# Prepare the staging directory.  Sphinx gallery automatically
+	# writes new .rst files into the current directory.  This can
+	# cause issues when switching branches.  By sequestering the
+	# auto-generated files into the staging directory, they can be
+	# removed without knowing the exact directory.
+
+	mkdir -p $(STAGINGDIR)
+
+	# Remove any symlinks that currently exist
+	find $(STAGINGDIR) -type l -exec rm {} \;
+
+	# Reproduce the directory structure
+	find . \
+	      -path ./$(BUILDDIR) -prune -o -path ./$(STAGINGDIR) -prune -o \
+	      -name "*.rst"  \
+	      -printf "$(STAGINGDIR)/%h\n" \
+              | sort | uniq | xargs mkdir -p
+
+	# Symlink all .rst files into the staging directory
+	find . \
+	      -path ./$(BUILDDIR) -prune -o -path ./$(STAGINGDIR) -prune -o \
+	      -name "*.rst"  \
+	      -exec ln -s $(PWD)/{} $(STAGINGDIR)/{} \;
+
+	ln -s $(PWD)/conf.py $(STAGINGDIR)/conf.py
+	ln -s $(PWD)/_static $(STAGINGDIR)/_static
+
+
+html: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
-dirhtml:
-	$(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(BUILDDIR)/dirhtml
+dirhtml: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/dirhtml
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/dirhtml."
 
-singlehtml:
-	$(SPHINXBUILD) -b singlehtml $(ALLSPHINXOPTS) $(BUILDDIR)/singlehtml
+singlehtml: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b singlehtml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/singlehtml
 	@echo
 	@echo "Build finished. The HTML page is in $(BUILDDIR)/singlehtml."
 
-pickle:
-	$(SPHINXBUILD) -b pickle $(ALLSPHINXOPTS) $(BUILDDIR)/pickle
+pickle: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b pickle $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/pickle
 	@echo
 	@echo "Build finished; now you can process the pickle files."
 
-json:
-	$(SPHINXBUILD) -b json $(ALLSPHINXOPTS) $(BUILDDIR)/json
+json: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b json $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/json
 	@echo
 	@echo "Build finished; now you can process the JSON files."
 
-htmlhelp:
-	$(SPHINXBUILD) -b htmlhelp $(ALLSPHINXOPTS) $(BUILDDIR)/htmlhelp
+htmlhelp: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b htmlhelp $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/htmlhelp
 	@echo
 	@echo "Build finished; now you can run HTML Help Workshop with the" \
 	      ".hhp project file in $(BUILDDIR)/htmlhelp."
 
-qthelp:
-	$(SPHINXBUILD) -b qthelp $(ALLSPHINXOPTS) $(BUILDDIR)/qthelp
+qthelp: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b qthelp $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/qthelp
 	@echo
 	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
 	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
@@ -106,16 +146,16 @@ qthelp:
 	@echo "To view the help file:"
 	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/rabit.qhc"
 
-applehelp:
-	$(SPHINXBUILD) -b applehelp $(ALLSPHINXOPTS) $(BUILDDIR)/applehelp
+applehelp: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b applehelp $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/applehelp
 	@echo
 	@echo "Build finished. The help book is in $(BUILDDIR)/applehelp."
 	@echo "N.B. You won't be able to view it unless you put it in" \
 	      "~/Library/Documentation/Help or install it in your application" \
 	      "bundle."
 
-devhelp:
-	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
+devhelp: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/devhelp
 	@echo
 	@echo "Build finished."
 	@echo "To view the help file:"
@@ -123,85 +163,85 @@ devhelp:
 	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/rabit"
 	@echo "# devhelp"
 
-epub:
-	$(SPHINXBUILD) -b epub $(ALLSPHINXOPTS) $(BUILDDIR)/epub
+epub: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b epub $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/epub
 	@echo
 	@echo "Build finished. The epub file is in $(BUILDDIR)/epub."
 
-latex:
-	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+latex: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/latex
 	@echo
 	@echo "Build finished; the LaTeX files are in $(BUILDDIR)/latex."
 	@echo "Run \`make' in that directory to run these through (pdf)latex" \
 	      "(use \`make latexpdf' here to do that automatically)."
 
-latexpdf:
-	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+latexpdf: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/latex
 	@echo "Running LaTeX files through pdflatex..."
 	$(MAKE) -C $(BUILDDIR)/latex all-pdf
 	@echo "pdflatex finished; the PDF files are in $(BUILDDIR)/latex."
 
-latexpdfja:
-	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+latexpdfja: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/latex
 	@echo "Running LaTeX files through platex and dvipdfmx..."
 	$(MAKE) -C $(BUILDDIR)/latex all-pdf-ja
 	@echo "pdflatex finished; the PDF files are in $(BUILDDIR)/latex."
 
-text:
-	$(SPHINXBUILD) -b text $(ALLSPHINXOPTS) $(BUILDDIR)/text
+text: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b text $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/text
 	@echo
 	@echo "Build finished. The text files are in $(BUILDDIR)/text."
 
-man:
-	$(SPHINXBUILD) -b man $(ALLSPHINXOPTS) $(BUILDDIR)/man
+man: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b man $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/man
 	@echo
 	@echo "Build finished. The manual pages are in $(BUILDDIR)/man."
 
-texinfo:
-	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(BUILDDIR)/texinfo
+texinfo: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/texinfo
 	@echo
 	@echo "Build finished. The Texinfo files are in $(BUILDDIR)/texinfo."
 	@echo "Run \`make' in that directory to run these through makeinfo" \
 	      "(use \`make info' here to do that automatically)."
 
-info:
-	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(BUILDDIR)/texinfo
+info: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/texinfo
 	@echo "Running Texinfo files through makeinfo..."
 	make -C $(BUILDDIR)/texinfo info
 	@echo "makeinfo finished; the Info files are in $(BUILDDIR)/texinfo."
 
-gettext:
-	$(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(BUILDDIR)/locale
+gettext: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(PWD)/$(BUILDDIR)/locale
 	@echo
 	@echo "Build finished. The message catalogs are in $(BUILDDIR)/locale."
 
-changes:
-	$(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) $(BUILDDIR)/changes
+changes: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/changes
 	@echo
 	@echo "The overview file is in $(BUILDDIR)/changes."
 
-linkcheck:
-	$(SPHINXBUILD) -b linkcheck $(ALLSPHINXOPTS) $(BUILDDIR)/linkcheck
+linkcheck: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b linkcheck $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/linkcheck
 	@echo
 	@echo "Link check complete; look for any errors in the above output " \
 	      "or in $(BUILDDIR)/linkcheck/output.txt."
 
-doctest:
-	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDDIR)/doctest
+doctest: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/doctest
 	@echo "Testing of doctests in the sources finished, look at the " \
 	      "results in $(BUILDDIR)/doctest/output.txt."
 
-coverage:
-	$(SPHINXBUILD) -b coverage $(ALLSPHINXOPTS) $(BUILDDIR)/coverage
+coverage: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b coverage $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/coverage
 	@echo "Testing of coverage in the sources finished, look at the " \
 	      "results in $(BUILDDIR)/coverage/python.txt."
 
-xml:
-	$(SPHINXBUILD) -b xml $(ALLSPHINXOPTS) $(BUILDDIR)/xml
+xml: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b xml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/xml
 	@echo
 	@echo "Build finished. The XML files are in $(BUILDDIR)/xml."
 
-pseudoxml:
-	$(SPHINXBUILD) -b pseudoxml $(ALLSPHINXOPTS) $(BUILDDIR)/pseudoxml
+pseudoxml: staging
+	cd $(STAGINGDIR) && $(SPHINXBUILD) -b pseudoxml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/pseudoxml
 	@echo
 	@echo "Build finished. The pseudo-XML files are in $(BUILDDIR)/pseudoxml."

@@ -26,7 +26,6 @@ import numpy as np
 
 # Global declarations of environment.
 
-tgt_host = "llvm"
 tgt = "llvm"
 
 ######################################################################
@@ -45,7 +44,7 @@ s = te.create_schedule(C.op)
 ######################################################################
 # Compilation
 # -----------
-fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+fadd = tvm.build(s, [A, B, C], tgt, name="myadd")
 
 ######################################################################
 # Save Compiled Module

@@ -19,7 +19,7 @@
 .PHONY: all \
         runtime vta cpptest crttest \
         lint pylint cpplint scalalint \
-	doc \
+	cppdoc docs \
 	web webclean \
 	cython cython3 cyclean \
         clean
@@ -81,7 +81,7 @@ FORCE:
 CMAKE_TARGETS = all runtime vta cpptest crttest
 
 define GEN_CMAKE_RULE
-%/$(CMAKE_TARGET): %/CMakeCache.txt
+%/$(CMAKE_TARGET): %/CMakeCache.txt FORCE
 	@$$(MAKE) -C $$(@D) $(CMAKE_TARGET)
 endef
 $(foreach CMAKE_TARGET,$(CMAKE_TARGETS),$(eval $(GEN_CMAKE_RULE)))
@@ -114,7 +114,7 @@ scalalint:
 mypy:
 	tests/scripts/task_mypy.sh
 
-doc:
+cppdoc:
 	doxygen docs/Doxyfile
 
 
@@ -175,3 +175,6 @@ jvminstall:
 
 # Final cleanup rules, delegate to more specific rules.
 clean: cmake_clean cyclean webclean
+
+docs:
+	python3 tests/scripts/ci.py docs

@@ -17,7 +17,7 @@
 """Test index based tuners"""
 
 import multiprocessing
-from test_autotvm_common import DummyRunner, get_sample_task
+from tvm.testing.autotvm import DummyRunner, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.tuner import GridSearchTuner, RandomTuner
 

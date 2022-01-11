@@ -92,7 +92,7 @@ def test_threefry_sequential_generate_remaining(target, dev):
     ).evaluate()()
 
     assert (
-        out1.asnumpy()[-3:] != out2.asnumpy()[-3:]
+        out1.numpy()[-3:] != out2.numpy()[-3:]
     ).any(), "Sequential generates should not have the same output"
 
 
@@ -166,7 +166,6 @@ def test_threefry_generate_out_size():
 
 
 if __name__ == "__main__":
-    test_threefry_repeatability(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_threefry_split(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_threefry_sequential_generate(tvm.target.Target("llvm"), tvm.device("cpu"))
-    test_threefry_sequential_generate_remaining(tvm.target.Target("llvm"), tvm.device("cpu"))
+    import sys
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

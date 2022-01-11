@@ -28,8 +28,8 @@ cleanup()
 trap cleanup 0
 
 # cleanup cache
-rm -rf docs/tutorials
-rm -rf docs/vta/tutorials
+rm -rf docs/_staging
+rm -rf docs/_build
 find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
@@ -38,7 +38,7 @@ cd docs
 make clean
 TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
 
-grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|403|git describe|scikit-learn version" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
+grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|coremltools|403|git describe|scikit-learn version" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
 echo "---------Sphinx Log----------"
 cat /tmp/$$.logclean.txt
 echo "-----------------------------"

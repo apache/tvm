@@ -451,6 +451,23 @@ static inline Array<Integer> ToVector(const runtime::NDArray& array) {
 }
 
 /*!
+ * \brief Convert a NDArray with type int or float to Array<FloatImm>.
+ * \param array Input NDArray
+ * \return Converted Array.
+ */
+static inline Array<FloatImm> ToFloatVector(const runtime::NDArray& array) {
+  size_t ndim = array.Shape().size();
+  ICHECK_EQ(ndim, 1) << "This function should only be used for 1D NDArrays";
+  size_t len = array.Shape().front();
+  Array<FloatImm> out;
+  for (size_t i = 0; i < len; ++i) {
+    long double elem_val = ToScalar(array, i);
+    out.push_back(FloatImm(DataType::Float(32), static_cast<float>(elem_val)));
+  }
+  return out;
+}
+
+/*!
  * \brief Convert a NDArray with type int or float to Array<Array<Integer>>.
  * \param array Input NDArray
  * \return Converted Array.
@@ -676,9 +693,10 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
                              Array<IndexExpr> dilation, Array<IndexExpr> padding,
-                             std::string layout, bool ceil_mode, bool count_include_pad) {
-  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout, ceil_mode,
-                                     count_include_pad, "nn.avg_pool2d");
+                             std::string layout, std::string out_layout, bool ceil_mode,
+                             bool count_include_pad) {
+  return MakeAvgPool<AvgPool2DAttrs>(data, pool_size, strides, dilation, padding, layout,
+                                     out_layout, ceil_mode, count_include_pad, "nn.avg_pool2d");
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, Expr pad_value,
@@ -695,10 +713,6 @@ static inline Expr Tile(Expr data, Array<Integer> reps) { return MakeTile(data, 
 static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
   return MakeBroadCastTo(data, CheckConstantShapeArrayInteger(shape));
 }
-
-Expr StopFusion(Expr data);
-
-Expr CastHint(Expr data, DataType dtype);
 
 }  // namespace relay
 }  // namespace tvm

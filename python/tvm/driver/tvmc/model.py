@@ -46,21 +46,22 @@ and finally run.
 import os
 import tarfile
 import json
-from typing import Optional, Union, List, Dict, Callable, TextIO
+from typing import Optional, Union, Dict, Callable, TextIO
+from pathlib import Path
 import numpy as np
 
 import tvm
 import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
+from tvm.driver.tvmc import TVMCException
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
+from tvm.runtime.module import BenchmarkResult
 
 try:
     from tvm.micro import export_model_library_format
 except ImportError:
     export_model_library_format = None
-
-from .common import TVMCException
 
 
 class TVMCModel(object):
@@ -257,7 +258,7 @@ class TVMCModel(object):
         Parameters
         ----------
         executor_factory : GraphExecutorFactoryModule
-            The factory containing compiled the compiled artifacts needed to run this model.
+            The factory containing the compiled artifacts needed to run this model.
         package_path : str, None
             Where the model should be saved. Note that it will be packaged as a .tar file.
             If not provided, the package will be saved to a generically named file in tmp.
@@ -310,12 +311,19 @@ class TVMCPackage(object):
     ----------
     package_path : str
         The path to the saved TVMCPackage that will be loaded.
+
+    project_dir : Path, str
+        If given and loading a MLF file, the path to the project directory that contains the file.
     """
 
-    def __init__(self, package_path: str):
+    def __init__(self, package_path: str, project_dir: Optional[Union[Path, str]] = None):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.import_package(self.package_path)
+
+        if project_dir and self.type != "mlf":
+            raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
+        self.project_dir = project_dir
 
     def import_package(self, package_path: str):
         """Load a TVMCPackage from a previously exported TVMCModel.
@@ -336,8 +344,8 @@ class TVMCPackage(object):
             with open(temp.relpath("metadata.json")) as metadata_json:
                 metadata = json.load(metadata_json)
 
-            is_graph_runtime = "graph" in metadata["runtimes"]
-            graph = temp.relpath("runtime-config/graph/graph.json") if is_graph_runtime else None
+            has_graph_executor = "graph" in metadata["executors"]
+            graph = temp.relpath("executor-config/graph/graph.json") if has_graph_executor else None
             params = temp.relpath("parameters/default.params")
 
             self.type = "mlf"
@@ -371,14 +379,14 @@ class TVMCPackage(object):
 class TVMCResult(object):
     """A class that stores the results of tvmc.run and provides helper utilities."""
 
-    def __init__(self, outputs: Dict[str, np.ndarray], times: List[str]):
+    def __init__(self, outputs: Dict[str, np.ndarray], times: BenchmarkResult):
         """Create a convenience wrapper around the output of tvmc.run
 
         Parameters
         ----------
         outputs : dict
             Outputs dictionary mapping the name of the output to its numpy value.
-        times : list of float
+        times : BenchmarkResult
             The execution times measured by the time evaluator in seconds to produce outputs.
         """
         self.outputs = outputs
@@ -390,29 +398,15 @@ class TVMCResult(object):
         This has the effect of producing a small table that looks like:
         .. code-block::
             Execution time summary:
-            mean (ms)   max (ms)    min (ms)    std (ms)
-            0.14310    0.16161    0.12933    0.01004
+            mean (ms)  median (ms) max (ms)    min (ms)    std (ms)
+            0.14310      0.14310   0.16161     0.12933    0.01004
 
         Returns
         -------
         str
             A formatted string containing the statistics.
         """
-
-        # timestamps
-        mean_ts = np.mean(self.times) * 1000
-        std_ts = np.std(self.times) * 1000
-        max_ts = np.max(self.times) * 1000
-        min_ts = np.min(self.times) * 1000
-
-        header = "Execution time summary:\n{0:^10} {1:^10} {2:^10} {3:^10}".format(
-            "mean (ms)", "max (ms)", "min (ms)", "std (ms)"
-        )
-        stats = "{0:^10.2f} {1:^10.2f} {2:^10.2f} {3:^10.2f}".format(
-            mean_ts, max_ts, min_ts, std_ts
-        )
-
-        return "%s\n%s\n" % (header, stats)
+        return str(self.times)
 
     def get_output(self, name: str):
         """A helper function to grab one of the outputs by name.

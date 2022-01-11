@@ -199,11 +199,10 @@ def _run_tvm(data, proto_file, blob_file):
     mod, params = relay.frontend.from_caffe(init_net, predict_net, shape_dict, dtype_dict)
 
     target = "llvm"
-    target_host = "llvm"
 
     dev = tvm.cpu(0)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relay.build(mod, target=target, target_host=target_host, params=params)
+        lib = relay.build(mod, target=target, params=params)
     dtype = "float32"
     m = graph_executor.GraphModule(lib["default"](dev))
     if isinstance(data, (tuple, list)):
@@ -761,6 +760,94 @@ def test_forward_TanH():
     _test_tanh(np.random.rand(3, 10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10).astype(np.float32))
+
+
+#######################################################################
+# Embed
+# -----------
+
+
+def _test_embed(data, **kwargs):
+    """One iteration of Embed"""
+    _test_op(data, L.Embed, "Embed", **kwargs)
+
+
+def test_forward_Embed():
+    k = 20
+    data = [i for i in range(k)]
+    np.random.shuffle(data)
+    # dimension is 1
+    data = np.asarray(data)
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 2
+    data = np.reshape(data, [4, 5])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 3
+    data = np.reshape(data, [2, 2, 5])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    # dimension is 4
+    data = np.reshape(data, [2, 2, 5, 1])
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=True,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
+    _test_embed(
+        data,
+        num_output=30,
+        input_dim=k,
+        bias_term=False,
+        weight_filler=dict(type="xavier"),
+        bias_filler=dict(type="xavier"),
+    )
 
 
 #######################################################################

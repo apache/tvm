@@ -67,7 +67,8 @@ class TensorToBufferMapper : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     auto ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-    if (op->attr_key == tir::attr::double_buffer_scope) {
+    if (op->attr_key == tir::attr::double_buffer_scope ||
+        op->attr_key == tir::attr::rolling_buffer_scope) {
       Stmt body = op->body;
       Operation operation = Downcast<Operation>(op->node);
       for (int i = operation->num_outputs(); i != 0; --i) {
@@ -170,7 +171,9 @@ PrimFunc SchedulePostProcToPrimFunc(Array<ObjectRef> arg_list, Stmt body,
   }
 
   body = TensorToBufferMapper(std::move(extern_buffer))(std::move(body));
-  return tir::PrimFunc(params, body, VoidType(), buffer_map);
+  // We mark this PrimFunc as coming from a TE schedule
+  return WithAttr(tir::PrimFunc(params, body, VoidType(), buffer_map), "from_legacy_te_schedule",
+                  Bool(true));
 }
 
 TVM_REGISTER_GLOBAL("schedule.SchedulePostProcToPrimFunc")

@@ -590,11 +590,59 @@ def batch_matmul_grad(orig, grad):
            GRAD_OUT_bij,LHS_bik->GRAD_IN_RHS_bjk
     """
     lhs, rhs = orig.args
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, True):
+        # ki,   jk  ->  ij
+        # jk,   ij  ->  ki
+        # ij,   ki  ->  jk
+        return [
+            collapse_sum_like(_nn.batch_matmul(rhs, grad, transpose_a=True, transpose_b=True), lhs),
+            collapse_sum_like(_nn.batch_matmul(grad, lhs, transpose_a=True, transpose_b=True), rhs),
+        ]
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (True, False):
+        # ki,   kj  ->  ij
+        # kj,   ij  ->  ki
+        # ki,   ij  ->  kj
+        return [
+            collapse_sum_like(
+                _nn.batch_matmul(rhs, grad, transpose_a=False, transpose_b=True), lhs
+            ),
+            collapse_sum_like(
+                _nn.batch_matmul(lhs, grad, transpose_a=False, transpose_b=False), rhs
+            ),
+        ]
+    if (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, True):
+        # ik,   jk  ->  ij
+        # ij,   jk  ->  ik
+        # ij,   ik  ->  jk
+        # Keep using NT format batch_matmul here for not involving extra ops
+        # TODO(jcf94): Merge all to normal batch_matmul when it is finally ready
+        return [
+            collapse_sum_like(
+                _nn.batch_matmul(
+                    grad,
+                    transpose(rhs, [0, 2, 1]),
+                    transpose_a=False,
+                    transpose_b=True,
+                ),
+                lhs,
+            ),
+            collapse_sum_like(
+                _nn.batch_matmul(
+                    transpose(grad, [0, 2, 1]),
+                    transpose(lhs, [0, 2, 1]),
+                    transpose_a=False,
+                    transpose_b=True,
+                ),
+                rhs,
+            ),
+        ]
+    # (orig.attrs["transpose_a"], orig.attrs["transpose_b"]) == (False, False)
+    # ik,   kj  ->  ij
+    # ij,   kj  ->  ik
+    # ik,   ij  ->  kj
     return [
-        collapse_sum_like(_nn.batch_matmul(grad, transpose(rhs, [0, 2, 1])), lhs),
-        collapse_sum_like(
-            _nn.batch_matmul(transpose(grad, [0, 2, 1]), transpose(lhs, [0, 2, 1])), rhs
-        ),
+        collapse_sum_like(_nn.batch_matmul(grad, rhs, transpose_a=False, transpose_b=True), lhs),
+        collapse_sum_like(_nn.batch_matmul(lhs, grad, transpose_a=True, transpose_b=False), rhs),
     ]
 
 

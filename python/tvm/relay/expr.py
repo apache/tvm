@@ -316,10 +316,13 @@ class TupleGetItem(ExprWithOp):
 
     index: int
         The index.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
 
-    def __init__(self, tuple_value, index):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
+    def __init__(self, tuple_value, index, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
 
 
 @tvm._ffi.register_object("relay.RefCreate")
@@ -549,6 +552,9 @@ class StorageInfo(Node):
     type of the "virtual devices" the expressions are stored on,
     and the sizes of each storage element."""
 
+    def __init__(self, sids, dev_types, sizes):
+        self.__init_handle_by_constructor__(_ffi_api.StorageInfo, sids, dev_types, sizes)
+
     @property
     def storage_ids(self):
         return _ffi_api.StorageInfoStorageIds(self)
@@ -560,3 +566,13 @@ class StorageInfo(Node):
     @property
     def storage_sizes(self):
         return _ffi_api.StorageInfoStorageSizes(self)
+
+
+@tvm._ffi.register_object("relay.StaticMemoryPlan")
+class StaticMemoryPlan(Node):
+    """StaticMemoryPlan
+
+    The result of static memory planning."""
+
+    def __init__(self, expr_to_storage_info):
+        self.__init_handle_by_constructor__(_ffi_api.StaticMemoryPlan, expr_to_storage_info)

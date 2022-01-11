@@ -47,11 +47,11 @@ def run_onnx(onnx_model, input_data):
     return res
 
 
-def run_relay(func, data_tuple):
+def run_relay(func, data_tuple, is_dyn=False):
     target = "llvm"
     dev = tvm.device("llvm", 0)
-    intrp = relay.create_executor("graph", device=dev, target=target)
-    relay_res = intrp.evaluate(func)(*data_tuple)
+    kind = "graph" if not is_dyn else "vm"
+    relay_res = relay.create_executor(kind, device=dev, target=target).evaluate(func)(*data_tuple)
 
     result = []
     relay_res = relay_res if isinstance(relay_res, list) else [relay_res]
@@ -61,8 +61,8 @@ def run_relay(func, data_tuple):
     return result
 
 
-def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0):
-    relay_results = run_relay(relay_func, indata)
+def verify_results(relay_func, indata, test_name, rtol=1e-7, atol=0, is_dyn=False):
+    relay_results = run_relay(relay_func, indata, is_dyn)
     onnx_results = run_onnx(func_to_onnx(relay_func, test_name), indata)
 
     for relay_res, onnx_res in zip(relay_results, onnx_results):
@@ -110,7 +110,7 @@ def test_conv2d():
         func = relay.Function([x, w], y)
         data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
         kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-        verify_results(func, [data, kernel], "test_conv2d", rtol=1e-5, atol=1e-5)
+        verify_results(func, [data, kernel], "test_conv2d", rtol=1e-5, atol=1e-5, is_dyn=True)
 
     dshape = (1, 32, 18, 18)
     kshape = (32, 1, 3, 3)
@@ -655,6 +655,71 @@ def test_cast():
             verify_cast(i, o_dtype)
 
 
+def test_resize():
+    """Resize unit test."""
+
+    def verify_resize(dshape, outsize, method, coord_trans, rounding_method, dtype="float32"):
+        x = relay.var("x", relay.ty.TensorType(dshape, dtype))
+        y = relay.image.resize2d(
+            x,
+            outsize,
+            None,
+            layout="NCHW",
+            method=method,
+            coordinate_transformation_mode=coord_trans,
+            rounding_method=rounding_method,
+        )
+        func = relay.Function([x], y)
+        x_data = np.random.uniform(size=dshape).astype(dtype)
+        verify_results(func, [x_data], "test_resize", rtol=1e-4, atol=1e-4)
+
+    method = ["nearest_neighbor", "linear", "cubic"]
+    coord_trans = ["half_pixel", "align_corners", "asymmetric"]
+    rounding_method = ["round", "floor", "ceil"]
+
+    isize = (1, 3, 480, 640)
+
+    # Downsample
+    osize = (240, 320)
+    for i in method:
+        for j in coord_trans:
+            for k in rounding_method:
+                if (i == "nearest_neighbor" and j == "align_corners") or (
+                    i == "cubic" and j in ["half_pixel", "align_corners"]
+                ):
+                    continue
+                verify_resize(isize, osize, method=i, coord_trans=j, rounding_method=k)
+
+    # Upsample
+    osize = (960, 1280)
+    for i in method:
+        for j in coord_trans:
+            for k in rounding_method:
+                if (i == "nearest_neighbor" and j == "align_corners") or (i == "cubic"):
+                    continue
+                verify_resize(isize, osize, method=i, coord_trans=j, rounding_method=k)
+
+
+def test_dyn():
+    """Dynamic unit test."""
+
+    def verify_dyn_bcast(lhs_shape, rhs_shape, dtype):
+        lhs_dyn_shape = tuple(relay.Any() for i in range(len(lhs_shape)))
+        rhs_dyn_shape = tuple(relay.Any() for i in range(len(rhs_shape)))
+        x = relay.var("x", shape=lhs_dyn_shape, dtype=dtype)
+        y = relay.var("y", shape=rhs_dyn_shape, dtype=dtype)
+        z = relay.add(x, y)
+        func = relay.Function([x, y], z)
+        lhs_data = np.random.uniform(size=lhs_shape).astype(dtype)
+        rhs_data = np.random.uniform(size=rhs_shape).astype(dtype)
+        verify_results(
+            func, [lhs_data, rhs_data], "test_dyn_bcast", rtol=1e-5, atol=1e-5, is_dyn=True
+        )
+
+    verify_dyn_bcast((1, 3, 32, 1), (1, 3, 1, 3), "float32")
+    verify_dyn_bcast((1, 13), (4, 3, 5, 1), "float32")
+
+
 if __name__ == "__main__":
     test_add()
     test_bias_add()
@@ -684,3 +749,5 @@ if __name__ == "__main__":
     test_copy()
     test_round()
     test_cast()
+    test_resize()
+    test_dyn()

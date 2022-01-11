@@ -38,6 +38,7 @@
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/transform.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -288,6 +289,11 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     ICHECK(types[0].as<IncompleteTypeNode>())
         << "cast: expect input type to be TupleType but get " << types[0];
     return false;
+  }
+  for (auto field : tensor_tuple->fields) {
+    if (field.as<IncompleteTypeNode>()) {
+      return false;
+    }
   }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
@@ -699,9 +705,17 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     data_shape_sum *= Downcast<tvm::Integer>(x)->value;
   }
-  if (!found_dynamic) {
+  if (!found_dynamic && oshape_sum != data_shape_sum) {
+    std::ostringstream oshape_str, data_shape_str;
+    for (auto iter = oshape.begin(); iter != oshape.end(); iter++) {
+      oshape_str << (iter != oshape.begin() ? "," : "") << *iter;
+    }
+    for (auto iter = data_shape.begin(); iter != data_shape.end(); iter++) {
+      data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
+    }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape and reshaped shape are not compatible";
+        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
+        << data_shape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
@@ -2599,24 +2613,19 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
         params->strides = new_strides;
         layout = new_layout;
       }
-    } else {
+    } else if (old_layout_name.size() <
+               new_layout_name.size()) {  // prohibit transforms such as NCHW4c -> NCHW
       if (params->axes) {
         auto axes = params->axes.value();
         Array<Integer> new_axes;
-
         for (size_t i = 0; i < axes.size(); ++i) {
           auto old_idx = axes[i];
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
           const LayoutAxis& axis = layout[old_idx];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
-
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
-
           if (factor == -1) {
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
@@ -2636,10 +2645,7 @@ InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
       } else {
         for (size_t i = 0; i < begin.size(); i++) {
           const LayoutAxis& axis = layout[i];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return out_default;
-          }
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
             new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
@@ -2829,15 +2835,18 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
-    auto indices = Downcast<Array<ObjectRef>>(param->indices_or_sections);
+    Array<IndexExpr> indices;
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
+    }
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
-      ICHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
+      ICHECK(reporter->Assert(indices[i] > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
-      begin = Downcast<IndexExpr>(indices[i]);
+      oshape[axis] = indices[i] - begin;
+      begin = indices[i];
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -3257,8 +3266,10 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   oshape.reserve(ndim_data);
   for (size_t i = 0; i < ndim_data; ++i) {
     if (i == static_cast<size_t>(axis)) {
-      const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
-      ICHECK_GE(*indice_shape_i, 1);
+      if (indices->shape[i].as<IntImmNode>()) {
+        const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
+        ICHECK_GE(*indice_shape_i, 1);
+      }
     } else {
       ICHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
     }

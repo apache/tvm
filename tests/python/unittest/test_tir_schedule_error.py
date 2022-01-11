@@ -15,25 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
+import sys
+
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
-
+from tvm.script import tir as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, [128, 128])
-    B = tir.match_buffer(b, [128, 128])
-    C = tir.match_buffer(c, [128, 128])
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "init") as [vi, vj]:
-            C[vi, vj] = tir.float32(0)
-        for k in range(0, 128):
-            with tir.block([128, 128, tir.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+@T.prim_func
+def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, [128, 128])
+    B = T.match_buffer(b, [128, 128])
+    C = T.match_buffer(c, [128, 128])
+    for i, j in T.grid(128, 128):
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = T.float32(0)
+        for k in range(128):
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -41,7 +44,7 @@ def matmul(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
 
 
 def test_tir_schedule_error_detail():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="detail")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="detail")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -49,7 +52,7 @@ def test_tir_schedule_error_detail():
 
 
 def test_tir_schedule_error_fast():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="fast")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="fast")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -57,7 +60,7 @@ def test_tir_schedule_error_fast():
 
 
 def test_tir_schedule_error_none():
-    sch = tir.Schedule(matmul, debug_mode=True, error_render_level="none")
+    sch = tir.Schedule(matmul, debug_mask="all", error_render_level="none")
     with pytest.raises(tir.ScheduleError) as excinfo:
         sch.get_block("wrong_name")
     (msg,) = excinfo.value.args
@@ -65,6 +68,4 @@ def test_tir_schedule_error_none():
 
 
 if __name__ == "__main__":
-    test_tir_schedule_error_detail()
-    test_tir_schedule_error_fast()
-    test_tir_schedule_error_none()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -82,7 +82,7 @@ impl Module {
             return Err(errors::Error::NullHandle(name.into_string()?.to_string()));
         }
 
-        Ok(Function::new(fhandle))
+        Ok(Function::from_raw(fhandle))
     }
 
     /// Imports a dependent module such as `.ptx` for cuda gpu.

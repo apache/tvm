@@ -53,8 +53,7 @@ class UpdatePointerStorageScopeAllReduce final : public UpdatePointerStorageScop
         // use volatile access to shared buffer.
         body = AttrStmt(remapped, attr::volatile_scope, 1, body);
       }
-      body = Allocate(remapped, op->dtype, op->extents, op->condition, body);
-      return AttrStmt(remapped, attr::storage_scope, StringImm(new_scope), body);
+      return Allocate(remapped, op->dtype, op->extents, op->condition, body);
     }
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -71,15 +70,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Stmt ret = StmtExprMutator::VisitStmt_(op);
       thread_extents_.pop_back();
       return ret;
-    } else if (op->attr_key == attr::storage_scope) {
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
-      op = ret.as<AttrStmtNode>();
-      const VarNode* v = op->node.as<VarNode>();
-      if (alloc_remap_.count(v)) {
-        return op->body;
-      } else {
-        return ret;
-      }
     } else if (op->attr_key == attr::reduce_scope) {
       const CommReducerNode* combiner = op->node.as<CommReducerNode>();
       ICHECK(combiner);
@@ -126,6 +116,17 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return it->second;
     } else {
       return StmtExprMutator::VisitExpr_(op);
+    }
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    auto it = store_remap_.find(op->buffer_var.get());
+    if (it != store_remap_.end()) {
+      ICHECK(is_zero(op->index));
+      auto value = StmtExprMutator::VisitExpr(op->value);
+      return Store(it->second, value, 0, op->predicate);
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
@@ -338,6 +339,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         PrimExpr pred = const_true(types[i].lanes());
         Var var = shared_bufs[i];
         load_remap_[buffers[i]] = Load(types[i], var, index, pred);
+        store_remap_[buffers[i]] = var;
         Array<PrimExpr> extents{PrimExpr(1)};
         auto node = Allocate(var, types[i], extents, pred, Evaluate(0));
         alloc_remap_[buffers[i]] = node;
@@ -380,6 +382,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         alloc_remap_[buffers[idx]] =
             Allocate(shared_bufs[idx], types[idx],
                      {PrimExpr(group_extent), PrimExpr(reduce_extent)}, pred, Evaluate(0));
+        store_remap_[buffers[idx]] = shared_bufs[idx];
       }
     }
 
@@ -597,6 +600,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::vector<const CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
+  // The store remap
+  std::unordered_map<const VarNode*, Var> store_remap_;
   // Allocate remap
   std::unordered_map<const VarNode*, Stmt> alloc_remap_;
   // Allocate from warp reductions

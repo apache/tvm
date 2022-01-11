@@ -321,7 +321,7 @@ void MicroGraphExecutor::SetupStorage() {
 }
 
 std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& param,
-                                  const DynArray<DLTensor>& args, size_t num_inputs) {
+                                  const DynArray<DLTensor>& args) {
   typedef union {
     void* v_handle;
   } TVMValue;
@@ -359,6 +359,7 @@ std::function<void()> CreateTVMOp(const DSOModule& module, const TVMOpParam& par
   if (param.func_name == "__nop") {
     return []() {};
   } else if (param.func_name == "__copy") {
+    // TODO(mbs): device_copy cleanup.
     assert(false);
   }
 
@@ -389,7 +390,7 @@ void MicroGraphExecutor::SetupOpExecs() {
       args[index + inode.inputs.size()] = data_entry_[eid].ToDLTensor();
     }
     assert(inode.op_type == "tvm_op");
-    op_execs_[nid] = CreateTVMOp(*module_, inode.param, args, inode.inputs.size());
+    op_execs_[nid] = CreateTVMOp(*module_, inode.param, args);
   }
 }
 
