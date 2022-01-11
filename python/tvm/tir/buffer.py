@@ -143,6 +143,16 @@ class Buffer(Object):
         """
         return _ffi_api.BufferStorageScope(self)  # type: ignore
 
+    def get_flattened_buffer(self):
+        """Generate a Buffer that is a flattened version of this buffer.
+
+        Returns
+        -------
+        flattened : Buffer
+            The corresponding flat buffer.
+        """
+        return _ffi_api.BufferGetFlattenedBuffer(self)  # type: ignore
+
 
 def decl_buffer(
     shape,

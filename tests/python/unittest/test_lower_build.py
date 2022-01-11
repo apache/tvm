@@ -56,9 +56,9 @@ class LoweredModule:
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "from_legacy_te_schedule": True, "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        A = T.match_buffer(a, [128, 128], flatten_buffer=True)
+        B = T.match_buffer(b, [128, 128], flatten_buffer=True)
+        C = T.match_buffer(c, [128, 128], flatten_buffer=True)
         # body
         for x, y in T.grid(128, 128):
             C.data[x * 128 + y] = 0.0
@@ -74,9 +74,9 @@ class LoweredTIRModule:
     def main(a: T.handle, b: T.handle, c: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        A = T.match_buffer(a, [128, 128])
-        B = T.match_buffer(b, [128, 128])
-        C = T.match_buffer(c, [128, 128])
+        A = T.match_buffer(a, [128, 128], flatten_buffer=True)
+        B = T.match_buffer(b, [128, 128], flatten_buffer=True)
+        C = T.match_buffer(c, [128, 128], flatten_buffer=True)
         # body
         for x, y in T.grid(128, 128):
             C.data[x * 128 + y] = 0.0

@@ -218,12 +218,14 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
       continue;
     }
 
-    auto it = func_ptr->buffer_map.find(param);
-    if (it != func_ptr->buffer_map.end()) {
-      buffer_def.emplace_back(v_arg, (*it).second);
+    if (func_ptr->preflattened_buffer_map.count(param)) {
+      buffer_def.emplace_back(v_arg, func_ptr->preflattened_buffer_map[param]);
+    } else if (func_ptr->buffer_map.count(param)) {
+      buffer_def.emplace_back(v_arg, func_ptr->buffer_map[param]);
     } else {
       var_def.emplace_back(v_arg, param);
     }
+
     if (i < num_packed_args) {
       // Value loads
       seq_init.emplace_back(LetStmt(v_arg, f_arg_value(v_arg.dtype(), i), nop));

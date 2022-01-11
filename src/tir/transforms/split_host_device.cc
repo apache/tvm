@@ -179,12 +179,6 @@ class VarUseDefAnalysis : public StmtExprMutator {
 
     visit_arr(buffer->shape);
     visit_arr(buffer->strides);
-    if (buffer->pre_flattened_shape) {
-      visit_arr(buffer->pre_flattened_shape.value());
-    }
-    if (buffer->pre_flattened_strides) {
-      visit_arr(buffer->pre_flattened_strides.value());
-    }
   }
 
   void HandleDef(const VarNode* v) {

@@ -378,19 +378,8 @@ Buffer Buffer::GetFlattenedBuffer() const {
     output_axis_separators.push_back(IntImm(dtype, i + 1));
   }
 
-  // If a flattening pass is called multiple times, then the
-  // pre-flattened shape/strides should be from before the first
-  // application of the pass.
-  auto pre_flattened_shape = (*this)->pre_flattened_shape.value_or(self->shape);
-  auto pre_flattened_strides = (*this)->pre_flattened_strides.value_or(self->strides);
-  auto pre_flattened_dtype =
-      (*this)->pre_flattened_dtype == DataType::Void() ? self->dtype : (*this)->pre_flattened_dtype;
-
   Buffer output = *this;
   auto writer = output.CopyOnWrite();
-  writer->pre_flattened_dtype = pre_flattened_dtype;
-  writer->pre_flattened_shape = pre_flattened_shape;
-  writer->pre_flattened_strides = pre_flattened_strides;
   writer->shape = output_shape;
   writer->axis_separators = output_axis_separators;
   writer->strides = {};
@@ -533,7 +522,6 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
-  n->pre_flattened_dtype = DataType::Void();
 
   n->shape = std::move(shape);
   n->strides = std::move(strides);

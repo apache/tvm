@@ -62,45 +62,6 @@ class BufferNode : public Object {
    * generators.
    */
   Array<PrimExpr> shape;
-  /*! \brief The shape of the buffer prior to flattening
-   *
-   * This contains the shape as it exists prior to flattening, and is
-   * used for validating the shape of the tensor passed into the
-   * packed API.
-   *
-   * TODO(Lunderberg): Should this be a reference to the entire
-   * pre-flattened Buffer instead of just the shape?  That would also
-   * allow the PackedFunc to know how ArgBinder::BindDLTensor (called
-   * from MakePackedAPI) to know how the tensor should be flattened as
-   * it is being transferred from the device.
-   */
-  DataType pre_flattened_dtype;
-  /*! \brief The shape of the buffer prior to flattening
-   *
-   * This contains the shape as it exists prior to flattening, and is
-   * used for validating the shape of the tensor passed into the
-   * packed API.
-   *
-   * TODO(Lunderberg): Should this be a reference to the entire
-   * pre-flattened Buffer instead of just the shape?  That would also
-   * allow the PackedFunc to know how ArgBinder::BindDLTensor (called
-   * from MakePackedAPI) to know how the tensor should be flattened as
-   * it is being transferred from the device.
-   */
-  Optional<Array<PrimExpr>> pre_flattened_shape;
-  /*! \brief The strides of the buffer prior to flattening
-   *
-   * This contains the strides as they exists prior to flattening, and
-   * is used for validating an input tensor passed into the packed
-   * API.
-   *
-   * TODO(Lunderberg): Should this be a reference to the entire
-   * pre-flattened Buffer instead of just the strides?  That would
-   * also allow the PackedFunc to know how ArgBinder::BindDLTensor
-   * (called from MakePackedAPI) to know how the tensor should be
-   * flattened as it is being transferred from the device.
-   */
-  Optional<Array<PrimExpr>> pre_flattened_strides;
   /*!
    * \brief Separators between input axes when generating flattened output axes
    *
@@ -141,9 +102,6 @@ class BufferNode : public Object {
     v->Visit("data", &data);
     v->Visit("dtype", &dtype);
     v->Visit("shape", &shape);
-    v->Visit("pre_flattened_type", &pre_flattened_dtype);
-    v->Visit("pre_flattened_shape", &pre_flattened_shape);
-    v->Visit("pre_flattened_strides", &pre_flattened_strides);
     v->Visit("strides", &strides);
     v->Visit("axis_separators", &axis_separators);
     v->Visit("elem_offset", &elem_offset);
@@ -155,14 +113,16 @@ class BufferNode : public Object {
   }
 
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
-    // Use DefEqual as buffer can define variables
-    // in its semantics, skip name as name is not important.
+    // Use DefEqual as buffer can define variables in its semantics,
+    // skip name as name is not important.
+
+    // The pre-flattened information is only used for type-checking,
+    // and doesn't represent a different computation.
+    //
+    // TODO(Lunderberg): Move the pre-flattened buffer information
+    // into the PrimFunc's buffer_map.
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
-           equal.DefEqual(shape, other->shape) &&
-           equal(pre_flattened_dtype, other->pre_flattened_dtype) &&
-           equal.DefEqual(pre_flattened_shape, other->pre_flattened_shape) &&
-           equal.DefEqual(pre_flattened_strides, other->pre_flattened_strides) &&
-           equal.DefEqual(strides, other->strides) &&
+           equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
            equal.DefEqual(axis_separators, other->axis_separators) &&
            equal.DefEqual(elem_offset, other->elem_offset) &&
            equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
@@ -172,9 +132,6 @@ class BufferNode : public Object {
     hash_reduce.DefHash(data);
     hash_reduce(dtype);
     hash_reduce.DefHash(shape);
-    hash_reduce(pre_flattened_dtype);
-    hash_reduce.DefHash(pre_flattened_shape);
-    hash_reduce.DefHash(pre_flattened_strides);
     hash_reduce.DefHash(strides);
     hash_reduce.DefHash(elem_offset);
     hash_reduce.DefHash(axis_separators);

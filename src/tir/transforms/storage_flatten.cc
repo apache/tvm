@@ -1188,8 +1188,12 @@ class StorageFlattener : public StmtExprMutator {
       auto pass = StorageFlattener(func->buffer_map, cache_line_size, create_bound_attributes,
                                    &bound_analyzer);
 
+      Map<Var, Buffer> preflattened_buffer_map =
+          Merge(func->buffer_map, func->preflattened_buffer_map);
+
       auto fptr = func.CopyOnWrite();
       fptr->body = pass(std::move(fptr->body));
+      fptr->preflattened_buffer_map = preflattened_buffer_map;
       fptr->buffer_map = pass.UpdatedBufferMap();
       return func;
     };
