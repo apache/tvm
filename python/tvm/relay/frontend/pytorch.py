@@ -2856,10 +2856,6 @@ class PyTorchOpConverter:
         lhs, rhs = inputs
         return _op.sum(_op.multiply(lhs, rhs))
 
-    def dot(self, inputs, _):
-        lhs, rhs = inputs
-        return _op.sum(_op.multiply(lhs, rhs))
-
     def mv(self, inputs, _):
         lhs, rhs = inputs
 
