@@ -3273,16 +3273,18 @@ class PyTorchOpConverter:
                 # In this case, we keep the Python list
                 outputs[node_name] = inputs
             elif operator == "prim::TupleConstruct":
-                inputs_list = []
-                for i, _ in enumerate(inputs):
-                    if isinstance(inputs[i], list):
-                        for item in inputs[i]:
-                            assert isinstance(item, _expr.Expr)
-                            inputs_list.append(item)
-                    else:
-                        assert isinstance(inputs[i], _expr.Expr)
-                        inputs_list.append(inputs[i])
-                outputs[node_name] = _expr.Tuple(inputs_list)
+
+                def _handel_nested_tuple(inputs):
+                    inputs_list = []
+                    for i, _ in enumerate(inputs):
+                        if isinstance(inputs[i], list):
+                            inputs_list.append(_handel_nested_tuple(inputs[i]))
+                        else:
+                            assert isinstance(inputs[i], _expr.Expr)
+                            inputs_list.append(inputs[i])
+                    return _expr.Tuple(inputs_list)
+
+                outputs[node_name] = _handel_nested_tuple(inputs)
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
