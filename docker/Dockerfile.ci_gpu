@@ -91,8 +91,8 @@ COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
 
 # OneFlow deps
-COPY install/ubuntu_install_oneflow_gpu.sh /install/ubuntu_install_oneflow_gpu.sh
-RUN bash /install/ubuntu_install_oneflow_gpu.sh
+COPY install/ubuntu_install_oneflow.sh /install/ubuntu_install_oneflow.sh
+RUN bash /install/ubuntu_install_oneflow.sh
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

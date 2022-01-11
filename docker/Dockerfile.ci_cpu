@@ -126,7 +126,3 @@ ENV PATH /opt/arm/gcc-arm-none-eabi/bin:/opt/arm/FVP_Corstone_SSE-300/models/Lin
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
-
-# OneFlow deps
-COPY install/ubuntu_install_oneflow_cpu.sh /install/ubuntu_install_oneflow_cpu.sh
-RUN bash /install/ubuntu_install_oneflow_cpu.sh
