@@ -154,6 +154,9 @@ class CutlassConv2DProfiler:
         self.cache = {}
 
     def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
         gemm_profile_result = self.gemm_profiler.get_default(
             op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32
         )
