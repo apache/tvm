@@ -958,7 +958,7 @@ def try_resolve_var_to_const(x, graph_params):
 
 
 def set_span(sym, node_name):
-    """Set up the sapn of relay expression(s) while converting OP"""
+    """Set up the span of relay expression(s) while converting OP"""
 
     class SpanFiller(ExprMutator):
         """SpanFiller"""
