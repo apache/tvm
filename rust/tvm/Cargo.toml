@@ -80,6 +80,8 @@ use-arm-compute-lib-graph-runtime = ["tvm-rt/use-arm-compute-lib-graph-runtime"]
 use-tensorrt-codegen = ["tvm-rt/use-tensorrt-codegen"]
 use-tensorrt-runtime = ["tvm-rt/use-tensorrt-runtime"]
 use-vitis-ai = ["tvm-rt/use-vitis-ai"]
+use-mrvl = ["tvm-rt/use-mrvl"]
+use-mrvl-runtime = ["tvm-rt/use-mrvl-runtime"]
 
 [dependencies.tvm-rt]
 version = "0.1.0-alpha"

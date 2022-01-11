@@ -50,3 +50,4 @@ echo set\(USE_LIBBACKTRACE ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_ETHOSU ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
+echo set\(USE_MRVL ON\) >> config.cmake

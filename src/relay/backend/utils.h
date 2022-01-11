@@ -143,6 +143,7 @@ int64_t CalculateRelayExprSizeBytes(const Type& expr_type);
  */
 struct LoweredOutput {
   std::string graph_json;
+  std::string external_graph_json{""};
   Map<Target, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;

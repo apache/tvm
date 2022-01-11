@@ -27,6 +27,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op_attr_types.h>
 
+#include <algorithm>
 #include <memory>
 
 #include "../node/attr_registry.h"
@@ -39,6 +40,21 @@ using runtime::TVMRetValue;
 using tir::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
+
+void Op::ListAllOpNames() {
+  auto names = OpRegistry::Global()->ListAllNames();
+  std::for_each(names.begin(), names.end(),
+                [](String const& name) { LOG(INFO) << "op name: " << name; });
+}
+
+String Op::GetOpName(const Op& op) {
+  auto names = OpRegistry::Global()->ListAllNames();
+  String op_name = "";
+  std::for_each(names.begin(), names.end(), [&op_name, op](String const& name) {
+    if (op == Op::Get(name)) op_name = String(name);
+  });
+  return op_name;
+}
 
 // find operator by name
 const Op& Op::Get(const String& name) {

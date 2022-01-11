@@ -275,7 +275,7 @@ stage('Build') {
             )
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
+            //sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
             junit "build/pytest-results/*.xml"
           }
         }

@@ -81,6 +81,8 @@ use-arm-compute-lib-graph-runtime = ["tvm-sys/use-arm-compute-lib-graph-runtime"
 use-tensorrt-codegen = ["tvm-sys/use-tensorrt-codegen"]
 use-tensorrt-runtime = ["tvm-sys/use-tensorrt-runtime"]
 use-vitis-ai = ["tvm-sys/use-vitis-ai"]
+use-mrvl = ["tvm-sys/use-mrvl"]
+use-mrvl-runtime = ["tvm-sys/use-mrvl-runtime"]
 build-static-runtime = ["tvm-sys/build-static-runtime"]
 
 [dependencies]

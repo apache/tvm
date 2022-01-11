@@ -54,6 +54,7 @@ using namespace tvm::relay::transform;
  */
 struct BuildOutput {
   std::string graph_json;
+  std::string external_graph_json{""};
   runtime::Module mod;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
@@ -141,9 +142,16 @@ struct GraphCodegen : ExecutorCodegen {
     auto pf = GetPackedFunc("relay.build_module._GraphExecutorCodegen");
     mod = (*pf)();
   }
-  void UpdateOutput(BuildOutput* ret) override { ret->graph_json = GetGraphJSON(); }
+  void UpdateOutput(BuildOutput* ret) override {
+    ret->graph_json = GetGraphJSON();
+    ret->external_graph_json = GetExternalGraphJSON();
+  }
 
   std::string GetGraphJSON() { return CallFunc<std::string>("get_graph_json", nullptr); }
+
+  std::string GetExternalGraphJSON() {
+    return CallFunc<std::string>("get_external_graph_json", nullptr);
+  }
 
   ~GraphCodegen() {}
 };
@@ -181,6 +189,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (name == "get_graph_json") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetGraphJSON(); });
+    } else if (name == "get_external_graph_json") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->GetExternalGraphJSON();
+      });
     } else if (name == "get_module") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
@@ -235,6 +247,13 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \return const std::string graph_json
    */
   const std::string& GetGraphJSON() { return ret_.graph_json; }
+
+  /*!
+   * \brief Get the ExternalGraphJSON for runtime
+   *
+   * \return const std::string externl_graph_json
+   */
+  const std::string& GetExternalGraphJSON() { return ret_.external_graph_json; }
 
   /*!
    * \brief Get the Module object
@@ -470,6 +489,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     auto ext_mods = executor_codegen_->GetExternalModules();
     ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
                                                   runtime_, executor_codegen_->GetMetadata());
+
+// TODO(ccjoechou): to use the external codegen's metadata flow, we will need to support the
+//   export_library() call to generate a lib.so, which includes the metadata; and then, we
+//   will also need to support the load_module() call to load the generated lib.so
+// - since we (MRVL) are not supporting both export_library() and load_module() steps, we
+//   have to keep ret_.params to store constant params as before
+#ifndef TVM_USE_MRVL
     // Remove external params which were stored in metadata module.
     for (tvm::runtime::Module mod : ext_mods) {
       auto pf_var = mod.GetFunction("get_const_vars");
@@ -483,6 +509,7 @@ class RelayBuildModule : public runtime::ModuleNode {
         }
       }
     }
+#endif
   }
 
  protected:

@@ -198,6 +198,16 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-vitis-ai") {
         build_config.settings.use_vitis_ai = Some(true);
     }
+    if cfg!(feature = "use-mrvl") {
+        // FIXME: do we need to register use_mrvl for the tvm-build v0.24 package
+        //        on crates.io first?
+        build_config.settings.use_mrvl = CMakeSetting::from_str("on").ok();
+    }
+    if cfg!(feature = "use-mrvl-runtime") {
+        // FIXME: do we need to register use_mrvl_runtime for the tvm-build v0.24 package
+        //        on crates.io first?
+        build_config.settings.use_mrvl_runtime = CMakeSetting::from_str("on").ok();
+    }
     if cfg!(any(
         feature = "static-linking",
         feature = "build-static-runtime"

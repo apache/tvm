@@ -208,7 +208,7 @@ def test_conv2d_attrs():
     check_json_roundtrip(out)
 
 
-def test_large_grpah():
+def test_large_graph():
     # Test large graphs to avoid stack overflow in serialize/deserialize
     size = int(1e5)
     var = [relay.var("var_" + str(i), shape=(2, 3)) for i in range(size)]
@@ -233,4 +233,4 @@ if __name__ == "__main__":
     test_tuple_get_item()
     test_op()
     test_conv2d_attrs()
-    test_large_grpah()
+    test_large_graph()

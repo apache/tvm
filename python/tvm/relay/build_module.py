@@ -95,6 +95,7 @@ class BuildModule(object):
     def __init__(self):
         self.mod = _build_module._BuildModule()
         self._get_graph_json = self.mod["get_graph_json"]
+        self._get_external_graph_json = self.mod["get_external_graph_json"]
         self._get_module = self.mod["get_module"]
         self._build = self.mod["build"]
         self._optimize = self.mod["optimize"]
@@ -193,8 +194,11 @@ class BuildModule(object):
         mod = self.get_module()
         params = self.get_params()
         executor_config = self.get_graph_json() if str(executor) == "graph" else None
+        external_executor_config = (
+            self.get_external_graph_json() if str(executor) == "graph" else None
+        )
 
-        return executor_config, mod, params
+        return executor_config, mod, params, external_executor_config
 
     def optimize(self, mod, target=None, params=None):
         """
@@ -237,6 +241,10 @@ class BuildModule(object):
     def get_graph_json(self):
         """Return the json file of the built program."""
         return self._get_graph_json()
+
+    def get_external_graph_json(self):
+        """Return the external json file of the built program."""
+        return self._get_external_graph_json()
 
     def get_module(self):
         """Return the built module."""
@@ -446,7 +454,7 @@ def build(
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, runtime_mod, params = bld_mod.build(
+        graph_json, runtime_mod, params, external_graph_json = bld_mod.build(
             mod=ir_mod,
             target=target,
             params=params,
@@ -472,7 +480,15 @@ def build(
             )
         elif str(executor) == "graph":
             executor_factory = _executor_factory.GraphExecutorFactoryModule(
-                ir_mod, target, executor, graph_json, runtime_mod, mod_name, params, func_metadata
+                ir_mod,
+                target,
+                executor,
+                graph_json,
+                runtime_mod,
+                mod_name,
+                params,
+                func_metadata,
+                external_graph_json,
             )
         else:
             assert False, "Executor " + executor + " not supported"

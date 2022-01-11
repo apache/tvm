@@ -107,6 +107,7 @@ class TupleNode : public ExprNode {
   tvm::Array<relay::Expr> fields;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("en_id", &en_id);
     v->Visit("fields", &fields);
     v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
@@ -317,6 +318,7 @@ class CallNode : public ExprNode {
   tvm::Array<Type> type_args;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("en_id", &en_id);
     v->Visit("op", &op);
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
