@@ -27,7 +27,7 @@ pip3 install \
     "docutils>=0.11,<0.17" \
     Image \
     matplotlib \
-    sphinx \
+    sphinx==4.2.0 \
     sphinx_autodoc_annotation \
     sphinx-gallery==0.4.0 \
     sphinx_rtd_theme

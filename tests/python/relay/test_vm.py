@@ -1112,6 +1112,20 @@ def test_multi_targets():
     tvm.testing.assert_allclose(actual_result.numpy(), expected_result)
 
 
+def test_let_bound_constants():
+    """This tests for an ICHECK failure for ill-formed IR with let-bound constants"""
+
+    x = relay.var("x", shape=(3,), dtype="int32")
+    y = relay.take(x, relay.const(0))
+    z = relay.const(1)
+
+    f = relay.Function([x], relay.stack((z, y), axis=0))
+    mod = IRModule.from_expr(f)
+
+    compiler = VMCompiler()
+    compiler.optimize(mod, "llvm")
+
+
 def test_large_constants():
     """Large constants can be serialized outside of executable"""
     target = tvm.target.Target("llvm")
@@ -1141,6 +1155,20 @@ def test_large_constants():
     # Test main
     x_data = np.random.rand(1000, 1000).astype("float32")
     the_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = the_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+    # We load the mod again so it's missing the consts.
+    mod = runtime.load_module(path_dso)
+    exe = runtime.vm.Executable(mod)
+
+    # Also test loading consts via the VM's wrapper API.
+    exe.load_late_bound_consts(path_consts)
+
+    # Test main again with consts now loaded via the above API.
+    x_data = np.random.rand(1000, 1000).astype("float32")
+    the_vm = runtime.vm.VirtualMachine(exe, dev)
     actual = the_vm.invoke("main", x_data)
     expected = x_data + const_data
     tvm.testing.assert_allclose(expected, actual.numpy())

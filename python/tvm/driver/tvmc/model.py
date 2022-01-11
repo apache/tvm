@@ -54,6 +54,7 @@ import tvm
 import tvm.contrib.cc
 from tvm import relay
 from tvm.contrib import utils
+from tvm.driver.tvmc import TVMCException
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
 from tvm.runtime.module import BenchmarkResult
 
@@ -61,8 +62,6 @@ try:
     from tvm.micro import export_model_library_format
 except ImportError:
     export_model_library_format = None
-
-from .common import TVMCException
 
 
 class TVMCModel(object):

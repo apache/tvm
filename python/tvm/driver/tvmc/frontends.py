@@ -31,8 +31,7 @@ from pathlib import Path
 import numpy as np
 
 from tvm import relay
-from tvm.driver.tvmc.common import TVMCException
-from tvm.driver.tvmc.common import TVMCImportError
+from tvm.driver.tvmc import TVMCException, TVMCImportError
 from tvm.driver.tvmc.model import TVMCModel
 
 

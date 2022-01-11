@@ -41,6 +41,10 @@
 namespace tvm {
 namespace relay {
 
+// shape_of
+// register ShapeOfAttrs here to make sure it has been registered when vm.shape_of uses it
+TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
+
 // vm.shape_func
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 

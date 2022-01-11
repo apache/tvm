@@ -75,3 +75,4 @@ wget --no-verbose -O $ZEPHYR_SDK_FILE \
     https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
 chmod +x $ZEPHYR_SDK_FILE
 "./$ZEPHYR_SDK_FILE" -- -d /opt/zephyr-sdk
+rm "$ZEPHYR_SDK_FILE"
