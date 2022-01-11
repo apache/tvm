@@ -823,19 +823,6 @@ class ScalarPow(OneFlowOpConverter):
         return _op.power(inputs[0], exponent)
 
 
-class Argmax(OneFlowOpConverter):
-    """Operator convert for Argmax"""
-
-    @classmethod
-    def _impl_v1(cls, inputs, attrs, params):
-        if "select_last_index" in attrs:
-            raise NotImplementedError("select_last_index not supported in ArgMax")
-        axis = attrs.get("axis", 0)
-        keepdims = attrs.get("keepdims", True)
-        attr = {"axis": axis, "keepdims": keepdims}
-        return _op.cast(AttrCvt("argmax")(inputs, attr), "int64")
-
-
 class MaxPool2d(Pool):
     """Operator converter for MaxPool"""
 
@@ -1246,7 +1233,6 @@ def get_convert_map():
     # supported oneflow2relay op
     return {
         # defs/math
-        "argmax": Argmax.get_converter(),
         "bias_add": Add.get_converter(),
         "scalar_add": ScalarAdd.get_converter(),
         "scalar_mul": ScalarMul.get_converter(),

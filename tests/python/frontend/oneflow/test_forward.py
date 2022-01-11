@@ -81,9 +81,7 @@ class OneFlowGraph_v2(flow.nn.Graph):
 
 def get_oneflow_output(model, inputs):
     flow_output = model(inputs)
-    if isinstance(flow_output, flow.Tensor):
-        return flow_output.numpy()
-    return flow_output
+    return flow_output.numpy()
 
 
 def get_oneflow_concat_output(model, input1, input2, input3):
@@ -265,32 +263,6 @@ def verify_convtran(
 
 
 def verify_activation(
-    model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.tensor(
-        np.random.rand(10, 10),
-        dtype=flow.float32,
-    ),
-    device = "llvm"
-):
-    if device == "cuda":
-        model.to(device)
-        inputs = inputs.to(device)
-
-    graph = OneFlowGraph(model)
-    graph._compile(inputs)
-
-    mkdir(MODEL_HOME)
-    flow.save(model.state_dict(), MODEL_HOME)
-
-    out_flow = get_oneflow_output(graph, inputs)
-    out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
-    rmdir(MODEL_HOME)
-
-    assert_shape(out_flow, out_tvm)
-    tvm.testing.assert_allclose(out_flow, out_tvm, rtol=rtol, atol=atol)
-
-
-def verify_min_max(
     model, name="", rtol=1e-5, atol=1e-5,
     inputs = flow.tensor(
         np.random.rand(10, 10),
@@ -635,26 +607,6 @@ def test_activation():
 
 
 @tvm.testing.uses_gpu
-def test_min_max():
-    class Max(flow.nn.Module):
-        def forward(self, x):
-            out = flow.max(x, dim=1)
-            return out
-
-    class Min(flow.nn.Module):
-        def forward(self, x):
-            out = flow.min(x, dim=0)
-            return out
-
-    model1 = Max().eval()
-    model2 = Min().eval()
-
-    for device in ["llvm", "cuda"]:
-        verify_min_max(model1, device=device)
-        verify_min_max(model2, device=device)
-
-
-@tvm.testing.uses_gpu
 def test_math():
     class Sigmoid(flow.nn.Module):
         def forward(self, x):
@@ -670,11 +622,8 @@ def test_math():
 
     class Pow(flow.nn.Module):
         def forward(self, x):
-            return flow.pow(x, 2)
+            return flow.pow(x, 2.0)
 
-    class Pow2(flow.nn.Module):
-        def forward(self, x):
-            return flow.pow(x, x)
 
     class Log(flow.nn.Module):
         def forward(self, x):
@@ -694,27 +643,18 @@ def test_math():
 
     model1 = Sigmoid().eval()
     model2 = Sign().eval()
-    model3 = Reciprocal().eval()
-    model4 = Pow().eval()
-    model5 = Pow2().eval()
-    model6 = Log().eval()
-    model7 = Log2().eval()
-    model8 = Exp().eval()
-    model9 = Exp2().eval()
+    model3 = Log().eval()
+    model4 = Log2().eval()
+    model5 = Exp().eval()
+    model6 = Exp2().eval()
 
     for device in ["llvm", "cuda"]:
         verify_math(model1, device=device)
         verify_math(model2, device=device)
         verify_math(model3, device=device)
         verify_math(model4, device=device)
-        verify_math(
-            model5, device=device,
-            inputs=flow.tensor(np.random.rand(10, 1))
-        )
+        verify_math(model5, device=device)
         verify_math(model6, device=device)
-        verify_math(model7, device=device)
-        verify_math(model8, device=device)
-        verify_math(model9, device=device)
 
 
 @tvm.testing.uses_gpu
@@ -747,23 +687,6 @@ def test_concat():
         verify_concat(model, device=device)
 
 
-@tvm.testing.uses_gpu
-def test_stack():
-    class Stack(flow.nn.Module):
-        def forward(self, x1, x2, x3):
-            out = flow.cat([x1, x2, x3], dim=-1)
-            return out
-    
-    model = Stack().eval()
-
-    for device in ["llvm", "cuda"]:
-        verify_concat(
-            model, device=device,
-            inputs1 = flow.tensor(np.random.randn(2, 5, 5)),
-            inputs2 = flow.tensor(np.random.randn(2, 5, 5)),
-            inputs3 = flow.tensor(np.random.randn(2, 5, 5)),
-        )
-
 
 if __name__ == "__main__":
     test_conv2d()
@@ -772,10 +695,8 @@ if __name__ == "__main__":
     test_upsample()
     test_convtran()
     test_activation()
-    # test_min_max()
-    # test_math()
-    # test_slice()
+    test_math()
+    test_slice()
     # test_concat()
-    # test_stack()
     rmdir("log")
 
