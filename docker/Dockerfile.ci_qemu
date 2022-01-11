@@ -43,6 +43,10 @@ RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 
+# wasmtime
+COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
+RUN bash /install/ubuntu_install_wasmtime.sh
+
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
@@ -58,6 +62,10 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 # TFLite deps
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
 
 # Zephyr SDK deps
 COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh

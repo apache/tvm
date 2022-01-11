@@ -48,3 +48,14 @@ RUN bash /install/ubuntu_install_redis.sh
 # Arm(R) Compute Library
 COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
+
+# Rust env
+COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
+RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
+ENV PATH $PATH:$CARGO_HOME/bin
+
+# sccache
+COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
+RUN bash /install/ubuntu_install_sccache.sh
