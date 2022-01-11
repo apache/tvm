@@ -267,16 +267,9 @@ stage('Build') {
           pack_lib('cpu', tvm_multilib_tsim)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_cpu)
-            python_unittest(ci_cpu)
-            fsim_test(ci_cpu)
-            sh (
-              script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-              label: "Run VTA tests in TSIM",
-            )
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
             sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
-            junit "build/pytest-results/*.xml"
           }
         }
       }
@@ -367,8 +360,8 @@ stage('Build') {
   }
 }
 
-stage('Unit Test') {
-    parallel 'python3: GPU': {
+stage('Test') {
+    parallel 'unittest: GPU': {
       if (is_docs_only_build != 1) {
         node('TensorCore') {
           ws(per_exec_ws('tvm/ut-python-gpu')) {
@@ -397,10 +390,10 @@ stage('Unit Test') {
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: GPU')
+        Utils.markStageSkippedForConditional('unittest: GPU')
       }
     },
-    'python3: CPU': {
+    'integration: CPU': {
       if (is_docs_only_build != 1) {
         node('CPU') {
           ws(per_exec_ws("tvm/ut-python-cpu")) {
@@ -417,7 +410,29 @@ stage('Unit Test') {
           }
         }
       } else {
-        Utils.markStageSkippedForConditional('python3: CPU')
+        Utils.markStageSkippedForConditional('integration: CPU')
+      }
+    },
+    'unittest: CPU': {
+      if (is_docs_only_build != 1) {
+        node('CPU') {
+          ws(per_exec_ws("tvm/ut-python-cpu")) {
+            init_git()
+            unpack_lib('cpu', tvm_multilib_tsim)
+            timeout(time: max_time, unit: 'MINUTES') {
+              ci_setup(ci_cpu)
+              python_unittest(ci_cpu)
+              fsim_test(ci_cpu)
+              sh (
+                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
+                label: "Run VTA tests in TSIM",
+              )
+              junit "build/pytest-results/*.xml"
+            }
+          }
+        }
+      } else {
+        Utils.markStageSkippedForConditional('unittest: CPU')
       }
     },
     'python3: i386': {
@@ -463,11 +478,8 @@ stage('Unit Test') {
       } else {
          Utils.markStageSkippedForConditional('python3: arm')
       }
-    }
-}
-
-stage('Integration Test') {
-  parallel 'topi: GPU': {
+    },
+  'topi: GPU': {
   if (is_docs_only_build != 1) {
     node('GPU') {
       ws(per_exec_ws('tvm/topi-python-gpu')) {
