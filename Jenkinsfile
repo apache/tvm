@@ -433,7 +433,7 @@ stage('Test') {
       }
     },
     'unittest: CPU': {
-      if (is_docs_only_build != 1) {
+      if (!skip_ci && is_docs_only_build != 1) {
         node('CPU') {
           ws(per_exec_ws("tvm/ut-python-cpu")) {
             init_git()
