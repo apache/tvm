@@ -57,42 +57,30 @@ FLOW_2_STR_DTYPE = {
     9: "float16"
 }
 
-FLOW_2_NP_DTYPE = {
-    2: np.float32,
-    3: np.float64,
-    6: np.int64,
-    5: np.int32,
-    4: np.int8,
-    7: np.uint8,
-    9: np.float16
-}
-
-_identity_list = []
-
 
 def is_input_op(node):
-    # Determine if the the node is the input of graph
+    """Return true when the node is the input of the graph."""
     return node.WhichOneof("op_type") == "input_conf"
 
 
 def is_user_op(node):
-    # Determine if the the node is the intermediate variables of graph
+    """Return true when the node is the intermediate variables of graph."""
     return node.WhichOneof("op_type") == "user_conf"
 
 
 def is_output_op(node):
-    # Determine if the the node is the output of graph
+    """Return true when the node is the output of the graph."""
     return node.WhichOneof("op_type") == "output_conf"
 
 
 def is_param_op(node):
-    # Determine if the the node is the intermediate variables of model(saved)
+    """Return true when the node is the intermediate variables of model(saved)."""
     return node.WhichOneof("op_type") == "variable_conf"
 
 
 def get_node_info(node):
     """
-    Get basic information about nodes: shape、data_type
+    Get basic information about nodes: shape, data_type
     """
     # list->tuple
     shape = tuple(node.input_conf.blob_conf.shape.dim)
@@ -107,7 +95,7 @@ def get_node_info(node):
 
 
 def parse_attr(attr):
-    # Parse node_attr
+    # Parse attribute of user op in oneflow.
     attrs = {}
     for a in attr:
         attr_str = str(attr[a])
@@ -1258,6 +1246,7 @@ def get_convert_map():
     # supported oneflow2relay op
     return {
         # defs/math
+        "argmax": Argmax.get_converter(),
         "bias_add": Add.get_converter(),
         "scalar_add": ScalarAdd.get_converter(),
         "scalar_mul": ScalarMul.get_converter(),
@@ -1424,6 +1413,7 @@ class OneflowGraph(object):
         self._init_variable_node = []
         self._shape = shape
         self._dtype = dtype
+        self._identity_list = []
 
         import oneflow
 
@@ -1438,7 +1428,7 @@ class OneflowGraph(object):
             node_name = "m." + layer_name
             shape = self._shape[node_name]
             dtype = self._dtype[node_name]
-            array = np.fromfile(layer_node['path'], dtype=dtype)
+            array = layer.detach().cpu().numpy()
             layer_node['params'] = array.reshape(shape)
             self._model_array[layer_name] = layer_node
 
@@ -1618,7 +1608,7 @@ class OneflowGraph(object):
                 if(
                     op_name not in convert_map
                     and "constant" not in op_name
-                    and op_name not in _identity_list
+                    and op_name not in self._identity_list
                 ):
                     unsupported_ops.add(op_name)
         # find out the unsupported op
@@ -1751,7 +1741,7 @@ class OneflowGraph(object):
             Converted relay function
         """
         convert_map = get_convert_map()
-        if op_name in _identity_list:
+        if op_name in self._identity_list:
             sym = get_relay_op(op_name)(*node_inputs, **op_attr)
         elif op_name in convert_map:
             sym = convert_map[op_name](node_inputs, op_attr, self._params)
@@ -1767,13 +1757,6 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
     """
     try:
         import oneflow
-
-        if 'snapshot_done' not in os.listdir(model_dir_path):
-            raise IndexError(
-                "'snapshot_done' is not in the model path, " +
-                "please determine whether the model has been trained"
-            )
-
     except ImportError:
         raise ImportError("please check that OneFlow is installed")
 

@@ -80,7 +80,9 @@ class OneFlowGraph_v2(flow.nn.Graph):
 
 
 def get_oneflow_output(model, inputs):
-    flow_output = model(inputs).numpy()
+    flow_output = model(inputs)
+    if isinstance(flow_output, flow.Tensor):
+        return flow_output.numpy()
     return flow_output
 
 
@@ -89,7 +91,7 @@ def get_oneflow_concat_output(model, input1, input2, input3):
     return flow_output
 
 
-def get_tvm_output(graph, model_path, inputs: flow.Tensor, target="llvm", dtype="float32"):
+def get_tvm_output(graph, model_path, inputs: flow.tensor, target="llvm", dtype="float32"):
     inputs_numpy = inputs.numpy()
     if target == "llvm":
         device = tvm.cpu(0)
@@ -105,9 +107,9 @@ def get_tvm_output(graph, model_path, inputs: flow.Tensor, target="llvm", dtype=
 
 def get_tvm_concat_output(
     graph, model_path,
-    input1: flow.Tensor,
-    input2: flow.Tensor,
-    input3: flow.Tensor,
+    input1: flow.tensor,
+    input2: flow.tensor,
+    input3: flow.tensor,
     target="llvm", dtype="float32"
 ):
     input1_numpy = input1.numpy()
@@ -132,7 +134,7 @@ def get_tvm_concat_output(
 
 def verify_conv(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
@@ -141,32 +143,14 @@ def verify_conv(
     if device == "cuda":
         model.to(device)
         inputs = inputs.to(device)
-
-    conv_model = model.conv
+    
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
-    weight = conv_model.weight
-    bias = conv_model.bias
 
     mkdir(MODEL_HOME)
-    # weights
-    node_name = name + "conv.weight"
-    node_path = os.path.join(MODEL_HOME, node_name)
-    mkdir(node_path)
-    weight.numpy().tofile(os.path.join(node_path, "out"))
-
-    # bias
-    if bias is not None:
-        node_name = name + "conv.bias"
-        node_path = os.path.join(MODEL_HOME, node_name)
-        mkdir(node_path)
-        bias.numpy().tofile(os.path.join(node_path, "out"))
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
-
+    flow.save(model.state_dict(), MODEL_HOME)
+    
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
     rmdir(MODEL_HOME)
@@ -177,7 +161,7 @@ def verify_conv(
 
 def verify_pool(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
@@ -187,14 +171,11 @@ def verify_pool(
         model.to(device)
         inputs = inputs.to(device)
 
-    pool_model = model.pool
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -206,7 +187,7 @@ def verify_pool(
 
 def verify_normalization(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(1, 3, 224, 224),
         dtype=flow.float32,
     ),
@@ -216,34 +197,12 @@ def verify_normalization(
         model.to(device)
         inputs = inputs.to(device)
 
-    normalization_model = model.normalization
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
-    weight = normalization_model.weight
-    bias = normalization_model.bias
-    running_mean = normalization_model.running_mean
-    running_var = normalization_model.running_var
-
     # write params
     mkdir(MODEL_HOME)
-    params = {
-        "weight": weight,
-        "bias": bias,
-        "running_mean": running_mean,
-        "running_var": running_var
-    }
-
-    for n in params:
-        param = params[n]
-        node_name = name + "normalization." + n
-        node_path = os.path.join(MODEL_HOME, node_name)
-        mkdir(node_path)
-        param.numpy().tofile(os.path.join(node_path, "out"))
-    
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -255,7 +214,7 @@ def verify_normalization(
 
 def verify_upsample(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(1, 3, 50, 50),
         dtype=flow.float32,
     ),
@@ -265,14 +224,11 @@ def verify_upsample(
         model.to(device)
         inputs = inputs.to(device)
 
-    upsample_model = model.upsample
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -284,7 +240,7 @@ def verify_upsample(
 
 def verify_convtran(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(1, 3, 50, 50),
         dtype=flow.float32,
     ),
@@ -294,30 +250,11 @@ def verify_convtran(
         model.to(device)
         inputs = inputs.to(device)
 
-    convtran_model = model.convtran
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-    weight = convtran_model.weight
-    bias = convtran_model.bias
-
-    # weights
-    node_name = name + "convtran.weight"
-    node_path = os.path.join(MODEL_HOME, node_name)
-    mkdir(node_path)
-    weight.numpy().tofile(os.path.join(node_path, "out"))
-
-    # bias
-    if bias is not None:
-        node_name = name + "convtran.bias"
-        node_path = os.path.join(MODEL_HOME, node_name)
-        mkdir(node_path)
-        bias.numpy().tofile(os.path.join(node_path, "out"))
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -329,7 +266,7 @@ def verify_convtran(
 
 def verify_activation(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(10, 10),
         dtype=flow.float32,
     ),
@@ -339,27 +276,11 @@ def verify_activation(
         model.to(device)
         inputs = inputs.to(device)
 
-    activation_model = model.active
     graph = OneFlowGraph(model)
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-    weight = None
-    try:
-        weight = activation_model.weight
-    except AttributeError:
-        pass
-
-    if weight is not None:
-        # weights for prelu
-        node_name = name + "active.weight"
-        node_path = os.path.join(MODEL_HOME, node_name)
-        mkdir(node_path)
-        weight.numpy().tofile(os.path.join(node_path, "out"))
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -371,7 +292,7 @@ def verify_activation(
 
 def verify_min_max(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(10, 10),
         dtype=flow.float32,
     ),
@@ -385,10 +306,7 @@ def verify_min_max(
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -400,7 +318,7 @@ def verify_min_max(
 
 def verify_math(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs = flow.Tensor(
+    inputs = flow.tensor(
         np.random.rand(100, 1),
         dtype=flow.float32,
     ),
@@ -414,10 +332,7 @@ def verify_math(
     graph._compile(inputs)
 
     mkdir(MODEL_HOME)
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_output(graph, inputs)
     out_tvm = get_tvm_output(graph, MODEL_HOME, inputs, target=device)
@@ -429,9 +344,9 @@ def verify_math(
 
 def verify_concat(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs1 = flow.Tensor(np.random.randn(2, 5, 5, 4)),
-    inputs2 = flow.Tensor(np.random.randn(2, 5, 5, 2)),
-    inputs3 = flow.Tensor(np.random.randn(2, 5, 5, 3)),
+    inputs1 = flow.tensor(np.random.randn(2, 5, 5, 4)),
+    inputs2 = flow.tensor(np.random.randn(2, 5, 5, 2)),
+    inputs3 = flow.tensor(np.random.randn(2, 5, 5, 3)),
     device = "llvm"
 ):
     if device == "cuda":
@@ -444,10 +359,7 @@ def verify_concat(
     graph._compile(inputs1, inputs2, inputs3)
 
     mkdir(MODEL_HOME)
-
-    # snapshot_done
-    with open(os.path.join(MODEL_HOME, "snapshot_done"), "w") as f:
-        f.write("")
+    flow.save(model.state_dict(), MODEL_HOME)
 
     out_flow = get_oneflow_concat_output(graph, inputs1, inputs2, inputs3)
     out_tvm = get_tvm_concat_output(graph, MODEL_HOME, inputs1, inputs2, inputs3, target=device)
@@ -472,7 +384,9 @@ def test_conv2d():
     if os.path.exists(MODEL_HOME):
         rmdir(MODEL_HOME)
 
-    model = Conv2dModel().eval()
+    model = Conv2dModel()
+    model.eval()
+
     for device in ["llvm", "cuda"]:
         verify_conv(model, device=device)
 
@@ -795,7 +709,7 @@ def test_math():
         verify_math(model4, device=device)
         verify_math(
             model5, device=device,
-            inputs=flow.Tensor(np.random.rand(10, 1))
+            inputs=flow.tensor(np.random.rand(10, 1))
         )
         verify_math(model6, device=device)
         verify_math(model7, device=device)
@@ -816,7 +730,7 @@ def test_slice():
     for device in ["llvm", "cuda"]:
         verify_math(
             model, device=device,
-            inputs=flow.Tensor(np.random.randn(3, 6, 9).astype(np.float32))
+            inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
         )
 
 
@@ -845,9 +759,9 @@ def test_stack():
     for device in ["llvm", "cuda"]:
         verify_concat(
             model, device=device,
-            inputs1 = flow.Tensor(np.random.randn(2, 5, 5)),
-            inputs2 = flow.Tensor(np.random.randn(2, 5, 5)),
-            inputs3 = flow.Tensor(np.random.randn(2, 5, 5)),
+            inputs1 = flow.tensor(np.random.randn(2, 5, 5)),
+            inputs2 = flow.tensor(np.random.randn(2, 5, 5)),
+            inputs3 = flow.tensor(np.random.randn(2, 5, 5)),
         )
 
 
@@ -858,10 +772,10 @@ if __name__ == "__main__":
     test_upsample()
     test_convtran()
     test_activation()
-    test_min_max()
-    test_math()
-    test_slice()
-    test_concat()
-    test_stack()
+    # test_min_max()
+    # test_math()
+    # test_slice()
+    # test_concat()
+    # test_stack()
     rmdir("log")
 
