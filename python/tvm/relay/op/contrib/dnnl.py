@@ -38,8 +38,20 @@ import tvm.ir
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
 
-from ...dataflow_pattern import wildcard, is_op
+from ...dataflow_pattern import wildcard, is_op, is_constant
 from .register import register_pattern_table
+
+
+def get_dnnl_version():
+    """Return tuple with version or DNNL library if known
+    Otherwise return unknown value which is bigger than any over real
+    versions.
+    """
+    f = tvm.get_global_func("runtime.module.dnnl_version")
+    return tuple(int(el) for el in f().split(".")) if f else (100500,)
+
+
+dnnl_version = get_dnnl_version()
 
 logger = logging.getLogger("DNNL")
 
@@ -48,8 +60,8 @@ def _register_external_op_helper(op_name, supported=True):
     """The helper function to indicate that a given operator can be supported
     by DNNL.
 
-    Paramters
-    ---------
+    Parameters
+    ----------
     op_name : Str
         The name of operator that will be registered.
 
@@ -159,6 +171,90 @@ def make_dnnl_pattern(op, with_bias, with_eltwise):
     return dnnl_pattern
 
 
+def make_qnn_conv2d_pattern(with_sum=False):
+    """Make qnn.conv2d based pattern supported by DNNL
+
+    Parameters
+    ----------
+    with_sum : bool
+        Indicate to append qnn.sum at the end of pattern
+
+    Returns
+    -------
+    pattern : Tuple(pattern_name, CallPattern)
+        Created pattern name, along with its CallPattern.
+    """
+    weight = is_constant()  # |const requirements, have to recalculate bias to compensate src_zp
+    bias = is_constant()
+
+    pat = wildcard()
+    pat = is_op("qnn.conv2d")(
+        pat, weight, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    pat = is_op("add")(pat, bias) | pat
+    pat = is_op("qnn.requantize")(pat, is_constant(), is_constant(), is_constant(), is_constant())
+    pat = is_op("clip")(pat)
+    pat = is_op("cast")(pat)
+    if with_sum is True:
+        pat = is_op("qnn.add")(
+            pat,
+            wildcard(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+        pat = is_op("clip")(pat)
+
+    pat_name = "dnnl.qnn.conv2d_sum" if with_sum else "dnnl.qnn.conv2d"
+
+    return pat_name, pat
+
+
+def make_qnn_dense_pattern(with_sum=False):
+    """Make qnn.dense based pattern supported by DNNL
+
+    Parameters
+    ----------
+    with_sum : bool
+        Indicate to append qnn.sum at the end of pattern
+
+    Returns
+    -------
+    pattern : Tuple(pattern_name, CallPattern)
+        Created pattern name, along with its CallPattern.
+    """
+    weight = is_constant()
+    bias = is_constant()
+
+    pat = wildcard()
+    pat = is_op("qnn.dense")(
+        pat, weight, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    pat = is_op("add")(pat, bias) | pat
+    pat = is_op("qnn.requantize")(pat, is_constant(), is_constant(), is_constant(), is_constant())
+    pat = is_op("clip")(pat)
+    pat = is_op("cast")(pat)
+    if with_sum is True:
+        pat = is_op("qnn.add")(
+            pat,
+            wildcard(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+            is_constant(),
+        )
+        pat = is_op("clip")(pat)
+
+    pat_name = "dnnl.qnn.dense_sum" if with_sum else "dnnl.qnn.dense"
+
+    return pat_name, pat
+
+
 @register_pattern_table("dnnl")
 def pattern_table():
     """Create dnnl patterns.
@@ -173,9 +269,16 @@ def pattern_table():
     for with_bias in [True, False]:
         for elt in elt_list:
             if not with_bias and not elt:
-                return dnnl_patterns
+                continue
             dnnl_patterns.append(make_dnnl_pattern("conv2d", with_bias, elt))
             dnnl_patterns.append(make_dnnl_pattern("dense", with_bias, elt))
+
+    for with_sum in [True, False]:
+        dnnl_patterns.append(make_qnn_conv2d_pattern(with_sum))
+        # Old dnnl version doesn't support per channel o_scale
+        if dnnl_version >= (2, 2) or not with_sum:
+            dnnl_patterns.append(make_qnn_dense_pattern(with_sum))
+
     return dnnl_patterns
 
 
