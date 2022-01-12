@@ -37,7 +37,7 @@ from tests.python.relay.aot.aot_test_utils import generate_ref_data
 from . import infra
 
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
 def infer_type_function_pass(func):
