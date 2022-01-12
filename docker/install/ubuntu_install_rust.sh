@@ -16,11 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
-set -x
-
+set -euxo pipefail
 
 export RUSTUP_HOME=/opt/rust
 export CARGO_HOME=/opt/rust
