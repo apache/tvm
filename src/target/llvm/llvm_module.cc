@@ -485,6 +485,11 @@ TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
       return static_cast<int64_t>(llvm::Function::lookupIntrinsicID(name));
     });
 
+TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name")
+    .set_body_typed([](int64_t id) -> String {
+      return std::string(llvm::Intrinsic::getName(static_cast<llvm::Intrinsic::ID>(id)));
+    });
+
 TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
   return TVM_LLVM_VERSION / 10;
 });
