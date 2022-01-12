@@ -36,8 +36,10 @@ import _pytest
 
 try:
     from xdist.scheduler.loadscope import LoadScopeScheduling
+
+    HAVE_XDIST = True
 except ImportError:
-    pass
+    HAVE_XDIST = False
 
 import tvm
 from tvm.testing import utils
@@ -325,13 +327,21 @@ def _parametrize_correlated_parameters(metafunc):
             metafunc.parametrize(names, value_sets, indirect=True, ids=ids)
 
 
-def pytest_xdist_make_scheduler(config, log):
-    class TvmTestScheduler(LoadScopeScheduling):
-        def _split_scope(self, nodeid):
-            # NOTE: test_tvm_testing_features contains parametrization-related tests, and must be
-            # serialized on a single host.
-            if "test_tvm_testing_features" in nodeid:
-                return "functional-tests"
-            return nodeid
+if HAVE_XDIST:
+    # We need to guard the declaration of this function otherwise pytest
+    # errors out if pytest-xdist is not installed
+    def pytest_xdist_make_scheduler(config, log):
+        """
+        Serialize certain tests for pytest-xdist
+        """
 
-    return TvmTestScheduler(config, log)
+        class TvmTestScheduler(LoadScopeScheduling):
+            def _split_scope(self, nodeid):
+                # NOTE: test_tvm_testing_features contains
+                # parametrization-related tests, and must be serialized on a
+                # single host.
+                if "test_tvm_testing_features" in nodeid:
+                    return "functional-tests"
+                return nodeid
+
+        return TvmTestScheduler(config, log)

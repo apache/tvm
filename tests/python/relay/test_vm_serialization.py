@@ -301,6 +301,7 @@ def test_vm_shape_of():
     tvm.testing.assert_allclose(res.flatten(), data.flatten())
 
 
+@pytest.mark.forked
 def test_dynamic_bcast():
     dtype = "float32"
     x = relay.var("x", shape=(relay.Any(), 2), dtype=dtype)

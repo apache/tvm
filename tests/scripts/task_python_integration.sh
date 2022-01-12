@@ -65,9 +65,12 @@ run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME} tests/python/integration
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib-test_ethosu tests/python/contrib/test_ethosu -n auto
 
+# disable pytest-xdist for relay tests due to deadlocks
+# export PYTEST_CPUS=0
 # forked is needed because the global registry gets contaminated
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
     run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay
+# export PYTEST_CPUS=auto
 
 # Command line driver test
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
