@@ -25,6 +25,7 @@
 #ifndef TVM_RUNTIME_VM_PROFILER_VM_H_
 #define TVM_RUNTIME_VM_PROFILER_VM_H_
 
+#include <dmlc/optional.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/vm/vm.h>
 
@@ -39,20 +40,22 @@ namespace vm {
 
 class VirtualMachineDebug : public VirtualMachine {
  public:
-  VirtualMachineDebug() : VirtualMachine() {}
+  VirtualMachineDebug() : VirtualMachine(), prof_({}) {}
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
 
-  void LoadExecutable(const Executable* exec) final;
+  void LoadExecutable(Executable* exec) final;
 
   ~VirtualMachineDebug() {}
 
  private:
   void InvokePacked(Index packed_index, const PackedFunc& func, Index arg_count, Index output_size,
                     const std::vector<ObjectRef>& args) final;
+  void OpStartHook(Instruction instr) final;
+  void OpStopHook() final;
 
   std::unordered_map<Index, std::string> packed_index_map_;
-  profiling::Profiler prof_;
+  dmlc::optional<profiling::Profiler> prof_;
 };
 
 }  // namespace vm

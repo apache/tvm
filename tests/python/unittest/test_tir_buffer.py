@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
@@ -84,6 +85,28 @@ def test_buffer_vload():
     tvm.testing.assert_prim_expr_equal(load.index, n * 2 + 103)
 
 
+def test_buffer_vload_nullptr():
+    var = tvm.tir.Var("v", dtype="int32")
+    buf = tvm.tir.decl_buffer((1,), name="buf")
+    buf_load = tvm.tir.expr.BufferLoad(buffer=buf, indices=tvm.runtime.convert([0]))
+    buf_load_stmt = tvm.tir.stmt.Evaluate(buf_load)
+    for_loop = tvm.tir.stmt.For(
+        loop_var=var, kind=0, min_val=0, extent=buf_load, body=buf_load_stmt
+    )
+    buf_func = tvm.tir.PrimFunc(params={}, body=for_loop)
+    mod = tvm.IRModule({"main": buf_func})
+    # Trigger nullptr buffer bug by pass
+    with pytest.raises(tvm.error.TVMError) as cm:
+        mod = tvm.transform.Sequential(
+            [
+                tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
+                tvm.tir.transform.CompactBufferAllocation(),
+                tvm.tir.transform.FlattenBuffer(),
+            ]
+        )(mod)
+        assert "(n != nullptr) is false" in str(cm.execption)
+
+
 def test_buffer_index_merge_mult_mod():
     m = te.size_var("m")
     n = te.size_var("n")
@@ -129,6 +152,23 @@ def test_buffer_index_merge_mult_mod():
     index_direct = A.vload(
         (0, idxd(idxm(k0, idxd(k1, s)), n) * n + (idxm(idxm(k0, idxd(k1, n)), n) + idxm(k0, k1)))
     )
+    assert_simplified_equal(index_simplified, index_direct)
+
+    # Test Case5
+    B = tvm.tir.decl_buffer((1, 14, 14, 1024))
+    i = te.size_var("i")
+    j = te.size_var("j")
+    k = te.size_var("k")
+
+    index_simplified = B.vload(
+        (
+            idxd(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
+            idxm(idxd(idxd((i * 50176 + j * 28672 + k), 1024), 14), 14),
+            idxm(idxd((i * 50176 + j * 28672 + k), 1024), 14),
+            idxm((i * 50176 + j * 28672 + k), 1024),
+        )
+    )
+    index_direct = B.vload((0, 0, 0, (i * 50176 + j * 28672 + k)))
     assert_simplified_equal(index_simplified, index_direct)
 
 
@@ -212,11 +252,4 @@ def test_buffer_broadcast_expr():
 
 
 if __name__ == "__main__":
-    test_buffer()
-    test_buffer_access_ptr()
-    test_buffer_access_ptr_offset()
-    test_buffer_access_ptr_extent()
-    test_buffer_vload()
-    test_buffer_index_merge_mult_mod()
-    test_buffer_broadcast()
-    test_buffer_broadcast_expr()
+    pytest.main([__file__])

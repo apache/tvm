@@ -42,9 +42,3 @@ TEST(ExprNodeRef, Basic) {
   const tir::MaxNode* op = z.as<tir::MaxNode>();
   ICHECK(GetRef<ObjectRef>(op).same_as(z));
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
-}

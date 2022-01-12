@@ -26,6 +26,25 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 
 from common import compare_tf_tvm
 from common import run_tf_code
+from tvm.relay.frontend.tensorflow2 import from_tensorflow
+
+
+def verify_span(mod):
+    fail_cases = []
+    mod_main_start = False
+    for line in str(mod.__str__).split("\n"):
+        if "@main" in line:
+            mod_main_start = True
+            continue
+
+        if mod_main_start == True:
+            if "}" == line:
+                break
+            elif not ("/*" in line and "*/" in line):
+                fail_cases.append(line)
+
+    print(fail_cases)
+    assert len(fail_cases) == 0
 
 
 def run_sequential_model(model_fn, input_shape):
@@ -48,7 +67,10 @@ def run_sequential_model(model_fn, input_shape):
         gdef = f.graph.as_graph_def(add_shapes=True)
         return gdef, _input, _output
 
-    compare_tf_tvm(*model_graph(model_fn, input_shape), runtime="vm")
+    gdef, _input, _output = model_graph(model_fn, input_shape)
+    mod, _ = from_tensorflow(gdef)
+    compare_tf_tvm(gdef, _input, _output, runtime="vm")
+    verify_span(mod)
 
 
 def test_dense_model():
@@ -107,6 +129,61 @@ def test_maxpool_batchnorm_model():
         return model
 
     run_sequential_model(maxpool_batchnorm_model, input_shape=(1, 32, 32, 3))
+
+
+def test_tensorlist_stack_model():
+    def tensorlist_stack_model(input_shape):
+        class TensorArrayStackLayer(tf.keras.layers.Layer):
+            def __init__(self):
+                super().__init__()
+
+            def call(self, inputs):
+                inputs = tf.squeeze(inputs)
+                outputs = tf.TensorArray(
+                    tf.float32,
+                    size=inputs.shape[0],
+                    infer_shape=False,
+                    element_shape=inputs.shape[1:],
+                )
+                outputs = outputs.unstack(inputs)
+
+                return outputs.stack()
+
+        input_shape = (3, 32)
+        model = tf.keras.Sequential(
+            [tf.keras.layers.Input(shape=input_shape, batch_size=1), TensorArrayStackLayer()]
+        )
+        return model
+
+    run_sequential_model(tensorlist_stack_model, input_shape=(3, 32))
+
+
+def test_tensorlist_read_model():
+    def tensorlist_read_model(input_shape):
+        class TensorArrayReadLayer(tf.keras.layers.Layer):
+            def __init__(self):
+                super().__init__()
+
+            def call(self, inputs):
+                inputs = tf.squeeze(inputs)
+                outputs = tf.TensorArray(
+                    tf.float32,
+                    size=inputs.shape[0],
+                    infer_shape=False,
+                    element_shape=inputs.shape[1:],
+                )
+                for i in range(inputs.shape[0]):
+                    outputs = outputs.write(i, inputs[i, :])
+
+                return outputs.read(0)
+
+        input_shape = (3, 32)
+        model = tf.keras.Sequential(
+            [tf.keras.layers.Input(shape=input_shape, batch_size=1), TensorArrayReadLayer()]
+        )
+        return model
+
+    run_sequential_model(tensorlist_read_model, input_shape=(3, 32))
 
 
 if __name__ == "__main__":

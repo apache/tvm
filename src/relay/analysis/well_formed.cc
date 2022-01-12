@@ -70,8 +70,8 @@ class WellFormedChecker : private MixedModeVisitor, PatternVisitor {
 
   void Bound(const Var& v) {
     if (current_bound.count(v) != 0 || total_bound.count(v) != 0 || free.count(v) != 0) {
-      Illformed(Diagnostic::Error(v->span) << "the variable " << v->name_hint()
-                                           << "is bound more then once, this is not valid IR");
+      Illformed(Diagnostic::Error(v->span) << "The variable " << v->name_hint()
+                                           << " is bound more than once, this is not valid IR");
     }
     ICHECK_GE(scope.size(), 0);
     scope.back().insert(v);

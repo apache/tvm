@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name
 """Utilities"""
 import logging
-import multiprocessing
 import time
 
 from random import randrange
@@ -25,6 +24,7 @@ from random import randrange
 import numpy as np
 import tvm.arith
 from tvm.tir import expr
+from tvm.contrib.popen_pool import PopenPoolExecutor
 
 logger = logging.getLogger("autotvm")
 
@@ -111,7 +111,7 @@ def pool_map(func, args, batch_size, verbose=False, pool=None):
 
     ret = None
     tic = time.time()
-    local_pool = pool or multiprocessing.Pool()
+    local_pool = pool or PopenPoolExecutor()
     if verbose:
         logger.info("mapping begin")
     for i in range(0, len(args), batch_size):

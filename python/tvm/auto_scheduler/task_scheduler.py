@@ -480,7 +480,9 @@ class TaskScheduler:
 
     def _compute_score(self, costs):
         """compute the objective function"""
-        return self.objective_func(costs)
+        # Make sure to return float.
+        score = self.objective_func(costs)
+        return score.value if hasattr(score, "value") else score
 
     def _adjust_similarity_group(self, task_idx):
         """adjust the similarity group for the selected task"""

@@ -35,6 +35,10 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   ICHECK_EQ(target->kind->device_type, kDLVulkan)
       << "SPIRVSupport can only be checked for vulkan device type";
 
+  if (target->GetAttr<Integer>("vulkan_api_version")) {
+    vulkan_api_version = target->GetAttr<Integer>("vulkan_api_version").value();
+  }
+
   if (target->GetAttr<Integer>("supported_subgroup_operations")) {
     supported_subgroup_operations =
         target->GetAttr<Integer>("supported_subgroup_operations").value();
@@ -47,6 +51,9 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   }
   if (target->GetAttr<Integer>("max_storage_buffer_range")) {
     max_storage_buffer_range = target->GetAttr<Integer>("max_storage_buffer_range").value();
+  }
+  if (target->GetAttr<Integer>("max_shared_memory_per_block")) {
+    max_shared_memory_per_block = target->GetAttr<Integer>("max_shared_memory_per_block").value();
   }
   if (target->GetAttr<Integer>("max_per_stage_descriptor_storage_buffer")) {
     max_per_stage_descriptor_storage_buffers =
@@ -64,6 +71,9 @@ SPIRVSupport::SPIRVSupport(tvm::Target target) {
   }
   if (target->GetAttr<Bool>("supports_float16")) {
     supports_float16 = target->GetAttr<Bool>("supports_float16").value();
+  }
+  if (target->GetAttr<Bool>("supports_float64")) {
+    supports_float64 = target->GetAttr<Bool>("supports_float64").value();
   }
   if (target->GetAttr<Bool>("supports_int8")) {
     supports_int8 = target->GetAttr<Bool>("supports_int8").value();

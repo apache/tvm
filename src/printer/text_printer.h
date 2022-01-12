@@ -34,6 +34,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/var.h>
 
 #include <string>
 #include <unordered_map>
@@ -76,9 +77,43 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   // numbers to be reused and prevents hoisted vars from escaping too far
   Doc PrintScope(const ObjectRef& node);
   Doc PrintFinal(const ObjectRef& node);
+
+  /*!
+   * \brief Returns \p attrs printed using the generic attribute visitor, as a sequence
+   * of key=value entries, if any.
+   */
+  void AppendGenericAttrs(std::vector<Doc>* docs, const Attrs& attrs, bool include_type_key);
+
+  /*!
+   * \brief Returns \p attrs printed as a sequence of key=value entries, if any.
+   * This is used for call attributes.
+   */
   std::vector<Doc> PrintCallAttrs(const Attrs& attrs, const Expr& op);
-  std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
-  Doc PrintSpan(const Span& span);
+
+  /*!
+   * \brief Returns \p dict_attrs printed as a sequence of key=value entries, if any.
+   * This is used for function definition attributes.
+   */
+  std::vector<Doc> PrintDictAttrs(const DictAttrs& dict_attrs);
+  std::vector<Doc> PrintDictAttrs(const Map<String, ObjectRef>& dict_attrs);
+
+  /*!
+   * \brief Returns \p value printed as the rhs of an attribute key=value entry. If \p force_meta
+   * is true then value is printed in meta[...] for irrespective of the show_meta_data_ flag.
+   */
+  Doc PrintAttributeValue(const ObjectRef& value, bool force_meta = false);
+
+  /*!
+   * \brief Returns \p attrs printed as a self-contained value, ie wrapped in braces.
+   */
+  Doc PrintAttrsAsAttributeValue(const Attrs& attrs);
+
+  /*!
+   * \brief Returns \p map printed as a self-contained value, ie wrapped in braces.
+   */
+  Doc PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& map);
+
+  Doc PrintSpan(const Span& span, bool include_spans = true);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false);
 
@@ -160,7 +195,6 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   //------------------------------------
   // Overload of Attr printing functions
   //------------------------------------
-  Doc PrintAttr(const ObjectRef& value, bool meta = false);
   Doc VisitAttrDefault_(const Object* op) final;
   Doc VisitAttr_(const ArrayNode* op) final;
   Doc VisitAttr_(const tir::IntImmNode* op) final;
@@ -176,6 +210,8 @@ class RelayTextPrinter : public ExprFunctor<Doc(const Expr&)>,
   std::vector<Doc> doc_stack_{};
   /*! \brief Set for introduced vars */
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> var_memo_;
+  /*! \brief Set for exprs have been printed optional information */
+  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> opt_info_memo_;
   /*! \brief Map for result and memo_ diffs for visited expression */
   std::unordered_map<Expr, Doc, ObjectPtrHash, ObjectPtrEqual> result_memo_;
   /*! \brief Map from Expr to Doc */
@@ -254,6 +290,13 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   /*! \brief Print the node */
   Doc Print(const ObjectRef& node);
 
+  /*! \brief Place into `s` the name used in the preceding Print call for `v`.
+   * \param v Var instance to check. Must point to a VarNode visited by Print.
+   * \param s String to receive the name.
+   * \return true when a name re-mapping was found.
+   */
+  bool GetVarName(::tvm::tir::Var v, std::string* s);
+
  private:
   /*! \brief whether show meta data */
   bool show_meta_;
@@ -265,6 +308,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   std::unordered_map<Var, Doc, ObjectPtrHash, ObjectPtrEqual> memo_var_;
   /*! \brief Map from Buffer to Doc */
   std::unordered_map<Buffer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_buf_;
+  /*! \brief Map from Buffer to Doc */
+  std::unordered_map<DataProducer, Doc, ObjectPtrHash, ObjectPtrEqual> memo_producer_;
   /*! \brief name allocation map */
   std::unordered_map<std::string, int> name_alloc_map_;
 
@@ -310,7 +355,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const AssertStmtNode* op) override;
   Doc VisitStmt_(const StoreNode* op) override;
   Doc VisitStmt_(const BufferStoreNode* op) override;
+  Doc VisitStmt_(const ProducerStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
+  Doc VisitStmt_(const ProducerRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
@@ -331,7 +378,9 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintIterVar(const IterVarNode* op);
   Doc PrintRange(const RangeNode* op);
   Doc PrintBuffer(const BufferNode* op);
+  Doc PrintProducer(const DataProducerNode* op);
   Doc BufferNode2Doc(const BufferNode* op, Doc doc);
+  Doc DataProducerNode2Doc(const DataProducerNode* op, Doc doc);
   Doc PrintString(const StringObj* op) { return Doc::StrLiteral(op->data); }
   Doc PrintBufferRegion(const BufferRegionNode* op);
 
@@ -350,6 +399,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc GetUniqueName(std::string prefix);
   Doc AllocVar(const Var& var);
   Doc AllocBuf(const Buffer& buffer);
+  Doc AllocProducer(const DataProducer& buffer);
   /*!
    * \brief special method to render vectors of docs with a separator
    * \param vec vector of docs
@@ -359,7 +409,10 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc PrintBody(const Stmt& body, bool indent = true);
 };
 
-String AsTVMScript(const ObjectRef& mod, bool show_meta = false);
+String AsTVMScript(const ObjectRef& mod, const String& tir_prefix = "T", bool show_meta = false);
+
+String AsTVMScriptWithDiagnostic(const ObjectRef& mod, const String& tir_prefix, bool show_meta,
+                                 runtime::TypedPackedFunc<std::string(Stmt)> annotate);
 
 }  // namespace tir
 }  // namespace tvm
@@ -392,12 +445,15 @@ class TextPrinter {
   /*! \brief TIR Text Printer */
   tir::TIRTextPrinter tir_text_printer_;
 
+  bool GetVarName(::tvm::tir::Var v, std::string* s) { return tir_text_printer_.GetVarName(v, s); }
+
   Doc PrintFinal(const ObjectRef& node) {
     Doc doc;
-    if (node->IsInstance<IRModuleNode>()) {
+    if (node.defined() && node->IsInstance<IRModuleNode>()) {
       doc << PrintMod(Downcast<IRModule>(node));
-    } else if (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
-               node->IsInstance<tir::StmtNode>()) {
+    } else if (node.defined() &&
+               (node->IsInstance<tir::PrimFuncNode>() || node->IsInstance<PrimExprNode>() ||
+                node->IsInstance<tir::StmtNode>())) {
       doc << tir_text_printer_.Print(node);
     } else {
       doc << relay_text_printer_.PrintFinal(node);

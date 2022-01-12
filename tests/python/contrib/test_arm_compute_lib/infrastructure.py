@@ -184,7 +184,7 @@ def build_module(mod, target, params=None, enable_acl=True, tvm_ops=0, acl_parti
             ), "Got {} Arm Compute Library partitions, expected {}".format(
                 partition_count, acl_partitions
             )
-        relay.backend.compile_engine.get().clear()
+        relay.backend.te_compiler.get().clear()
         return relay.build(mod, target=target, params=params)
 
 

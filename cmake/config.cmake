@@ -105,10 +105,13 @@ set(USE_GRAPH_EXECUTOR ON)
 # Whether enable tiny graph executor with CUDA Graph
 set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
+# Whether enable pipeline executor.
+set(USE_PIPELINE_EXECUTOR OFF)
+
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
 
-# Whether enable uTVM standalone runtime
+# Whether enable microTVM standalone runtime
 set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
@@ -225,6 +228,13 @@ set(USE_ETHOSN OFF)
 # otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
 set(USE_ETHOSN_HW OFF)
 
+# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
+set(USE_ETHOSU OFF)
+
+# Whether to build with CMSIS-NN external library support.
+# See https://github.com/ARM-software/CMSIS_5
+set(USE_CMSISNN OFF)
+
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -266,12 +276,28 @@ set(USE_THRUST OFF)
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
+# Whether to build the PyTorch custom class module
+set(USE_PT_TVMDSOOP OFF)
+
 # Whether to use STL's std::unordered_map or TVM's POD compatible Map
 set(USE_FALLBACK_STL_MAP OFF)
 
 # Whether to use hexagon device
 set(USE_HEXAGON_DEVICE OFF)
 set(USE_HEXAGON_SDK /path/to/sdk)
+
+# Whether to build the hexagon launcher
+set(USE_HEXAGON_LAUNCHER OFF)
+
+# Whether to build the minimal support android rpc server for hexagon
+set(USE_HEXAGON_PROXY_RPC OFF)
+
+# Hexagon architecture to target when compiling TVM itself (not the target for
+# compiling _by_ TVM). This applies to components like the TVM runtime, but is
+# also used to select correct include/library paths from the Hexagon SDK when
+# building offloading runtime for Android.
+# Valid values are v60, v62, v65, v66, v68.
+set(USE_HEXAGON_ARCH "v66")
 
 # Whether to use ONNX codegen
 set(USE_TARGET_ONNX OFF)
@@ -299,3 +325,42 @@ set(USE_LIBBACKTRACE AUTO)
 # not be included in the final executable. This would make the corresponding
 # runtime functions to be unavailable to the program.
 set(BUILD_STATIC_RUNTIME OFF)
+
+
+# Caches the build so that building is faster when switching between branches.
+# If you switch branches, build and then encounter a linking error, you may
+# need to regenerate the build tree through "make .." (the cache will
+# still provide significant speedups).
+# Possible values:
+# - AUTO: search for path to ccache, disable if not found.
+# - ON: enable ccache by searching for the path to ccache, report an error if not found
+# - OFF: disable ccache
+# - /path/to/ccache: use specific path to ccache
+set(USE_CCACHE AUTO)
+
+# Whether to enable PAPI support in profiling. PAPI provides access to hardware
+# counters while profiling.
+# Possible values:
+# - ON: enable PAPI support. Will search PKG_CONFIG_PATH for a papi.pc
+# - OFF: disable PAPI support.
+# - /path/to/folder/containing/: Path to folder containing papi.pc.
+set(USE_PAPI OFF)
+
+# Whether to use GoogleTest for C++ unit tests. When enabled, the generated
+# build file (e.g. Makefile) will have a target "cpptest".
+# Possible values:
+# - ON: enable GoogleTest. The package `GTest` will be required for cmake
+#   to succeed.
+# - OFF: disable GoogleTest.
+# - AUTO: cmake will attempt to find the GTest package, if found GTest will
+#   be enabled, otherwise it will be disabled.
+# Note that cmake will use `find_package` to find GTest. Please use cmake's
+# predefined variables to specify the path to the GTest package if needed.
+set(USE_GTEST AUTO)
+
+# Enable using CUTLASS as a BYOC backend
+# Need to have USE_CUDA=ON
+set(USE_CUTLASS OFF)
+
+# Enable to show a summary of TVM options
+set(SUMMARIZE OFF)

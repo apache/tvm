@@ -32,19 +32,6 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Options for the device annotation operators.
- */
-struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
-  int device_type;
-
-  TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
-    TVM_ATTR_FIELD(device_type)
-        .describe("The virutal device/context type that an expression is annotated with.")
-        .set_default(0);
-  }
-};
-
-/*!
  * \brief Annotate an expression to be cast into specific data type.
  */
 struct CastHintAttrs : public tvm::AttrsNode<CastHintAttrs> {
@@ -66,6 +53,7 @@ struct CompilerAttrs : public tvm::AttrsNode<CompilerAttrs> {
     TVM_ATTR_FIELD(compiler).describe("A 3rd party compiler used for code generation.");
   }
 };
+
 
 }  // namespace relay
 }  // namespace tvm

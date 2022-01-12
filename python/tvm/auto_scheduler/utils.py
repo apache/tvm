@@ -20,9 +20,6 @@
 
 from typing import Hashable
 import json
-import multiprocessing
-import multiprocessing.pool
-import queue
 import signal
 import threading
 import traceback
@@ -289,41 +286,15 @@ def call_func_with_thread(func, args, kwargs):
     return res[0]
 
 
-def _func_wrapper(que, func, args, kwargs, add_thread_wrapper):
-    """Call function and return the result over the queue."""
-    try:
-        if add_thread_wrapper:
-            # Add a new layer of threadinng to avoid the conflict between
-            # python's multiprocessing and tvm's thread pool.
-            res = call_func_with_thread(func, args, kwargs)
-        else:
-            res = func(*args, **kwargs)
-        que.put(res)
-    except Exception:  # pylint: disable=broad-except
-        que.put(Exception(make_traceback_info()))
-
-
-def call_func_with_timeout(timeout, func, args=(), kwargs=None, add_thread_wrapper=False):
+def call_func_with_timeout(
+    worker, timeout, func, args=(), kwargs=None
+):  # pylint: disable=unused-argument
     """Call a function with timeout"""
-    que = multiprocessing.Queue(2)
-    process = multiprocessing.Process(
-        target=_func_wrapper, args=(que, func, args, kwargs or {}, add_thread_wrapper)
-    )
-    process.start()
-
+    worker.send(func, args, kwargs, timeout)
     try:
-        res = que.get(timeout=timeout)
-    except queue.Empty:
-        res = TimeoutError()
-
-    # clean queue and process
-    kill_child_processes(process.pid)
-    process.terminate()
-    process.join()
-    que.close()
-    que.join_thread()
-    del process
-    del que
+        res = worker.recv()
+    except Exception:  # pylint: disable=broad-except
+        res = Exception(make_traceback_info())
 
     return res
 

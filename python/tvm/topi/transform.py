@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import topi
+from tvm.te import hybrid
 from . import cpp
 from . import tag
 from .utils import within_index, make_idx, const_vector
@@ -941,3 +942,62 @@ def adv_index(data, indices):
         Output tensor
     """
     return cpp.adv_index(data, indices)
+
+
+@hybrid.script
+def invert_permutation(data):
+    """Computes the inverse permutation of data.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input data
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        Output tensor
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [3, 4, 0, 2, 1]
+        topi.invert_permutation(data) = [2, 4, 3, 0, 1]
+    """
+    result = output_tensor(data.shape, data.dtype)
+    nums = data.shape[0]
+    for ind in range(nums):
+        r_ind = data[ind]
+        result[r_ind] = ind
+    return result
+
+
+def sliding_window(data, axis, window_shape, strides):
+    """Slide a window over the data tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int
+        What axis the window begins sliding over. Window will be slid over
+        this axis and all following axes. The axis value determines the window
+        shape (and thus, the number of strides): window shape and strides must
+        both be of length `data.ndim-axis`.
+
+    window_shape : List[int]
+        The window shape to form over the input. Window shape must be of length
+        `data.ndim-axis`.
+
+    strides : List[int]
+        How to stride the window along each dimension. Strides must be of length
+        `data.ndim-axis`.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return cpp.sliding_window(data, axis, window_shape, strides)

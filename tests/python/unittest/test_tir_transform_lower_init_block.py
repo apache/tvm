@@ -15,39 +15,103 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import tir
-from tvm.script import ty
+from tvm import te
+from tvm.script import tir as T
+
+# pylint: disable=no-self-argument
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class WithInit:
-    def main(a: ty.handle, b: ty.handle) -> None:
-        A = tir.match_buffer(a, [64, 64, 64])
-        B = tir.match_buffer(b, [64])
+    @T.prim_func
+    def main(a: T.handle, b: T.handle) -> None:
+        A = T.match_buffer(a, [64, 64, 64])
+        B = T.match_buffer(b, [64])
 
-        with tir.block([64, tir.reduce_axis(0, 64), tir.reduce_axis(32, 64)]) as [i, j, k]:
-            with tir.init():
-                B[i] = tir.float32(0)
-            B[i] += A[i, j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    with T.init():
+                        B[i] = T.float32(0)
+                    B[i] += A[i, j, k]
 
 
-@tvm.script.tir
+@tvm.script.ir_module
 class WithBranch:
-    def main(a: ty.handle, b: ty.handle) -> None:
-        A = tir.match_buffer(a, [64, 64, 64])
-        B = tir.match_buffer(b, [64])
+    @T.prim_func
+    def main(a: T.handle, b: T.handle) -> None:
+        A = T.match_buffer(a, [64, 64, 64])
+        B = T.match_buffer(b, [64])
 
-        with tir.block([64, tir.reduce_axis(0, 64), tir.reduce_axis(32, 64)]) as [i, j, k]:
-            if (j == 0) and (k == 32):
-                B[i] = tir.float32(0)
-            B[i] += A[i, j, k]
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    if (j == 0) and (k == 32):
+                        B[i] = T.float32(0)
+                    B[i] += A[i, j, k]
+
+
+@tvm.script.ir_module
+class InitWithMatchBuffer:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle) -> None:
+        A = T.match_buffer(a, [64, 64, 64])
+        B = T.match_buffer(b, [64])
+
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    BB = T.match_buffer(B[i], ())
+                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    with T.init():
+                        BB[()] = T.float32(0)
+                    BB[()] += AA[j, k]
+
+
+@tvm.script.ir_module
+class BranchWithMatchBuffer:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle) -> None:
+        A = T.match_buffer(a, [64, 64, 64])
+        B = T.match_buffer(b, [64])
+
+        for i0, j0 in T.grid(64, 64):
+            for k0 in T.serial(32, 64):
+                with T.block():
+                    i, j, k = T.axis.remap("SRR", [i0, j0, k0])
+                    BB = T.match_buffer(B[i], ())
+                    AA = T.match_buffer(A[i, 0:64, 0:64], (64, 64))
+                    if (j == 0) and (k == 32):
+                        BB[()] = T.float32(0)
+                    BB[()] += AA[j, k]
 
 
 def test_lower_reduction():
-    origin_mod = WithInit()
+    origin_mod = WithInit
     mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
-    tvm.ir.assert_structural_equal(mod, WithBranch(), True)
+    print(mod.script())
+    tvm.ir.assert_structural_equal(mod, WithBranch, True)
+
+
+def test_lower_match_buffer():
+    origin_mod = InitWithMatchBuffer
+    mod = tvm.tir.transform.LowerInitBlock()(origin_mod)
+    tvm.ir.assert_structural_equal(mod, BranchWithMatchBuffer, True)
+
+
+def test_lower_te():
+    x = te.placeholder((1,))
+    y = te.compute((1,), lambda i: x[i] + 2)
+    s = te.create_schedule(y.op)
+    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
+    mod = tvm.tir.transform.LowerInitBlock()(orig_mod)
+    tvm.ir.assert_structural_equal(mod, orig_mod)  # LowerInitBlock should do nothing on TE
 
 
 if __name__ == "__main__":
     test_lower_reduction()
+    test_lower_match_buffer()
+    test_lower_te()

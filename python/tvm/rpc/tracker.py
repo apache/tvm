@@ -16,7 +16,7 @@
 # under the License.
 """RPC Tracker, tracks and distributes the TVM RPC resources.
 
-This folder implemements the tracker server logic.
+This folder implements the tracker server logic.
 
 Note
 ----
@@ -67,7 +67,7 @@ logger = logging.getLogger("RPCTracker")
 
 
 class Scheduler(object):
-    """Abstratc interface of scheduler."""
+    """Abstract interface of scheduler."""
 
     def put(self, value):
         """Push a resource into the scheduler.
@@ -167,7 +167,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         self._msg_size = 0
         self._addr = addr
         self._init_req_nbytes = 4
-        self._info = {"addr": addr}
+        self._info = {}
         # list of pending match keys that has not been used.
         self.pending_matchkeys = set()
         self._tracker._connections.add(self)
@@ -272,7 +272,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
             else:
                 self.ret_value(TrackerCode.FAIL)
         elif code == TrackerCode.UPDATE_INFO:
-            self._info.update(args[1])
+            info = args[1]
+            assert isinstance(info, dict)
+            if info["addr"][0] is None:
+                info["addr"][0] = self._addr[0]
+            self._info.update(info)
             self.ret_value(TrackerCode.SUCCESS)
         elif code == TrackerCode.SUMMARY:
             status = self._tracker.summary()
@@ -333,9 +337,10 @@ class TrackerServerHandler(object):
     def close(self, conn):
         self._connections.remove(conn)
         if "key" in conn._info:
-            key = conn._info["key"].split(":")[1]  # 'server:rasp3b' -> 'rasp3b'
             for value in conn.put_values:
-                self._scheduler_map[key].remove(value)
+                _, _, _, key = value
+                rpc_key = key.split(":")[0]
+                self._scheduler_map[rpc_key].remove(value)
 
     def stop(self):
         """Safely stop tracker."""

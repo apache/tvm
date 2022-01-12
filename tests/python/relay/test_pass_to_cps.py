@@ -58,9 +58,8 @@ def test_recursion():
     mod["main"] = to_cps(mod["main"], mod=mod)
     mod = relay.transform.InferType()(mod)
     mod["main"] = un_cps(mod["main"])
-    ex = create_executor(mod=mod)
     i_nd = rand(dtype, *shape)
-    forward = ex.evaluate()(i_nd)
+    forward = create_executor(mod=mod).evaluate()(i_nd)
     tvm.testing.assert_allclose(forward.numpy(), 8 * i_nd.numpy())
 
 
@@ -74,10 +73,15 @@ def test_cps_pe():
         x = run_infer_type(x)
         y = un_cps(x)
         y = run_infer_type(y)
+        # TODO(mbs): Revisit once DCE can eliminate dead writes.
         x = run_opt_pass(
             x,
             tvm.transform.Sequential(
-                [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+                [
+                    transform.PartialEvaluate(),
+                    transform.InferType(),
+                    transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+                ]
             ),
         )
         assert Feature.fRefCreate not in detect_feature(x)
@@ -119,5 +123,7 @@ def test_cps_pe():
 
 
 if __name__ == "__main__":
-    test_recursion()
-    test_cps_pe()
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

@@ -260,7 +260,7 @@ void BaseComputeOpNode::GatherBound(const Operation& self,
 
 Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
                                      const std::unordered_map<IterVar, Range>& realize_map,
-                                     const Stmt& body) const {
+                                     const Stmt& body, String storage_scope) const {
   ICHECK_EQ(stage->op.get(), this);
   Region bounds;
   for (IterVar iv : this->axis) {
@@ -269,7 +269,7 @@ Stmt BaseComputeOpNode::BuildRealize(const Stage& stage,
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
     Tensor t = stage->op.output(i - 1);
-    realize = tir::ProducerRealize(t, bounds, const_true(), realize);
+    realize = tir::ProducerRealize(t, bounds, const_true(), realize, storage_scope);
     // alignment requirement, only useful for compute
     for (size_t i = 0; i < num_schedulable_dims(); ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
@@ -484,7 +484,8 @@ ComputeLoopNest ComputeLoopNest::Create(const BaseComputeOpNode* self, const Sta
     }
     ret.init_nest = MakeLoopNest(stage, dom_map, begin_loop, true, skip_iter, &(ret.init_vmap),
                                  debug_keep_trivial_loop);
-    ret.init_predicates = MakeBoundCheck(stage, dom_map, ret.init_vmap, true, skip_iter);
+    ret.init_predicates =
+        MakeBoundCheck(stage, dom_map, ret.init_vmap, !stage->rolling_buffer, skip_iter);
     for (auto& e : ret.init_predicates) {
       e = likely(e);
     }
@@ -591,7 +592,7 @@ Stmt TransformUpdate(const Stage& stage, const std::unordered_map<IterVar, Range
   auto fbanned = [&](const VarNode* node) { return banned.count(node); };
 
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, fbanned)) {
+    if (tir::UsesVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition " << pred
                  << " has a conflict with the reset condition";
     }

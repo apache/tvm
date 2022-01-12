@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../../support/utils.h"
 #include "vulkan_common.h"
 #include "vulkan_device.h"
 #include "vulkan_device_api.h"
@@ -121,24 +122,15 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   // Support is available based on these extensions, but allow it to
   // be disabled based on an environment variable.
   supports_push_descriptor = device.HasExtension("VK_KHR_push_descriptor") &&
-                             device.HasExtension("VK_KHR_descriptor_update_template");
-  {
-    const char* disable = std::getenv("TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR");
-    if (disable && *disable) {
-      supports_push_descriptor = false;
-    }
-  }
+                             device.HasExtension("VK_KHR_descriptor_update_template") &&
+                             !support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_PUSH_DESCRIPTOR");
 
   // Support is available based on these extensions, but allow it to
   // be disabled based on an environment variable.
-  supports_dedicated_allocation = device.HasExtension("VK_KHR_get_memory_requirements2") &&
-                                  device.HasExtension("VK_KHR_dedicated_allocation");
-  {
-    const char* disable = std::getenv("TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION");
-    if (disable && *disable) {
-      supports_dedicated_allocation = false;
-    }
-  }
+  supports_dedicated_allocation =
+      device.HasExtension("VK_KHR_get_memory_requirements2") &&
+      device.HasExtension("VK_KHR_dedicated_allocation") &&
+      !support::BoolEnvironmentVar("TVM_VULKAN_DISABLE_DEDICATED_ALLOCATION");
 
   // The check of VK_SHADER_STAGE_COMPUTE_BIT isn't technically
   // needed, since it will be set so long at least one queue has
@@ -163,6 +155,31 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   max_shared_memory_per_block = properties.properties.limits.maxComputeSharedMemorySize;
   device_name = properties.properties.deviceName;
   driver_version = properties.properties.driverVersion;
+
+  if (device.HasExtension("VK_KHR_driver_properties")) {
+    driver_name = driver.driverName;
+  }
+
+  switch (properties.properties.deviceType) {
+    case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+      device_type = "other";
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+      device_type = "integrated";
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+      device_type = "discrete";
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+      device_type = "virtual";
+      break;
+    case VK_PHYSICAL_DEVICE_TYPE_CPU:
+      device_type = "cpu";
+      break;
+    default:
+      LOG(FATAL) << "Unknown vulkan device type: " << properties.properties.deviceType;
+      break;
+  }
 
   // By default, use the maximum API version that the driver allows,
   // so that any supported features can be used by TVM shaders.

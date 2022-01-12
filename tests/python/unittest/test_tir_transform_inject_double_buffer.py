@@ -47,8 +47,8 @@ def test_double_buffer():
         mod = opt(mod)
     stmt = mod["db"].body
 
-    assert isinstance(stmt.body.body, tvm.tir.Allocate)
-    assert stmt.body.body.extents[0].value == 2
+    assert isinstance(stmt.body, tvm.tir.Allocate)
+    assert stmt.body.extents[0].value == 2
 
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]

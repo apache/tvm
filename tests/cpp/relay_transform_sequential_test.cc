@@ -77,11 +77,16 @@ TEST(Relay, Sequential) {
   if (!reg) {
     LOG(FATAL) << "Register is not defined.";
   }
+  auto reset = tvm::runtime::Registry::Get("ir.OpResetAttr");
+  if (!reset) {
+    LOG(FATAL) << "Reset is not defined.";
+  }
   auto fs = tvm::runtime::Registry::Get("test.seq.strategy");
   if (!fs) {
     LOG(FATAL) << "Strategy is not defined.";
   }
-  auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
+  auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs, true);
+  (*reset)(add_op, "FTVMStrategy");
   (*reg)("add", "FTVMStrategy", fgeneric, 10);
 
   // Run sequential passes.
@@ -127,10 +132,4 @@ TEST(PassContextListConfigs, Basic) {
 
   auto config = configs["relay.backend.use_auto_scheduler"];
   ICHECK_EQ(config["type"], "IntImm");
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

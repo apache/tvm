@@ -522,7 +522,7 @@ def conv2d_transpose(
     channels=None,
     kernel_size=None,
     data_layout="NCHW",
-    kernel_layout="OIHW",
+    kernel_layout="IOHW",
     out_layout="",
     output_padding=(0, 0),
     out_dtype="",
@@ -748,7 +748,14 @@ def log_softmax(data, axis=-1):
 
 
 def max_pool1d(
-    data, pool_size=(1,), strides=(1,), dilation=(1,), padding=(0,), layout="NCW", ceil_mode=False
+    data,
+    pool_size=(1,),
+    strides=(1,),
+    dilation=(1,),
+    padding=(0,),
+    layout="NCW",
+    out_layout="",
+    ceil_mode=False,
 ):
     r"""1D maximum pooling operator.
 
@@ -783,6 +790,9 @@ def max_pool1d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -798,7 +808,9 @@ def max_pool1d(
     if isinstance(dilation, int):
         dilation = (dilation,)
     padding = get_pad_tuple1d(padding)
-    return _make.max_pool1d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
+    return _make.max_pool1d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def max_pool2d(
@@ -808,6 +820,7 @@ def max_pool2d(
     dilation=(1, 1),
     padding=(0, 0),
     layout="NCHW",
+    out_layout="",
     ceil_mode=False,
 ):
     r"""2D maximum pooling operator.
@@ -851,6 +864,9 @@ def max_pool2d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -866,7 +882,9 @@ def max_pool2d(
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
-    return _make.max_pool2d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
+    return _make.max_pool2d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def max_pool3d(
@@ -876,6 +894,7 @@ def max_pool3d(
     dilation=(1, 1, 1),
     padding=(0, 0, 0),
     layout="NCDHW",
+    out_layout="",
     ceil_mode=False,
 ):
     r"""3D maximum pooling operator.
@@ -912,6 +931,9 @@ def max_pool3d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -927,7 +949,9 @@ def max_pool3d(
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
     padding = get_pad_tuple3d(padding)
-    return _make.max_pool3d(data, pool_size, strides, dilation, padding, layout, ceil_mode)
+    return _make.max_pool3d(
+        data, pool_size, strides, dilation, padding, layout, out_layout, ceil_mode
+    )
 
 
 def avg_pool1d(
@@ -937,6 +961,7 @@ def avg_pool1d(
     dilation=(1,),
     padding=(0,),
     layout="NCW",
+    out_layout="",
     ceil_mode=False,
     count_include_pad=False,
 ):
@@ -973,6 +998,9 @@ def avg_pool1d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -992,7 +1020,15 @@ def avg_pool1d(
         dilation = (dilation,)
     padding = get_pad_tuple1d(padding)
     return _make.avg_pool1d(
-        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1003,6 +1039,7 @@ def avg_pool2d(
     dilation=(1, 1),
     padding=(0, 0),
     layout="NCHW",
+    out_layout="",
     ceil_mode=False,
     count_include_pad=False,
 ):
@@ -1048,6 +1085,9 @@ def avg_pool2d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -1067,7 +1107,15 @@ def avg_pool2d(
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
     return _make.avg_pool2d(
-        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1078,6 +1126,7 @@ def avg_pool3d(
     dilation=(1, 1, 1),
     padding=(0, 0, 0),
     layout="NCDHW",
+    out_layout="",
     ceil_mode=False,
     count_include_pad=False,
 ):
@@ -1115,6 +1164,9 @@ def avg_pool3d(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -1134,7 +1186,15 @@ def avg_pool3d(
         dilation = (dilation, dilation, dilation)
     padding = get_pad_tuple3d(padding)
     return _make.avg_pool3d(
-        data, pool_size, strides, dilation, padding, layout, ceil_mode, count_include_pad
+        data,
+        pool_size,
+        strides,
+        dilation,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
@@ -1145,6 +1205,7 @@ def max_pool2d_grad(
     strides=(1, 1),
     padding=(0, 0),
     layout="NCHW",
+    out_layout="",
     ceil_mode=False,
 ):
     r"""Gradient of 2D maximum pooling operator.
@@ -1171,6 +1232,9 @@ def max_pool2d_grad(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -1179,7 +1243,9 @@ def max_pool2d_grad(
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.max_pool2d_grad(out_grad, data, pool_size, strides, padding, layout, ceil_mode)
+    return _make.max_pool2d_grad(
+        out_grad, data, pool_size, strides, padding, layout, out_layout, ceil_mode
+    )
 
 
 def avg_pool2d_grad(
@@ -1189,6 +1255,7 @@ def avg_pool2d_grad(
     strides=(1, 1),
     padding=(0, 0),
     layout="NCHW",
+    out_layout="",
     ceil_mode=False,
     count_include_pad=False,
 ):
@@ -1216,6 +1283,9 @@ def avg_pool2d_grad(
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
 
@@ -1228,11 +1298,19 @@ def avg_pool2d_grad(
         The computed result.
     """
     return _make.avg_pool2d_grad(
-        out_grad, data, pool_size, strides, padding, layout, ceil_mode, count_include_pad
+        out_grad,
+        data,
+        pool_size,
+        strides,
+        padding,
+        layout,
+        out_layout,
+        ceil_mode,
+        count_include_pad,
     )
 
 
-def global_max_pool2d(data, layout="NCHW"):
+def global_max_pool2d(data, layout="NCHW", out_layout=""):
     r"""2D global maximum pooling operator.
 
     This operator takes data as input and does 2D max value calculation
@@ -1258,15 +1336,18 @@ def global_max_pool2d(data, layout="NCHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.global_max_pool2d(data, layout)
+    return _make.global_max_pool2d(data, layout, out_layout)
 
 
-def global_avg_pool2d(data, layout="NCHW"):
+def global_avg_pool2d(data, layout="NCHW", out_layout=""):
     r"""2D global average pooling operator.
 
     This operator takes data as input and does 2D average value calculation
@@ -1292,12 +1373,15 @@ def global_avg_pool2d(data, layout="NCHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : Optional[str]
+        Layout of the output
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.global_avg_pool2d(data, layout)
+    return _make.global_avg_pool2d(data, layout, out_layout)
 
 
 def upsampling(
@@ -1471,6 +1555,50 @@ def bias_add(data, bias, axis=1):
     return _make.bias_add(data, bias, axis)
 
 
+def matmul(tensor_a, tensor_b, units=None, out_dtype="", transpose_a=False, transpose_b=False):
+    """Matmul operator.
+    Applies a linear transformation. The A & B can be transposed.
+
+    .. math::
+
+        `C = A * B`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The first input of the operator,
+        of shape `(d_1, d_2, ..., d_n, units_in)` or `(d_1, d_2, ..., units_in, d_n)`.
+
+    weight : tvm.relay.Expr
+        The second input expressions, 2-D matrix,
+        of shape `(units_in, units)` or `(units, units_in)`.
+
+    units : Optional[int]
+        Number of hidden units of the matmul transformation.
+
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision matmul,
+        of shape `(d_1, d_2, ..., d_n, units)`.
+
+    transpose_a : Optional[bool] = False
+        Whether the data tensor is in transposed format.
+
+    transpose_b : Optional[bool] = False
+        Whether the weight tensor is in transposed format.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # Since currently `nn.dense` has better topi schedule support, will prefer to use `dense`
+    # rather than `matmul` for better compatibility
+    if not transpose_a and transpose_b:
+        # TODO(jcf94): Remove this when `nn.matmul` is finnaly ready
+        return dense(tensor_a, tensor_b, units, out_dtype)
+    return _make.matmul(tensor_a, tensor_b, units, out_dtype, transpose_a, transpose_b)
+
+
 def dense(data, weight, units=None, out_dtype=""):
     """Dense operator.
     Applies a linear transformation
@@ -1504,9 +1632,9 @@ def dense(data, weight, units=None, out_dtype=""):
     return _make.dense(data, weight, units, out_dtype)
 
 
-def contrib_dense_pack(data, weight, units=None, out_dtype=""):
+def contrib_dense_pack(data, weight, weight_layout="NC", units=None, out_dtype=""):
     """Dense operator.
-    Applies a linear transformation
+    Applies a linear transformation with packed weight
 
     .. math::
 
@@ -1516,25 +1644,27 @@ def contrib_dense_pack(data, weight, units=None, out_dtype=""):
     ----------
     data : tvm.relay.Expr
         The input data to the operator,
-        of shape `(d_1, d_2, ..., d_n, units_in)`.
+        of shape `(batch, units_in)`.
 
     weight : tvm.relay.Expr
         The transformed weight expressions, 3-D matrix,
         of shape `(units // pack_weight_tile, units_in, pack_weight_tile)`.
 
+    weight_layout: str
+        The layout of weight, such as "NC" or "NC8n".
+
     units : int, optional
         Number of hidden units of the dense transformation.
 
     out_dtype : str, optional
-        Specifies the output data type for mixed precision dense,
-        of shape `(d_1, d_2, ..., d_n, units)`.
+        Specifies the output data type for mixed precision dense.
 
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
-    return _make.contrib_dense_pack(data, weight, units, out_dtype)
+    return _make.contrib_dense_pack(data, weight, weight_layout, units, out_dtype)
 
 
 def fifo_buffer(data, buffer, axis):
@@ -2093,32 +2223,40 @@ def group_norm(data, gamma, beta, num_groups, axis=1, epsilon=1e-5, center=True,
     return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
 
 
-def batch_matmul(x, y, out_dtype=""):
+def batch_matmul(tensor_a, tensor_b, out_dtype="", transpose_a=False, transpose_b=True):
     r"""
-    Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
-    in batch.
+    Compute batch matrix multiplication of `tensor_a` and `tensor_b`.
+
+    Both `tensor_a` and `tensor_b` can be transposed. For legacy reason, we use NT format
+    (transpose_a=False, transpose_b=True) by default.
 
     .. math::
 
-        \mbox{batch_matmul}(x, y)[i, :, :] = \mbox{matmul}(x[i, :, :], y[i, :, :]^T)
+        \mbox{batch_matmul}(A, B)[i, :, :] = \mbox{matmul}(A[i, :, :], B[i, :, :])
 
     Parameters
     ----------
-    x : tvm.relay.Expr
+    tensor_a : tvm.relay.Expr
         The first input.
 
-    y : tvm.relay.Expr
+    tensor_b : tvm.relay.Expr
         The second input.
 
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision batch matmul
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision batch matmul.
+
+    transpose_a : Optional[bool] = False
+        Whether the first tensor is in transposed format.
+
+    transpose_b : Optional[bool] = True
+        Whether the second tensor is in transposed format.
 
     Returns
     -------
     result: tvm.relay.Expr
         The computed result.
     """
-    return _make.batch_matmul(x, y, out_dtype)
+    return _make.batch_matmul(tensor_a, tensor_b, out_dtype, transpose_a, transpose_b)
 
 
 # pylint: disable=no-else-return,inconsistent-return-statements
@@ -2974,6 +3112,42 @@ def cross_entropy_with_logits(predictions, targets):
     return _make.cross_entropy_with_logits(predictions, targets)
 
 
+def nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-100):
+    """Negative log likelihood loss.
+
+    output{n, i_1, i_2, ..., i_k} = -p * w
+      where t = target{n, i_1, i_2, ..., i_k}
+            p = predictions{n, t, i_1, i_2, i_k}
+            w = weights{n, i_1, i_2, ..., i_k} if t != ignore_index else 0
+
+    result = reduction(output)
+
+    Parameters
+    ----------
+    predictions : tvm.relay.Expr
+      The predictions.
+
+    targets : tvm.relay.Expr
+      The target value of each prediction.
+
+    weights : tvm.relay.Expr
+      The weight of each target value.
+
+    reduction : string
+      The reduction method to apply to the output.
+      Possible values are "mean", "sum" and "none".
+
+    ignore_index : int
+      The target value to ignore.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+      The computed result.
+    """
+    return _make.nll_loss(predictions, targets, weights, reduction, ignore_index)
+
+
 def depth_to_space(data, block_size, layout="NCHW", mode="DCR"):
     """Convert channels into spatial blocks.
 
@@ -3024,7 +3198,7 @@ def space_to_depth(data, block_size, layout="NCHW"):
     return _make.space_to_depth(data, block_size, layout)
 
 
-def adaptive_max_pool1d(data, output_size=None, layout="NCW"):
+def adaptive_max_pool1d(data, output_size=None, layout="NCW", out_layout=""):
     r"""1D adaptive max pooling operator. This operator is experimental.
 
     This operator takes data as input and does 1D max value calculation
@@ -3057,6 +3231,9 @@ def adaptive_max_pool1d(data, output_size=None, layout="NCW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -3065,10 +3242,10 @@ def adaptive_max_pool1d(data, output_size=None, layout="NCW"):
     output_size = [] or output_size
     if isinstance(output_size, int):
         output_size = [output_size]
-    return _make.adaptive_max_pool1d(data, output_size, layout)
+    return _make.adaptive_max_pool1d(data, output_size, layout, out_layout)
 
 
-def adaptive_avg_pool1d(data, output_size=None, layout="NCW"):
+def adaptive_avg_pool1d(data, output_size=None, layout="NCW", out_layout=""):
     r"""1D adaptive average pooling operator. This operator is experimental.
 
     This operator takes data as input and does 1D average value calculation
@@ -3101,6 +3278,9 @@ def adaptive_avg_pool1d(data, output_size=None, layout="NCW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -3109,10 +3289,10 @@ def adaptive_avg_pool1d(data, output_size=None, layout="NCW"):
     output_size = [] or output_size
     if isinstance(output_size, int):
         output_size = [output_size]
-    return _make.adaptive_avg_pool1d(data, output_size, layout)
+    return _make.adaptive_avg_pool1d(data, output_size, layout, out_layout)
 
 
-def adaptive_max_pool2d(data, output_size=None, layout="NCHW"):
+def adaptive_max_pool2d(data, output_size=None, layout="NCHW", out_layout=""):
     r"""2D adaptive max pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D max value calculation
@@ -3148,16 +3328,19 @@ def adaptive_max_pool2d(data, output_size=None, layout="NCHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_max_pool2d(data, output_size, layout)
+    return _make.adaptive_max_pool2d(data, output_size, layout, out_layout)
 
 
-def adaptive_avg_pool2d(data, output_size=None, layout="NCHW"):
+def adaptive_avg_pool2d(data, output_size=None, layout="NCHW", out_layout=""):
     r"""2D adaptive average pooling operator. This operator is experimental.
 
     This operator takes data as input and does 2D average value calculation
@@ -3193,16 +3376,19 @@ def adaptive_avg_pool2d(data, output_size=None, layout="NCHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_avg_pool2d(data, output_size, layout)
+    return _make.adaptive_avg_pool2d(data, output_size, layout, out_layout)
 
 
-def adaptive_max_pool3d(data, output_size=None, layout="NCDHW"):
+def adaptive_max_pool3d(data, output_size=None, layout="NCDHW", out_layout=""):
     r"""3D adaptive max pooling operator. This operator is experimental.
 
     This operator takes data as input and does 3D max value calculation
@@ -3237,16 +3423,19 @@ def adaptive_max_pool3d(data, output_size=None, layout="NCDHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_max_pool3d(data, output_size, layout)
+    return _make.adaptive_max_pool3d(data, output_size, layout, out_layout)
 
 
-def adaptive_avg_pool3d(data, output_size=None, layout="NCDHW"):
+def adaptive_avg_pool3d(data, output_size=None, layout="NCDHW", out_layout=""):
     r"""3D adaptive avg pooling operator. This operator is experimental.
 
     This operator takes data as input and does 3D avg value calculation
@@ -3281,16 +3470,19 @@ def adaptive_avg_pool3d(data, output_size=None, layout="NCDHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [] or output_size
-    return _make.adaptive_avg_pool3d(data, output_size, layout)
+    return _make.adaptive_avg_pool3d(data, output_size, layout, out_layout)
 
 
-def global_max_pool1d(data, layout="NCW"):
+def global_max_pool1d(data, layout="NCW", out_layout=""):
     r"""1D global maximum pooling operator.
 
     This operator takes data as input and does 1D max value calculation
@@ -3313,16 +3505,19 @@ def global_max_pool1d(data, layout="NCW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [1]
-    return _make.adaptive_max_pool1d(data, output_size, layout)
+    return _make.adaptive_max_pool1d(data, output_size, layout, out_layout)
 
 
-def global_avg_pool1d(data, layout="NCW"):
+def global_avg_pool1d(data, layout="NCW", out_layout=""):
     r"""1D global average pooling operator.
 
     This operator takes data as input and does 1D average value calculation
@@ -3346,16 +3541,19 @@ def global_avg_pool1d(data, layout="NCW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [1]
-    return _make.adaptive_avg_pool1d(data, output_size, layout)
+    return _make.adaptive_avg_pool1d(data, output_size, layout, out_layout)
 
 
-def global_max_pool3d(data, layout="NCDHW"):
+def global_max_pool3d(data, layout="NCDHW", out_layout=""):
     r"""3D global maximum pooling operator.
 
     This operator takes data as input and does 3D max value calculation
@@ -3379,16 +3577,19 @@ def global_max_pool3d(data, layout="NCDHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [1, 1, 1]
-    return _make.adaptive_max_pool3d(data, output_size, layout)
+    return _make.adaptive_max_pool3d(data, output_size, layout, out_layout)
 
 
-def global_avg_pool3d(data, layout="NCDHW"):
+def global_avg_pool3d(data, layout="NCDHW", out_layout=""):
     r"""3D global average pooling operator.
 
     This operator takes data as input and does 3D average value calculation
@@ -3413,13 +3614,16 @@ def global_avg_pool3d(data, layout="NCDHW"):
     layout : str, optional
         Layout of the input.
 
+    out_layout : str, optional
+        Layout of the output.
+
     Returns
     -------
     result : tvm.relay.Expr
         The computed result.
     """
     output_size = [1, 1, 1]
-    return _make.adaptive_avg_pool3d(data, output_size, layout)
+    return _make.adaptive_avg_pool3d(data, output_size, layout, out_layout)
 
 
 def correlation(

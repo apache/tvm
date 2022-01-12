@@ -37,6 +37,7 @@
 #include <vector>
 
 namespace tvm {
+
 namespace runtime {
 
 /*! \brief Base class for all implementations.
@@ -150,6 +151,26 @@ class Timer : public ObjectRef {
 Timer DefaultTimer(Device dev);
 
 namespace profiling {
+/*! \brief Wrapper for `Device` because `Device` is not passable across the
+ * PackedFunc interface.
+ */
+struct DeviceWrapperNode : public Object {
+  /*! The device */
+  Device device;
+
+  /*! Constructor */
+  explicit DeviceWrapperNode(Device device) : device(device) {}
+
+  static constexpr const char* _type_key = "runtime.profiling.DeviceWrapper";
+  TVM_DECLARE_BASE_OBJECT_INFO(DeviceWrapperNode, Object);
+};
+
+/*! \brief Wrapper for `Device`. */
+class DeviceWrapper : public ObjectRef {
+ public:
+  explicit DeviceWrapper(Device dev) { data_ = make_object<DeviceWrapperNode>(dev); }
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DeviceWrapper, ObjectRef, DeviceWrapperNode);
+};
 
 /*! \brief Data collected from a profiling run. Includes per-call metrics and per-device metrics.
  */
@@ -177,13 +198,53 @@ class ReportNode : public Object {
    */
   String AsCSV() const;
   /*! \brief Create a human readable table of profiling metrics.
-   *  \param aggregate Whether or not to join multiple calls to the same op into a single line.
-   *  \param sort Whether or not to sort call frames by descending duration. If
-   *  false and if `aggregate` is false, frames will be sorted by order of
-   *  appearance in the program. Order is undefined if `sort` is false and
-   *  `aggregate` is true.
+   *
+   *  \param aggregate Whether or not to join multiple calls to the
+   *      same op into a single line.
+   *
+   *  \param sort Whether or not to sort call frames by descending
+   *      duration. If false and if `aggregate` is false, frames will
+   *      be sorted by order of appearance in the program. Order is
+   *      undefined if `sort` is false and `aggregate` is true.
+   *
+   *  \param compute_col_sums Whether or not to include sum totals for
+   *      the Count, Duation, and Percent columns.
+   *
    */
-  String AsTable(bool sort = true, bool aggregate = true) const;
+  String AsTable(bool sort = true, bool aggregate = true, bool compute_col_sums = true) const;
+  /*! \brief Convert this report to JSON.
+   *
+   * Output JSON will be of this format:
+   * \code
+   *  {
+   *    "calls": [
+   *      {
+   *        "Duration (us)": {
+   *          "microseconds": 12.3
+   *        },
+   *        "Name": "fused_dense",
+   *        "Count": {
+   *          "count": 1
+   *        },
+   *        "Percent": {
+   *          "percent": 10.3
+   *        }
+   *      }
+   *    ],
+   *    "device_metrics": {
+   *      "cpu": {
+   *        "Duration (us)": {
+   *          "microseconds": 334.2
+   *        },
+   *        "Percent": {
+   *          "percent": 100
+   *        }
+   *      }
+   *    }
+   *  }
+   * \endcode
+   */
+  String AsJSON() const;
 
   static constexpr const char* _type_key = "runtime.profiling.Report";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReportNode, Object);
@@ -197,7 +258,64 @@ class Report : public ObjectRef {
    */
   explicit Report(Array<Map<String, ObjectRef>> calls,
                   Map<String, Map<String, ObjectRef>> device_metrics);
+
+  /*! Deserialize a Report from a JSON object. Needed for sending the report over RPC.
+   * \param json Serialized json report from `ReportNode::AsJSON`.
+   * \returns A Report.
+   */
+  static Report FromJSON(String json);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Report, ObjectRef, ReportNode);
+};
+
+/*! \brief Interface for user defined profiling metric collection.
+ *
+ * Users can register their own collector by registering a packed function with
+ * the name "runtime.profiling.metrics.my_collector_name" where
+ * "my_collector_name" is the name of their collector. This function should
+ * take an Array of Device as input which contains the devices the collector
+ * will be run on.
+ *
+ * `MetricCollectorNode`s will be called in the following fashion.
+ * \code
+ * MetricCollector mc;
+ * for (auto op : model) {
+ *   auto o = mc.Start();
+ *   op();
+ *   auto metrics = mc.Stop(o); // metrics are added the profiling report
+ * }
+ * \endcode
+ */
+class MetricCollectorNode : public Object {
+ public:
+  /*! \brief Initialization call. Called before profiling has started. Any
+   * expensive precomputation should happen here.
+   * \param devs The list of devices this collector will be run on.
+   */
+  virtual void Init(Array<DeviceWrapper> devs) = 0;
+  /*! \brief Start colling metrics for a function call.
+   * \param dev The device the call will be run on.
+   * \returns An object used to maintain state of the metric collection. This
+   * object will be passed to the corresponding `Stop` call. If the device is
+   * not supported, this function will return a nullptr ObjectRef.
+   */
+  virtual ObjectRef Start(Device dev) = 0;
+  /*! \brief Stop collecting metrics.
+   * \param obj The object created by the corresponding `Start` call.
+   * \returns A set of metric names and the associated values. Values must be
+   * one of DurationNode, PercentNode, CountNode, or StringObj.
+   */
+  virtual Map<String, ObjectRef> Stop(ObjectRef obj) = 0;
+
+  virtual ~MetricCollectorNode() {}
+
+  static constexpr const char* _type_key = "runtime.profiling.MetricCollector";
+  TVM_DECLARE_BASE_OBJECT_INFO(MetricCollectorNode, Object);
+};
+
+/*! \brief Wrapper for `MetricCollectorNode`. */
+class MetricCollector : public ObjectRef {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetricCollector, ObjectRef, MetricCollectorNode);
 };
 
 /*! Information about a single function or operator call. */
@@ -210,6 +328,10 @@ struct CallFrame {
   Timer timer;
   /*! Extra performance metrics */
   std::unordered_map<std::string, ObjectRef> extra_metrics;
+  /*! User defined metric collectors. Each pair is the MetricCollector and its
+   * associated data (returned from MetricCollector.Start).
+   */
+  std::vector<std::pair<MetricCollector, ObjectRef>> extra_collectors;
 };
 
 /*! Runtime profiler for function and/or operator calls. Used in the graph
@@ -217,9 +339,10 @@ struct CallFrame {
  *
  * Example usage:
  * \code{.cpp}
- * Profiler prof;
  * Device cpu, gpu;
- * prof.Start({cpu, gpu});
+ * Profiler prof({cpu, gpu});
+ * my_gpu_kernel(); // do a warmup iteration
+ * prof.Start();
  * prof.StartCall("my_gpu_kernel", gpu);
  * my_gpu_kernel();
  * prof.StopCall();
@@ -232,13 +355,24 @@ struct CallFrame {
  */
 class Profiler {
  public:
-  /*! \brief Start the profiler.
+  /*! Constructor.
+   *
+   * The profiler should be constructed before you do any warmup iterations.
+   *
+   * \note
+   * Calling this constructor will reset the TVM threadpool. It is necessary in
+   * order to install thread handlers required by certain collectors.
+   *
    * \param devs The list of devices the profiler will be running on. Should
    *             include all devices used by profiled operators.
+   * \param metric_collectors Additional `MetricCollector`s to use with this profiler.
+   */
+  explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors);
+  /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
    */
-  void Start(const std::vector<Device>& devs);
+  void Start();
   /*! \brief Stop the profiler.
    *
    * This function should only be called once per object after start has been called.
@@ -270,12 +404,14 @@ class Profiler {
   /*! \brief Check if the profiler is currently running.
    * \returns Whether or not the profiler is running.
    */
-  bool IsRunning() const { return !global_timers_.empty(); }
+  bool IsRunning() const { return is_running_; }
 
  private:
-  std::vector<std::pair<Device, Timer>> global_timers_;
+  std::vector<Device> devs_;
+  bool is_running_{false};
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
+  std::vector<MetricCollector> collectors_;
 };
 
 /* \brief A duration in time. */
@@ -323,11 +459,57 @@ class CountNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(CountNode, Object);
 };
 
-/*! \brief String representation of an array or NDArray shapes
+/*! \brief String representation of an array of NDArray shapes
  *  \param shapes Array of NDArrays to get the shapes of.
  *  \return A textual representation of the shapes. For example: `float32[2], int64[1, 2]`.
  */
 String ShapeString(const std::vector<NDArray>& shapes);
+/*! \brief String representation of shape encoded as an NDArray
+ *  \param shape NDArray containing the shape.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(NDArray shape, DLDataType dtype);
+/*! \brief String representation of a shape encoded as a vector
+ *  \param shape Shape as a vector of integers.
+ *  \param dtype The dtype of the shape.
+ *  \return A textual representation of the shape. For example: `float32[2]`.
+ */
+String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
+
+/*! \brief Collect performance information of a function execution. Usually
+ * used with a compiled PrimFunc (via tvm.build).
+ *
+ * This information can include performance counters like cache hits and FLOPs
+ * that are useful in debugging performance issues of individual PrimFuncs.
+ * Different metrics can be collected depending on which MetricCollector is
+ * used.
+ *
+ * Example usage:
+ * \code{.cpp}
+ * // Use PAPI to measure the number of floating point operations.
+ * PackedFunc profiler = ProfileModule(
+ *     mod, "main", kDLCPU, 0, {CreatePAPIMetricCollector({{kDLCPU, 0}, {"PAPI_FP_OPS"}})});
+ * Report r = profiler(arg1, arg2, arg);
+ * std::cout << r << std::endl;
+ * \endcode
+ *
+ * \param mod Module to profile. Usually a PrimFunc that has been compiled to machine code.
+ * \param func_name Name of function to run in the module.
+ * \param device_type Device type to run on. Profiling will include performance
+ *                    metrics specific to this device type.
+ * \param device_id Id of device to run on.
+ * \param warmup_iters Number of iterations of the function to run before collecting
+ *                     performance information. Recommend to set this larger
+ *                     than 0 so that cache effects are consistent.
+ * \param collectors List of different
+ *                   ways to collect metrics. See MetricCollector.
+ * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
+ *          and returns performance metrics as a `Map<String, ObjectRef>` where
+ *          values can be `CountNode`, `DurationNode`, `PercentNode`.
+ */
+PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                           int warmup_iters, Array<MetricCollector> collectors);
 
 }  // namespace profiling
 }  // namespace runtime

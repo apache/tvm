@@ -526,22 +526,13 @@ bool StatefulOp(const Expr& e) {
 
 using FInterpreter = runtime::TypedPackedFunc<ObjectRef(Expr)>;
 
+Target CPUTarget() { return Target("llvm"); }
+
 Device CPUDevice() {
   Device dev;
   dev.device_type = kDLCPU;
   dev.device_id = 0;
   return dev;
-}
-
-FInterpreter CPUInterpreter() {
-  using tvm::transform::PassContext;
-
-  Target target = Target("llvm");
-  // use a fresh build context
-  // in case we are already in a build context.
-  With<PassContext> fresh_build_ctx(PassContext::Create());
-
-  return CreateInterpreter(IRModule(nullptr), CPUDevice(), target);
 }
 
 using FuncId = int;
@@ -624,6 +615,8 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       value.push_back(ps);
       expr.push_back(ps->dynamic);
     }
+    // Note: The partial evaluator seems to do some weird stuff with sharing. Changing Tuple(expr)
+    // to WithFields(op, expr) causes failures in the partial evaluator tests.
     return HasStatic(MkSTuple(value), ll->Push(Tuple(expr)));
   }
 
@@ -849,7 +842,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     });
   }
 
-  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name = Var("x", Type())) {
+  PStatic VisitFunc(const Function& func, LetList* ll, const Var& name) {
     Func f = VisitFuncStatic(func, name);
     Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
@@ -858,7 +851,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const FunctionNode* op, LetList* ll) final {
-    return VisitFunc(GetRef<Function>(op), ll);
+    return VisitFunc(GetRef<Function>(op), ll, Var::GenSym());
   }
 
   struct ReflectError : Error {
@@ -904,13 +897,9 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   // Constant evaluate an expression.
   PStatic ConstEvaluate(const Expr& expr, LetList* ll) {
-    std::vector<transform::Pass> passes = {transform::FuseOps(0), transform::InferType()};
-    auto mod = IRModule::FromExpr(expr);
-    auto seq = transform::Sequential(passes);
-    mod = seq(mod);
-    auto entry_func = Downcast<Function>(mod->Lookup("main"));
-    auto fused_infered = expr.as<FunctionNode>() == nullptr ? entry_func->body : entry_func;
-    return Reify(executor_(fused_infered), ll);
+    // use a fresh build context in case we are already in a build context.
+    With<transform::PassContext> fresh_build_ctx(transform::PassContext::Create());
+    return Reify(Eval(expr, mod_->type_definitions, mod_->Imports(), CPUDevice(), CPUTarget()), ll);
   }
 
   Func ConstEvaluateFunc(const Expr& expr) {
@@ -1137,7 +1126,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   std::unordered_map<FuncId, Fuel> fuel_map_;
   Store store_;
   Device device_ = CPUDevice();
-  FInterpreter executor_ = CPUInterpreter();
 };
 
 /*! \brief Remap multiple Var sharing the same Id into the same Var. */

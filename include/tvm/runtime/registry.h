@@ -56,9 +56,9 @@ namespace runtime {
  * \brief Check if signals have been sent to the process and if so
  *  invoke the registered signal handler in the frontend environment.
  *
- *  When runnning TVM in another langugage(python), the signal handler
+ *  When running TVM in another language (Python), the signal handler
  *  may not be immediately executed, but instead the signal is marked
- *  in the interpreter state(to ensure non-blocking of the signal handler).
+ *  in the interpreter state (to ensure non-blocking of the signal handler).
  *
  *  This function can be explicitly invoked to check the cached signal
  *  and run the related processing if a signal is marked.

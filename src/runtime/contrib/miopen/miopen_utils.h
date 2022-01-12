@@ -62,11 +62,18 @@ struct ConvEntry {
   void CleanWorkspace();
 };  // ConvThreadEntry
 
+struct SoftmaxEntry {
+  miopenTensorDescriptor_t shape_desc;
+  SoftmaxEntry();
+  ~SoftmaxEntry();
+};  // SoftmaxEntry
+
 struct MIOpenThreadEntry {
   MIOpenThreadEntry();
   ~MIOpenThreadEntry();
   miopenHandle_t handle{nullptr};
   ConvEntry conv_entry;
+  SoftmaxEntry softmax_entry;
   runtime::DeviceAPI* rocm_api{nullptr};
   static MIOpenThreadEntry* ThreadLocal();
 };  // MIOpenThreadEntry

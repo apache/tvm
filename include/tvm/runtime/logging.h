@@ -30,6 +30,7 @@
 #define TVM_RUNTIME_LOGGING_H_
 
 #include <dmlc/common.h>
+#include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
 
 #include <ctime>
@@ -38,6 +39,8 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 /*!
  * \brief Macro helper to force a function not to be inlined.
@@ -129,15 +132,16 @@
  *   a = ...
  *   b = ...
  *   // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false' (default
- * behaviour) COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
+ *   // if quit_on_assertion is false, if a==b, continue, otherwise 'return false'
+ *   //   (default behaviour)
+ *   COND_CHECK_EQ(quit_on_assertion, a, b) << "some error message when  quiting"
  *   ...
  *   for (int i = 0; i < N; i++) {
  *     a = ...
  *     b = ...
  *     // if quit_on_assertion is true, if a==b, continue, otherwise quit.
- *     // if quit_on_assertion is false, if a==b, continue, otherwise 'break' (non-default
- *     // behaviour, therefore, has to be explicitly specified)
+ *     // if quit_on_assertion is false, if a==b, continue, otherwise 'break'
+ *     //   (non-default behaviour, therefore, has to be explicitly specified)
  *     COND_CHECK_EQ(quit_on_assertion, a, b, break) << "some error message when  quiting"
  *   }
  * }
@@ -391,23 +395,130 @@ class LogMessageVoidify {
   void operator&(std::ostream&) {}
 };
 
+/*! \brief Captures the state of the \p TVM_LOG_DEBUG environment flag. */
+class TvmLogDebugSettings {
+ public:
+  /*!
+   * \brief Parses the \p TVM_LOG_DEBUG environment flag as per the specification given by
+   * \p DebugLoggingEnabled and \p VerboseLoggingEnabled, and caches the result.
+   */
+  inline static const TvmLogDebugSettings& FromFlag() {
+    // Parse and cache the verbosity level map.
+    static const auto* settings =
+        new TvmLogDebugSettings(TvmLogDebugSettings::ParseSpec(std::getenv("TVM_LOG_DEBUG")));
+    return *settings;
+  }
+
+  /*!
+   * \brief Parses \p opt_spec as per specification for \p TVM_LOG_DEBUG given by
+   * \p DebugLoggingEnabled and \p VerboseLoggingEnabled. Throws if specification is ill-formed.
+   */
+  static TvmLogDebugSettings ParseSpec(const char* opt_spec);
+
+  /*!
+   * \brief Implements \p VerboseLoggingEnabled below w.r.t. the already parsed \p TVM_LOG_DEBUG
+   * environment variable.
+   */
+  inline bool VerboseEnabled(const char* opt_filename, int level) const {
+    if (opt_filename == nullptr || level < 0 || vlog_level_map_.empty()) {
+      return false;
+    }
+    return VerboseEnabledImpl(opt_filename, level);
+  }
+
+  /*! \brief Returns true if \p DLOG statements should be executed. */
+  bool dlog_enabled() const { return dlog_enabled_; }
+
+ private:
+  // Slow path for VerboseEnabled.
+  bool VerboseEnabledImpl(const std::string& filename, int level) const;
+
+  /*! \brief If true, DLOG statements are enabled. */
+  bool dlog_enabled_ = false;
+  /*!
+   * \brief A map from canonicalized filenames to the maximum VLOG verbosity level for that file.
+   * May also contain the 'wildcard' entry \p "DEFAULT" representing the level for all other files.
+   */
+  std::unordered_map<std::string, int> vlog_level_map_;
+};
+
+/*!
+ * \brief Returns true if a DLOG statement is enabled by the \p TVM_LOG_DEBUG environment
+ * variable. Requires:
+ * \code
+ *   TVM_LOG_DEBUG=1
+ * \endcode
+ * or a valid setting as described by \p VerboseLoggingEnabled below.
+ */
 // Also from dmlc-core
 inline bool DebugLoggingEnabled() {
   static int state = 0;
   if (state == 0) {
-    if (auto var = std::getenv("TVM_LOG_DEBUG")) {
-      if (std::string(var) == "1") {
-        state = 1;
-      } else {
-        state = -1;
-      }
-    } else {
-      // by default hide debug logging.
-      state = -1;
-    }
+    state = TvmLogDebugSettings::FromFlag().dlog_enabled() ? 1 : -1;
   }
   return state == 1;
 }
+
+/*!
+ * \brief Returns true if a VLOG statement in \p filename is enabled by the \p TVM_LOG_DEBUG
+ * environment variable for logging at verbosity \p level. Levels should be non-negative.
+ *
+ * Filenames are canonicalized to be w.r.t. the src/ dir of the TVM tree. (VLOG's should not
+ * appear under include/).
+ *
+ * To enable file \p relay/foo.cc up to level 2 and \p ir/bar.cc for level 0 only set:
+ * \code
+ * TVM_LOG_DEBUG="relay/foo.cc=2;ir/bar.cc=0"
+ * \endcode
+ *
+ * To enable all files up to level 3 but disable \p ir/bar.cc set:
+ * \code
+ * TVM_LOG_DEBUG="DEFAULT=2;ir/bar.cc=-1"
+ * \endcode
+ *
+ * Any of these settings will also enable DLOG statements.
+ */
+inline bool VerboseLoggingEnabled(const char* opt_filename, int level) {
+  return TvmLogDebugSettings::FromFlag().VerboseEnabled(opt_filename, level);
+}
+
+/*!
+ * \brief A stack of VLOG context messages.
+ *
+ * For use by \p VLOG_CONTEXT macro only.
+ */
+class VLogContext {
+ public:
+  void Push(std::stringstream* stream) { context_stack_.push_back(stream); }
+  void Pop() {
+    if (!context_stack_.empty()) {
+      context_stack_.pop_back();
+    }
+  }
+
+  std::string str() const;
+
+ private:
+  std::vector<std::stringstream*> context_stack_;
+};
+
+/*! \brief Thread local \p VLogContext for tracking a stack of VLOG context messages. */
+using ThreadLocalVLogContext = dmlc::ThreadLocalStore<VLogContext>;
+
+/*!
+ * \brief A RAII class to push/pos a VLOG context message onto the thread-local stack.
+ *
+ * For use by \p VLOG_CONTEXT macro only.
+ */
+class VLogContextEntry {
+ public:
+  VLogContextEntry() { ThreadLocalVLogContext::Get()->Push(&sstream_); }
+  ~VLogContextEntry() { ThreadLocalVLogContext::Get()->Pop(); }
+  std::ostream& stream() { return sstream_; }
+
+ private:
+  std::stringstream sstream_;
+};
 
 constexpr const char* kTVM_INTERNAL_ERROR_MESSAGE =
     "\n"
@@ -447,6 +558,7 @@ TVM_CHECK_FUNC(_GE, >=)
 TVM_CHECK_FUNC(_EQ, ==)
 TVM_CHECK_FUNC(_NE, !=)
 #pragma GCC diagnostic pop
+
 }  // namespace detail
 
 #define LOG(level) LOG_##level
@@ -487,6 +599,19 @@ TVM_CHECK_FUNC(_NE, !=)
 #define DLOG_IF(severity, condition) \
   LOG_IF(severity, ::tvm::runtime::detail::DebugLoggingEnabled() && (condition))
 
+/*!
+ * \brief If the \p TVM_LOG_DEBUG build flag is enabled, push a context message onto an internal
+ * stack. All VLOG messages will include this stack in their prefix to help with debugging. E.g.:
+ * \code
+ *   VLOG_CONTEXT << "my context";
+ *   VLOG(1) << "my log message";
+ * \endcode
+ * Thread safe. No-op with no execution overhead if the \p TVM_LOG_DEBUG build flag is not enabled.
+ */
+#define VLOG_CONTEXT                                    \
+  ::tvm::runtime::detail::VLogContextEntry vlog_entry_; \
+  vlog_entry_.stream()
+
 #else
 
 #define LOG_DFATAL LOG_ERROR
@@ -494,10 +619,33 @@ TVM_CHECK_FUNC(_NE, !=)
 #define DLOG(severity) true ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
 #define DLOG_IF(severity, condition) \
   (true || !(condition)) ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(severity)
+#define VLOG_CONTEXT true ? (void)0 : ::tvm::runtime::detail::LogMessageVoidify() & LOG(INFO)
 
 #endif
 
+/*!
+ * \brief If the \p TVM_LOG_DEBUG build flag is enabled, and the containing file has been enabled
+ * at \p level or greater in the \p TVM_LOG_DEBUG environment variable, then log a message at
+ * \p INFO severity.
+ *
+ * See \p VerboseLoggingEnabled for the format of the \p TVM_LOG_DEBUG environment variable.
+ * Thread safe. No-op with no execution overhead if the \p TVM_LOG_DEBUG build flag is not enabled.
+ * No-op with some execution overhead if the \p TVM_LOG_DEBUG build flag is enabled but the
+ * containing file is not enabled.
+ */
+#define VLOG(level)                                                               \
+  DLOG_IF(INFO, ::tvm::runtime::detail::VerboseLoggingEnabled(__FILE__, (level))) \
+      << ::tvm::runtime::detail::ThreadLocalVLogContext::Get()->str()
+
 #if TVM_LOG_DEBUG
+#define DCHECK(x) CHECK(x)
+#define DCHECK_LT(x, y) CHECK((x) < (y))
+#define DCHECK_GT(x, y) CHECK((x) > (y))
+#define DCHECK_LE(x, y) CHECK((x) <= (y))
+#define DCHECK_GE(x, y) CHECK((x) >= (y))
+#define DCHECK_EQ(x, y) CHECK((x) == (y))
+#define DCHECK_NE(x, y) CHECK((x) != (y))
+#else
 #define DCHECK(x) \
   while (false) CHECK(x)
 #define DCHECK_LT(x, y) \
@@ -512,14 +660,6 @@ TVM_CHECK_FUNC(_NE, !=)
   while (false) CHECK((x) == (y))
 #define DCHECK_NE(x, y) \
   while (false) CHECK((x) != (y))
-#else
-#define DCHECK(x) CHECK(x)
-#define DCHECK_LT(x, y) CHECK((x) < (y))
-#define DCHECK_GT(x, y) CHECK((x) > (y))
-#define DCHECK_LE(x, y) CHECK((x) <= (y))
-#define DCHECK_GE(x, y) CHECK((x) >= (y))
-#define DCHECK_EQ(x, y) CHECK((x) == (y))
-#define DCHECK_NE(x, y) CHECK((x) != (y))
 #endif
 
 #define TVM_ICHECK_INDENT "  "
@@ -552,5 +692,6 @@ TVM_CHECK_FUNC(_NE, !=)
 // Re-export error types
 using runtime::Error;
 using runtime::InternalError;
+
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LOGGING_H_

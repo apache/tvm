@@ -27,6 +27,9 @@ export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
 
+# temporary skip tsim test, enable later
+exit 0
+
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 

@@ -59,6 +59,21 @@ class Op(RelayExpr):
         """
         return _ffi_api.OpGetAttr(self, attr_name)
 
+    def has_attr(self, attr_name):
+        """Check whether the operator has additional attribute.
+
+        Parameters
+        ----------
+        attr_name : str
+            The attribute name.
+
+        Returns
+        -------
+        value : bool
+            Whether the operator has additional attribute
+        """
+        return _ffi_api.OpHasAttr(self, attr_name)
+
     def set_attr(self, attr_name, value, plevel=10):
         """Set attribute about the operator.
 
@@ -96,14 +111,20 @@ class Op(RelayExpr):
         type_rel_func : Optional[function (args: List[Type], attrs: Attrs) -> Type]
             The backing relation function which can solve an arbitrary relation on variables.
             Differences with type_rel_func in C++:
-            1, when type_rel_func is not None:
-               1) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to
+
+            1) When type_rel_func is not None
+
+               a) OpAddTypeRel on C++ side will adjust type_rel_func with TypeReporter to
                   calling convention of relay type system.
-               2) type_rel_func returns output argument's type, return None means can't
+
+               b) type_rel_func returns output argument's type, return None means can't
                   infer output's type.
-               3) only support single output operators for now, the last argument is output tensor.
-            2, when type_rel_func is None, will call predefined type_rel_funcs in relay
-               accorrding to `tvm.relay.type_relation.` + rel_name.
+
+               c) only support single output operators for now, the last argument is output tensor.
+
+            2) when type_rel_func is None, will call predefined type_rel_funcs in relay
+                   according to ``tvm.relay.type_relation.`` + rel_name.
+
         """
         _ffi_api.OpAddTypeRel(self, rel_name, type_rel_func)
 
@@ -150,6 +171,17 @@ class Op(RelayExpr):
             The type key.
         """
         _ffi_api.OpSetAttrsTypeKey(self, key)
+
+    @staticmethod
+    def list_op_names():
+        """List all the op names in the op registry.
+
+        Returns
+        -------
+        value : List[str]
+            The registered op names
+        """
+        return _ffi_api.ListOpNames()
 
 
 def register_op_attr(op_name, attr_key, value=None, level=10):

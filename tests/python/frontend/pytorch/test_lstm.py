@@ -221,9 +221,9 @@ def assert_equal(tvm_result, torch_result):
 
 
 def run_and_compare(mod, params, pt_result, target, device):
-    executor = relay.create_executor("vm", mod=mod, device=device, target=target)
-    evaluator = executor.evaluate()
-    exec_res = evaluator(**params)
+    exec_res = relay.create_executor("vm", mod=mod, device=device, target=target).evaluate()(
+        **params
+    )
 
     def flatten(nested):
         res = []

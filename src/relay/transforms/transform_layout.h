@@ -32,6 +32,7 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "infer_layout_utils.h"
@@ -57,6 +58,21 @@ class TransformMemorizerNode : public Object {
     }
   };
 
+  /*!
+   * \brief Defines the call transformation for derived passes. The new layouts are defined by
+   * used for different targets using a packed func.
+   * \param ref_call The original call.
+   * \param new_attrs Updated attributes consistent with new layouts.
+   * \param new_args The traversed/recursed args to the call.
+   * \return The new Call after calling the packed func.
+   */
+  virtual Call CallWithNewLayouts(const Call& ref_call, Attrs new_attrs,
+                                  const std::vector<Expr>& new_args) = 0;
+
+  virtual Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) {
+    return CallWithNewLayouts(ref_call, ref_call->attrs, new_args);
+  }
+
   /*! \brief The memorizer map. */
   std::unordered_map<TransformKey, Expr, key_hash> memo;
 
@@ -69,10 +85,8 @@ class TransformMemorizerNode : public Object {
  */
 class TransformMemorizer : public ObjectRef {
  public:
-  TransformMemorizer() {}
+  TransformMemorizer() = default;
   explicit TransformMemorizer(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  virtual ~TransformMemorizer() {}
 
   TransformMemorizerNode* operator->() {
     return static_cast<TransformMemorizerNode*>(get_mutable());
@@ -146,14 +160,6 @@ class TransformMemorizer : public ObjectRef {
     return MakeLayoutTransform(input_expr, new_src_layout.name(), dst_layout.name());
   }
 
-  /*!
-   * \brief Defines the call transformation for derived passes. The new layouts are defined by
-   * used for different targets using a packed func.
-   * \param ref_call The original call.
-   * \param new_args The traversed/recursed args to the call.
-   * \return The new Call after calling the packed func.
-   */
-  virtual Call CallWithNewLayouts(const Call& ref_call, const std::vector<Expr>& new_args) = 0;
   using ContainerType = TransformMemorizerNode;
 };
 
@@ -203,6 +209,39 @@ class LayoutAlternatedExpr : public ObjectRef {
 
   using ContainerType = LayoutAlternatedExprNode<TransformMemorizerT>;
 };
+
+/*!
+ * Call registered FInferCorrectLayout of an op.
+ * Parameters are the same as the parameters for FInferCorrectLayout
+ * Returns inferred_input_layout, inferred_output_layout, updated attributes, and a flag
+ * indicating whether or not layout conversion is successful.
+ */
+static inline std::tuple<InferCorrectLayoutOutput, bool> InferCorrectLayouts(
+    const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
+  static auto finfer_layout = Op::GetAttrMap<FInferCorrectLayout>("FInferCorrectLayout");
+  auto null_res = std::make_tuple(
+      InferCorrectLayoutOutput(Array<Layout>(nullptr), Array<Layout>(nullptr), Attrs(nullptr)),
+      false);
+  if (!call->op.as<OpNode>()) {
+    return null_res;
+  }
+
+  Op op = Downcast<Op>(call->op);
+  if (finfer_layout.count(op)) {
+    auto out = finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
+    for (auto inferred_layouts : {out->input_layouts, out->output_layouts}) {
+      for (auto layout : inferred_layouts) {
+        if (!layout.defined()) {  // inference fails
+          return null_res;
+        }
+      }
+    }
+    return std::make_tuple(out, true);
+  } else {
+    return null_res;
+  }
+}
 
 /*
  * \brief Used with ForwardRewrite to transform the expr. The input args are same as
@@ -255,12 +294,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     // NOTE: do not support nested tuple
     if (new_arg->IsInstance<TupleNode>()) {
       Tuple tuple_new_arg = Downcast<Tuple>(new_arg);
-      std::vector<Expr> fields;
+      Array<Expr> fields;
+      fields.reserve(tuple_new_arg->fields.size());
       for (auto x : tuple_new_arg->fields) {
         Expr tmp = push_back_one_arg(x);
         fields.push_back(tmp);
       }
-      normal_new_args.push_back(Tuple(fields));
+      normal_new_args.push_back(WithFields(tuple_new_arg, std::move(fields)));
     } else {
       Expr tmp = push_back_one_arg(new_arg);
       normal_new_args.push_back(tmp);
@@ -274,7 +314,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     if (ref_call->op.as<OpNode>()) {
       Op op = Downcast<Op>(ref_call->op);
       if (falter_layout.count(op) && !finfer_layout.count(op)) {
-        return memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+        return memorizer->CallWithNewLayouts(ref_call, normal_new_args);
       }
     }
   }
@@ -292,10 +332,12 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     types.push_back(arg->checked_type());
   }
 
-  // old_in, old_out = op.infer(old_in)
   bool success = false;
-  std::tie(old_in, old_out, success) =
+  InferCorrectLayoutOutput infer_out;
+  std::tie(infer_out, success) =
       InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
+  old_in = infer_out->input_layouts;
+  old_out = infer_out->output_layouts;
   if (!success) {
     return Expr(nullptr);
   }
@@ -309,12 +351,14 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
 
   // new_op = alter(op)
-  Call new_call = memorizer.CallWithNewLayouts(ref_call, normal_new_args);
+  Call new_call = memorizer->CallWithNewLayouts(ref_call, infer_out->new_attrs, normal_new_args);
 
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(new_in2, new_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
+    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
+    new_in2 = infer_out->input_layouts;
+    new_out = infer_out->output_layouts;
     if (!success) {
       return Expr(nullptr);
     }
@@ -333,12 +377,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   for (auto arg : new_call->args) {
     if (arg->IsInstance<TupleNode>()) {  // unflatten tuple
       Tuple tuple_arg = Downcast<Tuple>(arg);
-      std::vector<Expr> transformed_tuple_arg;
+      Array<Expr> transformed_tuple_arg;
+      transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
         transformed_tuple_arg.push_back(memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
         pt++;
       }
-      transformed_args.push_back(Tuple(transformed_tuple_arg));
+      transformed_args.push_back(WithFields(tuple_arg, std::move(transformed_tuple_arg)));
     } else {
       transformed_args.push_back(memorizer.Transform(arg, new_in[pt], new_in2[pt]));
       pt++;
@@ -349,7 +394,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // state[node] = (old_out, new_out)
   // (handle tuple output)
   if (ref_call->checked_type()->IsInstance<TupleTypeNode>()) {
-    Expr tuple_output = Call(new_call->op, transformed_args, new_call->attrs);
+    Expr tuple_output = Call(new_call->op, transformed_args, infer_out->new_attrs);
     Array<Expr> fields;
     for (size_t i = 0; i < new_out.size(); ++i) {
       auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
@@ -363,7 +408,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   } else {
     auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
     ICHECK_EQ(new_out.size(), 1);
-    rnode->value = Call(new_call->op, transformed_args, new_call->attrs, {}, ref_call->span);
+    rnode->value = Call(new_call->op, transformed_args, infer_out->new_attrs, {}, ref_call->span);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];
     rnode->memorizer = memorizer;

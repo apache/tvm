@@ -130,8 +130,12 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, runtime::Metadata metadata)
-      : fmt_(fmt), func_names_(func_names), target_(target), metadata_(metadata) {
+                               Target target, relay::Runtime runtime, runtime::Metadata metadata)
+      : fmt_(fmt),
+        func_names_(func_names),
+        target_(target),
+        runtime_(runtime),
+        metadata_(metadata) {
     CreateSource();
   }
   const char* type_key() const { return "c"; }
@@ -159,6 +163,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   std::string fmt_;
   Array<String> func_names_;
   Target target_;
+  relay::Runtime runtime_;
   runtime::Metadata metadata_;
 
   void CreateFuncRegistry() {
@@ -192,25 +197,26 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << "}\n";
   }
 
-  void GenerateEntrypointForUnpackedAPI() {
-    code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix << "(";
-    int total_args = (metadata_->num_inputs + metadata_->num_outputs);
-    for (int i = 0; i < total_args; ++i) {
-      code_ << "arg" << i;
+  void GenerateEntrypointForUnpackedAPI(const std::string& entrypoint_name,
+                                        const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func << "(";
+    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
+    for (unsigned int i = 0; i < total_args; ++i) {
+      code_ << "void* arg" << i;
       if (i + 1 != total_args) {
         code_ << ",";
       }
     }
     code_ << ");\n";
-    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
+    code_ << "int32_t " << entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
-    code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix << "(";
-    for (int i = 0; i < metadata_->num_inputs; ++i) {
+    code_ << "return " << run_func << "(";
+    for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
       code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
     }
     for (int i = 0; i < metadata_->num_outputs; ++i) {
-      int j = metadata_->num_inputs + i;
+      int j = metadata_->inputs.size() + i;
       code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
       if (i + 1 != metadata_->num_outputs) {
         code_ << ",";
@@ -220,38 +226,108 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "}\n";
   }
 
-  void GenerateEntrypointForPackedAPI() {
-    code_ << "TVM_DLL int32_t " << ::tvm::runtime::symbol::tvm_run_func_prefix;
+  void GenerateEntrypointForPackedAPI(const std::string& entrypoint_name,
+                                      const std::string& run_func) {
+    code_ << "TVM_DLL int32_t " << run_func;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle);\n";
-    code_ << "static int32_t " << ::tvm::runtime::symbol::tvm_module_main;
+    code_ << "int32_t " << entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
-    code_ << "return " << ::tvm::runtime::symbol::tvm_run_func_prefix;
+    code_ << "return " << run_func;
     code_ << "(args, type_code, num_args, out_value, out_type_code, resource_handle);\n";
     code_ << "}\n";
   }
 
+  static int isNotAlnum(char c) { return !std::isalnum(c); }
+
+  void GenerateCInterfaceEntrypoint(const std::string& entrypoint_name, const std::string& run_func,
+                                    const std::string& mod_name) {
+    code_ << "#include <" << mod_name << ".h>\n";
+    code_ << "TVM_DLL int32_t " << run_func << "(";
+    unsigned int total_args =
+        (metadata_->inputs.size() + metadata_->devices.size() + metadata_->num_outputs);
+    for (unsigned int i = 0; i < total_args; ++i) {
+      code_ << "void* arg" << i;
+      if (i + 1 != total_args) {
+        code_ << ",";
+      }
+    }
+    code_ << ");\n";
+    code_ << "int32_t " << entrypoint_name << "(";
+    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
+    if (!metadata_->devices.empty()) {
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
+    } else {
+      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs";
+    }
+
+    code_ << ") {"
+          << "return " << run_func << "(";
+    for (const auto& input : metadata_->inputs) {
+      std::string sanitised_input = input;
+      std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
+      code_ << "inputs->" << sanitised_input << ",";
+    }
+    if (metadata_->num_outputs == 1) {
+      code_ << "outputs->output";
+    } else {
+      for (int i = 0; i < metadata_->num_outputs; ++i) {
+        code_ << "outputs->output" << i;
+        if (i + 1 != metadata_->num_outputs) {
+          code_ << ",";
+        }
+      }
+    }
+
+    if (!metadata_->devices.empty()) {
+      code_ << ",";
+      for (const String& device : metadata_->devices) {
+        code_ << "devices->" << device;
+        if (device != metadata_->devices.back()) {
+          code_ << ",";
+        }
+      }
+    }
+
+    code_ << ");\n";
+    code_ << "}\n";
+  }
+
   void GenerateAOTDescriptor() {
-    code_ << "#include \"tvm/runtime/crt/internal/aot_executor/aot_executor.h\"\n";
+    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
+    const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
+    const std::string run_func_mangled =
+        runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
+    const std::string entrypoint_mangled =
+        runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
+    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
+
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
-    code_ << "extern \"C\"\n";
+    code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
-    if (target_->GetAttr<Bool>("unpacked-api").value_or(Bool(false))) {
-      GenerateEntrypointForUnpackedAPI();
+
+    if (metadata_->unpacked_api) {
+      if (metadata_->interface_api == "c") {
+        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
+      } else {
+        GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
+      }
     } else {
-      GenerateEntrypointForPackedAPI();
+      ICHECK_EQ(metadata_->interface_api, "packed")
+          << "Packed interface required for packed operators";
+      GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
     }
-    code_ << "const tvm_model_t network = {\n"
-          << "    .run_func = &" << ::tvm::runtime::symbol::tvm_module_main << ",\n"
-          << "    .num_input_tensors = " << metadata_->num_inputs << ",\n"
-          << "    .num_output_tensors = " << metadata_->num_outputs << ", \n"
-          << "};\n";
+
+    code_ << "#ifdef __cplusplus\n";
+    code_ << "}\n";
+    code_ << "#endif\n";
   }
 
   void CreateSource() {
-    if (target_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
+    if (runtime_->GetAttr<Bool>("system-lib").value_or(Bool(false)) && !func_names_.empty()) {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
@@ -263,7 +339,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               runtime::Metadata metadata) {
+                                               relay::Runtime runtime, runtime::Metadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -274,7 +350,7 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
       }
     }
   }
-  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, metadata);
+  auto n = make_object<CSourceCrtMetadataModuleNode>(func_names, "cc", target, runtime, metadata);
   auto csrc_metadata_module = runtime::Module(n);
   for (const auto& mod : modules) {
     csrc_metadata_module.Import(mod);
@@ -344,9 +420,10 @@ TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
     });
 
 TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
-    .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
+    .set_body_typed([](const Array<runtime::Module>& modules, Target target,
+                       relay::Runtime runtime) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime::Metadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::Metadata());
     });
 
 }  // namespace codegen

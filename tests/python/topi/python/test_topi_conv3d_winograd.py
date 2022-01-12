@@ -138,7 +138,7 @@ def verify_conv3d_ncdhw(
                 ),
             )
             func(a, w, c)
-        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4)
+        tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-4, atol=1e-6)
 
     for device in ["cuda"]:
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters

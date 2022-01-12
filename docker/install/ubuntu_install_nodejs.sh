@@ -21,6 +21,9 @@ set -u
 set -o pipefail
 
 apt-get update
+# Please do not remove 'curl' package installation from here, as this
+# script runs in some images (e.g. ci_lint) that keep a very mininal
+# set of packages installed by default.
 apt-get install -y curl
 
 # The node install script fetched and executed here will update the

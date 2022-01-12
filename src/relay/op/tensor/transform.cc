@@ -38,6 +38,7 @@
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/transform.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -50,6 +51,77 @@
 namespace tvm {
 namespace relay {
 using tir::IntImmNode;
+
+TVM_REGISTER_NODE_TYPE(SlidingWindowAttrs);
+
+bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "SlidingWindow operator expects input to be of TensorType "
+                                     << "but got " << PrettyPrint(types[0]));
+    return false;
+  }
+  const auto* param = attrs.as<SlidingWindowAttrs>();
+  const int axis = param->axis;
+
+  std::vector<IndexExpr> oshape;
+
+  // Dimensions up until `axis` remain the same.
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+
+  // New dimensions which result from sliding the window in each dimension. One new dimension per
+  // window dimension.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    // Length of the shape along this dimension.
+    auto dim_len = data->shape[axis + i];
+    // Length of the window along this dimension.
+    auto window_len = param->window_shape[i];
+    // Strides along this dimension.
+    auto stride = param->strides[i];
+
+    oshape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
+  }
+
+  // Dimensions comprising the window.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    oshape.push_back(param->window_shape[i]);
+  }
+
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SlidingWindowCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  const SlidingWindowAttrs* param = attrs.as<SlidingWindowAttrs>();
+  ICHECK(param != nullptr);
+  return {topi::sliding_window(inputs[0], param->axis, param->window_shape, param->strides)};
+}
+
+Expr MakeSlidingWindow(Expr data, int axis, Array<Integer> window_shape, Array<Integer> strides) {
+  auto attrs = make_object<SlidingWindowAttrs>();
+  attrs->axis = axis;
+  attrs->window_shape = window_shape;
+  attrs->strides = strides;
+  static const Op& op = Op::Get("sliding_window");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ir.sliding_window").set_body_typed(MakeSlidingWindow);
+
+RELAY_REGISTER_OP("sliding_window")
+    .describe(R"code(Slide window over a tensor.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_attrs_type<SlidingWindowAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("SlidingWindow", SlidingWindowRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -289,6 +361,11 @@ bool StackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "cast: expect input type to be TupleType but get " << types[0];
     return false;
   }
+  for (auto field : tensor_tuple->fields) {
+    if (field.as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
   const auto* param = attrs.as<StackAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
   const int ndim = static_cast<int>(first->shape.size());
@@ -418,13 +495,13 @@ bool TransposeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
-  // Discard "const" qualifier.
-  auto* params = const_cast<TransposeAttrs*>(attrs.as<TransposeAttrs>());
-  ICHECK(params != nullptr);
+InferCorrectLayoutOutput TransposeInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<TransposeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<TransposeAttrs> params = make_object<TransposeAttrs>(*attrs_ptr);
 
   std::string in_layout_str = "";
   std::string out_layout_str = "";
@@ -477,19 +554,20 @@ Array<Array<Layout>> TransposeInferCorrectLayout(const Attrs& attrs,
   }
 
   // Infer the output layout string based on the input layout and the axes.
+  Attrs new_attrs(params);
   if (in_layout_str != "") {
     for (auto axis : params->axes) {
       ICHECK_LT(axis->value, in_layout_str.length());
       out_layout_str += in_layout_str[axis->value];
     }
     try {
-      return Array<Array<Layout>>({{Layout(in_layout_str)}, {Layout(out_layout_str)}});
+      return InferCorrectLayoutOutput({Layout(in_layout_str)}, {Layout(out_layout_str)}, new_attrs);
     } catch (const tvm::Error& e) {
       // If the layout string is invalid for any reason, give up.
-      return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+      return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
     }
   }
-  return Array<Array<Layout>>({{Layout::Undef()}, {Layout::Undef()}});
+  return InferCorrectLayoutOutput({Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> TransposeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -698,9 +776,17 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     data_shape_sum *= Downcast<tvm::Integer>(x)->value;
   }
-  if (!found_dynamic) {
+  if (!found_dynamic && oshape_sum != data_shape_sum) {
+    std::ostringstream oshape_str, data_shape_str;
+    for (auto iter = oshape.begin(); iter != oshape.end(); iter++) {
+      oshape_str << (iter != oshape.begin() ? "," : "") << *iter;
+    }
+    for (auto iter = data_shape.begin(); iter != data_shape.end(); iter++) {
+      data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
+    }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape and reshaped shape are not compatible";
+        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
+        << data_shape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));
@@ -2182,12 +2268,13 @@ Array<te::Tensor> SqueezeCompute(const Attrs& attrs, const Array<te::Tensor>& in
   return {topi::squeeze(inputs[0], param->axis)};
 }
 
-Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& new_in_layouts,
-                                               const Array<Layout>& old_in_layouts,
-                                               const Array<tvm::relay::Type>& old_in_types) {
-  // NOTE: Discard "const" qualifier here.
-  SqueezeAttrs* params = const_cast<SqueezeAttrs*>(attrs.as<SqueezeAttrs>());
+InferCorrectLayoutOutput SqueezeInferCorrectLayout(const Attrs& attrs,
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<tvm::relay::Type>& old_in_types) {
+  const auto* attrs_ptr = attrs.as<SqueezeAttrs>();
+  ICHECK(attrs_ptr);
+  ObjectPtr<SqueezeAttrs> params = make_object<SqueezeAttrs>(*attrs_ptr);
 
   Layout inferred_input = new_in_layouts.defined() ? new_in_layouts[0] : old_in_layouts[0];
   Layout inferred_output = inferred_input;
@@ -2242,7 +2329,7 @@ Array<Array<Layout>> SqueezeInferCorrectLayout(const Attrs& attrs,
   }
   inferred_output = Layout(kept_axes);
 
-  return Array<Array<Layout>>{{inferred_input}, {inferred_output}};
+  return InferCorrectLayoutOutput({inferred_input}, {inferred_output}, Attrs(params));
 }
 
 RELAY_REGISTER_OP("squeeze")
@@ -2351,7 +2438,15 @@ bool BroadCastToRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   ICHECK(param);
 
-  DataType out_dtype = types[0].as<TensorTypeNode>()->dtype;
+  DataType out_dtype;
+  if (auto ttype = types[0].as<TensorTypeNode>()) {
+    out_dtype = ttype->dtype;
+  } else {
+    ICHECK(types[0].as<IncompleteTypeNode>())
+        << "Broadcast: expect to be TensorType but get " << types[0];
+    return false;
+  }
+
   std::vector<IndexExpr> oshape;
 
   const Array<Integer>& cshape_array = param->shape.value();
@@ -2483,10 +2578,9 @@ bool StridedSliceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   return true;
 }
 
-Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
-                                                    const Array<Layout>& new_in_layouts,
-                                                    const Array<Layout>& old_in_layouts,
-                                                    const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput StridedSliceInferCorrectLayout(
+    const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type>& old_in_types) {
   Array<Array<IndexExpr>> old_in_shapes;
   for (auto old_in_t : old_in_types) {
     ICHECK(old_in_t.as<TensorTypeNode>());
@@ -2499,14 +2593,17 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
   ICHECK_GE(old_in_shapes.size(), 1);
 
   auto layout = old_in_layouts[0];
+  InferCorrectLayoutOutput out_default{{Layout::Undef()}, {Layout::Undef()}, attrs};
+
   if (layout.defined() && new_in_layouts.defined()) {
     ICHECK_GE(new_in_layouts.size(), 1);
     auto new_layout = new_in_layouts[0];
     auto shape = old_in_shapes[0];
 
-    // NOTE: Discard "const" qualifier here.
-    auto* params = const_cast<StridedSliceAttrs*>(attrs.as<StridedSliceAttrs>());
-    ICHECK(params != nullptr);
+    const auto* attrs_ptr = attrs.as<StridedSliceAttrs>();
+    ICHECK(attrs_ptr);
+    ObjectPtr<StridedSliceAttrs> params = make_object<StridedSliceAttrs>(*attrs_ptr);
+
     Array<Integer> begin, end, strides;
     if (params->begin && params->end && params->strides) {
       for (Integer i : params->strides.value()) {
@@ -2535,7 +2632,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         new_layout_name.rfind(old_layout_name, 0) != 0) {
       if (old_layout_name.size() != new_layout_name.size()) {
         // Not support NHW4c -> NCHW
-        return {{Layout::Undef()}, {Layout::Undef()}};
+        return out_default;
       } else {
         if (params->axes) {
           auto axes = params->axes.value();
@@ -2555,7 +2652,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
           for (size_t i = 0; i < new_layout_name.size(); ++i) {
             auto index = layout.IndexOf(new_layout[i]);
             if (index == -1) {
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
 
             size_t new_index = static_cast<size_t>(index);
@@ -2587,24 +2684,19 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
         params->strides = new_strides;
         layout = new_layout;
       }
-    } else {
+    } else if (old_layout_name.size() <
+               new_layout_name.size()) {  // prohibit transforms such as NCHW4c -> NCHW
       if (params->axes) {
         auto axes = params->axes.value();
         Array<Integer> new_axes;
-
         for (size_t i = 0; i < axes.size(); ++i) {
           auto old_idx = axes[i];
           auto new_idx = new_layout.IndexOf(layout[old_idx]);
           new_axes.push_back(new_idx);
 
           const LayoutAxis& axis = layout[old_idx];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return {{Layout::Undef()}, {Layout::Undef()}};
-          }
-
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
-
           if (factor == -1) {
             new_begin.push_back(begin[i]);
             new_end.push_back(end[i]);
@@ -2613,7 +2705,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
             int64_t ed = end[i];
             if (bg % factor || ed % factor) {
               // transform to original layout
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
             new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
             new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
@@ -2624,10 +2716,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       } else {
         for (size_t i = 0; i < begin.size(); i++) {
           const LayoutAxis& axis = layout[i];
-          if (!axis.IsPrimal()) {
-            // original layout that contains splitted axes is not supported
-            return {{Layout::Undef()}, {Layout::Undef()}};
-          }
+          ICHECK(axis.IsPrimal());
           auto factor = new_layout.FactorOf(axis);
           if (factor == -1) {
             new_begin.push_back(IntImm(begin[i]->dtype, begin[i]));
@@ -2637,7 +2726,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
               auto stride = strides[i];
               // arbitrary stride is not supported
               if (stride.defined() && stride->value != 1) {
-                return {{Layout::Undef()}, {Layout::Undef()}};
+                return out_default;
               }
             }
             int64_t bg = begin[i].defined() ? begin[i]->value : 0;
@@ -2656,7 +2745,7 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
 
             if (bg % factor || ed % factor) {
               // transform to original layout
-              return {{Layout::Undef()}, {Layout::Undef()}};
+              return out_default;
             }
             new_begin.push_back(IntImm(begin[0]->dtype, (bg / factor)));
             new_end.push_back(IntImm(end[0]->dtype, (ed / factor)));
@@ -2668,8 +2757,9 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
       params->begin = new_begin;
       params->end = new_end;
     }
+    return InferCorrectLayoutOutput({layout}, {layout}, Attrs(params));
   }
-  return {{layout}, {layout}};
+  return InferCorrectLayoutOutput({layout}, {layout}, attrs);
 }
 
 Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -2816,15 +2906,18 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
-    auto indices = Downcast<Array<ObjectRef>>(param->indices_or_sections);
+    Array<IndexExpr> indices;
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
+    }
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
     for (unsigned int i = 0; i < indices.size(); ++i) {
-      ICHECK(reporter->Assert(Downcast<IndexExpr>(indices[i]) > begin))
+      ICHECK(reporter->Assert(indices[i] > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr> oshape(data->shape.begin(), data->shape.end());
-      oshape[axis] = Downcast<IndexExpr>(indices[i]) - begin;
-      begin = Downcast<IndexExpr>(indices[i]);
+      oshape[axis] = indices[i] - begin;
+      begin = indices[i];
       auto vec_type = TensorType(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -2968,10 +3061,10 @@ Expr MakeSliceLike(Expr data, Expr shape_like, Array<Integer> axes) {
   return Call(op, {data, shape_like}, Attrs(attrs), {});
 }
 
-Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
-                                                 const Array<Layout>& new_in_layouts,
-                                                 const Array<Layout>& old_in_layouts,
-                                                 const Array<tvm::relay::Type>& old_in_types) {
+InferCorrectLayoutOutput SliceLikeInferCorrectLayout(const Attrs& attrs,
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<tvm::relay::Type>& old_in_types) {
   Array<Integer> new_axes;
   if (old_in_layouts.defined() && new_in_layouts.defined()) {
     ICHECK_EQ(new_in_layouts.size(), 2);
@@ -2982,9 +3075,9 @@ Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
     auto old_layout = old_in_layouts[0];
     auto new_layout = new_in_layouts[0];
 
-    // Discard "const" qualifier.
-    auto* params = const_cast<SliceLikeAttrs*>(attrs.as<SliceLikeAttrs>());
-    ICHECK(params != nullptr);
+    const auto* attrs_ptr = attrs.as<SliceLikeAttrs>();
+    ICHECK(attrs_ptr);
+    ObjectPtr<SliceLikeAttrs> params = make_object<SliceLikeAttrs>(*attrs_ptr);
 
     for (auto axis : params->axes) {
       auto new_axis = new_layout.IndexOf(old_layout[axis->value]);
@@ -2997,15 +3090,16 @@ Array<Array<Layout>> SliceLikeInferCorrectLayout(const Attrs& attrs,
     }
     if (!new_axes.empty()) {
       params->axes = std::move(new_axes);
-      return Array<Array<Layout>>({{new_layout, new_layout}, {new_layout}});
+      return InferCorrectLayoutOutput({new_layout, new_layout}, {new_layout}, Attrs(params));
     }
   }
 
   if (old_in_layouts.defined()) {
     ICHECK_EQ(old_in_layouts.size(), 2);
-    return {{old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]}};
+    return InferCorrectLayoutOutput({old_in_layouts[0], old_in_layouts[1]}, {old_in_layouts[1]},
+                                    attrs);
   }
-  return Array<Array<Layout>>({{Layout::Undef(), Layout::Undef()}, {Layout::Undef()}});
+  return InferCorrectLayoutOutput({Layout::Undef(), Layout::Undef()}, {Layout::Undef()}, attrs);
 }
 
 Array<te::Tensor> SliceLikeCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
@@ -3243,8 +3337,10 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   oshape.reserve(ndim_data);
   for (size_t i = 0; i < ndim_data; ++i) {
     if (i == static_cast<size_t>(axis)) {
-      const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
-      ICHECK_GE(*indice_shape_i, 1);
+      if (indices->shape[i].as<IntImmNode>()) {
+        const int64_t* indice_shape_i = tir::as_const_int(indices->shape[i]);
+        ICHECK_GE(*indice_shape_i, 1);
+      }
     } else {
       ICHECK(reporter->AssertEQ(indices->shape[i], data->shape[i]));
     }
@@ -3289,6 +3385,8 @@ which must just be not null. Output will have same shape as ``indices``.
     .add_type_rel("Gather", GatherRel)
     .set_attr<FTVMCompute>("FTVMCompute", GatherCompute)
     .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
 
 // gather_nd operator
 bool GatherNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -3367,6 +3465,7 @@ When B == 0 (the default case), the output shape will be (Y_0, ..., Y_{K-1}, X_M
 In both cases, if M + B == N, the output shape will simply be (Y_0, ..., Y_{K-1}).
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
+    .set_attrs_type<GatherNDAttrs>()
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("indices", "Tensor", "The indices of values to gather.")
     .set_support_level(3)
@@ -3973,5 +4072,23 @@ RELAY_REGISTER_OP("unique")
     .add_type_rel("unique", UniqueRel)
     .set_support_level(3)
     .set_attr<TOpPattern>("TOpPattern", kOpaque);
+
+// invert_permutation
+Expr MakeInvertPermutation(Expr data) {
+  static const Op& op = Op::Get("invert_permutation");
+  return Call(op, {data}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.invert_permutation").set_body_typed(MakeInvertPermutation);
+
+RELAY_REGISTER_OP("invert_permutation")
+    .describe(R"doc(Computes the inverse permutation of a tensor.)doc" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("Identity", IdentityRel)
+    .set_support_level(1)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<TOpIsStateful>("TOpIsStateful", false);
+
 }  // namespace relay
 }  // namespace tvm

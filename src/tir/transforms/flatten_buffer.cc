@@ -28,11 +28,16 @@
 #include <tvm/tir/transform.h>
 
 #include "../../support/utils.h"
+#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
 PrimExpr BufferArea(const Buffer& buffer) {
+  if (buffer->strides.size()) {
+    ICHECK(buffer->shape.size() == buffer->strides.size());
+    return buffer->strides[0] * buffer->shape[0];
+  }
   PrimExpr area = Integer(1);
   for (const PrimExpr& dim : buffer->shape) {
     area = area * dim;
@@ -92,11 +97,16 @@ class BufferFlattener : public StmtExprMutator {
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body));
     }
     // Step 4. Handle annotations
+    std::set<std::string> ordered_ann_keys;
     for (const auto& annotation : op->annotations) {
-      const String& ann_key = annotation.first;
-      const ObjectRef& ann_value = annotation.second;
+      ordered_ann_keys.insert(annotation.first);
+    }
+    for (auto it = ordered_ann_keys.rbegin(); it != ordered_ann_keys.rend(); ++it) {
+      const std::string& ann_key = *it;
+      const ObjectRef& ann_value = op->annotations.at(ann_key);
       if (attr::IsPragmaKey(ann_key)) {
-        body = AttrStmt(op->loop_var, ann_key, Downcast<PrimExpr>(ann_value), std::move(body));
+        body =
+            AttrStmt(op->loop_var, ann_key, ConvertAttrValue(ann_key, ann_value), std::move(body));
       }
     }
     return body;
@@ -127,13 +137,9 @@ class BufferFlattener : public StmtExprMutator {
   }
 
   static Stmt MakeAllocStmt(const Buffer& buffer, Stmt body) {
-    String storage_scope = buffer->scope;
-    if (storage_scope.empty()) {
-      storage_scope = "global";
-    }
+    String storage_scope = buffer.scope();
     PrimExpr area = BufferArea(buffer);
     body = Allocate(buffer->data, buffer->dtype, {area}, const_true(), std::move(body));
-    body = AttrStmt(buffer->data, attr::storage_scope, StringImm(storage_scope), std::move(body));
     return body;
   }
 
@@ -143,11 +149,29 @@ class BufferFlattener : public StmtExprMutator {
                      /*var=*/std::move(var),
                      /*iter_type=*/IterVarType::kThreadIndex,
                      /*thread_tag=*/thread_tag);
-    String attr_key = thread_tag == "vthread" ? attr::virtual_thread : attr::thread_extent;
+    String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
+                       thread_tag == "vthread.y" || thread_tag == "vthread.z")
+                          ? attr::virtual_thread
+                          : attr::thread_extent;
     return AttrStmt(/*node=*/std::move(iter_var),
                     /*attr_key=*/std::move(attr_key),
                     /*value=*/std::move(extent),
                     /*body=*/std::move(body));
+  }
+
+  /*! \brief Convert attr value from annotation map into PrimExpr. */
+  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
+    if (!obj.defined()) {
+      return PrimExpr();
+    } else if (const PrimExprNode* expr = obj.as<PrimExprNode>()) {
+      return GetRef<PrimExpr>(expr);
+    } else if (const StringObj* str = obj.as<StringObj>()) {
+      return std::move(StringImm(str->data));
+    } else {
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+                 << " not supported";
+      return PrimExpr();
+    }
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
@@ -155,9 +179,14 @@ class BufferFlattener : public StmtExprMutator {
 };
 
 PrimFunc FlattenBuffer(PrimFunc f) {
-  PrimFuncNode* fptr = f.CopyOnWrite();
-  fptr->body = BufferFlattener::Flatten(f);
-  return f;
+  // Only apply this pass to TIR that is not from TE schedules
+  if (!IsFromLegacyTESchedule(f)) {
+    PrimFuncNode* fptr = f.CopyOnWrite();
+    fptr->body = BufferFlattener::Flatten(f);
+    return f;
+  } else {
+    return f;
+  }
 }
 
 namespace transform {

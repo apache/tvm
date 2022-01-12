@@ -104,6 +104,20 @@ Clause::Clause(Pattern lhs, Expr rhs) {
   data_ = std::move(n);
 }
 
+Clause WithFields(Clause clause, Optional<Pattern> opt_lhs, Optional<Expr> opt_rhs) {
+  Pattern lhs = opt_lhs.value_or(clause->lhs);
+  Expr rhs = opt_rhs.value_or(clause->rhs);
+
+  bool unchanged = lhs.same_as(clause->lhs) && rhs.same_as(clause->rhs);
+
+  if (!unchanged) {
+    ClauseNode* cow_clause_node = clause.CopyOnWrite();
+    cow_clause_node->lhs = lhs;
+    cow_clause_node->rhs = rhs;
+  }
+  return clause;
+}
+
 TVM_REGISTER_NODE_TYPE(ClauseNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Clause").set_body_typed([](Pattern lhs, Expr rhs) {
@@ -123,6 +137,38 @@ Match::Match(Expr data, tvm::Array<Clause> clauses, bool complete, Span span) {
   n->complete = complete;
   n->span = std::move(span);
   data_ = std::move(n);
+}
+
+Match WithFields(Match match, Optional<Expr> opt_data, Optional<Array<Clause>> opt_clauses,
+                 Optional<Bool> opt_complete, Optional<Span> opt_span) {
+  Expr data = opt_data.value_or(match->data);
+  Array<Clause> clauses = opt_clauses.value_or(match->clauses);
+  Bool complete = opt_complete.value_or(Bool(match->complete));
+  Span span = opt_span.value_or(match->span);
+
+  bool unchanged =
+      data.same_as(match->data) && (complete == match->complete) && span.same_as(match->span);
+
+  // Check that all clauses are unchanged
+  if (unchanged) {
+    bool all_clauses_unchanged = true;
+    if (clauses.size() == match->clauses.size()) {
+      for (size_t i = 0; i < clauses.size(); i++) {
+        all_clauses_unchanged &= clauses[i].same_as(match->clauses[i]);
+      }
+    } else {
+      all_clauses_unchanged = false;
+    }
+    unchanged &= all_clauses_unchanged;
+  }
+  if (!unchanged) {
+    MatchNode* cow_match_node = match.CopyOnWrite();
+    cow_match_node->data = data;
+    cow_match_node->clauses = clauses;
+    cow_match_node->complete = complete;
+    cow_match_node->span = span;
+  }
+  return match;
 }
 
 TVM_REGISTER_NODE_TYPE(MatchNode);

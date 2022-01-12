@@ -14,154 +14,40 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import datetime
-from hashlib import new
+import io
 import logging
 import os
 import sys
 import logging
 import pathlib
+import tarfile
+import tempfile
 
 import pytest
 import numpy as np
 
 import tvm
-import tvm.rpc
-import tvm.micro
+import tvm.testing
+from tvm.micro.project_api import server
 import tvm.relay as relay
+from tvm.relay.backend import Executor, Runtime
 
-from tvm.micro.contrib import zephyr
-from tvm.contrib import utils
 from tvm.contrib.download import download_testdata
+from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
-import conftest
-
-_LOG = logging.getLogger(__name__)
-
-PLATFORMS = conftest.PLATFORMS
+import test_utils
 
 
-def _build_session_kw(model, target, zephyr_board, west_cmd, mod, runtime_path, build_config):
-    parent_dir = os.path.dirname(__file__)
-    filename = os.path.splitext(os.path.basename(__file__))[0]
-    prev_build = f"{os.path.join(parent_dir, 'archive')}_{filename}_{zephyr_board}_last_build.micro"
-    workspace_root = os.path.join(
-        f"{os.path.join(parent_dir, 'workspace')}_{filename}_{zephyr_board}",
-        datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S"),
-    )
-    workspace_parent = os.path.dirname(workspace_root)
-    if not os.path.exists(workspace_parent):
-        os.makedirs(workspace_parent)
-    workspace = tvm.micro.Workspace(debug=True, root=workspace_root)
-
-    compiler = zephyr.ZephyrCompiler(
-        project_dir=runtime_path,
-        board=zephyr_board,
-        zephyr_toolchain_variant="zephyr",
-        west_cmd=west_cmd,
-        env_vars={"ZEPHYR_RUNTIME": "ZEPHYR-AOT"},
-    )
-
-    opts = tvm.micro.default_options(os.path.join(runtime_path, "crt"))
-    opts["bin_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
-    opts["lib_opts"]["include_dirs"].append(os.path.join(runtime_path, "include"))
-
-    flasher_kw = {}
-    if build_config["debug"]:
-        flasher_kw["debug_rpc_session"] = tvm.rpc.connect("127.0.0.1", 9090)
-
-    session_kw = {
-        "flasher": compiler.flasher(**flasher_kw),
-    }
-
-    if not build_config["skip_build"]:
-        session_kw["binary"] = tvm.micro.build_static_runtime(
-            workspace,
-            compiler,
-            mod,
-            opts,
-            executor="aot",
-            extra_libs=[tvm.micro.get_standalone_crt_lib("memory")],
-        )
-        if os.path.exists(prev_build):
-            os.unlink(prev_build)
-        session_kw["binary"].archive(prev_build, metadata_only=True)
-    else:
-        unarchive_dir = utils.tempdir()
-        session_kw["binary"] = tvm.micro.MicroBinary.unarchive(
-            prev_build, unarchive_dir.relpath("binary")
-        )
-
-    return session_kw
-
-
-def _create_header_file(tensor_name, npy_data, output_path):
-    """
-    This method generates a header file containing the data contained in the numpy array provided.
-    It is used to capture the tensor data (for both inputs and expected outputs).
-    """
-    file_path = pathlib.Path(f"{output_path}/" + tensor_name).resolve()
-    # create header file
-    raw_path = file_path.with_suffix(".h").resolve()
-    with open(raw_path, "w") as header_file:
-        header_file.write("#include <stddef.h>\n")
-        header_file.write("#include <stdint.h>\n")
-        header_file.write("#include <dlpack/dlpack.h>\n")
-        header_file.write(f"const size_t {tensor_name}_len = {npy_data.size};\n")
-
-        if npy_data.dtype == "int8":
-            header_file.write(f"int8_t {tensor_name}[] =")
-        elif npy_data.dtype == "int32":
-            header_file.write(f"int32_t {tensor_name}[] = ")
-        elif npy_data.dtype == "uint8":
-            header_file.write(f"uint8_t {tensor_name}[] = ")
-        elif npy_data.dtype == "float32":
-            header_file.write(f"float {tensor_name}[] = ")
-
-        header_file.write("{")
-        for i in np.ndindex(npy_data.shape):
-            header_file.write(f"{npy_data[i]}, ")
-        header_file.write("};\n\n")
-
-
-def _read_line(fd):
-    data = ""
-    new_line = False
-    while True:
-        if new_line:
-            break
-        new_data = fd.read(1, timeout_sec=10)
-        logging.debug(f"read data: {new_data}")
-        for item in new_data:
-            new_c = chr(item)
-            data = data + new_c
-            if new_c == "\n":
-                new_line = True
-                break
-    return data
-
-
-def _get_message(fd, expr: str):
-    while True:
-        data = _read_line(fd)
-        logging.debug(f"new line: {data}")
-        if expr in data:
-            return data
-
-
-def test_tflite(platform, west_cmd, skip_build, tvm_debug):
+@tvm.testing.requires_micro
+def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     """Testing a TFLite model."""
-    model, zephyr_board = PLATFORMS[platform]
-    input_shape = (1, 32, 32, 3)
-    output_shape = (1, 10)
-    build_config = {"skip_build": skip_build, "debug": tvm_debug}
+    model = test_utils.ZEPHYR_BOARDS[board]
+    input_shape = (1, 49, 10, 1)
+    output_shape = (1, 12)
+    build_config = {"debug": tvm_debug}
 
-    this_dir = os.path.dirname(__file__)
-    tvm_source_dir = os.path.join(this_dir, "..", "..", "..")
-    runtime_path = os.path.join(tvm_source_dir, "apps", "microtvm", "zephyr", "aot_demo")
-    model_url = "https://github.com/eembc/ulpmark-ml/raw/fc1499c7cc83681a02820d5ddf5d97fe75d4f663/base_models/ic01/ic01_fp32.tflite"
-    model_path = download_testdata(model_url, "ic01_fp32.tflite", module="model")
+    model_url = "https://github.com/tlc-pack/web-data/raw/25fe99fb00329a26bd37d3dca723da94316fd34c/testdata/microTVM/model/keyword_spotting_quant.tflite"
+    model_path = download_testdata(model_url, "keyword_spotting_quant.tflite", module="model")
 
     # Import TFLite model
     tflite_model_buf = open(model_path, "rb").read()
@@ -176,39 +62,77 @@ def test_tflite(platform, west_cmd, skip_build, tvm_debug):
 
     # Load TFLite model and convert to Relay
     relay_mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "float32"}
+        tflite_model, shape_dict={"input_1": input_shape}, dtype_dict={"input_1 ": "int8"}
     )
 
-    target = tvm.target.target.micro(model, options=["-link-params=1", "--executor=aot"])
+    target = tvm.target.target.micro(model)
+    executor = Executor(
+        "aot", {"unpacked-api": True, "interface-api": "c", "workspace-byte-alignment": 4}
+    )
+    runtime = Runtime("crt")
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lowered = relay.build(relay_mod, target, params=params)
+        lowered = relay.build(relay_mod, target, params=params, runtime=runtime, executor=executor)
 
-    # Load sample and generate input/output header files
-    sample_url = "https://github.com/tlc-pack/web-data/raw/main/testdata/microTVM/data/testdata_image_classification_fp32_8.npy"
-    sample_path = download_testdata(
-        sample_url, "testdata_image_classification_fp32_8.npy", module="data"
-    )
+    sample_url = "https://github.com/tlc-pack/web-data/raw/967fc387dadb272c5a7f8c3461d34c060100dbf1/testdata/microTVM/data/keyword_spotting_int8_6.pyc.npy"
+    sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
-    model_files_path = os.path.join(runtime_path, "include")
-    _create_header_file((f"input_data"), sample, model_files_path)
-    _create_header_file(
-        "output_data", np.zeros(shape=output_shape, dtype="float32"), model_files_path
+
+    project, _ = test_utils.generate_project(
+        temp_dir,
+        board,
+        west_cmd,
+        lowered,
+        build_config,
+        sample,
+        output_shape,
+        "int8",
+        load_cmsis=False,
     )
 
-    session_kw = _build_session_kw(
-        model, target, zephyr_board, west_cmd, lowered.lib, runtime_path, build_config
-    )
-    transport = session_kw["flasher"].flash(session_kw["binary"])
-    transport.open()
-    transport.write(b"start\n", timeout_sec=5)
+    result, time = test_utils.run_model(project)
+    assert result == 6
 
-    result_line = _get_message(transport, "#result")
-    result_line = result_line.strip("\n")
-    result_line = result_line.split(":")
-    result = int(result_line[1])
-    time = int(result_line[2])
-    logging.info(f"Result: {result}\ttime: {time} ms")
-    assert result == 8
+
+@tvm.testing.requires_micro
+def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
+    """Testing QEMU make fail."""
+    if board not in ["qemu_x86", "mps2_an521"]:
+        pytest.skip(msg="Only for QEMU targets.")
+
+    model = test_utils.ZEPHYR_BOARDS[board]
+    build_config = {"debug": tvm_debug}
+    shape = (10,)
+    dtype = "float32"
+
+    # Construct Relay program.
+    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
+    xx = relay.multiply(x, x)
+    z = relay.add(xx, relay.const(np.ones(shape=shape, dtype=dtype)))
+    func = relay.Function([x], z)
+    ir_mod = tvm.IRModule.from_expr(func)
+
+    target = tvm.target.target.micro(model)
+    executor = Executor("aot")
+    runtime = Runtime("crt")
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
+
+    sample = np.zeros(shape=shape, dtype=dtype)
+    project, project_dir = test_utils.generate_project(
+        temp_dir, board, west_cmd, lowered, build_config, sample, shape, dtype, load_cmsis=False
+    )
+
+    file_path = (
+        pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"
+    )
+    assert file_path.is_file(), f"[{file_path}] does not exist."
+
+    # Remove a file to create make failure.
+    os.remove(file_path)
+    project.flash()
+    with pytest.raises(server.JSONRPCError) as excinfo:
+        project.transport().open()
+    assert "QEMU setup failed" in str(excinfo.value)
 
 
 if __name__ == "__main__":
