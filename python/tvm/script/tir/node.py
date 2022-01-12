@@ -152,3 +152,6 @@ class BufferSlice(ObjectGeneric):
 
         indices = [s.start for s in self.slices]
         return BufferLoad(self.buffer, indices, span=self.span)
+
+    def astype(self, dtype: str, span: Optional[Span] = None) -> PrimExpr:
+        return self.asobject().astype(dtype)
