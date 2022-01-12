@@ -316,9 +316,9 @@ def verify_math(
 
 def verify_concat(
     model, name="", rtol=1e-5, atol=1e-5,
-    inputs1 = flow.tensor(np.random.randn(2, 5, 5, 4)),
-    inputs2 = flow.tensor(np.random.randn(2, 5, 5, 2)),
-    inputs3 = flow.tensor(np.random.randn(2, 5, 5, 3)),
+    inputs1 = flow.tensor(np.random.randn(2, 5, 5, 4), dtype=flow.float32),
+    inputs2 = flow.tensor(np.random.randn(2, 5, 5, 2), dtype=flow.float32),
+    inputs3 = flow.tensor(np.random.randn(2, 5, 5, 3), dtype=flow.float32),
     device = "llvm"
 ):
     if device == "cuda":
@@ -697,6 +697,6 @@ if __name__ == "__main__":
     test_activation()
     test_math()
     test_slice()
-    # test_concat()
+    test_concat()
     rmdir("log")
 

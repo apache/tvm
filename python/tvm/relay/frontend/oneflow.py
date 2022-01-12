@@ -93,6 +93,25 @@ def get_node_info(node):
 
     return shape, data_type
 
+def _dtype_shape_promotion(inputs):
+    """Promote data type and shape for list of tensors."""
+
+    dtype_order = ["bool", "int8", "int16", "int32", "int64", "float32", "float64"]
+
+    ranks = [len(infer_shape(x)) for x in inputs]
+    if set(ranks) == set([1, 0]):
+        for i, r in enumerate(ranks):
+            if r == 0:
+                inputs[i] = _op.expand_dims(inputs[i], axis=0)
+
+    dtypes = set(dtype_order.index(infer_type(x).checked_type.dtype) for x in inputs)
+    if len(dtypes) == 1:
+        return inputs
+    max_dtype = dtype_order[max(dtypes)]
+    for i, input_op in enumerate(inputs):
+        if infer_type(input_op).checked_type.dtype != max_dtype:
+            inputs[i] = input_op.astype(max_dtype)
+    return inputs
 
 def parse_attr(attr):
     # Parse attribute of user op in oneflow.
@@ -1008,7 +1027,8 @@ class Concat(OneFlowOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         attrs.pop("max_dim_size")
-        return AttrCvt(op_name="concatenate")((inputs,), attrs)
+        inputs = _dtype_shape_promotion(inputs)
+        return _op.concatenate(inputs, axis=attrs['axis'])
 
 
 class Clip(OneFlowOpConverter):
