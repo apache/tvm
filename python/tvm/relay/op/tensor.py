@@ -434,7 +434,7 @@ def abs(data):
 
 
 def sign(data):
-    """Compute element-wise absolute of data.
+    """Compute element-wise sign of data.
 
     Parameters
     ----------
