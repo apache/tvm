@@ -17,7 +17,6 @@
 # pylint: disable=unused-wildcard-import
 import numpy as np
 import pytest
-
 import tvm
 from tvm import relay
 
@@ -550,6 +549,28 @@ def test_fake_quantize_depth_to_space():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_max_min():
+    def run_test_case(partial_func):
+        x = relay.var("x", shape=[1, 3, 10, 10], dtype="int8")
+
+        zero = relay.const(0)
+        x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+        # To be a little more realistic since max/min will rarely be by themselves
+        x = relay.op.nn.depth_to_space(x, 4)
+        op = partial_func(x)
+        op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+        x_np = np.random.randint(-128, 127, size=[1, 3, 10, 10], dtype="int8")
+        compare_fq_to_int(op, [x_np])
+
+    run_test_case(relay.op.max)
+    run_test_case(relay.op.min)
+
+    # Test forwarding kwargs works
+    run_test_case(lambda x: relay.op.max(x, axis=1))
+    run_test_case(lambda x: relay.op.min(x, axis=1))
 
 
 def test_fq_hard_fail():
