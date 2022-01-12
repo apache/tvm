@@ -159,7 +159,10 @@ class LocalBuilder(Builder):
                                 except Exception:  # pylint: disable=broad-except
                                     pass
                                 res = MeasureResult(
-                                    (tb, InstantiationError(msg),),
+                                    (
+                                        tb,
+                                        InstantiationError(msg),
+                                    ),
                                     MeasureErrorNo.INSTANTIATION_ERROR,
                                     res.time_cost,
                                     time.time(),
@@ -167,7 +170,10 @@ class LocalBuilder(Builder):
 
                             else:  # tvm error
                                 res = MeasureResult(
-                                    (tb, res.error,),
+                                    (
+                                        tb,
+                                        res.error,
+                                    ),
                                     MeasureErrorNo.COMPILE_HOST,
                                     res.time_cost,
                                     time.time(),
@@ -175,12 +181,21 @@ class LocalBuilder(Builder):
                 except TimeoutError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (tb, ex,), MeasureErrorNo.BUILD_TIMEOUT, self.timeout, time.time()
+                        (
+                            tb,
+                            ex,
+                        ),
+                        MeasureErrorNo.BUILD_TIMEOUT,
+                        self.timeout,
+                        time.time(),
                     )
                 except ChildProcessError as ex:
                     tb = traceback.format_exc()
                     res = MeasureResult(
-                        (tb, ex,),
+                        (
+                            tb,
+                            ex,
+                        ),
                         MeasureErrorNo.RUNTIME_DEVICE,
                         self.timeout,
                         time.time(),
@@ -371,7 +386,10 @@ class RPCRunner(Runner):
                     tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (tb + "\n" + str(ex),), MeasureErrorNo.RUN_TIMEOUT, self.timeout, time.time()
+                            (tb + "\n" + str(ex),),
+                            MeasureErrorNo.RUN_TIMEOUT,
+                            self.timeout,
+                            time.time(),
                         )
                     )
 
