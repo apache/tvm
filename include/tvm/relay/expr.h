@@ -108,6 +108,7 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -196,6 +197,7 @@ class VarNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -319,6 +321,7 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -425,6 +428,7 @@ class LetNode : public ExprNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -516,6 +520,7 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -589,6 +594,7 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -652,6 +658,7 @@ class RefCreateNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -713,6 +720,7 @@ class RefReadNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -776,6 +784,7 @@ class RefWriteNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }

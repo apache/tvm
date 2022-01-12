@@ -141,7 +141,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
-      truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
+      truncated_name << "_" << std::hex << std::hash<std::string>{}(candidate_name) << "_";
       candidate_name = truncated_name.str();
     }
 
@@ -412,7 +412,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
-      truncated_name << "_" << std::hash<std::string>{}(candidate_name) << "_";
+      truncated_name << "_" << std::hex << std::hash<std::string>{}(candidate_name) << "_";
       candidate_name = truncated_name.str();
     }
 
