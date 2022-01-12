@@ -72,7 +72,6 @@ import sys
 import time
 import pickle
 import pytest
-import functools
 import numpy as np
 import tvm
 import tvm.arith
@@ -523,12 +522,19 @@ def _compose(args, decs):
 
 
 def slow(fn):
+    """
+    Skip test if it's slow
+    """
+
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        if SKIP_SLOW_TESTS:
-            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
-        else:
-            fn(*args, **kwargs)
+        # TODO: Just for testing, auto-skip everything marked
+        print(args, kwargs)
+        pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        # if SKIP_SLOW_TESTS:
+        #     pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        # else:
+        #     fn(*args, **kwargs)
 
     return wrapper
 
