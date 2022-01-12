@@ -26,7 +26,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/algo/algo.h>
+#include <tvm/tir/usmp/algorithms.h>
 #include <tvm/tir/usmp/analysis.h>
 #include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
@@ -35,8 +35,8 @@
 
 namespace tvm {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.usmp.enable", Bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tir.usmp.algorithm", String);
+TVM_REGISTER_PASS_CONFIG_OPTION(kUSMPEnableOption, Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION(kUSMPAlgorithmOption, String);
 
 namespace tir {
 namespace usmp {
@@ -79,7 +79,7 @@ namespace transform {
 
 tvm::transform::Pass UnifiedStaticMemoryPlanner() {
   auto usmp_main_pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
-    auto algorithm_str = ctx->GetConfig("tir.usmp.algorithm", String(usmp::kDefaultAlgo));
+    auto algorithm_str = ctx->GetConfig(kUSMPAlgorithmOption, String(usmp::kDefaultAlgo));
     return Downcast<IRModule>(
         usmp::PlanMemory(m, algorithm_str.value_or(String(usmp::kDefaultAlgo))));
   };

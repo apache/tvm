@@ -174,20 +174,6 @@ Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info
   return ret;
 }
 
-void PrintConflicts(const Array<BufferInfo>& bi_arr) {
-  for (const auto& bi : bi_arr) {
-    std::stringstream ss;
-    ss << "buf=" << bi->name_hint;
-    ss << "|conflicts=";
-    for (const auto& conflict_bi : bi->conflicts) {
-      BufferInfo cbi = Downcast<BufferInfo>(conflict_bi);
-      ss << cbi->name_hint << ",";
-    }
-    ss << "\n";
-    LOG(INFO) << ss.str();
-  }
-}
-
 Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
     const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
     const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation) {

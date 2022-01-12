@@ -113,15 +113,5 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-std::string CodeGenSourceBase::SanitiseName(std::string name) {
-  std::replace_if(
-      name.begin(), name.end(),
-      [](char c) {
-        { return !std::isalnum(c); }
-      },
-      '_');
-  return name;
-}
-
 }  // namespace codegen
 }  // namespace tvm

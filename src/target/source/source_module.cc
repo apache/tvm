@@ -26,19 +26,16 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include <string>
 #include <unordered_map>
 #include <utility>
 
+#include "../../relay/backend/name_transforms.h"
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
 #include "../func_registry_generator.h"
 #include "codegen_c.h"
-#include "codegen_source_base.h"
 
 namespace tvm {
 namespace codegen {
@@ -203,13 +200,13 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   String GenerateDLTensorStructWrapper(String reference_arg) {
-    code_ << "DLTensor " << reference_arg << "_dlt = {\n";
+    code_ << "DLTensor " << reference_arg << "_dltensor = {\n";
     code_ << ".data = &" << reference_arg << "\n";
     code_ << "};\n";
-    code_ << "TVMValue " << reference_arg << "_tvmv = {\n";
-    code_ << ".v_handle = &" << reference_arg << "_dlt\n";
+    code_ << "TVMValue " << reference_arg << "_tvm_value = {\n";
+    code_ << ".v_handle = &" << reference_arg << "_dltensor\n";
     code_ << "};\n";
-    return reference_arg + "_tvmv";
+    return reference_arg + "_tvm_value";
   }
 
   void GenerateInternalWorkspaceBuffers() {
@@ -374,7 +371,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         } else {
           codegen_c_.PrintType(input_var.dtype(), call_args_ss);
         }
-        call_args_ss << " " << codegen_c_.SanitiseName(input_var->name_hint) << ",";
+        call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
       }
       for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
         call_args_ss << "void* output" << i << ",";
@@ -411,7 +408,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     {
       std::stringstream call_args_ss;
       for (const auto& input : metadata_->inputs) {
-        call_args_ss << "inputs->" << codegen_c_.SanitiseName(input->name_hint) << ",";
+        call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
       }
       if (metadata_->num_outputs == 1) {
         call_args_ss << "outputs->output,";

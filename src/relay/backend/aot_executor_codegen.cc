@@ -687,62 +687,73 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   }
 
   /*!
-   * brief This function is a wrapper to run memory planning
-   * followed by recording the latest workspaces required.
+   * brief Run USMP to plan memory for lowered IRModule
    */
-  IRModule PlanMemoryLoweredModule(const IRModule& mod) {
-    transform::PassContext pass_ctx = transform::PassContext::Current();
-    bool enable_usmp = pass_ctx->GetConfig<Bool>("tir.usmp.enable", Bool(false)).value();
-
-    IRModule lowered_mod = mod->ShallowCopy();
+  IRModule PlanMemoryWithUSMP(const IRModule& mod) {
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
-    if (enable_usmp) {
-      lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
-      // Update workspace size based on the pool allocations.
-      Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
-          lowered_mod->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
-      int main_workspace_size = 0;
-      if (allocated_pool_infos) {
-        for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info :
-             allocated_pool_infos.value()) {
-          main_workspace_size += allocated_pool_info->allocated_size->value;
-        }
+    IRModule lowered_mod = mod->ShallowCopy();
+    lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
+    // Update workspace size based on the pool allocations.
+    for (const auto& kv : function_metadata_) {
+      if (lowered_mod->ContainGlobalVar(kv.first) &&
+          lowered_mod->Lookup(kv.first)->IsInstance<tir::PrimFuncNode>()) {
+        tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(lowered_mod->Lookup(kv.first));
+        Target tgt = pfunc->GetAttr<Target>(tvm::attr::kTarget).value();
+        const auto& ws = CalculateWorkspaceBytes(pfunc, workspace_byte_alignment);
+        kv.second->workspace_sizes.Set(tgt, ws);
       }
-      for (const auto& kv : function_metadata_) {
-        if (lowered_mod->ContainGlobalVar(kv.first) &&
-            lowered_mod->Lookup(kv.first)->IsInstance<tir::PrimFuncNode>()) {
-          tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(lowered_mod->Lookup(kv.first));
-          Target tgt = pfunc->GetAttr<Target>(tvm::attr::kTarget).value();
-          const auto& ws = CalculateWorkspaceBytes(pfunc, workspace_byte_alignment);
-          kv.second->workspace_sizes.Set(tgt, ws);
-        }
-      }
-      backend::FunctionInfo main_func_info =
-          lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
-      main_func_info->workspace_sizes.Set(target_host_, main_workspace_size);
-      function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
-    } else {
-      // Running StorageRewrite just on the main function
-      tir::PrimFunc tir_main_func =
-          Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
-      IRModule main_func_mod;
-      main_func_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix),
-                            tir_main_func);
-      main_func_mod = tir::transform::StorageRewrite()(main_func_mod);
-      lowered_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix),
-                          main_func_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
-      tir_main_func =
-          Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
-      // Use the PrimFunc to calculate the workspace required to service the allocates
-      Integer main_workspace_size =
-          CalculateWorkspaceBytes(tir_main_func, workspace_byte_alignment);
-      backend::FunctionInfo main_func_info =
-          lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
-      main_func_info->workspace_sizes.Set(target_host_, main_workspace_size);
-      function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
     }
+    Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
+        lowered_mod->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
+    backend::FunctionInfo main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
+    main_func_info->workspace_sizes.clear();
+    if (allocated_pool_infos) {
+      for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
+        for (const auto& kv : allocated_pool_info->pool_info->target_access) {
+          Target tgt = kv.first;
+          if (main_func_info->workspace_sizes.find(tgt) == main_func_info->workspace_sizes.end()) {
+            main_func_info->workspace_sizes.Set(tgt, allocated_pool_info->allocated_size);
+          } else {
+            main_func_info->workspace_sizes.Set(tgt,
+                                                main_func_info->workspace_sizes[tgt]->value +
+                                                    allocated_pool_info->allocated_size->value);
+          }
+        }
+      }
+    }
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
+    return lowered_mod;
+  }
+
+  /*!
+   * brief Run StorageRewrite to plan memory for lowered IRModule
+   */
+  IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    Integer workspace_byte_alignment =
+        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    IRModule lowered_mod = mod->ShallowCopy();
+    // Running StorageRewrite just on the main function
+    tir::PrimFunc tir_main_func =
+        Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    IRModule main_func_mod;
+    main_func_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix),
+                          tir_main_func);
+    main_func_mod = tir::transform::StorageRewrite()(main_func_mod);
+    lowered_mod->Update(lowered_mod->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix),
+                        main_func_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    tir_main_func =
+        Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    // Use the PrimFunc to calculate the workspace required to service the allocates
+    Integer main_workspace_size_bytes =
+        CalculateWorkspaceBytes(tir_main_func, workspace_byte_alignment);
+    backend::FunctionInfo main_func_info =
+        lowered_mod->GetAttr<backend::FunctionInfo>("main_func_info").value();
+    main_func_info->workspace_sizes.Set(target_host_, main_workspace_size_bytes);
+    function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
     return lowered_mod;
   }
 
@@ -850,7 +861,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
     for (auto input : lowered_main_func->params) {
       input_vars_.push_back(input);
-      std::string input_name = codegen::CodeGenSourceBase::SanitiseName(input->name_hint());
+      std::string input_name = SanitizeName(input->name_hint());
       CreateIOVar(input, input_name);
     }
 
@@ -895,7 +906,14 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     lowered_mod->Update(GlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix), prim_func);
     // Parallel for loops are not supported in AoT codegen.
     lowered_mod = tir::transform::ConvertForLoopsToSerial()(lowered_mod);
-    lowered_mod = PlanMemoryLoweredModule(lowered_mod);
+
+    transform::PassContext pass_ctx = transform::PassContext::Current();
+    bool enable_usmp = pass_ctx->GetConfig<Bool>(kUSMPEnableOption, Bool(false)).value();
+    if (enable_usmp) {
+      lowered_mod = PlanMemoryWithUSMP(lowered_mod);
+    } else {
+      lowered_mod = PlanMemoryWithStorageRewrite(lowered_mod);
+    }
     ret.function_metadata = std::move(function_metadata_);
 
     // Legalize AOT if needed. This means that all the packed calls
@@ -928,12 +946,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         Downcast<tir::PrimFunc>(lowered_mod->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
     Optional<Array<tir::usmp::AllocatedPoolInfo>> allocated_pool_infos =
         tir_main_func->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
-    int main_workspace_size = 0;
     if (allocated_pool_infos) {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
         pool_vars.push_back(allocated_pool_info->pool_var.value());
         pool_var_info.Set(allocated_pool_info->pool_var.value(), allocated_pool_info);
-        main_workspace_size += allocated_pool_info->allocated_size->value;
       }
     }
     Array<String> devices = ListDevices();

@@ -20,7 +20,7 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/algo/algo.h>
+#include <tvm/tir/usmp/algorithms.h>
 #include <tvm/tir/usmp/analysis.h>
 #include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>

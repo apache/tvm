@@ -31,6 +31,16 @@
 #include <tvm/tir/stmt.h>
 
 namespace tvm {
+
+/*!
+ * \brief PassContext option to enable the USMP
+ */
+constexpr const char* kUSMPEnableOption = "tir.usmp.enable";
+/*!
+ * \brief PassContext option to select the memory planning algorithm in USMP
+ */
+constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
+
 namespace tir {
 namespace usmp {
 

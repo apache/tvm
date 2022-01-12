@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file tir/usmp/algo/algo.h
+ * \file tir/usmp/algorithms.h
  * \brief The memory planning algorithm for USMP
  */
 
-#ifndef TVM_TIR_USMP_ALGO_ALGO_H_
-#define TVM_TIR_USMP_ALGO_ALGO_H_
+#ifndef TVM_TIR_USMP_ALGORITHMS_H_
+#define TVM_TIR_USMP_ALGORITHMS_H_
 
 #include <tvm/tir/usmp/utils.h>
 
@@ -59,4 +59,4 @@ Map<BufferInfo, PoolAllocation> GreedyByConflicts(const Array<BufferInfo>& buffe
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_USMP_ALGO_ALGO_H_
+#endif  // TVM_TIR_USMP_ALGORITHMS_H_

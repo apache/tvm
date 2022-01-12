@@ -53,12 +53,6 @@ class CodeGenSourceBase {
    */
   void MarkConst(std::string value);
 
-  /*!
-   * \brief Sanitize names by removing illegal characters
-   * \param name The name to be sanitised.
-   */
-  static std::string SanitiseName(std::string name);
-
  protected:
   /*! \brief entry in ssa assign map */
   struct SSAEntry {
