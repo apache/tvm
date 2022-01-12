@@ -290,6 +290,7 @@ def verify_span(model_name, input_data=[], custom_convert_map={}):
     assert len(fail_cases) == 0
 
 
+@tvm.testing.slow
 def test_span():
     verify_span("resnet18")
 

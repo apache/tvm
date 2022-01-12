@@ -72,6 +72,7 @@ import sys
 import time
 import pickle
 import pytest
+import functools
 import numpy as np
 import tvm
 import tvm.arith
@@ -83,6 +84,9 @@ from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.op.contrib import cmsisnn
+
+print("[test] skip slow:", os.getenv("SKIP_SLOW_TESTS"))
+SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -516,6 +520,17 @@ def _compose(args, decs):
             f = d(f)
         return f
     return decs
+
+
+def slow(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if SKIP_SLOW_TESTS:
+            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
 
 
 def uses_gpu(*args):
