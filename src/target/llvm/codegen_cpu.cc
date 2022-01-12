@@ -905,6 +905,223 @@ llvm::Value* CodeGenCPU::RuntimeTVMParallelBarrier() {
   return GetContextPtr(gv_tvm_parallel_barrier_);
 }
 
+struct MetadataLlvmTypes {
+  llvm::Type* t_float64;
+  llvm::Type* t_uint8;
+  llvm::Type* t_int64;
+  llvm::Type* t_bool;
+  llvm::Type* t_cstring;
+  llvm::Type* t_void_p;
+  llvm::Type* t_data_type;
+  ::std::unordered_map<::std::string, llvm::StructType*> structs;
+};
+
+class MetadataTypeDefiner : public AttrVisitor {
+public:
+  MetadataTypeDefiner(llvm::Context* ctx, struct MetadataLlvmTypes* llvm_types) : ctx_{ctx}, llvm_types_{llvm_types} {}
+
+  void Visit(const char* key, double* value) final {
+    elements_.emplace_back(llvm_types_->t_float64);
+  }
+  void Visit(const char* key, int64_t* value) final {
+    elements_.emplace_back(llvm_types_->t_int64);
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    elements_.emplace_back(llvm_types_->t_int64);
+  }
+  void Visit(const char* key, int* value) final {
+    elements_.emplace_back(llvm_types_->t_int64);
+  }
+  void Visit(const char* key, bool* value) final {
+    elements_.emplace_back(llvm_types_->t_bool);
+  }
+  void Visit(const char* key, std::string* value) final {
+    elements_.emplace_back(llvm_types_->t_cstring);
+  }
+  void Visit(const char* key, void** value) final {
+    elements_.emplace_back(llvm_types_->t_void_p);
+  }
+  void Visit(const char* key, DataType* value) final {
+    elements_.emplace_back(llvm_types_->t_data_type);
+  }
+  void Visit(const char* key, runtime::NDArray* value) final {
+    CHECK(false) << "Do not support serializing NDArray";
+  }
+
+private:
+  void VisitMetadataBase(runtime::metadata::MetadataBase metadata) {
+    elements_.emplace_back(llvm::PointerType::get(llvm::StructType::create(*ctx_, metadata->get_name())));
+    if (visited_.find(metadata->get_name()) != visited_.end()) {
+      return;
+    }
+
+    if (to_visit_.find(metadata->get_name()) != to_visit_.end()) {
+      return;
+    }
+    to_visit_[metadata->get_name()] = metadata;
+  }
+
+public:
+  void VisitArray(const runtime::metadata::MetadataArrayNode* arr) {
+    for (auto o : arr->array) {
+      if (o->IsInstance<pFloatImmNode>()) {
+        elements_.emplace_back(llvm::PointerType::get(llvm_types_->t_float64, *ctx_));
+      } if (o->IsInstance<IntImmNode>()) {
+        elements_.emplace_back(llvm::PointerType::get(llvm_types_->t_int64, *ctx_));
+      } else if (o->IsInstance<StringObj>()) {
+        elements_.emplace_back(llvm::PointerType::get(llvm_tpyes_->t_cstring, *ctx_));
+      } else {
+        runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
+        VisitMetadata(metadata);
+      }
+    }
+  }
+
+  void Visit(const char* key, ObjectRef* value) final {
+    const runtime::metadata::MetadataArrayNode* arr =
+        value->as<runtime::metadata::MetadataArrayNode>();
+    if (arr != nullptr) {
+      VisitArray(arr);
+      return;
+    }
+
+    runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+    VisitMetadata(metadata);
+  }
+
+  void DefineTypes(runtime::metadata::Metadata metadata) {
+    to_visit.insert(metadata);
+
+    while (to_visit_.size() > 0) {
+      auto it = to_visit_.begin();
+      runtime::metadata::MetadataBase node = (*it).second;
+      visited_.insert((*it).first)
+      to_visit_.erase(it);
+      ReflectionVTable::Global()->VisitAttrs(node->operator(), this);
+      types_->structs_[metadata->get_name()] = llvm::StructType::create(*ctx_, elements_, metadata->get_name());
+      elements_.clear();
+    }
+  }
+
+  llvm::LLVMContext* ctx_;
+  struct MetadataLlvmTypes* types_;
+  ::std::unordered_set<::std::string> visited_;
+  ::std::unordered_map<::std::string, runtime::metadata::MetadataBase> to_visit_;
+  ::std::vector<llvm::Type*> elements_;
+}
+
+class MetadataSerializer : public AttrVisitor {
+public:
+  void Visit(const char* key, double* value) final {
+    elements_.back().emplace_back(llvm::ConstantFP::get(llvm_types_->t_float64, *value));
+  }
+  void Visit(const char* key, int64_t* value) final {
+    elements_.back().emplace_back(llvm::ConstantInt::get(llvm_types_->t_int, static_cast<uint64_t>(*value), true /* isSigned */));
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    elements_.back().emplace_back(llvm::ConstantInt::get(llvm_types_->t_int, *value, false /* isSigned */));
+  }
+  void Visit(const char* key, int* value) final {
+    elements_.back().emplace_back(llvm::ConstantInt::get(llvm_types_->t_int, *value, true /* isSigned */));
+  }
+  void Visit(const char* key, bool* value) final {
+    elements_.back().emplace_back(llvm::ConstantInt::get(llvm_types_->t_bool, static_cast<uint64_t>(*value), false /* isSigned */));
+  }
+  void Visit(const char* key, std::string* value) final {
+    elements_.back().emplace_back(GetConstString(*value));
+  }
+  void Visit(const char* key, void** value) final {
+    CHECK(false) << "Do not support serializing void*";
+  }
+  void Visit(const char* key, DataType* value) final {
+    elements_.back().emplace_back(llvm::ConstantStruct::get(
+                                    llvm_types_->t_data_type,
+                                    llvm::ConstantInt::get(llvm_types_->t_uint8, value->code(), false /* isSigned */),
+                                    llvm::ConstantInt::get(llvm_types_->t_uint8, value->bits(), false /* isSigned */),
+                                    llvm::ConstantInt::get(llvm_types_->t_uint8, value->lanes(), false /* isSigned */)));
+  }
+
+  void Visit(const char* key, runtime::NDArray* value) final {
+    CHECK(false) << "Do not support serializing NDArray";
+  }
+
+  llvm::Constant* VisitMetadata(runtime::metadata::MetadataBase) {
+    elements_.emplace_back(std::vector<llvm::Constant*>());
+    ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
+    auto elements = elements_.pop_back();
+    return llvm::ConstantStruct::get(llvm_types_->structs[metadata->get_name()], elements);
+  }
+
+  llvm::Constant* VisitArray(const runtime::metadata::MetadataArrayNode* arr) {
+    if (arr->array.size() == 0) {
+
+    elements_.emplace_back(std::vector<llvm::Constant*>());
+    for (auto o : arr->array) {
+      if (o->IsInstance<FloatImmNode>()) {
+        Visit(nullptr, &(Downcast<FloatImm>(o)->value));
+      } if (o->IsInstance<IntImmNode>()) {
+        Visit(nullptr, &(Downcast<IntImm>(o)->value));
+      } else if (o->IsInstance<StringObj>()) {
+        ::std::string value = Downcast<String>(o);
+        Visit(nullptr, &value);
+      } else {
+        // nested array not possible.
+        runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
+        VisitMetadata(metadata);
+      }
+    }
+    return llvm::ConstantArray::get(elements_.pop_back()
+  }
+
+  void Visit(const char* key, ObjectRef* value) final {
+    const runtime::metadata::MetadataArrayNode* arr =
+        value->as<runtime::metadata::MetadataArrayNode>();
+    if (arr != nullptr) {
+      elements_.back().emplace_back(VisitArray(arr));
+      return;
+    }
+
+    runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(*value);
+    elements_.back.emplace_back(VisitMetadata(metadata));
+  }
+
+  llvm::Constant* Serialize(runtime::metadata::MetadataBase metadata) {
+    Visit(nullptr, &metadata);
+    return last_production_;
+  }
+
+  MetadataLlvmTypes llvm_types_;
+  llvm::LLVMContext* ctx_;
+  llvm::Module* module_;
+  std::vector<std::vector<llvm::Constant*>> elements_;
+  llvm::Constant* last_production_;
+};
+
+void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
+  MetadataLLvmTypes llvm_types{
+    .t_float64{t_float64_},
+    .t_uint8(llvm::Type::getUint8Ty(*ctx_)),
+    .t_int64{t_int64_},
+    .t_bool{llvm::Type::getInt8Ty(*ctx)},
+    .t_cstring{t_char_->getPointerTo()},
+    .t_void_p{t_void_p_}
+    .t_data_type{llvm::StructType::get("DLDataType", t_int8_, t_int8_, t_int8_)},
+  };
+
+  MetadataTypeDefiner definer{ctx_, &llvm_types};
+  definer.DefineTypes(metadata);
+
+  MetadataSerializer serializer;
+  serializer.Serialize(metadata);
+
+  llvm::FunctionType* ftype = llvm::FunctionType::get(t_void_p_, {}, false);
+  function_ = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage,
+                                     "get_c_metadata", module_.get());
+  llvm::BasicBlock* entry_point_entry = llvm::BasicBlock::Create(*ctx_, "entry", function_);
+  builder_->SetInsertPoint(entry_point_entry);
+  builder_->CreateRet(builder_->CreateBitCast(module, t_void_p_));
+}
+
 void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
   ICHECK(is_system_lib_) << "Loading of --system-lib modules is yet to be defined for C runtime";
   Array<String> symbols;
