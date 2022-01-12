@@ -28,11 +28,9 @@ endif
 FVP_DIR ?= /opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/
 
 NPU_MACS ?= 256
+NPU_VARIANT ?= U55
 
-MODEL = FVP_Corstone_SSE-300_Ethos-U55
-ifeq (${NPU_VARIANT}, U65)
-MODEL = FVP_Corstone_SSE-300_Ethos-U65
-endif
+MODEL = FVP_Corstone_SSE-300_Ethos-$(NPU_VARIANT)
 
 ARM_CPU=ARMCM55
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core

@@ -192,8 +192,8 @@ def deserialize_command_stream(blob):
 def create_test_runner(accel="ethos-u55-256"):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
-    ethosu_macs = accel[accel.rfind("-") + 1 :]
-    ethosu_variant = accel[accel.find("-") + 1 : -4].upper()
+    _, ethosu_variant, ethosu_macs = accel.split("-")
+    ethosu_variant = ethosu_variant.upper()
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
