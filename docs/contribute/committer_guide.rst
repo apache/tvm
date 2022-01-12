@@ -92,7 +92,7 @@ when they actively manage outstanding PRs,
 but watch the community less frequently in the rest of the time.
 
 Remember that your merit will never go away, so please
-take your time and pace when contributing to the project:)
+take your time and pace when contributing to the project :)
 
 
 Broad Collaboration
