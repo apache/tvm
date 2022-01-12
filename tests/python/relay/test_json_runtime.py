@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unit tests for JSON codegen and runtime."""
-import os
 import sys
+import pytest
 
 import numpy as np
 
@@ -24,11 +24,16 @@ import tvm
 import tvm.relay.op as reg
 import tvm.relay.testing
 from tvm import relay, runtime
-from tvm.contrib import utils
 from tvm.relay import transform
 from tvm.relay.backend import te_compiler
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.op.contrib.register import get_pattern_table
+
+
+requires_dnnl = pytest.mark.skipif(
+    tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True) is None,
+    reason="DNNL codegen is not available",
+)
 
 
 def set_func_attr(func, compile_name, symbol_name):
@@ -43,26 +48,24 @@ def check_result(
     mod, ref_mod, map_inputs, out_shape, tol=1e-5, target="llvm", device=tvm.cpu(), params=None
 ):
     if sys.platform == "win32":
-        print("Skip test on Windows for now")
-        return
+        pytest.skip("Skip DNNL test on Windows for now")
 
     # Run the reference result
     te_compiler.get().clear()
     with tvm.transform.PassContext(opt_level=3):
-        json, lib, param = relay.build(ref_mod, target=target, params=params)
-    rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
+        ref_lib = relay.build(ref_mod, target=target, params=params)
+    ref_rt_mod = tvm.contrib.graph_executor.GraphModule(ref_lib["default"](device))
 
     for name, data in map_inputs.items():
-        rt_mod.set_input(name, data)
-    rt_mod.set_input(**param)
-    rt_mod.run()
-    out = tvm.nd.empty(out_shape, device=device)
-    out = rt_mod.get_output(0, out)
-    ref_result = out.numpy()
+        ref_rt_mod.set_input(name, data)
+    ref_rt_mod.run()
+    ref_out = tvm.nd.empty(out_shape, device=device)
+    ref_out = ref_rt_mod.get_output(0, ref_out)
+    ref_result = ref_out.numpy()
 
     def check_vm_result():
         te_compiler.get().clear()
-        with relay.build_config(opt_level=3):
+        with tvm.transform.PassContext(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         exe = runtime.vm.Executable.load_exec(code, lib)
@@ -72,13 +75,12 @@ def check_result(
 
     def check_graph_executor_result():
         te_compiler.get().clear()
-        with relay.build_config(opt_level=3):
-            json, lib, param = relay.build(mod, target=target, params=params)
-        rt_mod = tvm.contrib.graph_executor.create(json, lib, device)
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target=target, params=params)
+        rt_mod = tvm.contrib.graph_executor.GraphModule(ref_lib["default"](device))
 
         for name, data in map_inputs.items():
             rt_mod.set_input(name, data)
-        rt_mod.set_input(**param)
         rt_mod.run()
         out = tvm.nd.empty(out_shape, device=device)
         out = rt_mod.get_output(0, out)
@@ -88,11 +90,10 @@ def check_result(
     check_graph_executor_result()
 
 
+@requires_dnnl
 def test_conv2d():
     """Test a subgraph with a single conv2d operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
+    np.random.seed(0)
 
     def conv2d_direct():
         dtype = "float32"
@@ -172,12 +173,10 @@ def test_conv2d():
         check_result(mod, ref_mod, map_inputs, out_shape, tol=1e-5)
 
 
+@requires_dnnl
 def test_add():
     """Test a subgraph with a single add operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
     shape = (10, 10)
 
@@ -216,12 +215,10 @@ def test_add():
     check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
 
 
+@requires_dnnl
 def test_multiply():
     """Test a subgraph with a single add operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
     shape = (10, 10)
 
@@ -260,14 +257,11 @@ def test_multiply():
     check_result(mod, ref_mod, {"data0": data0, "data1": data1}, shape, tol=1e-5)
 
 
+@requires_dnnl
 def test_relu():
     """Test a subgraph with a single ReLU operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
-    shape = (1, 32, 14, 14)
 
     def gen_relu(shape):
         data0 = relay.var("data0", shape=shape, dtype=dtype)
@@ -312,11 +306,10 @@ def test_relu():
     check(shape=(1, 32))
 
 
+@requires_dnnl
 def test_dense():
     """Test a subgraph with a single dense operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
+    np.random.seed(0)
 
     dtype = "float32"
     a_shape = (1, 512)
@@ -357,11 +350,10 @@ def test_dense():
     check_result(mod, ref_mod, {"A": data_a, "B": data_b}, (1, 1024), tol=1e-5)
 
 
+@requires_dnnl
 def test_bn():
     """Test a subgraph with a single batch_norm operator."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
+    np.random.seed(0)
 
     dtype = "float32"
     d_shape = (1, 8)
@@ -431,12 +423,10 @@ def test_bn():
     )
 
 
+@requires_dnnl
 def test_multiple_ops():
     """Test a subgraph with multiple operators."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
     ishape = (1, 32, 14, 14)
     w1shape = (32, 32, 3, 3)
@@ -497,12 +487,10 @@ def test_multiple_ops():
     )
 
 
+@requires_dnnl
 def test_composite():
     """Test DNNL patterns and there composite functions."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
 
     def conv2d_relu():
@@ -609,12 +597,10 @@ def test_composite():
         check_result(mod, ref_mod, input_maps, out_shape, tol=1e-5)
 
 
+@requires_dnnl
 def test_constant():
     """Test the subgraph with (var, const, ...) arguments."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
     ishape = (1, 32, 14, 14)
     wshape = (32, 32, 3, 3)
@@ -661,12 +647,10 @@ def test_constant():
     check_result(mod, ref_mod, {"data": i_data}, (1, 32, 14, 14), tol=1e-5)
 
 
+@requires_dnnl
 def test_partial_constant():
     """Test the subgraph with (const, var, const, var) arguments."""
-    if not tvm.get_global_func("runtime.DNNLJSONRuntimeCreate", True):
-        print("skip because DNNL codegen is not available")
-        return
-
+    np.random.seed(0)
     dtype = "float32"
     ishape = (10, 10)
 
