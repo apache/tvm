@@ -156,6 +156,12 @@ class ScheduleNode : public runtime::Object {
    */
   virtual StmtSRef GetSRef(const LoopRV& loop_rv) const = 0;
   /*!
+   * \brief Check the existance of a specific BlockRV
+   * \param block_rv The BlockRV to be looked up
+   * \return Whether the corresponding block exists
+   */
+  virtual bool HasBlock(const BlockRV& block_rv) const = 0;
+  /*!
    * \brief Get the block/loop sref corresponding to the specific statement
    * \param stmt The statement to be looked up
    * \return The corresponding block/loop sref
@@ -194,6 +200,16 @@ class ScheduleNode : public runtime::Object {
    */
   virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                                    Optional<Integer> decision = NullOpt) = 0;
+  /*!
+   * \brief Sample the factors to perfect tile a specific loop
+   * \param loop_rv The loop to be tiled
+   * \param n The number of tiles to be sampled
+   * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
+   * \param decision The sampling decision
+   * \return A list of length `n`, the random perfect tile sizes sampled
+   */
+  virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
+                                          Optional<Array<Integer>> decision = NullOpt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
@@ -210,12 +226,39 @@ class ScheduleNode : public runtime::Object {
    * \return A list of loops above the given block in its scope, from outer to inner
    */
   virtual Array<LoopRV> GetLoops(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of a specific scope
+   * \param block_rv The block where the scope is rooted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the leaf blocks of under a specific loop
+   * \param loop_rv The loop under which collecting is conducted
+   * \return A list of child blocks
+   */
+  virtual Array<BlockRV> GetChildBlocks(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Get the producer of a specific block, under the same block scope
+   * \param block_rv The block in the query
+   * \return A list of blocks, the producers of the given block under the same scope of the given
+   * block
+   */
+  virtual Array<BlockRV> GetProducers(const BlockRV& block_rv) = 0;
+  /*!
+   * \brief Get the consumers of a specific block, under the same block scope
+   * \param block_rv The block to be queried
+   * \return A list of blocks, the consumers of the given block under the same scope of the given
+   * block
+   */
+  virtual Array<BlockRV> GetConsumers(const BlockRV& block_rv) = 0;
   /******** Schedule: Transform loops ********/
   /*!
    * \brief Fuse a list of consecutive loops into one. It requires:
    * 1) The loops can't have annotations or thread bindings.
    * 2) The (i+1)-th loop must be the only child of the i-th loop.
    * 3) All loops must start with 0.
+   * 4) The domain of a loop to be fused cannot depend on another loop to be fused.
    * \param loop_rvs The loops to be fused
    * \return The new loop after fusion
    */
@@ -225,8 +268,8 @@ class ScheduleNode : public runtime::Object {
    * 1) The loop can't have annotation or thread binding.
    * 2) The loop must start with 0.
    * \param loop_rv The loop to be split
-   * \param factors The tiling factors, and at most one of which is -1, which means that
-   * factor is inferred.
+   * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
+   * that factor is inferred.
    * \return The new loops after split
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors) = 0;
@@ -365,6 +408,22 @@ class ScheduleNode : public runtime::Object {
   virtual void ReverseComputeInline(const BlockRV& block) = 0;
   /******** Schedule: Reduction ********/
   /*!
+   * \brief Decompose a reduction block into two separate blocks.
+   * a) The init block, which is translated from the init statement of the reduction block;
+   * b) The update block, which is the original block without init statement.
+   *
+   * The init block is inserted right before the given loop.
+   *
+   * The schedule primitive requires:
+   * 1) The input block is a reduction block.
+   * 2) The input loop is the ancestor of the block.
+   * 3) The input loop is not lower than all the loops related to reduce block var.
+   * \param block_rv The reduction block to be decomposed
+   * \param loop_rv The loop above which the init block is inserted before.
+   * \return The init block
+   */
+  virtual BlockRV DecomposeReduction(const BlockRV& block_rv, const LoopRV& loop_rv) = 0;
+  /*!
    * \brief Factorize an associative reduction block by the specified loop.
    * \details An associative reduction cannot be parallelized directly,
    * because it leads to potential race condition during accumulation.
@@ -397,8 +456,44 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void StorageAlign(const BlockRV& block_rv, int buffer_index, int axis, int factor,
                             int offset) = 0;
+  /*!
+   * \brief Set the storage scope of a buffer, where the buffer is specified by the a block and a
+   * write-index
+   * \param block_rv The producer block of the buffer
+   * \param buffer_index The index of the buffer in block's write region
+   * \param storage_scope The storage scope to be set
+   */
+  virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
+  /*!
+   * \brief Annotate a loop with a key value pair
+   * \param loop_rv The loop to be annotated
+   * \param ann_key The annotation key
+   * \param ann_val The annotation value, a string or a ExprRV
+   */
+  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) = 0;
+  /*!
+   * \brief Annotate a block with a key value pair
+   * \param block_rv The block to be annotated
+   * \param ann_key The annotation key
+   * \param ann_val The annotation value, a string or a ExprRV
+   */
+  virtual void Annotate(const BlockRV& block_rv, const String& ann_key,
+                        const ObjectRef& ann_val) = 0;
+  /*!
+   * \brief Unannotate a loop's annotation with key ann_key
+   * \param loop_rv The loop to be unannotated
+   * \param ann_key The annotation key
+   */
+  virtual void Unannotate(const LoopRV& loop_rv, const String& ann_key) = 0;
+  /*!
+   * \brief Unannotate a block's annotation with key ann_key
+   * \param block_rv The block to be unannotated
+   * \param ann_key The annotation key
+   */
+  virtual void Unannotate(const BlockRV& block_rv, const String& ann_key) = 0;
+
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;

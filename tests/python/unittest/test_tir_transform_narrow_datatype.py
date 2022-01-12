@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
-from tvm import relay
+from tvm import te, relay
+from tvm.driver.build_module import schedule_to_module
 from tvm.tir import const
 
 
@@ -39,11 +39,8 @@ def lower_sch(sch, args, target_bits):
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     sch = sch.normalize()
-    bounds = te.schedule.InferBound(sch)
-    stmt = te.schedule.ScheduleOps(sch, bounds)
 
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
-    mod = tvm.IRModule.from_expr(func)
+    mod = schedule_to_module(sch, args)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
     return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 
@@ -66,7 +63,8 @@ def test_basic():
     # const shape
     # i32 -> i32
     check(2, 2, 32, "int32")
-    check(2 ** 16, 2 ** 16, 32, "int32")  # i32 + i32 is not promoted to i64 even if overflow
+    # i32 + i32 is not promoted to i64 even if overflow
+    check(2 ** 16, 2 ** 16, 32, "int32")
     # i64 -> i32
     check(const(2, dtype="int64"), const(2, dtype="int64"), 32, "int32")
     check(const(2 ** 16, dtype="int64"), const(2 ** 16, dtype="int64"), 32, "int64")
@@ -188,7 +186,7 @@ def test_slice():
 
 
 def test_relay_basic():
-    engine = relay.backend.compile_engine.get()
+    engine = relay.backend.te_compiler.get()
 
     def check(shapex, shapey, target_bits, target_dtype):
         x = relay.var("x", shape=shapex)
@@ -230,7 +228,7 @@ def test_relay_basic():
 
 
 def test_relay_take():
-    engine = relay.backend.compile_engine.get()
+    engine = relay.backend.te_compiler.get()
 
     def check(shape, index, target_bits, target_dtype):
         x = relay.var("x", shape=shape)

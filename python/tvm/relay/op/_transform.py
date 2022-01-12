@@ -182,6 +182,7 @@ _reg.register_strategy("unique", strategy.unique_strategy)
 _reg.register_strategy("invert_permutation", strategy.invert_permutation_strategy)
 _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 
+
 #####################
 #  Shape functions  #
 #####################
@@ -1173,3 +1174,23 @@ def gather_nd_shape_func(attrs, inputs, _):
     assert index_rank > 0, "index_rank needs to be specified for dynamic gather_nd"
 
     return [_gather_nd_shape(inputs[0], inputs[1], convert(batch_dims), convert(index_rank))]
+
+
+@script
+def _gather_shape(data_shape, indices_shape, axis):
+    out_shape = output_tensor((data_shape.shape[0],), "int64")
+    for i in range(data_shape.shape[0]):
+        if i != axis:
+            assert (
+                data_shape[i] == indices_shape[i]
+            ), "data and indices size at non-gather axes must be the same"
+        out_shape[i] = indices_shape[i]
+    return out_shape
+
+
+@_reg.register_shape_func("gather", False)
+def gather_shape_func(attrs, inputs, _):
+    """
+    Shape func for gather operator.
+    """
+    return [_gather_shape(inputs[0], inputs[1], attrs.axis)]

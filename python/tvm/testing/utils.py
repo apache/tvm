@@ -82,6 +82,7 @@ import tvm._ffi
 from tvm.contrib import nvcc, cudnn
 from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.relay.op.contrib import cmsisnn
 
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
@@ -442,6 +443,7 @@ DEFAULT_TEST_TARGETS = [
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
+    "hexagon",
 ]
 
 
@@ -672,6 +674,18 @@ def requires_opencl(*args):
     return _compose(args, _requires_opencl)
 
 
+def requires_corstone300(*args):
+    """Mark a test as requiring the corstone300 FVP
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_corstone300 = [pytest.mark.corstone300]
+    return _compose(args, _requires_corstone300)
+
+
 def requires_rocm(*args):
     """Mark a test as requiring the rocm runtime.
 
@@ -797,7 +811,7 @@ def requires_rpc(*args):
 
 
 def requires_ethosn(*args):
-    """Mark a test as requiring ethosn to run.
+    """Mark a test as requiring Arm(R) Ethos(TM)-N to run.
 
     Parameters
     ----------
@@ -809,13 +823,45 @@ def requires_ethosn(*args):
         pytest.mark.skipif(
             not ethosn_available(),
             reason=(
-                "Ethos-N support not enabled.  "
+                "Arm(R) Ethos(TM)-N support not enabled.  "
                 "Set USE_ETHOSN=ON in config.cmake to enable, "
                 "and ensure that hardware support is present."
             ),
         ),
     ]
     return _compose(args, marks)
+
+
+def requires_hexagon(*args):
+    """Mark a test as requiring Hexagon to run.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+    _requires_hexagon = [
+        pytest.mark.hexagon,
+        pytest.mark.skipif(not device_enabled("hexagon"), reason="Hexagon support not enabled"),
+        *requires_llvm(),
+        pytest.mark.skipif(
+            tvm.target.codegen.llvm_version_major() < 7, reason="Hexagon requires LLVM 7 or later"
+        ),
+    ]
+    return _compose(args, _requires_hexagon)
+
+
+def requires_cmsisnn(*args):
+    """Mark a test as requiring the CMSIS NN library.
+
+    Parameters
+    ----------
+    f : function
+        Function to mark
+    """
+
+    requirements = [pytest.mark.skipif(not cmsisnn.enabled(), reason="CMSIS NN not enabled")]
+    return _compose(args, requirements)
 
 
 def requires_package(*packages):

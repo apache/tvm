@@ -181,7 +181,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
       return it->second.checked_type;
     }
     Type ret = this->VisitExpr(expr);
-    ICHECK(ret.defined());
+    ICHECK(ret.defined()) << "expression:" << std::endl << PrettyPrint(expr);
     KindCheck(ret, mod_, this->diag_ctx);
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
@@ -208,14 +208,19 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (mod_->ContainGlobalVar(var->name_hint)) {
       BaseFunc func = mod_->Lookup(var->name_hint);
 
-      if (func->IsInstance<FunctionNode>()) {
-        relay::Function relay_func = Downcast<Function>(func);
-        return relay_func->checked_type();
+      if (const auto* function_node = func.as<FunctionNode>()) {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to Function";
+        return function_node->checked_type();
+      } else {
+        VLOG(1) << "global var '" << op->name_hint << "' bound to PrimFunc";
+        return op->checked_type_;
       }
+    } else {
+      // TODO(mbs): extern function cleanup
+      // Assume the function is extern thus no longer in the IRModule.
+      VLOG(1) << "global var '" << op->name_hint << "' not in module";
+      return op->checked_type_;
     }
-    // Return op->checked_type if the module doesn't contain the GlobalVar or the function is a
-    // PrimFunc (we don't typecheck PrimFuncs)
-    return op->checked_type_;
   }
 
   Type VisitExpr_(const ConstantNode* op) final { return op->tensor_type(); }
@@ -486,8 +491,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (type_args.size() > fn_ty_node->type_params.size()) {
       this->EmitFatal(Diagnostic::Error(call->span)
                       << "Incorrect number of type args in " << call->span << ": "
-                      << "Expected " << fn_ty_node->type_params.size() << "but got "
-                      << type_args.size());
+                      << "Expected " << fn_ty_node->type_params.size() << " but got "
+                      << type_args.size() << " for call:\n"
+                      << PrettyPrint(GetRef<Call>(call)));
     }
     for (size_t i = type_args.size(); i < fn_ty_node->type_params.size(); i++) {
       type_args.push_back(IncompleteType(TypeKind::kType));
@@ -665,7 +671,7 @@ class TypeInferencer::Resolver : public MixedModeMutator, PatternMutator {
     Type checked_type = solver_->Resolve(it->second.checked_type);
 
     if (checked_type.as<IncompleteTypeNode>() != nullptr) {
-      this->solver_->diag_ctx_.Emit(
+      this->solver_->Emit(
           Diagnostic::Error(op->span)
           << "The type inference pass was unable to infer a type for this expression.\n"
           << "This usually occurs when an operator call is under constrained in some way,"
@@ -818,13 +824,118 @@ void AddGlobalTypes(IRModule mod) {
   }
 }
 
+/*!
+ * \brief Returns a possibly much smaller subgraph whose inner nodes have the same type.
+ *
+ * Returns the largest sub-graph who's inner nodes need types and leaves are vars standing in
+ * for already typed sub-expressions. This creates a graph whose inner nodes have the same
+ * type as the original graph and when running type inference, we can avoid copying and
+ * recursing through most of the expression graph when running type inference. Note, this assumes
+ * that current populated type information is correct!
+ *
+ * ExprMutator is sufficient over MixedModemutator since we will not recurse much.
+ */
+class SameTypedSubgraphExtractor : public ExprMutator {
+  Expr VisitExpr_(const VarNode* op) { return Var(op->vid, op->type_annotation, op->span); }
+  Expr VisitExpr_(const ConstantNode* op) { return Constant(op->data, op->span); }
+  Expr VisitExpr_(const GlobalVarNode* op) { return GlobalVar(op->name_hint); }
+  Expr VisitExpr_(const OpNode* op) { return Op(GetRef<Op>(op)); }
+  Expr VisitExpr_(const TupleNode* op) {
+    return Tuple(GetAnalogousExpression(op->fields), op->span);
+  }
+  Expr VisitExpr_(const FunctionNode* op) {
+    // Unfortunately our strategy of inserting variables as dummies would change the signature of
+    // existing function nodes so we have to copy all used functions always :/
+    return Function(op->params, op->body, op->ret_type, op->type_params, op->attrs, op->span);
+  }
+  Expr VisitExpr_(const CallNode* op) {
+    return Call(op->op, GetAnalogousExpression(op->args), op->attrs, op->type_args, op->span);
+  }
+  Expr VisitExpr_(const LetNode* op) {
+    return Let(op->var, GetAnalogousExpression(op->value), GetAnalogousExpression(op->body),
+               op->span);
+  }
+  Expr VisitExpr_(const IfNode* op) {
+    return If(GetAnalogousExpression(op->cond), GetAnalogousExpression(op->true_branch),
+              GetAnalogousExpression(op->false_branch), op->span);
+  }
+  Expr VisitExpr_(const TupleGetItemNode* op) {
+    return TupleGetItem(GetAnalogousExpression(op->tuple), op->index, op->span);
+  }
+  Expr VisitExpr_(const RefCreateNode* op) {
+    return RefCreate(GetAnalogousExpression(op->value), op->span);
+  }
+  Expr VisitExpr_(const RefReadNode* op) {
+    return RefRead(GetAnalogousExpression(op->ref), op->span);
+  }
+  Expr VisitExpr_(const RefWriteNode* op) {
+    return RefWrite(GetAnalogousExpression(op->ref), GetAnalogousExpression(op->value), op->span);
+  }
+  Expr VisitExpr_(const ConstructorNode* op) {
+    return Constructor(op->name_hint, op->inputs, op->belong_to);
+  }
+  Expr VisitExpr_(const MatchNode* op) {
+    return Match(GetAnalogousExpression(op->data), op->clauses, op->complete, op->span);
+  }
+
+ private:
+  Expr GetAnalogousExpression(const Expr& expr) {
+    // Replace the expression with a potentially simpler expression of the same type
+    if (expr->checked_type_.defined()) {
+      // Since the expression already has a checked_type which we assume is correct we don't need
+      // full type inference to enter it. So stub it out with a dummy var of the same type.
+      return Var("dummy_var", expr->checked_type(), expr->span);
+    }
+
+    return VisitExpr(expr);
+  }
+  Array<Expr> GetAnalogousExpression(const Array<Expr>& fields) {
+    Array<Expr> new_fields;
+    for (Expr expr : fields) {
+      new_fields.push_back(GetAnalogousExpression(expr));
+    }
+    return new_fields;
+  }
+};
+
 namespace transform {
+
+Type InferTypeLocal(const Expr& expr) {
+  /*
+  This type inference differs from InferType in that it uses existing type information
+  to avoid recursing over much of the graph, and it only examines the type of the input
+  node. This makes it faster if you need to run type inference iteratively throughout
+  a pass for example.
+
+  However, it assumes any existing populated type inference is correct! If some populated
+  type inference is incorrect, an incorrect type may be returned or a type error will be
+  raised. If you know not all populated type fields are correct with the current graph,
+  you should use InferType() instead.
+  */
+  SameTypedSubgraphExtractor subgraph_extractor;
+  Expr sub_graph = subgraph_extractor(expr);
+  auto mod = IRModule::FromExpr(sub_graph);
+  mod = transform::InferType()(mod);
+
+  Type result_type;
+  if (expr.as<FunctionNode>()) {
+    result_type = mod->Lookup("main")->checked_type();
+  } else {
+    result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
+  }
+
+  expr->checked_type_ = result_type;
+  return result_type;
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.InferTypeLocal").set_body_typed([](const Expr& expr) {
+  return InferTypeLocal(expr);
+});
 
 Pass InferType() {
   auto pass_info = PassInfo(0, "InferType", {});
   return tvm::transform::CreateModulePass(
       [=](IRModule mod, const PassContext& pass_ctx) {
-        DLOG(INFO) << "tvm::relay::transform::InferType";
         // Execute the pass function and return a new module.
         IRModule updated_mod = mod->ShallowCopy();
 

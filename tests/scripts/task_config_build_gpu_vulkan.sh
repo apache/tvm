@@ -16,18 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+# TODO(Lunderberg): Remove this file once the Jenkinsfile in the
+# ci-docker-staging branch no longer references it.
 
-mkdir -p build2
-cd build2
-cp ../cmake/config.cmake .
+# This file is a backwards compatibility file, as the TVM CI uses the
+# Jenkinsfile from the ci-docker-staging branch, but the task scripts
+# from the PR branch.
 
-echo set\(USE_OPENCL ON\) >> config.cmake
-echo set\(USE_ROCM ON\) >> config.cmake
-echo set\(USE_VULKAN ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE OFF\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
+set -euo pipefail
+
+./tests/scripts/task_config_build_gpu_other.sh

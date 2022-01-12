@@ -30,7 +30,9 @@
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/target/compilation_config.h>
 #include <tvm/target/target.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -60,21 +62,31 @@ TVM_DLL Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level, String name, tvm::Array<String> required);
 
-/*! \brief Remove expressions which does not effect the program result.
+/*! \brief Remove let-bound expressions which do not effect the program result.
  *
- * It will remove let bindings which are not referenced,
- * and inline let bindings that are only used once.
+ * This pass will remove let bindings which are not referenced. If inline_once is True,
+ * let bindings which are only referenced once will also be inlined.
  *
- * For example, this pass should turn `let a = 1 in 2` into `2`,
+ * For example, this pass should turn `let a = 1; 2` into `2`,
  * as the value of the expression does not depend on a.
  *
- * As another example, `let a = 1 in a` will be optimized into 1.
+ * As another example, `let a = 1; a` will be optimized into 1 if inline_once is True.
  *
- * \param inline_once whether or not to inline binding used one.
+ * If ignore_purity is False, possibly side-effecting expressions (such as memory allocation,
+ * random number generation, reading/writing references, or calls to primitive or external
+ * functions) are never elided or inlined. This is sound, but ignore_purity can be set to True
+ * to suppress this check.
+ *
+ * The analysis is fairly conservative, for example it assumes all local functions
+ * may be called more than once, any functions passed as arguments have side effects,
+ * and so on.
+ *
+ * \param inline_once whether or not to inline bindings used exactly once.
+ * \param ignore_purity whether to ignore whether expressions have side-effects
  *
  * \return the pass.
  */
-TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
+TVM_DLL Pass DeadCodeElimination(bool inline_once = false, bool ignore_purity = false);
 
 /*!
  * \brief Convert all expressions of TensorType into GradCell,
@@ -238,13 +250,28 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
  * \return The pass.
  */
 TVM_DLL Pass InferType();
+
+/*!
+ * \brief Infer the type of an expression, reusing existing type information.
+ *
+ * The result of type checking is a new expression with unambiguous
+ * type information filled in for the given node only. The local
+ * version can use existing type information populated throughout
+ * the expression and assumes this information is correct. The local
+ * version also avoids examining large amounts of the graph assuming
+ * type information is filled in properly which makes it much faster if we
+ * iteratively call type inference.
+ *
+ * \return The type of the expression.
+ */
+TVM_DLL Type InferTypeLocal(const Expr& expr);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
@@ -427,15 +454,37 @@ TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 TVM_DLL Pass SimplifyExpr();
 
 /*!
- * \brief A pass for manifesting explicit memory allocations and rewriting
- * specific dialects.
- *
- * \param target_host The target used by the host for compliation.
- * \param targets The device type and target pairs for compliation.
+ * \brief Run any registered RelayToTIR passes registered on the functions in a module.
  *
  * \return The pass.
  */
-TVM_DLL Pass ManifestAlloc(Target target_host, Map<tvm::Integer, tvm::Target> targets);
+TVM_DLL Pass RelayToTIRTargetHook();
+
+/*!
+ * \brief A pass for manifesting explicit memory allocations and rewriting
+ * specific dialects.
+ *
+ * \param cpu_virtual_device VirtualDevice for computations and data which must reside on a CPU,
+ * such as shapes and shape functions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestAlloc(VirtualDevice cpu_virtual_device);
+
+/*!
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p VirtualDevice on
+ * which every Relay sub-expression should run and the result stored. Captures the result of that
+ * analysis using new "on_device" and "device_copy" CallNodes.
+ *
+ * See tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
+ * for help recovering the device for an arbitrary sub-expression in downstream transformations.
+ *
+ * \param config Describes the targets and default \p VirtualDevice for all primitive operators and
+ * host sub-expressions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass PlanDevices(CompilationConfig config);
 
 }  // namespace transform
 

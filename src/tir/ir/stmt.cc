@@ -35,7 +35,14 @@ namespace tir {
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   ICHECK(value.defined());
   ICHECK(body.defined());
-  ICHECK_EQ(value.dtype(), var.dtype());
+  auto vdtype = value.dtype();
+  // It is still valid to bind a pointer type
+  // var to a value that is of type handle.
+  if (var->type_annotation.as<PointerTypeNode>()) {
+    ICHECK(vdtype.is_handle());
+  } else {
+    ICHECK_EQ(value.dtype(), var.dtype());
+  }
 
   ObjectPtr<LetStmtNode> node = make_object<LetStmtNode>();
   node->var = std::move(var);
@@ -333,7 +340,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Span span) {
+                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
   CHECK(IsPointerType(buffer_var->type_annotation, dtype))
       << "The allocated data type (" << dtype
       << ") does not match the type annotation of the buffer " << buffer_var << " ("
@@ -354,6 +361,7 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   node->extents = std::move(extents);
   node->condition = std::move(condition);
   node->body = std::move(body);
+  node->annotations = std::move(annotations);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -375,8 +383,8 @@ int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
     .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
-                       Stmt body, Span span) {
-      return Allocate(buffer_var, type, extents, condition, body, span);
+                       Stmt body, Map<String, ObjectRef> annotations, Span span) {
+      return Allocate(buffer_var, type, extents, condition, body, annotations, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateNode);

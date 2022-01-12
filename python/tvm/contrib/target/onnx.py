@@ -34,12 +34,44 @@ from tvm.relay.ty import TupleType, TensorType
 ONNX_OPSET_VERSONS_SUPPORTED = [11]
 
 
+def run_onnx_optimizer(onnx_model):
+    """Run ONNX's optimization routines.
+
+    ONNX Optimizer was moved to an external library in
+    version 1.9.  Attempt to use the optimizer in onnx if
+    it is available, fall back to the standalone
+    onnxoptimizer otherwise, and return the model
+    unoptimized if neither are available.
+
+    """
+    try:
+        onnx_polish_model = onnx.utils.polish_model
+    except AttributeError:
+        pass
+    else:
+        return onnx_polish_model(onnx_model)
+
+    try:
+        # pylint: disable=import-outside-toplevel
+        import onnxoptimizer
+    except ImportError:
+        pass
+    else:
+        return onnxoptimizer.optimize(onnx_model)
+
+    return onnx_model
+
+
 def tvm_array_to_list(arr):
     return tuple(x.value for x in arr)
 
 
 def get_onnx_version():
     return onnx.__version__
+
+
+def get_node_shape(node):
+    return tuple("Any" if isinstance(i, tvm.tir.Any) else int(i) for i in node.shape)
 
 
 def infer_type(node):
@@ -493,7 +525,7 @@ class Split(OpConverter):
         input_node = node_dict[node_entry["inputs"][0]]
         assert len(input_node) == 1, "input node can not be a Tuple"
         input_node = input_node[0]
-        shape = input_node["types"][0].concrete_shape
+        shape = get_node_shape(input_node["types"][0])
 
         indices_or_sect = attrs["indices_or_section"]
         axis = attrs["axis"]
@@ -881,8 +913,7 @@ class RelayToONNXConverter(ExprVisitor):
         self.visit(func)
         self._add_output(self._node_dict[self.last_node])
         model = self._mc.make_model()
-        polished_model = onnx.utils.polish_model(model)
-        return polished_model
+        return run_onnx_optimizer(model)
 
     def visit(self, expr):
         self._node_count += 1
@@ -992,7 +1023,7 @@ class RelayToONNXConverter(ExprVisitor):
             node_type = node_entry["types"][0]
             dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
             input = onnx.helper.make_tensor_value_info(
-                node_entry["name"], dtype, shape=node_type.concrete_shape
+                node_entry["name"], dtype, shape=get_node_shape(node_type)
             )
             self._mc.add_inputs([input])
 
@@ -1003,7 +1034,7 @@ class RelayToONNXConverter(ExprVisitor):
             for node_type, output_name in zip(node_entry["types"], node_entry["output_names"]):
                 dtype = onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[numpy.dtype(node_type.dtype)]
                 output = onnx.helper.make_tensor_value_info(
-                    output_name, dtype, shape=node_type.concrete_shape
+                    output_name, dtype, shape=get_node_shape(node_type)
                 )
                 self._mc.add_outputs([output])
 

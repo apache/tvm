@@ -204,7 +204,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   def_handle_dtype_.Set(v_strides, tir::TypeAnnotation(tvm_shape_type));
   init_nest_.emplace_back(
       LetStmt(v_strides, TVMArrayGet(DataType::Handle(), handle, builtin::kArrStrides), nop));
-  PrimExpr is_null = Call(DataType::Bool(1), builtin::isnullptr(), {v_strides});
+  PrimExpr v_strides_is_null = Call(DataType::Bool(1), builtin::isnullptr(), {v_strides});
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
     DataType stype = buffer->DefaultIndexType();
@@ -226,7 +226,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
           foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
                 const_true(1), conds),
           stride_msg, Evaluate(0));
-      check = IfThenElse(Not(is_null), check, Stmt());
+      check = IfThenElse(Not(v_strides_is_null), check, Stmt());
       asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
     }
   } else if (buffer->buffer_type == kAutoBroadcast) {
@@ -239,24 +239,29 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
       PrimExpr value =
           cast(buffer->shape[k].dtype(),
                Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1)));
-      value = tvm::if_then_else(is_null, stride, value);
+      value = tvm::if_then_else(v_strides_is_null, stride, value);
       value = tvm::if_then_else(buffer->shape[k] == 1, 0, value);
       Bind_(buffer->strides[k], value, field_name.str(), true);
       stride = analyzer_.Simplify(stride * buffer->shape[k]);
     }
   } else {
-    std::ostringstream stride_null_err_msg;
-    stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
-    asserts_.emplace_back(
-        AssertStmt(Not(is_null), tvm::tir::StringImm(stride_null_err_msg.str()), nop));
+    PrimExpr stride_from_shape = 1;
 
-    for (size_t k = 0; k < buffer->strides.size(); ++k) {
+    for (int k = buffer->strides.size() - 1; k >= 0; k--) {
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';
+
+      PrimExpr explicit_stride =
+          cast(buffer->shape[k].dtype(),
+               Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1)));
+
       Bind_(buffer->strides[k],
-            cast(buffer->shape[k].dtype(),
-                 Load(tvm_shape_type, v_strides, IntImm(DataType::Int(32), k), const_true(1))),
+            tvm::if_then_else(v_strides_is_null, stride_from_shape, explicit_stride),
             field_name.str(), true);
+
+      stride_from_shape *=
+          cast(buffer->shape[k].dtype(),
+               Load(tvm_shape_type, v_shape, IntImm(DataType::Int(32), k), const_true(1)));
     }
   }
   // Byte_offset field.

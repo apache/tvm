@@ -21,7 +21,10 @@ import json
 import logging
 import os
 import pathlib
+import contextlib
+import enum
 
+from typing import Union
 from .._ffi import libinfo
 from .. import rpc as _rpc
 
@@ -32,8 +35,22 @@ _LOG = logging.getLogger(__name__)
 STANDALONE_CRT_DIR = None
 
 
+class MicroTVMTemplateProject(enum.Enum):
+    ZEPHYR = "zephyr"
+    ARDUINO = "arduino"
+    CRT = "crt"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
+
+
 class CrtNotFoundError(Exception):
     """Raised when the standalone CRT dirtree cannot be found."""
+
+
+class MicroTVMTemplateProjectNotFoundError(Exception):
+    """Raised when the microTVM template project dirtree cannot be found."""
 
 
 def get_standalone_crt_dir() -> str:
@@ -62,26 +79,60 @@ def get_standalone_crt_dir() -> str:
     return STANDALONE_CRT_DIR
 
 
+def get_microtvm_template_projects(platform: str) -> str:
+    """Find microTVM template project directory for specific platform.
+
+    Parameters
+    ----------
+    platform : str
+        Platform type which should be defined in MicroTVMTemplateProject.
+
+    Returns
+    -------
+    str :
+        Path to template project directory for platform.
+    """
+    if platform not in MicroTVMTemplateProject.list():
+        raise ValueError(f"platform {platform} is not supported.")
+
+    if platform == MicroTVMTemplateProject.CRT.value:
+        return os.path.join(get_standalone_crt_dir(), "template", "host")
+
+    microtvm_template_projects = None
+    for path in libinfo.find_lib_path():
+        template_path = os.path.join(os.path.dirname(path), "microtvm_template_projects")
+        if os.path.isdir(template_path):
+            microtvm_template_projects = template_path
+            break
+    else:
+        raise MicroTVMTemplateProjectNotFoundError()
+
+    return os.path.join(microtvm_template_projects, platform)
+
+
 class AutoTvmModuleLoader:
     """MicroTVM AutoTVM Module Loader
 
     Parameters
     ----------
-    template_project_dir : str
+    template_project_dir : Union[pathlib.Path, str]
         project template path
 
     project_options : dict
         project generation option
     """
 
-    def __init__(self, template_project_dir: str, project_options: dict = None):
+    def __init__(
+        self, template_project_dir: Union[pathlib.Path, str], project_options: dict = None
+    ):
         self._project_options = project_options
 
-        if isinstance(template_project_dir, pathlib.Path):
+        if isinstance(template_project_dir, (pathlib.Path, str)):
             self._template_project_dir = str(template_project_dir)
         elif not isinstance(template_project_dir, str):
             raise TypeError(f"Incorrect type {type(template_project_dir)}.")
 
+    @contextlib.contextmanager
     def __call__(self, remote_kw, build_result):
         with open(build_result.filename, "rb") as build_file:
             build_result_bin = build_file.read()
@@ -100,10 +151,6 @@ class AutoTvmModuleLoader:
         )
         system_lib = remote.get_function("runtime.SystemLib")()
         yield remote, system_lib
-        try:
-            remote.get_function("tvm.micro.destroy_micro_session")()
-        except tvm.error.TVMError as exception:
-            _LOG.warning("Error destroying remote session: %s", str(exception), exc_info=1)
 
 
 def autotvm_build_func():

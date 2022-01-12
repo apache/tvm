@@ -78,6 +78,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
                     bool system_lib, bool dynamic_lookup, bool target_c_runtime);
+
+  /*!
+   * \brief Turn on fast math flags for floating point operations.
+   * \param fmf FastMathFlags to use for code generation.
+   */
+  void SetFastMathFlag(llvm::FastMathFlags fmf);
+
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -181,6 +188,15 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const EvaluateNode* op) override;
 
  protected:
+  /*!
+   * \brief Address and type pair to assist in handling opaque pointers.
+   */
+  struct TypedPointer {
+    TypedPointer() = default;
+    TypedPointer(llvm::Type* t, llvm::Value* a) : type(t), addr(a) {}
+    llvm::Type* type = nullptr;  /*!< Type of the value pointed to. */
+    llvm::Value* addr = nullptr; /*!< Address of the value.         */
+  };
   /*! \brief The storage information */
   struct StorageInfo {
     /*! \brief The alignment of allocation */
@@ -212,6 +228,26 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
                                         const Array<PrimExpr>& args, bool skip_first_arg);
+
+  /*! \brief Insert a printf() call to the generated LLVM
+   *
+   * This is intended solely for debugging purposes.  After calling
+   * printf(), immediately calls fflush() to flush the stdout buffer
+   * in case of segfault.
+   */
+  void CreatePrintf(const std::string& format, const std::vector<llvm::Value*> format_args);
+
+  /*! \brief Lookup return address, for debugging purposes
+   *
+   * This is intended solely for debugging purposes.  Calls the
+   * `llvm::Intrinsic::returnaddress`, returning the return address of
+   * the current function call.
+   *
+   * \param level Look up the return address of a frame `level` steps
+   * above the current stack frame.
+   */
+  llvm::Value* CreateLookupReturnAddress(unsigned int level = 0);
+
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
@@ -301,7 +337,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  TypedPointer CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);

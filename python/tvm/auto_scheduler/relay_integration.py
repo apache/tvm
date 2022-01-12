@@ -25,10 +25,12 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
-from copy import deepcopy
+import traceback
+import warnings
 
 import tvm
 from tvm import autotvm, transform
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.target import Target
@@ -46,11 +48,10 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target, opt_level=3):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
@@ -60,34 +61,19 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
-            "relay.backend.disable_compile_engine_cache": True,
         },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
         try:
-            # TODO(jwfromm) Remove this once AlterOpLayout bug that mutates
-            # source module is fixed. Until then, create a clone.
-            mod_clone = deepcopy(mod)
-            opt_mod, _ = relay.optimize(mod_clone, target, params)
-            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(opt_mod["main"])
-        except tvm.TVMError:
-            print(
-                "Get errors with GraphExecutorCodegen for task extraction. "
-                "Fallback to VMCompiler."
-            )
-            mod_clone = deepcopy(mod)
-            compiler = relay.vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            mod_clone = (
-                tvm.IRModule.from_expr(mod_clone)
-                if isinstance(mod_clone, relay.Function)
-                else mod_clone
-            )
-            compiler.lower(mod_clone, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+            compiler.lower(mod, target)
+        except TVMError:
+            error_list.append(f"{traceback.format_exc()}")
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
@@ -129,6 +115,11 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
 
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 
@@ -140,14 +131,21 @@ def extract_tasks(
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
+
+    errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
+
+    if errors:
+        error_strings = ["Task extraction had the following errors:"] + errors
+        raise TVMError("\n".join(error_strings))
+
     dispatch_ctx.verbose = old_verbose
 
     # create search tasks
@@ -184,7 +182,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    # same as EXTRACT_TASK but ignore the task without complex ops
+    EXTRACT_COMPLEX_TASK_ONLY = 1
     PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 

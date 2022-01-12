@@ -17,7 +17,6 @@
 """ Support level10 operator test cases.
 """
 import numpy as np
-import pytest
 import tvm
 import tvm.testing
 import tvm.topi.testing
@@ -59,7 +58,14 @@ def test_checkpoint_alpha_equal():
 
     # run PE and DCE
     with tvm.transform.PassContext(opt_level=3):
-        passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+        # The expected output assumes DCE can elide 'dead writes' to references. At the time this unit test was
+        # written DCE would elide all writes, which though unsound in general happens to work for this case. Preserve
+        # that legacy behaviour here using 'ignore_impurity=True'.
+        # TODO(mbs): Revisit once DCE supports dead reference writes.
+        passes = [
+            transform.PartialEvaluate(),
+            transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+        ]
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
@@ -118,7 +124,12 @@ def test_checkpoint_alpha_equal_tuple():
 
     # run PE and DCE
     with tvm.transform.PassContext(opt_level=3):
-        passes = [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]
+        # See comment in test_checkpoint_alpha_equal above.
+        # TODO(mbs): Revisit once DCE supports dead reference writes.
+        passes = [
+            transform.PartialEvaluate(),
+            transform.DeadCodeElimination(inline_once=True, ignore_impurity=True),
+        ]
         mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
@@ -325,22 +336,34 @@ def test_reverse_reshape():
     verify_reverse_reshape((2, 3, 4), (0, -3), (2, 12))
 
 
-def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32", trans_x=False, trans_y=True):
-    x = relay.var("x", relay.TensorType(x_shape, dtype))
-    y = relay.var("y", relay.TensorType(y_shape, dtype))
+def verify_batch_matmul_with_inputs(
+    x, y, x_np, y_np, out_shape, dtype="float32", trans_x=False, trans_y=True
+):
     z = relay.nn.batch_matmul(x, y, transpose_a=trans_x, transpose_b=trans_y)
     zz = run_infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
 
-    func = relay.Function([x, y], z)
-    x_np = np.random.uniform(size=x_shape).astype(dtype)
-    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    input_vars = relay.analysis.free_vars(z)
+    func = relay.Function(input_vars, z)
     z_np = tvm.topi.testing.batch_matmul(x_np, y_np, trans_x=trans_x, trans_y=trans_y)
 
     for target, dev in tvm.testing.enabled_targets():
         for kind in ["graph", "debug"]:
-            z = relay.create_executor(kind, device=dev, target=target).evaluate(func)(x_np, y_np)
-            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5)
+            if len(input_vars) == 2:
+                z = relay.create_executor(kind, device=dev, target=target).evaluate(func)(
+                    x_np, y_np
+                )
+            else:
+                z = relay.create_executor(kind, device=dev, target=target).evaluate(func)(x_np)
+            tvm.testing.assert_allclose(z.numpy(), z_np, rtol=1e-5, atol=1e-5)
+
+
+def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32", trans_x=False, trans_y=True):
+    x = relay.var("x", relay.TensorType(x_shape, dtype))
+    y = relay.var("y", relay.TensorType(y_shape, dtype))
+    x_np = np.random.uniform(size=x_shape).astype(dtype)
+    y_np = np.random.uniform(size=y_shape).astype(dtype)
+    verify_batch_matmul_with_inputs(x, y, x_np, y_np, out_shape, dtype, trans_x, trans_y)
 
 
 @tvm.testing.uses_gpu
@@ -359,6 +382,10 @@ def test_batch_matmul():
     verify_batch_matmul((1, 32, 16), (1, 16, 32), (1, 16, 16), trans_x=True, trans_y=True)
     verify_batch_matmul((5, 16, 32), (5, 32, 16), (5, 16, 16), trans_x=False, trans_y=False)
     verify_batch_matmul((5, 32, 16), (5, 32, 20), (5, 16, 20), trans_x=True, trans_y=False)
+
+    x_np = np.random.randn(10, 27, 64).astype("float32")
+    x = relay.var("x", shape=x_np.shape)
+    verify_batch_matmul_with_inputs(x, x, x_np, x_np, (10, 27, 27))
 
 
 @tvm.testing.uses_gpu
@@ -596,4 +623,7 @@ def test_nll_loss(dev, target):
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

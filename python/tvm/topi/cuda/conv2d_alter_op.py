@@ -46,7 +46,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    impl, outs = relay.backend.compile_engine.select_implementation(
+    impl, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
@@ -450,6 +450,10 @@ def _conv2d_legalize(attrs, inputs, arg_types):
 
     elif data_dtype in ["float16"]:
         if data_layout == "NHWC" and kernel_layout == "HWIO":
+            if isinstance(data_tensor.shape[0], tvm.tir.expr.Any):
+                # Skip legalize when the batch size is dynamic
+                return None
+
             batch = data_tensor.shape[0].value
             in_channel = data_tensor.shape[3].value
             out_channel = kernel_tensor.shape[3].value

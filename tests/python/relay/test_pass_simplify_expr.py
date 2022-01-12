@@ -512,5 +512,47 @@ def test_concretize_multiple():
     assert tvm.ir.structural_equal(actual, expected)
 
 
+def test_simplify_consecutive_add():
+    shape = (32, 1, 1)
+    c_data = np.empty(shape).astype("float32")
+    c1 = relay.const(c_data)
+    c2 = relay.const(c_data)
+
+    def before_const_right():
+        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
+        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
+        y = relay.nn.conv2d(x, w, padding=(1, 1))
+        y = relay.add(y, c1)
+        y = relay.add(y, c2)
+        y = relay.nn.relu(y)
+        return relay.Function([x, w], y)
+
+    def before_const_left():
+        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
+        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
+        y = relay.nn.conv2d(x, w, padding=(1, 1))
+        y = relay.add(c1, y)
+        y = relay.add(c2, y)
+        y = relay.nn.relu(y)
+        return relay.Function([x, w], y)
+
+    def expected():
+        x = relay.var("x", shape=(1, 16, 16, 16), dtype="float32")
+        w = relay.var("w", shape=(32, 16, 3, 3), dtype="float32")
+        y = relay.nn.conv2d(x, w, padding=(1, 1))
+        c3 = relay.add(c1, c2)
+        y = relay.add(y, c3)
+        y = relay.nn.relu(y)
+        return relay.Function([x, w], y)
+
+    zr = before_const_right()
+    zl = before_const_left()
+    zzr = run_opt_pass(zr, transform.SimplifyExpr())
+    zzl = run_opt_pass(zl, transform.SimplifyExpr())
+    after = run_opt_pass(expected(), transform.InferType())
+    assert tvm.ir.structural_equal(zzr, after)
+    assert tvm.ir.structural_equal(zzl, after)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

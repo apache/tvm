@@ -205,7 +205,6 @@ def instantiate_from_dir(project_dir: typing.Union[pathlib.Path, str], debug: bo
     """Launch server located in project_dir, and instantiate a Project API Client
     connected to it."""
     args = None
-
     project_dir = pathlib.Path(project_dir)
 
     python_script = project_dir / SERVER_PYTHON_FILENAME

@@ -224,10 +224,9 @@ fn main() -> Result<()> {
     }?;
 
     // If the TVM_HOME environment variable changed, the LLVM_CONFIG_PATH environment variable
-    // changed, the build directory or headers have changed we need to rebuild the Rust bindings.
+    // changed or the source headers have changed we need to rebuild the Rust bindings.
     println!("cargo:rerun-if-env-changed=TVM_HOME");
     println!("cargo:rerun-if-env-changed=LLVM_CONFIG_PATH");
-    println!("cargo:rerun-if-changed={}", build_path.display());
     println!("cargo:rerun-if-changed={}/include", source_path.display());
 
     let library_name = if cfg!(feature = "runtime-only") {

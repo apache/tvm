@@ -20,204 +20,335 @@ import sys
 import pytest
 import tvm
 from tvm import tir
-from tvm.script import ty
+from tvm.script import tir as T
 from tvm.tir.schedule.testing import verify_trace_roundtrip
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@tvm.script.tir
-def elementwise(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def elementwise_multi_producer_consumer(a: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    D = tir.match_buffer(d, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0  # B has two consumers
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + 1.0
-    with tir.block([128, 128], "D") as [vi, vj]:
-        D[vi, vj] = B[vi, vj] + 2.0 + C[vi, vj]  # D has two producers
-
-
-@tvm.script.tir
-def elementwise_multi_consumer_inlined(a: ty.handle, c: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    D = tir.match_buffer(d, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
-    with tir.block([128, 128], "D") as [vi, vj]:
-        D[vi, vj] = A[vi, vj] * 2.0 + 2.0 + C[vi, vj]
-
-
-@tvm.script.tir
-def elementwise_standalone(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def elementwise_standalone_dce(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def elementwise_under_loop(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    for i in tir.serial(0, 128):
-        for j in tir.serial(0, 128):
-            with tir.block([128, 128], "B") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j)
-                B[vi, vj] = A[vi, vj] * 2.0
-        for j in tir.serial(0, 128):
-            with tir.block([128, 128], "C") as [vi, vj]:
-                tir.bind(vi, i)
-                tir.bind(vj, j)
-                C[vi, vj] = B[vi, vj] + 1.0
-
-
-@tvm.script.tir
-def elementwise_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + 1.0
-
-
-@tvm.script.tir
-def fail_multi_reader_writer(a: ty.handle, d: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.alloc_buffer((128, 128))
-    D = tir.match_buffer(d, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-        C[vi, vj] = A[vi, vj] + 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        D[vi, vj] = B[vi, vj] + C[vi, vj]
-
-
-@tvm.script.tir
-def elementwise_multi_reverse_loads(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = (B[vi, vj] + 1.0) * (B[vi, vj] * 2.0) + 3.0
-
-
-@tvm.script.tir
-def elementwise_multi_reverse_loads_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        C[vi, vj] = (A[vi, vj] * 2.0 + 1.0) * (A[vi, vj] * 2.0 * 2.0) + 3.0
-
-
-@tvm.script.tir
-def opaque_access_load(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        tir.reads(B[0:128, 0:128])
-        tir.writes(C[0:128, 0:128])
-        C[vi, vj] = tir.load("float32", B.data, vi * 128 + vj) + 1.0
-
-
-@tvm.script.tir
-def opaque_access_store(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        tir.reads(B[0:128, 0:128])
-        tir.writes(C[0:128, 0:128])
-        tir.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
-        C[vi, vj] = tir.load("float32", B.data, vi * 16 + vj) + 1.0
-
-
-@tvm.script.tir
-def buffer_matched(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 128], "C") as [vi, vj]:
-        Bb = tir.match_buffer(B[vi : vi + 1, vj], (1, 1))
-        C[vi, vj] = Bb[0, 0] + 1.0
-
-
-@tvm.script.tir
-def elementwise_predicate(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "C") as [vi, vj]:
-            tir.where(B[i, j] < 10.0)
+@T.prim_func
+def elementwise(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@tvm.script.tir
-def elementwise_predicate_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    for i, j in tir.grid(128, 128):
-        with tir.block([128, 128], "C") as [vi, vj]:
-            tir.where(A[i, j] * 2.0 < 10.0)
+@T.prim_func
+def elementwise_multi_producer_consumer(a: T.handle, c: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    D = T.match_buffer(d, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0  # B has two consumers
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = B[vi, vj] + 2.0 + C[vi, vj]  # D has two producers
+
+
+@T.prim_func
+def elementwise_multi_consumer_inlined(a: T.handle, c: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    D = T.match_buffer(d, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+    for i, j in T.grid(128, 128):
+        with T.block("D"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = A[vi, vj] * 2.0 + 2.0 + C[vi, vj]
+
+
+@T.prim_func
+def elementwise_standalone(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] + 1.0
+
+
+@T.prim_func
+def elementwise_standalone_dce(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] + 1.0
+
+
+@T.prim_func
+def elementwise_under_loop(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    for i in T.serial(0, 128):
+        for j in T.serial(0, 128):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                B[vi, vj] = A[vi, vj] * 2.0
+        for j in T.serial(0, 128):
+            with T.block("C"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def elementwise_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
-@tvm.script.tir
-def elementwise_multi_loads(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    B = tir.alloc_buffer((128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * 2.0
-    with tir.block([128, 126], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + B[vi, vj + 1] + B[vi, vj + 2]
+@T.prim_func
+def fail_multi_reader_writer(a: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.alloc_buffer((128, 128))
+    D = T.match_buffer(d, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+            C[vi, vj] = A[vi, vj] + 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = B[vi, vj] + C[vi, vj]
 
 
-@tvm.script.tir
-def elementwise_multi_loads_inlined(a: ty.handle, c: ty.handle) -> None:
-    A = tir.match_buffer(a, (128, 128))
-    C = tir.match_buffer(c, (128, 128))
-    with tir.block([128, 126], "C") as [vi, vj]:
-        C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
+@T.prim_func
+def elementwise_multi_reverse_loads(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = (B[vi, vj] + 1.0) * (B[vi, vj] * 2.0) + 3.0
+
+
+@T.prim_func
+def elementwise_multi_reverse_loads_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = (A[vi, vj] * 2.0 + 1.0) * (A[vi, vj] * 2.0 * 2.0) + 3.0
+
+
+@T.prim_func
+def opaque_access_load(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[0:128, 0:128])
+            T.writes(C[0:128, 0:128])
+            C[vi, vj] = T.load("float32", B.data, vi * 128 + vj) + 1.0
+
+
+@T.prim_func
+def opaque_access_store(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(B[0:128, 0:128])
+            T.writes(C[0:128, 0:128])
+            T.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
+            C[vi, vj] = T.load("float32", B.data, vi * 16 + vj) + 1.0
+
+
+@T.prim_func
+def buffer_matched(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            Bb = T.match_buffer(B[vi : vi + 1, vj], (1, 1))
+            C[vi, vj] = Bb[0, 0] + 1.0
+
+
+@T.prim_func
+def elementwise_predicate(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.where(B[i, j] < 10.0)
+            C[vi, vj] = B[vi, vj] + 1.0
+
+
+@T.prim_func
+def elementwise_predicate_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.where(A[i, j] * 2.0 < 10.0)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+
+
+@T.prim_func
+def elementwise_multi_loads(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    B = T.alloc_buffer((128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * 2.0
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + B[vi, vj + 1] + B[vi, vj + 2]
+
+
+@T.prim_func
+def elementwise_multi_loads_inlined(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (128, 128))
+    C = T.match_buffer(c, (128, 128))
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = A[vi, vj] * 2.0 + A[vi, vj + 1] * 2.0 + A[vi, vj + 2] * 2.0
+
+
+@T.prim_func
+def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [1024])
+    B = T.match_buffer(b, [1024])
+    A_cache = T.alloc_buffer([1024])
+    BB = T.alloc_buffer([1024])
+    with T.block("opaque"):
+        # annotated opaque partial access
+        T.reads(A[0:512])
+        T.writes(A_cache[0:512])
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
+            )
+        )
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
+            )
+        )
+    for i in range(512):
+        with T.block("BB"):
+            vi = T.axis.remap("S", [i])
+            BB[vi] = A_cache[vi] * 2.0
+    for i in range(512):
+        with T.block("B"):
+            vi = T.axis.remap("S", [i])
+            B[vi] = BB[vi] + 1.0
+
+
+@T.prim_func
+def access_opaque_ptr_then_elemwise_inline(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [1024], dtype="float32")
+    B = T.match_buffer(b, [1024], dtype="float32")
+    A_cache = T.alloc_buffer([1024], dtype="float32")
+    with T.block("opaque"):
+        # annotated opaque partial access should be kept
+        T.reads(A[0:512])
+        T.writes([A_cache[0:512]])
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A.data, 0, 512, "r", dtype="handle"
+            )
+        )
+        T.evaluate(
+            T.tvm_access_ptr(
+                T.type_annotation(dtype="float32"), A_cache.data, 0, 512, "w", dtype="handle"
+            )
+        )
+    for i in T.serial(0, 512):
+        with T.block("B"):
+            vi = T.axis.spatial(512, i)
+            T.reads([A_cache[vi]])
+            T.writes([B[vi]])
+            B[vi] = A_cache[vi] * 2.0 + 1.0
+
+
+@T.prim_func
+def matmul_relu(var_A: T.handle, var_B: T.handle, var_compute: T.handle) -> None:
+    A = T.match_buffer(var_A, [512, 512], dtype="float32")
+    B = T.match_buffer(var_B, [512, 512], dtype="float32")
+    compute = T.match_buffer(var_compute, [512, 512], dtype="float32")
+    C = T.alloc_buffer([512, 512], dtype="float32")
+    for i0, i1, i2 in T.grid(512, 512, 512):
+        with T.block("C"):
+            i, j, k = T.axis.remap("SSR", [i0, i1, i2])
+            T.reads([C[i, j], A[i, k], B[k, j]])
+            T.writes([C[i, j]])
+            with T.init():
+                C[i, j] = T.float32(0)
+            C[i, j] = C[i, j] + A[i, k] * B[k, j]
+    for i0, i1 in T.grid(512, 512):
+        with T.block("compute"):
+            i0_1, i1_1 = T.axis.remap("SS", [i0, i1])
+            T.reads([C[i0_1, i1_1]])
+            T.writes([compute[i0_1, i1_1]])
+            compute[i0_1, i1_1] = T.max(C[i0_1, i1_1], T.float32(0))
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -349,6 +480,13 @@ def test_buffer_matched():
         sch.compute_inline(block_b)
 
 
+def test_output_block():
+    sch = tir.Schedule(matmul_relu, debug_mask="all")
+    block = sch.get_block("compute")
+    with pytest.raises(tvm.tir.ScheduleError):
+        sch.compute_inline(block)
+
+
 def test_compute_inline_predicate():
     sch = tir.Schedule(elementwise_predicate, debug_mask="all")
     block_b = sch.get_block("B")
@@ -363,6 +501,14 @@ def test_compute_inline_multi_loads():
     sch.compute_inline(block_b)
     tvm.ir.assert_structural_equal(elementwise_multi_loads_inlined, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise_multi_loads)
+
+
+def test_compute_inline_with_opaque_access():
+    """Test not rewrite opaque reads/writes after irrelavant compute inline"""
+    sch = tir.Schedule(access_opaque_ptr_then_elemwise, debug_mask="all")
+    BB = sch.get_block("BB")
+    sch.compute_inline(BB)
+    tvm.ir.assert_structural_equal(access_opaque_ptr_then_elemwise_inline, sch.mod["main"])
 
 
 if __name__ == "__main__":

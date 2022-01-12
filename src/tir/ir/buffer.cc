@@ -246,41 +246,41 @@ inline PrimExpr MergeMulMod(arith::Analyzer* analyzer, const PrimExpr& base) {
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-inline PrimExpr ElemOffset(const BufferNode* n, Array<PrimExpr> index) {
-  PrimExpr base = n->elem_offset;
+PrimExpr BufferNode::ElemOffset(Array<PrimExpr> index) const {
+  PrimExpr base = this->elem_offset;
   arith::Analyzer ana;
-  if (n->strides.size() == 0) {
+  if (this->strides.size() == 0) {
     // Scalar case
-    if (n->shape.size() == 0 && index.size() == 1) {
+    if (this->shape.size() == 0 && index.size() == 1) {
       auto is_int = index[0].as<IntImmNode>();
       ICHECK(is_int && is_int->value == 0);
       base = base + index[0];
     } else {
-      ICHECK_EQ(n->shape.size(), index.size());
+      ICHECK_EQ(this->shape.size(), index.size());
       if (index.size() > 0) {
         PrimExpr offset = index[0];
         for (size_t i = 1; i < index.size(); ++i) {
-          offset = MergeMulMod(&ana, offset * n->shape[i] + index[i]);
+          offset = MergeMulMod(&ana, offset * this->shape[i] + index[i]);
         }
         base = base + offset;
       }
     }
   } else {
-    ICHECK_EQ(n->strides.size(), index.size());
+    ICHECK_EQ(this->strides.size(), index.size());
     if (is_zero(base)) {
-      base = MergeMulMod(&ana, index[0] * n->strides[0]);
+      base = MergeMulMod(&ana, index[0] * this->strides[0]);
     } else {
-      base = MergeMulMod(&ana, base + index[0] * n->strides[0]);
+      base = MergeMulMod(&ana, base + index[0] * this->strides[0]);
     }
     for (size_t i = 1; i < index.size(); ++i) {
-      base = MergeMulMod(&ana, base + index[i] * n->strides[i]);
+      base = MergeMulMod(&ana, base + index[i] * this->strides[i]);
     }
   }
   return base;
 }
 
 inline PrimExpr BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {
-  PrimExpr offset = ElemOffset(n, index);
+  PrimExpr offset = n->ElemOffset(index);
   if (n->dtype.lanes() != 1) {
     offset = offset * make_const(offset.dtype(), dtype.lanes());
   }
@@ -353,7 +353,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
   ICHECK(n != nullptr);
   arith::Analyzer ana;
   begins = SimplifyArray(&ana, begins);
-  PrimExpr elem_offset = ana.Simplify(ElemOffset(n, begins));
+  PrimExpr elem_offset = ana.Simplify(n->ElemOffset(begins));
   Array<PrimExpr> strides = n->strides;
   if (strides.size() == 0) {
     bool can_relax = true;

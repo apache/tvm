@@ -40,7 +40,7 @@ def test_resize1d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, w), "int8"))
-    z = relay.image.resize1d(x, (200,), "NCW", "linear", "align_corners")
+    z = relay.image.resize1d(x, (200,), None, "NCW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 200), "int8")
@@ -83,7 +83,7 @@ class TestResize1D:
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize1d(
-            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+            x, size, None, layout, interpolate_method, coordinate_transformation_mode=coord_trans
         )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
@@ -104,7 +104,7 @@ def test_resize2d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    z = relay.image.resize2d(x, (100, 200), "NCHW", "linear", "align_corners")
+    z = relay.image.resize2d(x, (100, 200), None, "NCHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
@@ -148,7 +148,7 @@ class TestResize2D:
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         z = relay.image.resize2d(
-            x, size, layout, interpolate_method, coordinate_transformation_mode=coord_trans
+            x, size, None, layout, interpolate_method, coordinate_transformation_mode=coord_trans
         )
         assert "size=" in z.astext()
         zz = run_infer_type(z)
@@ -175,7 +175,7 @@ def test_resize3d_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, td, th, tw), "int8")
 
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
-    z = relay.image.resize3d(x, (10, 10, 20), "NCDHW", "linear", "align_corners")
+    z = relay.image.resize3d(x, (10, 10, 20), None, "NCDHW", "linear", "align_corners")
     assert "size=" in z.astext()
     zz = run_infer_type(z)
     assert zz.checked_type == relay.TensorType((n, c, 10, 10, 20), "int8")
@@ -204,7 +204,7 @@ class TestResize3D:
             x_data, (scale, scale, scale), layout, interpolate_method, coord_trans
         )
         x = relay.var("x", relay.TensorType(dshape, "float32"))
-        z = relay.image.resize3d(x, size, layout, interpolate_method, coord_trans)
+        z = relay.image.resize3d(x, size, None, layout, interpolate_method, coord_trans)
         assert "size=" in z.astext()
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType(ref_res.shape, "float32")
@@ -773,15 +773,14 @@ def test_roi_align():
             mode=mode,
         )
         for target, dev in tvm.testing.enabled_targets():
-            print("test on", target)
             op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )
-            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res1.numpy(), ref_res, atol=1e-6, rtol=1e-3)
             op_res2 = relay.create_executor("debug", device=dev, target=target).evaluate(func)(
                 np_data, np_rois
             )
-            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, rtol=1e-4)
+            tvm.testing.assert_allclose(op_res2.numpy(), ref_res, atol=1e-6, rtol=1e-3)
 
     def verify_roi_align_nchw(
         data_shape, rois_shape, pooled_size, spatial_scale, sample_ratio, mode

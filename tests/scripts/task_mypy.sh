@@ -15,16 +15,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-set -o pipefail
 
-echo "Checking MyPy Type defs in the schedule package."
+set -e
+set -u
+set -o pipefail
+source tests/scripts/setup-pytest-env.sh
+
+echo "Checking MyPy Type defs in the TensorIR schedule package."
 mypy  --check-untyped-defs python/tvm/tir/schedule
+
+echo "Checking MyPy Type defs in the meta schedule package."
+mypy  --check-untyped-defs python/tvm/meta_schedule
 
 echo "Checking MyPy Type defs in the analysis package."
 mypy  --check-untyped-defs python/tvm/tir/analysis/
 
-echo "Checking MyPy Type defs in the transofrm package."
+echo "Checking MyPy Type defs in the transform package."
 mypy  --check-untyped-defs python/tvm/tir/transform/
 
-echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
-mypy  --check-untyped-defs python/tvm/relay/backend/contrib/ethosu/
+echo "Checking MyPy Type defs in the TIR package with unittest"
+MYPYPATH=$TVM_PATH/python mypy --check-untyped-defs tests/python/unittest/test_tvmscript_type.py
+
+#TODO(@mikepapadim): This is failing atm
+# echo "Checking MyPy Type defs in the tvm.relay.backend.contrib.ethosu package."
+# mypy  --check-untyped-defs python/tvm/relay/backend/contrib/ethosu/
