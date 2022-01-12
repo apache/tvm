@@ -250,13 +250,28 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
  * \return The pass.
  */
 TVM_DLL Pass InferType();
+
+/*!
+ * \brief Infer the type of an expression, reusing existing type information.
+ *
+ * The result of type checking is a new expression with unambiguous
+ * type information filled in for the given node only. The local
+ * version can use existing type information populated throughout
+ * the expression and assumes this information is correct. The local
+ * version also avoids examining large amounts of the graph assuming
+ * type information is filled in properly which makes it much faster if we
+ * iteratively call type inference.
+ *
+ * \return The type of the expression.
+ */
+TVM_DLL Type InferTypeLocal(const Expr& expr);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are

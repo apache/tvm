@@ -110,6 +110,16 @@ include_directories(SYSTEM ${PICOJSON_PATH})
 set(TVM_LINKER_LIBS "")
 set(TVM_RUNTIME_LINKER_LIBS "")
 
+
+# Check if this is being run on its own or as a subdirectory for another project
+# If we update to CMake 2.21+, we can use PROJECT_IS_TOP_LEVEL instead
+get_directory_property(IS_SUBPROJECT PARENT_DIRECTORY)
+
+if(NOT IS_SUBPROJECT AND NOT DEFINED "${CMAKE_EXPORT_COMPILE_COMMANDS}")
+  # If not set manually, change the default to ON
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endif()
+
 # Generic compilation options
 if(MSVC)
   add_definitions(-DWIN32_LEAN_AND_MEAN)

@@ -206,30 +206,28 @@ RELAY_REGISTER_OP("relay.op.annotation.simulated_quantize")
 Expr Conv2dRealize(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   const QConfig& cfg = QConfig::Current();
   ICHECK_EQ(new_args.size(), 2);
-  if (!new_args[0]->IsInstance<TempExprNode>() && !new_args[1]->IsInstance<TempExprNode>()) {
-    return Expr(nullptr);
+  if (new_args[0].as<QRealizeIntExprNode>() && new_args[1].as<QRealizeIntExprNode>()) {
+    const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
+    const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
+    Expr ldata = lhs->data;
+    if (lhs->dtype != cfg->dtype_input) {
+      ldata = Cast(ldata, cfg->dtype_input);
+    }
+    Expr rdata = Cast(rhs->data, cfg->dtype_weight);
+
+    const auto ref_attrs = ref_call->attrs.as<Conv2DAttrs>();
+    auto attrs = make_object<Conv2DAttrs>();
+    *attrs = *ref_attrs;
+    DataType out_dtype = cfg->dtype_activation;
+    attrs->out_dtype = out_dtype;
+
+    Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
+    Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
+    Expr dom_scale = FoldConstantOpt(mul);
+    return QRealizeIntExpr(ret, dom_scale, out_dtype);
   }
-  const auto* lhs = new_args[0].as<QRealizeIntExprNode>();
-  ICHECK(lhs);
-  const auto* rhs = new_args[1].as<QRealizeIntExprNode>();
-  ICHECK(rhs);
-
-  Expr ldata = lhs->data;
-  if (lhs->dtype != cfg->dtype_input) {
-    ldata = Cast(ldata, cfg->dtype_input);
-  }
-  Expr rdata = Cast(rhs->data, cfg->dtype_weight);
-
-  const auto ref_attrs = ref_call->attrs.as<Conv2DAttrs>();
-  auto attrs = make_object<Conv2DAttrs>();
-  *attrs = *ref_attrs;
-  DataType out_dtype = cfg->dtype_activation;
-  attrs->out_dtype = out_dtype;
-
-  Expr ret = Call(ref_call->op, {ldata, rdata}, Attrs(attrs), ref_call->type_args);
-  Expr mul = Multiply(lhs->dom_scale, rhs->dom_scale);
-  Expr dom_scale = FoldConstantOpt(mul);
-  return QRealizeIntExpr(ret, dom_scale, out_dtype);
+  ICHECK(!new_args[0]->IsInstance<TempExprNode>() || !new_args[1]->IsInstance<TempExprNode>());
+  return Expr(nullptr);
 }
 
 RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardRewrite>("FQRealizeRewrite", Conv2dRealize);

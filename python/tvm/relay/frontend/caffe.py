@@ -370,8 +370,8 @@ class OperatorConverter(object):
             params["strides"] = (pool_params.stride, pool_params.stride)
 
         params["ceil_mode"] = True
-        if hasattr(pool_params, "ceil_mode"):
-            params["ceil_mode"] = pool_params.ceil_mode
+        if hasattr(pool_params, "round_mode"):
+            params["ceil_mode"] = pool_params.round_mode == "CEIL"
 
         in_expr = self.exp_tab.get_expr(input_name)
 

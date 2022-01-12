@@ -18,8 +18,18 @@
 This file contains functions for processing target inputs for the TVMC CLI
 """
 
+import os
+import logging
+import json
+import re
+
+import tvm
 from tvm.driver import tvmc
+from tvm.driver.tvmc import TVMCException
 from tvm.target import Target, TargetKind
+
+# pylint: disable=invalid-name
+logger = logging.getLogger("TVMC")
 
 # We can't tell the type inside an Array but all current options are strings so
 # it can default to that. Bool is used alongside Integer but aren't distinguished
@@ -74,3 +84,271 @@ def reconstruct_target_args(args):
         if kind_options:
             reconstructed[target_kind] = kind_options
     return reconstructed
+
+
+def validate_targets(parse_targets, additional_target_options=None):
+    """
+    Apply a series of validations in the targets provided via CLI.
+    """
+    tvm_target_kinds = tvm.target.Target.list_kinds()
+    targets = [t["name"] for t in parse_targets]
+
+    if len(targets) > len(set(targets)):
+        raise TVMCException("Duplicate target definitions are not allowed")
+
+    if targets[-1] not in tvm_target_kinds:
+        tvm_target_names = ", ".join(tvm_target_kinds)
+        raise TVMCException(
+            f"The last target needs to be a TVM target. Choices: {tvm_target_names}"
+        )
+
+    tvm_targets = [t for t in targets if t in tvm_target_kinds]
+    if len(tvm_targets) > 2:
+        verbose_tvm_targets = ", ".join(tvm_targets)
+        raise TVMCException(
+            "Only two of the following targets can be used at a time. "
+            f"Found: {verbose_tvm_targets}."
+        )
+
+    if additional_target_options is not None:
+        for target_name in additional_target_options:
+            if not any([target for target in parse_targets if target["name"] == target_name]):
+                first_option = list(additional_target_options[target_name].keys())[0]
+                raise TVMCException(
+                    f"Passed --target-{target_name}-{first_option}"
+                    f" but did not specify {target_name} target"
+                )
+
+
+def tokenize_target(target):
+    """
+    Extract a list of tokens from a target specification text.
+
+    It covers some corner-cases that are not covered by the built-in
+    module 'shlex', such as the use of "+" as a punctuation character.
+
+
+    Example
+    -------
+
+    For the input `foo -op1=v1 -op2="v ,2", bar -op3=v-4` we
+    should obtain:
+
+        ["foo", "-op1=v1", "-op2="v ,2"", ",", "bar", "-op3=v-4"]
+
+    Parameters
+    ----------
+    target : str
+        Target options sent via CLI arguments
+
+    Returns
+    -------
+    list of str
+        a list of parsed tokens extracted from the target string
+    """
+
+    # Regex to tokenize the "--target" value. It is split into five parts
+    # to match with:
+    #  1. target and option names e.g. llvm, -mattr=, -mcpu=
+    #  2. option values, all together, without quotes e.g. -mattr=+foo,+opt
+    #  3. option values, when single quotes are used e.g. -mattr='+foo, +opt'
+    #  4. option values, when double quotes are used e.g. -mattr="+foo ,+opt"
+    #  5. commas that separate different targets e.g. "my-target, llvm"
+    target_pattern = (
+        r"(\-{0,2}[\w\-]+\=?"
+        r"(?:[\w\+\-\.]+(?:,[\w\+\-\.])*"
+        r"|[\'][\w\+\-,\s\.]+[\']"
+        r"|[\"][\w\+\-,\s\.]+[\"])*"
+        r"|,)"
+    )
+
+    return re.findall(target_pattern, target)
+
+
+def parse_target(target):
+    """
+    Parse a plain string of targets provided via a command-line
+    argument.
+
+    To send more than one codegen, a comma-separated list
+    is expected. Options start with -<option_name>=<value>.
+
+    We use python standard library 'shlex' to parse the argument in
+    a POSIX compatible way, so that if options are defined as
+    strings with spaces or commas, for example, this is considered
+    and parsed accordingly.
+
+
+    Example
+    -------
+
+    For the input `--target="foo -op1=v1 -op2="v ,2", bar -op3=v-4"` we
+    should obtain:
+
+      [
+        {
+            name: "foo",
+            opts: {"op1":"v1", "op2":"v ,2"},
+            raw: 'foo -op1=v1 -op2="v ,2"'
+        },
+        {
+            name: "bar",
+            opts: {"op3":"v-4"},
+            raw: 'bar -op3=v-4'
+        }
+      ]
+
+    Parameters
+    ----------
+    target : str
+        Target options sent via CLI arguments
+
+    Returns
+    -------
+    codegens : list of dict
+        This list preserves the order in which codegens were
+        provided via command line. Each Dict contains three keys:
+        'name', containing the name of the codegen; 'opts' containing
+        a key-value for all options passed via CLI; 'raw',
+        containing the plain string for this codegen
+    """
+    codegen_names = tvmc.composite_target.get_codegen_names()
+    codegens = []
+
+    tvm_target_kinds = tvm.target.Target.list_kinds()
+    parsed_tokens = tokenize_target(target)
+
+    split_codegens = []
+    current_codegen = []
+    split_codegens.append(current_codegen)
+    for token in parsed_tokens:
+        # every time there is a comma separating
+        # two codegen definitions, prepare for
+        # a new codegen
+        if token == ",":
+            current_codegen = []
+            split_codegens.append(current_codegen)
+        else:
+            # collect a new token for the current
+            # codegen being parsed
+            current_codegen.append(token)
+
+    # at this point we have a list of lists,
+    # each item on the first list is a codegen definition
+    # in the comma-separated values
+    for codegen_def in split_codegens:
+        # the first is expected to be the name
+        name = codegen_def[0]
+        is_tvm_target = name in tvm_target_kinds and name not in codegen_names
+        raw_target = " ".join(codegen_def)
+        all_opts = codegen_def[1:] if len(codegen_def) > 1 else []
+        opts = {}
+        for opt in all_opts:
+            try:
+                # deal with -- prefixed flags
+                if opt.startswith("--"):
+                    opt_name = opt[2:]
+                    opt_value = True
+                else:
+                    opt = opt[1:] if opt.startswith("-") else opt
+                    opt_name, opt_value = opt.split("=", maxsplit=1)
+
+                    # remove quotes from the value: quotes are only parsed if they match,
+                    # so it is safe to assume that if the string starts with quote, it ends
+                    # with quote.
+                    opt_value = opt_value[1:-1] if opt_value[0] in ('"', "'") else opt_value
+            except ValueError:
+                raise ValueError(f"Error when parsing '{opt}'")
+
+            opts[opt_name] = opt_value
+
+        codegens.append(
+            {"name": name, "opts": opts, "raw": raw_target, "is_tvm_target": is_tvm_target}
+        )
+
+    return codegens
+
+
+def is_inline_json(target):
+    try:
+        json.loads(target)
+        return True
+    except json.decoder.JSONDecodeError:
+        return False
+
+
+def _combine_target_options(target, additional_target_options=None):
+    if additional_target_options is None:
+        return target
+    if target["name"] in additional_target_options:
+        target["opts"].update(additional_target_options[target["name"]])
+    return target
+
+
+def _recombobulate_target(target):
+    name = target["name"]
+    opts = " ".join([f"-{key}={value}" for key, value in target["opts"].items()])
+    return f"{name} {opts}"
+
+
+def target_from_cli(target, additional_target_options=None):
+    """
+    Create a tvm.target.Target instance from a
+    command line interface (CLI) string.
+
+    Parameters
+    ----------
+    target : str
+        compilation target as plain string,
+        inline JSON or path to a JSON file
+
+    additional_target_options: Optional[Dict[str, Dict[str,str]]]
+        dictionary of additional target options to be
+        combined with parsed targets
+
+    Returns
+    -------
+    tvm.target.Target
+        an instance of target device information
+    extra_targets : list of dict
+        This list preserves the order in which extra targets were
+        provided via command line. Each Dict contains three keys:
+        'name', containing the name of the codegen; 'opts' containing
+        a key-value for all options passed via CLI; 'raw',
+        containing the plain string for this codegen
+    """
+    extra_targets = []
+
+    if os.path.isfile(target):
+        with open(target) as target_file:
+            logger.debug("target input is a path: %s", target)
+            target = "".join(target_file.readlines())
+    elif is_inline_json(target):
+        logger.debug("target input is inline JSON: %s", target)
+    else:
+        logger.debug("target input is plain text: %s", target)
+        try:
+            parsed_targets = parse_target(target)
+        except ValueError as error:
+            raise TVMCException(f"Error parsing target string '{target}'.\nThe error was: {error}")
+
+        validate_targets(parsed_targets, additional_target_options)
+        tvm_targets = [
+            _combine_target_options(t, additional_target_options)
+            for t in parsed_targets
+            if t["is_tvm_target"]
+        ]
+
+        # Validated target strings have 1 or 2 tvm targets, otherwise
+        # `validate_targets` above will fail.
+        if len(tvm_targets) == 1:
+            target = _recombobulate_target(tvm_targets[0])
+            target_host = None
+        else:
+            assert len(tvm_targets) == 2
+            target = _recombobulate_target(tvm_targets[0])
+            target_host = _recombobulate_target(tvm_targets[1])
+
+        extra_targets = [t for t in parsed_targets if not t["is_tvm_target"]]
+
+    return tvm.target.Target(target, host=target_host), extra_targets

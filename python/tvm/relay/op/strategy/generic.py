@@ -637,6 +637,49 @@ def conv1d_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+def wrap_compute_group_conv1d(topi_compute):
+    """wrap conv1d topi compute"""
+
+    def _compute_group_conv1d(attrs, inputs, out_type):
+        """Compute definition of conv1d"""
+        strides = get_const_tuple(attrs.strides)
+        padding = get_const_tuple(attrs.padding)
+        dilation = get_const_tuple(attrs.dilation)
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        return [
+            topi_compute(inputs[0], inputs[1], strides, padding, dilation, attrs.groups, out_dtype)
+        ]
+
+    return _compute_group_conv1d
+
+
+@override_native_generic_func("group_conv1d_strategy")
+def group_conv1d_strategy(attrs, inputs, out_type, target):
+    """group_conv1d generic strategy"""
+    logger.warning("group_conv1d is not optimized for this platform.")
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+    strategy = _op.OpStrategy()
+    if layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.group_conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_group_conv1d_ncw),
+            name="group_conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.group_conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_group_conv1d_nwc),
+            name="group_conv1d_nwc.generic",
+        )
+    else:
+        raise ValueError("Unsupported conv1d layout {}".format(layout))
+    return strategy
+
+
 # conv1d_transpose
 def wrap_compute_conv1d_transpose(topi_compute):
     """wrap conv1d_transpose topi compute"""

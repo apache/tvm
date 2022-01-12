@@ -17,33 +17,32 @@
 
 import pytest
 
-from tvm.driver import tvmc
-
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException
+from tvm.driver.tvmc.target import target_from_cli, tokenize_target, parse_target
 
 
 def test_target_from_cli__error_duplicate():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.target_from_cli("llvm, llvm")
+        _ = target_from_cli("llvm, llvm")
 
 
 def test_target_invalid_more_than_two_tvm_targets():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.target_from_cli("cuda, opencl, llvm")
+        _ = target_from_cli("cuda, opencl, llvm")
 
 
 def test_target_from_cli__error_target_not_found():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.target_from_cli("invalidtarget")
+        _ = target_from_cli("invalidtarget")
 
 
 def test_target_from_cli__error_no_tvm_target():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.target_from_cli("ethos-n77")
+        _ = target_from_cli("ethos-n77")
 
 
 def test_target_two_tvm_targets():
-    tvm_target, extra_targets = tvmc.common.target_from_cli(
+    tvm_target, extra_targets = target_from_cli(
         "opencl -device=mali, llvm -mtriple=aarch64-linux-gnu"
     )
 
@@ -55,7 +54,7 @@ def test_target_two_tvm_targets():
 
 
 def test_tokenize_target_with_opts():
-    tokens = tvmc.common.tokenize_target("foo -opt1=value1 --flag, bar -opt2=value2")
+    tokens = tokenize_target("foo -opt1=value1 --flag, bar -opt2=value2")
     expected_tokens = ["foo", "-opt1=value1", "--flag", ",", "bar", "-opt2=value2"]
 
     assert len(tokens) == len(expected_tokens)
@@ -63,7 +62,7 @@ def test_tokenize_target_with_opts():
 
 
 def test_tokenize_target_with_plus_sign():
-    tokens = tvmc.common.tokenize_target("foo -opt1=+value1 --flag, bar -opt2=test,+v")
+    tokens = tokenize_target("foo -opt1=+value1 --flag, bar -opt2=test,+v")
     expected_tokens = ["foo", "-opt1=+value1", "--flag", ",", "bar", "-opt2=test,+v"]
 
     assert len(tokens) == len(expected_tokens)
@@ -71,7 +70,7 @@ def test_tokenize_target_with_plus_sign():
 
 
 def test_tokenize_target_with_commas():
-    tokens = tvmc.common.tokenize_target("foo -opt1=v,a,l,u,e,1 --flag")
+    tokens = tokenize_target("foo -opt1=v,a,l,u,e,1 --flag")
     expected_tokens = ["foo", "-opt1=v,a,l,u,e,1", "--flag"]
 
     assert len(tokens) == len(expected_tokens)
@@ -79,7 +78,7 @@ def test_tokenize_target_with_commas():
 
 
 def test_tokenize_target_with_commas_and_single_quotes():
-    tokens = tvmc.common.tokenize_target("foo -opt1='v, a, l, u, e', bar")
+    tokens = tokenize_target("foo -opt1='v, a, l, u, e', bar")
     expected_tokens = ["foo", "-opt1='v, a, l, u, e'", ",", "bar"]
 
     assert len(tokens) == len(expected_tokens)
@@ -87,7 +86,7 @@ def test_tokenize_target_with_commas_and_single_quotes():
 
 
 def test_tokenize_target_with_commas_and_double_quotes():
-    tokens = tvmc.common.tokenize_target('foo -opt1="v, a, l, u, e", bar')
+    tokens = tokenize_target('foo -opt1="v, a, l, u, e", bar')
     expected_tokens = ["foo", '-opt1="v, a, l, u, e"', ",", "bar"]
 
     assert len(tokens) == len(expected_tokens)
@@ -95,7 +94,7 @@ def test_tokenize_target_with_commas_and_double_quotes():
 
 
 def test_tokenize_target_with_dashes():
-    tokens = tvmc.common.tokenize_target("foo-bar1 -opt-1=t-e-s-t, baz")
+    tokens = tokenize_target("foo-bar1 -opt-1=t-e-s-t, baz")
     expected_tokens = ["foo-bar1", "-opt-1=t-e-s-t", ",", "baz"]
 
     assert len(tokens) == len(expected_tokens)
@@ -103,7 +102,7 @@ def test_tokenize_target_with_dashes():
 
 
 def test_parse_single_target_with_opts():
-    targets = tvmc.common.parse_target("llvm -device=arm_cpu -mattr=+fp")
+    targets = parse_target("llvm -device=arm_cpu -mattr=+fp")
 
     assert len(targets) == 1
     assert "device" in targets[0]["opts"]
@@ -111,7 +110,7 @@ def test_parse_single_target_with_opts():
 
 
 def test_parse_multiple_target():
-    targets = tvmc.common.parse_target("compute-library, llvm -device=arm_cpu")
+    targets = parse_target("compute-library, llvm -device=arm_cpu")
 
     assert len(targets) == 2
     assert "compute-library" == targets[0]["name"]
@@ -120,7 +119,7 @@ def test_parse_multiple_target():
 
 def test_parse_hybrid_target():
     """Hybrid Target and external codegen"""
-    targets = tvmc.common.parse_target(
+    targets = parse_target(
         "cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu --system-lib"
     )
 
@@ -132,9 +131,9 @@ def test_parse_hybrid_target():
 
 
 def test_parse_quotes_and_separators_on_options():
-    targets_no_quote = tvmc.common.parse_target("foo -option1=+v1.0x,+value,+bar")
-    targets_single_quote = tvmc.common.parse_target("foo -option1='+v1.0x,+value'")
-    targets_double_quote = tvmc.common.parse_target('foo -option1="+v1.0x,+value"')
+    targets_no_quote = parse_target("foo -option1=+v1.0x,+value,+bar")
+    targets_single_quote = parse_target("foo -option1='+v1.0x,+value'")
+    targets_double_quote = parse_target('foo -option1="+v1.0x,+value"')
 
     assert len(targets_no_quote) == 1
     assert "+v1.0x,+value,+bar" == targets_no_quote[0]["opts"]["option1"]
@@ -147,7 +146,7 @@ def test_parse_quotes_and_separators_on_options():
 
 
 def test_parse_multiple_target_with_opts_ethos_n77():
-    targets = tvmc.common.parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
+    targets = parse_target("ethos-n77 -myopt=value, llvm -device=arm_cpu --system-lib")
 
     assert len(targets) == 2
     assert "ethos-n77" == targets[0]["name"]
@@ -157,7 +156,7 @@ def test_parse_multiple_target_with_opts_ethos_n77():
 
 
 def test_parse_multiple_target_with_opts_ethos_n78():
-    targets = tvmc.common.parse_target("ethos-n78 -myopt=value, llvm -device=arm_cpu --system-lib")
+    targets = parse_target("ethos-n78 -myopt=value, llvm -device=arm_cpu --system-lib")
 
     assert len(targets) == 2
     assert "ethos-n78" == targets[0]["name"]

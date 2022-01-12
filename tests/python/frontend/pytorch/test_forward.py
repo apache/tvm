@@ -4087,5 +4087,24 @@ def test_einsum():
     verify_model(test_fn("ij,jk,km->im"), [x, y, z])
 
 
+@tvm.testing.uses_gpu
+def test_dot():
+    def test_fn(x):
+        return x.dot(x)
+
+    x = torch.randn([4])
+    verify_model(test_fn, [x])
+
+
+@tvm.testing.uses_gpu
+def test_mv():
+    def test_fn(m, v):
+        return m.mv(v)
+
+    verify_model(test_fn, [torch.randn(4, 4), torch.randn(4)])
+    verify_model(test_fn, [torch.randn(2, 2), torch.randn(2)])
+    verify_model(test_fn, [torch.randn(3, 8), torch.randn(8)])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

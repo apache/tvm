@@ -25,9 +25,9 @@ from .. import op as reg
 
 def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return target.make_virtual_device(device)
+        return target.VirtualDevice(device)
     if isinstance(device, str):
-        return target.make_virtual_device(_nd.device(device))
+        return target.VirtualDevice(_nd.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
