@@ -61,11 +61,9 @@ class LoweredModule:
         C = T.match_buffer(c, [128, 128], flatten_buffer=True)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 @tvm.script.ir_module
@@ -79,11 +77,9 @@ class LoweredTIRModule:
         C = T.match_buffer(c, [128, 128], flatten_buffer=True)
         # body
         for x, y in T.grid(128, 128):
-            C.data[x * 128 + y] = 0.0
+            C[x * 128 + y] = 0.0
             for k in T.serial(0, 128):
-                C.data[x * 128 + y] = T.load("float32", C.data, x * 128 + y) + T.load(
-                    "float32", A.data, x * 128 + k
-                ) * T.load("float32", B.data, y * 128 + k)
+                C[x * 128 + y] = C[x * 128 + y] + A[x * 128 + k] * B[y * 128 + k]
 
 
 def test_lower_build_te_schedule():

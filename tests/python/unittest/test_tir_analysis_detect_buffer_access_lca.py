@@ -57,7 +57,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
             T.store(A, i * 16 + j, 1)
         for i in range(0, 16):
             for j in range(0, 16):
-                T.evaluate(T.load("float32", A, i * 16 + j))
+                T.evaluate(A[i * 16 + j])
             for j in range(0, 16):
                 T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, T.float32(0), dtype="handle"))
 

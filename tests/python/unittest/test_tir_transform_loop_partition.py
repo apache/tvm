@@ -545,9 +545,9 @@ def partitioned_concat(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [16], dtype="float32")
     C = T.match_buffer(c, [32], dtype="float32")
     for i in T.serial(0, 16):
-        T.store(C.data, i, T.load("float32", A.data, i), True)
+        T.store(C.data, i, A.data[i], True)
     for i in T.serial(0, 16):
-        T.store(C.data, i + 16, T.load("float32", B.data, i + 16), True)
+        T.store(C.data, i + 16, B.data[i + 16], True)
 
 
 def test_explicit_partition_hint():

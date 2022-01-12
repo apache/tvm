@@ -482,7 +482,7 @@ def opaque_access_annotated_func(a: T.handle) -> None:
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.store(C.data, i, B.data[i])
 
 
 @T.prim_func
@@ -502,7 +502,7 @@ def compacted_opaque_access_annotated_func(a: T.handle) -> None:
                 # they are not compatible with actual buffer accesses.
                 T.reads([B[i]])
                 T.writes([C[i : i + 9]])
-                T.store(C.data, i, T.load("float32", B.data, i))
+                T.store(C.data, i, B.data[i])
 
 
 def test_elementwise():

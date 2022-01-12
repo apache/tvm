@@ -465,7 +465,7 @@ def fail_match_load(a: T.handle) -> None:
             T.reads(A[i, j])
             T.writes([])
             sub_A = T.match_buffer(A[i, j], ())
-            T.evaluate(T.load("float32", sub_A.data, 0))
+            T.evaluate(sub_A[0])
 
 
 @T.prim_func

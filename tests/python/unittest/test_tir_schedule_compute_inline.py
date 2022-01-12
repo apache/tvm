@@ -183,7 +183,7 @@ def opaque_access_load(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
-            C[vi, vj] = T.load("float32", B.data, vi * 128 + vj) + 1.0
+            C[vi, vj] = B.data[vi * 128 + vj] + 1.0
 
 
 @T.prim_func
@@ -201,7 +201,7 @@ def opaque_access_store(a: T.handle, c: T.handle) -> None:
             T.reads(B[0:128, 0:128])
             T.writes(C[0:128, 0:128])
             T.store(C.data, vi * 128 + vj, B[vi, vj] + 1.0)
-            C[vi, vj] = T.load("float32", B.data, vi * 16 + vj) + 1.0
+            C[vi, vj] = B.data[vi * 16 + vj] + 1.0
 
 
 @T.prim_func

@@ -99,12 +99,10 @@ class Module2:
                 T.store(
                     packedB,
                     T.ramp(((x * 32768) + (y * 32)), 1, 32),
-                    T.load(
-                        "float32x32",
-                        B_1.data,
+                    B_1.data[
                         T.ramp(((y * 1024) + (x * 32)), 1, 32),
                         T.broadcast(True, 32),
-                    ),
+                    ],
                     T.broadcast(True, 32),
                 )
         for x_outer in T.parallel(0, 32):
@@ -123,27 +121,21 @@ class Module2:
                             C_global,
                             T.ramp((x_c * 32), 1, 32),
                             (
-                                T.load(
-                                    "float32x32",
-                                    C_global,
+                                C_global[
                                     T.ramp((x_c * 32), 1, 32),
                                     T.broadcast(True, 32),
-                                )
+                                ]
                                 + (
                                     T.broadcast(
-                                        T.load(
-                                            "float32",
-                                            A_1.data,
+                                        A_1.data[
                                             (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
-                                        ),
+                                        ],
                                         32,
                                     )
-                                    * T.load(
-                                        "float32x32",
-                                        packedB,
+                                    * packedB[
                                         T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32),
                                         T.broadcast(True, 32),
-                                    )
+                                    ]
                                 )
                             ),
                             T.broadcast(True, 32),
@@ -152,30 +144,24 @@ class Module2:
                             C_global,
                             T.ramp((x_c * 32), 1, 32),
                             (
-                                T.load(
-                                    "float32x32",
-                                    C_global,
+                                C_global[
                                     T.ramp((x_c * 32), 1, 32),
                                     T.broadcast(True, 32),
-                                )
+                                ]
                                 + (
                                     T.broadcast(
-                                        T.load(
-                                            "float32",
-                                            A_1.data,
+                                        A_1.data[
                                             (
                                                 (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
                                                 + 1
                                             ),
-                                        ),
+                                        ],
                                         32,
                                     )
-                                    * T.load(
-                                        "float32x32",
-                                        packedB,
+                                    * packedB[
                                         T.ramp((((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32),
                                         T.broadcast(True, 32),
-                                    )
+                                    ]
                                 )
                             ),
                             T.broadcast(True, 32),
@@ -184,30 +170,24 @@ class Module2:
                             C_global,
                             T.ramp((x_c * 32), 1, 32),
                             (
-                                T.load(
-                                    "float32x32",
-                                    C_global,
+                                C_global[
                                     T.ramp((x_c * 32), 1, 32),
                                     T.broadcast(True, 32),
-                                )
+                                ]
                                 + (
                                     T.broadcast(
-                                        T.load(
-                                            "float32",
-                                            A_1.data,
+                                        A_1.data[
                                             (
                                                 (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
                                                 + 2
                                             ),
-                                        ),
+                                        ],
                                         32,
                                     )
-                                    * T.load(
-                                        "float32x32",
-                                        packedB,
+                                    * packedB[
                                         T.ramp((((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32),
                                         T.broadcast(True, 32),
-                                    )
+                                    ]
                                 )
                             ),
                             T.broadcast(True, 32),
@@ -216,30 +196,24 @@ class Module2:
                             C_global,
                             T.ramp((x_c * 32), 1, 32),
                             (
-                                T.load(
-                                    "float32x32",
-                                    C_global,
+                                C_global[
                                     T.ramp((x_c * 32), 1, 32),
                                     T.broadcast(True, 32),
-                                )
+                                ]
                                 + (
                                     T.broadcast(
-                                        T.load(
-                                            "float32",
-                                            A_1.data,
+                                        A_1.data[
                                             (
                                                 (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
                                                 + 3
                                             ),
-                                        ),
+                                        ],
                                         32,
                                     )
-                                    * T.load(
-                                        "float32x32",
-                                        packedB,
+                                    * packedB[
                                         T.ramp((((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32),
                                         T.broadcast(True, 32),
-                                    )
+                                    ]
                                 )
                             ),
                             T.broadcast(True, 32),
@@ -248,7 +222,7 @@ class Module2:
                     for y_inner in T.serial(0, 32):
                         C_1.data[
                             ((((x_outer * 32768) + (x_inner * 1024)) + (y_outer * 32)) + y_inner)
-                        ] = T.load("float32", C_global, ((x_inner * 32) + y_inner))
+                        ] = C_global[((x_inner * 32) + y_inner)]
 
 
 def test_opt_gemm_lower():
@@ -282,11 +256,11 @@ class Module3:
         # body
         assert num_args == 3, "mmult: num_args should be 3"
         arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
-        arg0_code: T.int32 = T.load("int32", arg_type_ids, 0)
+        arg0_code: T.int32 = arg_type_ids[0]
         arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
-        arg1_code: T.int32 = T.load("int32", arg_type_ids, 1)
+        arg1_code: T.int32 = arg_type_ids[1]
         arg2: T.handle = T.tvm_struct_get(args, 2, 12, dtype="handle")
-        arg2_code: T.int32 = T.load("int32", arg_type_ids, 2)
+        arg2_code: T.int32 = arg_type_ids[2]
         A: T.handle = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
         T.attr(A, "storage_alignment", 128)
         arg0_shape: T.handle = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
@@ -318,14 +292,14 @@ class Module3:
             T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg0.dtype is expected to be float32"
         assert 1024 == T.cast(
-            T.load("int64", arg0_shape, 0), "int32"
+            arg0_shape[0], "int32"
         ), "Argument arg0.shape[0] has an unsatisfied constraint"
         assert 1024 == T.cast(
-            T.load("int64", arg0_shape, 1), "int32"
+            arg0_shape[1], "int32"
         ), "Argument arg0.shape[1] has an unsatisfied constraint"
         if not (T.isnullptr(arg0_strides, dtype="bool")):
-            assert (1 == T.cast(T.load("int64", arg0_strides, 1), "int32")) and (
-                1024 == T.cast(T.load("int64", arg0_strides, 0), "int32")
+            assert (1 == T.cast(arg0_strides[1], "int32")) and (
+                1024 == T.cast(arg0_strides[0], "int32")
             ), "arg0.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
@@ -343,14 +317,14 @@ class Module3:
             T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg1.dtype is expected to be float32"
         assert 1024 == T.cast(
-            T.load("int64", arg1_shape, 0), "int32"
+            arg1_shape[0], "int32"
         ), "Argument arg1.shape[0] has an unsatisfied constraint"
         assert 1024 == T.cast(
-            T.load("int64", arg1_shape, 1), "int32"
+            arg1_shape[1], "int32"
         ), "Argument arg1.shape[1] has an unsatisfied constraint"
         if not (T.isnullptr(arg1_strides, dtype="bool")):
-            assert (1 == T.cast(T.load("int64", arg1_strides, 1), "int32")) and (
-                1024 == T.cast(T.load("int64", arg1_strides, 0), "int32")
+            assert (1 == T.cast(arg1_strides[1], "int32")) and (
+                1024 == T.cast(arg1_strides[0], "int32")
             ), "arg1.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
@@ -371,14 +345,14 @@ class Module3:
             T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
         ), "arg2.dtype is expected to be float32"
         assert 1024 == T.cast(
-            T.load("int64", arg2_shape, 0), "int32"
+            arg2_shape[0], "int32"
         ), "Argument arg2.shape[0] has an unsatisfied constraint"
         assert 1024 == T.cast(
-            T.load("int64", arg2_shape, 1), "int32"
+            arg2_shape[1], "int32"
         ), "Argument arg2.shape[1] has an unsatisfied constraint"
         if not (T.isnullptr(arg2_strides, dtype="bool")):
-            assert (1 == T.cast(T.load("int64", arg2_strides, 1), "int32")) and (
-                1024 == T.cast(T.load("int64", arg2_strides, 0), "int32")
+            assert (1 == T.cast(arg2_strides[1], "int32")) and (
+                1024 == T.cast(arg2_strides[0], "int32")
             ), "arg2.strides: expected to be compact array"
             T.evaluate(0)
         assert T.uint64(0) == T.tvm_struct_get(
@@ -404,12 +378,10 @@ class Module3:
                     T.store(
                         packedB,
                         T.ramp(((x * 32768) + (y * 32)), 1, 32),
-                        T.load(
-                            "float32x32",
-                            B,
+                        B[
                             T.ramp(((y * 1024) + (x * 32)), 1, 32),
                             T.broadcast(True, 32),
-                        ),
+                        ],
                         T.broadcast(True, 32),
                     )
             for x_outer in T.parallel(0, 32):
@@ -438,28 +410,22 @@ class Module3:
                                         T.uint32(97),
                                         T.uint32(3),
                                         T.broadcast(
-                                            T.load(
-                                                "float32",
-                                                A,
+                                            A[
                                                 (
                                                     ((x_outer * 32768) + (x_c * 1024))
                                                     + (k_outer * 4)
                                                 ),
-                                            ),
+                                            ],
                                             32,
                                         ),
-                                        T.load(
-                                            "float32x32",
-                                            packedB,
+                                        packedB[
                                             T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32),
                                             T.broadcast(True, 32),
-                                        ),
-                                        T.load(
-                                            "float32x32",
-                                            C_global,
+                                        ],
+                                        C_global[
                                             T.ramp((x_c * 32), 1, 32),
                                             T.broadcast(True, 32),
-                                        ),
+                                        ],
                                         dtype="float32x32",
                                     ),
                                     T.broadcast(True, 32),
@@ -471,9 +437,7 @@ class Module3:
                                         T.uint32(97),
                                         T.uint32(3),
                                         T.broadcast(
-                                            T.load(
-                                                "float32",
-                                                A,
+                                            A[
                                                 (
                                                     (
                                                         ((x_outer * 32768) + (x_c * 1024))
@@ -481,23 +445,19 @@ class Module3:
                                                     )
                                                     + 1
                                                 ),
-                                            ),
+                                            ],
                                             32,
                                         ),
-                                        T.load(
-                                            "float32x32",
-                                            packedB,
+                                        packedB[
                                             T.ramp(
                                                 (((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32
                                             ),
                                             T.broadcast(True, 32),
-                                        ),
-                                        T.load(
-                                            "float32x32",
-                                            C_global,
+                                        ],
+                                        C_global[
                                             T.ramp((x_c * 32), 1, 32),
                                             T.broadcast(True, 32),
-                                        ),
+                                        ],
                                         dtype="float32x32",
                                     ),
                                     T.broadcast(True, 32),
@@ -509,9 +469,7 @@ class Module3:
                                         T.uint32(97),
                                         T.uint32(3),
                                         T.broadcast(
-                                            T.load(
-                                                "float32",
-                                                A,
+                                            A[
                                                 (
                                                     (
                                                         ((x_outer * 32768) + (x_c * 1024))
@@ -519,23 +477,19 @@ class Module3:
                                                     )
                                                     + 2
                                                 ),
-                                            ),
+                                            ],
                                             32,
                                         ),
-                                        T.load(
-                                            "float32x32",
-                                            packedB,
+                                        packedB[
                                             T.ramp(
                                                 (((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32
                                             ),
                                             T.broadcast(True, 32),
-                                        ),
-                                        T.load(
-                                            "float32x32",
-                                            C_global,
+                                        ],
+                                        C_global[
                                             T.ramp((x_c * 32), 1, 32),
                                             T.broadcast(True, 32),
-                                        ),
+                                        ],
                                         dtype="float32x32",
                                     ),
                                     T.broadcast(True, 32),
@@ -547,9 +501,7 @@ class Module3:
                                         T.uint32(97),
                                         T.uint32(3),
                                         T.broadcast(
-                                            T.load(
-                                                "float32",
-                                                A,
+                                            A[
                                                 (
                                                     (
                                                         ((x_outer * 32768) + (x_c * 1024))
@@ -557,23 +509,19 @@ class Module3:
                                                     )
                                                     + 3
                                                 ),
-                                            ),
+                                            ],
                                             32,
                                         ),
-                                        T.load(
-                                            "float32x32",
-                                            packedB,
+                                        packedB[
                                             T.ramp(
                                                 (((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32
                                             ),
                                             T.broadcast(True, 32),
-                                        ),
-                                        T.load(
-                                            "float32x32",
-                                            C_global,
+                                        ],
+                                        C_global[
                                             T.ramp((x_c * 32), 1, 32),
                                             T.broadcast(True, 32),
-                                        ),
+                                        ],
                                         dtype="float32x32",
                                     ),
                                     T.broadcast(True, 32),
@@ -585,7 +533,7 @@ class Module3:
                                         (((x_outer * 32768) + (x_inner * 1024)) + (y_outer * 32))
                                         + y_inner
                                     )
-                                ] = T.load("float32", C_global, ((x_inner * 32) + y_inner))
+                                ] = C_global[((x_inner * 32) + y_inner)]
                 if T.TVMBackendFreeWorkspace(1, dev_id, C_global, dtype="int32") != 0:
                     T.evaluate(T.tvm_throw_last_error(dtype="int32"))
         if T.TVMBackendFreeWorkspace(1, dev_id, packedB, dtype="int32") != 0:
@@ -1130,9 +1078,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1155,7 +1101,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61440
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1173,9 +1119,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1198,7 +1142,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61408
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1216,9 +1160,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1241,7 +1183,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61376
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1259,9 +1201,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1284,7 +1224,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61344
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1302,9 +1242,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1327,7 +1265,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61312
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1345,9 +1283,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1370,7 +1306,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61280
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1388,9 +1324,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1413,7 +1347,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61248
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1431,9 +1365,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1456,7 +1388,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61216
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1474,9 +1406,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1499,7 +1429,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61184
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1517,9 +1447,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1542,7 +1470,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61152
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1560,9 +1488,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1585,7 +1511,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61120
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1603,9 +1529,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1628,7 +1552,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61088
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1646,9 +1570,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1671,7 +1593,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61056
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1689,9 +1611,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1714,7 +1634,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 61024
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1732,9 +1652,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        T.load(
-                            "float16",
-                            A_1.data,
+                        A_1.data[
                             (
                                 (
                                     (
@@ -1757,7 +1675,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                 )
                                 - 60992
                             ),
-                        ),
+                        ],
                         T.float16(0),
                         dtype="float16",
                     )
@@ -1772,9 +1690,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                         )
                         and ((ax2 + T.floormod(bz, 14)) < 15)
                     ),
-                    T.load(
-                        "float16",
-                        A_1.data,
+                    A_1.data[
                         (
                             (
                                 (
@@ -1794,7 +1710,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             - 60960
                         ),
-                    ),
+                    ],
                     T.float16(0),
                     dtype="float16",
                 )
@@ -1802,9 +1718,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                 T.store(
                     W_shared,
                     T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1820,16 +1734,14 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             with T.launch_thread(tx, 32):
                 T.store(
                     W_shared,
                     T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 2048), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1848,16 +1760,14 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             with T.launch_thread(tx, 32):
                 T.store(
                     W_shared,
                     T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 4096), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1876,16 +1786,14 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             with T.launch_thread(tx, 32):
                 T.store(
                     W_shared,
                     T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 6144), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1904,16 +1812,14 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             with T.launch_thread(tx, 32):
                 T.store(
                     W_shared,
                     T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 8192), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1932,16 +1838,14 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             with T.launch_thread(tx, 32):
                 T.store(
                     W_shared,
                     T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 10240), 1, 8),
-                    T.load(
-                        "float16x8",
-                        W_1.data,
+                    W_1.data[
                         T.ramp(
                             (
                                 (
@@ -1960,7 +1864,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             8,
                         ),
                         T.broadcast(True, 8),
-                    ),
+                    ],
                     T.broadcast(True, 8),
                 )
             for ic_inner in T.serial(0, 2):
@@ -2422,11 +2326,11 @@ def opt_conv_tensorcore_mod_host(
     stack_value: T.handle = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
     assert num_args == 3, "default_function: num_args should be 3"
     arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
-    arg0_code: T.int32 = T.load("int32", arg_type_ids, 0)
+    arg0_code: T.int32 = arg_type_ids[0]
     arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
-    arg1_code: T.int32 = T.load("int32", arg_type_ids, 1)
+    arg1_code: T.int32 = arg_type_ids[1]
     arg2: T.handle = T.tvm_struct_get(args, 2, 12, dtype="handle")
-    arg2_code: T.int32 = T.load("int32", arg_type_ids, 2)
+    arg2_code: T.int32 = arg_type_ids[2]
     A: T.handle = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
     T.attr(A, "storage_alignment", 128)
     arg0_shape: T.handle = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
@@ -2458,38 +2362,38 @@ def opt_conv_tensorcore_mod_host(
         T.tvm_struct_get(arg0, 0, 7, dtype="uint16") == T.uint16(1)
     ), "arg0.dtype is expected to be float16"
     assert 16 == T.cast(
-        T.load("int64", arg0_shape, 0), "int32"
+        arg0_shape[0], "int32"
     ), "Argument arg0.shape[0] has an unsatisfied constraint"
     assert 14 == T.cast(
-        T.load("int64", arg0_shape, 1), "int32"
+        arg0_shape[1], "int32"
     ), "Argument arg0.shape[1] has an unsatisfied constraint"
     assert 14 == T.cast(
-        T.load("int64", arg0_shape, 2), "int32"
+        arg0_shape[2], "int32"
     ), "Argument arg0.shape[2] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg0_shape, 3), "int32"
+        arg0_shape[3], "int32"
     ), "Argument arg0.shape[3] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg0_shape, 4), "int32"
+        arg0_shape[4], "int32"
     ), "Argument arg0.shape[4] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg0_shape, 5), "int32"
+        arg0_shape[5], "int32"
     ), "Argument arg0.shape[5] has an unsatisfied constraint"
     if not (T.isnullptr(arg0_strides, dtype="bool")):
         assert (
             (
                 (
                     (
-                        (1 == T.cast(T.load("int64", arg0_strides, 5), "int32"))
-                        and (16 == T.cast(T.load("int64", arg0_strides, 4), "int32"))
+                        (1 == T.cast(arg0_strides[5], "int32"))
+                        and (16 == T.cast(arg0_strides[4], "int32"))
                     )
-                    and (256 == T.cast(T.load("int64", arg0_strides, 3), "int32"))
+                    and (256 == T.cast(arg0_strides[3], "int32"))
                 )
-                and (4096 == T.cast(T.load("int64", arg0_strides, 2), "int32"))
+                and (4096 == T.cast(arg0_strides[2], "int32"))
             )
-            and (57344 == T.cast(T.load("int64", arg0_strides, 1), "int32"))
+            and (57344 == T.cast(arg0_strides[1], "int32"))
         ) and (
-            802816 == T.cast(T.load("int64", arg0_strides, 0), "int32")
+            802816 == T.cast(arg0_strides[0], "int32")
         ), "arg0.strides: expected to be compact array"
         T.evaluate(0)
     assert T.uint64(0) == T.tvm_struct_get(
@@ -2507,38 +2411,38 @@ def opt_conv_tensorcore_mod_host(
         T.tvm_struct_get(arg1, 0, 7, dtype="uint16") == T.uint16(1)
     ), "arg1.dtype is expected to be float16"
     assert 3 == T.cast(
-        T.load("int64", arg1_shape, 0), "int32"
+        arg1_shape[0], "int32"
     ), "Argument arg1.shape[0] has an unsatisfied constraint"
     assert 3 == T.cast(
-        T.load("int64", arg1_shape, 1), "int32"
+        arg1_shape[1], "int32"
     ), "Argument arg1.shape[1] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg1_shape, 2), "int32"
+        arg1_shape[2], "int32"
     ), "Argument arg1.shape[2] has an unsatisfied constraint"
     assert 32 == T.cast(
-        T.load("int64", arg1_shape, 3), "int32"
+        arg1_shape[3], "int32"
     ), "Argument arg1.shape[3] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg1_shape, 4), "int32"
+        arg1_shape[4], "int32"
     ), "Argument arg1.shape[4] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg1_shape, 5), "int32"
+        arg1_shape[5], "int32"
     ), "Argument arg1.shape[5] has an unsatisfied constraint"
     if not (T.isnullptr(arg1_strides, dtype="bool")):
         assert (
             (
                 (
                     (
-                        (1 == T.cast(T.load("int64", arg1_strides, 5), "int32"))
-                        and (16 == T.cast(T.load("int64", arg1_strides, 4), "int32"))
+                        (1 == T.cast(arg1_strides[5], "int32"))
+                        and (16 == T.cast(arg1_strides[4], "int32"))
                     )
-                    and (256 == T.cast(T.load("int64", arg1_strides, 3), "int32"))
+                    and (256 == T.cast(arg1_strides[3], "int32"))
                 )
-                and (8192 == T.cast(T.load("int64", arg1_strides, 2), "int32"))
+                and (8192 == T.cast(arg1_strides[2], "int32"))
             )
-            and (131072 == T.cast(T.load("int64", arg1_strides, 1), "int32"))
+            and (131072 == T.cast(arg1_strides[1], "int32"))
         ) and (
-            393216 == T.cast(T.load("int64", arg1_strides, 0), "int32")
+            393216 == T.cast(arg1_strides[0], "int32")
         ), "arg1.strides: expected to be compact array"
         T.evaluate(0)
     assert T.uint64(0) == T.tvm_struct_get(
@@ -2559,38 +2463,38 @@ def opt_conv_tensorcore_mod_host(
         T.tvm_struct_get(arg2, 0, 7, dtype="uint16") == T.uint16(1)
     ), "arg2.dtype is expected to be float32"
     assert 16 == T.cast(
-        T.load("int64", arg2_shape, 0), "int32"
+        arg2_shape[0], "int32"
     ), "Argument arg2.shape[0] has an unsatisfied constraint"
     assert 14 == T.cast(
-        T.load("int64", arg2_shape, 1), "int32"
+        arg2_shape[1], "int32"
     ), "Argument arg2.shape[1] has an unsatisfied constraint"
     assert 14 == T.cast(
-        T.load("int64", arg2_shape, 2), "int32"
+        arg2_shape[2], "int32"
     ), "Argument arg2.shape[2] has an unsatisfied constraint"
     assert 32 == T.cast(
-        T.load("int64", arg2_shape, 3), "int32"
+        arg2_shape[3], "int32"
     ), "Argument arg2.shape[3] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg2_shape, 4), "int32"
+        arg2_shape[4], "int32"
     ), "Argument arg2.shape[4] has an unsatisfied constraint"
     assert 16 == T.cast(
-        T.load("int64", arg2_shape, 5), "int32"
+        arg2_shape[5], "int32"
     ), "Argument arg2.shape[5] has an unsatisfied constraint"
     if not (T.isnullptr(arg2_strides, dtype="bool")):
         assert (
             (
                 (
                     (
-                        (1 == T.cast(T.load("int64", arg2_strides, 5), "int32"))
-                        and (16 == T.cast(T.load("int64", arg2_strides, 4), "int32"))
+                        (1 == T.cast(arg2_strides[5], "int32"))
+                        and (16 == T.cast(arg2_strides[4], "int32"))
                     )
-                    and (256 == T.cast(T.load("int64", arg2_strides, 3), "int32"))
+                    and (256 == T.cast(arg2_strides[3], "int32"))
                 )
-                and (8192 == T.cast(T.load("int64", arg2_strides, 2), "int32"))
+                and (8192 == T.cast(arg2_strides[2], "int32"))
             )
-            and (114688 == T.cast(T.load("int64", arg2_strides, 1), "int32"))
+            and (114688 == T.cast(arg2_strides[1], "int32"))
         ) and (
-            1605632 == T.cast(T.load("int64", arg2_strides, 0), "int32")
+            1605632 == T.cast(arg2_strides[0], "int32")
         ), "arg2.strides: expected to be compact array"
         T.evaluate(0)
     assert T.uint64(0) == T.tvm_struct_get(
@@ -2655,9 +2559,9 @@ def vthread_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i2, 2)
     B = T.allocate([16], "float32", "local")
     for j in range(16):
-        B[j] = T.load("float32", A.data, i0 * 64 + i1 * 32 + i2 * 16 + j) + T.float32(1)
+        B[j] = A.data[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
     for j in range(16):
-        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = T.load("float32", B, j) * T.float32(2)
+        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * T.float32(2)
 
 
 def test_vthread():
@@ -2936,7 +2840,7 @@ def test_rank0_buffers():
 def rank0_block(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.alloc_buffer((), "float32")
-    T.store(B.data, 0, T.load("float32", A.data, 0))
+    T.store(B.data, 0, A.data[0])
 
     with T.block("update") as []:
         T.reads([A[()]])
@@ -3082,10 +2986,10 @@ def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.han
             for ax3_init in T.serial(0, 64):
                 T.store(tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_init), T.uint8(0), True)
             for rv0_rv1_fused_1, ax3_2 in T.grid(9, 64):
-                T.store(tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2), T.max(T.load("uint8", tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2)), T.if_then_else(((((ax0_ax1_fused_4*2) + T.floordiv(rv0_rv1_fused_1, 3)) < 112) and (((ax2_4*2) + T.floormod(rv0_rv1_fused_1, 3)) < 112)), T.load("uint8", placeholder_29.data, (((((ax0_ax1_fused_4*14336) + (T.floordiv(rv0_rv1_fused_1, 3)*7168)) + (ax2_4*128)) + (T.floormod(rv0_rv1_fused_1, 3)*64)) + ax3_2)), T.uint8(0), dtype="uint8")), True)
+                T.store(tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2), T.max(tensor_2[(((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2)], T.if_then_else(((((ax0_ax1_fused_4*2) + T.floordiv(rv0_rv1_fused_1, 3)) < 112) and (((ax2_4*2) + T.floormod(rv0_rv1_fused_1, 3)) < 112)), placeholder_29.data[(((((ax0_ax1_fused_4*14336) + (T.floordiv(rv0_rv1_fused_1, 3)*7168)) + (ax2_4*128)) + (T.floormod(rv0_rv1_fused_1, 3)*64)) + ax3_2)], T.uint8(0), dtype="uint8")), True)
     for ax0_ax1_fused_5 in T.serial(0, 56):
         for ax2_5, ax3_3 in T.grid(56, 64):
-            T.store(T_cast_7.data, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3), T.cast(T.load("uint8", tensor_2, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)), "int16"), True)
+            T.store(T_cast_7.data, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3), T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16"), True)
 # fmt: on
 
 
@@ -3105,7 +3009,7 @@ def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
-            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A.data[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
 
 
 @T.prim_func
@@ -3117,7 +3021,7 @@ def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
-            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A.data[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
 
 
 @T.prim_func
