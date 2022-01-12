@@ -838,6 +838,7 @@ def test_forward_Reduction():
         operation=reduction_op["MEAN"],
         axis=3,
         coeff=2.0,
+    )
 
 
 #######################################################################
