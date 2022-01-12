@@ -144,14 +144,11 @@ static bool is_scalar(const Expr& exp) {
   return tt->shape.size() == 0;
 }
 
-static bool is_const(const Expr& exp) {
-  return exp->IsInstance<ConstantNode>();
-}
+static bool is_const(const Expr& exp) { return exp->IsInstance<ConstantNode>(); }
 
 template <typename T>
 static bool is_const_scalar_eq(const Expr& exp, T val) {
-  if (details::make_dtype<T>() != dtype_of(exp))
-    return false;
+  if (details::make_dtype<T>() != dtype_of(exp)) return false;
   if (const auto* constant = exp.as<ConstantNode>()) {
     if (constant->data->ndim == 0) {
       return *static_cast<T*>(constant->data->data) == val;
@@ -229,7 +226,6 @@ static Array<Integer> permutation(const std::string& from, const std::string& to
   return perm;
 }
 
-
 /*!
  * @brief Helper namespace. Introduce elementwise arithmetic operations for expressions
  *
@@ -306,8 +302,7 @@ class OpSeq : public ExprVisitor {
   /** return list of call node names if post dfs order */
   std::vector<std::string> getOpNames() const {
     std::vector<std::string> res;
-    for (auto& l : layers_)
-      res.push_back(l.call_node_->op.as<OpNode>()->name);
+    for (auto& l : layers_) res.push_back(l.call_node_->op.as<OpNode>()->name);
     return res;
   }
 

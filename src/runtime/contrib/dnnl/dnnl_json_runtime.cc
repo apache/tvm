@@ -216,27 +216,17 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
         ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
 
-        if ("nn.conv2d" == op_name ||
-            "dnnl.conv2d_relu" == op_name ||
-            "dnnl.conv2d_tanh" == op_name ||
-            "dnnl.conv2d_sigmoid" == op_name ||
-            "dnnl.conv2d_bias" == op_name ||
-            "dnnl.conv2d_bias_relu" == op_name ||
-            "dnnl.conv2d_bias_tanh" == op_name ||
-            "dnnl.conv2d_bias_sigmoid" == op_name ||
-            "dnnl.qnn.conv2d" == op_name ||
-            "dnnl.qnn.conv2d_sum" == op_name) {
+        if ("nn.conv2d" == op_name || "dnnl.conv2d_relu" == op_name ||
+            "dnnl.conv2d_tanh" == op_name || "dnnl.conv2d_sigmoid" == op_name ||
+            "dnnl.conv2d_bias" == op_name || "dnnl.conv2d_bias_relu" == op_name ||
+            "dnnl.conv2d_bias_tanh" == op_name || "dnnl.conv2d_bias_sigmoid" == op_name ||
+            "dnnl.qnn.conv2d" == op_name || "dnnl.qnn.conv2d_sum" == op_name) {
           UniConv2d(nid);
-        } else if ("nn.dense" == op_name ||
-                   "dnnl.dense_relu" == op_name ||
-                   "dnnl.dense_tanh" == op_name ||
-                   "dnnl.dense_sigmoid" == op_name ||
-                   "dnnl.dense_bias" == op_name ||
-                   "dnnl.dense_bias_relu" == op_name ||
-                   "dnnl.dense_bias_tanh" == op_name ||
-                   "dnnl.dense_bias_sigmoid" == op_name ||
-                   "dnnl.qnn.dense" == op_name ||
-                   "dnnl.qnn.dense_sum" == op_name) {
+        } else if ("nn.dense" == op_name || "dnnl.dense_relu" == op_name ||
+                   "dnnl.dense_tanh" == op_name || "dnnl.dense_sigmoid" == op_name ||
+                   "dnnl.dense_bias" == op_name || "dnnl.dense_bias_relu" == op_name ||
+                   "dnnl.dense_bias_tanh" == op_name || "dnnl.dense_bias_sigmoid" == op_name ||
+                   "dnnl.qnn.dense" == op_name || "dnnl.qnn.dense_sum" == op_name) {
           UniDense(nid);
         } else if ("nn.batch_norm" == op_name) {
           BatchNorm(nid);
@@ -534,8 +524,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Eltwise op required same layout for src/dst
     src_tr = src_tr.requestLayout(dst_tr.desc());
 
-    auto eltwise_d = dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference, algo,
-                                                 dst_tr.desc());
+    auto eltwise_d =
+        dnnl::eltwise_forward::desc(dnnl::prop_kind::forward_inference, algo, dst_tr.desc());
     auto eltwise_pd = dnnl::eltwise_forward::primitive_desc(eltwise_d, engine_);
     auto eltwise = dnnl::eltwise_forward(eltwise_pd);
 
@@ -588,8 +578,7 @@ TVM_REGISTER_GLOBAL("runtime.DNNLJSONRuntimeCreate").set_body_typed(DNNLJSONRunt
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_dnnl_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<DNNLJSONRuntime>);
 
-TVM_REGISTER_GLOBAL("runtime.module.dnnl_version")
-    .set_body_typed(DNNLJSONRuntime::get_version);
+TVM_REGISTER_GLOBAL("runtime.module.dnnl_version").set_body_typed(DNNLJSONRuntime::get_version);
 
 }  // namespace contrib
 }  // namespace runtime

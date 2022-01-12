@@ -228,7 +228,7 @@ class TensorRequisite {
 
     // numpy like broadcast
     auto extended_dims = t_desc_.dims();
-    auto one_filled = dnnl::memory::dims(shape.size()-extended_dims.size(), 1);
+    auto one_filled = dnnl::memory::dims(shape.size() - extended_dims.size(), 1);
     extended_dims.insert(extended_dims.begin(), one_filled.begin(), one_filled.end());
     auto desc = t_desc_.reshape(extended_dims);
     for (int i = 0; i < extended_dims.size(); i++) {

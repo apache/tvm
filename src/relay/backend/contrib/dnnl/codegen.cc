@@ -535,7 +535,6 @@ runtime::Module DNNLCompiler(const ObjectRef& ref) {
 
 TVM_REGISTER_GLOBAL("relay.ext.dnnl").set_body_typed(DNNLCompiler);
 
-
 /*!
  * @brief Constant Updater for DNNL JSON runtime
  *

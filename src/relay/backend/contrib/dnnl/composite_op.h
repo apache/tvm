@@ -126,13 +126,13 @@ struct qnn_arg_set_dnnl {
   }
 };
 
-qnn_arg_set_dnnl qnnReformulate(const qnn_arg_set_relay &origin) {
-  auto &r = origin;  // short alias "relay"
+qnn_arg_set_dnnl qnnReformulate(const qnn_arg_set_relay& origin) {
+  auto& r = origin;  // short alias "relay"
   using namespace tensor_arithmetic;
   ICHECK(is_const_scalar_eq(r.wgh_zp, 0)) << "Doesn't support patterns with not zero kernel_zp";
 
   // Convolution on zp filled data. Also applicable for dense and grouped conv.
-  auto conv_zp = [] (const Expr &zp, const Expr &wgh) -> Expr {
+  auto conv_zp = [](const Expr& zp, const Expr& wgh) -> Expr {
     if (is_const_scalar_eq<int32_t>(zp, 0)) return constant(0);
     ICHECK(is_scalar(zp)) << "Only scalar data_zp is supported for qnn primitives";
 
@@ -151,18 +151,18 @@ qnn_arg_set_dnnl qnnReformulate(const qnn_arg_set_relay &origin) {
   res.o_scl = r.rq_in_scl / r.rq_out_scl * r.sum_lh_scl / r.sum_out_scl;
   res.sum_scl = r.sum_rh_scl / r.sum_out_scl;
   res.clip_scl = constant(1.0f);
-  res.clip_low = (cast<float>(constant(0) - r.sum_lh_zp)
-                  - cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl
-                  + cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl)
-                 * r.sum_lh_scl / r.sum_out_scl;
-  res.clip_high = (cast<float>(constant(255) - r.sum_lh_zp)
-                   - cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl
-                   + cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl)
-                  * r.sum_lh_scl / r.sum_out_scl;
-  res.bias = cast<float>(bias) - cast<float>(conv_zp(r.src_zp, r.wgh) + r.rq_in_zp)
-      + cast<float>(r.rq_out_zp - r.sum_lh_zp) * r.rq_out_scl / r.rq_in_scl
-      - cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl * r.rq_out_scl / r.rq_in_scl
-      + cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl * r.rq_out_scl / r.rq_in_scl;
+  res.clip_low = (cast<float>(constant(0) - r.sum_lh_zp) -
+                  cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl +
+                  cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl) *
+                 r.sum_lh_scl / r.sum_out_scl;
+  res.clip_high = (cast<float>(constant(255) - r.sum_lh_zp) -
+                   cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl +
+                   cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl) *
+                  r.sum_lh_scl / r.sum_out_scl;
+  res.bias = cast<float>(bias) - cast<float>(conv_zp(r.src_zp, r.wgh) + r.rq_in_zp) +
+             cast<float>(r.rq_out_zp - r.sum_lh_zp) * r.rq_out_scl / r.rq_in_scl -
+             cast<float>(r.sum_rh_zp) * r.sum_rh_scl / r.sum_lh_scl * r.rq_out_scl / r.rq_in_scl +
+             cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl * r.rq_out_scl / r.rq_in_scl;
 
   return res.evalAndCollapseToScalar();
 }
@@ -178,9 +178,9 @@ qnn_arg_set_dnnl qnnReformulate(const qnn_arg_set_relay &origin) {
  * @param inputs resulting input collection (will append to it)
  * @param attrs resulting attribute collection (will append to it)
  */
-void optQnnArgsForRqSumPattern(const Expr &wgh, const Expr &bias, const OpSeq::Layer &base,
-                               const OpSeq::Layer &rq, const OpSeq::Layer &sum,
-                               std::vector<Expr> *inputs, KernelAttrs *attrs) {
+void optQnnArgsForRqSumPattern(const Expr& wgh, const Expr& bias, const OpSeq::Layer& base,
+                               const OpSeq::Layer& rq, const OpSeq::Layer& sum,
+                               std::vector<Expr>* inputs, KernelAttrs* attrs) {
   ICHECK(wgh.defined());
   ICHECK(base);
   ICHECK(inputs);
@@ -190,30 +190,30 @@ void optQnnArgsForRqSumPattern(const Expr &wgh, const Expr &bias, const OpSeq::L
   args_relay.wgh = wgh;
   args_relay.bias = bias;
 
-  args_relay.src_zp  = base.extern_args_[2];
-  args_relay.wgh_zp  = base.extern_args_[3];
+  args_relay.src_zp = base.extern_args_[2];
+  args_relay.wgh_zp = base.extern_args_[3];
   args_relay.src_scl = base.extern_args_[4];
   args_relay.wgh_scl = base.extern_args_[5];
 
   // Requantize is optional
-  args_relay.rq_in_scl  = rq ? rq.extern_args_[0] : constant(1.f);
-  args_relay.rq_in_zp   = rq ? rq.extern_args_[1] : constant(0);
+  args_relay.rq_in_scl = rq ? rq.extern_args_[0] : constant(1.f);
+  args_relay.rq_in_zp = rq ? rq.extern_args_[1] : constant(0);
   args_relay.rq_out_scl = rq ? rq.extern_args_[2] : constant(1.f);
-  args_relay.rq_out_zp  = rq ? rq.extern_args_[3] : constant(0);
+  args_relay.rq_out_zp = rq ? rq.extern_args_[3] : constant(0);
 
   // Sum is optional
-  args_relay.sum_lh_scl  = sum ? sum.extern_args_[1] : constant(1.f);
-  args_relay.sum_lh_zp   = sum ? sum.extern_args_[2] : constant(0);
-  args_relay.sum_rh_scl  = sum ? sum.extern_args_[3] : constant(0.f);
-  args_relay.sum_rh_zp   = sum ? sum.extern_args_[4] : constant(0);
+  args_relay.sum_lh_scl = sum ? sum.extern_args_[1] : constant(1.f);
+  args_relay.sum_lh_zp = sum ? sum.extern_args_[2] : constant(0);
+  args_relay.sum_rh_scl = sum ? sum.extern_args_[3] : constant(0.f);
+  args_relay.sum_rh_zp = sum ? sum.extern_args_[4] : constant(0);
   args_relay.sum_out_scl = sum ? sum.extern_args_[5] : constant(1.f);
-  args_relay.sum_out_zp  = sum ? sum.extern_args_[6] : constant(0);
+  args_relay.sum_out_zp = sum ? sum.extern_args_[6] : constant(0);
 
   // Recalculate QNN specific arguments
   auto args_dnnl = qnnReformulate(args_relay);
 
   // Helper to register optional qnn args
-  auto put_arg = [&attrs, &inputs] (const Expr &expr, std::string name, auto skip_value) {
+  auto put_arg = [&attrs, &inputs](const Expr& expr, std::string name, auto skip_value) {
     if (expr.defined() && !is_const_scalar_eq(expr, skip_value)) {
       (*attrs)[name] = dmlc_attr(inputs->size());
       inputs->push_back(expr);
@@ -257,9 +257,7 @@ void optQnnArgsForRqSumPattern(const Expr &wgh, const Expr &bias, const OpSeq::L
  * @param orig_bias
  * @return 1D version of original bias expr
  */
-Expr legalizeBiasShape(const Expr& orig_bias) {
-  return EvalExpr(squeeze(orig_bias));
-}
+Expr legalizeBiasShape(const Expr& orig_bias) { return EvalExpr(squeeze(orig_bias)); }
 
 /**
  * Parse qnn.conv2d based fused patterns
@@ -269,17 +267,15 @@ KernelRequisites parseQnnConv2dComposite(const FunctionNode* fn) {
   OpSeq ops;
   ops(fn->body);
 
-  std::vector<std::string>
-      qnn_conv_sum_pat{"qnn.conv2d", "add", "qnn.requantize", "clip", "cast", "qnn.add", "clip"},
+  std::vector<std::string> qnn_conv_sum_pat{"qnn.conv2d", "add", "qnn.requantize", "clip", "cast",
+                                            "qnn.add",    "clip"},
       qnn_conv_sum_no_bias_pat{"qnn.conv2d", "qnn.requantize", "clip", "cast", "qnn.add", "clip"},
       qnn_conv_pat{"qnn.conv2d", "add", "qnn.requantize", "clip", "cast"},
       qnn_conv_no_bias_pat{"qnn.conv2d", "qnn.requantize", "clip", "cast"};
 
   auto layer_names = ops.getOpNames();
-  ICHECK(layer_names == qnn_conv_sum_pat ||
-         layer_names == qnn_conv_pat ||
-         layer_names == qnn_conv_no_bias_pat ||
-         layer_names == qnn_conv_sum_no_bias_pat)
+  ICHECK(layer_names == qnn_conv_sum_pat || layer_names == qnn_conv_pat ||
+         layer_names == qnn_conv_no_bias_pat || layer_names == qnn_conv_sum_no_bias_pat)
       << "Unsupported patter for DNNL code generator. Looks like some discrepancy "
          "between DNNL partitioner pass and code generator.";
 
@@ -297,7 +293,7 @@ KernelRequisites parseQnnConv2dComposite(const FunctionNode* fn) {
   auto oihw_wgh = permute(wgh, permutation(wgh_layout, "OIHW"));
 
   auto attrs = extractAttrs(conv.call_node_);  // extract original attrs
-  std::vector<Expr> inputs = {data, wgh};  // args with fixed positions
+  std::vector<Expr> inputs = {data, wgh};      // args with fixed positions
 
   optQnnArgsForRqSumPattern(oihw_wgh, bias, conv, rq, sum, &inputs, &attrs);
   return {inputs, attrs};
@@ -307,17 +303,15 @@ KernelRequisites parseQnnDenseComposite(const FunctionNode* fn) {
   OpSeq ops;
   ops(fn->body);
 
-  std::vector<std::string>
-      qnn_dense_sum_pat{"qnn.dense", "add", "qnn.requantize", "clip", "cast", "qnn.add", "clip"},
+  std::vector<std::string> qnn_dense_sum_pat{"qnn.dense", "add", "qnn.requantize", "clip", "cast",
+                                             "qnn.add",   "clip"},
       qnn_dense_sum_no_bias_pat{"qnn.dense", "qnn.requantize", "clip", "cast", "qnn.add", "clip"},
       qnn_dense_pat{"qnn.dense", "add", "qnn.requantize", "clip", "cast"},
-      qnn_dense_no_bias_pat{"qnn.dense", "qnn.requantize", "clip", "cast"};;
+      qnn_dense_no_bias_pat{"qnn.dense", "qnn.requantize", "clip", "cast"};
 
   auto layer_names = ops.getOpNames();
-  ICHECK(layer_names == qnn_dense_sum_pat ||
-         layer_names == qnn_dense_sum_no_bias_pat ||
-         layer_names == qnn_dense_pat ||
-         layer_names == qnn_dense_no_bias_pat)
+  ICHECK(layer_names == qnn_dense_sum_pat || layer_names == qnn_dense_sum_no_bias_pat ||
+         layer_names == qnn_dense_pat || layer_names == qnn_dense_no_bias_pat)
       << "Unsupported patter for DNNL code generator. Looks like some discrepancy "
          "between DNNL partitioner pass and code generator.";
 
@@ -331,13 +325,13 @@ KernelRequisites parseQnnDenseComposite(const FunctionNode* fn) {
   auto bias = bs ? legalizeBiasShape(bs.extern_args_[0]) : Expr{};
 
   auto attrs = extractAttrs(dense.call_node_);  // extract original attrs
-  std::vector<Expr> inputs = {data, wgh};  // args with fixed positions
+  std::vector<Expr> inputs = {data, wgh};       // args with fixed positions
 
   optQnnArgsForRqSumPattern(wgh, bias, dense, rq, sum, &inputs, &attrs);
   return {inputs, attrs};
 }
 
-KernelRequisites parseBaseOpComposite(const FunctionNode* fn, const std::string &base_op_name) {
+KernelRequisites parseBaseOpComposite(const FunctionNode* fn, const std::string& base_op_name) {
   ICHECK(base_op_name == "nn.conv2d" || base_op_name == "nn.dense");
   OpSeq ops;
   ops(fn->body);
@@ -382,26 +376,18 @@ KernelRequisites DNNLCompositeFunctionsParser(const FunctionNode* fn) {
   ICHECK(comp.defined());
   std::string name = comp.value();
 
-  if (name == "dnnl.qnn.conv2d_sum" ||
-      name == "dnnl.qnn.conv2d") {
+  if (name == "dnnl.qnn.conv2d_sum" || name == "dnnl.qnn.conv2d") {
     return parseQnnConv2dComposite(fn);
-  } else if (name == "dnnl.qnn.dense_sum" ||
-             name == "dnnl.qnn.dense") {
+  } else if (name == "dnnl.qnn.dense_sum" || name == "dnnl.qnn.dense") {
     return parseQnnDenseComposite(fn);
-  } else if (name == "dnnl.conv2d_bias_relu" ||
-             name == "dnnl.conv2d_bias_tanh" ||
-             name == "dnnl.conv2d_bias_sigmoid" ||
-             name == "dnnl.conv2d_bias" ||
-             name == "dnnl.conv2d_relu" ||
-             name == "dnnl.conv2d_tanh" ||
+  } else if (name == "dnnl.conv2d_bias_relu" || name == "dnnl.conv2d_bias_tanh" ||
+             name == "dnnl.conv2d_bias_sigmoid" || name == "dnnl.conv2d_bias" ||
+             name == "dnnl.conv2d_relu" || name == "dnnl.conv2d_tanh" ||
              name == "dnnl.conv2d_sigmoid") {
     return parseBaseOpComposite(fn, "nn.conv2d");
-  } else if (name == "dnnl.dense_bias_relu" ||
-             name == "dnnl.dense_bias_tanh" ||
-             name == "dnnl.dense_bias_sigmoid" ||
-             name == "dnnl.dense_bias" ||
-             name == "dnnl.dense_relu" ||
-             name == "dnnl.dense_tanh" ||
+  } else if (name == "dnnl.dense_bias_relu" || name == "dnnl.dense_bias_tanh" ||
+             name == "dnnl.dense_bias_sigmoid" || name == "dnnl.dense_bias" ||
+             name == "dnnl.dense_relu" || name == "dnnl.dense_tanh" ||
              name == "dnnl.dense_sigmoid") {
     return parseBaseOpComposite(fn, "nn.dense");
   } else {
