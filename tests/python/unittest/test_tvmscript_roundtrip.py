@@ -3194,9 +3194,7 @@ def test_T_ptr_let_statement():
 
 @T.prim_func
 def func_T_ptr_allocate() -> None:
-    A_data: T.Ptr[T.float32] = T.allocate([1024], "float32", "global")
-    A = T.buffer_decl([1024], dtype="float32", data=A_data)
-
+    A = T.allocate([1024], "float32", "global")
     A[0] = 0.0
 
 
