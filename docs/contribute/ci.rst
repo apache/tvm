@@ -165,7 +165,9 @@ and help in mounting your current directory.
     cd tvm
     bash docker/bash.sh ci_cpu
     # the tvm directory is automatically mounted
-    $ ls
+    # example: build tvm (note: this will overrwrite build/)
+    $ ./tests/scripts/task_config_build_cpu.sh
+    $ ./tests/scripts/task_build.sh build -j32
 
 
 Reporting Issues
