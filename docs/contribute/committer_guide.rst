@@ -101,3 +101,37 @@ Sometimes, we tend to only interact with people we know.
 However, broad collaborations are necessary to the success of the project.
 Try to keep that in mind, shepherd PRs for, and request code reviews from
 community members who you do not interact physically.
+
+
+Keeping CI Green
+----------------
+Developers rely on the TVM CI to get signal on their PRs before merging.
+Occasionally breakges slip through and break ``main``, which in turn causes
+the same error to show up on an PR that is based on the broken commit(s).
+In these situations it is possible to either revert the offending commit or
+submit a forward fix to address the issue. It is up to the committer and commit
+author which option to choose, keeping in mind that a broken CI affects all TVM
+developers and should be fixed as soon as possible.
+
+For reverts and trivial forward fixes, adding ``[skip ci]`` to the revert's
+commit message will cause CI to shortcut and only run lint. Committers should
+take care that they only merge CI-skipped PRs to fix a failure on ``main`` and
+not in cases where the submitter wants to shortcut CI to merge a change faster.
+
+.. code:: bash
+
+  # Example: Skip CI on a revert
+  # Revert HEAD commit, make sure to insert '[skip ci]' at the beginning of
+  # the commit subject
+  git revert HEAD
+
+  git checkout -b my_fix
+  # After you have pushed your branch, create a PR as usual.
+  git push my_repo
+
+  # Example: Skip CI on a branch with an existing PR
+  # Adding this commit to an existing branch will cause a new CI run where
+  # Jenkins is skipped
+  git commit --allow-empty --message "[skip ci] Trigger skipped CI"
+  git push my_repo
+
