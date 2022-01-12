@@ -502,7 +502,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // TODO(@apeskov): DNNL v2.5 and late has API for separate scale and shift
     //                 it will eliminate requirements of data copy.
     // Prepare concatenated Scale and Shift tensor
-    auto scale_shift_tr = node.makeTemp(bn_pd.weights_desc());
+    auto scale_shift_tr = node.makeTemp(bn_pd.weights_desc(), g_explorer_.generateUniqueEID());
     auto sc_sh_dims = scale_shift_tr.dims();
     ICHECK(sc_sh_dims.size() == 2);
     ICHECK(sc_sh_dims[0] == 2);

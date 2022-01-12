@@ -165,7 +165,7 @@ qnn_arg_set_dnnl qnnReformulate(const qnn_arg_set_relay &origin) {
       + cast<float>(r.sum_out_zp) * r.sum_out_scl / r.sum_lh_scl * r.rq_out_scl / r.rq_in_scl;
 
   return res.evalAndCollapseToScalar();
-};
+}
 
 /*!
  * @brief Specify optional QNN args and attrs if required
@@ -249,7 +249,7 @@ void optQnnArgsForRqSumPattern(const Expr &wgh, const Expr &bias, const OpSeq::L
 
     (*attrs)["activation"] = dmlc_attr(clip_attr);
   }
-};
+}
 
 /*!
  * Legalize bias shape to 1D form
