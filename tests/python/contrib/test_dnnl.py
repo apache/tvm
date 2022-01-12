@@ -16,6 +16,7 @@
 # under the License.
 import pytest
 import itertools
+
 import tvm
 import tvm.relay.testing
 from tvm import relay
@@ -61,13 +62,17 @@ def run_and_verify(mod, input, params, target, run_module):
     dev = tvm.cpu()
     result_dict = dict()
     for mode in ["graph", "vm"]:
-        for use_dnnl in [False, True]:
+        for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
             result_key = mode + ("_dnnl" if use_dnnl else "")
             if use_dnnl:
-                mod = dnnl.partition_for_dnnl(mod, params)
-                check_dnnl_used(mod)
+                processed_mod = dnnl.partition_for_dnnl(mod, params, alter_layout)
+                check_dnnl_used(processed_mod)
+            else:
+                processed_mod = mod
             with tvm.transform.PassContext(opt_level=3):
-                func = relay.create_executor(mode, mod=mod, device=dev, target=target).evaluate()
+                func = relay.create_executor(
+                    mode, mod=processed_mod, device=dev, target=target
+                ).evaluate()
             if run_module:
                 if isinstance(input, dict):
                     result_dict[result_key] = func(**input, **params)
@@ -80,13 +85,11 @@ def run_and_verify(mod, input, params, target, run_module):
 
 def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
     """Test a Relay func by compiling, running, and comparing TVM and DNNL outputs.
-
     Parameters
     ----------
     config : Tuple[relay.Function, Dict[str, NDArray], List[str]]
         A tuple containing 1) The function to test, 2) A dictionary of var names to input shapes and
         3) A list of which vars should be considered params.
-
     run_module: bool
         If True, the built module will be run after being compiled.
     """
@@ -97,12 +100,12 @@ def run_and_verify_func(config, run_module, target="llvm", dtype="float32"):
         for k, v in input_shapes.items()
         if k not in is_param
     }
-    run_and_verify(f, input_dict, params, target, run_module)
+    run_and_verify(f, input_dict, params, target=target, run_module=run_module)
 
 
 def get_conv1d(
     x_shape=((1, 3, 224)),
-    k_shape=(10, 3, 3),
+    k_shape=(16, 3, 3),
     groups=1,
     padding=(1, 1),
     strides=(1),
@@ -222,7 +225,7 @@ def get_conv2d_transpose(
     out = relay.nn.conv2d_transpose(
         x,
         kernel,
-        channels=k_shape[1],
+        channels=k_shape[1] * groups,
         kernel_size=k_shape[2:4],
         groups=groups,
         padding=padding,
@@ -251,7 +254,7 @@ def get_conv2d_weights_const(
     dtype="float32",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.const(np.ones(k_shape).astype(dtype))
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv2d(
         x,
         kernel,
@@ -270,7 +273,7 @@ def get_conv2d_weights_const(
 def get_conv2d_bias(
     x_shape=(1, 32, 8, 8), k_shape=(16, 32, 3, 3), activation=None, dtype="float32"
 ):
-    conv, dic, param_lst = get_conv2d(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
+    conv, dic, param_lst = get_conv2d_weights_const(x_shape=x_shape, k_shape=k_shape, dtype=dtype)
     bias = relay.var("bias", shape=(k_shape[0],), dtype=dtype)
     out = relay.nn.bias_add(conv, bias)
     dic["bias"] = (k_shape[0],)
@@ -336,7 +339,7 @@ def get_conv3d(
     dtype="float32",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv3d(
         x,
         kernel,
@@ -373,7 +376,7 @@ def get_conv3d_transpose(
     kernel_layout="OIDHW",
 ):
     x = relay.var("x", shape=(x_shape), dtype=dtype)
-    kernel = relay.var("kernel", shape=(k_shape), dtype=dtype)
+    kernel = relay.const(np.random.randint(0, 1, k_shape).astype(dtype))
     out = relay.nn.conv3d_transpose(
         x,
         kernel,
@@ -542,15 +545,22 @@ def test_softmax(run_module, dtype="float32"):
 
 
 def test_conv1d(run_module, dtype="float32"):
-    conv1d, dic, param_lst = get_conv1d(channels=10, dtype=dtype)
+    conv1d, dic, param_lst = get_conv1d(channels=16, dtype=dtype)
     conv1d = tvm.IRModule.from_expr(conv1d)
     config = conv1d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    x_shape = (1, 32, 224)
+    k_shape = (16, 32, 3)
+    conv1d_bias, dic, param_lst = get_conv1d(x_shape, k_shape, dtype=dtype)
+    conv1d_bias = tvm.IRModule.from_expr(conv1d_bias)
+    config = conv1d_bias, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
 def test_conv1d_pattern(run_module, dtype="float32"):
     x_shape = (1, 3, 224)
-    k_shape = (10, 3, 3)
+    k_shape = (16, 3, 3)
     activation_lst = [None, "relu", "tanh", "sigmoid"]
     for a in activation_lst:
         conv1d, dic, param_lst = get_conv1d(x_shape, k_shape, activation=a, dtype=dtype)
@@ -566,7 +576,7 @@ def test_conv1d_pattern(run_module, dtype="float32"):
 
 def test_conv2d(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
-    for k_shape, groups in [((16, 32, 3, 3), 1), ((32, 1, 3, 3), 32)]:
+    for k_shape, groups in [((16, 32, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 2, 3, 3), 16)]:
         for padding in [(0, 0), (1, 1)]:
             for strides in [(1, 1), (2, 2)]:
                 for dilation in [(1, 1), (2, 2)]:
@@ -587,6 +597,13 @@ def test_conv2d(run_module, dtype="float32"):
 def test_conv2d_weights_const(run_module, dtype="float32"):
     x_shape = (1, 32, 8, 8)
     k_shape = (16, 32, 3, 3)
+    conv2d, dic, param_lst = get_conv2d_weights_const(x_shape, k_shape, dtype=dtype)
+    conv2d = tvm.IRModule.from_expr(conv2d)
+    config = conv2d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    x_shape = (1, 3, 8, 8)
+    k_shape = (16, 3, 3, 3)
     conv2d, dic, param_lst = get_conv2d_weights_const(x_shape, k_shape, dtype=dtype)
     conv2d = tvm.IRModule.from_expr(conv2d)
     config = conv2d, dic, param_lst
@@ -615,14 +632,21 @@ def test_conv2d_pattern(run_module, dtype="float32"):
 
 
 def test_conv2d_transpose(run_module, dtype="float32"):
-    for padding in [(0, 0), (1, 1)]:
-        for strides in [(1, 1), (2, 2)]:
-            conv2d_transpose, dic, param_lst = get_conv2d_transpose(
-                padding=padding, strides=strides, dtype=dtype
-            )
-            conv2d_transpose = tvm.IRModule.from_expr(conv2d_transpose)
-            config = conv2d_transpose, dic, param_lst
-            run_and_verify_func(config, run_module=run_module, dtype=dtype)
+    x_shape = (1, 32, 8, 8)
+    for k_shape, groups in [((32, 16, 3, 3), 1), ((32, 1, 3, 3), 32), ((32, 4, 3, 3), 16)]:
+        for padding in [(0, 0), (1, 1)]:
+            for strides in [(1, 1), (2, 2)]:
+                conv2d_transpose, dic, param_lst = get_conv2d_transpose(
+                    x_shape=x_shape,
+                    k_shape=k_shape,
+                    groups=groups,
+                    padding=padding,
+                    strides=strides,
+                    dtype=dtype,
+                )
+                conv2d_transpose = tvm.IRModule.from_expr(conv2d_transpose)
+                config = conv2d_transpose, dic, param_lst
+                run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
 
 def test_conv2d_transpose_pattern(run_module, dtype="float32"):
@@ -646,6 +670,13 @@ def test_conv3d(run_module, dtype="float32"):
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
 
     conv3d, dic, param_lst = get_conv3d(padding=(0, 0, 0, 1, 1, 1), dtype=dtype)
+    conv3d = tvm.IRModule.from_expr(conv3d)
+    config = conv3d, dic, param_lst
+    run_and_verify_func(config, run_module=run_module, dtype=dtype)
+
+    conv3d, dic, param_lst = get_conv3d(
+        x_shape=(1, 3, 8, 8, 8), k_shape=(16, 3, 3, 3, 3), dtype=dtype
+    )
     conv3d = tvm.IRModule.from_expr(conv3d)
     config = conv3d, dic, param_lst
     run_and_verify_func(config, run_module=run_module, dtype=dtype)
