@@ -72,6 +72,7 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }

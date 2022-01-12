@@ -180,6 +180,8 @@ class RelayExprNode : public BaseExprNode {
    * the call to the function or closure is stored (instead of where the function itself is stored).
    * The VirtualDevice's Target field describes how the body of the function should be compiled.
    *
+   * Set to VirtualDevice::FullyUnconstrained by default.
+   *
    * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
    * import.
    */
