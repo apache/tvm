@@ -52,7 +52,7 @@ TEST(BuildModule, Basic) {
 
   auto target = Target("llvm");
 
-  auto lowered = lower(s, args, "func", binds);
+  auto lowered = LowerSchedule(s, args, "func", binds);
   auto module = build(lowered, target, Target());
 
   auto mali_target = Target("opencl -model=Mali-T860MP4@800Mhz -device=mali");
@@ -102,6 +102,7 @@ TEST(BuildModule, Heterogeneous) {
   auto elemwise_add = compute(
       A->shape, [&A, &B](PrimExpr i) { return A[i] + B[i]; }, "elemwise_add");
 
+  // TODO(mbs): device_copy cleanup.
   auto copy = placeholder(shape, DataType::Float(32), "__copy");
   auto elemwise_sub = compute(
       C->shape, [&copy, &C](PrimExpr i) { return copy[i] - C[i]; }, "elemwise_sub");
@@ -116,8 +117,8 @@ TEST(BuildModule, Heterogeneous) {
   auto args2 = Array<Tensor>({copy, C, elemwise_sub});
 
   std::unordered_map<Tensor, Buffer> binds;
-  auto lowered_s1 = lower(s1, args1, "elemwise_add", binds);
-  auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds);
+  auto lowered_s1 = LowerSchedule(s1, args1, "elemwise_add", binds);
+  auto lowered_s2 = LowerSchedule(s2, args2, "elemwise_sub", binds);
   Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1}, {target_llvm, lowered_s2}};
   auto module = build(inputs, Target());
 
@@ -152,9 +153,9 @@ TEST(BuildModule, Heterogeneous) {
   auto b_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto c_val = runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pa = (float*)(a_val->data);
-  auto pb = (float*)(b_val->data);
-  auto pc = (float*)(c_val->data);
+  auto pa = static_cast<float*>(a_val->data);
+  auto pb = static_cast<float*>(b_val->data);
+  auto pc = static_cast<float*>(c_val->data);
 
   // Assign values.
   for (int i = 0; i < n; i++) {
@@ -192,16 +193,10 @@ TEST(BuildModule, Heterogeneous) {
 
   run();
   tvm::runtime::NDArray out = get_output(0);
-  float* p_out = (float*)out->data;
+  float* p_out = static_cast<float*>(out->data);
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {
     ICHECK_LT(std::fabs(p_out[i] - (i + (i + 1.0) - (i - 1.0))), 1e-5);
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

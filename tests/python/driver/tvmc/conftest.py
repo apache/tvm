@@ -33,28 +33,12 @@ def download_and_untar(model_url, model_sub_path, temp_dir):
     model_tar_name = os.path.basename(model_url)
     model_path = download_testdata(model_url, model_tar_name, module=["tvmc"])
 
-    if model_path.endswith("tgz") or model_path.endswith("gz"):
+    if model_path.endswith("tgz") or model_path.endswith("gz") or model_path.endswith("tar"):
         tar = tarfile.open(model_path)
         tar.extractall(path=temp_dir)
         tar.close()
 
     return os.path.join(temp_dir, model_sub_path)
-
-
-def get_sample_compiled_module(target_dir, package_filename):
-    """Support function that returns a TFLite compiled module"""
-    base_url = "https://storage.googleapis.com/download.tensorflow.org/models"
-    model_url = "mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
-    model_file = download_and_untar(
-        "{}/{}".format(base_url, model_url),
-        "mobilenet_v1_1.0_224_quant.tflite",
-        temp_dir=target_dir,
-    )
-
-    tvmc_model = tvmc.frontends.load_model(model_file)
-    return tvmc.compiler.compile_model(
-        tvmc_model, target="llvm", package_path=os.path.join(target_dir, package_filename)
-    )
 
 
 # PyTest fixtures
@@ -143,6 +127,23 @@ def pytorch_resnet18(tmpdir_factory):
 
 
 @pytest.fixture(scope="session")
+def pytorch_mobilenetv2_quantized(tmpdir_factory):
+    try:
+        import torch
+        import torchvision.models as models
+    except ImportError:
+        # Not all environments provide Pytorch, so skip if that's the case.
+        return ""
+    model = models.quantization.mobilenet_v2(quantize=True)
+    model_file_name = "{}/{}".format(tmpdir_factory.mktemp("data"), "mobilenet_v2_quantized.pth")
+    # Trace model into torchscript.
+    traced_cpu = torch.jit.trace(model, torch.randn(1, 3, 224, 224))
+    torch.jit.save(traced_cpu, model_file_name)
+
+    return model_file_name
+
+
+@pytest.fixture(scope="session")
 def onnx_resnet50():
     base_url = "https://github.com/onnx/models/raw/master/vision/classification/resnet/model"
     file_to_download = "resnet50-v2-7.onnx"
@@ -150,6 +151,18 @@ def onnx_resnet50():
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
     )
 
+    return model_file
+
+
+@pytest.fixture(scope="session")
+def paddle_resnet50(tmpdir_factory):
+    base_url = "https://bj.bcebos.com/x2paddle/models"
+    model_url = "paddle_resnet50.tar"
+    model_file = download_and_untar(
+        "{}/{}".format(base_url, model_url),
+        "paddle_resnet50/model",
+        temp_dir=tmpdir_factory.mktemp("data"),
+    )
     return model_file
 
 
@@ -164,22 +177,18 @@ def onnx_mnist():
     return model_file
 
 
-@pytest.fixture(scope="session")
-def tflite_compiled_model(tmpdir_factory):
+@pytest.fixture
+def tflite_compile_model(tmpdir_factory):
+    """Support function that returns a TFLite compiled module"""
 
-    # Not all CI environments will have TFLite installed
-    # so we need to safely skip this fixture that will
-    # crash the tests that rely on it.
-    # As this is a pytest.fixture, we cannot take advantage
-    # of pytest.importorskip. Using the block below instead.
-    try:
-        import tflite
-    except ImportError:
-        print("Cannot import tflite, which is required by tflite_compiled_module_as_tarfile.")
-        return ""
+    def model_compiler(model_file, **overrides):
+        package_path = tmpdir_factory.mktemp("data").join("mock.tar")
+        tvmc_model = tvmc.frontends.load_model(model_file)
+        args = {"target": "llvm", **overrides}
+        return tvmc.compiler.compile_model(tvmc_model, package_path=package_path, **args)
 
-    target_dir = tmpdir_factory.mktemp("data")
-    return get_sample_compiled_module(target_dir, "mock.tar")
+    # Returns a TVMCPackage
+    return model_compiler
 
 
 @pytest.fixture(scope="session")
@@ -209,4 +218,14 @@ def tflite_mobilenet_v1_0_25_128(tmpdir_factory):
         temp_dir=tmpdir_factory.mktemp("data"),
     )
 
+    return model_file
+
+
+@pytest.fixture(scope="session")
+def tflite_cnn_s_quantized(tmpdir_factory):
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/master/models/keyword_spotting/cnn_small/tflite_int8/"
+    file_to_download = "cnn_s_quantized.tflite"
+    model_file = download_testdata(
+        "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
+    )
     return model_file

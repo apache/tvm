@@ -34,16 +34,6 @@
 namespace tvm {
 namespace tir {
 
-inline PrimExpr ConstInt32(size_t index) {
-  ICHECK_LE(index, std::numeric_limits<int>::max());
-  return make_const(DataType::Int(32), static_cast<int>(index));
-}
-
-inline PrimExpr StackAlloca(std::string type, size_t num) {
-  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
-  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
-}
-
 // Calculate the statistics of packed function.
 // These information are needed during codegen.
 class BuiltinLower : public StmtExprMutator {
@@ -108,12 +98,41 @@ class BuiltinLower : public StmtExprMutator {
     }
   }
 
+  Stmt VisitStmt_(const LetStmtNode* op) final {
+    if (const CallNode* call = op->value.as<CallNode>()) {
+      if (call->op.same_as(builtin::texture2d_alloca())) {
+        return StmtExprMutator::VisitStmt(MakeTextureAlloc(op, call));
+      }
+    }
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const AllocateNode* op) {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
+    // If the buffers are for CPU and have global scope,
+    // and less than runtime::kMaxStackAlloca heuristic
+    // they are not serviced with TVMBackendWorkspaceAlloc calls
+    // to be placed on stack.
+    if (op->annotations.count(transform::kDisableLowerTVMBuiltin)) {
+      if (Downcast<Bool>(op->annotations[transform::kDisableLowerTVMBuiltin])) {
+        return stmt;
+      }
+    }
+    if (device_type_.defined()) {
+      if (const auto* dev_type = device_type_.as<IntImmNode>()) {
+        auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
+        if (dev_type->value == kDLCPU && storage_scope == "global") {
+          int32_t constant_size = op->constant_allocation_size();
+          if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
+            return stmt;
+          }
+        }
+      }
+    }
     PrimExpr total_bytes = make_const(op->extents[0].dtype(), nbytes);
     for (size_t i = 0; i < op->extents.size(); ++i) {
       total_bytes = total_bytes * op->extents[i];
@@ -266,11 +285,18 @@ class BuiltinLower : public StmtExprMutator {
     size_t restore_array_stack = scope.run_array_stack;
     size_t arg_stack_begin = scope.run_arg_stack;
 
-    scope.run_arg_stack += op->args.size();
+    size_t arg_count = op->args.size();
+
+    // cpacked expects a resource_handle parameter
+    if (!use_string_lookup) {
+      arg_count--;
+    }
+
+    scope.run_arg_stack += arg_count;
     // Specially handle the buffer packed intrinsic
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
-    for (size_t i = 1; i < op->args.size(); ++i) {
+    for (size_t i = 1; i < arg_count; ++i) {
       PrimExpr stack_index = ConstInt32(arg_stack_begin + i - 1);
       PrimExpr arg = op->args[i];
       DataType t = arg.dtype();
@@ -299,6 +325,12 @@ class BuiltinLower : public StmtExprMutator {
     Array<PrimExpr> packed_args = {op->args[0], scope.stack_value, scope.stack_tcode,
                                    ConstInt32(arg_stack_begin),
                                    ConstInt32(arg_stack_begin + op->args.size() - 1)};
+
+    // cpacked call resource_handle
+    if (!use_string_lookup) {
+      tir::Var resource_handle = Downcast<Var>(op->args[arg_count]);
+      packed_args.push_back(StringImm(resource_handle->name_hint));
+    }
 
     auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()
                                           : builtin::tvm_call_cpacked_lowered();
@@ -349,6 +381,38 @@ class BuiltinLower : public StmtExprMutator {
                                    // Pass traced value.
                                    op->args[args_size - 1]};
     return Call(op->dtype, builtin::tvm_call_trace_packed_lowered(), packed_args);
+  }
+
+  Stmt MakeTextureAlloc(const LetStmtNode* let, const CallNode* call) {
+    ICHECK(device_type_.defined()) << "Unknown device type in current IR";
+    ICHECK(device_id_.defined()) << "Unknown device id in current IR";
+    Stmt throw_last_error = Evaluate(Call(DataType::Int(32), builtin::tvm_throw_last_error(), {}));
+
+    Stmt body = SeqStmt(
+        {IfThenElse(Call(DataType::Bool(1), builtin::isnullptr(), {let->var}), throw_last_error),
+         let->body});
+    DataType dtype =
+        let->var->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>()->dtype;
+
+    std::string fdevapi_prefix = "device_api.";
+    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    Call call_packed =
+        Call(let->var.dtype(), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".AllocTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), cast(DataType::UInt(64), call->args[0]),
+              cast(DataType::UInt(64), call->args[1]), IntImm(DataType::Int(32), dtype.code()),
+              IntImm(DataType::Int(32), dtype.bits())});
+
+    Stmt alloca = LetStmt(let->var, call_packed, body);
+
+    Call free_op =
+        Call(DataType::Int(32), builtin::tvm_call_packed(),
+             {StringImm(fdevapi_prefix + ".FreeTexture"), cast(DataType::Int(32), device_type_),
+              cast(DataType::Int(32), device_id_), let->var});
+
+    Stmt free_stmt = IfThenElse(free_op != make_zero(DataType::Int(32)), throw_last_error);
+    body = SeqStmt({alloca, free_stmt});
+    return body;
   }
 
  private:

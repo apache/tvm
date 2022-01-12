@@ -49,13 +49,15 @@ def _model_graph(TestClass):
     return gdef, input_, output
 
 
+def run_func_graph(TestClass, runtime="vm", outputs=None):
+    compare_tf_tvm(*_function_graph(TestClass), runtime=runtime, output_tensors=outputs)
+
+
+def run_model_graph(TestClass, outputs=None):
+    compare_tf_tvm(*_model_graph(TestClass), runtime="vm", output_tensors=outputs)
+
+
 def run_all(TestClass):
-    def run_func_graph(TestClass, runtime="vm"):
-        compare_tf_tvm(*_function_graph(TestClass), runtime=runtime)
-
-    def run_model_graph(TestClass):
-        compare_tf_tvm(*_model_graph(TestClass), runtime="vm")
-
     run_model_graph(TestClass)
     for runtime_ in ["vm", "graph"]:
         run_func_graph(TestClass, runtime=runtime_)
@@ -63,7 +65,7 @@ def run_all(TestClass):
 
 def test_add_one():
     class AddOne(tf.Module):
-        """ simple function to test x=x+1; scalar as input"""
+        """simple function to test x=x+1; scalar as input"""
 
         def get_input(self):
             return np.array(1.0, dtype="float32")
@@ -352,9 +354,235 @@ def test_concat_v2():
         @tf.function(input_signature=[tf.TensorSpec(shape=(1, 30), dtype=tf.float32)])
         def func(self, x):
             a, b, c = tf.split(x, 3, axis=1)
-            return tf.raw_ops.ConcatV2(values=[a, b, c], axis=1)
+            axis = tf.add(tf.constant(1, dtype="int32"), tf.constant(0, dtype="int32"))
+            return tf.raw_ops.ConcatV2(values=[a, b, c], axis=axis)
 
     run_all(ConcatV2)
+
+
+def test_multi_output():
+    class MultiOutput(tf.Module):
+        def get_input(self):
+            return np.ones((2, 2), dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+        def func(self, x):
+            y = 2 * x
+            return x, y
+
+    run_func_graph(MultiOutput, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"])
+    run_func_graph(
+        MultiOutput, runtime="graph", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
+    run_model_graph(MultiOutput, outputs=["Identity:output:0"])
+
+
+def test_if():
+    def create_if_class(_condition=True):
+        class If(tf.Module):
+            def get_input(self):
+                return np.ones((2, 2), dtype="float32")
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+            def func(self, x):
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def double(x):
+                    return 2 * x
+
+                @tf.function(input_signature=[tf.TensorSpec(shape=(2, 2), dtype=tf.float32)])
+                def triple(x):
+                    return 3 * x
+
+                output = tf.raw_ops.If(
+                    cond=_condition,
+                    input=[x],
+                    Tout=[tf.float32],
+                    output_shapes=[(2, 2)],
+                    then_branch=double.get_concrete_function(),
+                    else_branch=triple.get_concrete_function(),
+                )
+                return output[0]
+
+        return If
+
+    for cond in [True, False]:
+        if_class = create_if_class(_condition=cond)
+        run_func_graph(if_class, runtime="vm")
+        run_model_graph(if_class)
+
+
+def test_stateless_while():
+    class StatelessWhile(tf.Module):
+        def get_input(self):
+            return np.array([6], dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.0)
+            cond = lambda i: tf.less(i, x)
+            body = lambda i: (tf.add(i, 2),)
+            r = tf.while_loop(cond, body, [i])
+            return r[0]
+
+    run_func_graph(StatelessWhile, runtime="vm")
+    run_model_graph(StatelessWhile)
+
+
+def test_stateless_while_2var():
+    class StatelessWhile2Var(tf.Module):
+        def get_input(self):
+            return np.array([20], dtype="float32")
+
+        @tf.function(input_signature=[tf.TensorSpec(shape=(1,), dtype=tf.float32)])
+        def func(self, x):
+            i = tf.constant(3.0)
+            j = tf.constant(5.0)
+            cond = lambda i, j: tf.less(i + j, x)
+            body = lambda i, j: (tf.add(i, 2), tf.add(j, 3))
+            r = tf.while_loop(cond, body, [i, j])
+            return r
+
+    run_func_graph(
+        StatelessWhile2Var, runtime="vm", outputs=["Identity:output:0", "Identity_1:output:0"]
+    )
+    run_model_graph(StatelessWhile2Var, outputs=["Identity:output:0"])
+
+
+def test_tensorlist():
+    def run_test(elem_shape):
+        class TensorList(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3), dtype="float32")
+                in_tens[1, :] = np.zeros((3,), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :])
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=1, item=x[1, :])
+                output = tf.raw_ops.TensorListGetItem(
+                    input_handle=tl, index=0, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorList)
+        run_func_graph(TensorList, runtime="vm")
+
+    run_test((3,))
+    run_test((-1,))
+
+
+def test_tensorlist_stack():
+    def run_test(elem_shape):
+        class TensorListStack(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3), dtype="float32")
+                in_tens[1] = np.zeros((3,), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorListStack)
+        run_func_graph(TensorListStack, runtime="vm")
+
+    run_test((3,))
+    run_test((-1,))
+
+
+def test_tensorlist_2d():
+    def run_test(elem_shape):
+        class TensorList2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3, 4), dtype="float32")
+                in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :, :])
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=1, item=x[1, :, :])
+                output = tf.raw_ops.TensorListGetItem(
+                    input_handle=tl, index=0, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorList2D)
+        run_func_graph(TensorList2D, runtime="vm")
+
+    run_test((3, 4))
+    run_test((-1, -1))
+
+
+def test_tensorlist_stack_2d():
+    def run_test(elem_shape):
+        class TensorListStack2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((2, 3, 4), dtype="float32")
+                in_tens[1, :, :] = np.zeros((3, 4), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(2, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=2, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListFromTensor(tensor=x, element_shape=elem_shape)
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype
+                )
+                return output
+
+        run_model_graph(TensorListStack2D)
+        run_func_graph(TensorListStack2D, runtime="vm")
+
+    run_test((3, 4))
+    run_test((-1, -1))
+
+
+def test_tensorlist_stack_unpack():
+    def run_test(elem_shape):
+        class TensorListStack2D(tf.Module):
+            def get_input(self):
+                in_tens = np.ones((1, 3, 4), dtype="float32")
+                return in_tens
+
+            @tf.function(input_signature=[tf.TensorSpec(shape=(1, 3, 4), dtype=tf.float32)])
+            def func(self, x):
+                dtype = tf.float32
+                tl = tf.raw_ops.TensorListReserve(
+                    element_shape=elem_shape, num_elements=1, element_dtype=dtype
+                )
+                tl = tf.raw_ops.TensorListSetItem(input_handle=tl, index=0, item=x[0, :, :])
+                output = tf.raw_ops.TensorListStack(
+                    input_handle=tl, element_shape=elem_shape, element_dtype=dtype, num_elements=1
+                )
+                output = tf.raw_ops.Unpack(value=output, num=1, axis=0)
+                return output
+
+        run_model_graph(TensorListStack2D)
+        run_func_graph(TensorListStack2D, runtime="vm")
+
+    run_test((3, 4))
+    run_test((-1, -1))
 
 
 if __name__ == "__main__":

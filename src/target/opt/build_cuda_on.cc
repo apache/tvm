@@ -67,6 +67,10 @@ std::string FindCUDAIncludePath() {
   if (stat(cuda_include_path.c_str(), &st) == 0) {
     return cuda_include_path;
   }
+
+  if (stat("/usr/include/cuda.h", &st) == 0) {
+    return "/usr/include";
+  }
 #endif
   LOG(FATAL) << "Cannot find cuda include path."
              << "CUDA_PATH is not set or CUDA is not installed in the default installation path."
@@ -143,6 +147,8 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   }
   std::string fmt = "ptx";
   std::string ptx;
+  const auto* f_enter = Registry::Get("target.TargetEnterScope");
+  (*f_enter)(target);
   if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
     ptx = (*f)(code).operator std::string();
     // Dirty matching to check PTX vs cubin.
@@ -151,6 +157,8 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
+  const auto* f_exit = Registry::Get("target.TargetExitScope");
+  (*f_exit)(target);
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 

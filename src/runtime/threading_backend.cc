@@ -185,7 +185,7 @@ class ThreadGroup::Impl {
       int64_t cur_freq = 0;
 #if defined(__linux__) || defined(__ANDROID__)
       std::ostringstream filepath;
-      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/cpuinfo_max_freq";
+      filepath << "/sys/devices/system/cpu/cpu" << i << "/cpufreq/scaling_max_freq";
       std::ifstream ifs(filepath.str());
       if (!ifs.fail()) {
         if (!(ifs >> cur_freq)) {

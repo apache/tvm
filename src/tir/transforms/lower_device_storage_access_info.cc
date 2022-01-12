@@ -41,39 +41,22 @@ using runtime::StorageScope;
 class StorageAccessInfoLower : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const AllocateNode* op) final {
-    // Lower allocate to device allocate when needed.
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
-    // For special memory, remove allocate, or use head expr
-    auto it = storage_info_.find(op->buffer_var.get());
-    if (it != storage_info_.end() && it->second.info.defined()) {
-      const MemoryInfo& info = it->second.info;
-      ++it->second.alloc_count;
-      ICHECK_LE(it->second.alloc_count, 1)
-          << "Double allocation of " << it->second.scope.to_string();
+    auto scope = StorageScope::Create(GetPtrStorageScope(op->buffer_var));
+    if (scope.tag.length() != 0 && scope.tag != ".dyn") {
+      auto info = GetMemoryInfo(GetPtrStorageScope(op->buffer_var));
+      ICHECK(info.defined()) << "Cannot find memory info of " << scope.to_string();
+      ICHECK(storage_info_.find(op->buffer_var.get()) == storage_info_.end())
+          << "Double allocation of " << scope.to_string();
+      storage_info_[op->buffer_var.get()] = info;
 
+      // Lower allocate to device allocate when needed.
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<AllocateNode>();
       if (info->head_address.defined()) {
         return LetStmt(op->buffer_var, info->head_address, op->body);
       } else {
         return op->body;
       }
-    } else {
-      return stmt;
-    }
-  }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::storage_scope) {
-      const VarNode* buf = op->node.as<VarNode>();
-      StorageScope scope = StorageScope::Create(op->value.as<StringImmNode>()->value);
-      StorageEntry e;
-      e.scope = scope;
-      if (scope.tag.length() != 0) {
-        e.info = GetMemoryInfo(op->value.as<StringImmNode>()->value);
-        ICHECK(e.info.defined()) << "Cannot find memory info of " << scope.to_string();
-      }
-      storage_info_[buf] = e;
-      return StmtExprMutator::VisitStmt_(op);
-
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -99,8 +82,8 @@ class StorageAccessInfoLower : public StmtExprMutator {
     Var buffer_var = Downcast<Var>(op->args[1]);
     PrimExpr offset = op->args[2];
     auto it = storage_info_.find(buffer);
-    if (it != storage_info_.end() && it->second.info.defined()) {
-      return MakeTaggedAccessPtr(op->dtype, buffer_var, dtype, offset, it->second.info);
+    if (it != storage_info_.end() && it->second.defined()) {
+      return MakeTaggedAccessPtr(op->dtype, buffer_var, dtype, offset, it->second);
     }
     ICHECK(op->dtype.is_handle());
     // Change to address_of
@@ -118,17 +101,8 @@ class StorageAccessInfoLower : public StmtExprMutator {
     return cast(ptr_type, analyzer_.Simplify(
                               offset / make_const(offset.dtype(), info->unit_bits / dtype_bits)));
   }
-  // The storage entry.
-  struct StorageEntry {
-    // Whether it is tagged memory.
-    StorageScope scope;
-    // The memory info if any.
-    MemoryInfo info;
-    // Allocation counter
-    int alloc_count{0};
-  };
   // The storage scope of each buffer
-  std::unordered_map<const VarNode*, StorageEntry> storage_info_;
+  std::unordered_map<const VarNode*, MemoryInfo> storage_info_;
   // analyzer
   arith::Analyzer analyzer_;
 };

@@ -26,7 +26,7 @@ from tvm import te, auto_scheduler
 import tempfile
 import tvm.testing
 import pickle
-from test_auto_scheduler_common import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
 from tvm.auto_scheduler import workload_registry
 
 
@@ -293,6 +293,15 @@ def test_dag_measure_local_builder_runner():
         assert mress[0].error_no == 0
 
 
+def test_workload_serialization():
+    key = tvm.auto_scheduler.utils.get_func_name(matmul_auto_scheduler_test)
+    transfer_data = workload_registry.serialize_workload_registry_entry(key)
+    f_data = pickle.dumps(transfer_data)
+    f_new = pickle.loads(f_data)
+    del workload_registry.WORKLOAD_FUNC_REGISTRY[key]
+    workload_registry.deserialize_workload_registry_entry(f_new)
+
+
 def test_measure_local_builder_rpc_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
@@ -415,15 +424,7 @@ def test_measure_special_inputs_map_by_name_rpc_runner():
 
 
 if __name__ == "__main__":
-    test_record_split_reorder_fuse_annotation()
-    test_record_compute_at_root_inline_cache_read_write()
-    test_record_follow_split_follow_fused_split()
-    test_record_pragma_storage_align_rfactor()
-    test_recover_measure_input()
-    test_workload_dis_factor()
-    test_measure_local_builder_runner()
-    test_dag_measure_local_builder_runner()
-    test_measure_local_builder_rpc_runner()
-    test_measure_target_host()
-    test_measure_special_inputs_map_by_name_local_runner()
-    test_measure_special_inputs_map_by_name_rpc_runner()
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

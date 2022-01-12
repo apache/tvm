@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration fully connected tests"""
+"""Arm(R) Ethos(TM)-N integration fully connected tests"""
 
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -56,10 +56,8 @@ def _get_model(
     return req, params
 
 
+@requires_ethosn
 def test_fullyconnected():
-    if not ethosn_available():
-        return
-
     trials = [
         ((1, 1024), 71, 0.580, 79, 1.498),
         ((1, 4096), 166, 1.724, 117, 0.180),
@@ -91,10 +89,9 @@ def test_fullyconnected():
         tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_fullyconnected_failure():
-    if not ethosn_available():
-        return
-
+    lb = "2.328306e-10" if tei.get_ethosn_api_version() > 2102 else "0"
     trials = [
         (
             (1, 64),
@@ -106,7 +103,7 @@ def test_fullyconnected_failure():
             0,
             1,
             "uint8",
-            "Overall scale (of the input * weights / output) should be in the range [0, 1)",
+            f"Overall scale (of the input * weights / output) should be in the range [{lb}, 1)",
         ),
         (
             (1, 1, 1, 64),

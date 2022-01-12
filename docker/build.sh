@@ -22,7 +22,9 @@
 #
 # Usage: build.sh <CONTAINER_TYPE> [--tag <DOCKER_IMAGE_TAG>]
 #                [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                [--net=host] [--cache-from <IMAGE_NAME>] [<COMMAND>]
+#                [--net=host] [--cache-from <IMAGE_NAME>]
+#                [--name CONTAINER_NAME] [--context-path <CONTEXT_PATH>]
+#                [<COMMAND>]
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build,
 #                 e.g. "ci_cpu", "ci_gpu"
@@ -37,6 +39,12 @@
 # IMAGE_NAME: An image to be as a source for cached layers when building the
 #             Docker image requested.
 #
+# CONTAINER_NAME: The name of the docker container, and the hostname that will
+#                 appear inside the container.
+#
+# CONTEXT_PATH: Path to be used for relative path resolution when building
+#               the Docker images.
+#
 # COMMAND (optional): Command to be executed in the docker container
 #
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,7 +55,6 @@ shift 1
 
 # Dockerfile to be used in docker build
 DOCKERFILE_PATH="${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}"
-DOCKER_CONTEXT_PATH="${SCRIPT_DIR}"
 
 if [[ "$1" == "--tag" ]]; then
     DOCKER_IMAGE_TAG="$2"
@@ -57,9 +64,7 @@ fi
 
 if [[ "$1" == "--dockerfile" ]]; then
     DOCKERFILE_PATH="$2"
-    DOCKER_CONTEXT_PATH=$(dirname "${DOCKERFILE_PATH}")
     echo "Using custom Dockerfile path: ${DOCKERFILE_PATH}"
-    echo "Using custom docker build context path: ${DOCKER_CONTEXT_PATH}"
     shift 2
 fi
 
@@ -80,9 +85,24 @@ if [[ "$1" == "--cache-from" ]]; then
     shift 1
     cached_image="$1"
     DOCKER_NO_CACHE_ARG=
-    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE")
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from tvm.$CONTAINER_TYPE:$DOCKER_IMAGE_TAG")
     CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
+fi
+
+if [[ "$1" == "--context-path" ]]; then
+    DOCKER_CONTEXT_PATH="$2"
+    echo "Using custom context path: ${DOCKER_CONTEXT_PATH}"
+    shift 2
+else
+    DOCKER_CONTEXT_PATH=$(dirname "${DOCKERFILE_PATH}")
+    echo "Using default context path: ${DOCKER_CONTEXT_PATH}"
+fi
+
+if [[ "$1" == "--name" ]]; then
+    CI_DOCKER_EXTRA_PARAMS+=("--name ${2} --hostname ${2}")
+    echo "Using container name ${2}"
+    shift 2
 fi
 
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then

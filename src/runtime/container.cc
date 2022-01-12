@@ -21,13 +21,54 @@
  * \file src/runtime/container.cc
  * \brief Implementations of common containers.
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/closure.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {
+
+// Array
+TVM_REGISTER_OBJECT_TYPE(ArrayNode);
+
+TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<ObjectRef> data;
+  for (int i = 0; i < args.size(); ++i) {
+    if (args[i].type_code() != kTVMNullptr) {
+      data.push_back(args[i].operator ObjectRef());
+    } else {
+      data.push_back(ObjectRef(nullptr));
+    }
+  }
+  *ret = Array<ObjectRef>(data);
+});
+
+TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
+  int64_t i = args[1];
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+  ICHECK(ptr->IsInstance<ArrayNode>());
+  auto* n = static_cast<const ArrayNode*>(ptr);
+  ICHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
+  *ret = n->at(i);
+});
+
+TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
+  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+  ICHECK(ptr->IsInstance<ArrayNode>());
+  *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
+});
+
+// ADT
+
+TVM_REGISTER_OBJECT_TYPE(ADTObj);
 
 TVM_REGISTER_GLOBAL("runtime.GetADTTag").set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
@@ -67,6 +108,9 @@ TVM_REGISTER_GLOBAL("runtime.ADT").set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = ADT(tag, fields);
 });
 
+// String
+TVM_REGISTER_OBJECT_TYPE(StringObj);
+
 TVM_REGISTER_GLOBAL("runtime.String").set_body_typed([](std::string str) {
   return String(std::move(str));
 });
@@ -75,41 +119,7 @@ TVM_REGISTER_GLOBAL("runtime.GetFFIString").set_body_typed([](String str) {
   return std::string(str);
 });
 
-TVM_REGISTER_OBJECT_TYPE(ADTObj);
-TVM_REGISTER_OBJECT_TYPE(StringObj);
-TVM_REGISTER_OBJECT_TYPE(ClosureObj);
-
-TVM_REGISTER_OBJECT_TYPE(ArrayNode);
-
-TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<ObjectRef> data;
-  for (int i = 0; i < args.size(); ++i) {
-    if (args[i].type_code() != kTVMNullptr) {
-      data.push_back(args[i].operator ObjectRef());
-    } else {
-      data.push_back(ObjectRef(nullptr));
-    }
-  }
-  *ret = Array<ObjectRef>(data);
-});
-
-TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int64_t i = args[1];
-  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  ICHECK(ptr->IsInstance<ArrayNode>());
-  auto* n = static_cast<const ArrayNode*>(ptr);
-  ICHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
-  *ret = n->at(i);
-});
-
-TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  ICHECK(ptr->IsInstance<ArrayNode>());
-  *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
-});
-
+// Map
 TVM_REGISTER_OBJECT_TYPE(MapNode);
 
 TVM_REGISTER_GLOBAL("runtime.Map").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -174,5 +184,27 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* r
 TVM_DLL constexpr uint64_t DenseMapNode::kNextProbeLocation[];
 #endif
 
+// Closure
+TVM_REGISTER_OBJECT_TYPE(ClosureObj);
+
+// ShapeTuple
+TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
+
+TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::vector<ShapeTuple::index_type> shape;
+  for (int i = 0; i < args.size(); i++) {
+    shape.push_back(args[i]);
+  }
+  *rv = ShapeTuple(shape);
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body_typed([](ShapeTuple shape) {
+  return static_cast<int64_t>(shape.size());
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple shape, int idx) {
+  ICHECK_LT(idx, shape.size());
+  return shape[idx];
+});
 }  // namespace runtime
 }  // namespace tvm

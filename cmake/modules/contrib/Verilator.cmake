@@ -16,8 +16,8 @@
 # under the License.
 
 if(USE_VERILATOR STREQUAL "ON")
-  file(GLOB VERILATOR_RELAY_CONTRIB_SRC src/relay/backend/contrib/verilator/codegen.cc)
-  file(GLOB VERILATOR_CONTRIB_SRC src/runtime/contrib/verilator/verilator_runtime.cc)
+  tvm_file_glob(GLOB VERILATOR_RELAY_CONTRIB_SRC src/relay/backend/contrib/verilator/codegen.cc)
+  tvm_file_glob(GLOB VERILATOR_CONTRIB_SRC src/runtime/contrib/verilator/verilator_runtime.cc)
   list(APPEND COMPILER_SRCS ${VERILATOR_RELAY_CONTRIB_SRC})
   list(APPEND RUNTIME_SRCS ${VERILATOR_CONTRIB_SRC})
 endif()

@@ -68,6 +68,8 @@ struct TypeIndex {
     kRuntimeArray = 4,
     /*! \brief runtime::Map. */
     kRuntimeMap = 5,
+    /*! \brief runtime::ShapeTuple. */
+    kRuntimeShapeTuple = 6,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,

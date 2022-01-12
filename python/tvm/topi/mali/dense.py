@@ -103,7 +103,7 @@ def schedule_dense(cfg, outs):
 
 
 def fuse_and_bind(s, tensor, axis=None, num_thread=None):
-    """ fuse all the axis and bind to GPU threads """
+    """fuse all the axis and bind to GPU threads"""
     # TODO(@comaniac): figure out where this function is used.
     axis = axis or s[tensor].op.axis
     fused = s[tensor].fuse(*axis)

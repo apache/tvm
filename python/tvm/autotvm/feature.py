@@ -31,7 +31,6 @@ import numpy as np
 import tvm._ffi
 
 from tvm.target import Target
-from tvm.te import schedule
 from tvm.driver import build_module
 
 
@@ -39,13 +38,12 @@ def ana_lower(sch, args, binds=None, simple_mode=True):
     """Do lower while keeping all axes in IR
     i.e. Do not eliminate loop with extent of 1, do not vectorize, unroll or inject virtual threads
     """
-    binds, _ = build_module.get_binds(args, binds)
     sch = sch.normalize()
     # Phase 0
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds, True)
-    func = schedule.SchedulePostProcToPrimFunc(args, stmt, None)
-    mod = tvm.IRModule.from_expr(func._move())
+    context = tvm.transform.PassContext(config={"tir.debug_keep_trivial_loop": True})
+    with context:
+        mod = build_module.schedule_to_module(sch, args, binds=binds)
+
     mod = tvm.tir.transform.StorageFlatten(64)(mod._move())
     mod = tvm.tir.transform.Simplify()(mod._move())
     assert simple_mode

@@ -28,7 +28,7 @@ cmake ^
       -DUSE_CPP_RPC=ON ^
       -DUSE_SORT=ON ^
       -DUSE_RANDOM=ON ^
-      -DUSE_GRAPH_EXECUTOR_DEBUG=ON ^
+      -DUSE_PROFILER=ON ^
       -DINSTALL_DEV=ON ^
       %SRC_DIR%
 

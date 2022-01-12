@@ -20,7 +20,7 @@
 /*!
  * \file graph_executor_debug.cc
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
@@ -276,16 +276,20 @@ class GraphExecutorDebug : public GraphExecutor {
    * the module compared to GraphRuntimeDebug::RunIndividual as it runs the
    * entire graph in order.
    *
+   * \param collectors Optional user defined `MetricCollector`s to use with this profiling run.
+   *
    * \returns A table of per-op runtimes and total times.
    */
-  profiling::Report Profile() {
+  profiling::Report Profile(Array<profiling::MetricCollector> collectors) {
+    std::vector<profiling::MetricCollector> cs(collectors.begin(), collectors.end());
+    profiling::Profiler prof(devices_, cs);
+
     // warm up. 1 iteration does not seem enough.
     for (int i = 0; i < 3; i++) {
       GraphExecutor::Run();
     }
 
-    profiling::Profiler prof;
-    prof.Start(devices_);
+    prof.Start();
     for (size_t i = 0; i < op_execs_.size(); ++i) {
       if (op_execs_[i]) {
         // get argument shapes
@@ -359,7 +363,25 @@ PackedFunc GraphExecutorDebug::GetFunction(const std::string& name,
       *rv = this->RunIndividual(number, repeat, min_repeat_ms);
     });
   } else if (name == "profile") {
-    return TypedPackedFunc<profiling::Report()>([sptr_to_self, this]() { return this->Profile(); });
+    return TypedPackedFunc<profiling::Report(Array<profiling::MetricCollector>)>(
+        [sptr_to_self, this](Array<profiling::MetricCollector> collectors) {
+          // We cannot send Arrays over rpc, so in order to support profiling
+          // on remotes, we accept a nullptr for collectors.
+          if (collectors.defined()) {
+            return this->Profile(collectors);
+          } else {
+            return this->Profile({});
+          }
+        });
+  } else if (name == "profile_rpc") {
+    // We cannot return a Report over RPC because TMV RPC mechanism only
+    // supports a subset of Object classes. Instead we serialize it on the
+    // remote (here) and deserialize it on the other end.
+    return TypedPackedFunc<std::string()>([sptr_to_self, this]() {
+      PackedFunc profile = GetFunction("profile", sptr_to_self);
+      profiling::Report report = profile(Array<profiling::MetricCollector>());
+      return report->AsJSON();
+    });
   } else {
     return GraphExecutor::GetFunction(name, sptr_to_self);
   }

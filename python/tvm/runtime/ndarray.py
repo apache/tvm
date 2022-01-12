@@ -165,9 +165,18 @@ class NDArray(NDArrayBase):
                     source_array.shape, shape
                 )
             )
-        source_array = np.ascontiguousarray(
-            source_array, dtype="uint16" if dtype == "bfloat16" else dtype
+        numpy_str_map = DataType.NUMPY2STR
+        np_dtype_str = (
+            numpy_str_map[source_array.dtype]
+            if source_array.dtype in numpy_str_map
+            else str(source_array.dtype)
         )
+        if (not source_array.flags["C_CONTIGUOUS"]) or (
+            dtype == "bfloat16" or dtype != np_dtype_str
+        ):
+            source_array = np.ascontiguousarray(
+                source_array, dtype="uint16" if dtype == "bfloat16" else dtype
+            )
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
@@ -268,13 +277,10 @@ def device(dev_type, dev_id=0):
       assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
     if isinstance(dev_type, string_types):
-        if "-device=micro_dev" in dev_type:
-            dev_type = Device.STR2MASK["micro_dev"]
-        else:
-            dev_type = dev_type.split()[0]
-            if dev_type not in Device.STR2MASK:
-                raise ValueError("Unknown device type %s" % dev_type)
-            dev_type = Device.STR2MASK[dev_type]
+        dev_type = dev_type.split()[0]
+        if dev_type not in Device.STR2MASK:
+            raise ValueError("Unknown device type %s" % dev_type)
+        dev_type = Device.STR2MASK[dev_type]
     return Device(dev_type, dev_id)
 
 
@@ -393,6 +399,7 @@ def gpu(dev_id=0):
 
         deprecated:: 0.9.0
         Use :py:func:`tvm.cuda` instead.
+
     Parameters
     ----------
     dev_id : int, optional
@@ -508,22 +515,6 @@ def ext_dev(dev_id=0):
     device by plugin device API as ext_dev.
     """
     return Device(12, dev_id)
-
-
-def micro_dev(dev_id=0):
-    """Construct a micro device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(13, dev_id)
 
 
 def hexagon(dev_id=0):

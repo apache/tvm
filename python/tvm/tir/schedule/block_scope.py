@@ -22,7 +22,7 @@ from tvm._ffi import register_object
 from tvm.runtime import Object
 from tvm.tir import Block, For
 
-from . import _ffi_api_schedule
+from . import _ffi_api
 
 
 @register_object("tir.StmtSRef")
@@ -45,24 +45,24 @@ class StmtSRef(Object):
     @property
     def stmt(self) -> Optional[Union[Block, For]]:
         """The block/for stmt the object refers to"""
-        return _ffi_api_schedule.StmtSRefStmt(self)  # pylint: disable=no-member
+        return _ffi_api.StmtSRefStmt(self)  # type: ignore # pylint: disable=no-member
 
     @property
     def parent(self) -> Optional["StmtSRef"]:
         """The parent sref"""
-        return _ffi_api_schedule.StmtSRefParent(self)  # pylint: disable=no-member
+        return _ffi_api.StmtSRefParent(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def inline_mark() -> "StmtSRef":
         """A special StmtSRef, which doesn't point to any stmt in the AST,
         only serving as a "mark" to hint compute-at to do the work of compute-inline"""
-        return _ffi_api_schedule.StmtSRefInlineMark()  # pylint: disable=no-member
+        return _ffi_api.StmtSRefInlineMark()  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def root_mark() -> "StmtSRef":
         """A special StmtSRef, which doesn't point to any stmt in the AST,
         only serving as a "mark" to hint compute-at to do nothing"""
-        return _ffi_api_schedule.StmtSRefRootMark()  # pylint: disable=no-member
+        return _ffi_api.StmtSRefRootMark()  # type: ignore # pylint: disable=no-member
 
 
 class DepKind(IntEnum):
@@ -109,15 +109,18 @@ class Dependency(Object):
 
 @register_object("tir.BlockScope")
 class BlockScope(Object):
-    """An object corresponds to each block sref in the sref tree,
-       which tracks the producer-consumer dependency between blocks.
+    """An object corresponds to each block sref in the sref tree, which
+    tracks the producer-consumer dependency between blocks.
 
     Glossary:
-    - Block scope: A contiguous subtree of the sref tree, rooted at each block sref,
-    whose components are:
-        - scope root: a block sref
-        - internal srefs: loop srefs
-        - scope leaves: block srefs
+
+    - Block scope: A contiguous subtree of the sref tree, rooted at
+      each block sref, whose components are:
+
+      - scope root: a block sref
+      - internal srefs: loop srefs
+      - scope leaves: block srefs
+
     - Child block: The scope leaf blocks under the scope root or a specific internal sref
     """
 
@@ -134,7 +137,7 @@ class BlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api_schedule.BlockScopeGetDepsBySrc(self, block)  # pylint: disable=no-member
+        return _ffi_api.BlockScopeGetDepsBySrc(self, block)  # type: ignore # pylint: disable=no-member
 
     def get_deps_by_dst(self, block: StmtSRef) -> List[Dependency]:
         """Get all dependencies whose `dst` is the target `block`.
@@ -149,4 +152,4 @@ class BlockScope(Object):
         blocks: List[Dependency]
             The dependencies
         """
-        return _ffi_api_schedule.BlockScopeGetDepsByDst(self, block)  # pylint: disable=no-member
+        return _ffi_api.BlockScopeGetDepsByDst(self, block)  # type: ignore # pylint: disable=no-member

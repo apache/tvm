@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration conv2d tests"""
+"""Arm(R) Ethos(TM)-N integration conv2d tests"""
 
 import numpy as np
 import math
 import tvm
 from tvm import relay
-from tvm.relay.op.contrib.ethosn import ethosn_available
+from tvm.testing import requires_ethosn
 from . import infrastructure as tei
 
 
@@ -113,10 +113,8 @@ def _get_model(
     return req, params
 
 
+@requires_ethosn
 def test_conv2d():
-    if not ethosn_available():
-        return
-
     trials = [
         [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1)],
         [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1)],
@@ -181,18 +179,9 @@ def test_conv2d():
             tei.verify(outputs, 1)
 
 
+@requires_ethosn
 def test_conv2d_failure():
-    if not ethosn_available():
-        return
-
-    _scale_error_msg = (
-        "Overall scale (of the input * weights / output) should be in the range [0, 1)"
-    )
-    if tei.get_ethosn_api_version() == 2008:
-        _scale_error_msg = (
-            "Overall scale (of the input * weights / output) should be in the range [0, 1}"
-        )
-
+    lb = "2.328306e-10" if tei.get_ethosn_api_version() > 2102 else "0"
     trials = [
         (
             (1, 4, 4, 4),
@@ -211,7 +200,7 @@ def test_conv2d_failure():
             "uint8",
             8,
             "HWIO",
-            _scale_error_msg,
+            f"Overall scale (of the input * weights / output) should be in the range [{lb}, 1)",
         ),
         (
             (1, 4, 4, 4),

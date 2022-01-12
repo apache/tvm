@@ -63,7 +63,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-docs/gen_modules
+docs/_staging/
 
 # PyBuilder
 /target/
@@ -174,6 +174,7 @@ perf
 .bash_history
 *.json
 *.params
+*.ro
 *.onnx
 *.h5
 synset.txt
@@ -234,7 +235,16 @@ conda/pkg
 .envrc
 *.nix
 
+# Docker files
+.sudo_as_admin_successful
+
 # Downloaded models/datasets
 .tvm_test_data
 .dgl
 .caffe2
+
+# Local docs build
+_docs/
+jvm/target
+.config/configstore/
+.ci-py-scripts/

@@ -23,7 +23,7 @@ import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar
+from tvm.ir import RelayExpr, GlobalVar, Node
 
 from .base import RelayNode
 from . import _ffi_api
@@ -316,10 +316,13 @@ class TupleGetItem(ExprWithOp):
 
     index: int
         The index.
+
+    span: Optional[tvm.relay.Span]
+        Span that points to original source code
     """
 
-    def __init__(self, tuple_value, index):
-        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index)
+    def __init__(self, tuple_value, index, span=None):
+        self.__init_handle_by_constructor__(_ffi_api.TupleGetItem, tuple_value, index, span)
 
 
 @tvm._ffi.register_object("relay.RefCreate")
@@ -538,3 +541,38 @@ def bind(expr, binds):
         The expression or function after binding.
     """
     return _ffi_api.Bind(expr, binds)
+
+
+@tvm._ffi.register_object("relay.StorageInfo")
+class StorageInfo(Node):
+    """StorageInfo
+
+    The static storage information produced by memory planning.
+    Contains the storage ids where expressions are stored, the
+    type of the "virtual devices" the expressions are stored on,
+    and the sizes of each storage element."""
+
+    def __init__(self, sids, dev_types, sizes):
+        self.__init_handle_by_constructor__(_ffi_api.StorageInfo, sids, dev_types, sizes)
+
+    @property
+    def storage_ids(self):
+        return _ffi_api.StorageInfoStorageIds(self)
+
+    @property
+    def device_types(self):
+        return _ffi_api.StorageInfoDeviceTypes(self)
+
+    @property
+    def storage_sizes(self):
+        return _ffi_api.StorageInfoStorageSizes(self)
+
+
+@tvm._ffi.register_object("relay.StaticMemoryPlan")
+class StaticMemoryPlan(Node):
+    """StaticMemoryPlan
+
+    The result of static memory planning."""
+
+    def __init__(self, expr_to_storage_info):
+        self.__init_handle_by_constructor__(_ffi_api.StaticMemoryPlan, expr_to_storage_info)

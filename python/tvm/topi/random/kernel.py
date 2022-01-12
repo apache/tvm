@@ -15,9 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Pseudorandom number kernels."""
+import math
+import numpy as np
+
 import tvm
 import tvm.topi
-import numpy as np
+
 from ... import tir
 from ...tir import ir_builder
 
@@ -216,7 +219,7 @@ def threefry_generate(gen, out_shape):
         not be reused in another function, otherwise random numbers will be repeated.
 
     out_shape : Sequence[int]
-        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+        Output shape of the random numbers.
 
     Returns
     -------
@@ -229,9 +232,6 @@ def threefry_generate(gen, out_shape):
     out_len = tir.const(1)
     for s in out_shape:
         out_len *= s
-    assert (
-        out_len.value % 4 == 0
-    ), f"Threefry can only generate arrays who's size is a multiple of 4 ({out_len} was provided)."
     assert (
         out_len.value <= 2 ** 64 - 1
     ), f"Can only generate up to 2^64 random numbers, but {out_len} were requested."
@@ -296,7 +296,14 @@ def threefry_generate(gen, out_shape):
                 _shift_right(irb, gen[8], gen[9], tmp, 8, tmp, 9)
 
         # Compute random values
-        _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
+        if out_len.value >= 4:
+            _threefry(irb, tmp, 0, tmp, 4, out_array, 0, out_len // 4)
+        if out_len.value % 4 != 0:
+            remaining = irb.allocate(gen.dtype, 4, name="remaining", scope="global")
+            tmp[7] = tmp[7] + tir.Cast(gen.dtype, out_len // 4 * 4)  # increment counter
+            _threefry(irb, tmp, 0, tmp, 4, remaining, 0, 1)
+            with irb.for_range(0, out_len % 4, dtype="uint64", name="i") as i:
+                out_array[out_len // 4 * 4 + i] = remaining[i]
 
         # Update generator state
         out_gen[0] = tmp[0]  # key stays the same
@@ -306,7 +313,13 @@ def threefry_generate(gen, out_shape):
         out_gen[4] = tmp[4]  # path stays the same
         out_gen[5] = tmp[5]
         out_gen[6] = tir.const(0, dtype=gen.dtype)  # unused, leave it as 0
-        out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
+        if out_len.value % 4 != 0:
+            # increment counter for the remaining
+            # as we will generate 4 random numbers for the remaining, increase 4 here.
+            # the main increment was done before the second _threefry.
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, 4)
+        else:
+            out_gen[7] = tmp[7] + tir.Cast(gen.dtype, out_len)  # increment counter
         out_gen[8] = tmp[8]  # path unchanged, so no update here
         out_gen[9] = tmp[9]
 
@@ -490,7 +503,7 @@ def uniform(gen, low, high, out_shape, out_dtype):
         less than high.
 
     out_shape : Sequence[int]
-        Output shape of the random numbers. Product of all dimensions must be a multiple of 4.
+        Output shape of the random numbers.
 
     out_dtype : str
         The output dtype.
@@ -532,3 +545,60 @@ def uniform(gen, low, high, out_shape, out_dtype):
     uniform_values = tvm.topi.add(tvm.topi.multiply(standard_uniform_values, high - low), low)
 
     return new_gen, uniform_values
+
+
+def normal(gen, mean, scale, out_shape, out_dtype):
+    """Draw samples from a normal distribution.
+    The algorithm is based on Box-Muller transform
+
+    Parameters
+    ----------
+    gen : ThreefryKey
+        Generator state. Can be create with :py:func:`tvm.relay.threefry_key`. This should not be
+        reused in another function, otherwise random numbers will be repeated.
+
+    mean : Tensor[(), out_dtype]
+        The mean of the normal distribution.
+
+    scale : Tensor[(), out_dtype]
+        The standard deviation of the normal distribution.
+
+    out_shape : Sequence[int]
+        Output shape of the random numbers.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    new_gen : ThreefryKey
+        New generator state that is distinct from `gen`.
+
+    out : Tensor[out_shape, out_dtype]
+        Tensor of random numbers with shape `out_shape` and type `out_dtype`.
+    """
+    out_shape = list(out_shape)
+    # Box-Muller transform need two pieces of original uniform data
+    out_shape.insert(0, 2)
+    new_gen, uniform_values = uniform(
+        gen,
+        tvm.tir.const(0.0, out_dtype),
+        tvm.tir.const(1.0, out_dtype),
+        out_shape,
+        out_dtype,
+    )
+    two_pi = tvm.tir.const(2.0 * math.pi, out_dtype)
+    uniform_values_1 = tvm.topi.strided_slice(uniform_values, [0], [1], strides=[1], axes=[0])
+    uniform_values_1 = tvm.topi.squeeze(uniform_values_1, axis=0)
+    uniform_values_2 = tvm.topi.strided_slice(uniform_values, [1], [2], strides=[1], axes=[0])
+    uniform_values_2 = tvm.topi.squeeze(uniform_values_2, axis=0)
+    uniform_values_1 = tvm.topi.subtract(tvm.tir.const(1.0, out_dtype), uniform_values_1)
+    sqrt_values = tvm.topi.sqrt(
+        tvm.topi.multiply(tvm.tir.const(-2.0, out_dtype), tvm.topi.log(uniform_values_1))
+    )
+    sin_values = tvm.topi.sin(tvm.topi.multiply(two_pi, uniform_values_2))
+    random_values = tvm.topi.add(
+        tvm.topi.multiply(tvm.topi.multiply(sqrt_values, sin_values), scale), mean
+    )
+
+    return new_gen, random_values

@@ -24,7 +24,7 @@
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>

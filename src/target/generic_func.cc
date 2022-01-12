@@ -22,7 +22,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/node/node.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/generic_func.h>
 #include <tvm/target/target.h>
@@ -119,6 +118,20 @@ void GenericFunc::CallPacked(TVMArgs args, TVMRetValue* ret) const {
   func.CallPacked(args, ret);
 }
 
+PackedFunc GenericFunc::GetPacked() const {
+  auto node = static_cast<const GenericFuncNode*>(get());
+  auto target = Target::Current(true);
+  if (target.defined()) {
+    for (auto& k : target->GetKeys()) {
+      auto iter = node->dispatch_dict_.find(k);
+      if (iter != node->dispatch_dict_.end()) {
+        return iter->second;
+      }
+    }
+  }
+  return node->generic_func_;
+}
+
 TVM_REGISTER_GLOBAL("target.GenericFuncCreate").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = GenericFunc(make_object<GenericFuncNode>());
 });
@@ -157,6 +170,11 @@ TVM_REGISTER_GLOBAL("target.GenericFuncCallFunc").set_body([](TVMArgs args, TVMR
   TVMArgs func_args(&args.values[1], &args.type_codes[1], args.num_args - 1);
 
   generic_func.CallPacked(func_args, ret);
+});
+
+TVM_REGISTER_GLOBAL("target.GenericFuncGetPackedFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
+  GenericFunc generic_func = args[0];
+  *ret = generic_func.GetPacked();
 });
 
 }  // namespace tvm

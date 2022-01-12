@@ -27,7 +27,6 @@
 #include <dmlc/any.h>
 #include <dmlc/json.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container.h>
 #include <tvm/tir/op.h>
 
 #include <cstdint>

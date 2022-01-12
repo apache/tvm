@@ -23,12 +23,15 @@ import logging
 import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
 
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn
+from tvm.relay.op.contrib.ethosn import partition_for_ethosn77
+from tvm.relay.op.contrib.ethosn import partition_for_ethosn78
+from tvm.relay.op.contrib.cmsisnn import partition_for_cmsisnn
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 
 
-from .common import TVMCException
+from tvm.driver.tvmc import TVMCException
 
 
 # pylint: disable=invalid-name
@@ -49,9 +52,21 @@ REGISTERED_CODEGEN = {
         "config_key": None,
         "pass_pipeline": partition_for_arm_compute_lib,
     },
+    "cmsis-nn": {
+        "config_key": "relay.ext.cmsisnn.options",
+        "pass_pipeline": partition_for_cmsisnn,
+    },
     "ethos-n77": {
         "config_key": "relay.ext.ethos-n.options",
-        "pass_pipeline": partition_for_ethosn,
+        "pass_pipeline": partition_for_ethosn77,
+    },
+    "ethos-n78": {
+        "config_key": "relay.ext.ethos-n.options",
+        "pass_pipeline": partition_for_ethosn78,
+    },
+    "ethos-u": {
+        "config_key": "relay.ext.ethos-u.options",
+        "pass_pipeline": partition_for_ethosu,
     },
     "bnns": {
         "config_key": None,

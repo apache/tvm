@@ -423,6 +423,13 @@ Stage& Stage::double_buffer() {
   return *this;
 }
 
+Stage& Stage::rolling_buffer() {
+  StageNode* self = operator->();
+  ICHECK(!self->is_output) << "Cannot apply rolling buffer on output";
+  self->rolling_buffer = true;
+  return *this;
+}
+
 Stage CopyStage(const Stage& s) {
   ObjectPtr<StageNode> n = make_object<StageNode>(*s.operator->());
   return Stage(n);
@@ -778,11 +785,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->Print(op->outer);
       p->stream << ", inner=";
       p->Print(op->inner);
+      if (op->factor.defined()) {
+        p->stream << ", factor=";
+        p->Print(op->factor);
+      } else {
+        p->stream << ", nparts=";
+        p->Print(op->nparts);
+      }
       p->stream << ')';
     })
     .set_dispatch<FuseNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const FuseNode*>(node.get());
-      p->stream << "split(";
+      p->stream << "fuse(";
       p->stream << "outer=";
       p->Print(op->outer);
       p->stream << ", inner=";
@@ -878,6 +892,8 @@ TVM_REGISTER_GLOBAL("te.StagePrefetch").set_body_method(&Stage::prefetch);
 TVM_REGISTER_GLOBAL("te.StageStorageAlign").set_body_method(&Stage::storage_align);
 
 TVM_REGISTER_GLOBAL("te.StageDoubleBuffer").set_body_method(&Stage::double_buffer);
+
+TVM_REGISTER_GLOBAL("te.StageRollingBuffer").set_body_method(&Stage::rolling_buffer);
 
 TVM_REGISTER_GLOBAL("te.ScheduleNormalize").set_body_method(&Schedule::normalize);
 

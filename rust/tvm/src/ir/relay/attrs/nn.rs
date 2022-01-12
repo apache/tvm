@@ -28,9 +28,19 @@ type IndexExpr = PrimExpr;
 
 #[repr(C)]
 #[derive(Object, Debug)]
-#[ref_name = "Conv2DAttrs"]
-#[type_key = "relay.attrs.Conv2DAttrs"]
-pub struct Conv2DAttrsNode {
+#[ref_name = "PadAttrs"]
+#[type_key = "relay.attrs.PadAttrs"]
+pub struct PadAttrsNode {
+    pub base: BaseAttrsNode,
+    pub pad_width: Array<Array<IndexExpr>>,
+    pub pad_mode: TString,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "Conv1DAttrs"]
+#[type_key = "relay.attrs.Conv1DAttrs"]
+pub struct Conv1DAttrsNode {
     pub base: BaseAttrsNode,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
@@ -47,11 +57,43 @@ pub struct Conv2DAttrsNode {
 
 #[repr(C)]
 #[derive(Object, Debug)]
+#[ref_name = "Conv2DAttrs"]
+#[type_key = "relay.attrs.Conv2DAttrs"]
+pub struct Conv2DAttrsNode {
+    pub base: BaseAttrsNode,
+    pub strides: Array<IndexExpr>,
+    pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
+    // TODO(@gussmith23) groups is "int", what should it be here?
+    pub groups: i32,
+    pub channels: IndexExpr,
+    pub kernel_size: Array<IndexExpr>,
+    pub data_layout: TString,
+    pub kernel_layout: TString,
+    pub out_layout: TString,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
 #[ref_name = "BiasAddAttrs"]
 #[type_key = "relay.attrs.BiasAddAttrs"]
 pub struct BiasAddAttrsNode {
     pub base: BaseAttrsNode,
     pub axis: i32,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "MatmulAttrs"]
+#[type_key = "relay.attrs.MatmulAttrs"]
+pub struct MatmulAttrsNode {
+    pub base: BaseAttrsNode,
+    pub units: IndexExpr,
+    pub out_dtype: DataType,
+    pub transpose_a: bool,
+    pub transpose_b: bool,
 }
 
 #[repr(C)]
@@ -82,6 +124,7 @@ pub struct MaxPool2DAttrsNode {
     pub pool_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
     pub layout: TString,
     pub ceil_mode: bool,
 }
@@ -125,6 +168,7 @@ pub struct AvgPool2DAttrsNode {
     pub pool_size: Array<IndexExpr>,
     pub strides: Array<IndexExpr>,
     pub padding: Array<IndexExpr>,
+    pub dilation: Array<IndexExpr>,
     pub layout: TString,
     pub ceil_mode: bool,
     pub count_include_pad: bool,
@@ -141,4 +185,35 @@ pub struct UpSamplingAttrsNode {
     pub layout: TString,
     pub method: TString,
     pub align_corners: bool,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "DropoutAttrs"]
+#[type_key = "relay.attrs.DropoutAttrs"]
+pub struct DropoutAttrsNode {
+    pub base: BaseAttrsNode,
+    pub rate: f64,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "BatchMatmulAttrs"]
+#[type_key = "relay.attrs.BatchMatmulAttrs"]
+pub struct BatchMatmulAttrsNode {
+    pub base: BaseAttrsNode,
+    pub auto_scheduler_rewritten_layout: TString,
+    pub out_dtype: DataType,
+}
+
+#[repr(C)]
+#[derive(Object, Debug)]
+#[ref_name = "LayerNormAttrs"]
+#[type_key = "relay.attrs.LayerNormAttrs"]
+pub struct LayerNormAttrsNode {
+    pub base: BaseAttrsNode,
+    pub axis: i32,
+    pub epsilon: f64,
+    pub center: bool,
+    pub scale: bool,
 }

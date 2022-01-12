@@ -38,9 +38,9 @@ namespace runtime {
 
 struct Registry::Manager {
   // map storing the functions.
-  // We deliberately used raw pointer
-  // This is because PackedFunc can contain callbacks into the host languge(python)
-  // and the resource can become invalid because of indeterminstic order of destruction and forking.
+  // We deliberately used raw pointer.
+  // This is because PackedFunc can contain callbacks into the host language (Python) and the
+  // resource can become invalid because of indeterministic order of destruction and forking.
   // The resources will only be recycled during program exit.
   std::unordered_map<std::string, Registry*> fmap;
   // mutex
@@ -120,9 +120,9 @@ class EnvCAPIRegistry {
    * \brief Callback to check if signals have been sent to the process and
    *        if so invoke the registered signal handler in the frontend environment.
    *
-   *  When runnning TVM in another langugage(python), the signal handler
+   *  When running TVM in another language (Python), the signal handler
    *  may not be immediately executed, but instead the signal is marked
-   *  in the interpreter state(to ensure non-blocking of the signal handler).
+   *  in the interpreter state (to ensure non-blocking of the signal handler).
    *
    * \return 0 if no error happens, -1 if error happens.
    */
@@ -176,7 +176,7 @@ void EnvCheckSignals() { EnvCAPIRegistry::Global()->CheckSignals(); }
 }  // namespace runtime
 }  // namespace tvm
 
-/*! \brief entry to to easily hold returning information */
+/*! \brief entry to easily hold returning information */
 struct TVMFuncThreadLocalEntry {
   /*! \brief result holder for returning strings */
   std::vector<std::string> ret_vec_str;

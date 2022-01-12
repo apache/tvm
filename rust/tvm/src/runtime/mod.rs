@@ -18,5 +18,3 @@
  */
 
 pub use tvm_rt::*;
-
-pub mod graph_rt;

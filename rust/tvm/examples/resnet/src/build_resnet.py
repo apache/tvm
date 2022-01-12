@@ -115,6 +115,9 @@ def download_img_labels():
             f.write(synset[key])
             f.write("\n")
 
+    print(synset_path)
+    print(synset_name)
+
     return synset
 
 

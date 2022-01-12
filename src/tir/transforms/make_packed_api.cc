@@ -20,7 +20,6 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
@@ -40,6 +39,8 @@
 
 namespace tvm {
 namespace tir {
+
+static constexpr const char* kDeviceContextVar = "device_api_context";
 
 class ReturnRewriter : public StmtMutator {
  public:
@@ -120,7 +121,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
   ICHECK_LE(num_unpacked_args, num_args);
-
+  bool pack_args = (num_unpacked_args == -1) || (num_args > num_unpacked_args);
+  if (num_unpacked_args == -1) {
+    // reset to zero
+    num_unpacked_args = 0;
+  }
+  ICHECK_GE(num_unpacked_args, 0);
   int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
@@ -155,18 +161,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
     }
     return res;
   };
-
   // ---------------------------
   // start of logics
-  // add signiture for packed arguments.
-  if (num_packed_args != 0) {
+  // add signature for packed arguments.
+  if (pack_args) {
     args.push_back(v_packed_args);
     args.push_back(v_packed_arg_type_ids);
     args.push_back(v_num_packed_args);
-    std::ostringstream os;
-
-    os << name_hint << ": num_args should be " << num_packed_args;
-    seq_init.emplace_back(MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
   // Need to re-declare vars, in case some arguments also appears in the buffer.
@@ -176,6 +177,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
     Var v_arg = Var("arg" + std::to_string(i), param->dtype);
+
+    // Pluck the device API context out based on name
+    if (param->name_hint == kDeviceContextVar) {
+      num_packed_args--;
+      v_resource_handle = param;
+      continue;
+    }
 
     auto it = func_ptr->buffer_map.find(param);
     if (it != func_ptr->buffer_map.end()) {
@@ -215,13 +223,13 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   }
 
   // allow return value if the function is packed.
-  if (num_packed_args != 0) {
+  if (pack_args) {
     args.push_back(v_out_ret_value);
     args.push_back(v_out_ret_tcode);
     args.push_back(v_resource_handle);
   }
 
-  size_t expected_nargs = num_unpacked_args + (num_packed_args != 0 ? 6 : 0);
+  size_t expected_nargs = num_unpacked_args + (pack_args ? 6 : 0);
   ICHECK_EQ(args.size(), expected_nargs);
 
   // Arg definitions are defined before buffer binding to avoid the use before
@@ -259,7 +267,17 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
       body = SeqStmt({set_device, body});
     }
   }
-  func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+
+  if (pack_args) {
+    std::ostringstream num_args_error;
+    num_args_error << name_hint << ": num_args should be " << num_packed_args;
+    std::vector<Stmt> arg_assert = {
+        MakeAssertEQ(v_num_packed_args, num_packed_args, num_args_error.str())};
+    func_ptr->body =
+        MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  } else {
+    func_ptr->body = MergeNest({seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
+  }
   func_ptr->params = args;
 
   Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
@@ -283,6 +301,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
 namespace transform {
 
 Pass MakePackedAPI(int num_unpacked_args) {
+  // packed arguments anyway while `num_unpacked_args` is -1
   auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
     IRModuleNode* mptr = m.CopyOnWrite();
     std::vector<std::pair<GlobalVar, PrimFunc> > updates;

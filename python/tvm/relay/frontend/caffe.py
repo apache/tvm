@@ -21,11 +21,12 @@
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -33,7 +34,7 @@ __all__ = ["from_caffe"]
 
 
 class OperatorConverter(object):
-    """ Operator Converted for converting Caffe ops to Relay ops """
+    """Operator Converted for converting Caffe ops to Relay ops"""
 
     def __init__(self, init_layer_dict, predict_layer, exp_tab):
         self.init_layer_dict = init_layer_dict
@@ -50,6 +51,7 @@ class OperatorConverter(object):
             "Deconvolution": self.convert_deconv,
             "Dropout": self.convert_dropout,
             "Eltwise": self.convert_eltwise,
+            "Embed": self.convert_embed,
             "Flatten": self.convert_flatten,
             "InnerProduct": self.convert_innerproduct,
             "Input": None,
@@ -67,7 +69,7 @@ class OperatorConverter(object):
         }
 
     def convert_flatten(self, op):
-        """ Convert Flatten layer """
+        """Convert Flatten layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
 
@@ -78,7 +80,7 @@ class OperatorConverter(object):
         return out
 
     def convert_eltwise(self, op):
-        """ Convert Eltwise layer """
+        """Convert Eltwise layer"""
         inputs = op.bottom
         assert len(inputs) == 2, "input tensors length should be 2"
 
@@ -116,7 +118,7 @@ class OperatorConverter(object):
         return out
 
     def _parse_conv_params(self, op):
-        """ Parse the parameters of Convolution and Deconvolution layer """
+        """Parse the parameters of Convolution and Deconvolution layer"""
         nonzone = lambda val, pos, dflt: val[pos] if pos < len(val) else dflt
 
         conv_params = op.convolution_param
@@ -161,7 +163,7 @@ class OperatorConverter(object):
         return params
 
     def convert_batch_norm(self, op):
-        """ Convert BatchNorm layer """
+        """Convert BatchNorm layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         n, c, h, w = _infer_shape(in_expr)
@@ -216,7 +218,7 @@ class OperatorConverter(object):
         return out[0]
 
     def convert_scale(self, op):
-        """ Convert Scale layer """
+        """Convert Scale layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
@@ -244,7 +246,7 @@ class OperatorConverter(object):
         return out
 
     def convert_concat(self, op):
-        """ Convert Concat layer """
+        """Convert Concat layer"""
         inputs = op.bottom
         in_expr = (self.exp_tab.get_expr(inputs[i]) for i in range(len(inputs)))
 
@@ -255,7 +257,7 @@ class OperatorConverter(object):
         return out
 
     def convert_reshape(self, op):
-        """ Convert Reshape layer """
+        """Convert Reshape layer"""
         inputs = op.bottom
         input_name = inputs[0]
 
@@ -295,7 +297,7 @@ class OperatorConverter(object):
         return out
 
     def convert_softmax(self, op):
-        """ Convert Softmax layer """
+        """Convert Softmax layer"""
         inputs = op.bottom
         assert len(inputs) == 1, "input tensors length should be 1"
 
@@ -310,7 +312,7 @@ class OperatorConverter(object):
         return out
 
     def convert_conv(self, op):
-        """ Convert Convolution layer """
+        """Convert Convolution layer"""
         params = self._parse_conv_params(op)
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
         conv_params = op.convolution_param
@@ -340,7 +342,7 @@ class OperatorConverter(object):
         return out
 
     def convert_pooling(self, op):
-        """ Convert Pooling layer """
+        """Convert Pooling layer"""
         inputs = op.bottom
         input_name = inputs[0]
 
@@ -369,8 +371,8 @@ class OperatorConverter(object):
             params["strides"] = (pool_params.stride, pool_params.stride)
 
         params["ceil_mode"] = True
-        if hasattr(pool_params, "ceil_mode"):
-            params["ceil_mode"] = pool_params.ceil_mode
+        if hasattr(pool_params, "round_mode"):
+            params["ceil_mode"] = pool_params.round_mode == "CEIL"
 
         in_expr = self.exp_tab.get_expr(input_name)
 
@@ -401,7 +403,7 @@ class OperatorConverter(object):
         return out
 
     def convert_lrn(self, op):
-        """ Convert LRN layer """
+        """Convert LRN layer"""
         inputs = op.bottom
         input_name = inputs[0]
 
@@ -417,7 +419,7 @@ class OperatorConverter(object):
         return out
 
     def convert_innerproduct(self, op):
-        """ Convert InnerProduct layer """
+        """Convert InnerProduct layer"""
         inputs = op.bottom
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
         dense_params = op.inner_product_param
@@ -458,7 +460,7 @@ class OperatorConverter(object):
         return out
 
     def convert_dropout(self, op):
-        """ Convert Dropout layer """
+        """Convert Dropout layer"""
         inputs = op.bottom
         input_name = inputs[0]
 
@@ -472,7 +474,7 @@ class OperatorConverter(object):
         return out
 
     def convert_relu(self, op):
-        """ Convert ReLU layer """
+        """Convert ReLU layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         negative_slope = op.relu_param.negative_slope
@@ -484,7 +486,7 @@ class OperatorConverter(object):
         return out
 
     def convert_prelu(self, op):
-        """ Convert PReLU layer """
+        """Convert PReLU layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
 
@@ -496,7 +498,7 @@ class OperatorConverter(object):
         return out
 
     def convert_deconv(self, op):
-        """ Convert Deconvolution layer """
+        """Convert Deconvolution layer"""
         params = self._parse_conv_params(op)
         weight_bias_blobs = self.init_layer_dict[op.name].blobs
         conv_params = op.convolution_param
@@ -514,6 +516,9 @@ class OperatorConverter(object):
             weight_shape = [-1, conv_params.num_output, kh, kw]
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
+
+            # weight shape is in relay's IOHW format rn, we need it to be OIHW
+            weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
             raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
@@ -521,14 +526,13 @@ class OperatorConverter(object):
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
         if bias:
-
             bias_value = np.asarray(bias.data, np.float32)
             bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr)
         return out
 
     def convert_slice(self, op):
-        """ Convert Slice layer """
+        """Convert Slice layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
 
@@ -546,14 +550,14 @@ class OperatorConverter(object):
         return out
 
     def convert_sigmoid(self, op):
-        """ Convert Sigmoid layer """
+        """Convert Sigmoid layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.sigmoid(in_expr)
         return out
 
     def convert_tanh(self, op):
-        """ Convert TanH layer """
+        """Convert TanH layer"""
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.tanh(in_expr)
@@ -598,7 +602,7 @@ class OperatorConverter(object):
         return out
 
     def convert_crop(self, op):
-        """ Convert Crop layer """
+        """Convert Crop layer"""
         inputs = op.bottom
         assert len(inputs) == 2, "Need two inputs of Crop layer"
         in_expr_a = self.exp_tab.get_expr(inputs[0])
@@ -632,6 +636,46 @@ class OperatorConverter(object):
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
         return out
 
+    def convert_embed(self, op):
+        """Convert Embed layer"""
+        inputs = op.bottom
+        embed_param = op.embed_param
+        num_output = embed_param.num_output
+        input_dim = embed_param.input_dim
+        bias_term = embed_param.bias_term
+        weight_bias_blobs = self.init_layer_dict[op.name].blobs
+        weight, bias = None, None
+        if bias_term:
+            weight = weight_bias_blobs[0]
+            bias = weight_bias_blobs[1]
+            assert weight and bias
+        else:
+            weight = weight_bias_blobs[0]
+            assert weight
+        weight_value = np.asarray(weight.data, np.float32)
+        weight_value = np.reshape(weight_value, [input_dim, num_output])
+        weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        input_shape = _infer_shape(in_expr)
+        input_count = 1
+        for dim in input_shape:
+            input_count *= dim
+
+        index = _op.cast(in_expr, "int32")
+        out = _op.take(weight_expr, index, axis=0)
+
+        if bias_term:
+            bias_value = np.asarray(bias.data, np.float32)
+            bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
+            out = _op.reshape(out, [input_count, num_output])
+            out = _op.add(out, bias_expr)
+
+        out_shape = list(input_shape)
+        out_shape.append(num_output)
+        out = _op.reshape(out, out_shape)
+
+        return out
+
     def check_unsupported_ops(self):
         """Check unsupported Caffe ops in our converter."""
         unsupported_ops_set = set()
@@ -654,7 +698,7 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(msg.format(ops))
 
     def fuse_op(self, layers):
-        """ Fusing the BatchNorm and Scale layer """
+        """Fusing the BatchNorm and Scale layer"""
         bn, scale = layers["bn"], layers["scale"]
 
         # bn params
@@ -680,7 +724,7 @@ class OperatorConverter(object):
         return bn
 
     def op_fuse(self):
-        """fuse bn and scale """
+        """fuse bn and scale"""
         new_layers = []
         temp_layers = {}
         changed_layers = {}
@@ -810,7 +854,7 @@ def from_caffe(init_net, predict_net, shape_dict, dtype_dict):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.NDArray

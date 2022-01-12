@@ -33,7 +33,7 @@ interactive bash session with a given image_name.
 
 The script does the following things:
 
-- Mount current directory to /workspace and set it as home
+- Mount current directory to the same location in the docker container, and set it as home
 - Switch user to be the same user that calls the bash.sh
 - Use the host-side network
 
@@ -102,9 +102,10 @@ The command ``./docker/build.sh image_name COMMANDS`` is almost equivelant to
 ``./docker/bash.sh image_name COMMANDS`` but in the case of ``bash.sh``
 a build attempt is not done.
 
-The build command will map the tvm root to /workspace/ inside the container
-with the same user as the user invoking the docker command.
-Here are some common use examples to perform CI tasks.
+The build command will map the tvm root to the corresponding location
+inside the container with the same user as the user invoking the
+docker command.  Here are some common use examples to perform CI
+tasks.
 
 - lint the python codes
 

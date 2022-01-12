@@ -27,7 +27,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/function.h>
 #include <tvm/relay/op.h>
-#include <tvm/runtime/container.h>
 
 #include <sstream>
 #include <string>
@@ -43,6 +42,12 @@ struct Output {
   std::string dtype;
   int size;
   bool need_copy;
+};
+
+struct GenerateBodyOutput {
+  std::string decl;
+  std::vector<std::string> buffers;
+  std::vector<Output> outputs;
 };
 
 class CSourceModuleCodegenBase {
@@ -155,7 +160,8 @@ class CodegenCBase {
    * \endcode
    */
   void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args,
-                            const std::string& const_arr_name, const std::vector<Output>& outs) {
+                            const std::string& const_arr_name, const std::vector<Output>& outs,
+                            bool pass_dl_tensor = false) {
     // Print signature
     code_stream_ << "\n";
 
@@ -176,15 +182,27 @@ class CodegenCBase {
     PrintIndents();
     code_stream_ << func_name << "_(";
     for (size_t i = 0; i < args.size(); i++) {
-      const auto& dtype_str = GetDtypeString(args[i]);
-      code_stream_ << "(" << dtype_str << "*)(arg" << i << "->data),\n";
+      if (pass_dl_tensor) {
+        code_stream_ << "arg" << i << ",\n";
+      } else {
+        const auto& dtype_str = GetDtypeString(args[i]);
+        code_stream_ << "(" << dtype_str << "*)(arg" << i << "->data),\n";
+      }
       PrintIndents();
     }
     for (size_t i = 0; i < outs.size() - 1; i++) {
-      code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
+      if (pass_dl_tensor) {
+        code_stream_ << "out" << i << ",\n";
+      } else {
+        code_stream_ << "(" << outs[i].dtype << "*)(out" << i << "->data),\n";
+      }
       PrintIndents();
     }
-    code_stream_ << "(" << outs.back().dtype << "*)(out" << outs.size() - 1 << "->data));\n";
+    if (pass_dl_tensor) {
+      code_stream_ << "out" << outs.size() - 1 << ");\n";
+    } else {
+      code_stream_ << "(" << outs.back().dtype << "*)(out" << outs.size() - 1 << "->data));\n";
+    }
     PrintIndents();
     code_stream_ << "return 0;\n";
     ExitScope();
@@ -221,7 +239,7 @@ class CodegenCBase {
       // This segment would be generated in C++ because of the usage
       // of tvm::runtime::Array. This is not ideal, but this to demonstrate
       // constant copying process used packed imports in other external
-      // codegen. Moreover, in uTVM we dont expect this part to be generated.
+      // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
                    << "_init_wrapper_(tvm::runtime::Array<tvm::runtime::NDArray> arr) {\n";

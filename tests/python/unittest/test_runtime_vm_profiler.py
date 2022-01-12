@@ -29,12 +29,32 @@ def test_basic(dev, target):
         return
 
     exe = relay.vm.compile(mod, target, params=params)
-    vm = profiler_vm.VirtualMachineProfiler(exe, dev)
+    code, lib = exe.save()
+    des_exe = tvm.runtime.vm.Executable.load_exec(code, lib)
+    vm = profiler_vm.VirtualMachineProfiler(des_exe, dev)
 
     data = np.random.rand(1, 1, 28, 28).astype("float32")
     res = vm.profile(tvm.nd.array(data), func_name="main")
     assert "softmax" in str(res)
 
 
+def test_vm_reshape_and_copy():
+    target = "llvm"
+    dev = tvm.gpu()
+    x_np = np.random.uniform(size=(8, 16)).astype("float32")
+    x = relay.var("x", shape=(8, 16), dtype="float32")
+    y = relay.reshape(x, [-1, 4, 8])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y)
+    with tvm.transform.PassContext(opt_level=3):
+        exec = relay.vm.compile(mod, "llvm")
+    assert "reshape_tensor" in exec.bytecode
+    vm = profiler_vm.VirtualMachineProfiler(exec, dev)
+    vm.profile(tvm.nd.array(x_np))
+
+
 if __name__ == "__main__":
-    test_basic(tvm.cpu(), tvm.target.Target("llvm"))
+    import sys
+    import pytest
+
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))

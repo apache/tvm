@@ -522,7 +522,7 @@ def test_hoisting_block_scope_1():
     s[B.op].bind(xi, te.thread_axis("threadIdx.y"))
     s[B].bind(s[B].op.reduce_axis[0], te.thread_axis("threadIdx.x"))
     s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
-    func = tvm.driver.build_module.form_irmodule(s, [A, B], "main", None)["main"]
+    func = tvm.driver.build_module.schedule_to_module(s, [A, B], "main", None)["main"]
     stmt = func.body
     new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -622,7 +622,7 @@ def test_hoisting_block_scope_4():
     s[C].pragma(xo2, "parallel_stride_pattern")
     s[C].pragma(xo2, "parallel_barrier_when_finish")
     s[C].vectorize(xi)
-    func = tvm.driver.build_module.form_irmodule(s, [A, B, C], "main", None)["main"]
+    func = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)["main"]
     stmt = func.body
     new_stmt = tvm.tir.transform.HoistIfThenElse()(tvm.IRModule.from_expr(func))["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
@@ -636,7 +636,7 @@ def test_hoisting_block_scope_4():
 
 def test_hoisting_block_scope_5():
     ib = tvm.tir.ir_builder.create()
-    data = ib.pointer("float32", name="data")
+    data = ib.pointer("float32", name="data", scope="global")
     l = te.var("l")
     m = te.var("m")
     n = te.var("n")

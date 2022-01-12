@@ -94,6 +94,14 @@ void Yield();
  */
 int MaxConcurrency();
 
+/*!
+ * \brief Reset the threads in the pool. All current threads are destroyed and
+ * new ones are created.
+ *
+ * Note that this does nothing when openmp is used.
+ */
+void ResetThreadPool();
+
 }  // namespace threading
 }  // namespace runtime
 }  // namespace tvm

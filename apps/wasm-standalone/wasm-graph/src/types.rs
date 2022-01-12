@@ -24,7 +24,7 @@ use std::{
 };
 pub use tvm_sys::ffi::DLTensor;
 use tvm_sys::ffi::{
-    DLDevice, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDeviceType_kDLCPU,
+    DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDevice, DLDeviceType_kDLCPU,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

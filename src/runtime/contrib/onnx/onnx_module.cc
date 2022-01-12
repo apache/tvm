@@ -21,7 +21,6 @@
  * \file onnx_module.cc
  * \brief ONNX Module without runtime support
  */
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 

@@ -22,18 +22,21 @@ Integrate auto_scheduler into relay. It implements the following items:
 2. Provide auto-scheduling for all TOPI compute functions
 """
 
+import json
 import logging
 import threading
+import traceback
+import warnings
 
 import tvm
 from tvm import autotvm, transform
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
-
+from tvm.target import Target
 from tvm.te.tensor import ComputeOp, PlaceholderOp, Tensor
 from tvm.tir import Reduce
 from tvm.tir import expr as _expr
-from tvm.target import Target
 
 from . import _ffi_api
 from .compute_dag import ComputeDAG, LayoutRewriteOption
@@ -45,44 +48,43 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_executor_codegen
 
     # Turn off AutoTVM config not found warnings
     old_autotvm_silent = autotvm.GLOBAL_SCOPE.silent
     autotvm.GLOBAL_SCOPE.silent = True
 
     with transform.PassContext(
-        opt_level=3,
+        opt_level=opt_level,
         config={
             "relay.backend.use_auto_scheduler": True,
-            "relay.backend.disable_compile_engine_cache": True,
         },
         disabled_pass={"AutoSchedulerLayoutRewrite"},
     ):
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
         try:
-            opt_mod, _ = relay.optimize(mod, target, params)
-            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(opt_mod["main"])
-        except tvm.TVMError:
-            print(
-                "Get errors with GraphExecutorCodegen for task extraction. "
-                "Fallback to VMCompiler."
-            )
-            compiler = relay.vm.VMCompiler()
-            if params:
-                compiler.set_params(params)
-            mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
             compiler.lower(mod, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+        except TVMError:
+            error_list.append(f"{traceback.format_exc()}")
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
-    mod, params, target, target_host=None, hardware_params=None, include_simple_tasks=False
+    mod,
+    params,
+    target,
+    target_host=None,
+    hardware_params=None,
+    include_simple_tasks=False,
+    dump_workload_to_dag_log=None,
+    opt_level=3,
 ):
     """Extract tuning tasks from a relay program.
 
@@ -100,6 +102,10 @@ def extract_tasks(
         Hardware parameters used for the search tasks
     include_simple_tasks: bool
         Whether to extract simple tasks that do not include complicated ops.
+    dump_workload_to_dag_log: Optional[str]
+        A file to dump an association between the workload keys and the actual DAG
+    opt_level : Optional[int]
+        The optimization level of the task extractions.
 
     Returns
     -------
@@ -109,6 +115,11 @@ def extract_tasks(
         The weight (i.e. the number of appearance) of extracted tasks
     """
     # pylint: disable=import-outside-toplevel
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
 
     target, target_host = Target.check_and_update_host_consist(target, target_host)
 
@@ -120,18 +131,27 @@ def extract_tasks(
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
+
+    errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
-        build_thread = threading.Thread(target=call_all_topi_funcs, args=(mod, params, target))
+        build_thread = threading.Thread(
+            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
+        )
         build_thread.start()
         build_thread.join()
+
+    if errors:
+        error_strings = ["Task extraction had the following errors:"] + errors
+        raise TVMError("\n".join(error_strings))
+
     dispatch_ctx.verbose = old_verbose
 
     # create search tasks
     tasks = []
     weights = []
-    for (func_name, wkl_key), weight in env.wkl_key_to_weight.items():
+    for wkl_key, (weight, func_names) in env.wkl_key_to_weight.items():
         tasks.append(
             SearchTask(
                 workload_key=wkl_key,
@@ -146,10 +166,14 @@ def extract_tasks(
                     else None
                 ),
                 task_inputs_save_to_file=True,
-                desc=func_name,
+                desc=",".join(func_names),
             )
         )
-        weights.append(weight)
+        weights.append(int(weight))
+
+    if dump_workload_to_dag_log is not None:
+        with open(dump_workload_to_dag_log, "w") as f:
+            json.dump({task.workload_key: str(task.compute_dag) for task in tasks}, f)
 
     return tasks, weights
 
@@ -158,7 +182,8 @@ class TracingMode:
     """Two modes for tracing"""
 
     EXTRACT_TASK = 0  # trace all topi calls to extract tasks
-    EXTRACT_COMPLEX_TASK_ONLY = 1  # same as EXTRACT_TASK but ignore the task without complex ops
+    # same as EXTRACT_TASK but ignore the task without complex ops
+    EXTRACT_COMPLEX_TASK_ONLY = 1
     PREPARE_LAYOUT_REWRITE = 2  # trace topi calls to prepare layout rewrite
 
 
@@ -170,6 +195,7 @@ class TracingEnvironment:
     def __init__(self, tracing_mode):
         self.tracing_mode = tracing_mode
         self.relay_disable_build_cache = "false"
+        self.func_name_to_wkl_key = {}
         self.wkl_key_to_weight = {}
         self.wkl_key_to_input_names = {}
 
@@ -191,10 +217,12 @@ class TracingEnvironment:
         workload_key: str
             The workload key of a task.
         """
-        key = (func_name, workload_key)
-        if key not in self.wkl_key_to_weight:
-            self.wkl_key_to_weight[key] = 0
-        self.wkl_key_to_weight[key] += 1
+        self.func_name_to_wkl_key[func_name] = workload_key
+        if workload_key not in self.wkl_key_to_weight:
+            self.wkl_key_to_weight[workload_key] = (0, set())
+        weight, func_names = self.wkl_key_to_weight[workload_key]
+        func_names.add(func_name)
+        self.wkl_key_to_weight[workload_key] = (weight + 1, func_names)
 
     def add_workload_input_names(self, workload_key, input_names):
         """Add special task inputs to this workload.
@@ -299,6 +327,7 @@ def auto_schedule_topi(func_name, outs):
         A tuned schedule or none (if not tuned) in the final build mode;
         None in the tracing mode so that the fallback topi schedule will be used.
     """
+
     # pylint: disable=import-outside-toplevel
     from tvm.auto_scheduler.measure import (
         prepare_input_map,
@@ -355,6 +384,41 @@ def auto_schedule_topi(func_name, outs):
         raise ValueError("Invalid tracing mode: " + env.tracing_mode)
 
     return schedule
+
+
+@tvm._ffi.register_func("auto_scheduler.relay_integration.te_compiler_update_weights")
+def te_compiler_update_weights(function_weights):
+    """A callback for updating the weights of extracted tasks. When using the TE compiler
+    that avoids compiling the same function multiple times by caching, all extracted tasks
+    have weight 1, so the TE compiler invokes this callback at the end. In this case,
+    we override existing weights with the use_count in TE compiler cache.
+
+    Parameters
+    ----------
+    function_weights: Dict[str, int]
+        Mapping from function names to their weights.
+    """
+    env = TracingEnvironment.current
+    if env is not None:
+        # Override this map with the weights in the TE compiler.
+        env.wkl_key_to_weight = {}
+
+        for func_name, weight in function_weights.items():
+            # If the function name is not in the map, then it means we are not interested in
+            # this function during task extraction (e.g., a function without reduction).
+            if func_name not in env.func_name_to_wkl_key:
+                continue
+
+            workload_key = env.func_name_to_wkl_key[func_name]
+            if workload_key not in env.wkl_key_to_weight:
+                env.wkl_key_to_weight[workload_key] = (0, set())
+
+            # Note that the function appears multiple times in a model will be renamed
+            # to make sure function names are unique, so we use the workload key generated
+            # from the function's TE compute to determine their weights.
+            old_weight, func_names = env.wkl_key_to_weight[workload_key]
+            func_names.add(func_name)
+            env.wkl_key_to_weight[workload_key] = (old_weight + weight, func_names)
 
 
 def tensor_no_check_call(self, *indices):

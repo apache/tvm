@@ -65,14 +65,14 @@ use thiserror::Error;
 #[repr(i64)]
 pub enum DeviceType {
     CPU = 1,
-    CUDA,
-    CUDAHost,
-    OpenCL,
-    Vulkan,
-    Metal,
-    VPI,
-    ROCM,
-    ExtDev,
+    CUDA = 2,
+    CUDAHost = 3,
+    OpenCL = 4,
+    Vulkan = 7,
+    Metal = 8,
+    VPI = 9,
+    ROCM = 10,
+    ExtDev = 12,
 }
 
 impl Default for DeviceType {
