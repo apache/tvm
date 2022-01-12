@@ -579,6 +579,7 @@ def test_group_conv2d_nchw():
 
 
 @tvm.testing.requires_cuda
+@tvm.testing.slow
 def test_group_conv2d_NCHWc_int8():
     with Int8Fallback():
         # ResNeXt-50 workload
@@ -605,6 +606,7 @@ def test_group_conv2d_NCHWc_int8():
 
 
 @tvm.testing.requires_cuda
+@tvm.testing.slow
 def test_group_conv2d_nchw_int8():
     with Int8Fallback():
         # ResNeXt-50 workload

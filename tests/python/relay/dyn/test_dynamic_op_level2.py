@@ -29,6 +29,7 @@ from tvm.relay.testing import run_infer_type
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_dyn_upsampling_run():
     def verify_upsampling(dshape, scale_h, scale_w, layout, method, align_corners=False):
 
@@ -85,6 +86,7 @@ def test_dyn_upsampling_infer_type_const():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_dyn_upsampling3d_run():
     def verify_upsampling3d(
         dshape, scale_d, scale_h, scale_w, layout, method, coord_trans="asymmetric"

@@ -47,6 +47,7 @@ def show(text):
         print(text)
 
 
+@tvm.testing.slow
 def test_large_graph():
     x = relay.var("x", shape=(3, 2))
     y = relay.var("y")

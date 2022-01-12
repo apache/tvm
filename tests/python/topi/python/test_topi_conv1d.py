@@ -112,6 +112,7 @@ def verify_conv1d(
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv1d():
     for layout in ["NCW", "NWC"]:
         # Most basic test case

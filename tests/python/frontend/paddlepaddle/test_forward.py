@@ -155,6 +155,7 @@ def test_forward_addmm():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_arg_max_min():
     class ArgMax(nn.Layer):
         @paddle.jit.to_static
@@ -214,6 +215,7 @@ def test_forward_arg_max_min():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_argsort():
     class ArgSort1(nn.Layer):
         @paddle.jit.to_static
@@ -494,6 +496,7 @@ def test_forward_conv():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_conv_transpose():
     class Conv2DTranspose(nn.Layer):
         def __init__(self, stride=1, padding=0, dilation=1, groups=1, padding_mode="zeros"):
@@ -550,6 +553,7 @@ def test_forward_dropout():
     verify_model(dropout, input_data=input_data)
 
 
+@tvm.testing.slow
 def test_forward_elemwise():
     class ElemwiseAPI(nn.Layer):
         def __init__(self, api_name):
@@ -1202,6 +1206,7 @@ def test_forward_transpose():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_reduce():
     class Reduce(nn.Layer):
         def __init__(self, op_name, axis=None, keepdim=False):
@@ -1315,6 +1320,7 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_math_api():
     class MathAPI(nn.Layer):
         def __init__(self, api_name):
@@ -1454,6 +1460,7 @@ def test_forward_arange():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_rnn():
     class RNN(nn.Layer):
         def __init__(self, api_name, input_size, hidden_size, num_layers, direction="forward"):

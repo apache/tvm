@@ -72,6 +72,7 @@ def test_conv1d_infer_type():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv1d_run():
     def run_test_conv1d(
         dtype,
@@ -405,6 +406,7 @@ def test_compile_depthwise_conv2d_arm_cpu():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv2d_winograd():
     class WinogradFallback(autotvm.FallbackContext):
         def _query_inside(self, target, workload):
@@ -646,6 +648,7 @@ def test_conv3d_ndhwc_run():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv3d_winograd():
     class WinogradFallback(autotvm.FallbackContext):
         def _query_inside(self, target, workload):
@@ -1109,6 +1112,7 @@ def _test_global_pool1d(opfunc, reffunc):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_pool1d():
     def _test_pool1d(
         opfunc, pool_type, pool_size=2, strides=2, dilation=1, padding=0, dtype="float32"
@@ -1157,6 +1161,7 @@ def test_pool1d():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_pool3d():
     def _test_pool3d(
         opfunc,
@@ -1594,6 +1599,7 @@ def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixe
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_upsampling3d():
     _test_upsampling3d("NCDHW", "nearest_neighbor", "asymmetric")
     _test_upsampling3d("NCDHW", "trilinear", "align_corners")

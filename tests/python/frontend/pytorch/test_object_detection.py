@@ -91,6 +91,7 @@ def generate_jit_model(index):
         return script_module
 
 
+@tvm.testing.slow
 def test_detection_models():
     img = "test_street_small.jpg"
     img_url = (

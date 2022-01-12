@@ -131,6 +131,7 @@ def test_gpu():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_mod_export():
     def verify_cpu_export(obj_format):
         mod, params = relay.testing.synthetic.get_workload()
@@ -318,6 +319,7 @@ def test_mod_export():
 
 @tvm.testing.requires_llvm
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_remove_package_params():
     def verify_cpu_remove_package_params(obj_format):
         mod, params = relay.testing.synthetic.get_workload()

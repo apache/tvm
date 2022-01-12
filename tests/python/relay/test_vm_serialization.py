@@ -282,6 +282,7 @@ def test_synthetic():
     run_network(mod, params)
 
 
+@tvm.testing.slow
 def test_mobilenet():
     mod, params = testing.mobilenet.get_workload(batch_size=1)
     run_network(mod, params)

@@ -106,6 +106,7 @@ def test_forward_mlp():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_vgg():
     for n in [11]:
         mx_sym = model_zoo.mx_vgg(n)
@@ -113,6 +114,7 @@ def test_forward_vgg():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_resnet():
     for n in [18]:
         mx_sym = model_zoo.mx_resnet(18)
@@ -380,6 +382,7 @@ def _mx_symbol(F, op_name, inputs):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_broadcast_ops():
     for op in [
         "broadcast_add",
@@ -425,6 +428,7 @@ def test_forward_broadcast_ops():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_elemwise_ops():
     for op in [
         "elemwise_add",
@@ -471,6 +475,7 @@ def test_forward_softmin():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_unary_ops():
     for op in [
         "abs",
@@ -511,6 +516,7 @@ def test_forward_unary_ops():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_scalar_ops():
     for op in [
         operator.add,
@@ -958,6 +964,7 @@ def test_forward_bilinear_sampler():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_rnn_layer():
     def verify(
         mode,
@@ -1081,6 +1088,7 @@ def test_forward_argsort():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_topk():
     def verify(shape, k, axis, ret_type, is_ascend=None, dtype="float32"):
         x_np = np.random.uniform(size=shape).astype("float32")
@@ -1192,6 +1200,7 @@ def test_forward_contrib_div_sqrt_dim():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_batch_norm():
     def verify(shape, axis=1, fix_gamma=False):
         x = np.random.uniform(size=shape).astype("float32")
@@ -1243,6 +1252,7 @@ def test_forward_batch_norm():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_instance_norm():
     def verify(shape, axis=1, epsilon=1e-5):
         x = np.random.uniform(size=shape).astype("float32")
@@ -1268,6 +1278,7 @@ def test_forward_instance_norm():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_layer_norm():
     def verify(shape, axis=-1):
         x = np.random.uniform(size=shape).astype("float32")
@@ -1418,6 +1429,7 @@ def test_forward_slice():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_convolution():
     def verify(data_shape, kernel_size, stride, pad, num_filter, is_depthwise=False):
         if is_depthwise:
@@ -1511,6 +1523,7 @@ def test_forward_convolution():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_deconvolution():
     def verify(data_shape, kernel_size, stride, pad, num_filter):
         weight_shape = (data_shape[1], num_filter) + kernel_size
@@ -1635,6 +1648,7 @@ def test_forward_amp_multicast():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_unravel_index():
     def verify(x, shape, dtype):
         a_np = np.array(x).astype(dtype)
@@ -1716,6 +1730,7 @@ def test_forward_space_to_depth():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_correlation():
     def verify(data_shape, kernel_size, max_displacement, stride1, stride2, pad_size, is_multiply):
         data1 = np.random.uniform(size=data_shape).astype("float32")
@@ -1968,6 +1983,7 @@ def test_forward_box_nms():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_box_decode():
     def verify(data_shape, anchor_shape, stds=[1, 1, 1, 1], clip=-1, in_format="corner"):
         dtype = "float32"

@@ -71,6 +71,7 @@ def check_tensor_array(ta_mod, ref_res, *args, dtype="float32", rtol=1e-5):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_expand_dims():
     def run(dtype):
         x = relay.var("x")
@@ -88,6 +89,7 @@ def test_tensor_expand_dims():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_constructor():
     def run(dtype):
         x = relay.var("x")
@@ -103,6 +105,7 @@ def test_tensor_array_constructor():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_read():
     def run(dtype):
         mod = tvm.IRModule()
@@ -121,6 +124,7 @@ def test_tensor_array_read():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_write():
     def run(dtype):
         mod = tvm.IRModule()
@@ -143,6 +147,7 @@ def test_tensor_array_write():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_stack():
     def run(dtype):
         mod = tvm.IRModule()
@@ -171,6 +176,7 @@ def test_tensor_array_stack():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_unstack():
     def run(dtype):
         mod = tvm.IRModule()
@@ -186,6 +192,7 @@ def test_tensor_array_unstack():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_take():
     def run(dtype):
         mod = tvm.IRModule()
@@ -207,6 +214,7 @@ def test_tensor_take():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_concatenate():
     def run(dtype):
         mod = tvm.IRModule()
@@ -226,6 +234,7 @@ def test_tensor_concatenate():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_concat():
     def run(dtype):
         mod = tvm.IRModule()
@@ -251,6 +260,7 @@ def test_tensor_array_concat():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_scatter():
     def run(dtype):
         mod = tvm.IRModule()
@@ -303,6 +313,7 @@ def test_tensor_array_scatter():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_tensor_array_split():
     def run(dtype):
         mod = tvm.IRModule()
@@ -348,6 +359,7 @@ def test_tensor_array_split():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_take():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -372,6 +384,7 @@ def test_static_tensor_take():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_concatenate():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -399,6 +412,7 @@ def test_static_tensor_concatenate():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_expand_dims():
     def run(dtype, shape):
         x = relay.var("x")
@@ -437,6 +451,7 @@ def test_static_tensor_array_constructor():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_read():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -475,6 +490,7 @@ def test_static_tensor_array_read():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_write():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -504,6 +520,7 @@ def test_static_tensor_array_write():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_unstack():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -523,6 +540,7 @@ def test_static_tensor_array_unstack():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_scatter():
     def run(dtype, shape, indices_shape=None):
         mod = tvm.IRModule()
@@ -586,6 +604,7 @@ def test_static_tensor_array_scatter():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_split():
     def run(dtype, shape, value_shape=None, lengths_shape=None):
         mod = tvm.IRModule()
@@ -659,6 +678,7 @@ def test_static_tensor_array_split():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_concat():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -687,6 +707,7 @@ def test_static_tensor_array_concat():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_gather():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -716,6 +737,7 @@ def test_static_tensor_array_gather():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_array_stack():
     def run(dtype, shape):
         mod = tvm.IRModule()
@@ -743,6 +765,7 @@ def test_static_tensor_array_stack():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_static_tensor_get_data():
     def run(dtype, shape):
         mod = tvm.IRModule()

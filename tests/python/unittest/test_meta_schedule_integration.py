@@ -105,6 +105,7 @@ def test_meta_schedule_integration_query_inside_with_scope():
     _check_mock_task(env.tasks, mod)
 
 
+@tvm.testing.slow
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _, _ = get_network(
         name="resnet-18",

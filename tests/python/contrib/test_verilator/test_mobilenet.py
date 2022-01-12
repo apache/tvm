@@ -239,6 +239,7 @@ def tmobilenet(lanes):
     print_test_info(lanes, values["cycle_counter"])
 
 
+@tvm.testing.slow
 def test_mobilenet():
     """Mobilenet tests."""
     tmobilenet(4)

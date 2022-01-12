@@ -191,6 +191,7 @@ def test_meta_schedule_xgb_model_reload():
     assert (cached[1] == new_cached[1]).all()
 
 
+@tvm.testing.slow
 def test_meta_schedule_xgb_model_reupdate():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)

@@ -1063,6 +1063,7 @@ def test_forward_conv():
 @pytest.mark.parametrize("output_padding", [0, 1, 2], ids=lambda x: "output_padding=" + str(x))
 @pytest.mark.parametrize("groups", [1], ids=lambda x: "groups=" + str(x))
 @pytest.mark.parametrize("bias", [True, False], ids=lambda x: "bias=" + str(x))
+@tvm.testing.slow
 def test_forward_conv_transpose(
     in_channels, out_channels, kernel_size, output_padding, bias, groups
 ):
@@ -1905,6 +1906,7 @@ def test_to():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_adaptive_pool3d():
     for ishape in [(1, 32, 16, 16, 16), (1, 32, 9, 15, 15), (1, 32, 13, 7, 7)]:
         inp = torch.rand(ishape)
@@ -2097,6 +2099,7 @@ def test_conv3d():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv3d_transpose():
     for ishape in [(1, 8, 10, 5, 10), (1, 8, 5, 8, 8), (1, 8, 13, 7, 7)]:
         inp = torch.rand(ishape)
@@ -2127,48 +2130,56 @@ def test_conv3d_transpose():
 
 # Model tests
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_resnet18():
     torch.set_grad_enabled(False)
     verify_model("resnet18", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_squeezenet1_0():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_0", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_squeezenet1_1():
     torch.set_grad_enabled(False)
     verify_model("squeezenet1_1", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_densenet121():
     torch.set_grad_enabled(False)
     verify_model("densenet121", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_inception_v3():
     torch.set_grad_enabled(False)
     verify_model("inception_v3", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_googlenet():
     torch.set_grad_enabled(False)
     verify_model("googlenet", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_mnasnet0_5():
     torch.set_grad_enabled(False)
     verify_model("mnasnet0_5", atol=1e-4, rtol=1e-4)
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)
     verify_model("mobilenet_v2", atol=1e-4, rtol=1e-4)
@@ -2229,6 +2240,7 @@ def test_custom_conversion_map():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_segmentation_models():
     class SegmentationModelWrapper(Module):
         def __init__(self, model):
@@ -2249,6 +2261,7 @@ def test_segmentation_models():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_3d_models():
     input_shape = (1, 3, 4, 56, 56)
     resnet3d = torchvision.models.video.r3d_18(pretrained=True).eval()
@@ -2360,6 +2373,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=["llv
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_control_flow():
     class SimpleIf(torch.nn.Module):
         def __init__(self, N, M):
@@ -3165,6 +3179,7 @@ def test_forward_logical_xor():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_unary():
     torch.set_grad_enabled(False)
 
@@ -3902,6 +3917,7 @@ def test_masked_fill():
     verify_model(test_fn, [inp.to(torch.float64), inp > 0.5])
 
 
+@tvm.testing.slow
 def test_transformer():
     model = torch.nn.Transformer(d_model=256, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
     model = model.eval()
@@ -3963,6 +3979,7 @@ def test_masked_select():
         verify_trace_model(test_fn, [x, mask], ["llvm", "cuda"])
 
 
+@tvm.testing.slow
 def test_unique():
     def test_fn(is_sorted, return_inverse, return_counts):
         return lambda x: torch.unique(x, is_sorted, return_inverse, return_counts)

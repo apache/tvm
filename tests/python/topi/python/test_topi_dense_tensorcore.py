@@ -125,6 +125,7 @@ def verify_dense(batch, in_dim, out_dim, dtype, use_bias=True):
 
 
 @tvm.testing.requires_tensorcore
+@tvm.testing.slow
 def test_dense_tensorcore():
     """Test cases"""
     for dtype in ["float16", "int8"]:

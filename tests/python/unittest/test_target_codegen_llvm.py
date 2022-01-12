@@ -408,6 +408,7 @@ def test_alignment():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
 

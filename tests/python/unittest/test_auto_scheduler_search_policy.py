@@ -111,6 +111,7 @@ def search_common(
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_workload_registry_empty_policy():
     search_common(search_policy="empty", num_measure_trials=2)
 
@@ -143,6 +144,7 @@ def sketch_search_policy_basic_spawn():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_sketch_search_policy_basic_spawn():
     ctx = multiprocessing.get_context("spawn")
     p = ctx.Process(target=sketch_search_policy_basic_spawn)
@@ -151,6 +153,7 @@ def test_sketch_search_policy_basic_spawn():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_sketch_search_policy_xgbmodel():
     search_common(cost_model=auto_scheduler.XGBModel())
 
@@ -184,6 +187,7 @@ def test_sketch_search_policy_zero_rank():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_sketch_search_policy_custom_sketch():
     def meet_condition_func(search_policy, state, stage_id):
         return auto_scheduler.PreloadCustomSketchRule.APPLY_AND_SKIP_REST

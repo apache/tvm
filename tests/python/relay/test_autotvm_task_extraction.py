@@ -102,6 +102,7 @@ def test_task_extraction():
     assert len(tasks) == 31
 
 
+@tvm.testing.slow
 def test_task_extraction_for_dense_int8_cuda():
     target = "cuda"
     dense = relay.op.get("nn.dense")

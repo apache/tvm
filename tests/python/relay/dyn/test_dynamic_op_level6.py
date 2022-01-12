@@ -24,6 +24,7 @@ import tvm.testing
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_dynamic_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype):
         shape = (20, 100)

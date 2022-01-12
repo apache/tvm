@@ -146,6 +146,7 @@ def verify_conv3d_ncdhw(
 
 
 @tvm.testing.requires_gpu
+@tvm.testing.slow
 def test_conv3d_ncdhw():
     # Try without depth transformation
     # 3DCNN  workloads

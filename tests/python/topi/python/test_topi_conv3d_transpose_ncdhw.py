@@ -95,6 +95,7 @@ def verify_conv3d_transpose_ncdhw(
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv3d_transpose_ncdhw():
     verify_conv3d_transpose_ncdhw(
         1, 3, (24, 24, 24), 1, (1, 1, 1), (1, 1, 1), (0, 0, 0, 0, 0, 0), (0, 0, 0)

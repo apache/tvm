@@ -64,12 +64,14 @@ def run_model_checkonly(model_file, model_name="", input_name="image"):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_mobilenet_checkonly():
     model_file = model_zoo.get_mobilenet()
     run_model_checkonly(model_file, "mobilenet")
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_resnet50_checkonly():
     model_file = model_zoo.get_resnet50()
     run_model_checkonly(model_file, "resnet50")
@@ -565,6 +567,7 @@ def test_forward_unary():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_reduce():
     from enum import Enum
 

@@ -141,6 +141,7 @@ def test_ref():
     check_eval(opt_body, 3)
 
 
+@tvm.testing.slow
 def test_nat_add():
     mod = tvm.IRModule()
     p = Prelude(mod)

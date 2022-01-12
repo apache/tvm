@@ -55,6 +55,7 @@ def task_tuner_spawn():
     test_task_tuner_without_measurement()
 
 
+@tvm.testing.slow
 def test_task_tuner_without_measurement_spawn():
     # Subprocesses inherit the spawn method of their parents
     ctx = multiprocessing.get_context("spawn")

@@ -179,6 +179,7 @@ def test_tuning_gpu(target, dev):
     run_test_with_all_multiprocessing(runner, target, dev)
 
 
+@tvm.testing.slow
 def test_tuning_cpu():
     def runner():
         ir_mod = tvm.parser.fromtext(
