@@ -376,7 +376,7 @@ class ConvTranspose(OneFlowOpConverter):
         attrs["padding"] = [pad_v[0], pad_v[1], pad_v[0], pad_v[1]]
 
         out = AttrCvt(
-            op_name="conv2d_transpose",
+            op_name=cls.name,
             transforms={
                 "group": ("groups", 1),
             },
@@ -476,6 +476,10 @@ class Conv2d(Conv):
 
     name = "conv2d"
 
+class ConvTranspose2d(ConvTranspose):
+    """Operator converter for ConvTranspose2d"""
+    
+    name = "conv2d_transpose"
 
 class BatchNorm(OneFlowOpConverter):
     """Operator converter for BatchNorm"""
@@ -1306,7 +1310,7 @@ def get_convert_map():
         "gelu": Gelu.get_converter(),
         # defs/nn
         "conv2d": Conv2d.get_converter(),
-        "deconv2d": ConvTranspose.get_converter(),
+        "deconv2d": ConvTranspose2d.get_converter(),
         "maxpool_2d": MaxPool2d.get_converter(),
         "avgpool_2d": AveragePool2d.get_converter(),
         "adaptive_avg_pool2d": AdaptiveAvgPool2d.get_converter(),
