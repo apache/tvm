@@ -359,7 +359,7 @@ def test_conv2d():
     model = Conv2dModel()
     model.eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_conv(model, device=device)
 
 
@@ -399,7 +399,7 @@ def test_pool2d():
     model2 = AvgPool2dModel().eval()
     model3 = AdaptiveAvgPool2dModel().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_pool(model1, device=device)
         verify_pool(model2, device=device)
         verify_pool(model3, device=device)
@@ -421,7 +421,7 @@ def test_normalization():
     
     model = BatchNorm2dModel().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_normalization(model, device=device)
 
 
@@ -451,7 +451,7 @@ def test_upsample():
     model1 = UpsampleModel().eval()
     model2 = UpsampleBiliModel().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_upsample(model1, device=device)
         verify_upsample(model2, device=device)
 
@@ -472,7 +472,7 @@ def test_convtran():
 
     model = ConvTranModel().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_convtran(model, device=device)
 
 
@@ -592,7 +592,7 @@ def test_activation():
     model10 = LeakyReLU().eval()
     model11 = GELU().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_activation(model1, device=device)
         # verify_activation(model2, device=device) # NO PASS
         verify_activation(model3, device=device)
@@ -648,7 +648,7 @@ def test_math():
     model5 = Exp().eval()
     model6 = Exp2().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_math(model1, device=device)
         verify_math(model2, device=device)
         verify_math(model3, device=device)
@@ -667,7 +667,7 @@ def test_slice():
     
     model = Slice().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_math(
             model, device=device,
             inputs=flow.tensor(np.random.randn(3, 6, 9).astype(np.float32))
@@ -683,7 +683,7 @@ def test_concat():
 
     model = Concat().eval()
 
-    for device in ["llvm", "cuda"]:
+    for device in ["llvm"]:
         verify_concat(model, device=device)
 
 

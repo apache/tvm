@@ -140,7 +140,7 @@ model_path = "SRGAN_netG_epoch_4_99"
 sr_module = Generator(scale_factor=4)
 pretrain_models = flow.load(model_path)
 sr_module.load_state_dict(pretrain_models)
-sr_module.eval().to("cuda")
+sr_module.eval()
 
 ######################################################################
 # Load a test image
@@ -148,7 +148,7 @@ sr_module.eval().to("cuda")
 def load_image(image_path="", size=(224, 224)):
     img = Image.open(image_path).convert("RGB")
     img = np.ascontiguousarray(img).astype("float32") / 255
-    img_flow = flow.Tensor(img).unsqueeze(0).permute(0, 3, 1, 2).to("cuda")
+    img_flow = flow.Tensor(img).unsqueeze(0).permute(0, 3, 1, 2)
     return img_flow.numpy(), img_flow
 
 img_url = "https://oneflow-static.oss-cn-beijing.aliyuncs.com/train_data_zjlab/monarchx4.png"
