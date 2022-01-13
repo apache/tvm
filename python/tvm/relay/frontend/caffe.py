@@ -66,6 +66,7 @@ class OperatorConverter(object):
             "Slice": self.convert_slice,
             "Softmax": self.convert_softmax,
             "TanH": self.convert_tanh,
+            "Reduction": self.convert_reduction,
         }
 
     def convert_flatten(self, op):
@@ -561,6 +562,44 @@ class OperatorConverter(object):
         inputs = op.bottom
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.tanh(in_expr)
+        return out
+
+    def convert_reduction(self, op):
+        """ Convert Reduction layer """
+        reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
+
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        method = op.reduction_param.operation
+        axis = op.reduction_param.axis
+        coeff = op.reduction_param.coeff
+        coeff_expr = self.exp_tab.new_const(np.asarray(coeff, np.float32))
+        num_axes = len(_infer_shape(in_expr))
+
+        # Currently, only reduction along ALL "tail" axes is supported in Caffe;
+        # reduction of axis M through N, where N < num_axes - 1, is unsupported.
+        if 0 < axis < (num_axes - 1):
+            for _axis in reversed(range(axis + 1, num_axes)):
+                in_expr = _op.sum(in_expr, axis=_axis)
+            in_expr = _op.squeeze(in_expr)
+
+        if reduction_dic[method] == "SUM":
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "MEAN":
+            out = _op.mean(in_expr, axis=axis)
+        elif reduction_dic[method] == "ASUM":
+            in_expr = _op.abs(in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "SUMSQ":
+            in_expr = _op.multiply(in_expr, in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                "reduction method:{} is invalid in Caffe frontend.".format(method)
+            )
+
+        if float(coeff) != 1.0:
+            out = _op.multiply(out, coeff_expr)
         return out
 
     def convert_crop(self, op):
