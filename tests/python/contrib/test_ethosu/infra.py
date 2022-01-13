@@ -192,7 +192,8 @@ def deserialize_command_stream(blob):
 def create_test_runner(accel="ethos-u55-256"):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
-    ethosu_macs = accel[accel.rfind("-") + 1 :]
+    _, ethosu_variant, ethosu_macs = accel.split("-")
+    ethosu_variant = ethosu_variant.upper()
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
@@ -205,7 +206,11 @@ def create_test_runner(accel="ethos-u55-256"):
         ethosu_release_driver(ethos_u);
         """,
         includes=["uart.h", "ethosu_55.h", "ethosu_mod.h", "hard_fault.h"],
-        parameters={"ETHOSU_TEST_ROOT": test_root, "NPU_VARIANT": ethosu_macs},
+        parameters={
+            "ETHOSU_TEST_ROOT": test_root,
+            "NPU_MACS": ethosu_macs,
+            "NPU_VARIANT": ethosu_variant,
+        },
         pass_config={
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,

@@ -125,13 +125,18 @@ def enumerate_gemm_operators(
 # TODO(masahi): A sensible way to pick reasonable default kernels
 DEFAULT_KERNELS = {
     75: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
     },
     # align1 variants do not seem to be available for sm80
     80: {
-        "float16": "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
-        "float32": "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        ("float16", "float16"): "cutlass_tensorop_h1688gemm_128x64_32x2_tn_align1",
+        ("float16", "float32"): "cutlass_tensorop_s1688gemm_f16_64x64_32x2_tn_align1",
+        # two kernels for tf32 and 3xtf32
+        ("float32", "float32"): (
+            "cutlass_tensorop_s1688gemm_128x64_32x3_tn_align1",
+            "cutlass_tensorop_s1688gemm_64x64_16x3_tn_align1",
+        ),
     },
 }
 
@@ -147,21 +152,31 @@ class CutlassGemmProfiler:
 
     def check_align(self, op_name, M, N, K):
         """Filter out kernels that cannot be supported."""
-        aligns = re.findall(r"align[1|2|4|8]", op_name)
-        assert len(aligns) == 1
+        match = re.match(".*_align([1-9]+)", op_name)
+        assert match is not None and len(match.groups()) == 1
         # The same alignment is used for all axes
-        align = int(aligns[0][-1])
+        align = int(match.groups()[0])
         # TODO(masahi): CUTLASS alignment check on gemm kernels is too restrictive.
         # See https://github.com/NVIDIA/cutlass/issues/362.
         # When the above issue is resolved, we can remove the alignment check on M below.
         return all([dim % align == 0 for dim in [M, N, K]])
 
-    def get_default(self, op_type, out_dtype, batched=False):
+    def get_default(
+        self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32=True, batched=False
+    ):
         """Return the default kernel for the requested architecture.
         For now, the default kernel was picked arbitrary.
         """
-        ops = GENERATOR_FUNC_TABLE[self.sm](out_dtype, op_creator=enumerate_gemm_operators)
-        default_kernel_name = DEFAULT_KERNELS[self.sm][out_dtype]
+        ops = GENERATOR_FUNC_TABLE[self.sm](
+            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32
+        )
+        default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
+
+        if arg0_dtype == "float32":
+            default_kernel_name = (
+                default_kernel_name[0] if not use_3xtf32 else default_kernel_name[1]
+            )
+
         filtered = list(filter(lambda op: op["name"] == default_kernel_name, ops))
         assert len(filtered) == 1
         op = filtered[0]
@@ -176,7 +191,18 @@ class CutlassGemmProfiler:
         op.update({"name": name, "opdef": opdef})
         return op
 
-    def select_op(self, M, N, K, out_dtype, profile_all=True, use_multiprocessing=False):
+    def select_op(
+        self,
+        M,
+        N,
+        K,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32,
+        profile_all=True,
+        use_multiprocessing=False,
+    ):
         """
         Profile and select the best kernel from candidate kernels.
         See the documentation for the profile method below.
@@ -187,7 +213,10 @@ class CutlassGemmProfiler:
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
-            op_creator=enumerate_gemm_operators,
+            arg0_dtype,
+            arg1_dtype,
+            enumerate_gemm_operators,
+            use_3xtf32=use_3xtf32,
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
@@ -212,6 +241,9 @@ class CutlassGemmProfiler:
         N,
         K,
         out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32=True,
         profile_all=True,
         use_multiprocessing=False,
         batched=False,
@@ -221,7 +253,15 @@ class CutlassGemmProfiler:
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
-            M, N, K, out_dtype, profile_all=profile_all, use_multiprocessing=use_multiprocessing
+            M,
+            N,
+            K,
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            use_3xtf32,
+            profile_all=profile_all,
+            use_multiprocessing=use_multiprocessing,
         )
 
         name, opdef = create_gemm_operator_with_epilogue(
