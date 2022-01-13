@@ -21,7 +21,7 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib.dnnl import partition_for_dnnl
 
-from common import requires_dnnl, parametrized, check_result, Builder
+from .common import requires_dnnl, parametrized, check_result, Builder
 
 import collections
 

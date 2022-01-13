@@ -21,16 +21,15 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib.dnnl import partition_for_dnnl
 
-from common import (
+from .common import (
     requires_dnnl,
     parametrized,
     check_result,
-    check_fully_annotated,
     Builder,
     filler_uni,
 )
-from common import ConvProfile, ArgConstConfig, QuantizationConfig
-from common import permute, expand_dim
+from .common import ConvProfile, ArgConstConfig, QuantizationConfig
+from .common import permute, expand_dim
 
 acp_regular = ArgConstConfig(Data=False, Weights=True, Bias=True, Sum=None)
 acp_no_bias = ArgConstConfig(Data=False, Weights=True, Bias=None, Sum=None)

@@ -21,8 +21,8 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib.dnnl import partition_for_dnnl, get_dnnl_version
 
-from common import requires_dnnl, parametrized, check_result, Builder, filler_uni
-from common import DenseProfile, ArgConstConfig, QuantizationConfig
+from .common import requires_dnnl, parametrized, check_result, Builder, filler_uni
+from .common import DenseProfile, ArgConstConfig, QuantizationConfig
 
 base_dense_profile = DenseProfile(N=2, IC=10, OC=16)
 regular_const_arg_prof = ArgConstConfig(Data=False, Weights=True, Bias=True, Sum=None)
