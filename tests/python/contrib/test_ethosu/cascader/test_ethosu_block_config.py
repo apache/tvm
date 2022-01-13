@@ -22,15 +22,15 @@ import numpy as np
 import math
 
 import tvm.contrib.ethosu.cascader as cs
-from tvm.contrib.ethosu.cascader.stripe_config import StripeConfig, count_stripes
 
 from .infra import make_matrices
 
 
 @pytest.mark.parametrize(
-    "op_type, activation, kernel, stride, dilation, padding, in_shape, out_shape, expected",
+    "id, op_type, activation, kernel, stride, dilation, padding, in_shape, out_shape",
     [
         (
+            0,
             "ethosu_conv2d",
             "NONE",
             (34, 19),
@@ -39,9 +39,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 266, 111, 15),
             (1, 117, 47, 15),
-            (1, 7, 6, 16),
         ),
         (
+            1,
             "ethosu_conv2d",
             "NONE",
             (14, 14),
@@ -50,9 +50,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 125, 63, 64),
             (1, 112, 50, 128),
-            (1, 5, 8, 16),
         ),
         (
+            2,
             "ethosu_conv2d",
             "NONE",
             (7, 1),
@@ -61,9 +61,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 13, 4, 12),
             (1, 4, 4, 511),
-            (1, 4, 4, 16),
         ),
         (
+            3,
             "ethosu_conv2d",
             "NONE",
             (5, 5),
@@ -72,9 +72,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 96, 16, 276),
             (1, 92, 12, 16),
-            (1, 16, 4, 16),
         ),
         (
+            4,
             "ethosu_conv2d",
             "NONE",
             (5, 5),
@@ -83,9 +83,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 96, 16, 276),
             (1, 92, 12, 1),
-            (1, 8, 12, 8),
         ),
         (
+            5,
             "ethosu_conv2d",
             "NONE",
             (3, 3),
@@ -94,7 +94,6 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 62, 94, 32),
             (1, 58, 90, 16),
-            (1, 10, 6, 16),
         ),
     ],
 )
@@ -107,7 +106,57 @@ from .infra import make_matrices
         ("NHCWB16", "NHWC"),
     ],
 )
+@pytest.mark.parametrize(
+    "acc_config, expected_block_configs",
+    [
+        (
+            "ethos-u55-32",
+            [
+                ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
+                ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
+                ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
+                ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
+                ((1, 10, 6, 4), (1, 16, 1, 4, 4)),
+                ((1, 10, 3, 16), (1, 10, 1, 3, 16)),
+            ],
+        ),
+        (
+            "ethos-u55-64",
+            [
+                ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
+                ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
+                ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
+                ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
+                ((1, 10, 6, 8), (1, 16, 1, 4, 8)),
+                ((1, 10, 3, 16), (1, 10, 1, 3, 16)),
+            ],
+        ),
+        (
+            "ethos-u55-128",
+            [
+                ((1, 7, 6, 16), (1, 7, 1, 6, 16)),
+                ((1, 5, 8, 16), (1, 5, 1, 8, 16)),
+                ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
+                ((1, 16, 4, 16), (1, 16, 1, 4, 16)),
+                ((1, 8, 12, 8), (1, 8, 1, 12, 8)),
+                ((1, 10, 6, 16), (1, 10, 1, 6, 16)),
+            ],
+        ),
+        (
+            "ethos-u55-256",
+            [
+                ((1, 14, 8, 16), (1, 14, 1, 8, 16)),
+                ((1, 16, 8, 16), (1, 16, 1, 8, 16)),
+                ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
+                ((1, 32, 4, 16), (1, 32, 1, 4, 16)),
+                ((1, 20, 12, 8), (1, 20, 1, 12, 8)),
+                ((1, 20, 6, 16), (1, 20, 1, 6, 16)),
+            ],
+        ),
+    ],
+)
 def test_best_block_config(
+    id,
     op_type,
     activation,
     kernel,
@@ -116,8 +165,9 @@ def test_best_block_config(
     padding,
     in_shape,
     out_shape,
-    expected,
     layouts,
+    acc_config,
+    expected_block_configs,
 ):
     nhwc_to_nhcwb16 = [
         [1, 0, 0, 0, 0],
@@ -164,7 +214,7 @@ def test_best_block_config(
         "dilation_w": dilation[1],
     }
 
-    device_config = cs.EthosuDeviceConfig("ethos-u55-128")
+    device_config = cs.EthosuDeviceConfig(acc_config)
     block_configs = device_config.get_valid_block_configs(
         propagator,
         op_attrs,
@@ -201,21 +251,11 @@ def test_best_block_config(
     stripe_config = cs.StripeConfig(out_shape, out_shape, out_shape, order, stripes, offset)
 
     block = part.get_block_config(stripe_config)
+    block_shape = tuple(int(a) for a in block.output_shape)
     if layouts[1] == "NHCWB16":
-        block_shape = tuple(
-            int(math.ceil(n))
-            for n in np.matmul(
-                nhcwb16_to_nhwc,
-                [int(x) for x in block.output_shape]
-                + [
-                    1,
-                ],
-            ).tolist()[:-1]
-        )
+        assert block_shape == expected_block_configs[id][1]
     else:
-        block_shape = tuple(int(a) for a in block.output_shape)
-
-    assert block_shape == expected
+        assert block_shape == expected_block_configs[id][0]
 
 
 if __name__ == "__main__":

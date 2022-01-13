@@ -72,8 +72,8 @@ class EthosuPartNode : public PartNode {
    * \param stripe_shape The shape of the full stripe to compute.
    * \return The bytes required per input tensor.
    */
-  const std::vector<int64_t> GetBytesRead(const std::vector<int> block_shape,
-                                          const std::vector<int> full_shape);
+  const std::vector<int64_t> GetBytesRead(const std::vector<int>& block_shape,
+                                          const std::vector<int>& full_shape);
 
   /*! \brief List of block configs that are valid for this part */
   std::vector<BlockConfig> valid_block_configs_;
@@ -97,8 +97,8 @@ class EthosuPartNode : public PartNode {
 class EthosuPart : public Part {
  public:
   EthosuPart(const TESubgraph& subgraph, const std::vector<Propagator> propagators,
-             const std::vector<int> output_quantum, int subkernels,
-             const std::vector<BlockConfig> valid_block_configs, int weight_tensor_idx);
+             const std::vector<int>& output_quantum, int subkernels,
+             const std::vector<BlockConfig>& valid_block_configs, int weight_tensor_idx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EthosuPart, Part, EthosuPartNode);
 };

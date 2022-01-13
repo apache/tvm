@@ -84,8 +84,8 @@ class EthosuDeviceConfig:
             self._accumulator_granularity = {4: 16, 5: 20}
             self._lut_reserved = True
         elif self._device == "ethos-u55-128":
-            self._micro_block = _Shape([0, 1, 2, 8])
-            self._input_micro_block = _Shape([0, 1, 2, 8])
+            self._micro_block = _Shape([1, 1, 2, 8])
+            self._input_micro_block = _Shape([1, 1, 2, 8])
             self._delay_cycles = (2, 3)
             self._activation_cycles = (0.5, 1)
             self._output_units = 4

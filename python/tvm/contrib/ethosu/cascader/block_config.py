@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Block config to hold an output block shape and a corresponding input block shape"""
 # pylint: disable=invalid-name
+"""Block config to hold an output block shape and a corresponding input block shape"""
 from typing import List
 import tvm._ffi
 

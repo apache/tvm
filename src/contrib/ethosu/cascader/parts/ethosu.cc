@@ -35,8 +35,8 @@ namespace contrib {
 namespace ethosu {
 namespace cascader {
 
-const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int> block_shape,
-                                                        const std::vector<int> full_shape) {
+const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& block_shape,
+                                                        const std::vector<int>& full_shape) {
   std::vector<int64_t> bytes_per_input(propagators_.size(), 0);
 
   std::vector<int> order;
@@ -141,15 +141,15 @@ const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& out
 }
 
 EthosuPart::EthosuPart(const TESubgraph& subgraph, const std::vector<Propagator> propagators,
-                       const std::vector<int> output_quantum, int subkernels,
-                       const std::vector<BlockConfig> valid_block_configs, int weight_tensor_idx) {
+                       const std::vector<int>& output_quantum, int subkernels,
+                       const std::vector<BlockConfig>& valid_block_configs, int weight_tensor_idx) {
   auto n = make_object<EthosuPartNode>();
   ICHECK_GT(propagators.size(), 0) << "The Part must include at least one Propagator.";
   n->subgraph_ = subgraph;
   n->propagators_ = std::move(propagators);
   n->in_line_ = false;
   n->input_tensors_.resize(propagators.size());
-  n->output_quantum_ = std::move(output_quantum);
+  n->output_quantum_ = output_quantum;
   n->valid_block_configs_ = valid_block_configs;
   n->subkernels_ = subkernels;
   n->weight_tensor_idx_ = weight_tensor_idx;
