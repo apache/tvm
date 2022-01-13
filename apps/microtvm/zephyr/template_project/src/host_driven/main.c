@@ -260,7 +260,6 @@ void uart_rx_init(struct ring_buf* rbuf, const struct device* dev) {
 // The main function of this application.
 extern void __stdout_hook_install(int (*hook)(int));
 void main(void) {
-
 #ifdef CONFIG_LED
   int ret;
   led0_pin = device_get_binding(LED0);
