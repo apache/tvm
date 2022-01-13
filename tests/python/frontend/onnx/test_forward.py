@@ -6030,6 +6030,68 @@ def test_convinteger(target, dev):
         repeat(2, D),
     )
 
+@tvm.testing.parametrize_targets
+def test_qattention(target, dev):
+    def verify_qattention(
+        x_shape,
+        w_shape,
+        nh,
+    ):
+        B, L, D = x_shape
+        _, nhH = w_shape
+        H = nhH // 3
+        x_array = np.random.randint(low=0, high=255, size=x_shape).astype("uint8")
+        w_array = np.random.uniform(low=0, high=255, size=w_shape).astype("uint8")
+        b_array = np.random.randint(low=0, high=255, size=nhH).astype("float32")
+        input_scale = np.random.rand(1).astype("float32")
+        weight_scale = np.random.rand(1).astype("float32")
+        initializer = [
+            helper.make_tensor("input_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+            helper.make_tensor("weight_zero_point", TensorProto.UINT8, (), [np.random.randint(0, 255)]),
+        ]
+
+        input_nodes = [
+            helper.make_tensor_value_info("input", TensorProto.UINT8, list(x_shape)),
+            helper.make_tensor_value_info("weight", TensorProto.UINT8, list(w_shape)),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [nhH,]),
+            helper.make_tensor_value_info("input_scale", TensorProto.FLOAT, [1]),
+            helper.make_tensor_value_info("weight_scale", TensorProto.FLOAT, [1]),
+        ]
+        input_names = [
+            "input",
+            "weight",
+            "bias",
+            "input_scale",
+            "weight_scale"
+        ]
+        input_values = [x_array, w_array, b_array, input_scale, weight_scale]
+
+        node = helper.make_node(
+            "QAttention",
+            inputs=input_names,
+            outputs=["att_out"],
+            domain="com.microsoft",
+            **{
+                "num_heads": nh,
+            }
+        )
+
+        graph = helper.make_graph(
+            [node],
+            "qattention_test",
+            inputs=input_nodes,
+            outputs=[
+                helper.make_tensor_value_info("att_out", TensorProto.FLOAT, [B, L, H]),
+                #helper.make_tensor_value_info("present", TensorProto.UINT8, [2, B, nh, past_sequence_length + L, nhH])
+                ],
+            initializer=initializer,
+        )
+        model = helper.make_model(graph, producer_name="qattention_test")
+        # opt_level=1 will cause error
+        verify_with_ort_with_inputs(model, input_values, target=target, dev=dev)
+
+    verify_qattention([1,2,3],[3,3*10],5)
+    
 
 @tvm.testing.parametrize_targets
 def test_scan(target, dev):

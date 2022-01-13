@@ -4073,6 +4073,40 @@ class ConvInteger(OnnxOpConverter):
             groups=groups,
         )
 
+class QAttention(OnnxOpConverter):
+    """Operator converter for QAttention from Microsoft onnxruntime contrib opset."""
+    @classmethod
+    def _impl_v15(cls, inputs, attr, params):
+        x = inputs[0]   # (B,S,D)
+        w = inputs[1]   # (D,3H)
+        b = inputs[2]
+        x_scale = fold_constant(get_scalar(inputs[3], params)) # scalar
+        w_scale = inputs[4] # scalar or 1D tensor
+        # optional
+        mask_index = inputs[4]  # (B)
+        x_zp = inputs[5] if inputs[5] is not None else _op.const(0,dtype="int32")
+        w_zp = inputs[6] if inputs[6] is not None else _op.const(0,dtype="int32")    # scalar or 1D tensor
+        past = inputs[7]    # (2,B,N,S',H)
+        if past is not None:
+            past_K, past_V = _op.split(past, 2, axis=0) # (B,N,S',H)
+        N, unidirectional = attr['num_heads'], attr.get('unidirectional', 0)
+        (B, S, D), (_, H3) = infer_shape(x), infer_shape(w)
+        H = H3 // 3
+        Xwb = _qnn.op.dense(x, w, x_zp, w_zp, x_scale, w_scale, H3) # (B,S,3H)
+        # Compute scalar and zp
+        Xwb_scale = fold_constant(_op.multiply(x_scale, w_scale))
+        Xwb_zp = _op.const(0, dtype="int32")
+        Q, K, V = map(lambda x : _op.transpose(_op.reshape(x, (B, S, N, H)), axes=[1,2]), _op.split(Xwb, 3, axis=-1))    # (B,N,S,H)
+        if past is not None:
+            K, V = _op.concatenate([K, past_K], 2), _op.concatenate([V, past_V], 2) # Q(B,N,S,H), past_Q(B,N,S',H) -> (B,N,S*,H)
+        A = _qnn.op.dense(Q, _op.transpose(K, axes=(2,3)), Xwb_zp, Xwb_zp, Xwb_scale, Xwb_scale, H)  # Q(B,N,S,H) X K'(B,N,S*,H -> B,N,H,S*) + mask_data(B,N,S,S*) = A(B,N,S,S*)
+        if mask_index is not None:
+            pass    # not implemented
+        A /= _op.const(math.sqrt(H), dtype="float32")
+        A = _op.nn.softmax(A, axis=-1)
+        Z = _qnn.op.dense(A, V, Xwb_zp, Xwb_zp, fold_constant(_op.multiply(Xwb_scale, Xwb_scale)), Xwb_scale, H)  # A(B,N,S,S*) X V(B,N,S*,H) = Z(B,N,S,H)
+        Z = _op.reshape(_op.transpose(Z, axes=[1,2]), (B,S,H3))    # (B,N,S,H) -> (B,S,N,H) -> (B,S,N*H)
+        return Z
 
 class BitShift(OnnxOpConverter):
     """Operator converter for NonZero"""
@@ -4730,6 +4764,7 @@ def _get_convert_map(opset):
         "QLinearAveragePool": QLinearAveragePool.get_converter(opset),
         "QLinearGlobalAveragePool": QLinearGlobalAveragePool.get_converter(opset),
         "QLinearLeakyRelu": QLinearLeakyRelu.get_converter(opset),
+        "QAttention": QAttention.get_converter(opset),
         # Random number generation.
         "RandomNormal": RandomNormal.get_converter(opset),
         "RandomNormalLike": RandomNormalLike.get_converter(opset),
