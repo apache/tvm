@@ -25,8 +25,11 @@ class RBNPUCodegen(GenericCodegen):
     def __init__(self):
         super(RBNPUCodegen, self).__init__()
 
-    def apply_schedules(self, schedule):
-        return schedule
+    def _register_tir_schedules(self):
+        pass
+
+    def _register_tir_passes(self):
+        pass
 
 
 @tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_rb_npu")

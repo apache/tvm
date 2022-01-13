@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relay matching pattern for the UltraTrail accelerator"""
+"""Relay partitioner for the UltraTrail accelerator"""
 
 import tvm
 from tvm import relay
@@ -30,7 +30,7 @@ def _register_external_op_helper(op_name, supported=True):
     return _func_wrapper
 
 
-def match_ultra_trail(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
+def partition_for_ultra_trail(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
     _register_external_op_helper("nn.conv1d")
     mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
     mod = relay.transform.MergeCompilerRegions()(mod)

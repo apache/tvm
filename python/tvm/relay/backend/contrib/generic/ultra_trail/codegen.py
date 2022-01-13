@@ -19,6 +19,8 @@
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.generic.codegen import GenericCodegen
+from tvm.relay.backend.contrib.generic.ultra_trail.schedules import example_sch_func
+
 
 class UltraTrailCodegen(GenericCodegen):
     def __init__(self):
@@ -26,11 +28,12 @@ class UltraTrailCodegen(GenericCodegen):
 
     # 1. Tensorize
     # 2. Generate Config
-    def apply_schedules(self, schedule):
-        n, k, c, f_x, x = schedule.get_loops(schedule.get_block("conv1d_ncw"))
-        k_0, k_1 = schedule.split(k, factors=[2, None])
-        schedule.reorder(n, k_0, c, f_x, x, k_1)
-        return schedule
+    def _register_tir_schedules(self):
+        self._register_tir_schedule(example_sch_func)
+
+    def _register_tir_passes(self):
+        self._register_tir_pass(0, tvm.tir.transform.Simplify())
+
 
 @tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_ultra_trail")
 def relay_to_tir_func_ultra_trail(ext_func: relay.Function) -> tvm.tir.PrimFunc:

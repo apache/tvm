@@ -1,7 +1,7 @@
 import tvm
 import tvm.relay.backend.contrib.generic
+from tvm.relay.backend.contrib.generic.ultra_trail.partitioner import partition_for_ultra_trail
 from tvm import relay
-from tvm.relay.backend.contrib.generic.ultra_trail.pattern import match_ultra_trail
 
 import torch
 
@@ -17,6 +17,7 @@ class TorchModel(torch.nn.Module):
         x = self.conv(x)
         return x
 
+
 def main():
     torch_mod = TorchModel()
 
@@ -26,7 +27,7 @@ def main():
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
-    mod = match_ultra_trail(mod)
+    mod = partition_for_ultra_trail(mod)
     lib = relay.build(mod, tvm.target.Target("c"))
     print(lib)
 

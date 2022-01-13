@@ -15,6 +15,5 @@
 # specific language governing permissions and limitations
 # under the License.
 """Generic NPU codegen modules."""
-from . import codegen
 from .ultra_trail import codegen
 from .rb_npu import codegen

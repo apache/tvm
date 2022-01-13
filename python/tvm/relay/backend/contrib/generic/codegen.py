@@ -16,13 +16,77 @@
 # under the License.
 """Generic codegen for NPUs"""
 
-from abc import abstractmethod
-from typing import Dict, List
 import tvm
 from tvm import relay, te, tir
 
+from abc import abstractmethod
+from typing import List, Tuple, Callable
+
 
 class GenericCodegen(object):
+    def __init__(self) -> None:
+        self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
+        self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
+
+        self._register_tir_schedules()
+        self._register_tir_passes()
+
+    @abstractmethod
+    def _register_tir_schedules(self) -> None:
+        """Register a set of TIR scheduling functions which are applied to the schedule.
+
+        Example
+        -------
+        Here is an example of how two scheduling functions can be registered.
+
+        .. code-block:: python
+
+            def _register_tir_schedules(self):
+                self._register_tir_schedule(schedule_func_0)
+                self._register_tir_schedule(schedule_func_1)
+
+        Use `pass` if no scheduling function should be registerd.
+
+        .. code-block:: python
+
+            def _register_tir_schedules(self):
+                pass
+
+        """
+        pass
+
+    @abstractmethod
+    def _register_tir_passes(self) -> None:
+        """Register a set of TIR passes which are applied during lowering.
+
+        Example
+        -------
+        Here is an example of how two passes can be registered.
+
+        .. code-block:: python
+
+            def _register_tir_passes(self):
+                self._register_tir_pass(pass_0)
+                self._register_tir_pass(pass_1)
+
+        Use `pass` if no TIR pass should be registerd.
+
+        .. code-block:: python
+
+            def _register_tir_passes(self):
+                pass
+
+        """
+        pass
+
+    def _register_tir_schedule(
+        self, sch_func: Callable[[tvm.tir.Schedule], tvm.tir.Schedule]
+    ) -> None:
+        self._tir_schedules.append(sch_func)
+
+    def _register_tir_pass(self, stage: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
+        self._tir_passes.append((stage, tir_pass))
+
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
         """Lower a Relay primitive function to a S-TIR primitive function.
 
@@ -46,29 +110,25 @@ class GenericCodegen(object):
         return tir_prim_func
 
     def _lower_stir_to_nstir(self, schedule: tvm.tir.Schedule) -> tvm.tir.PrimFunc:
-        mod = schedule.mod
-        mod = self.apply_passes_before(mod)
-        mod = tir.transform.StorageFlatten(64, False)(mod)
-        mod = tir.transform.LowerInitBlock()(mod)
-        mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
-        mod = tir.transform.ConvertBlocksToOpaque()(mod)
-        mod = tir.transform.CompactBufferAllocation()(mod)
-        mod = tir.transform.LowerMatchBuffer()(mod)
-        mod = tir.transform.FlattenBuffer()(mod)
-        mod = tir.transform.Simplify()(mod)
-        mod = self.apply_passes_after(mod)
+        """Lower a S-TIR schedule to a NS-TIR primitive function.
+
+        Parameters
+        ----------
+        schedule : tvm.tir.Schedule
+            The schedule to lower.
+
+        Returns
+        -------
+        out : tvm.tir.PrimFunc
+            The lowered non-schedulable TensorIR primitive function.
+
+        """
+        with tvm.transform.PassContext(
+            config={"tir.add_lower_pass": self._tir_passes}, opt_level=0
+        ):
+            mod = tvm.lower(schedule.mod)
         prim_func = mod["main"]
         return prim_func
-
-    @abstractmethod
-    def apply_schedules(self, schedule: tvm.tir.Schedule) -> tvm.tir.Schedule:
-        pass
-
-    def apply_passes_before(self, mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
-        return mod
-
-    def apply_passes_after(self, mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
-        return mod
 
     def relay_to_tir_func(self, ext_func: relay.Function) -> tvm.tir.PrimFunc:
         """
@@ -84,9 +144,11 @@ class GenericCodegen(object):
         -------
         prim_func : tir.PrimFunc
             The scheduled PrimFunc.
+
         """
         prim_func = self._lower_relay_to_tir(ext_func)
         schedule = tir.Schedule(prim_func)
-        schedule = self.apply_schedules(schedule)
+        for sch_func in self._tir_schedules:
+            schedule = sch_func(schedule)
         prim_func = self._lower_stir_to_nstir(schedule)
         return prim_func
