@@ -56,10 +56,17 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
   n->attrs = std::move(attrs);
-
-  if (functions.defined()) {
-    for (const auto& kv : functions) {
-      n->Add(kv.first, kv.second);
+  n->functions = std::move(functions);
+  if (n->functions.defined()) {
+    for (const auto& kv : n->functions) {
+      // set global var map
+      ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
+          << "Duplicate global function name " << kv.first->name_hint;
+      n->global_var_map_.Set(kv.first->name_hint, kv.first);
+      const auto& f = kv.second;
+      if (f->IsInstance<tir::PrimFuncNode>()) {
+        n->ExtractPrimFuncConstants(Downcast<tir::PrimFunc>(f));
+      }
     }
   }
 
