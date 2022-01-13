@@ -168,7 +168,6 @@ def verify_conv2d_NCHWc(
             check_device(device)
 
 
-@tvm.testing.slow
 def test_conv2d_NCHWc():
     # ResNet18 workloads
     verify_conv2d_NCHWc(1, 3, 224, 64, 7, 2, 3)

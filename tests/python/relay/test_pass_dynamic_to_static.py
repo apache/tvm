@@ -315,7 +315,6 @@ def test_dynamic_to_static_resize2d():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_dynamic_to_static_one_hot():
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
         indices = relay.var("indices", relay.TensorType(indices_shape, "int32"))
@@ -539,7 +538,6 @@ def test_dynamic_to_static_strided_slice():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_dyn_to_static_sparse_to_dense():
     def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
         sparse_indices_data = np.array(sparse_indices)

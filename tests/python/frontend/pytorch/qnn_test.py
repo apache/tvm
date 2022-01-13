@@ -270,7 +270,6 @@ class AdaptiveAvgPool2d(nn.Module):
         pass
 
 
-@tvm.testing.slow
 def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
@@ -353,7 +352,6 @@ def test_quantized_modules():
         # tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-1, atol=1e-1)
 
 
-@tvm.testing.slow
 def test_quantized_imagenet():
     def get_transform():
         import torchvision.transforms as transforms

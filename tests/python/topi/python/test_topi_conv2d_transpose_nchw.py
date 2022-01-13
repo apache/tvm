@@ -107,7 +107,6 @@ def verify_conv2d_transpose_nchw(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_conv2d_transpose_nchw():
     verify_conv2d_transpose_nchw(1, 3, (224, 224), 1, (1, 1), (1, 1), (0, 0, 0, 0), (0, 0))
     verify_conv2d_transpose_nchw(1, 3, (224, 224), 32, (3, 3), (1, 1), (0, 0, 0, 0), (0, 0))

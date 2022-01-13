@@ -168,7 +168,6 @@ def verify_conv3d_ncdhw(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_conv3d_ncdhw():
     # 3DCNN  workloads
     verify_conv3d_ncdhw(1, 32, 32, 5, 1, 1, 0)

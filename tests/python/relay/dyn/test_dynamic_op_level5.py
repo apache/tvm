@@ -37,7 +37,6 @@ def test_resize2d_infer_type():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_resize2d():
     def verify_resize2d(dshape, scale, method, layout):
         if layout == "NHWC":

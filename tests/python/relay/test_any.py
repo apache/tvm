@@ -292,7 +292,6 @@ def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_any_argwhere():
     verify_any_argwhere(any_dims(1), (5,))
     verify_any_argwhere(any_dims(2), (5, 5))
@@ -747,7 +746,6 @@ def verify_any_conv2d_transpose_nchw(
 
 # TODO(@kevinthesun): Support dynamic input height and width.
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_any_conv2d_transpose_nchw():
     verify_any_conv2d_transpose_nchw(
         (relay.Any(), 64, 224, 224),

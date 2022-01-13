@@ -53,7 +53,6 @@ def check_on_vm(target, dev, args, expected_result, mod):
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_dyn_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))
@@ -84,7 +83,6 @@ def test_dyn_reshape():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_dyn_shape_reshape():
     def verify_reshape(shape, newshape, oshape):
         x = relay.var("x", relay.TensorType(shape, "float32"))

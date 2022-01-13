@@ -419,7 +419,6 @@ def _test_split(in_shape, axis, num_splits, dtype):
         compare_tflite_with_tvm([np_data], ["in_data"], [in_data], out, out_names=out_names)
 
 
-@tvm.testing.slow
 def test_forward_split():
     """test split layer"""
     # rank 1
@@ -463,7 +462,6 @@ def _test_slice(data, begin, size):
         compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_slice():
     """SLICE"""
     _test_slice(np.arange(4, dtype=np.float32).reshape((4,)), begin=[0], size=[2])
@@ -486,7 +484,6 @@ def _test_topk(in_shape, k=1):
         compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out[0]])
 
 
-@tvm.testing.slow
 def test_forward_topk():
     """TOPK"""
     _test_topk((3,), 1)
@@ -579,7 +576,6 @@ def _test_gather_nd(data, indices):
         )
 
 
-@tvm.testing.slow
 def test_forward_gather_nd():
     """GATHER_ND"""
     _test_gather_nd(
@@ -644,7 +640,6 @@ def _test_stridedslice(
         )
 
 
-@tvm.testing.slow
 def test_forward_stridedslice():
     """test StridedSlice"""
     for quantized in [False, True]:
@@ -750,7 +745,6 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
         compare_tflite_with_tvm([A_np, B_np], [A.name, B.name], [A, B], [result])
 
 
-@tvm.testing.slow
 def test_forward_batch_matmul():
     """BATCH_MAT_MUL"""
     _test_batch_matmul((3, 5, 4), (3, 4, 5), "float32")
@@ -797,7 +791,6 @@ def _test_batch_to_space_nd(input_shape, block_shape, crops, dtype="int32"):
         compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_batch_to_space_nd():
     # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/batch-to-space-n-d
     _test_batch_to_space_nd(input_shape=[4, 1, 1, 1], block_shape=[2, 2], crops=[[0, 0], [0, 0]])
@@ -825,7 +818,6 @@ def _test_space_to_batch_nd(input_shape, block_shape, paddings, dtype="int32"):
         compare_tflite_with_tvm(data, "Placeholder:0", [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_space_to_batch_nd():
     # test cases: https://www.tensorflow.org/api_docs/python/tf/space_to_batch_nd
     _test_space_to_batch_nd(input_shape=[1, 2, 2, 1], block_shape=[2, 2], paddings=[[0, 0], [0, 0]])
@@ -856,7 +848,6 @@ def _test_pooling(input_shape, **kwargs):
     _test_pooling_iteration(input_shape, **kwargs)
 
 
-@tvm.testing.slow
 def test_forward_pooling():
     """Pooling"""
 
@@ -917,7 +908,6 @@ def _test_l2_pool2d(input_shape, ksize, strides, padding, data_format, fused_fun
         compare_tflite_with_tvm(x, "input", [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_l2_pool2d():
     _test_l2_pool2d([1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], "SAME", "NHWC", "RELU6")
     _test_l2_pool2d([2, 9, 10, 2], [1, 1, 1, 1], [1, 1, 1, 1], "SAME", "NHWC", "RELU6")
@@ -1113,7 +1103,6 @@ def _test_convolution(
             compare_tflite_with_tvm(data_array, "in_data", [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_convolution():
     for quantized in [False, True]:
         for fp16_quantized in [False, True]:
@@ -1327,7 +1316,6 @@ def _test_transpose_conv(
             )
 
 
-@tvm.testing.slow
 def test_forward_transpose_conv():
     for quantized in [True, False]:
         for fp16_quantized in [True, False]:
@@ -1588,7 +1576,6 @@ def _test_reshape(data, out_shape, wrap_shape, quantized=False):
             )
 
 
-@tvm.testing.slow
 def test_forward_reshape():
     for wrap in [True, False]:
         _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3], wrap)
@@ -1647,7 +1634,6 @@ def _test_resize(
             compare_tflite_with_tvm([images_data], ["in:0"], [images_tensor], [out_tensor])
 
 
-@tvm.testing.slow
 def test_all_resize():
     """Resize"""
     images_data = np.random.uniform(0, 255, (1, 16, 16, 3))
@@ -1757,7 +1743,6 @@ def _test_range_default():
             )
 
 
-@tvm.testing.slow
 def test_forward_range():
     _test_range(np.int32(1), np.int32(18), np.int32(3))
     _test_range(np.int32(1), np.int32(18), np.float32(3.1))  # increment is of type float
@@ -1976,7 +1961,6 @@ def _test_forward_unary_elemwise(test_op):
         test_op(np.random.uniform(-10, 10, (3, 2)).astype(np.float32))
 
 
-@tvm.testing.slow
 def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
@@ -2314,7 +2298,6 @@ def _test_elemwise_qnn_out_range(qnn_op):
     return qnn_out_range[qnn_op]
 
 
-@tvm.testing.slow
 def test_all_elemwise():
     _test_forward_elemwise(_test_add)
     _test_forward_elemwise_quantized(_test_add)
@@ -2370,7 +2353,6 @@ def _test_forward_add_n(inputs):
         )
 
 
-@tvm.testing.slow
 def test_forward_add_n():
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         x = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
@@ -2482,7 +2464,6 @@ def _test_fill(dims, value_data, value_dtype):
         compare_tflite_with_tvm([input1_data], ["input1"], [input1], [out1])
 
 
-@tvm.testing.slow
 def test_forward_fill():
     """Test FILL op"""
 
@@ -2625,7 +2606,6 @@ def _test_forward_reduce_quantized(testop):
     testop(data0, keep_dims=True, quantized=True)
 
 
-@tvm.testing.slow
 def test_all_reduce():
     _test_forward_reduce(_test_reduce_min)
     _test_forward_reduce(_test_reduce_max)
@@ -2664,7 +2644,6 @@ def _test_arg_min_max(math_op, data, axis, quantized=False):
             compare_tflite_with_tvm([data], [in_data.name], [in_data], [out])
 
 
-@tvm.testing.slow
 def test_forward_arg_min_max():
     # test quantized
     for data in [np.array(np.random.uniform(-100, 100, (3, 4)), dtype=np.uint8)]:
@@ -2968,7 +2947,6 @@ def _test_padv2(data, mode="CONSTANT", quantized=False):
             compare_tflite_with_tvm([data[0]], ["in:0"], in_data, [out])
 
 
-@tvm.testing.slow
 def test_forward_padv2():
     """PADV2"""
     # Tests without Constant_values
@@ -3115,7 +3093,6 @@ def _test_expand_dims(input_shape, input_type, axis, quantized=False):
             compare_tflite_with_tvm([input], ["input"], [in_input], [out])
 
 
-@tvm.testing.slow
 def test_forward_expand_dims():
     """EXPAND_DIMS"""
     for quantized in [False, True]:
@@ -4075,7 +4052,6 @@ def _test_fully_connected(
             )
 
 
-@tvm.testing.slow
 def test_forward_fully_connected():
     """Fully Connected"""
     for input_shape, weight_shape, bias_shape in [
@@ -4180,7 +4156,6 @@ def _test_matrix_set_diag(input_shape, input_type, quantized=False):
             )
 
 
-@tvm.testing.slow
 def test_forward_matrix_set_diag():
     """MATRIX_SET_DIAG"""
     for dtype in [np.float32, np.int32]:
@@ -4382,7 +4357,6 @@ def test_forward_mobilenet_v1():
     )
 
 
-@tvm.testing.slow
 def test_forward_mobilenet_v2():
     """Test the Mobilenet V2 TF Lite model."""
     # MobilenetV2
@@ -4405,7 +4379,6 @@ def test_forward_mobilenet_v2():
 # ------------
 
 
-@tvm.testing.slow
 def test_forward_mobilenet_v3():
     """Test the Mobilenet V3 TF Lite model."""
     # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
@@ -4430,7 +4403,6 @@ def test_forward_mobilenet_v3():
 # -----------------
 
 
-@tvm.testing.slow
 def test_forward_sparse_mobilenet_v1():
     """Test the Sparse version of Mobilenet V1 TF Lite model."""
     # MobilenetV1
@@ -4453,7 +4425,6 @@ def test_forward_sparse_mobilenet_v1():
 # -----------------
 
 
-@tvm.testing.slow
 def test_forward_sparse_mobilenet_v2():
     """Test the Sparse version of Mobilenet V2 TF Lite model."""
     # MobilenetV1
@@ -4476,7 +4447,6 @@ def test_forward_sparse_mobilenet_v2():
 # ---------
 
 
-@tvm.testing.slow
 def test_forward_inception_v3_net():
     """Test the Inception V3 TF Lite model."""
     # InceptionV3
@@ -4511,7 +4481,6 @@ def test_forward_inception_v4_net():
     )
 
 
-@tvm.testing.slow
 def test_forward_inception_v4_net_batched():
     """Test the Inception V4 TF Lite model."""
     # InceptionV4
@@ -4529,7 +4498,6 @@ def test_forward_inception_v4_net_batched():
     )
 
 
-@tvm.testing.slow
 def test_forward_qnn_inception_v1_net():
     """Test the Quantized TFLite Inception model."""
     # InceptionV1
@@ -4554,7 +4522,6 @@ def test_forward_qnn_inception_v1_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_qnn_mobilenet_v1_net():
     """Test the Quantized TFLite Mobilenet V1 model."""
     # MobilenetV1
@@ -4579,7 +4546,6 @@ def test_forward_qnn_mobilenet_v1_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_qnn_mobilenet_v2_net():
     """Test the Quantized TFLite Mobilenet V2 model."""
     # MobilenetV2
@@ -4638,7 +4604,6 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_tflite2_qnn_resnet50():
     """Test the Quantized TFLite version 2.1.0 Resnet50 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
@@ -4661,7 +4626,6 @@ def test_forward_tflite2_qnn_resnet50():
         tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_tflite2_qnn_inception_v1():
     """Test the Quantized TFLite version 2.1.0 Inception V1 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
@@ -4683,7 +4647,6 @@ def test_forward_tflite2_qnn_inception_v1():
         tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_tflite2_qnn_mobilenet_v2():
     """Test the Quantized TFLite version 2.1.0 Mobilenet V2 model."""
     if package_version.parse(tf.VERSION) >= package_version.parse("2.1.0"):
@@ -4705,7 +4668,6 @@ def test_forward_tflite2_qnn_mobilenet_v2():
         tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 
-@tvm.testing.slow
 def test_forward_tflite_float16():
     """Test float16 quantized model"""
     # MobilenetV2
@@ -4812,7 +4774,6 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
 # -------------
 
 
-@tvm.testing.slow
 def test_forward_coco_ssd_mobilenet_v1():
     """Test the FP32 Coco SSD Mobilenet V1 TF Lite model."""
     tflite_model_file = tf_testing.get_workload_official(
@@ -4867,7 +4828,6 @@ def test_forward_coco_ssd_mobilenet_v1():
 #######################################################################
 # MediaPipe
 # -------------
-@tvm.testing.slow
 def test_forward_mediapipe_hand_landmark():
     """Test MediaPipe 2D hand landmark TF Lite model."""
     # MediaPipe 2D hand landmark TF

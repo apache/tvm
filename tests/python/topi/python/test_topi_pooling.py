@@ -123,7 +123,6 @@ def verify_pool_grad(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_pool_grad():
     """test cases of pool_grad"""
     verify_pool_grad(1, 256, 32, 3, 2, [1, 1, 1, 1], "avg", False, False)
@@ -182,7 +181,6 @@ def verify_global_pool(dshape, pool_type, layout="NCHW"):
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_global_pool():
     """test cases of global_pool"""
     verify_global_pool((1, 1024, 7, 7), "avg")
@@ -227,7 +225,6 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_adaptive_pool():
     """test cases of adaptive_pool"""
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "max")
@@ -365,7 +362,6 @@ def verify_pool3d(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_pool3d():
     """test cases of pool3d"""
     verify_pool3d(
@@ -632,7 +628,6 @@ def verify_pool2d(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_pool2d():
     """test cases of pool"""
     verify_pool2d([1, 16, 32, 32], [2, 2], [2, 2], [1, 1], [0, 0, 0, 0], "avg", False, True)
@@ -726,7 +721,6 @@ def verify_pool1d(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_pool1d():
     """test cases of pool1d"""
     verify_pool1d([1, 16, 32], [2], [2], [1], [0, 0], "avg", False, True)

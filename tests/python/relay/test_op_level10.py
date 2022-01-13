@@ -455,7 +455,6 @@ def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCDHW", dtype="f
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_adaptive_pool():
     verify_adaptive_pool1d((1, 9, 224), (1), "max")
     verify_adaptive_pool1d((1, 3, 224), (3), "avg")

@@ -165,7 +165,6 @@ def test_graph_executor():
 
 
 @tvm.testing.requires_micro
-@tvm.testing.slow
 def test_std_math_functions():
     """Verify that standard math functions can be used."""
     import tvm.micro
@@ -220,7 +219,6 @@ def test_platform_timer():
 
 
 @tvm.testing.requires_micro
-@tvm.testing.slow
 def test_autotune():
     """Verify that autotune works with micro."""
     import tvm.relay as relay

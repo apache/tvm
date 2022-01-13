@@ -75,7 +75,6 @@ def verify_resize2d(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_resize2d():
     # Scale NCHW
     verify_resize2d(4, 16, 32, 32, 50, 50, "NCHW")
@@ -158,7 +157,6 @@ def verify_resize3d(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_resize3d():
     # Trilinear
     for method in ["nearest_neighbor", "linear"]:

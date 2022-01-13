@@ -129,7 +129,6 @@ def verify_conv2d_nchw(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_conv2d_nchw():
     # inception v3 workloads
     verify_conv2d_nchw(1, 128, 17, 192, 7, 1, 3, devices=["cuda"])
@@ -222,7 +221,6 @@ def verify_conv2d_nhwc(
     tvm.testing.assert_allclose(c.numpy(), c_np, rtol=rtol)
 
 
-@tvm.testing.slow
 def test_conv2d_nhwc():
     # This version is intented to be used by the auto-scheduler,
     # so we only test the correctness of compute declaration

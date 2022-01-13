@@ -138,7 +138,6 @@ def _clean_build(artifact_path: str) -> None:
         raise RuntimeError("Unable to find remove_build_dir function.")
 
 
-@tvm.testing.slow
 def test_meta_schedule_rpc_single_run():
     """Test meta schedule rpc runner for a single run"""
     # Build the module
@@ -223,7 +222,6 @@ def test_meta_schedule_local_single_run():
     _clean_build(builder_result.artifact_path)
 
 
-@tvm.testing.slow
 def test_meta_schedule_rpc_multiple_runs():
     """Test meta schedule rpc runner for multiple runs"""
     # Build the module
@@ -293,7 +291,6 @@ def test_meta_schedule_rpc_multiple_runs():
         _clean_build(builder_result.artifact_path)
 
 
-@tvm.testing.slow
 def test_meta_schedule_local_multiple_runs():
     """Test meta schedule local runner for multiple runs"""
     # Build the module
@@ -369,7 +366,6 @@ def test_meta_schedule_py_runner():
         runner.run([])
 
 
-@tvm.testing.slow
 def test_meta_schedule_rpc_runner_time_out():
     """Test meta schedule RPC Runner time out"""
 
@@ -420,7 +416,6 @@ def test_meta_schedule_rpc_runner_time_out():
     assert runner_result.run_secs is None
 
 
-@tvm.testing.slow
 def test_meta_schedule_local_runner_time_out():
     """Test meta schedule Local Runner time out"""
     mod = MatmulModule
@@ -473,7 +468,6 @@ def test_meta_schedule_local_runner_time_out():
     _clean_build(builder_result.artifact_path)
 
 
-@tvm.testing.slow
 def test_meta_schedule_rpc_runner_exception():
     """Test meta schedule RPC Runner exception"""
 
@@ -523,7 +517,6 @@ def test_meta_schedule_rpc_runner_exception():
     assert runner_result.run_secs is None
 
 
-@tvm.testing.slow
 def test_meta_schedule_local_runner_exception():
     """Test meta schedule Local Runner exception"""
     mod = MatmulModule
@@ -575,7 +568,6 @@ def test_meta_schedule_local_runner_exception():
     _clean_build(builder_result.artifact_path)
 
 
-@tvm.testing.slow
 def test_meta_schedule_runner_matmul_test():
     """Test meta schedule runner with add module"""
 
@@ -686,7 +678,6 @@ def test_meta_schedule_runner_matmul_test():
     _clean_build(builder_result.artifact_path)
 
 
-@tvm.testing.slow
 def test_meta_schedule_runner_add_test():
     """Test meta schedule runner with add module"""
 

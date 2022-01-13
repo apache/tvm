@@ -24,7 +24,6 @@ import tvm.topi.testing
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_dynamic_strided_slice():
     def verify(dshape, begin, end, strides, slice_mode="end", test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))

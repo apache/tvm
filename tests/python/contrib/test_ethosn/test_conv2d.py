@@ -180,7 +180,6 @@ def test_conv2d():
 
 
 @requires_ethosn
-@tvm.testing.slow
 def test_conv2d_failure():
     lb = "2.328306e-10" if tei.get_ethosn_api_version() > 2102 else "0"
     trials = [

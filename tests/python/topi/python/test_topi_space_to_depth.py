@@ -64,7 +64,6 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_space_to_depth():
     for layout in ["NCHW", "NHWC"]:
         # Simplest possible case

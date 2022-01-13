@@ -190,7 +190,6 @@ def verify_feature_length():
 
 
 @tvm.testing.requires_tensorcore
-@tvm.testing.slow
 def test_conv2d_hwnc_tensorcore():
     """Test the conv2d with tensorcore for hwnc layout"""
     verify_conv2d_hwnc(8, 64, 56, 64, 3, 1, 1, dtype="int8")

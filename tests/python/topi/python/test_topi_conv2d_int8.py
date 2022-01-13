@@ -461,7 +461,6 @@ def verify_conv2d_nchw_int8(
 
 
 @tvm.testing.requires_cuda
-@tvm.testing.slow
 def test_conv2d_nchw():
     with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
@@ -571,7 +570,6 @@ def test_conv2d_nchw():
         verify_conv2d_nchw_int8(1, 32, 35, 64, 7, 2, (0, 0, 2, 2))
 
 
-@tvm.testing.slow
 def test_conv2d_nhwc():
     with Int8Fallback():
         # Subset of inception v3 expanded (dilation > 1, batch > 1, 'VALID' padding)

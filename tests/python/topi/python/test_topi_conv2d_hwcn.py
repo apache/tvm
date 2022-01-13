@@ -94,7 +94,6 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 @tvm.testing.requires_gpu
-@tvm.testing.slow
 def test_conv2d_hwcn():
     verify_conv2d_hwcn(1, 256, 32, 128, 3, 1, "SAME")
     verify_conv2d_hwcn(1, 256, 32, 256, 3, 1, "SAME")

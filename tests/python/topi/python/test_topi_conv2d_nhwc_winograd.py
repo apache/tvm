@@ -139,7 +139,6 @@ def verify_conv2d_nhwc(
 
 @tvm.testing.requires_cuda
 @tvm.testing.requires_gpu
-@tvm.testing.slow
 def test_conv2d_nhwc_winograd_direct():
     """Test the conv2d with winograd for nhwc layout"""
     # resnet 18 workloads
@@ -164,7 +163,6 @@ def test_conv2d_nhwc_winograd_direct():
 
 @tvm.testing.requires_cuda
 @tvm.testing.requires_tensorcore
-@tvm.testing.slow
 def test_conv2d_nhwc_winograd_tensorcore():
     """Test the conv2d with winograd for nhwc layout"""
     verify_conv2d_nhwc(8, 64, 56, 64, 3, 1, 1, bgemm="tensorcore")

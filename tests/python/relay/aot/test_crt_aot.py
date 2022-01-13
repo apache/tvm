@@ -507,7 +507,6 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     )
 
 
-@tvm.testing.slow
 def test_quant_mobilenet_tfl():
     """Since in AOT we pass directly the output buffer from the user, in quantized networks sharing the output buffers is not possible.
     This is because the output data type is int8 and the intermediate buffer are int32 or int16. We use mobilenet quantized to stress this

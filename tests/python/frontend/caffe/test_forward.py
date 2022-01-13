@@ -975,7 +975,6 @@ def _test_mobilenetv2(data):
     _test_network(data_process, proto_file, blob_file)
 
 
-@tvm.testing.slow
 def test_forward_Mobilenetv2():
     """Mobilenetv2"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
@@ -1004,7 +1003,6 @@ def _test_alexnet(data):
     _test_network(data_process, proto_file, blob_file)
 
 
-@tvm.testing.slow
 def test_forward_Alexnet():
     """Alexnet"""
     data = np.random.randint(0, 256, size=(1, 3, 227, 227)).astype(np.float32)
@@ -1037,7 +1035,6 @@ def _test_resnet50(data):
     _test_network(data_process, proto_file, blob_file)
 
 
-@tvm.testing.slow
 def test_forward_Resnet50():
     """Resnet50"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)
@@ -1067,7 +1064,6 @@ def _test_inceptionv1(data):
     _test_network(data_process, proto_file, blob_file)
 
 
-@tvm.testing.slow
 def test_forward_Inceptionv1():
     """Inceptionv4"""
     data = np.random.randint(0, 256, size=(1, 3, 224, 224)).astype(np.float32)

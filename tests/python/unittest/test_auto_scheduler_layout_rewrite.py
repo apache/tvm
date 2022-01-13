@@ -65,7 +65,6 @@ def test_apply_steps_with_layout_rewrite_corner_case():
 
 
 @tvm.testing.requires_llvm
-@tvm.testing.slow
 def test_correctness_layout_rewrite_rewrite_for_preTransformed():
     N = 16
     target = tvm.target.Target("llvm")
@@ -137,7 +136,6 @@ def test_correctness_layout_rewrite_rewrite_for_preTransformed():
 
 
 @tvm.testing.requires_llvm
-@tvm.testing.slow
 def test_correctness_layout_rewrite_insert_transform_stage():
     N = 128
     target = tvm.target.Target("llvm")

@@ -72,7 +72,6 @@ def test_get_top_results_keep_results():
     assert len(sut[1]) == expected_number_of_results_per_line
 
 
-@tvm.testing.slow
 def test_run_tflite_module__with_profile__valid_input(
     tflite_mobilenet_v1_1_quant, tflite_compile_model, imagenet_cat
 ):

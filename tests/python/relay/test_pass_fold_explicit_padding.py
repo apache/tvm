@@ -22,7 +22,6 @@ from tvm.relay.testing import run_opt_pass
 import numpy as np
 
 
-@tvm.testing.slow
 def test_simplify_conv_pad():
     convs = [relay.nn.conv1d, relay.nn.conv2d, relay.nn.conv3d]
 

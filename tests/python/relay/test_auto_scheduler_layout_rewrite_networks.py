@@ -187,7 +187,6 @@ def test_conv2d():
     tune_and_check(mod, data, weight)
 
 
-@tvm.testing.slow
 def test_conv2d_winograd():
     mod, data, weight = get_relay_conv2d(outc=128, kh=3, kw=3)
     tune_and_check(mod, data, weight)

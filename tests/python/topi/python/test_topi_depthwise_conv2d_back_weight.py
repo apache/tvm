@@ -118,7 +118,6 @@ def verify_depthwise_conv2d_back_weight(
 
 
 @tvm.testing.requires_gpu
-@tvm.testing.slow
 def test_topi_depthwise_conv2d_backward_weight_nhwc():
     verify_depthwise_conv2d_back_weight(16, 256, 56, 1, 3, 1, 1)
     verify_depthwise_conv2d_back_weight(16, 256, 56, 2, 3, 1, 1)

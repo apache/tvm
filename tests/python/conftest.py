@@ -17,13 +17,7 @@
 
 import sys
 import tvm
-import os
 import pytest
-
-# print("[test] is ci:", os.getenv("IS_IN_CI"))
-# print("[test] run slow:", os.getenv("RUN_SLOW_TESTS"))
-# IS_IN_CI = os.getenv("IS_IN_CI", "") == "true"
-# RUN_SLOW_TESTS = os.getenv("RUN_SLOW_TESTS", "") == "true"
 
 collect_ignore = []
 if sys.platform.startswith("win"):
@@ -56,16 +50,6 @@ def pytest_addoption(parser):
 
 
 def pytest_collection_modifyitems(config, items):
-    # # print(items)
-    # for item in items:
-    #     print(item.name)
-    #     print("markers", item.own_markers)
-    #     for k in item.iter_markers():
-    #         print("makr", k)
-    #     print(dir(item))
-    #     print(item)
-    #     break
-    # exit(0)
     if not config.getoption("--enable-corstone300-tests"):
         for item in items:
             if "corstone300" in item.keywords:

@@ -92,7 +92,6 @@ def tune_network(network, target):
 
 
 @tvm.testing.requires_cuda
-@tvm.testing.slow
 def test_tuning_cuda():
     tune_network("mlp", "cuda")
     tune_network("winograd-test", "cuda")

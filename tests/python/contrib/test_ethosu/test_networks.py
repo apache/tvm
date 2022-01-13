@@ -37,7 +37,6 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
 
 
-@tvm.testing.slow
 def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
     """Test the Mobilenet V1 TF Lite model."""
     np.random.seed(23)

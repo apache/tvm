@@ -429,7 +429,6 @@ def test_local_func():
 
 
 @tvm.testing.requires_rpc
-@tvm.testing.slow
 def test_rpc_tracker_register():
     # test registration
     tracker = Tracker(port=9000, port_end=10000)

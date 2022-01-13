@@ -403,7 +403,6 @@ def _test_pooling_dynamic(input_shape, np_shape, **kwargs):
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_forward_pooling():
     """Pooling"""
     # TensorFlow only supports NDHWC for max_pool3d on CPU
@@ -1120,7 +1119,6 @@ def _test_convolution3d_transpose(
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_forward_convolution3d_transpose():
     if is_gpu_available():
         _test_convolution3d_transpose(
@@ -1256,7 +1254,6 @@ def _test_forward_where(input_shape):
         compare_tf_with_tvm([], [], out.name, mode="vm")
 
 
-@tvm.testing.slow
 def test_forward_argwhere():
     _test_forward_where((5,))
     _test_forward_where((5, 5))
@@ -1407,7 +1404,6 @@ def _test_reshape_symbolic(data, a_data, b_data):
             )
 
 
-@tvm.testing.slow
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
     _test_reshape(np.arange(6), [-1, 2])
@@ -1510,7 +1506,6 @@ def test_forward_squeeze():
 #######################################################################
 # TensorArray
 # -----------
-@tvm.testing.slow
 def test_tensor_array_write_read():
     def run(dtype_str, infer_shape, element_shape):
         with tf.Graph().as_default():
@@ -1534,7 +1529,6 @@ def test_tensor_array_write_read():
         run(dtype, True, None)
 
 
-@tvm.testing.slow
 def test_tensor_array_scatter():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
@@ -1579,7 +1573,6 @@ def test_tensor_array_gather():
         run(dtype, True)
 
 
-@tvm.testing.slow
 def test_tensor_array_split():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
@@ -1608,7 +1601,6 @@ def test_tensor_array_split():
         run(dtype, True)
 
 
-@tvm.testing.slow
 def test_tensor_array_concat():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
@@ -1762,7 +1754,6 @@ def _test_argx(func, data, **kwargs):
         compare_tf_with_tvm(data, "c0:0", "argx0:0")
 
 
-@tvm.testing.slow
 def test_forward_argminmax():
     for output_type in [tf.int64, tf.int32]:
         for axis in [None, 0, 1, 2]:
@@ -1883,7 +1874,6 @@ def _test_matmul(i, j, k, dtype, outer=None):
                 )
 
 
-@tvm.testing.slow
 def test_forward_matmul():
     """MatMul op test"""
     _test_matmul(1, 3, 6, "int32")
@@ -1958,7 +1948,6 @@ def test_forward_batch_matmul():
     _test_batch_matmul((1, 8, 64), (64, 1), "float32", False, False)
 
 
-@tvm.testing.slow
 def test_forward_batch_matmul_dynamic():
     _test_batch_matmul_dynamic((None, 5, 4), (None, 4, 5), (3, 5, 4), (3, 4, 5), "int32")
     _test_batch_matmul_dynamic(
@@ -2030,7 +2019,6 @@ def _test_sparse_dense_matmul(indices, values, A_inp_shape, B_inp_shape, dtype, 
                 compare_tf_with_tvm([B_np], [B.name], result.name)
 
 
-@tvm.testing.slow
 def test_forward_sparse_dense_matmul():
     """sparse_dense_matmul op test"""
     ###################################################################
@@ -2657,7 +2645,6 @@ def _test_stridedslice(
             compare_tf_with_tvm(np_data, "in_data:0", "strided_slice:0")
 
 
-@tvm.testing.slow
 def test_forward_stridedslice():
     """test StridedSlice"""
 
@@ -2905,7 +2892,6 @@ def _test_gather_nd(ip_shape, indice_value, dtype):
         compare_tf_with_tvm([np_data], ["in_data:0"], "gather_nd:0")
 
 
-@tvm.testing.slow
 def test_forward_gather_nd():
     """test operator GatherNd"""
     _test_gather_nd((2, 2), [[0, 0], [1, 1]], "float32")
@@ -2970,7 +2956,6 @@ def _test_split(in_shape, axis, num_or_size_splits, dtype):
         compare_tf_with_tvm([np_data], "in_data:0", concat.name)
 
 
-@tvm.testing.slow
 def test_forward_split():
     """test split layer"""
     # rank 1
@@ -3043,7 +3028,6 @@ def _test_unstack(ip_shape, axis, dtype):
         compare_tf_with_tvm([np_data], ["in_data:0"], "stack:0")
 
 
-@tvm.testing.slow
 def test_forward_unstack():
     """test unstack layer"""
     _test_unstack((6,), 0, "int32")
@@ -3248,7 +3232,6 @@ def _test_broadcast_args(in_shape_1, in_shape_2):
         compare_tf_with_tvm(None, "", "BroadcastArgs:0", opt_level=0)
 
 
-@tvm.testing.slow
 def test_forward_broadcast_args():
     """Resize Bilinear"""
 
@@ -3292,7 +3275,6 @@ def _test_broadcast_to_from_tensor(in_shape):
         compare_tf_with_tvm(data, "Placeholder:0", "BroadcastTo:0")
 
 
-@tvm.testing.slow
 def test_forward_broadcast_to():
     """Resize Bilinear"""
 
@@ -3342,7 +3324,6 @@ def _test_fill_symbolic_inputs(in_shape_data, in_value_data, dtype):
             )
 
 
-@tvm.testing.slow
 def test_forward_fill():
     """Resize Bilinear"""
 
@@ -3403,7 +3384,6 @@ def _test_forward_crop_and_resize(
         compare_tf_with_tvm([image], ["in_data:0"], "crop_and_resize:0")
 
 
-@tvm.testing.slow
 def test_forward_crop_and_resize():
     """CropAndResize"""
     _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3])
@@ -3535,7 +3515,6 @@ def _test_forward_nms_v5(
     )
 
 
-@tvm.testing.slow
 def test_forward_nms():
     """NonMaxSuppressionV3,5"""
     for _test_forward_nms in [_test_forward_nms_v3, _test_forward_nms_v5]:
@@ -3591,7 +3570,6 @@ def _test_forward_combined_nms(
     )
 
 
-@tvm.testing.slow
 def test_forward_combined_nms():
     """CombinedNonMaxSuppression"""
     _test_forward_combined_nms((1, 64, 1, 4), (1, 64, 1), 0.7, 0.5, 64, 64)
@@ -3833,7 +3811,6 @@ def test_forward_where():
 #######################################################################
 # Inception V3
 # ------------
-@tvm.testing.slow
 def test_forward_inception_v3():
     """test inception V3 model"""
     with tf.Graph().as_default():
@@ -3856,7 +3833,6 @@ def test_forward_inception_v3():
 # ------------
 
 
-@tvm.testing.slow
 def test_forward_inception_v1():
     """test inception V1 model"""
     with tf.Graph().as_default():
@@ -3897,7 +3873,6 @@ def test_forward_inception_v1():
 # ---------
 
 
-@tvm.testing.slow
 def test_forward_mobilenet():
     """test mobilenet model"""
     # MobilenetV2
@@ -3928,7 +3903,6 @@ def test_forward_mobilenet():
 
 
 @tvm.testing.requires_gpu
-@tvm.testing.slow
 def test_forward_resnetv2():
     """test resnet model"""
     if is_gpu_available():
@@ -4002,7 +3976,6 @@ def _test_ssd_impl():
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i], rtol=1e-3, atol=1e-3)
 
 
-@tvm.testing.slow
 def test_forward_ssd():
     run_thread = threading.Thread(target=_test_ssd_impl, args=())
     old_stack_size = threading.stack_size(100 * 1024 * 1024)
@@ -4046,7 +4019,6 @@ except:
     pass
 
 
-@tvm.testing.slow
 def test_forward_ptb():
     """test ptb model"""
     config = tf_testing.get_config()
@@ -4471,7 +4443,6 @@ def test_forward_pow_exp():
         compare_tf_with_tvm([np_in1], ["in1:0"], "exp:0")
 
 
-@tvm.testing.slow
 def test_forward_unary():
     def _test_forward_unary(op, a_min=1, a_max=5, dtype=np.float32):
         """test unary operators"""
@@ -4689,7 +4660,6 @@ def test_forward_size():
 # ------------------------------------------------------------------
 
 
-@tvm.testing.slow
 def test_forward_reduce():
     def _check_op(tf_op, ishape, axis, keepdims, dtype="float32"):
         tf.reset_default_graph()
@@ -4729,7 +4699,6 @@ def test_forward_reduce():
 # ------------------------------------------------------------------
 
 
-@tvm.testing.slow
 def test_forward_raw_reduce():
     def _check_op(tf_op, ishape, axis, keepdims, range_axis=False, dtype="float32"):
         tf.reset_default_graph()
@@ -5463,7 +5432,6 @@ def _test_spop_resource_variables():
         assert execinfo.value.args[0].startswith("Graph is not frozen." " Provide a frozen graph")
 
 
-@tvm.testing.slow
 def test_forward_spop():
     _test_spop_stateful()
     _test_spop_device_assignment()
@@ -5675,7 +5643,6 @@ def _test_unique_with_counts(n, dtype, is_dyn):
             )
 
 
-@tvm.testing.slow
 def test_forward_unique_with_counts():
     """test UniqueWithCounts"""
 

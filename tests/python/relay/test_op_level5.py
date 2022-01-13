@@ -423,7 +423,6 @@ def test_get_valid_counts():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_non_max_suppression():
     def verify_nms(
         x0_data,
@@ -723,7 +722,6 @@ def test_multibox_transform_loc():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_roi_align():
     def verify_roi_align(
         data_shape,

@@ -265,7 +265,6 @@ def convert_list_to_vmobj(py_lst):
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_custom_lstm():
     input_name = "input"
     states_name = "states"

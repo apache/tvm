@@ -25,7 +25,6 @@ import tvm.testing
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_sort():
     def verify_sort(shape, axis, is_ascend, is_dyn=False, in_dtype="float32"):
         if is_dyn:
@@ -62,7 +61,6 @@ def test_sort():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_argsort():
     def verify_argsort(shape, axis, is_ascend, dtype, is_dyn=False, in_dtype="float32"):
         if is_dyn:
@@ -104,7 +102,6 @@ def test_argsort():
 
 
 @tvm.testing.uses_gpu
-@tvm.testing.slow
 def test_topk():
     def verify_topk(k, axis, ret_type, is_ascend, dtype, in_dtype="float32"):
         shape = (20, 100)

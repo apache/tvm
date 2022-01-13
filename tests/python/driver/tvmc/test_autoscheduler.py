@@ -77,7 +77,6 @@ def test_tune_tasks(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
 
-@tvm.testing.slow
 def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
@@ -88,7 +87,6 @@ def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name, prior_records=output_log_phase_1)
 
 
-@tvm.testing.slow
 def test_tune_tasks__no_early_stopping(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
