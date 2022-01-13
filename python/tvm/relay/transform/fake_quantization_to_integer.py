@@ -189,6 +189,7 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
         index_tensor = relay.reshape(arg, [-1])
         result = relay.gather(lookup_table, -1, index_tensor)
         result = relay.reshape_like(result, arg)
+        breakpoint()
         return [result, type_map[expr]]
 
     return register_fake_quantization_to_integer(op_name, func)

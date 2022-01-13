@@ -578,11 +578,11 @@ def test_fake_quantize_tanh():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
     zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
     op = relay.op.tanh(x)
 
     # Have difference scales for input/output to test if can handle
-    op = relay.qnn.op.quantize(op, relay.const(1.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
 
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
