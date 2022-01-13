@@ -36,45 +36,38 @@ namespace tir {
 /*! \brief Generate surrounding loops automatically */
 class ScriptCompleter : public StmtMutator {
  public:
-  explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map, bool contain_root)
-      : buffer_var_map_(buffer_var_map), contain_root_(contain_root) {}
+  explicit ScriptCompleter(Map<Var, Buffer>* buffer_var_map) : buffer_var_map_(buffer_var_map) {}
   /*! \brief Whether the stmt contains at least one block. */
   bool contains_block = false;
 
  private:
   Map<Var, Buffer>* buffer_var_map_;
-  bool contain_root_;
-  bool visited_root_ = false;
   Stmt VisitStmt_(const BlockRealizeNode* op) override {
     contains_block = true;
-    Stmt body = StmtMutator::VisitStmt_(op);
-    if (!op->iter_values.empty() && !op->iter_values[0].dtype().is_int()) {
-      auto block_with_binding = CopyOnWrite(Downcast<BlockRealize>(body).get());
-      std::vector<PrimExpr> bindings;
-      for (size_t i = 0; i < op->iter_values.size(); ++i) {
-        bindings.push_back(Var("i" + std::to_string(i)));
-      }
-      block_with_binding->iter_values = bindings;
-      body = BlockRealize(block_with_binding);
-      for (int i = op->iter_values.size() - 1; i >= 0; --i) {
-        body = For(Downcast<Var>(bindings[i]), op->block->iter_vars[i]->dom->min,
-                   op->block->iter_vars[i]->dom->extent, {}, body);
-      }
+    for (const PrimExpr& value : op->iter_values) {
+      CHECK(value.dtype().is_int())
+          << "BlockRealize iter_value expected a IntImm, but got " << value.dtype();
     }
-    return body;
+    return StmtMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BlockNode* op) override {
-    bool is_root_block = contain_root_ && !visited_root_;
-    visited_root_ = true;
     // Buffers allocated in the block can be accessed by its body.
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->Set(alloc_buffer->data, alloc_buffer);
+    }
+    for (const auto& match_buffer : op->match_buffers) {
+      const Buffer& target_buffer = match_buffer->buffer;
+      buffer_var_map_->Set(target_buffer->data, target_buffer);
     }
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
     // Remove buffers allocated inside block to detect its access region
     for (const auto& alloc_buffer : op->alloc_buffers) {
       buffer_var_map_->erase(alloc_buffer->data);
+    }
+    for (const auto& match_buffer : op->match_buffers) {
+      const Buffer& target_buffer = match_buffer->buffer;
+      buffer_var_map_->erase(target_buffer->data);
     }
     // Get access detection mask
     // 0 for provided region, 1 and 3 for need detect read, 2 and 3 for need detect write
@@ -85,13 +78,6 @@ class ScriptCompleter : public StmtMutator {
     }
     // ignore root block or blocks which already has reads/writes regions
     if (mask != 0) {
-      if (op->iter_vars.empty()) {
-        // non-root opaque block is not allowed
-        CHECK(is_root_block)
-            << "ValueError: Can not auto detect buffer access region for an opaque block. Please "
-               "annotate the access region manually.";
-        return std::move(block);
-      }
       auto access_region = GetBlockAccessRegion(block, *buffer_var_map_);
       const Array<BufferRegion>& reads = access_region[0];
       const Array<BufferRegion>& writes = access_region[1];
@@ -122,11 +108,11 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
   }
   bool contain_root = root_allocates.empty() && func->body->IsInstance<BlockRealizeNode>() &&
                       Downcast<BlockRealize>(func->body)->block->iter_vars.empty();
-  ScriptCompleter script_completer(&buffer_var_map, contain_root);
+  ScriptCompleter script_completer(&buffer_var_map);
   // generate surrounding loops automatically
   Stmt res = script_completer(func->body);
   // generate root block automatically
-  if (script_completer.contains_block && !contain_root) {
+  if ((script_completer.contains_block || root_allocates.size()) && !contain_root) {
     res = Block({}, {}, {}, "root", res, NullOpt, root_allocates);
     res = BlockRealize({}, Bool(true), Downcast<Block>(res));
   }

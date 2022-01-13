@@ -22,10 +22,15 @@
  * \brief Runtime profiling including timers.
  */
 
+#include <dmlc/json.h>
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
+#include <tvm/runtime/threading_backend.h>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
@@ -100,16 +105,37 @@ TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 
 namespace profiling {
 
-void Profiler::Start(const std::vector<Device>& devs) {
-  CHECK(global_timers_.empty()) << "You can only call Start once per Profiler.";
+Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors)
+    : devs_(devs), collectors_(metric_collectors) {
+  is_running_ = false;
+  std::vector<DeviceWrapper> wrapped_devs;
   for (auto dev : devs) {
-    global_timers_.emplace_back(dev, Timer::Start(dev));
+    wrapped_devs.push_back(DeviceWrapper(make_object<DeviceWrapperNode>(dev)));
+  }
+  for (auto& x : collectors_) {
+    x->Init(wrapped_devs);
+  }
+  // reset the thread pool so that PAPI eventset hooks are set in all threads.
+  threading::ResetThreadPool();
+}
+
+void Profiler::Start() {
+  is_running_ = true;
+  for (auto dev : devs_) {
+    StartCall("Total", dev, {});
   }
 }
 
 void Profiler::StartCall(String name, Device dev,
                          std::unordered_map<std::string, ObjectRef> extra_metrics) {
-  in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics});
+  std::vector<std::pair<MetricCollector, ObjectRef>> objs;
+  for (auto& collector : collectors_) {
+    ObjectRef obj = collector->Start(dev);
+    if (obj.defined()) {
+      objs.emplace_back(collector, obj);
+    }
+  }
+  in_flight_.push(CallFrame{dev, name, Timer::Start(dev), extra_metrics, objs});
 }
 
 void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics) {
@@ -118,15 +144,67 @@ void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics
   for (auto& p : extra_metrics) {
     cf.extra_metrics[p.first] = p.second;
   }
+  // collect the extra metrics from user defined collectors
+  for (const auto& obj : cf.extra_collectors) {
+    auto collector_metrics = obj.first->Stop(obj.second);
+    for (auto& p : collector_metrics) {
+      cf.extra_metrics[p.first] = p.second;
+    }
+  }
   in_flight_.pop();
   calls_.push_back(cf);
 }
 
 void Profiler::Stop() {
-  // Stop all global timers. We wait to synchronize until we are making the report.
-  for (auto p : global_timers_) {
-    p.second->Stop();
+  is_running_ = false;
+  for (size_t i = 0; i < devs_.size(); i++) {
+    StopCall();
   }
+}
+
+std::vector<int64_t> ToShape(NDArray shape_tensor) {
+  std::vector<int64_t> shape;
+  auto rank = shape_tensor.Shape().size();
+  auto dtype = shape_tensor.DataType();
+
+  // For 0-rank shapes we need to allocate a single scalar.
+  if (rank == 0) {
+    return shape;
+  }
+
+  // Otherwise we should be rank-1, and we will extract the number of dimensions
+  // for the output vector.
+  ICHECK_EQ(rank, 1U) << "shape tensor should be a k-length vector, found " << rank;
+  int64_t ndim = shape_tensor.Shape().at(0);
+  shape.resize(ndim);
+
+  const DLTensor* dl_tensor = shape_tensor.operator->();
+  if (dtype.is_int() && dtype.bits() == 32 && dtype.lanes() == 1) {
+    int32_t* dims = reinterpret_cast<int32_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else if (dtype.is_int() && dtype.bits() == 64 && dtype.lanes() == 1) {
+    int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+    shape.assign(dims, dims + ndim);
+  } else {
+    LOG(FATAL) << "invalid shape tensor datatype: " << dtype;
+  }
+
+  return shape;
+}
+
+String ShapeString(NDArray shape, DLDataType dtype) { return ShapeString(ToShape(shape), dtype); }
+
+String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype) {
+  std::stringstream sizes;
+  sizes << dtype << "[";
+  for (size_t i = 0; i < shape.size(); i++) {
+    if (i != 0) {
+      sizes << ", ";
+    }
+    sizes << shape[i];
+  }
+  sizes << "]";
+  return String(sizes.str());
 }
 
 String ShapeString(const std::vector<NDArray>& shapes) {
@@ -150,7 +228,7 @@ String ShapeString(const std::vector<NDArray>& shapes) {
 
 String ReportNode::AsCSV() const {
   // get unique headers
-  std::unordered_set<std::string> unique_headers;
+  std::set<std::string> unique_headers;
 
   for (auto row : calls) {
     for (auto p : row) {
@@ -198,7 +276,74 @@ String ReportNode::AsCSV() const {
   return s.str();
 }
 
-String ReportNode::AsTable(bool sort, bool aggregate) const {
+namespace {
+void print_metric(std::ostream& os, ObjectRef o) {
+  if (o.as<StringObj>()) {
+    os << "{\"string\":"
+       << "\"" << Downcast<String>(o) << "\""
+       << "}";
+  } else if (const CountNode* n = o.as<CountNode>()) {
+    os << "{\"count\":" << std::to_string(n->value) << "}";
+  } else if (const DurationNode* n = o.as<DurationNode>()) {
+    os << "{\"microseconds\":" << std::to_string(n->microseconds) << "}";
+  } else if (const PercentNode* n = o.as<PercentNode>()) {
+    os << "{\"percent\":" << std::to_string(n->percent) << "}";
+  } else {
+    LOG(FATAL) << "Unprintable type " << o->GetTypeKey();
+  }
+}
+}  // namespace
+
+String ReportNode::AsJSON() const {
+  std::ostringstream s;
+  // DMLC's JSONWriter does not allow us to write a key value pair without
+  // implementing Write for the value. We want a specific write for the value,
+  // so we would have to implement a custom data structure for each type of
+  // value we want to print. Instead we construct the json by hand because it
+  // is easier.
+  s << "{";
+  s << "\"calls\":[";
+  for (size_t i = 0; i < calls.size(); i++) {
+    size_t j = 0;
+    s << "{";
+    for (const auto& kv : calls[i]) {
+      s << "\"" << kv.first << "\":";
+      print_metric(s, kv.second);
+      if (j < calls[i].size() - 1) {
+        s << ",";
+      }
+      j++;
+    }
+    s << "}";
+    if (i < calls.size() - 1) {
+      s << ",";
+    }
+  }
+  s << "],";
+  s << "\"device_metrics\":{";
+  size_t i = 0;
+  for (const auto& dev_kv : device_metrics) {
+    size_t j = 0;
+    s << "\"" << dev_kv.first << "\":{";
+    for (const auto& metric_kv : dev_kv.second) {
+      s << "\"" << metric_kv.first << "\":";
+      print_metric(s, metric_kv.second);
+      if (j < dev_kv.second.size() - 1) {
+        s << ",";
+      }
+      j++;
+    }
+    s << "}";
+    if (i < device_metrics.size() - 1) {
+      s << ",";
+    }
+    i++;
+  }
+  s << "}}";
+  return s.str();
+}
+
+String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
   std::vector<Map<String, ObjectRef>> aggregated_calls;
   if (aggregate) {
@@ -212,6 +357,9 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
       }
       if (frame.find("Argument Shapes") != frame.end()) {
         name += Downcast<String>(frame["Argument Shapes"]);
+      }
+      if (frame.find("Device") != frame.end()) {
+        name += Downcast<String>(frame["Device"]);
       }
 
       if (aggregates.find(name) == aggregates.end()) {
@@ -267,36 +415,38 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
   }
 
   // compute columnwise sums
-  std::unordered_map<String, ObjectRef> col_sums;
-  for (auto call : aggregated_calls) {
-    for (auto p : call) {
-      if (p.second.as<CountNode>()) {
-        int64_t val = p.second.as<CountNode>()->value;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<CountNode>()->value;
+  if (compute_col_sums) {
+    std::unordered_map<String, ObjectRef> col_sums;
+    for (auto call : aggregated_calls) {
+      for (auto p : call) {
+        if (p.second.as<CountNode>()) {
+          int64_t val = p.second.as<CountNode>()->value;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<CountNode>()->value;
+          }
+          col_sums[p.first] = ObjectRef(make_object<CountNode>(val));
+        } else if (p.second.as<DurationNode>()) {
+          double val = p.second.as<DurationNode>()->microseconds;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<DurationNode>()->microseconds;
+          }
+          col_sums[p.first] = ObjectRef(make_object<DurationNode>(val));
+        } else if (p.second.as<PercentNode>()) {
+          double val = p.second.as<PercentNode>()->percent;
+          auto it = col_sums.find(p.first);
+          if (it != col_sums.end()) {
+            val += it->second.as<PercentNode>()->percent;
+          }
+          col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
         }
-        col_sums[p.first] = ObjectRef(make_object<CountNode>(val));
-      } else if (p.second.as<DurationNode>()) {
-        double val = p.second.as<DurationNode>()->microseconds;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<DurationNode>()->microseconds;
-        }
-        col_sums[p.first] = ObjectRef(make_object<DurationNode>(val));
-      } else if (p.second.as<PercentNode>()) {
-        double val = p.second.as<PercentNode>()->percent;
-        auto it = col_sums.find(p.first);
-        if (it != col_sums.end()) {
-          val += it->second.as<PercentNode>()->percent;
-        }
-        col_sums[p.first] = ObjectRef(make_object<PercentNode>(val));
       }
     }
+    col_sums["Name"] = String("Sum");
+    aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
+    aggregated_calls.push_back(col_sums);
   }
-  col_sums["Name"] = String("Sum");
-  aggregated_calls.push_back({{String("Name"), String("----------")}});  // separator
-  aggregated_calls.push_back(col_sums);
 
   // per-device metrics
   for (auto p : device_metrics) {
@@ -306,18 +456,18 @@ String ReportNode::AsTable(bool sort, bool aggregate) const {
   }
 
   // Table formatting
-  std::unordered_set<std::string> unique_headers;
-
+  std::set<std::string> unique_headers;
   for (auto row : aggregated_calls) {
     for (auto p : row) {
       unique_headers.insert(p.first);
     }
   }
 
-  std::vector<std::string> headers = {"Name", "Duration (us)",
-                                      "Percent"};  // always include these headers
+  // always include these headers in this order
+  std::vector<std::string> headers = {"Name",   "Duration (us)", "Percent",
+                                      "Device", "Count",         "Argument Shapes"};
   for (auto header : unique_headers) {
-    if (header != "Name" && header != "Duration (us)" && header != "Percent") {
+    if (std::find(headers.begin(), headers.end(), header) == headers.end()) {
       headers.push_back(header);
     }
   }
@@ -396,31 +546,11 @@ std::string DeviceString(Device dev) {
 }
 
 Report Profiler::Report(bool aggregate, bool sort) {
-  std::vector<std::pair<Device, double>> global_times;
-  for (auto p : global_timers_) {
-    global_times.emplace_back(p.first, p.second->SyncAndGetElapsedNanos() / 1e3);
-  }
-
-  double overall_time = 0;
-  for (auto p : global_times) {
-    overall_time = std::max(overall_time, p.second);
-  }
-
-  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
-  for (auto p : global_times) {
-    std::unordered_map<String, ObjectRef> row;
-    row["Name"] = String("Total");
-    row["Duration (us)"] = ObjectRef(make_object<DurationNode>(p.second));
-    row["Percent"] = ObjectRef(make_object<PercentNode>(p.second / overall_time * 100));
-    row["Device"] = String(DeviceString(p.first));
-    device_metrics[DeviceString(p.first)] = row;
-  }
-
-  std::vector<Map<String, ObjectRef>> rows;
+  // sync all timers and normalize rows
+  std::vector<std::unordered_map<String, ObjectRef>> rows;
   for (auto& cf : calls_) {
     std::unordered_map<String, ObjectRef> row;
     double us = cf.timer->SyncAndGetElapsedNanos() / 1e3;
-    row["Percent"] = ObjectRef(make_object<PercentNode>(us / overall_time * 100));
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(us));
     row["Count"] = ObjectRef(make_object<CountNode>(1));
     row["Name"] = cf.name;
@@ -431,7 +561,30 @@ Report Profiler::Report(bool aggregate, bool sort) {
     rows.push_back(row);
   }
 
-  return profiling::Report(rows, device_metrics);
+  // the last couple of call frames are the overall times
+  double overall_time_us = 0;
+  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
+  for (size_t i = 0; i < devs_.size(); i++) {
+    auto row = rows[rows.size() - 1];
+    rows.pop_back();
+    device_metrics[Downcast<String>(row["Device"])] = row;
+    overall_time_us =
+        std::max(overall_time_us, row["Duration (us)"].as<DurationNode>()->microseconds);
+  }
+
+  // Calculate percentages
+  for (auto& row : rows) {
+    row["Percent"] = ObjectRef(make_object<PercentNode>(
+        row["Duration (us)"].as<DurationNode>()->microseconds / overall_time_us * 100));
+  }
+
+  // convert to map
+  std::vector<Map<String, ObjectRef>> converted_rows;
+  for (const auto& row : rows) {
+    converted_rows.push_back(row);
+  }
+
+  return profiling::Report(converted_rows, device_metrics);
 }
 
 Report::Report(Array<Map<String, ObjectRef>> calls,
@@ -442,12 +595,145 @@ Report::Report(Array<Map<String, ObjectRef>> calls,
   data_ = std::move(node);
 }
 
+Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
+  reader->BeginObject();
+  std::string metric_name, metric_value_name;
+  Map<String, ObjectRef> metrics;
+  while (reader->NextObjectItem(&metric_name)) {
+    ObjectRef o;
+    reader->BeginObject();
+    reader->NextObjectItem(&metric_value_name);
+    if (metric_value_name == "microseconds") {
+      double microseconds;
+      reader->Read(&microseconds);
+      o = ObjectRef(make_object<DurationNode>(microseconds));
+    } else if (metric_value_name == "percent") {
+      double percent;
+      reader->Read(&percent);
+      o = ObjectRef(make_object<PercentNode>(percent));
+    } else if (metric_value_name == "count") {
+      int64_t count;
+      reader->Read(&count);
+      o = ObjectRef(make_object<CountNode>(count));
+    } else if (metric_value_name == "string") {
+      std::string s;
+      reader->Read(&s);
+      o = String(s);
+    } else {
+      LOG(FATAL) << "Cannot parse metric of type " << metric_value_name
+                 << " valid types are microseconds, percent, count.";
+    }
+    metrics.Set(metric_name, o);
+    // Necessary to make sure that the parser hits the end of the object.
+    ICHECK(!reader->NextObjectItem(&metric_value_name));
+    // EndObject does not exist, leaving this here for clarity
+    // reader.EndObject();
+  }
+  // reader.EndObject();
+  return metrics;
+}
+
+Report Report::FromJSON(String json) {
+  std::stringstream input(json.operator std::string());
+  dmlc::JSONReader reader(&input);
+  std::string key;
+  Array<Map<String, ObjectRef>> calls;
+  Map<String, Map<String, ObjectRef>> device_metrics;
+
+  reader.BeginObject();
+  while (reader.NextObjectItem(&key)) {
+    if (key == "calls") {
+      reader.BeginArray();
+      while (reader.NextArrayItem()) {
+        calls.push_back(parse_metrics(&reader));
+      }
+      // reader.EndArray();
+    } else if (key == "device_metrics") {
+      reader.BeginObject();
+      std::string device_name;
+      while (reader.NextObjectItem(&device_name)) {
+        device_metrics.Set(device_name, parse_metrics(&reader));
+      }
+      // reader.EndObject();
+    }
+  }
+
+  return Report(calls, device_metrics);
+}
+
 TVM_REGISTER_OBJECT_TYPE(DurationNode);
 TVM_REGISTER_OBJECT_TYPE(PercentNode);
 TVM_REGISTER_OBJECT_TYPE(CountNode);
 TVM_REGISTER_OBJECT_TYPE(ReportNode);
+TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
+TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
+TVM_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method<Report>(&ReportNode::AsTable);
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
+TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
+  return n->AsJSON();
+});
+TVM_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSON);
+TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
+  return DeviceWrapper(dev);
+});
+
+PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                           int warmup_iters, Array<MetricCollector> collectors) {
+  // Module::GetFunction is not const, so this lambda has to be mutable
+  return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
+    PackedFunc f = mod.GetFunction(func_name);
+    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+
+    // warmup
+    for (int i = 0; i < warmup_iters; i++) {
+      f.CallPacked(args, ret);
+    }
+
+    for (auto& collector : collectors) {
+      collector->Init({DeviceWrapper(dev)});
+    }
+    std::vector<Map<String, ObjectRef>> results;
+    results.reserve(collectors.size());
+    std::vector<ObjectRef> collector_data;
+    collector_data.reserve(collectors.size());
+    for (auto& collector : collectors) {
+      collector_data.push_back(collector->Start(dev));
+    }
+
+    // TODO(tkonolige): repeated calls if the runtime is small?
+    f.CallPacked(args, ret);
+
+    for (size_t i = 0; i < collectors.size(); i++) {
+      results.push_back(collectors[i]->Stop(collector_data[i]));
+    }
+    Map<String, ObjectRef> combined_results;
+    for (auto m : results) {
+      for (auto p : m) {
+        // assume that there is no shared metric name between collectors
+        combined_results.Set(p.first, p.second);
+      }
+    }
+    *ret = combined_results;
+  });
+}
+
+TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
+    .set_body_typed<PackedFunc(Module, String, int, int, int,
+                               Array<MetricCollector>)>([](Module mod, String func_name,
+                                                           int device_type, int device_id,
+                                                           int warmup_iters,
+                                                           Array<MetricCollector> collectors) {
+      if (mod->type_key() == std::string("rpc")) {
+        LOG(FATAL)
+            << "Profiling a module over RPC is not yet supported";  // because we can't send
+                                                                    // MetricCollectors over rpc.
+        throw;
+      } else {
+        return ProfileFunction(mod, func_name, device_type, device_id, warmup_iters, collectors);
+      }
+    });
+
 }  // namespace profiling
 }  // namespace runtime
 }  // namespace tvm

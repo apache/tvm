@@ -76,7 +76,7 @@ class FlexBufferDecoder(object):
         self.buffer = buffer
 
     def indirect_jump(self, offset, byte_width):
-        """ Helper function to read the offset value and jump """
+        """Helper function to read the offset value and jump"""
         unpack_str = ""
         if byte_width == 1:
             unpack_str = "<B"
@@ -87,8 +87,8 @@ class FlexBufferDecoder(object):
         return offset - back_jump
 
     def decode_keys(self, end, size, byte_width):
-        """ Decodes the flexbuffer type vector. Map keys are stored in this form """
-        # Keys are strings here. The format is all strings seperated by null, followed by back
+        """Decodes the flexbuffer type vector. Map keys are stored in this form"""
+        # Keys are strings here. The format is all strings separated by null, followed by back
         # offsets for each of the string. For example, (str1)\0(str1)\0(offset1)(offset2) The end
         # pointer is pointing at the end of all strings
         keys = list()
@@ -102,7 +102,7 @@ class FlexBufferDecoder(object):
         return keys
 
     def decode_vector(self, end, size, byte_width):
-        """ Decodes the flexbuffer vector """
+        """Decodes the flexbuffer vector"""
         # Each entry in the vector can have different datatype. Each entry is of fixed length. The
         # format is a sequence of all values followed by a sequence of datatype of all values. For
         # example - (4)(3.56)(int)(float) The end here points to the start of the values.
@@ -125,7 +125,7 @@ class FlexBufferDecoder(object):
         return values
 
     def decode_map(self, end, byte_width, parent_byte_width):
-        """ Decodes the flexbuffer map and returns a dict """
+        """Decodes the flexbuffer map and returns a dict"""
         mid_loc = self.indirect_jump(end, parent_byte_width)
         map_size = struct.unpack("<i", self.buffer[mid_loc - byte_width : mid_loc])[0]
 
@@ -140,7 +140,7 @@ class FlexBufferDecoder(object):
         return dict(zip(keys, values))
 
     def decode(self):
-        """ Decode the buffer. Decoding is partially implemented """
+        """Decode the buffer. Decoding is partially implemented"""
         root_end = len(self.buffer) - 1
         root_byte_width = self.buffer[root_end]
         root_end -= 1

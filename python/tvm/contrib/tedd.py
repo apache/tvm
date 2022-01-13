@@ -147,7 +147,7 @@ def get_itervar_label_color(itervar, iv_type):
 
 
 def linebrk(s, n):
-    """ Break input string s with <br/> for every n charactors."""
+    """Break input string s with <br/> for every n charactors."""
     result = ""
     j = 0
     for i, c in enumerate(s):

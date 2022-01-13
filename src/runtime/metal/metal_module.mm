@@ -30,6 +30,7 @@
 #include "../file_utils.h"
 #include "../meta_data.h"
 #include "../pack_args.h"
+#include "../source_utils.h"
 #include "../thread_storage_scope.h"
 #include "metal_common.h"
 
@@ -43,7 +44,9 @@ class MetalModuleNode final : public runtime::ModuleNode {
  public:
   explicit MetalModuleNode(std::string data, std::string fmt,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {
+    parsed_kernels_ = SplitKernels(data);
+  }
   const char* type_key() const final { return "metal"; }
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
@@ -71,6 +74,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
       return "";
     }
   }
+
   // get a from primary context in device_id
   id<MTLComputePipelineState> GetPipelineState(size_t device_id, const std::string& func_name) {
     metal::MetalWorkspace* w = metal::MetalWorkspace::Global();
@@ -85,37 +89,44 @@ class MetalModuleNode final : public runtime::ModuleNode {
     if (it != e.smap.end()) return it->second;
     // compile
     NSError* err_msg = nil;
-    if (e.lib == nil) {
-      if (fmt_ == "metal") {
-        MTLCompileOptions* opts = [MTLCompileOptions alloc];
-        opts.languageVersion = MTLLanguageVersion2_3;
-        opts.fastMathEnabled = YES;
-        // opts = nil;
-        e.lib = [w->devices[device_id]
-            newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
-                         options:opts
-                           error:&err_msg];
-        [opts dealloc];
-        if (e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
-        }
-        if (err_msg != nil) {
-          LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
-        }
-      } else {
-        // Build from library.
-        auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
-        auto data = dispatch_data_create(data_.c_str(), data_.length(), q,
-                                         ^{
-                                         });
-        e.lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
-        if (err_msg != nil || e.lib == nil) {
-          LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
-        }
+    id<MTLLibrary> lib = nil;
+    std::string source;
+    auto kernel = parsed_kernels_.find(func_name);
+    // If we cannot find this kernel in parsed_kernels_, it means that all kernels going together
+    // without explicit separator. In this case we use data_ with all kernels. It done for backward
+    // compatibility.
+    if (kernel != parsed_kernels_.end())
+      source = kernel->second;
+    else
+      source = data_;
+    if (fmt_ == "metal") {
+      MTLCompileOptions* opts = [MTLCompileOptions alloc];
+      opts.languageVersion = MTLLanguageVersion2_3;
+      opts.fastMathEnabled = YES;
+      // opts = nil;
+      lib =
+          [w->devices[device_id] newLibraryWithSource:[NSString stringWithUTF8String:source.c_str()]
+                                              options:opts
+                                                error:&err_msg];
+      [opts dealloc];
+      if (lib == nil) {
+        LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
+      }
+      if (err_msg != nil) {
+        LOG(INFO) << "Warning: " << [[err_msg localizedDescription] UTF8String];
+      }
+    } else {
+      // Build from library.
+      auto q = dispatch_queue_create("q", DISPATCH_QUEUE_SERIAL);
+      auto data = dispatch_data_create(source.c_str(), source.length(), q,
+                                       ^{
+                                       });
+      lib = [w->devices[device_id] newLibraryWithData:data error:&err_msg];
+      if (err_msg != nil || lib == nil) {
+        LOG(FATAL) << "Fail to compile metal lib:" << [[err_msg localizedDescription] UTF8String];
       }
     }
-    id<MTLFunction> f =
-        [e.lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
+    id<MTLFunction> f = [lib newFunctionWithName:[NSString stringWithUTF8String:func_name.c_str()]];
     ICHECK(f != nil) << "cannot find function " << func_name;
     id<MTLComputePipelineState> state =
         [w->devices[device_id] newComputePipelineStateWithFunction:f error:&err_msg];
@@ -123,6 +134,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
                          << " for function " << func_name
                          << [[err_msg localizedDescription] UTF8String];
     [f release];
+    [lib release];
     // The state.threadExecutionWidth can change dynamically according
     // to the resource constraint in kernel, so it is not strictly hold
     // Turn of warp aware optimziation for now.
@@ -135,13 +147,10 @@ class MetalModuleNode final : public runtime::ModuleNode {
  private:
   // device specific entry
   struct DeviceEntry {
-    // library
-    id<MTLLibrary> lib = nil;
     // state cache;
-    std::unordered_map<std::string, id<MTLComputePipelineState> > smap;
+    std::unordered_map<std::string, id<MTLComputePipelineState>> smap;
 
     ~DeviceEntry() {
-      if (lib != nil) [lib release];
       for (auto&& kv : smap) {
         [kv.second release];
       }
@@ -159,6 +168,8 @@ class MetalModuleNode final : public runtime::ModuleNode {
   std::vector<DeviceEntry> finfo_;
   // internal mutex when updating the module
   std::mutex mutex_;
+  // parsed kernel data
+  std::unordered_map<std::string, std::string> parsed_kernels_;
 };
 
 // a wrapped function class to get packed func.
@@ -167,7 +178,7 @@ class MetalWrappedFunc {
   // initialize the METAL function.
   void Init(MetalModuleNode* m, ObjectPtr<Object> sptr, const std::string& func_name,
             size_t num_buffer_args, size_t num_pack_args,
-            const std::vector<std::string>& thread_axis_tags) {
+            const std::vector<std::string>& launch_param_tags) {
     w_ = metal::MetalWorkspace::Global();
     m_ = m;
     sptr_ = sptr;
@@ -175,14 +186,14 @@ class MetalWrappedFunc {
     num_buffer_args_ = num_buffer_args;
     num_pack_args_ = num_pack_args;
     std::fill(scache_.begin(), scache_.end(), (id<MTLComputePipelineState>)nil);
-    thread_axis_cfg_.Init(num_buffer_args + num_pack_args, thread_axis_tags);
+    launch_param_config_.Init(num_buffer_args + num_pack_args, launch_param_tags);
     metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
     int dev_id = t->device.device_id;
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const {
-    @autoreleasepool {
+    AUTORELEASEPOOL {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
       auto stream = static_cast<metal::Stream*>(t->stream[device_id]);
@@ -190,7 +201,7 @@ class MetalWrappedFunc {
       if (scache_[device_id] == nil) {
         scache_[device_id] = m_->GetPipelineState(device_id, func_name_);
       }
-      ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
+      ThreadWorkLoad wl = launch_param_config_.Extract(args);
       int blockSize = wl.block_dim(0) * wl.block_dim(1) * wl.block_dim(2);
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
@@ -212,7 +223,7 @@ class MetalWrappedFunc {
       [encoder dispatchThreadgroups:dimGrid threadsPerThreadgroup:dimBlock];
       [encoder endEncoding];
       [cb commit];
-    }
+    };
   }
 
  private:
@@ -231,33 +242,39 @@ class MetalWrappedFunc {
   // Device state cache per device.
   // mark as mutable, to enable lazy initialization
   mutable std::array<id<MTLComputePipelineState>, kMetalMaxNumDevice> scache_;
-  // thread axis configuration
-  ThreadAxisConfig thread_axis_cfg_;
+  // launch parameters configuration
+  LaunchParamConfig launch_param_config_;
 };
 
 PackedFunc MetalModuleNode::GetFunction(const std::string& name,
                                         const ObjectPtr<Object>& sptr_to_self) {
-  @autoreleasepool {
+  PackedFunc pf;
+  AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
     ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
-    if (it == fmap_.end()) return PackedFunc();
+    if (it == fmap_.end()) {
+      pf = PackedFunc();
+      return;
+    }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;
     size_t num_buffer_args = NumBufferArgs(info.arg_types);
     f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
-           info.thread_axis_tags);
-    return PackFuncNonBufferArg(f, info.arg_types);
-  }
+           info.launch_param_tags);
+    pf = PackFuncNonBufferArg(f, info.arg_types);
+  };
+  return pf;
 }
 
 Module MetalModuleCreate(std::string data, std::string fmt,
                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
-  @autoreleasepool {
+  ObjectPtr<Object> n;
+  AUTORELEASEPOOL {
     metal::MetalWorkspace::Global()->Init();
-    auto n = make_object<MetalModuleNode>(data, fmt, fmap, source);
-    return Module(n);
-  }
+    n = make_object<MetalModuleNode>(data, fmt, fmap, source);
+  };
+  return Module(n);
 }
 
 // Load module from module.

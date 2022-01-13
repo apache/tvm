@@ -611,10 +611,14 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
            std::max(VisitExpr(op->true_value), VisitExpr(op->false_value));
   }
 
-#define VisitBinary(Node)                                         \
-  double VisitExpr_(const Node* op) final {                       \
-    double base = op->dtype.code() == cur_type_code_ ? 1.0 : 0.0; \
-    return base + VisitExpr(op->a) + VisitExpr(op->b);            \
+// Index calculations (e.g., the "i + j" expression in A[i + j]) are not counted in FLOPS.
+#define VisitBinary(Node)                                                                     \
+  double VisitExpr_(const Node* op) final {                                                   \
+    double base = 1.0;                                                                        \
+    if ((op->a->dtype.code() != cur_type_code_) && (op->b->dtype.code() != cur_type_code_)) { \
+      base = 0.0;                                                                             \
+    }                                                                                         \
+    return base + VisitExpr(op->a) + VisitExpr(op->b);                                        \
   }
 
 #define VisitUnary(Node)                                          \

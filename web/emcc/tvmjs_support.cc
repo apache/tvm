@@ -31,7 +31,6 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

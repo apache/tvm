@@ -27,7 +27,8 @@
  * code and metadata significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

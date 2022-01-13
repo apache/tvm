@@ -20,7 +20,8 @@
 import os
 import ctypes
 import struct
-from collections import namedtuple
+from typing import Sequence
+import numpy as np
 
 import tvm._ffi
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -30,8 +31,69 @@ from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
 from . import _ffi_api
 
 
-# profile result of time evaluator
-ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
+class BenchmarkResult:
+    """Runtimes from benchmarking"""
+
+    def __init__(self, results: Sequence[float]):
+        """Construct a new BenchmarkResult from a sequence of runtimes.
+
+        Parameters
+        ----------
+        results : Sequence[float]
+            Raw times from benchmarking
+
+        Attributes
+        ----------
+        min : float
+            Minimum runtime in seconds of all results.
+        mean : float
+            Mean runtime in seconds of all results. If py:meth:`Module.time_evaluator` or
+            `benchmark` is called with `number` > 0, then each result is already the mean of a
+            `number` of runtimes, so this becomes the mean of means.
+        median : float
+            Median runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the median of means.
+        max : float
+            Maximum runtime in seconds of all results. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the maximum of those means.
+        std : float
+            Standard deviation in seconds of runtimes. If py:meth:`Module.time_evaluator` is called
+            with `number` > 0, then each result is already the mean of a `number` of runtimes, so
+            this becomes the standard deviation of means.
+        results : Sequence[float]
+            The collected runtimes (in seconds). This may be a series of mean runtimes if
+            py:meth:`Module.time_evaluator` or `benchmark` was run with `number` > 1.
+        """
+        self.results = results
+        self.mean = np.mean(self.results)
+        self.std = np.std(self.results)
+        self.median = np.median(self.results)
+        self.min = np.min(self.results)
+        self.max = np.max(self.results)
+
+    def __repr__(self):
+        return "BenchmarkResult(min={}, mean={}, median={}, max={}, std={}, results={})".format(
+            self.min, self.mean, self.median, self.max, self.std, self.results
+        )
+
+    def __str__(self):
+        return """Execution time summary:
+{:^12} {:^12} {:^12} {:^12} {:^12}
+{:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f} {:^12.4f}
+               """.format(
+            "mean (ms)",
+            "median (ms)",
+            "max (ms)",
+            "min (ms)",
+            "std (ms)",
+            self.mean * 1000,
+            self.median * 1000,
+            self.max * 1000,
+            self.min * 1000,
+            self.std * 1000,
+        )
 
 
 class Module(object):
@@ -209,7 +271,7 @@ class Module(object):
         Returns
         -------
         ftimer : function
-            The function that takes same argument as func and returns a ProfileResult.
+            The function that takes same argument as func and returns a BenchmarkResult.
             The ProfileResult reports `repeat` time costs in seconds.
         """
         try:
@@ -230,12 +292,11 @@ class Module(object):
                 blob = feval(*args)
                 fmt = "@" + ("d" * repeat)
                 results = struct.unpack(fmt, blob)
-                mean = sum(results) / float(repeat)
-                return ProfileResult(mean=mean, results=results)
+                return BenchmarkResult(results)
 
             return evaluator
         except NameError:
-            raise NameError("time_evaluate is only supported when RPC is enabled")
+            raise NameError("time_evaluator is only supported when RPC is enabled")
 
     def _collect_from_import_tree(self, filter_func):
         """Helper function to collect modules from the tree matching a filter_func, then return it.
@@ -470,9 +531,6 @@ def load_module(path, fmt=""):
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
         _cc.create_shared(path + ".so", files, cc=cc)
         path += ".so"
-    # TODO(weberlo): we should probably use a more distinctive suffix for microTVM object files
-    elif path.endswith(".obj"):
-        fmt = "micro_dev"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)
 

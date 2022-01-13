@@ -30,12 +30,12 @@
  */
 
 #include <tvm/ir/error.h>
+#include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -43,11 +43,13 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
+#include "../backend/name_transforms.h"
 #include "../backend/utils.h"
 #include "pass_utils.h"
 
 namespace tvm {
 namespace relay {
+
 namespace partitioning {
 
 /*! \brief This struct maintains the required metadata for a region to generate a corresponding
@@ -113,13 +115,21 @@ struct RegionFuncMetadata {
 
 class Partitioner : public MixedModeMutator {
  public:
-  explicit Partitioner(const IRModule& module) : module_(module) {
+  Partitioner(const IRModule& module, bool bind_constants)
+      : module_(module), bind_constants_(bind_constants) {
+    std::set<std::string> func_names;
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
+      std::string f_name = f_var.as<GlobalVarNode>()->name_hint;
+      while (func_names.find(f_name) != func_names.end()) {
+        f_name += "_a";
+      }
+      func_names.insert(f_name);
 
       // Creating regionset per function in the module.
-      auto region_set = AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp());
+      auto region_set =
+          AnnotatedRegionSet::Create(f_func, CompilerBeginOp(), CompilerEndOp(), f_name);
       regions_sets_[region_set] = f_func;
     }
   }
@@ -284,7 +294,7 @@ class Partitioner : public MixedModeMutator {
     Map<Var, Expr> params_bind;
     for (auto pair : region_func_meta_[region].args) {
       params.push_back(pair.first);
-      if (IsConstant(pair.second)) {
+      if (bind_constants_ && IsConstant(pair.second)) {
         params_bind.Set(pair.first, pair.second);
       } else {
         param_expr.push_back(pair.second);
@@ -302,7 +312,7 @@ class Partitioner : public MixedModeMutator {
     }
 
     std::string target = end_node->attrs.as<CompilerAttrs>()->compiler;
-    std::string name = target + "_" + std::to_string(region->GetID());
+    std::string name = target + "_" + region->GetName() + "_" + std::to_string(region->GetID());
 
     // Constant propagation
     if (!params_bind.empty()) {
@@ -392,6 +402,9 @@ class Partitioner : public MixedModeMutator {
 
   /*!\brief The IRModule used for partitioning. */
   IRModule module_;
+
+  /*!\brief Whether or not to bind constants in partitioned subgraphs. */
+  bool bind_constants_{false};
 };
 
 IRModule RemoveDefaultAnnotations(IRModule module) {
@@ -446,18 +459,18 @@ IRModule FlattenTupleOutputs(IRModule module) {
         // Arguments of annotation ops should be 1
         ICHECK_EQ(call->args.size(), 1U);
         auto annotated_op = Downcast<Call>(post)->args[0];
-        if (const auto* tn = annotated_op.as<TupleNode>()) {
+        if (const auto* tuple_node = annotated_op.as<TupleNode>()) {
           Array<Expr> new_fields;
+          new_fields.reserve(tuple_node->fields.size());
 
           // Here each input of the tuple will be annotated with compiler_ends
-          for (auto& tn_arg : tn->fields) {
+          for (auto& tn_arg : tuple_node->fields) {
             new_fields.push_back((*make_end_op)(tn_arg, target));
           }
 
           // Return a tuple of compiler_ends in the place of the tuple that was
           // annotated with a compiler_end.
-          auto out = Tuple(new_fields);
-          return std::move(out);
+          return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
         }
       }
       return post;
@@ -480,11 +493,80 @@ IRModule FlattenTupleOutputs(IRModule module) {
   return module;
 }
 
+class NameMangleExtFuncs : public MixedModeMutator {
+ public:
+  explicit NameMangleExtFuncs(const IRModule& module, std::function<String(String)> mangle_fn)
+      : module_(module), mangle_fn_(mangle_fn) {}
+
+  IRModule Run() {
+    auto glob_funcs = module_->functions;
+
+    // Collect function names to be mangled and create
+    // global mangled variables
+    for (const auto& pair : glob_funcs) {
+      if (auto* fn = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(fn);
+        if (func->GetAttr<String>(attr::kCompiler).defined()) {
+          auto fn_name_mangled = relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint));
+          GlobalVar gvar = GlobalVar(fn_name_mangled);
+          mangled_gvars_[pair.first->name_hint] = gvar;
+        }
+      }
+    }
+
+    // Walk the tree and mangle the functions. Then replace compiler functions
+    // with mangled functions in the module
+    IRModule new_module = module_->ShallowCopy();
+    new_module->functions = {};
+
+    for (const auto& pair : glob_funcs) {
+      if (auto* fn = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(fn);
+
+        if (func->GetAttr<String>(attr::kCompiler).defined()) {
+          auto new_dict = func->attrs->dict;
+          new_dict.Set(tvm::attr::kGlobalSymbol,
+                       String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
+          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                          DictAttrs(new_dict));
+          new_module->Add(mangled_gvars_[pair.first->name_hint], func);
+        } else {
+          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                          func->attrs);
+          new_module->Add(pair.first, func);
+        }
+      }
+    }
+
+    return new_module;
+  }
+
+ private:
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
+    Expr new_expr = post;
+    const CallNode* new_call = new_expr.as<CallNode>();
+    auto op_node = new_call->op.as<GlobalVarNode>();
+    if (op_node == nullptr || mangled_gvars_.find(op_node->name_hint) == mangled_gvars_.end()) {
+      return new_expr;
+    } else {
+      return Call(mangled_gvars_[op_node->name_hint], new_call->args, new_call->attrs,
+                  new_call->type_args, new_call->span);
+    }
+  }
+
+  /*!\brief The IRModule used for partitioning. */
+  IRModule module_;
+  /*!\brief The function used to mangle operators name */
+  std::function<String(String)> mangle_fn_;
+  /*!\brief Tabled used to store (unmangled_var_name, mangled_gvar) pairs*/
+  std::unordered_map<std::string, GlobalVar> mangled_gvars_;
+};
+
 }  // namespace partitioning
 
 namespace transform {
 
-Pass PartitionGraph() {
+Pass PartitionGraph(String mod_name, bool bind_constants) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> flatten_tuples = [=](IRModule m,
                                                                                  PassContext pc) {
     // There could be compiler_end annotations on tuples
@@ -503,16 +585,32 @@ Pass PartitionGraph() {
     return partitioning::RemoveDefaultAnnotations(m);
   };
 
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
+                                                                            PassContext pc) {
+    return partitioning::Partitioner(m, bind_constants).Partition();
+  };
+
+  auto name_mangling_fn = [mod_name](String name) {
+    return runtime::get_name_mangled(mod_name, name);
+  };
+
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> name_mangling_func =
+      [=](IRModule m, PassContext pc) {
+        return partitioning::NameMangleExtFuncs(m, name_mangling_fn).Run();
+      };
 
   auto flatten_tuples_pass = CreateModulePass(flatten_tuples, 0, "FlattenNestedTuples", {});
   auto remove_default_pass = CreateModulePass(remove_defaults, 0, "RemoveDefaultAnnotations", {});
   auto partition_pass = CreateModulePass(part_func, 0, "PartitionGraph", {});
-  return Sequential({flatten_tuples_pass, remove_default_pass, partition_pass, InferType()});
+  auto name_mangling_pass = CreateModulePass(name_mangling_func, 0, "NameMangleExtFuncs", {});
+  return Sequential(
+      {flatten_tuples_pass, remove_default_pass, partition_pass, name_mangling_pass, InferType()});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
+TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph")
+    .set_body_typed([](String mod_name, bool bind_constants) {
+      return transform::PartitionGraph(mod_name, bind_constants);
+    });
 
 }  // namespace transform
 

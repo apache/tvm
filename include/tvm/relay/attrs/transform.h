@@ -33,6 +33,29 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attributes used for the sliding_window operator */
+struct SlidingWindowAttrs : public tvm::AttrsNode<SlidingWindowAttrs> {
+  int axis;
+  Array<Integer> window_shape;
+  Array<Integer> strides;
+  TVM_DECLARE_ATTRS(SlidingWindowAttrs, "relay.attrs.SlidingWindowAttrs") {
+    TVM_ATTR_FIELD(axis).describe(
+        "What axis the sliding window begin forming over."
+        "Window will be slid over this axis and all following axes."
+        "The axis value determines the window shape (and thus, the"
+        "number of strides):"
+        "window shape and strides must both be of length"
+        "`data.ndim-axis`.");
+    TVM_ATTR_FIELD(window_shape)
+        .describe(
+            "The window shape to form over the input."
+            "Window shape must be of length `data.ndim-axis`.");
+    TVM_ATTR_FIELD(strides).describe(
+        "How to stride the window along each dimension."
+        "Strides must be of length `data.ndim-axis`.");
+  }
+};  // struct SlidingWindowAttrs
+
 /*! \brief data type cast */
 struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
   DataType dtype;
@@ -53,6 +76,18 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
         "Should lie in range `[-data.ndim - 1, data.ndim]`."
         "If `axis < 0`, it is the first axis inserted;"
         "If `axis >= 0`, it is the last axis inserted in Python's negative indexing.");
+    TVM_ATTR_FIELD(num_newaxis)
+        .describe("Number of axes to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
+        .set_default(1);
+  }
+};  // struct ExpandDimsAttrs
+
+/*! \brief Attributes used in dynamic expand_dims operators */
+struct DynExpandDimsAttrs : public tvm::AttrsNode<DynExpandDimsAttrs> {
+  int num_newaxis;
+
+  TVM_DECLARE_ATTRS(DynExpandDimsAttrs, "relay.attrs.DynExpandDimsAttrs") {
     TVM_ATTR_FIELD(num_newaxis)
         .describe("Number of axes to be inserted. Should be >= 0.")
         .set_lower_bound(0)
@@ -146,15 +181,22 @@ struct GatherAttrs : public tvm::AttrsNode<GatherAttrs> {
 
 struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   Integer batch_dims;
+  Optional<Integer> index_rank;
 
-  TVM_DECLARE_ATTRS(GatherAttrs, "relay.attrs.GatherNDAttrs") {
+  TVM_DECLARE_ATTRS(GatherNDAttrs, "relay.attrs.GatherNDAttrs") {
     TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dimensions.");
+    TVM_ATTR_FIELD(index_rank)
+        .set_default(NullValue<Integer>())
+        .describe(
+            "The size of an indexing tuple, which is a fixed value. Only needed when the number of "
+            "indexting tuples is dynamic.");
   }
 };
+
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer batch_dims;
   Integer axis;
-  std::string mode;
+  tvm::String mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(batch_dims)
@@ -302,7 +344,8 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> begin;
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
-  std::string slice_mode;
+  tvm::String slice_mode;
+  Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin).describe("Indices for begin of slice, begin index is also inclusive");
@@ -317,6 +360,9 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
             "size - The input strides will be ignored, input end in this mode indicates the size"
             "of a slice starting at the location specified by begin. If end[i] is -1,"
             "all remaining elements in that dimension are included in the slice");
+    TVM_ATTR_FIELD(axes).describe(
+        "Axes along which slicing is applied. When it is specified, the length of begin, end, "
+        "strides, and axes must be equal.");
   }
 };
 
@@ -464,7 +510,7 @@ struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
         .describe("The first element is not included")
         .set_default(Bool(false));
   }
-};
+};  // struct ScanopAttrs
 
 /*! \brief Attributes used in unique operator */
 struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
@@ -477,6 +523,15 @@ struct UniqueAttrs : public tvm::AttrsNode<UniqueAttrs> {
         .set_default(false);
   }
 };  // struct UniqueAttrs
+
+/*! \brief Attributes used in einsum operator */
+struct EinsumAttrs : public tvm::AttrsNode<EinsumAttrs> {
+  String equation;
+
+  TVM_DECLARE_ATTRS(EinsumAttrs, "relay.attrs.EinsumAttrs") {
+    TVM_ATTR_FIELD(equation).describe("The einsum expression string");
+  }
+};  // struct EinsumAttrs
 
 }  // namespace relay
 }  // namespace tvm

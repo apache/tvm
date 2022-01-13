@@ -65,7 +65,19 @@ def test_erf():
     assert "fast_erf" in fast_mod[0].astext()
 
 
+def test_softmax():
+    x = relay.var("x", shape=(1, 16), dtype="float32")
+    y = relay.nn.softmax(x)
+    func = relay.Function([x], y)
+    mod = tvm.IRModule.from_expr(func)
+
+    with tvm.transform.PassContext(opt_level=3, required_pass=["FastMath"]):
+        fast_mod = relay.optimize(mod, target="llvm")
+    assert "nn.fast_softmax" in fast_mod[0].astext()
+
+
 if __name__ == "__main__":
     test_exp()
     test_tanh()
     test_erf()
+    test_softmax()

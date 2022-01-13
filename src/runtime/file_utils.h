@@ -24,7 +24,8 @@
 #ifndef TVM_RUNTIME_FILE_UTILS_H_
 #define TVM_RUNTIME_FILE_UTILS_H_
 
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <unordered_map>

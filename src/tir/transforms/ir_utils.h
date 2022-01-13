@@ -24,11 +24,17 @@
 #ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
 #define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
+#include <tvm/arith/int_set.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include <limits>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -162,11 +168,100 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
 }
 
 /*!
+ * \brief Create an int32 constant
+ * \param index the value of the constant
+ * \return the PrimExpr that represents the constant
+ */
+inline PrimExpr ConstInt32(size_t index) {
+  ICHECK_LE(index, std::numeric_limits<int>::max());
+  return make_const(DataType::Int(32), static_cast<int>(index));
+}
+
+/*!
+ * \brief Allocate TVMValues on the stack
+ * \param type type of allocation
+ * \param num number of TVMValues to allocate
+ * \return PrimExpr representing the TVMValue
+ */
+inline PrimExpr StackAlloca(std::string type, size_t num) {
+  Array<PrimExpr> args = {StringImm(type), ConstInt32(num)};
+  return Call(DataType::Handle(), builtin::tvm_stack_alloca(), args);
+}
+
+/*!
  * \brief Convert a IR node to be SSA form.
  * \param stmt The source statement to be converted.
  * \return The converted form.
  */
 Stmt ConvertSSA(Stmt stmt);
+
+/*!
+ * \brief Return the storage scope associated with a buffer variable.
+ * \param buffer_var The input buffer variable.
+ * \return A string representing the storage scope of this buffer variable.
+ */
+String GetPtrStorageScope(Var buffer_var);
+
+/*!
+ * \brief Convert match buffer target buffer access indices to original one.
+ * \param indices The indices of the target buffer
+ * \return The indices of source buffer.
+ */
+Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
+                               const Array<PrimExpr>& indices);
+
+/*!
+ * \brief Convert match buffer target buffer region to original one.
+ * \param region The sub-region of the target buffer
+ * \return The region of source buffer.
+ */
+Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region);
+
+/*!
+ * \brief Check if a given PrimFunc originated from a TE schedule.
+ *
+ * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
+ *
+ * \param f PrimFunc to check
+ * \return Whether or not the PrimFunc was created from a te schedule
+ */
+Bool IsFromLegacyTESchedule(PrimFunc f);
+
+/*!
+ *\brief Context helper to update domain map within conditional scope.
+ *
+ * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
+ *[0, 8]. Then `With<ConditionalBoundsContext> ctx(&dom_map, bounds, true)` step into scope where
+ *dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(&dom_map, bounds, false)` step into
+ *scope where dom_map[i] is [9, 20]
+ */
+class ConditionalBoundsContext {
+ private:
+  friend class With<ConditionalBoundsContext>;
+  /*!
+   * \brief Construct a condition bounds context.
+   * \param condition The condition holds on true branch.
+   * \param dom_map The global domain map to be updated.
+   * \param is_true_branch Whether step into the branch where condition bounds holds.
+   */
+  ConditionalBoundsContext(const PrimExpr& condition,
+                           std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+                           bool is_true_branch);
+  void EnterWithScope();
+  void ExitWithScope();
+
+  /*! \brief Helper to solve related variable's bound within conditional scope.*/
+  Map<Var, Range> GetVarBoundsFromCondition();
+
+  /*! \brief the condition holds on true branch. */
+  const PrimExpr& condition_;
+  /*! \brief global domain map to updated */
+  std::unordered_map<const VarNode*, arith::IntSet>* dom_map_;
+  /*! \brief whether is on true branch */
+  bool is_true_branch_;
+  /*! \brief used to record and restore original var bounds */
+  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+};
 
 }  // namespace tir
 }  // namespace tvm

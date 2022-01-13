@@ -223,14 +223,14 @@ class ThreadSyncInserter : public StmtExprMutator {
   }
   PrimExpr VisitExpr_(const LoadNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
+        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].read_count;
     }
     return StmtExprMutator::VisitExpr_(op);
   }
   Stmt VisitStmt_(const StoreNode* op) final {
     if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer_var.get()).rank == StorageRank::kGlobal) {
+        GetScope(op->buffer_var).rank == StorageRank::kGlobal) {
       ++rw_stats_[op->buffer_var].write_count;
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -250,10 +250,6 @@ class ThreadSyncInserter : public StmtExprMutator {
         is_lead_ = PrimExpr();
       }
       return ret;
-    } else if (op->attr_key == attr::storage_scope) {
-      const VarNode* buf = op->node.as<VarNode>();
-      storage_scope_[buf] = StorageScope::Create(op->value.as<StringImmNode>()->value);
-      return StmtExprMutator::VisitStmt_(op);
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
@@ -264,16 +260,15 @@ class ThreadSyncInserter : public StmtExprMutator {
       PrimExpr expr = StmtExprMutator::VisitExpr_(op);
       op = expr.as<CallNode>();
       ICHECK_EQ(op->args.size(), 5U);
-      const VarNode* buffer_var = op->args[1].as<VarNode>();
-      Var var(GetRef<Var>(buffer_var));
+      Var buffer_var(GetRef<Var>(op->args[1].as<VarNode>()));
       const IntImmNode* flag = op->args[4].as<IntImmNode>();
       if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[var].read_count;
+        ++rw_stats_[buffer_var].read_count;
       }
       if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[var].write_count;
+        ++rw_stats_[buffer_var].write_count;
       }
       return expr;
     } else {
@@ -287,14 +282,12 @@ class ThreadSyncInserter : public StmtExprMutator {
     int read_count{0};
     int write_count{0};
   };
+
   // Get current storage scope.
-  StorageScope GetScope(const VarNode* buf) const {
-    auto it = storage_scope_.find(buf);
-    StorageScope s;
-    s.rank = StorageRank::kGlobal;
-    if (it == storage_scope_.end()) return s;
-    return it->second;
+  StorageScope GetScope(Var buffer_var) const {
+    return StorageScope::Create(GetPtrStorageScope(buffer_var));
   }
+
   // private functions.
   Stmt InitGlobalBarrier(const AttrStmtNode* op) {
     ICHECK(op != nullptr);
@@ -337,8 +330,6 @@ class ThreadSyncInserter : public StmtExprMutator {
   // data structure.
   StorageScope sync_scope_;
   const std::unordered_set<const Object*>& syncs_;
-  // The storage scope of each buffer
-  std::unordered_map<const VarNode*, StorageScope> storage_scope_;
   // The read write statistics of storage
   std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> rw_stats_;
   // The statistics for global barrier

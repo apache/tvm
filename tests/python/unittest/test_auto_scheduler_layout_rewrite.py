@@ -26,7 +26,7 @@ import tvm.testing
 from tvm import topi
 from tvm import auto_scheduler, te
 
-from test_auto_scheduler_common import get_tiled_matmul, matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import get_tiled_matmul, matmul_auto_scheduler_test
 
 
 def test_apply_steps_with_layout_rewrite():

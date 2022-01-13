@@ -74,6 +74,15 @@ def test_int8_to_float32():
     )
 
 
+def test_scalar_int8_to_float32():
+    data = np.array(-128).astype("int8")
+    output = np.array(-63.5).astype("float32")
+    quant_args = {"in_zero_point": -1, "in_scale": 0.5}
+    dequantize_test_driver(
+        in_dtype="int8", quant_args=quant_args, in_data=data, verify_output_data=output, axis=-1
+    )
+
+
 def test_int32_to_float32():
     data = np.array([113, 29, -1052]).astype("int32")
     output = np.array([0.6550452, 0.16810896, -6.098297]).astype("float32")
@@ -148,6 +157,7 @@ def test_dynamic_dequantize():
 if __name__ == "__main__":
     test_uint8_to_float32()
     test_int8_to_float32()
+    test_scalar_int8_to_float32()
     test_int32_to_float32()
     test_channelwise_axis_1()
     test_channelwise_axis_0()

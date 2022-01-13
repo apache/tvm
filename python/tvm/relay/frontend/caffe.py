@@ -21,11 +21,12 @@
 import numpy as np
 import tvm
 from tvm.ir import IRModule
+
+from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ... import nd as _nd
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -50,10 +51,12 @@ class OperatorConverter(object):
             "Deconvolution": self.convert_deconv,
             "Dropout": self.convert_dropout,
             "Eltwise": self.convert_eltwise,
+            "Embed": self.convert_embed,
             "Flatten": self.convert_flatten,
             "InnerProduct": self.convert_innerproduct,
             "Input": None,
             "LRN": self.convert_lrn,
+            "Permute": self.convert_permute,
             "Pooling": self.convert_pooling,
             "PReLU": self.convert_prelu,
             "ReLU": self.convert_relu,
@@ -63,6 +66,7 @@ class OperatorConverter(object):
             "Slice": self.convert_slice,
             "Softmax": self.convert_softmax,
             "TanH": self.convert_tanh,
+            "Reduction": self.convert_reduction,
         }
 
     def convert_flatten(self, op):
@@ -387,8 +391,8 @@ class OperatorConverter(object):
             params["strides"] = (pool_params.stride, pool_params.stride)
 
         params["ceil_mode"] = True
-        if hasattr(pool_params, "ceil_mode"):
-            params["ceil_mode"] = pool_params.ceil_mode
+        if hasattr(pool_params, "round_mode"):
+            params["ceil_mode"] = pool_params.round_mode == "CEIL"
 
         in_expr = self.exp_tab.get_expr(input_name)
 
@@ -532,6 +536,9 @@ class OperatorConverter(object):
             weight_shape = [-1, conv_params.num_output, kh, kw]
             weight_value = np.asarray(weight.data, np.float32)
             weight_value = np.reshape(weight_value, weight_shape)
+
+            # weight shape is in relay's IOHW format rn, we need it to be OIHW
+            weight_value = np.transpose(weight_value, [1, 0, 2, 3])
         else:
             raise Exception("No weight value of layer {} in caffemodel".format(op.name))
 
@@ -539,7 +546,6 @@ class OperatorConverter(object):
         in_expr = self.exp_tab.get_expr(inputs[0])
         out = _op.nn.conv2d_transpose(data=in_expr, weight=weight_expr, **params)
         if bias:
-
             bias_value = np.asarray(bias.data, np.float32)
             bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
             out = _op.nn.bias_add(out, bias_expr)
@@ -577,6 +583,44 @@ class OperatorConverter(object):
         out = _op.tanh(in_expr)
         return out
 
+    def convert_reduction(self, op):
+        """ Convert Reduction layer """
+        reduction_dic = ["NOP", "SUM", "ASUM", "SUMSQ", "MEAN"]
+
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        method = op.reduction_param.operation
+        axis = op.reduction_param.axis
+        coeff = op.reduction_param.coeff
+        coeff_expr = self.exp_tab.new_const(np.asarray(coeff, np.float32))
+        num_axes = len(_infer_shape(in_expr))
+
+        # Currently, only reduction along ALL "tail" axes is supported in Caffe;
+        # reduction of axis M through N, where N < num_axes - 1, is unsupported.
+        if 0 < axis < (num_axes - 1):
+            for _axis in reversed(range(axis + 1, num_axes)):
+                in_expr = _op.sum(in_expr, axis=_axis)
+            in_expr = _op.squeeze(in_expr)
+
+        if reduction_dic[method] == "SUM":
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "MEAN":
+            out = _op.mean(in_expr, axis=axis)
+        elif reduction_dic[method] == "ASUM":
+            in_expr = _op.abs(in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        elif reduction_dic[method] == "SUMSQ":
+            in_expr = _op.multiply(in_expr, in_expr)
+            out = _op.sum(in_expr, axis=axis)
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                "reduction method:{} is invalid in Caffe frontend.".format(method)
+            )
+
+        if float(coeff) != 1.0:
+            out = _op.multiply(out, coeff_expr)
+        return out
+
     def convert_crop(self, op):
         """Convert Crop layer"""
         inputs = op.bottom
@@ -610,6 +654,57 @@ class OperatorConverter(object):
         # secondly, crop in_expr_a by in_expr_b
         in_expr_a_stride = _op.strided_slice(in_expr_a, slice_start, slice_end)
         out = _op.slice_like(in_expr_a_stride, in_expr_b, axes=to_crop_axis)
+        return out
+
+    def convert_permute(self, op):
+        """Convert Permute layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+
+        # parse permute params
+        permute_param = op.permute_param
+        axes = list(getattr(permute_param, "order", 0))
+        out = _op.transpose(in_expr, axes)
+        return out
+
+    def convert_embed(self, op):
+        """Convert Embed layer"""
+        inputs = op.bottom
+        embed_param = op.embed_param
+        num_output = embed_param.num_output
+        input_dim = embed_param.input_dim
+        bias_term = embed_param.bias_term
+        weight_bias_blobs = self.init_layer_dict[op.name].blobs
+        weight, bias = None, None
+        if bias_term:
+            weight = weight_bias_blobs[0]
+            bias = weight_bias_blobs[1]
+            assert weight and bias
+        else:
+            weight = weight_bias_blobs[0]
+            assert weight
+        weight_value = np.asarray(weight.data, np.float32)
+        weight_value = np.reshape(weight_value, [input_dim, num_output])
+        weight_expr = self.exp_tab.new_const(weight_value, dtype="float32")
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        input_shape = _infer_shape(in_expr)
+        input_count = 1
+        for dim in input_shape:
+            input_count *= dim
+
+        index = _op.cast(in_expr, "int32")
+        out = _op.take(weight_expr, index, axis=0)
+
+        if bias_term:
+            bias_value = np.asarray(bias.data, np.float32)
+            bias_expr = self.exp_tab.new_const(bias_value, dtype="float32")
+            out = _op.reshape(out, [input_count, num_output])
+            out = _op.add(out, bias_expr)
+
+        out_shape = list(input_shape)
+        out_shape.append(num_output)
+        out = _op.reshape(out, out_shape)
+
         return out
 
     def check_unsupported_ops(self):
@@ -790,7 +885,7 @@ def from_caffe(init_net, predict_net, shape_dict, dtype_dict):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation.
 
     params : dict of str to tvm.NDArray

@@ -24,6 +24,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/ir/module.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
@@ -69,12 +70,22 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "get_const_vars") {
       return PackedFunc(nullptr);
     } else if (name == "_get_target_triple") {
-      std::string target_triple = tm_->getTargetTriple().str();
+      std::ostringstream target_triple_ss;
+      target_triple_ss << tm_->getTargetTriple().str();
       // getTargetTriple() doesn't include other flags besides the triple. Add back flags which are
       // important for ModulePackImportsToLLVM.
       if (tm_->Options.FloatABIType == llvm::FloatABI::ABIType::Soft) {
-        target_triple += " -mfloat-abi=soft";
+        target_triple_ss << " -mfloat-abi=soft";
       }
+      std::string mabi = tm_->Options.MCOptions.ABIName;
+      if (!mabi.empty()) {
+        target_triple_ss << " -mabi=" << mabi;
+      }
+      llvm::StringRef mcpu = tm_->getTargetCPU();
+      if (!mcpu.empty() && mcpu != "generic") {
+        target_triple_ss << " -mcpu=" << mcpu.str();
+      }
+      std::string target_triple = target_triple_ss.str();
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue* rv) { *rv = target_triple; });
     }
     if (ee_ == nullptr) LazyInitJIT();
@@ -98,7 +109,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void SaveToFile(const std::string& file_name, const std::string& format) final {
     std::string fmt = runtime::GetFileFormat(file_name, format);
     std::error_code ecode;
+#if TVM_LLVM_VERSION <= 70
     llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::F_None);
+#else
+    llvm::raw_fd_ostream dest(file_name, ecode, llvm::sys::fs::OF_None);
+#endif
     ICHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name << " " << ecode.message();
     if (fmt == "o" || fmt == "obj") {
 #if TVM_LLVM_VERSION <= 60
@@ -201,8 +216,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   void Init(const IRModule& mod, const Target& target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
-    bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
-    bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
 
@@ -210,7 +223,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     std::string entry_func;
     Map<String, LinkedParam> linked_params;
     bool found_linked_params = false;
-    bool could_have_linked_params = target->GetAttr<Bool>("link-params").value_or(Bool(false));
+    bool could_have_linked_params = mod->ShouldLinkParameters();
+    relay::Runtime runtime =
+        mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
+    bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+    bool target_c_runtime = runtime->name == "crt";
+
     for (auto kv : mod->functions) {
       if (could_have_linked_params &&
           kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
@@ -223,8 +241,12 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         found_linked_params = true;
         continue;
       }
-      ICHECK(kv.second->IsInstance<PrimFuncNode>())
-          << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
+      if (!kv.second->IsInstance<PrimFuncNode>()) {
+        // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+        DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got "
+                   << kv.second->GetTypeKey();
+        continue;
+      }
       auto f = Downcast<PrimFunc>(kv.second);
       auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
       ICHECK(global_symbol.defined());
@@ -234,15 +256,59 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       }
       funcs.push_back(f);
     }
-    ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
+    // TODO(@jroesch): follow up on this condition.
+    // ICHECK(funcs.size() > 0 || (could_have_linked_params && found_linked_params));
     // TODO(tqchen): remove the entry function behavior as it does not
     // makes sense when we start to use multiple modules.
     cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib, target_c_runtime);
 
-    for (const auto& f : funcs) {
-      cg->AddFunction(f);
+    // See https://llvm.org/docs/LangRef.html#fast-math-flags for details
+    Bool fast_math_all = target->GetAttr<Bool>("fast-math").value_or(Bool(false));
+    Bool fast_math_nnan = target->GetAttr<Bool>("fast-math-nnan").value_or(Bool(false));
+    Bool fast_math_ninf = target->GetAttr<Bool>("fast-math-ninf").value_or(Bool(false));
+    Bool fast_math_nsz = target->GetAttr<Bool>("fast-math-nsz").value_or(Bool(false));
+    Bool fast_math_arcp = target->GetAttr<Bool>("fast-math-arcp").value_or(Bool(false));
+
+    llvm::FastMathFlags fmf;
+    if (fast_math_all) {
+#if TVM_LLVM_VERSION >= 60
+      fmf.setFast();
+#else
+      fmf.setUnsafeAlgebra();
+#endif
     }
 
+    if (fast_math_nnan) {
+      fmf.setNoNaNs();
+    }
+    if (fast_math_ninf) {
+      fmf.setNoInfs();
+    }
+    if (fast_math_nsz) {
+      fmf.setNoSignedZeros();
+    }
+    if (fast_math_arcp) {
+      fmf.setAllowReciprocal();
+    }
+
+#if TVM_LLVM_VERSION >= 60
+    Bool fast_math_contract = target->GetAttr<Bool>("fast-math-contract").value_or(Bool(false));
+    Bool fast_math_afn = target->GetAttr<Bool>("fast-math-afn").value_or(Bool(false));
+    Bool fast_math_reassoc = target->GetAttr<Bool>("fast-math-reassoc").value_or(Bool(false));
+    if (fast_math_contract) {
+      fmf.setAllowContract(true);
+    }
+    if (fast_math_afn) {
+      fmf.setApproxFunc();
+    }
+    if (fast_math_reassoc) {
+      fmf.setAllowReassoc();
+    }
+#endif
+
+    cg->SetFastMathFlag(fmf);
+
+    cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);
     }
@@ -446,7 +512,8 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       return runtime::Module(n);
     });
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target) {
+runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
+                                            tvm::relay::Runtime runtime) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -460,8 +527,8 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 
   InitializeLLVM();
   auto tm = GetLLVMTargetMachine(target);
-  bool system_lib = target->GetAttr<Bool>("system-lib").value_or(Bool(false));
-  bool target_c_runtime = (target->GetAttr<String>("runtime").value_or("") == kTvmRuntimeCrt);
+  bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
+  bool target_c_runtime = runtime->name == "crt";
   ICHECK(system_lib && target_c_runtime)
       << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
       << "got target: " << target->str();
@@ -494,9 +561,7 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
 }
 
 TVM_REGISTER_GLOBAL("runtime.CreateLLVMCrtMetadataModule")
-    .set_body_typed([](const Array<runtime::Module>& modules, Target target) {
-      return CreateLLVMCrtMetadataModule(modules, target);
-    });
+    .set_body_typed(CreateLLVMCrtMetadataModule);
 
 }  // namespace codegen
 }  // namespace tvm

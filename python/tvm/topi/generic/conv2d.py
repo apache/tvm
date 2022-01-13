@@ -20,7 +20,7 @@
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from ..utils import get_const_tuple
+from ..utils import get_const_tuple, traverse_inline
 
 
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
@@ -143,8 +143,10 @@ def schedule_conv_NCHWc_cpu_common_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -269,8 +271,10 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -360,4 +364,33 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
 
+    return s
+
+
+def schedule_depthwise_conv2d_nhwc(outs):
+    """Create schedule for depthwise conv2d in NHWC layout.
+    Parameters
+    ----------
+    outs : list[te.tensor.Tensor]
+            The output tensors.
+    Returns
+    -------
+    s : tvm.te.schedule.Schedule
+        The computation schedule for depthwise conv2d.
+    """
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        """Traverse operators from computation graph"""
+        if "depthwise_conv2d_nhwc" in op.tag:
+            out = outs[0]
+            depthwise_conv2d_out = op.output(0)
+            data_pad = depthwise_conv2d_out.op.input_tensors[0]
+            s[data_pad].compute_inline()
+            if depthwise_conv2d_out != out:
+                s[depthwise_conv2d_out].compute_at(s[out], s[out].op.axis[3])
+            s[out].fuse(*s[out].op.axis)
+
+    traverse_inline(s, outs[0].op, _callback)
     return s

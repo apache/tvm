@@ -27,7 +27,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
@@ -37,6 +36,7 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -78,6 +78,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   virtual void Init(const std::string& module_name, llvm::TargetMachine* tm, llvm::LLVMContext* ctx,
                     bool system_lib, bool dynamic_lookup, bool target_c_runtime);
+
+  /*!
+   * \brief Turn on fast math flags for floating point operations.
+   * \param fmf FastMathFlags to use for code generation.
+   */
+  void SetFastMathFlag(llvm::FastMathFlags fmf);
+
   /*!
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
@@ -93,6 +100,25 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \return the created module.
    */
   virtual std::unique_ptr<llvm::Module> Finish();
+  /*!
+   * \brief Add functions from the (unordered) range to the current module in a deterministic order.
+   *        The range consists of objects convertible to PrimFunc.
+   * \param begin The beginning of the range.
+   * \param end The end of the range.
+   * \param pfunc Converter function from the range element type to PrimFunc.
+   */
+  template <typename IterType, typename ConvType>
+  void AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc);
+  /*!
+   * \brief Add functions from the (unordered) range of elements of type PrimFunc to the current
+   *        module in a deterministic order.
+   * \param begin The beginning of the range.
+   * \param end The end of the range.
+   */
+  template <typename IterType>
+  void AddFunctionsOrdered(IterType begin, IterType end) {
+    this->AddFunctionsOrdered(begin, end, [](auto f) { return f; });
+  }
   /*!
    * \brief Add mod to be linked with the generated module
    * \param mod The module to be linked.
@@ -162,10 +188,17 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const EvaluateNode* op) override;
 
  protected:
+  /*!
+   * \brief Address and type pair to assist in handling opaque pointers.
+   */
+  struct TypedPointer {
+    TypedPointer() = default;
+    TypedPointer(llvm::Type* t, llvm::Value* a) : type(t), addr(a) {}
+    llvm::Type* type = nullptr;  /*!< Type of the value pointed to. */
+    llvm::Value* addr = nullptr; /*!< Address of the value.         */
+  };
   /*! \brief The storage information */
   struct StorageInfo {
-    /*! \brief The storage scope */
-    runtime::StorageScope scope;
     /*! \brief The alignment of allocation */
     int alignment{0};
   };
@@ -195,6 +228,26 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // skip first arg mode used for call extern intrinsic.
   virtual llvm::Value* CreateCallExtern(Type ret_type, String global_symbol,
                                         const Array<PrimExpr>& args, bool skip_first_arg);
+
+  /*! \brief Insert a printf() call to the generated LLVM
+   *
+   * This is intended solely for debugging purposes.  After calling
+   * printf(), immediately calls fflush() to flush the stdout buffer
+   * in case of segfault.
+   */
+  void CreatePrintf(const std::string& format, const std::vector<llvm::Value*> format_args);
+
+  /*! \brief Lookup return address, for debugging purposes
+   *
+   * This is intended solely for debugging purposes.  Calls the
+   * `llvm::Intrinsic::returnaddress`, returning the return address of
+   * the current function call.
+   *
+   * \param level Look up the return address of a frame `level` steps
+   * above the current stack frame.
+   */
+  llvm::Value* CreateLookupReturnAddress(unsigned int level = 0);
+
   // Get the corresponding thread index
   virtual llvm::Value* GetThreadIndex(const IterVar& iv);
   // Get the corresponding thread index
@@ -284,7 +337,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
-  llvm::Value* CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
+  TypedPointer CreateBufferPtr(DataType t, llvm::Value* buffer, llvm::Value* index);
   // Vector concatenation.
   llvm::Value* CreateVecSlice(llvm::Value* vec, int begin, int extent);
   llvm::Value* CreateVecFlip(llvm::Value* vec);
@@ -295,6 +348,11 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                        const Var& loop_var, const Stmt& body);
   // add alias information.
   void AddAliasInfo(llvm::Instruction* load, const VarNode* buffer, PrimExpr index);
+
+  llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
+                                             unsigned int shared_address_space, int alignment,
+                                             llvm::GlobalValue::LinkageTypes linkage);
+
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
   // The current function
@@ -373,6 +431,22 @@ inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
 #else
   return llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
 #endif
+}
+
+template <typename IterType, typename ConvType>
+void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc) {
+  std::vector<PrimFunc> funcs;
+  for (auto it = begin; it != end; ++it) {
+    funcs.push_back(pfunc(*it));
+  }
+  std::sort(funcs.begin(), funcs.end(), [](PrimFunc func_a, PrimFunc func_b) {
+    std::string name_a = func_a->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    std::string name_b = func_b->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
+    return name_a < name_b;
+  });
+  for (auto& f : funcs) {
+    AddFunction(f);
+  }
 }
 
 }  // namespace codegen

@@ -19,9 +19,9 @@
 """
 import pytest
 import tvm
-
-from tvm import IRModule, te, relay, parser
-from tvm.relay import op, transform, analysis
+from tvm import IRModule, parser, relay, te
+from tvm.relay import analysis, op, transform
+from tvm.relay.op import op as _op
 
 
 def infer_mod(mod, annotate_spans=True):
@@ -32,12 +32,9 @@ def infer_mod(mod, annotate_spans=True):
     return mod
 
 
-def infer_expr(expr, annotate_spans=True):
-    mod = IRModule.from_expr(expr)
-    mod = infer_mod(mod, annotate_spans)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
+def infer_expr(expr):
+    transform.InferTypeLocal(expr)
+    return expr
 
 
 def assert_has_type(expr, typ, mod=None):
@@ -67,7 +64,7 @@ def test_monomorphic_let():
     # TODO(@jroesch): this seems whack.
     sb = relay.ScopeBuilder()
     x = relay.var("x", dtype="float64", shape=())
-    x = sb.let("x", relay.const(1.0, "float64"))
+    x = sb.let(x, relay.const(1.0, "float64"))
     sb.ret(x)
     xchecked = infer_expr(sb.get())
     assert xchecked.checked_type == relay.scalar_type("float64")
@@ -164,11 +161,11 @@ def test_recursion():
 def test_incomplete_call():
     tt = relay.scalar_type("int32")
     x = relay.var("x", tt)
+    f_type = relay.FuncType([tt], tt)
     f = relay.var("f")
     func = relay.Function([x, f], relay.Call(f, [x]), tt)
 
     ft = infer_expr(func)
-    f_type = relay.FuncType([tt], tt)
     assert ft.checked_type == relay.FuncType([tt, f_type], tt)
 
 
@@ -244,7 +241,7 @@ def test_ref():
 def test_free_expr():
     x = relay.var("x", "float32")
     y = relay.add(x, x)
-    yy = infer_expr(y, annotate_spans=False)
+    yy = infer_expr(y)
     assert tvm.ir.structural_equal(yy.args[0], x, map_free_vars=True)
     assert yy.checked_type == relay.scalar_type("float32")
     assert x.vid.same_as(yy.args[0].vid)
@@ -254,8 +251,11 @@ def test_type_args():
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
     z = relay.add(x, y)
-    ty_z = infer_expr(z)
-    ty_args = ty_z.type_args
+
+    # InferTypeLocal does not support populating the type_args field
+    mod = infer_mod(IRModule.from_expr(z))
+    mod = infer_mod(mod, annotate_spans=False)
+    ty_args = mod["main"].body.type_args
     assert len(ty_args) == 2
     assert ty_args[0].dtype == "float32"
     assert ty_args[1].dtype == "float32"
@@ -414,6 +414,134 @@ def test_dynamic_function():
     mod["main"] = relay.Function([y], c)
     mod = transform.InferType()(mod)
     assert mod["main"].params[0].checked_type == s_tt
+
+
+def test_custom_op_infer():
+    """Tests infer type for custom_op"""
+    op_name = "custom_log"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    # call default relation functions
+    _op.get(op_name).add_type_rel("Identity")
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", clog(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    fchecked = infer_expr(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
+
+
+def test_custom_add_broadcast_op():
+    """Tests infer type for broadcast custom_op"""
+    op_name = "custom_broadcast_add"
+    _op.register(op_name, r"code(Add two tensor with inner broadcasting.)code")
+    _op.get(op_name).set_num_inputs(2)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).add_argument("data_1", "Tensor", "The input data tensor.")
+    # call default relation functions
+    _op.get(op_name).add_type_rel("Broadcast")
+    _op.get(op_name).set_support_level(1)
+    _op.register_stateful(op_name, False)
+
+    def broadcast_add(x, y):
+        return relay.Call(_op.get(op_name), [x, y])
+
+    x = relay.var("x", shape=(10, 4))
+    y = relay.var("y", shape=(5, 10, 1))
+    z = broadcast_add(x, y)
+    func = relay.Function([x, y], z)
+    t1 = relay.TensorType((10, 4), "float32")
+    t2 = relay.TensorType((5, 10, 1), "float32")
+    t3 = relay.TensorType((5, 10, 4), "float32")
+    expected_ty = relay.FuncType([t1, t2], t3)
+    assert_has_type(func, expected_ty)
+
+
+def test_custom_op_rel_infer():
+    """Tests infer type for custom_op"""
+
+    def custom_log1_rel(arg_types, attrs):
+        assert len(arg_types) == 1, "type relation arg number mismatch!"
+        if attrs:
+            assert isinstance(attrs, DictAttrs)
+        inputa_type = arg_types[0]
+        return relay.TensorType(inputa_type.shape, inputa_type.dtype)
+
+    op_name = "custom_log1"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).set_attrs_type_key("DictAttrs")
+    # call customized relation functions
+    _op.get(op_name).add_type_rel("custom_log1", custom_log1_rel)
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", clog(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    fchecked = infer_expr(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
+
+
+def test_custom_op_rel_infer_exception():
+    """Tests infer type for custom_op"""
+
+    def custom_log1_rel(arg_types, attrs):
+        assert len(arg_types) == 2, "type relation arg number mismatch!"
+        return None
+
+    op_name = "custom_log2"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    _op.get(op_name).set_num_inputs(1)
+    _op.get(op_name).add_argument("data_0", "Tensor", "The input data tensor.")
+    _op.get(op_name).set_attrs_type_key("DictAttrs")
+    # call customized relation functions
+    _op.get(op_name).add_type_rel("custom_log2", custom_log1_rel)
+    _op.get(op_name).set_support_level(1)
+    _op.register_pattern(op_name, _op.OpPattern.ELEMWISE)
+    _op.register_stateful(op_name, False)
+
+    def clog(x):
+        return relay.Call(_op.get(op_name), [x])
+
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", clog(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    with pytest.raises(tvm.error.TVMError) as cm:
+        fchecked = infer_expr(f)
+        assert "type relation arg number mismatch" in str(cm.execption)
+
+
+def test_repeat_register():
+    op_name = "custom_log3"
+    _op.register(op_name, r"code(cal log of a tensor.)code")
+    with pytest.raises(tvm.error.TVMError) as cm:
+        _op.register(op_name)
+        assert "Operator custom_log3 is registered before" in str(cm.execption)
 
 
 if __name__ == "__main__":

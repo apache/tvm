@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../source_utils.h"
 #include "opencl_common.h"
 
 namespace tvm {
@@ -39,14 +40,14 @@ class OpenCLWrappedFunc {
   // initialize the OpenCL function.
   void Init(OpenCLModuleNode* m, ObjectPtr<Object> sptr, OpenCLModuleNode::KTRefEntry entry,
             std::string func_name, std::vector<size_t> arg_size,
-            const std::vector<std::string>& thread_axis_tags) {
+            const std::vector<std::string>& launch_param_tags) {
     w_ = m->GetGlobalWorkspace();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
     func_name_ = func_name;
     arg_size_ = arg_size;
-    thread_axis_cfg_.Init(arg_size.size(), thread_axis_tags);
+    launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
   void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
@@ -63,11 +64,17 @@ class OpenCLWrappedFunc {
     }
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
-      OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
+      void* arg = nullptr;
+      if (args.type_codes[i] == DLDataTypeCode::kDLOpaqueHandle) {
+        arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
+      } else {
+        arg = void_args[i];
+      }
+      OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], arg));
     }
     cl_command_queue queue = w_->GetQueue(t->device);
-    ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
-    cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
+    ThreadWorkLoad wl = launch_param_config_.Extract(args);
+    cl_uint work_dim = static_cast<cl_uint>(launch_param_config_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
@@ -89,8 +96,8 @@ class OpenCLWrappedFunc {
   std::string func_name_;
   // convert code for void argument
   std::vector<size_t> arg_size_;
-  // thread axis config
-  ThreadAxisConfig thread_axis_cfg_;
+  // launch parameters config
+  LaunchParamConfig launch_param_config_;
 };
 
 OpenCLModuleNode::~OpenCLModuleNode() {
@@ -141,7 +148,7 @@ PackedFunc OpenCLModuleNode::GetFunction(const std::string& name,
     }
   }
   // initialize the wrapped func.
-  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.thread_axis_tags);
+  f.Init(this, sptr_to_self, kid_map_.at(name), name, arg_size, info.launch_param_tags);
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
@@ -188,6 +195,11 @@ void OpenCLModuleNode::Init() {
 
   // split into source artifacts for each kernel
   parsed_kernels_ = SplitKernels(GetSource("cl"));
+  ICHECK(!parsed_kernels_.empty()) << "The OpenCL module expects a kernel delimited "
+                                   << "source from code generation, but no kernel "
+                                   << "delimiter was found.";
+  ICHECK_EQ(fmap_.size(), parsed_kernels_.size())
+      << "The number of parsed kernel sources does not match the number of kernel functions";
   // zero initialize cl_program pointers for each device kernel
   for (auto& kv : parsed_kernels_) {
     programs_.insert({kv.first, std::vector<cl_program>(workspace_->devices.size(), nullptr)});
@@ -240,39 +252,6 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   t->kernel_table[e.kernel_id].version = e.version;
   kernels_.push_back(kernel);
   return kernel;
-}
-
-std::unordered_map<std::string, std::string> OpenCLModuleNode::SplitKernels(
-    std::string source) const {
-  std::unordered_map<std::string, std::string> split_kernels;
-  if (source.size()) {
-    std::string del{"// Function: "};
-    size_t end;
-    size_t begin = source.find(del);
-    ICHECK(begin != std::string::npos) << "The OpenCL module expects a kernel delimited "
-                                       << "source from code generation, but no kernel "
-                                       << "delimiter was found.";
-    for (size_t num_kernels = 0; num_kernels < workspace_->num_registered_kernels; num_kernels++) {
-      begin += del.size();
-      end = source.find('\n', begin);
-      std::string func_name = source.substr(begin, end - begin);
-      begin = ++end;
-      // std::string::substr returns either start of next kernel
-      // or std::string::npos, in the latter case substr returns
-      // all characters until the end of the source string.
-      end = source.find(del, begin);
-      std::string func_source =
-          source.substr(begin, (end == std::string::npos) ? end : end - begin);
-      split_kernels.insert({func_name, func_source});
-      begin = end;
-      if (end == std::string::npos) {
-        break;
-      }
-    }
-  }
-  ICHECK_EQ(workspace_->num_registered_kernels, split_kernels.size())
-      << "The number of registered kernels does not match number of parsed kernel sources";
-  return split_kernels;
 }
 
 Module OpenCLModuleCreate(std::string data, std::string fmt,

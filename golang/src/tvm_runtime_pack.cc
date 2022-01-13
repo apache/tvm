@@ -68,3 +68,4 @@
 // Uncomment the following lines to enable OpenCL
 // #include "../../src/runtime/opencl/opencl_device_api.cc"
 // #include "../../src/runtime/opencl/opencl_module.cc"
+// #include "../src/runtime/source_utils.cc"

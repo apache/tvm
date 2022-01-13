@@ -19,7 +19,10 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/adt.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -39,7 +42,7 @@ class TestErrorSwitch {
     const_cast<TestErrorSwitch&>(other).should_fail = false;
   }
 
-  TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
+  explicit TestErrorSwitch(bool fail_flag) : should_fail{fail_flag} {}
   bool should_fail{false};
 
   ~TestErrorSwitch() {
@@ -691,10 +694,4 @@ TEST(Optional, PackedCall) {
   test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
   test_ffi(s, static_cast<int>(kTVMObjectHandle));
   test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

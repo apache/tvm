@@ -65,9 +65,8 @@ def test_graph_simple():
         out = mod.get_output(0, tvm.nd.empty((n,)))
         np.testing.assert_equal(out.numpy(), a + 1)
 
-    def check_remote():
+    def check_remote(server):
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("127.0.0.1")
         remote = rpc.connect(server.host, server.port)
         temp = utils.tempdir()
         dev = remote.cpu(0)
@@ -115,7 +114,7 @@ def test_graph_simple():
             del mod
 
     check_verify()
-    check_remote()
+    check_remote(rpc.Server("127.0.0.1"))
     check_sharing()
 
 

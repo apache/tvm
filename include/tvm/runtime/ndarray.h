@@ -25,7 +25,9 @@
 #define TVM_RUNTIME_NDARRAY_H_
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/serializer.h>
@@ -36,9 +38,19 @@
 #include <vector>
 
 namespace tvm {
-namespace runtime {
 
-typedef DLDevice Device;
+// alias DLDevice
+using Device = DLDevice;
+
+// A 'null' device type, does not correspond to any DLDeviceType enum.
+// TODO(mbs): This is to help us as we transition away from representing the 'homogenous' case
+// as a singleton target map indexed by the invalid DLDeviceType '0'.
+constexpr DLDeviceType kNullDeviceType = static_cast<DLDeviceType>(0);
+
+// An 'invalid' device type, does not correspond to any DLDeviceType enum.
+constexpr DLDeviceType kInvalidDeviceType = static_cast<DLDeviceType>(-1);
+
+namespace runtime {
 
 /*!
  * \brief Managed NDArray.
@@ -126,7 +138,7 @@ class NDArray : public ObjectRef {
    * \param dtype The data type of the new array.
    * \note The memory size of new array must be smaller than the current one.
    */
-  TVM_DLL NDArray CreateView(std::vector<int64_t> shape, DLDataType dtype);
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype);
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.
@@ -141,7 +153,7 @@ class NDArray : public ObjectRef {
    * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(std::vector<int64_t> shape, DLDataType dtype, Device dev,
+  TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
   /*!
    * \brief Create a NDArray backed by a dlpack tensor.
@@ -164,7 +176,7 @@ class NDArray : public ObjectRef {
   TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
                                  TVMStreamHandle stream = nullptr);
 
-  TVM_DLL std::vector<int64_t> Shape() const;
+  TVM_DLL ShapeTuple Shape() const;
   TVM_DLL runtime::DataType DataType() const;
   // internal namespace
   struct Internal;
@@ -239,7 +251,7 @@ class NDArray::ContainerBase {
    * \brief The shape container,
    *  can be used used for shape data.
    */
-  std::vector<int64_t> shape_;
+  ShapeTuple shape_;
 };
 
 /*!
@@ -259,13 +271,13 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
     dl_tensor.byte_offset = 0;
   }
 
-  Container(void* data, std::vector<int64_t> shape, DLDataType dtype, Device dev) {
+  Container(void* data, ShapeTuple shape, DLDataType dtype, Device dev) {
     // Initialize the type index.
     type_index_ = Container::RuntimeTypeIndex();
     dl_tensor.data = data;
     shape_ = std::move(shape);
     dl_tensor.ndim = static_cast<int>(shape_.size());
-    dl_tensor.shape = dmlc::BeginPtr(shape_);
+    dl_tensor.shape = const_cast<ShapeTuple::index_type*>(shape_.data());
     dl_tensor.dtype = dtype;
     dl_tensor.strides = nullptr;
     dl_tensor.byte_offset = 0;
@@ -355,8 +367,7 @@ inline void NDArray::CopyTo(const NDArray& other) const {
 inline NDArray NDArray::CopyTo(const Device& dev) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
-  NDArray ret =
-      Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
+  NDArray ret = Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev);
   this->CopyTo(ret);
   return ret;
 }
@@ -458,7 +469,7 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   if (ndim != 0) {
     ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
-  NDArray ret = NDArray::Empty(shape, dtype, dev);
+  NDArray ret = NDArray::Empty(ShapeTuple(shape), dtype, dev);
   int64_t num_elems = 1;
   int elem_bytes = (ret->dtype.bits + 7) / 8;
   for (int i = 0; i < ret->ndim; ++i) {
@@ -480,23 +491,19 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
 }
 
 }  // namespace runtime
-
-// alias Device
-using tvm::runtime::Device;
-
 }  // namespace tvm
 
 namespace std {
 template <>
-struct hash<tvm::runtime::Device> {
-  std::size_t operator()(const tvm::runtime::Device& dev) const {
+struct hash<tvm::Device> {
+  std::size_t operator()(const tvm::Device& dev) const {
     return ((dev.device_id << 8) | dev.device_type);
   }
 };
 
 template <>
-struct equal_to<tvm::runtime::Device> {
-  bool operator()(const tvm::runtime::Device& lhs, const tvm::runtime::Device& rhs) const {
+struct equal_to<tvm::Device> {
+  bool operator()(const tvm::Device& lhs, const tvm::Device& rhs) const {
     return (lhs.device_type == rhs.device_type && lhs.device_id == rhs.device_id);
   }
 };

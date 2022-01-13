@@ -16,6 +16,7 @@
 # under the License.
 
 import numpy as np
+import random
 import tvm
 import tvm.testing
 import pickle
@@ -47,8 +48,7 @@ def test_tuple_object():
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
     mod = tvm.IRModule.from_expr(fn)
 
-    exe = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm")
-    f = exe.evaluate()
+    f = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm").evaluate()
     value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
     # pass an ADT object to evaluate
     out = f(value_tuple)
@@ -77,7 +77,16 @@ def test_string():
     assert s == z
 
 
+def test_shape_tuple():
+    shape = [random.randint(-10, 10) for _ in range(5)]
+    stuple = _container.ShapeTuple(shape)
+    len(stuple) == len(shape)
+    for a, b in zip(stuple, shape):
+        assert a == b
+
+
 if __name__ == "__main__":
     test_string()
     test_adt_constructor()
     test_tuple_object()
+    test_shape_tuple()

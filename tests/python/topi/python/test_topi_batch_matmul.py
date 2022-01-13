@@ -85,7 +85,8 @@ def verify_batch_matmul(x_batch, y_batch, M, N, K, dynamic=False, debug=False):
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
     for target, dev in tvm.testing.enabled_targets():
-        if dynamic and (target == "cuda" or target == "nvptx"):
+        target_kind = tvm.target.Target(target).kind.name
+        if dynamic and target_kind in ["cuda", "nvptx", "vulkan", "opencl"]:
             print("Dynamic batch matmul test is skippped on %s" % target)
             continue
 

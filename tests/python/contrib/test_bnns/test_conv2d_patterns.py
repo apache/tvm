@@ -57,7 +57,7 @@ def test_pattern_conv2d_with_bias_add():
         res = relay.nn.bias_add(res, b, axis=axis)
 
         mod = partition(res)
-        bias_is_fused = is_op_fused(mod["bnns_0"], "nn.bias_add")
+        bias_is_fused = is_op_fused(mod["tvmgen_default_bnns_main_0"], "nn.bias_add")
 
         assert bias_is_fused if axis == 1 else not bias_is_fused
 
@@ -73,7 +73,7 @@ def test_pattern_conv2d_with_add():
         res = relay.add(res, b)
 
         mod = partition(res)
-        bias_is_fused = is_op_fused(mod["bnns_0"], "add")
+        bias_is_fused = is_op_fused(mod["tvmgen_default_bnns_main_0"], "add")
 
         assert bias_is_fused == should_be_fused
 
@@ -102,6 +102,6 @@ def test_pattern_conv2d_with_non_cons_bias():
     res = relay.nn.bias_add(res, b, axis=1)
 
     mod = partition(res)
-    bias_is_fused = is_op_fused(mod["bnns_0"], "nn.bias_add")
+    bias_is_fused = is_op_fused(mod["tvmgen_default_bnns_main_0"], "nn.bias_add")
 
     assert not bias_is_fused

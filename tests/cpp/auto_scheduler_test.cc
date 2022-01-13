@@ -20,7 +20,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/auto_scheduler/compute_dag.h>
-#include <tvm/runtime/container.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/te/operation.h>
 #include <tvm/topi/nn.h>
 
@@ -169,10 +169,4 @@ TEST(ComputeDAG, AccessAnalyzer) {
       }
     }
   }
-}
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  testing::FLAGS_gtest_death_test_style = "threadsafe";
-  return RUN_ALL_TESTS();
 }

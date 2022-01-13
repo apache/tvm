@@ -29,6 +29,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/topi/detail/constant_utils.h>
+#include <tvm/topi/reduction.h>
 #include <tvm/topi/tags.h>
 #include <tvm/topi/transform.h>
 
@@ -619,7 +620,7 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
   out = reshape(out, r_p_shape);
 
   // Crop the start and end of dimensions of out
-  Array<PrimExpr> begin_idx, end_idx, strides;
+  Array<Integer> begin_idx, end_idx, strides;
   for (size_t i = 0; i < r_p_shape.size(); ++i) {
     strides.push_back(Integer(1));
     if (i > 0 && i <= num_block_dims) {
@@ -641,6 +642,53 @@ inline tvm::te::Tensor batch_to_space_nd(const tvm::te::Tensor& data,
 
   out = strided_slice(out, begin_idx, end_idx, strides);
   return out;
+}
+
+/*!
+ * \brief Negative log likelihood loss.
+ *
+ * \param predictions The prediction tensor.
+ * \param targets The target tensor.
+ * \param weights A manual rescaling weight given to each class.
+ * \param reduction The reduction method to apply to the output.
+ * \param ignore_index The target value to ignore.
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
+ *
+ * \return The negative log likelihood loss of the predictions and targets.
+ */
+inline Tensor nll_loss(const Tensor& predictions, const Tensor& targets, const Tensor& weights,
+                       std::string reduction = "mean", int ignore_index = -100,
+                       const std::string name = "nll_loss", const std::string tag = kBroadcast) {
+  auto T = tvm::te::compute(
+      targets->shape,
+      [&](const tvm::Array<tvm::tir::Var>& target_indices) {
+        auto c = targets(target_indices);
+        tvm::Array<tvm::PrimExpr> pred_indices;
+        pred_indices.push_back(target_indices[0]);  // batch index
+        pred_indices.push_back(c);                  // class index
+        for (size_t i = 1; i < target_indices.size(); i++) {
+          pred_indices.push_back(target_indices[i]);  // indices for multidimensional loss
+        }
+        return tvm::tir::Select(c != ignore_index, -predictions(pred_indices) * weights(c),
+                                tvm::tir::make_const(predictions->dtype, 0));
+      },
+      name, tag);
+  if (reduction == "mean") {
+    auto W = tvm::te::compute(
+        targets->shape,
+        [&](const tvm::Array<tvm::tir::Var>& target_indices) {
+          auto c = targets(target_indices);
+          return tvm::tir::Select(c != ignore_index, weights(c),
+                                  tvm::tir::make_const(predictions->dtype, 0));
+        },
+        name, tag);
+    return topi::divide(topi::sum(T, {}), topi::sum(W, {}));
+  } else if (reduction == "sum") {
+    return topi::sum(T, {});
+  } else {  // reduction == "none"
+    return T;
+  }
 }
 }  // namespace topi
 }  // namespace tvm

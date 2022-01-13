@@ -52,6 +52,7 @@ fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<
             values.len() as i32,
             &mut ret_val,
             &mut ret_type_code,
+            std::ptr::null_mut(),
         );
         if exit_code == 0 {
             Ok(RetValue::from_tvm_value(ret_val, ret_type_code))

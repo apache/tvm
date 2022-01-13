@@ -20,6 +20,8 @@ The Relay Virtual Machine.
 
 Implements a Python interface to compiling and executing on the Relay VM.
 """
+import warnings
+
 import numpy as np
 
 import tvm
@@ -63,6 +65,11 @@ def compile(mod, target=None, target_host=None, params=None):
     exec : tvm.runtime.vm.Executable
         The VM executable that contains both library code and bytecode.
     """
+    if target_host is not None:
+        warnings.warn(
+            "target_host parameter is going to be deprecated. "
+            "Please pass in tvm.target.Target(target, host=target_host) instead."
+        )
     target, target_host = Target.check_and_update_host_consist(
         target, target_host, target_is_dict_key=False
     )
@@ -132,6 +139,11 @@ class VMCompiler(object):
             By default, llvm is used if it is enabled,
             otherwise a stackvm intepreter is used.
         """
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
         target, target_host = Target.check_and_update_host_consist(
@@ -173,6 +185,11 @@ class VMCompiler(object):
         params : dict
             The parameters of the final module.
         """
+        if target_host is not None:
+            warnings.warn(
+                "target_host parameter is going to be deprecated. "
+                "Please pass in tvm.target.Target(target, host=target_host) instead."
+            )
         target = self._update_target(target)
         target_host = self._update_target_host(target, target_host)
         target, target_host = Target.check_and_update_host_consist(
@@ -198,20 +215,26 @@ class VMCompiler(object):
         target = target if target else tvm.target.Target.current()
         if target is None:
             raise ValueError("Target is not set in env or passed as argument.")
-        tgts = {}
-        if isinstance(target, (str, tvm.target.Target)):
-            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(str(target)).device_type)
-            tgts[dev_type] = tvm.target.Target(target)
-        elif isinstance(target, dict):
-            for dev, tgt in target.items():
-                dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
-                tgts[dev_type] = tvm.target.Target(tgt)
-        else:
+
+        if isinstance(target, str):
+            target = {target: target}
+        elif isinstance(target, tvm.target.Target):
+            target = {target.kind.name: target}
+        elif not isinstance(target, dict):
             raise TypeError(
                 "target is expected to be str, tvm.target.Target, "
                 + "or dict of str to str/tvm.target.Target, but received "
                 + "{}".format(type(target))
             )
+
+        tgts = {}
+        for dev, tgt in target.items():
+            dev_type = tvm.tir.IntImm("int32", tvm.nd.device(dev).device_type)
+            if isinstance(tgt, str):
+                tgt = tvm.target.Target(tgt)
+
+            tgts[dev_type] = tgt
+
         return tgts
 
     def _update_target_host(self, target, target_host):
@@ -269,14 +292,18 @@ class VMExecutor(Executor):
         self.mod = mod
         self.device = device
         self.target = target
-        self.executable = compile(mod, target)
-        self.vm = vm_rt.VirtualMachine(self.executable, device)
+        self.executable = None
+        self.vm = None
 
     def _make_executor(self, expr=None):
-        main = self.mod["main"]
+        if expr:
+            self.mod["main"] = expr
+
+        self.executable = compile(self.mod, self.target)
+        self.vm = vm_rt.VirtualMachine(self.executable, self.device)
 
         def _vm_wrapper(*args, **kwargs):
-            args = self._convert_args(main, args, kwargs)
+            args = self._convert_args(self.mod["main"], args, kwargs)
             return self.vm.run(*args)
 
         return _vm_wrapper

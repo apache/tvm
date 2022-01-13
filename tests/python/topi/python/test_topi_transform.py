@@ -398,10 +398,12 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
         check_device(target)
 
 
-def verify_strided_slice(in_shape, begin, end, strides=None):
+def verify_strided_slice(in_shape, begin, end, strides=None, axes=None):
     A = te.placeholder(shape=in_shape, name="A")
     strides = [1, 1, 1] if strides is None else strides
-    B = topi.strided_slice(A, begin, end, strides) + 1
+    if axes:
+        strides = [strides[axis] for axis in axes]
+    B = topi.strided_slice(A, begin, end, strides, axes) + 1
 
     def check_device(target):
         dev = tvm.device(target, 0)
@@ -414,7 +416,7 @@ def verify_strided_slice(in_shape, begin, end, strides=None):
 
         foo = tvm.build(s, [A, B], target, name="stride_slice")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
-        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides) + 1
+        out_npy = tvm.topi.testing.strided_slice_python(x_np, begin, end, strides, axes=axes) + 1
         data_nd = tvm.nd.array(x_np, dev)
         out_nd = tvm.nd.empty(out_npy.shape, device=dev, dtype=A.dtype)
         foo(data_nd, out_nd)
@@ -819,6 +821,7 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
     verify_strided_slice((3, 4, 3), [0, 2, 0], [1, 2, 3])
     verify_strided_slice((3, 4, 3), [0, 0, 0], [None, None, None])
+    verify_strided_slice((3, 4, 3), [0], [2], None, axes=[1])
 
 
 @tvm.testing.uses_gpu
@@ -876,24 +879,24 @@ def test_transpose_unfused_schedule(target, dev):
     shape = (100, tvm.target.Target(target).thread_warp_size + 3)
     x = relay.var("x", relay.TensorType(shape, "float32"))
     f = relay.transpose(x)
-    ex = relay.create_executor(
-        kind="graph", mod=tvm.IRModule.from_expr(relay.Function([x], f)), device=dev, target=target
-    )
     r = np.random.rand(*shape)
-    tvm.testing.assert_allclose(ex.evaluate()(r).asnumpy(), np.transpose(r))
+    func = relay.create_executor(
+        kind="graph", mod=tvm.IRModule.from_expr(relay.Function([x], f)), device=dev, target=target
+    ).evaluate()
+    tvm.testing.assert_allclose(func(r).numpy(), np.transpose(r))
 
     # We want to make sure schedule does not fire here, but there is no way of
     # inspecting which schedules were used.
     x = relay.var("x", relay.TensorType(shape, "float32"))
     y = relay.var("y", relay.TensorType(shape, "float32"))
     f = relay.transpose(x + y)
-    ex = relay.create_executor(
+    func = relay.create_executor(
         kind="graph",
         mod=tvm.IRModule.from_expr(relay.Function([x, y], f)),
         device=dev,
         target=target,
-    )
-    tvm.testing.assert_allclose(ex.evaluate()(r, r).asnumpy(), np.transpose(r + r))
+    ).evaluate()
+    tvm.testing.assert_allclose(func(r, r).numpy(), np.transpose(r + r))
 
 
 @tvm.testing.uses_gpu

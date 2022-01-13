@@ -25,7 +25,6 @@
 #ifndef TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_JSON_JSON_RUNTIME_H_
 
-#include <tvm/runtime/container.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
