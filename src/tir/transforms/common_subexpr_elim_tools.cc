@@ -176,7 +176,11 @@ TableOfComputations IntersectionOf3TablesOfComputations(const TableOfComputation
  *        (A U B U C) adds the individual counters found in A, B and C. So when we treat for
  *        instance an If (which contains a Cond, a Then branch and an Else branch),
  *        it will compute (Then Inter Else) U (Cond Inter Then) U (Cond Inter Else).
+<<<<<<< HEAD
  *        In order to get back to the appropriate number (for instance, 3 if seen one time in each
+=======
+ *        In order to get back to the appripate number (for instance, 3 if seen one time in each
+>>>>>>> 470b835be... Improved the CSE by not commoning at the toplevel redundant computations that only appear in one of the possible execution path (for instance, only in the then/else branch of an IF statement). Redundant computations that appear only in a specific execution path are now being commoned at the entrance of their specific execution path instead of earlier at the toplevel. Introducing them at the toplevel was an anti-optimization as the redundant computation might not have been comptued at all. Added two additional tests for this too.
  *        bloc), it is therefore necessary to recompute the counters afterwards, which is what this
  *        function does.
  */
@@ -199,7 +203,10 @@ void RecomputeNbTimesSeenInThreeBlocs(TableOfComputations& table_main,
         current.second += it2->second;
     }
 
+<<<<<<< HEAD
     // Try to find it in the third bloc
+=======
+>>>>>>> 470b835be... Improved the CSE by not commoning at the toplevel redundant computations that only appear in one of the possible execution path (for instance, only in the then/else branch of an IF statement). Redundant computations that appear only in a specific execution path are now being commoned at the entrance of their specific execution path instead of earlier at the toplevel. Introducing them at the toplevel was an anti-optimization as the redundant computation might not have been comptued at all. Added two additional tests for this too.
     auto it3 = table_bloc3.find(current.first);
     if (it3 != table_bloc3.end()) {
         // If found, increase its value by the value found in the third bloc
