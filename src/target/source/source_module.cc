@@ -35,7 +35,7 @@
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
 #include "../func_registry_generator.h"
-#include "codegen_c.h"
+#include "codegen_source_base.h"
 
 namespace tvm {
 namespace codegen {
@@ -128,6 +128,22 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
   return runtime::Module(n);
 }
 
+/*!
+ * \brief A concrete class to get access to base methods of CodegenSourceBase.
+ *
+ * This class exist to get access to methods of CodegenSourceBase without duplicating
+ * them. Therefore, keeping alignment with how codegen and source_module here generates
+ * code.
+ */
+class ConcreteCodegenSourceBase : public CodeGenSourceBase {
+  /*!
+   * \brief Do nothing as this class exist to get access to methods of CodeGenSourceBase
+   */
+  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) final {
+    return;
+  }
+};
+
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
@@ -166,7 +182,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   Target target_;
   relay::Runtime runtime_;
   runtime::Metadata metadata_;
-  CodeGenC codegen_c_;
+  ConcreteCodegenSourceBase codegen_c_base_;
 
   void CreateFuncRegistry() {
     code_ << "#include <tvm/runtime/crt/module.h>\n";
@@ -245,9 +261,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       std::stringstream call_args_ss;
       for (const tir::Var& input_var : metadata_->inputs) {
         if (input_var->type_annotation.defined()) {
-          codegen_c_.PrintType(input_var->type_annotation, call_args_ss);
+          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
         } else {
-          codegen_c_.PrintType(input_var.dtype(), call_args_ss);
+          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
         }
         call_args_ss << " " << input_var->name_hint << ",";
       }
@@ -256,9 +272,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
-          codegen_c_.PrintType(pool_var->type_annotation, call_args_ss);
+          codegen_c_base_.PrintType(pool_var->type_annotation, call_args_ss);
         } else {
-          codegen_c_.PrintType(pool_var.dtype(), call_args_ss);
+          codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
         }
         call_args_ss << " " << pool_var->name_hint << ",";
       }
@@ -367,9 +383,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       std::stringstream call_args_ss;
       for (const tir::Var& input_var : metadata_->inputs) {
         if (input_var->type_annotation.defined()) {
-          codegen_c_.PrintType(input_var->type_annotation, call_args_ss);
+          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
         } else {
-          codegen_c_.PrintType(input_var.dtype(), call_args_ss);
+          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
         }
         call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
       }
@@ -378,9 +394,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
-          codegen_c_.PrintType(pool_var->type_annotation, call_args_ss);
+          codegen_c_base_.PrintType(pool_var->type_annotation, call_args_ss);
         } else {
-          codegen_c_.PrintType(pool_var.dtype(), call_args_ss);
+          codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
         }
         call_args_ss << " " << pool_var->name_hint << ",";
       }
