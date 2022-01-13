@@ -94,12 +94,25 @@ class OpAnnotator(tvm.relay.ExprVisitor):
 
 
 def select_gemm_kernel(
-    cutlass_profiler, op_type, MM, KK, NN, out_dtype, batched, profile_all, use_multiprocessing
+    cutlass_profiler,
+    op_type,
+    MM,
+    KK,
+    NN,
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    use_3xtf32,
+    batched,
+    profile_all,
+    use_multiprocessing,
 ):
     """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
     workloads."""
     if any(isinstance(s, tvm.tir.Any) for s in [MM, KK, NN]):
-        out = cutlass_profiler.get_default(op_type, out_dtype, batched=batched)
+        out = cutlass_profiler.get_default(
+            op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32, batched=batched
+        )
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
@@ -109,6 +122,9 @@ def select_gemm_kernel(
             NN,
             KK,
             out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            use_3xtf32,
             batched=batched,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
@@ -122,7 +138,16 @@ def select_gemm_kernel(
 
 
 def handle_batch_matmul(
-    cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
+    cutlass_profiler,
+    op_type,
+    arg0_shape,
+    arg1_shape,
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    use_3xtf32,
+    profile_all,
+    use_multiprocessing,
 ):
     """Profile and select a kernel for batch_matmul op workload."""
     MM = arg0_shape[1]
@@ -130,7 +155,18 @@ def handle_batch_matmul(
     NN = arg1_shape[1]
 
     name, cutlass_op_def = select_gemm_kernel(
-        cutlass_profiler, op_type, MM, KK, NN, out_dtype, True, profile_all, use_multiprocessing
+        cutlass_profiler,
+        op_type,
+        MM,
+        KK,
+        NN,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32,
+        True,
+        profile_all,
+        use_multiprocessing,
     )
 
     return {
@@ -147,7 +183,16 @@ def handle_batch_matmul(
 
 
 def handle_dense(
-    cutlass_profiler, op_type, arg0_shape, arg1_shape, out_dtype, profile_all, use_multiprocessing
+    cutlass_profiler,
+    op_type,
+    arg0_shape,
+    arg1_shape,
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    use_3xtf32,
+    profile_all,
+    use_multiprocessing,
 ):
     """Profile and select a kernel for dense op workload."""
     MM = arg0_shape[0]
@@ -155,7 +200,18 @@ def handle_dense(
     NN = arg1_shape[0]
 
     name, cutlass_op_def = select_gemm_kernel(
-        cutlass_profiler, op_type, MM, KK, NN, out_dtype, False, profile_all, use_multiprocessing
+        cutlass_profiler,
+        op_type,
+        MM,
+        KK,
+        NN,
+        out_dtype,
+        arg0_dtype,
+        arg1_dtype,
+        use_3xtf32,
+        False,
+        profile_all,
+        use_multiprocessing,
     )
 
     assert "tn_align" in name, "Only supports (row_major, col_major) input layout for now."
@@ -178,12 +234,15 @@ def handle_conv2d(
     strides,
     dilation,
     out_dtype,
+    data_dtype,
+    weight_dtype,
+    use_3xtf32,
     profile_all,
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(op_type, out_dtype)
+        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32)
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
@@ -195,6 +254,9 @@ def handle_conv2d(
             strides,
             dilation,
             out_dtype,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )
@@ -209,7 +271,9 @@ def handle_conv2d(
     }
 
 
-def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"):
+def tune_cutlass_kernels(
+    mod, sm, use_3xtf32=True, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
+):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
 
@@ -258,6 +322,8 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
             new_attrs.update(func.attrs)
             arg0_shape = new_attrs["arg0_shape"]
             arg1_shape = new_attrs["arg1_shape"]
+            arg0_dtype = new_attrs["arg0_dtype"]
+            arg1_dtype = new_attrs["arg1_dtype"]
 
             if "conv2d" in op_type:
                 new_attrs["padding"] = annotator.op_attrs.padding
@@ -273,6 +339,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         annotator.op_attrs.strides,
                         annotator.op_attrs.dilation,
                         out_dtype,
+                        arg0_dtype,
+                        arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )
@@ -285,6 +354,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         arg0_shape,
                         arg1_shape,
                         out_dtype,
+                        arg0_dtype,
+                        arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )
@@ -297,6 +369,9 @@ def tune_cutlass_kernels(mod, sm, profile_all=True, use_multiprocessing=False, t
                         arg0_shape,
                         arg1_shape,
                         out_dtype,
+                        arg0_dtype,
+                        arg1_dtype,
+                        use_3xtf32,
                         profile_all,
                         use_multiprocessing,
                     )

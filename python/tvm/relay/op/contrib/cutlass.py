@@ -105,8 +105,11 @@ def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu")
 
 def check_dtype(lhs, rhs):
     """Check if dtypes in the given workload are supported by CUTLASS."""
-    # Only fp16 inputs are supported for now.
-    return lhs.dtype == rhs.dtype and lhs.dtype == "float16" and rhs.dtype == "float16"
+    return (
+        (lhs.dtype == "float16" and rhs.dtype == "float16")
+        or (lhs.dtype == "float32" and rhs.dtype == "float32")
+        or (lhs.dtype in ["int8", "uint8"] and rhs.dtype in ["int8", "uint8"])
+    )
 
 
 def get_root_call(call, root_op_name):

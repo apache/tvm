@@ -153,8 +153,13 @@ class CutlassConv2DProfiler:
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 
-    def get_default(self, op_type, out_dtype):
-        gemm_profile_result = self.gemm_profiler.get_default(op_type, out_dtype)
+    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
+        gemm_profile_result = self.gemm_profiler.get_default(
+            op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32
+        )
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
         data_type = gemm_profile_result["data_type"]
@@ -165,9 +170,10 @@ class CutlassConv2DProfiler:
 
     def check_align(self, op_name, C, K):
         """Filter out kernels that cannot be supported."""
-        aligns = re.findall(r"align[1|2|4|8]", op_name)
-        assert len(aligns) == 1
-        align = int(aligns[0][-1])
+        match = re.match(".*_align([1-9]+)", op_name)
+        assert match is not None and len(match.groups()) == 1
+        # The same alignment is used for all axes
+        align = int(match.groups()[0])
         return all([dim % align == 0 for dim in [C, K]])
 
     def select_op(
@@ -178,6 +184,9 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
+        data_dtype,
+        weight_dtype,
+        use_3xtf32,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -207,9 +216,9 @@ class CutlassConv2DProfiler:
             return self.cache[workload]
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype,
-            op_creator=enumerate_conv2d_operators,
+            out_dtype, data_dtype, weight_dtype, enumerate_conv2d_operators, use_3xtf32
         )
+
         ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
 
         if profile_all:
@@ -240,6 +249,9 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
+        data_dtype,
+        weight_dtype,
+        use_3xtf32=True,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -254,6 +266,9 @@ class CutlassConv2DProfiler:
             stride,
             dilation,
             out_dtype,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )

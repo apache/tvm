@@ -143,8 +143,10 @@ def schedule_conv_NCHWc_cpu_common_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -269,8 +271,10 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for

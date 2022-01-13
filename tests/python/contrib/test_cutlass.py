@@ -68,14 +68,16 @@ def get_output_vm(vm, names, inputs):
     return vm.invoke("main", **params).numpy()
 
 
-def get_dense_with_shape(data_shape, weight_shape, out_dtype="float16"):
-    data = relay.var("data", shape=data_shape, dtype="float16")
-    weight = relay.var("weight", shape=weight_shape, dtype="float16")
+def get_dense_with_shape(
+    data_shape, weight_shape, out_dtype="float16", data_dtype="float16", weight_dtype="float16"
+):
+    data = relay.var("data", shape=data_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=weight_shape, dtype=weight_dtype)
     return relay.nn.dense(data, weight, out_dtype=out_dtype)
 
 
-def get_dense(M, N, K, out_dtype="float16"):
-    return get_dense_with_shape((M, K), (N, K), out_dtype)
+def get_dense(M, N, K, out_dtype="float16", data_dtype="float16", weight_dtype="float16"):
+    return get_dense_with_shape((M, K), (N, K), out_dtype, data_dtype, weight_dtype)
 
 
 def get_dense_bias(M, N, K, out_dtype="float16"):
@@ -110,9 +112,11 @@ def get_batch_matmul(batch, M, N, K, out_dtype="float16"):
     return get_batch_matmul_with_shape((batch, M, K), (batch, N, K), out_dtype="float16")
 
 
-def get_conv2d_nchw(d_shape, w_shape, padding, out_dtype="float16"):
-    data = relay.var("data", shape=d_shape, dtype="float16")
-    weight = relay.var("weight", shape=w_shape, dtype="float16")
+def get_conv2d_nchw(
+    d_shape, w_shape, padding, out_dtype="float16", data_dtype="float16", weight_dtype="float16"
+):
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    weight = relay.var("weight", shape=w_shape, dtype=weight_dtype)
     out_channel = w_shape[0]
     return relay.nn.conv2d(
         data=data,
@@ -176,10 +180,17 @@ def get_conv2d_nchw_bias_residual(d_shape, w_shape, padding, out_dtype="float16"
     return bias_add, data
 
 
-def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False):
+def profile_and_build(
+    mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False, use_3xtf32=True
+):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
-        mod, sm, profile_all=False, use_multiprocessing=False, tmp_dir=tmp_dir
+        mod,
+        sm,
+        use_3xtf32=use_3xtf32,
+        profile_all=False,
+        use_multiprocessing=False,
+        tmp_dir=tmp_dir,
     )
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target="cuda", params=params)
@@ -197,9 +208,12 @@ def profile_and_build_vm(
     lib_path="compile.so",
     vmcode_path="vmcode.ro",
     use_fast_math=False,
+    use_3xtf32=True,
 ):
     mod = partition_for_cutlass(mod)
-    mod, num_cutlass_partition = tune_cutlass_kernels(mod, sm, tmp_dir=tmp_dir)
+    mod, num_cutlass_partition = tune_cutlass_kernels(
+        mod, sm, use_3xtf32=use_3xtf32, tmp_dir=tmp_dir
+    )
     with tvm.transform.PassContext(opt_level=3):
         vm_exec = relay.vm.compile(mod, target="cuda", params=params)
     vm_exec = build_cutlass_kernels_vm(
@@ -210,7 +224,18 @@ def profile_and_build_vm(
 
 
 def verify_dense(
-    func, M, N, K, ref_target="cuda", sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    func,
+    M,
+    N,
+    K,
+    ref_target="cuda",
+    sm=80,
+    atol=1e-5,
+    rtol=1e-5,
+    run_benchmark=False,
+    data_dtype="float16",
+    weight_dtype="float16",
+    use_3xtf32=True,
 ):
     if not has_cutlass():
         return
@@ -218,9 +243,9 @@ def verify_dense(
     typ = relay.transform.InferType()(mod)["main"].body.checked_type
     out_dtype = typ.dtype
     use_vm = any(isinstance(s, tvm.tir.Any) for s in typ.shape)
-    np_data = np.random.uniform(-1, 1, (M, K)).astype("float16")
-    np_weight = np.random.uniform(-1, 1, (N, K)).astype("float16")
-    np_bias = np.random.uniform(-1, 1, (N,)).astype(out_dtype)
+    np_data = get_random_ndarray((M, K), data_dtype)
+    np_weight = get_random_ndarray((N, K), weight_dtype)
+    np_bias = get_random_ndarray((N,), out_dtype)
 
     params = {"weight": np_weight, "bias": np_bias}
 
@@ -235,7 +260,9 @@ def verify_dense(
             )
             return
         else:
-            rt_mod, dev, num_partition = profile_and_build_vm(mod, params, sm)
+            rt_mod, dev, num_partition = profile_and_build_vm(
+                mod, params, sm, use_3xtf32=use_3xtf32
+            )
 
         rt_mod_ref, dev = get_ref_vm(mod, params, target=ref_target)
         x = tvm.nd.array(np_data, device=dev)
@@ -243,7 +270,7 @@ def verify_dense(
         ref_out = get_output_vm(rt_mod_ref, ["data"], [x])
     else:
         rt_mod_ref, dev = get_ref_rt_mod(mod, params, target=ref_target)
-        rt_mod, dev, num_partition = profile_and_build(mod, params, sm)
+        rt_mod, dev, num_partition = profile_and_build(mod, params, sm, use_3xtf32=use_3xtf32)
         x = tvm.nd.array(np_data, device=dev)
         out = get_output(rt_mod, ["data"], [x])
         ref_out = get_output(rt_mod_ref, ["data"], [x])
@@ -302,6 +329,33 @@ def test_dense():
     verify_dense(get_dense(M, N, K, out_dtype="float32"), M, N, K)
     # Test align1 case
     verify_dense(get_dense_bias(M, N + 1, K), M, N + 1, K)
+    # int8
+    verify_dense(
+        get_dense(M, N, K, "int32", "int8", "int8"), M, N, K, data_dtype="int8", weight_dtype="int8"
+    )
+
+    dense_fp32 = get_dense(M, N, K, "float32", "float32", "float32")
+    # tf32
+    verify_dense(
+        dense_fp32,
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_3xtf32=False,
+        atol=1e-2,
+        rtol=1e-2,
+    )
+    # 3xtf32
+    verify_dense(
+        dense_fp32,
+        M,
+        N,
+        K,
+        data_dtype="float32",
+        weight_dtype="float32",
+    )
 
 
 def test_dense_bias():
@@ -371,6 +425,14 @@ def convert_conv2d_layout(mod, desired_layouts):
         return seq(mod)
 
 
+def get_random_ndarray(shape, dtype):
+    if dtype == "int8":
+        return np.random.randint(-128, 128, shape).astype(dtype)
+    elif dtype == "uint8":
+        return np.random.randint(0, 256, shape).astype(dtype)
+    return np.random.uniform(-1, 1, shape).astype(dtype)
+
+
 def verify_conv2d(
     expr_nchw,  # can be dynamic batch
     expr_ref,  # always static batch
@@ -382,6 +444,9 @@ def verify_conv2d(
     use_cudnn_ref=False,
     run_benchmark=False,
     use_fast_math=False,
+    data_dtype="float16",
+    weight_dtype="float16",
+    ref_target="cuda",
 ):
     if not has_cutlass():
         return
@@ -392,9 +457,9 @@ def verify_conv2d(
     typ = relay.transform.InferType()(mod_nchw)["main"].body.checked_type
     out_dtype = typ.dtype
 
-    np_data = np.random.uniform(-1, 1, d_shape).astype("float16")
-    np_weight = np.random.uniform(-1, 1, w_shape).astype("float16")
-    np_bias = np.random.uniform(-1, 1, (w_shape[0],)).astype(out_dtype)
+    np_data = get_random_ndarray(d_shape, data_dtype)
+    np_weight = get_random_ndarray(w_shape, weight_dtype)
+    np_bias = get_random_ndarray((w_shape[0],), out_dtype)
 
     params = {"weight": np_weight, "bias": np_bias}
 
@@ -426,7 +491,7 @@ def verify_conv2d(
         rt_mod_ref, dev = get_ref_rt_mod(
             convert_conv2d_layout(mod_ref, {"nn.conv2d": ["NHWC", "HWIO"]}),
             params,
-            target="cuda",
+            target=ref_target,
         )
 
     ref_out = get_output(rt_mod_ref, ["data"], [np_data])
@@ -468,6 +533,34 @@ def test_conv2d():
     verify_conv2d(
         mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
+
+    for data_dtype, weight_dtype, out_dtype in [
+        ("float32", "float32", "float32"),  # 3xtf32
+        ("int8", "int8", "int32"),
+        ("uint8", "int8", "int32"),
+    ]:
+        expr = get_conv2d_nchw(
+            d_shape,
+            w_shape,
+            padding,
+            out_dtype=out_dtype,
+            data_dtype=data_dtype,
+            weight_dtype=weight_dtype,
+        )
+
+        verify_conv2d(
+            expr,
+            expr,
+            d_shape,
+            w_shape,
+            sm=80,
+            atol=1e-5,
+            rtol=1e-5,
+            run_benchmark=False,
+            data_dtype=data_dtype,
+            weight_dtype=weight_dtype,
+            ref_target="llvm",
+        )
 
 
 def test_conv2d_fusion():
