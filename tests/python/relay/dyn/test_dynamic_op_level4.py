@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 import numpy as np
 from tvm import relay
@@ -24,6 +25,7 @@ import tvm.topi.testing
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_dynamic_strided_slice():
     def verify(dshape, begin, end, strides, slice_mode="end", test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))

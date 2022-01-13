@@ -21,6 +21,7 @@ import shlex
 import sys
 
 import tvm
+import tvm.testing
 from tvm.autotvm.measure.executor import Executor
 from tvm.driver import tvmc
 from tvm.driver.tvmc.main import _main
@@ -53,6 +54,7 @@ def test_tvmc_cl_compile_run_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     assert exit_code != 0, on_error
 
 
+@tvm.testing.slow
 def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     pytest.importorskip("tflite")
 
@@ -88,6 +90,7 @@ def test_tvmc_export_package_mlf(tflite_mobilenet_v1_1_quant, tmpdir_factory):
     assert str(exp.value) == expected_reason, on_error
 
 
+@tvm.testing.slow
 def test_tvmc_import_package_project_dir(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
 
@@ -115,6 +118,7 @@ def test_tvmc_import_package_project_dir(tflite_mobilenet_v1_1_quant, tflite_com
     assert str(exp.value) == expected_reason, on_error
 
 
+@tvm.testing.slow
 def test_tvmc_import_package_mlf_graph(tflite_mobilenet_v1_1_quant, tflite_compile_model):
     pytest.importorskip("tflite")
 

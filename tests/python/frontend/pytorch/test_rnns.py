@@ -413,6 +413,7 @@ def check_rnn(rnn_type, rnn_mod, target=tvm.target.Target("llvm -mcpu=core-avx2"
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_rnns():
     for target, dev in tvm.testing.enabled_targets():
         # RNN types: GRU, LSTM

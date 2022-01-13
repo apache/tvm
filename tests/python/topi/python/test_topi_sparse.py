@@ -418,6 +418,7 @@ def test_sparse_dense_bsr_reverse():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_sparse_dense_bsr_randomized():
     for _ in range(20):
         BS_R = np.random.randint(1, 16)

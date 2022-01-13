@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay import testing
@@ -47,6 +48,7 @@ def show(text):
         print(text)
 
 
+@tvm.testing.slow
 def test_large_graph():
     x = relay.var("x", shape=(3, 2))
     y = relay.var("y")

@@ -18,6 +18,7 @@
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 from tvm import te, topi
 from tvm.testing import assert_allclose
 from tvm.topi.utils import get_const_tuple
@@ -173,6 +174,7 @@ def test_basic_operation():
     check_grad(Y, X)
 
 
+@tvm.testing.slow
 def test_topi():
     X = te.placeholder((1, 2, 4, 4), name="X")
     W = te.placeholder((5, 2, 3, 3), name="W")
@@ -249,6 +251,7 @@ def test_topi():
     check_grad(R, [X, W], data_range=(-1, 1))
 
 
+@tvm.testing.slow
 def test_stride_dilation():
     X = te.placeholder((1, 2, 10, 10), name="X")
     W = te.placeholder((2, 2, 1, 1), name="W")

@@ -22,6 +22,7 @@ import concurrent
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.autotvm.measure import executor
 from tvm.testing.autotvm import DummyRunner, bad_matmul, get_sample_task
@@ -55,6 +56,7 @@ def task_tuner_spawn():
     test_task_tuner_without_measurement()
 
 
+@tvm.testing.slow
 def test_task_tuner_without_measurement_spawn():
     # Subprocesses inherit the spawn method of their parents
     ctx = multiprocessing.get_context("spawn")

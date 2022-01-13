@@ -19,11 +19,13 @@ import os
 
 from os import path
 
+import tvm.testing
 from tvm.driver import tvmc
 from tvm.driver.tvmc.model import TVMCModel, TVMCPackage, TVMCResult
 from tvm.runtime.module import BenchmarkResult
 
 
+@tvm.testing.slow
 def test_tvmc_workflow(keras_simple):
     pytest.importorskip("tensorflow")
 

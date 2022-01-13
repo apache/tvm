@@ -129,6 +129,7 @@ def verify_conv3d_ndhwc(
 
 @tvm.testing.requires_tensorcore
 @tvm.testing.requires_cuda
+@tvm.testing.slow
 def test_conv3d_ndhwc_tensorcore():
     """Test the conv3d with tensorcore for ndhwc layout"""
     verify_conv3d_ndhwc(16, 16, 14, 16, 3, 1, 1)

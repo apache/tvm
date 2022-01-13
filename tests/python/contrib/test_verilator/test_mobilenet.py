@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+import tvm.testing
 from tvm import te, relay, transform
 from tvm.contrib.download import download_testdata
 from tvm.contrib import graph_executor as runtime
@@ -239,6 +240,7 @@ def tmobilenet(lanes):
     print_test_info(lanes, values["cycle_counter"])
 
 
+@tvm.testing.slow
 def test_mobilenet():
     """Mobilenet tests."""
     tmobilenet(4)

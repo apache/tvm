@@ -23,6 +23,7 @@ by the script.
 """
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm.contrib import graph_executor
 from tvm.contrib.download import download_testdata
@@ -189,6 +190,7 @@ def _test_rnn_network(net, states):
     tvm.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
 
 
+@tvm.testing.slow
 def test_forward_extraction():
     """test extraction model"""
     model_name = "extraction"
@@ -201,6 +203,7 @@ def test_forward_extraction():
     LIB.free_network(net)
 
 
+@tvm.testing.slow
 def test_forward_alexnet():
     """test alexnet model"""
     model_name = "alexnet"
@@ -213,6 +216,7 @@ def test_forward_alexnet():
     LIB.free_network(net)
 
 
+@tvm.testing.slow
 def test_forward_resnet50():
     """test resnet50 model"""
     model_name = "resnet50"
@@ -225,6 +229,7 @@ def test_forward_resnet50():
     LIB.free_network(net)
 
 
+@tvm.testing.slow
 def test_forward_resnext50():
     """test resnet50 model"""
     model_name = "resnext50"
@@ -237,6 +242,7 @@ def test_forward_resnext50():
     LIB.free_network(net)
 
 
+@tvm.testing.slow
 def test_forward_yolov2():
     """test yolov2 model"""
     model_name = "yolov2"
@@ -250,6 +256,7 @@ def test_forward_yolov2():
     LIB.free_network(net)
 
 
+@tvm.testing.slow
 def test_forward_yolov3():
     """test yolov3 model"""
     model_name = "yolov3"

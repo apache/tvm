@@ -78,6 +78,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
@@ -102,6 +103,7 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
@@ -125,6 +127,7 @@ def test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant
     assert os.path.exists(dumps_path)
 
 
+@tvm.testing.slow
 def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -149,6 +152,7 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -174,6 +178,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_options_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -289,6 +294,7 @@ def verify_compile_paddle_module(model, shape_dict=None):
     assert os.path.exists(dumps_path)
 
 
+@tvm.testing.slow
 def test_compile_paddle_module(paddle_resnet50):
     # some CI environments wont offer Paddle, so skip in case it is not present
     pytest.importorskip("paddle")
@@ -304,6 +310,7 @@ def test_compile_paddle_module(paddle_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_aarch64_paddle_module(paddle_resnet50):
     # some CI environments wont offer paddle, so skip in case it is not present
     pytest.importorskip("paddle")
@@ -329,6 +336,7 @@ def test_cross_compile_aarch64_paddle_module(paddle_resnet50):
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
+@tvm.testing.slow
 def test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
     # some CI environments wont offer paddle, so skip in case it is not present
     pytest.importorskip("paddle")
@@ -447,6 +455,7 @@ def test_compile_tflite_module_with_external_codegen_ethos_n78(tflite_mobilenet_
     not vitis_ai_available(),
     reason="--target=vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
 )
+@tvm.testing.slow
 def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
@@ -466,6 +475,7 @@ def test_compile_tflite_module_with_external_codegen_vitis_ai(tflite_mobilenet_v
     assert os.path.exists(dumps_path)
 
 
+@tvm.testing.slow
 def test_compile_tflite_module_with_external_codegen_ethosu(
     tmpdir_factory, tflite_mobilenet_v1_1_quant
 ):

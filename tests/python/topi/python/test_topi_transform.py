@@ -272,6 +272,7 @@ def verify_flip(in_shape, axis):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_reverse_sequence():
     def verify_reverse_sequence(in_data, seq_lengths, batch_axis, seq_axis, ref_res):
         seq_lengths = np.array(seq_lengths).astype("int32")
@@ -1013,6 +1014,7 @@ def test_gather():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_gather_nd():
     for indices_dtype in ["int32", "float32"]:
         verify_gather_nd((4,), [[1.8]], indices_dtype)
@@ -1030,6 +1032,7 @@ def test_gather_nd():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_arange():
     verify_arange(None, 20, None)
     verify_arange(None, 20, 2)
@@ -1196,6 +1199,7 @@ def test_one_hot():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_unravel_index():
     for dtype in ["int32", "int64"]:
         verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
@@ -1233,6 +1237,7 @@ def test_sparse_to_dense():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_matrix_set_diag():
     for dtype in ["float32", "int32"]:
         verify_matrix_set_diag((2, 2), (2,), dtype)

@@ -236,6 +236,7 @@ def test_workload_dis_factor():
     assert calc(decode(target_wkl_key), decode(wkl_key)) == float("inf")
 
 
+@tvm.testing.slow
 def test_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
@@ -257,6 +258,7 @@ def test_measure_local_builder_runner():
         assert mress[0].error_no == 0
 
 
+@tvm.testing.slow
 def test_dag_measure_local_builder_runner():
     if not tvm.testing.device_enabled("llvm"):
         return
@@ -332,6 +334,7 @@ def measure_local_builder_rpc_runner_spawn():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_measure_local_builder_rpc_runner_spawn():
     ctx = multiprocessing.get_context("spawn")
     p = ctx.Process(target=measure_local_builder_rpc_runner_spawn)
@@ -392,6 +395,7 @@ def test_measure_special_inputs_map_by_name_local_runner():
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_measure_special_inputs_map_by_name_rpc_runner():
     @auto_scheduler.register_workload
     def foo():

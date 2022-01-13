@@ -17,6 +17,7 @@
 """ test ir"""
 import pytest
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.tir.expr import *
@@ -208,6 +209,7 @@ def test_conv2d_attrs():
     check_json_roundtrip(out)
 
 
+@tvm.testing.slow
 def test_large_grpah():
     # Test large graphs to avoid stack overflow in serialize/deserialize
     size = int(1e5)

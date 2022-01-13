@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.analysis import detect_feature
@@ -141,6 +142,7 @@ def test_ref():
     check_eval(opt_body, 3)
 
 
+@tvm.testing.slow
 def test_nat_add():
     mod = tvm.IRModule()
     p = Prelude(mod)

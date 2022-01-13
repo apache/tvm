@@ -18,6 +18,7 @@
 import tvm.relay.testing
 from tvm import relay
 from tvm import autotvm
+import tvm.testing
 
 
 def get_network(name, batch_size):
@@ -102,6 +103,7 @@ def test_task_extraction():
     assert len(tasks) == 31
 
 
+@tvm.testing.slow
 def test_task_extraction_for_dense_int8_cuda():
     target = "cuda"
     dense = relay.op.get("nn.dense")

@@ -184,6 +184,7 @@ def verify_conv1d_integration():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_fifo_buffer():
     for ndim in [1, 2, 3, 4, 5, 6]:
         for axis in range(ndim):

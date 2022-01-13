@@ -17,9 +17,11 @@
 import pytest
 import os
 
+import tvm.testing
 from tvm.driver.tvmc.main import _main
 
 
+@tvm.testing.slow
 def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 

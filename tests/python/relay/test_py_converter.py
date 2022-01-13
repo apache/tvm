@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
@@ -332,6 +333,7 @@ def test_match_order():
     assert_tensor_value(match_val, 1)
 
 
+@tvm.testing.slow
 def test_local_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -371,6 +373,7 @@ def test_local_recursion():
     assert_constructor_value(val.fields[1].fields[1].fields[1], nil, 0)
 
 
+@tvm.testing.slow
 def test_global_recursion():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -437,6 +440,7 @@ def test_higher_order_call():
     assert_tensor_value(named_val, 2)
 
 
+@tvm.testing.slow
 def test_match_effect_exactly_once():
     mod = tvm.IRModule()
     p = Prelude(mod)
@@ -468,6 +472,7 @@ def test_match_effect_exactly_once():
     assert_tensor_value(match_val, 1)
 
 
+@tvm.testing.slow
 def test_arbitrary_let_nesting():
     # something that is tricky to do in Python but comes naturally in Relay
     mod = tvm.IRModule()

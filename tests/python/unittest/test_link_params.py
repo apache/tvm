@@ -181,6 +181,7 @@ def _make_mod_and_params(dtype):
 
 
 @tvm.testing.requires_llvm
+@tvm.testing.slow
 def test_llvm_link_params():
     for dtype in LINKABLE_DTYPES:
         ir_mod, param_init = _make_mod_and_params(dtype)
@@ -267,6 +268,7 @@ def _format_c_value(dtype, width, x):
 HEX_NUM_RE = re.compile(r"[+\-]?(?:(?:0x[0-9A-Fa-f.p+-]+)|(?:INFINITY)|(?:NAN))")
 
 
+@tvm.testing.slow
 def test_c_link_params():
     temp_dir = utils.tempdir()
     for dtype in LINKABLE_DTYPES:
@@ -351,6 +353,7 @@ def test_c_link_params():
 
 
 @tvm.testing.requires_micro
+@tvm.testing.slow
 def test_crt_link_params():
     from tvm import micro
 

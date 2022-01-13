@@ -20,6 +20,7 @@
 import numpy as np
 import math
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
@@ -180,6 +181,7 @@ def test_conv2d():
 
 
 @requires_ethosn
+@tvm.testing.slow
 def test_conv2d_failure():
     lb = "2.328306e-10" if tei.get_ethosn_api_version() > 2102 else "0"
     trials = [

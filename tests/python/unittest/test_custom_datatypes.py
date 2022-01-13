@@ -20,6 +20,7 @@ TODO(@gussmith23 @hypercubestart) link to documentation"""
 import numpy as np
 import pytest
 import tvm
+import tvm.testing
 import tvm.topi.testing
 from tvm import relay
 from tvm.relay.testing.layers import batch_norm_infer
@@ -511,6 +512,7 @@ def run_batchnorm(src_dtype, dst_dtype, rtol=1e-6, atol=1e-6):
     )
 
 
+@tvm.testing.slow
 def test_myfloat():
     setup_myfloat()
     run_ops("float32", "custom[myfloat]32", rtol=1e-6, atol=1e-6)

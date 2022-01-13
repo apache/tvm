@@ -291,6 +291,7 @@ def test_while_collatz():
     check_target("llvm", collatz_ir_cpu)
 
 
+@tvm.testing.slow
 def test_while_mandel():
     n = 160
     shape = (n * 2, n)

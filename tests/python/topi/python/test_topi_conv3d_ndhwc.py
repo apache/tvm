@@ -83,6 +83,7 @@ def verify_conv3d_ndhwc(
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_conv3d_ndhwc():
     verify_conv3d_ndhwc(1, 16, 32, 16, 3, 1, "SAME")
     verify_conv3d_ndhwc(4, 32, 16, 32, 5, 2, "SAME")

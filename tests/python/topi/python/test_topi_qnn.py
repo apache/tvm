@@ -18,6 +18,7 @@
 import numpy as np
 import tvm
 from tvm import topi, relay, te
+import tvm.testing
 from tvm.contrib import graph_executor
 import tvm.topi.testing
 
@@ -80,6 +81,7 @@ def verify_simulated_quantize(data_shape, out_dtype, channels, axis):
         check_target(target, dev)
 
 
+@tvm.testing.slow
 def test_simulated_quantize():
     verify_simulated_quantize([1], "int8", [1], -1)
     verify_simulated_quantize([2, 5], "int8", [5], 1)
@@ -145,6 +147,7 @@ def verify_simulated_dequantize(data_shape, in_dtype, channels, axis):
         check_target(target, dev)
 
 
+@tvm.testing.slow
 def test_simulated_dequantize():
     verify_simulated_dequantize([1], "int8", [1], -1)
     verify_simulated_dequantize([2, 5], "int8", [5], 1)

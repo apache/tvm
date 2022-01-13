@@ -125,6 +125,7 @@ class WinogradFallback(autotvm.FallbackContext):
         return cfg
 
 
+@tvm.testing.slow
 def test_conv2d_nchw():
     if not tvm.get_global_func(
         "tvm.contrib.nnpack.convolution_inference_without_weight_transform", True

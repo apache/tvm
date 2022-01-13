@@ -422,6 +422,7 @@ def verify_mean_var_std(funcs, shape, axis, keepdims):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_mean_var_std():
     for func in [[relay.mean_variance, np.var], [relay.mean_std, np.std]]:
         verify_mean_var_std(func, (2, 3, 4), 1, True)
@@ -519,6 +520,7 @@ def test_strided_slice():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_dyn_strided_slice():
     def verify(
         dshape,

@@ -20,6 +20,7 @@ import multiprocessing
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
@@ -49,6 +50,7 @@ def fit_spawn():
     test_fit()
 
 
+@tvm.testing.slow
 def test_fit_spawn():
     # Subprocesses inherit the spawn method of their parents
     ctx = multiprocessing.get_context("spawn")
@@ -57,6 +59,7 @@ def test_fit_spawn():
     p.join()
 
 
+@tvm.testing.slow
 def test_tuner():
     task, target = get_sample_task()
     records = get_sample_records(n=10)

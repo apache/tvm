@@ -22,6 +22,7 @@ import sys
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm.relay.backend import te_compiler
 from tvm.relay.backend.runtime import Runtime
 import tvm.relay.testing
@@ -545,6 +546,7 @@ def test_extern_dnnl():
     )
 
 
+@tvm.testing.slow
 def test_extern_dnnl_mobilenet():
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
@@ -917,6 +919,7 @@ def test_mixed_single_multiple_outputs():
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
+@tvm.testing.slow
 def test_dnnl_fuse():
     dnnl_patterns = get_pattern_table("dnnl")
     (

@@ -17,6 +17,7 @@
 import pytest
 import tvm
 from tvm import relay
+import tvm.testing
 from tvm.relay import testing
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
@@ -186,6 +187,7 @@ def test_list_constructor():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_hd_tl():
     expected = list(range(10))
     l = nil()
@@ -201,6 +203,7 @@ def test_hd_tl():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_nth():
     expected = list(range(10))
     l = nil()
@@ -214,6 +217,7 @@ def test_nth():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_update():
     expected = list(range(10))
     l = nil()
@@ -411,6 +415,7 @@ def test_filter():
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_zip():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")

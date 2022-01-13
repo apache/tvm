@@ -18,9 +18,12 @@ import random
 import sys
 import pytest
 import tvm
+import tvm.testing
+
 from tvm import te, arith, ir, tir, testing
 
 
+@tvm.testing.slow
 def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
     print(

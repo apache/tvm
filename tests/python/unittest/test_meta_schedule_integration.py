@@ -20,6 +20,7 @@ from typing import List
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import meta_schedule as ms
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.integration import (
@@ -105,6 +106,7 @@ def test_meta_schedule_integration_query_inside_with_scope():
     _check_mock_task(env.tasks, mod)
 
 
+@tvm.testing.slow
 def test_meta_schedule_integration_extract_from_resnet():
     mod, params, _, _ = get_network(
         name="resnet-18",

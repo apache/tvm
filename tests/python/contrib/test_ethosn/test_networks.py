@@ -23,6 +23,7 @@ pytest.importorskip("tflite")
 pytest.importorskip("tensorflow")
 
 from tvm import relay
+import tvm.testing
 from tvm.testing import requires_ethosn
 from tvm.contrib import download
 from tvm.testing import requires_ethosn
@@ -170,6 +171,7 @@ def test_inception_v3():
 
 
 @requires_ethosn
+@tvm.testing.slow
 def test_inception_v4():
     # If this test is failing due to a hash mismatch, please notify @mbaret and
     # @Leo-arm. The hash is there to catch any changes in the behaviour of the

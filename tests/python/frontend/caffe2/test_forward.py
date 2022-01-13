@@ -84,16 +84,19 @@ def verify_caffe2_forward_impl(model, data_shape, out_shape):
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_squeezenet1_1():
     verify_caffe2_forward_impl(c2_squeezenet, (1, 3, 224, 224), (1, 1000, 1, 1))
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_resnet50():
     verify_caffe2_forward_impl(c2_resnet50, (1, 3, 224, 224), (1, 1000))
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_forward_vgg19():
     verify_caffe2_forward_impl(c2_vgg19, (1, 3, 224, 224), (1, 1000))
 

@@ -66,6 +66,7 @@ def verify_depth_to_space(
 
 
 @tvm.testing.uses_gpu
+@tvm.testing.slow
 def test_depth_to_space():
     for layout in ["NCHW", "NHWC"]:
         for mode in ["DCR", "CDR"]:

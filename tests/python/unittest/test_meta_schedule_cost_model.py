@@ -26,6 +26,7 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm.meta_schedule.cost_model import PyCostModel, RandomModel
 from tvm.meta_schedule.feature_extractor import RandomFeatureExtractor
 from tvm.meta_schedule.runner import RunnerResult
@@ -191,6 +192,7 @@ def test_meta_schedule_xgb_model_reload():
     assert (cached[1] == new_cached[1]).all()
 
 
+@tvm.testing.slow
 def test_meta_schedule_xgb_model_reupdate():
     extractor = RandomFeatureExtractor()
     model = XGBModel(extractor=extractor, num_warmup_samples=2)
