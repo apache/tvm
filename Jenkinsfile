@@ -571,6 +571,7 @@ stage('Test') {
               label: 'Build docs',
             )
           }
+          pack_lib('docs', 'docs.tgz')
         }
       }
     }
@@ -599,7 +600,7 @@ stage('Deploy') {
     node('doc') {
       ws(per_exec_ws('tvm/deploy-docs')) {
         if (env.BRANCH_NAME == 'main') {
-        unpack_lib('mydocs', 'docs.tgz')
+        unpack_lib('docs', 'docs.tgz')
         sh 'cp docs.tgz /var/docs/docs.tgz'
         sh 'tar xf docs.tgz -C /var/docs'
         }
