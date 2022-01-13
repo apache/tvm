@@ -234,7 +234,8 @@ def verify_with_ort(
 
 
 def quantize_and_verify_with_ort(onnx_model, input_names, input_shapes, target, dev):
-    from onnxruntime.quantization import CalibrationDataReader, QuantType, quantize_static
+    from onnxruntime.quantization import (CalibrationDataReader, QuantType,
+                                          quantize_static)
 
     input_arrays = [np.random.random(shape).astype("float32") for shape in input_shapes]
 
@@ -5090,6 +5091,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
+    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",
