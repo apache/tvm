@@ -231,7 +231,7 @@ class TensorRequisite {
     auto one_filled = dnnl::memory::dims(shape.size() - extended_dims.size(), 1);
     extended_dims.insert(extended_dims.begin(), one_filled.begin(), one_filled.end());
     auto desc = t_desc_.reshape(extended_dims);
-    for (int i = 0; i < extended_dims.size(); i++) {
+    for (size_t i = 0; i < extended_dims.size(); i++) {
       if (extended_dims[i] == shape[i]) continue;
       ICHECK(extended_dims[i] == 1);
       ICHECK(desc.data.dims[i] == desc.data.padded_dims[i]);
