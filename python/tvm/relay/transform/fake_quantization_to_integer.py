@@ -92,6 +92,110 @@ def register_unary_identity(op_name):
     return register_fake_quantization_to_integer(op_name, identity)
 
 
+# TODO: replace with constant folding
+def run_const_expr(expr):
+    mod = tvm.IRModule.from_expr(expr)
+    vm_exe = relay.create_executor("vm", mod=mod)
+    return vm_exe.evaluate()().asnumpy()
+
+
+def create_integer_lookup_table(
+    floating_point_func,
+    input_scale,
+    input_zero_point,
+    output_scale,
+    output_zero_point,
+    in_axis=-1,
+    out_axis=-1,
+    in_dtype="uint8",
+    out_dtype="uint8",
+):
+    if not np.issubdtype(np.dtype(in_dtype), np.integer) or not np.issubdtype(
+        np.dtype(out_dtype), np.integer
+    ):
+        raise ValueError(
+            f"Only integer dtypes allowed got {in_dtype} and {out_dtype} for in and out dtypes."
+        )
+
+    dtype_info = np.iinfo(in_dtype)
+
+    # Use TVMs quantization methods via relay to be consistent
+    inputs_quantized = np.array(range(dtype_info.min, dtype_info.max + 1)).astype(in_dtype)
+    inputs_quantized = relay.const(inputs_quantized, dtype=in_dtype)
+    inputs_dequantized = run_const_expr(
+        relay.qnn.op.dequantize(
+            inputs_quantized,
+            input_scale=input_scale,
+            input_zero_point=input_zero_point,
+            axis=in_axis,
+        )
+    )
+
+    output_dequantized = relay.const(floating_point_func(inputs_dequantized))
+    output_quantized = run_const_expr(
+        relay.qnn.op.quantize(
+            output_dequantized, output_scale, output_zero_point, out_axis, out_dtype
+        )
+    )
+
+    return output_quantized
+
+
+def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
+    """Implement an operator in quantized space via table lookup operations (e.g. via gather).
+
+    op_name: str
+        The name of the operator to register for FQ2I.
+
+    example_func: Callable[[np.ndarray], np.ndarray]
+        The FP32 version of the function to quantize operating on numpy arrays.
+    """
+
+    def func(expr, type_map):
+        assert len(expr.args) == 1
+        arg = expr.args[0]
+        in_scale = fold_constant(type_map[arg].scale)
+        in_zero_point = fold_constant(type_map[arg].zero_point)
+        out_scale = fold_constant(type_map[expr].scale)
+        out_zero_point = fold_constant(type_map[expr].zero_point)
+        if (
+            not isinstance(in_scale, relay.Constant)
+            or not isinstance(in_zero_point, relay.Constant)
+            or not isinstance(out_scale, relay.Constant)
+            or not isinstance(out_zero_point, relay.Constant)
+        ):
+            raise ValueError(
+                f"{op_name} requires input/output quantization params to be known at compile time!"
+            )
+
+        # TODO: handle multi-channel q
+        in_scale = in_scale.data.numpy().item()
+        in_zero_point = in_zero_point.data.numpy().item()
+        out_scale = out_scale.data.numpy().item()
+        out_zero_point = out_zero_point.data.numpy().item()
+
+        lookup_table = create_integer_lookup_table(
+            floating_point_func,
+            relay.const(in_scale),
+            relay.const(in_zero_point, dtype="int32"),
+            relay.const(out_scale),
+            relay.const(out_zero_point, dtype="int32"),
+            in_axis=type_map[arg].axis,
+            in_dtype=type_map[arg].dtype,
+            out_axis=type_map[expr].axis,
+            out_dtype=type_map[expr].dtype,
+        )
+        lookup_table = relay.const(lookup_table)
+        index_tensor = relay.reshape(arg, [-1])
+        result = relay.gather(lookup_table, -1, index_tensor)
+        result = relay.reshape_like(result, arg)
+        return [result, type_map[expr]]
+
+    return register_fake_quantization_to_integer(op_name, func)
+
+
+register_unary_elementwise_table_lookup_op("tanh", np.tanh)
+
 register_unary_identity("reshape")
 register_unary_identity("squeeze")
 register_unary_identity("strided_slice")
