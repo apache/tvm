@@ -589,6 +589,28 @@ RELAY_REGISTER_OP("nn.conv2d").set_attr<FForwardPrep>("FScaleAxisForwardPrep", C
 RELAY_REGISTER_OP("nn.conv2d")
     .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", Conv2DForwardRewrite);
 
+// Dense send out requirement of axis folding.
+Array<Message> DenseForwardPrep(const Call& call, const Message& out_message) {
+  return {Message({1}, false), NullValue<Message>()};
+}
+
+// Dense consumes the scale axis during transformation.
+Expr DenseForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
+                         const Message& message) {
+  const auto* sdata = new_args[0].as<ScaledExprNode>();
+  const auto* sweight = new_args[1].as<ScaledExprNode>();
+  if (sdata == nullptr) return Expr();
+  if (sweight != nullptr) return Expr();
+
+  Expr weight = Multiply(new_args[1], sdata->scale);
+  return Call(ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
+}
+
+RELAY_REGISTER_OP("nn.dense").set_attr<FForwardPrep>("FScaleAxisForwardPrep", DenseForwardPrep);
+
+RELAY_REGISTER_OP("nn.dense")
+    .set_attr<FForwardRewrite>("FScaleAxisForwardRewrite", DenseForwardRewrite);
+
 Expr ForwardFoldScaleAxis(const Expr& data) {
   auto message = ForwardPrep().Prepare(data);
   for (const auto& m : message) {
@@ -995,6 +1017,67 @@ RELAY_REGISTER_OP("nn.conv2d")
 
 RELAY_REGISTER_OP("nn.conv2d")
     .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", Conv2DBackwardTransform);
+
+Message BiasAddBackwardPrep(const Call& call, const Array<Message>& in_messages) {
+  const BiasAddAttrs* attrs = call->attrs.as<BiasAddAttrs>();
+  ICHECK(attrs);
+  if (in_messages[0].defined() && in_messages[0]->axes.size() == 1 &&
+      attrs->axis == static_cast<int>(in_messages[0]->axes[0]->value)) {
+    return in_messages[0];
+  } else {
+    return NullValue<Message>();
+  }
+}
+
+Expr BiasAddBackwardTransform(const Call& call, const Message& message, const Expr& scale,
+                              const BackwardTransformer& transformer) {
+  if (!message.defined()) {
+    return transformer->NormalCallTransform(call.operator->());
+  }
+  Message lhs_message = transformer->GetMessage(call->args[0]);
+  Message rhs_message = transformer->GetMessage(call->args[1]);
+  StructuralEqual equal;
+
+  if (lhs_message.defined()) {
+    ICHECK(equal(message->axes, lhs_message->axes));
+    Expr lhs = transformer->Transform(call->args[0], message, scale);
+    Expr rhs = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
+    rhs = Multiply(rhs, scale);
+    return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
+  } else {
+    LOG(FATAL) << "outstanding scale";
+    return Expr();
+  }
+}
+
+RELAY_REGISTER_OP("nn.bias_add")
+    .set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", BiasAddBackwardPrep);
+
+RELAY_REGISTER_OP("nn.bias_add")
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", BiasAddBackwardTransform);
+
+// Dense send out requirement of axis folding.
+Message DenseBackwardPrep(const Call& call, const Array<Message>& in_messages) {
+  return Message({1}, false);
+}
+
+// Dense consumes the sacle axis during trasformation.
+Expr DenseBackwardTransform(const Call& call, const Message& message, const Expr& scale,
+                            const BackwardTransformer& transformer) {
+  if (!message.defined()) {
+    return transformer->NormalCallTransform(call.operator->());
+  }
+  Expr data = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
+  Expr weight = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
+  Expr wscale = ExpandBiasToMatchAxis(scale, 2, {0});
+  weight = Multiply(weight, wscale);
+  return Call(call->op, {data, weight}, call->attrs, call->type_args);
+}
+
+RELAY_REGISTER_OP("nn.dense").set_attr<FBackwardPrep>("FScaleAxisBackwardPrep", DenseBackwardPrep);
+
+RELAY_REGISTER_OP("nn.dense")
+    .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", DenseBackwardTransform);
 
 Expr BackwardFoldScaleAxis(const Expr& data) {
   return make_object<BackwardTransformerNode>()->Fold(data);

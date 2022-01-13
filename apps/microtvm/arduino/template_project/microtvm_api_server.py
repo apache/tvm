@@ -53,6 +53,8 @@ ARDUINO_CLI_VERSION = 0.18
 
 BOARDS = API_SERVER_DIR / "boards.json"
 
+ARDUINO_CLI_CMD = shutil.which("arduino-cli")
+
 # Data structure to hold the information microtvm_api_server.py needs
 # to communicate with each of these boards.
 try:
@@ -78,7 +80,15 @@ PROJECT_OPTIONS = [
     ),
     server.ProjectOption(
         "arduino_cli_cmd",
-        required=["build", "flash", "open_transport"],
+        required=(
+            ["generate_project", "build", "flash", "open_transport"]
+            if not ARDUINO_CLI_CMD
+            else None
+        ),
+        optional=(
+            ["generate_project", "build", "flash", "open_transport"] if ARDUINO_CLI_CMD else None
+        ),
+        default=ARDUINO_CLI_CMD,
         type="str",
         help="Path to the arduino-cli tool.",
     ),
@@ -247,22 +257,21 @@ class Handler(server.ProjectAPIHandler):
         """
         for ext in ("c", "h", "cpp"):
             for filename in source_dir.rglob(f"*.{ext}"):
-                with filename.open() as file:
-                    lines = file.readlines()
-
-                for i in range(len(lines)):
-                    # Check if line has an include
-                    result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", lines[i])
-                    if not result:
-                        continue
-                    new_include = self._find_modified_include_path(
-                        project_dir, filename, result.groups()[0]
-                    )
-
-                    lines[i] = f'#include "{new_include}"\n'
-
-                with filename.open("w") as file:
-                    file.writelines(lines)
+                with filename.open("rb") as src_file:
+                    lines = src_file.readlines()
+                    with filename.open("wb") as dst_file:
+                        for i, line in enumerate(lines):
+                            line_str = str(line, "utf-8")
+                            # Check if line has an include
+                            result = re.search(r"#include\s*[<\"]([^>]*)[>\"]", line_str)
+                            if not result:
+                                dst_file.write(line)
+                            else:
+                                new_include = self._find_modified_include_path(
+                                    project_dir, filename, result.groups()[0]
+                                )
+                                updated_line = f'#include "{new_include}"\n'
+                                dst_file.write(updated_line.encode("utf-8"))
 
     # Most of the files we used to be able to point to directly are under "src/standalone_crt/include/".
     # Howver, crt_config.h lives under "src/standalone_crt/crt_config/", and more exceptions might
@@ -317,7 +326,7 @@ class Handler(server.ProjectAPIHandler):
 
     def generate_project(self, model_library_format_path, standalone_crt_dir, project_dir, options):
         # Check Arduino version
-        version = self._get_platform_version(options["arduino_cli_cmd"])
+        version = self._get_platform_version(self._get_arduino_cli_cmd(options))
         if version != ARDUINO_CLI_VERSION:
             message = f"Arduino CLI version found is not supported: found {version}, expected {ARDUINO_CLI_VERSION}."
             if options.get("warning_as_error") is not None and options["warning_as_error"]:
@@ -367,7 +376,7 @@ class Handler(server.ProjectAPIHandler):
         BUILD_DIR.mkdir()
 
         compile_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "compile",
             "./project/",
             "--fqbn",
@@ -383,6 +392,11 @@ class Handler(server.ProjectAPIHandler):
         subprocess.run(compile_cmd, check=True)
 
     BOARD_LIST_HEADERS = ("Port", "Type", "Board Name", "FQBN", "Core")
+
+    def _get_arduino_cli_cmd(self, options: dict):
+        arduino_cli_cmd = options.get("arduino_cli_cmd", ARDUINO_CLI_CMD)
+        assert arduino_cli_cmd, "'arduino_cli_cmd' command not passed and not found by default!"
+        return arduino_cli_cmd
 
     def _parse_boards_tabular_str(self, tabular_str):
         """Parses the tabular output from `arduino-cli board list` into a 2D array
@@ -416,7 +430,7 @@ class Handler(server.ProjectAPIHandler):
             yield parsed_row
 
     def _auto_detect_port(self, options):
-        list_cmd = [options["arduino_cli_cmd"], "board", "list"]
+        list_cmd = [self._get_arduino_cli_cmd(options), "board", "list"]
         list_cmd_output = subprocess.run(
             list_cmd, check=True, stdout=subprocess.PIPE
         ).stdout.decode("utf-8")
@@ -442,7 +456,7 @@ class Handler(server.ProjectAPIHandler):
         port = self._get_arduino_port(options)
 
         upload_cmd = [
-            options["arduino_cli_cmd"],
+            self._get_arduino_cli_cmd(options),
             "upload",
             "./project",
             "--fqbn",

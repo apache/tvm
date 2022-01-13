@@ -154,6 +154,45 @@ class BufferInfo : public ObjectRef {
 };
 
 /*!
+ * \brief This is a composite node that is produced by extract_buffer_info
+ * analysis pass that contains useful global information that could be useful
+ * for memory planning algorithms.
+ */
+struct BufferInfoAnalysisNode : public Object {
+  /*! \brief The BufferInfo object and its associated TIR statement */
+  Map<BufferInfo, tir::Stmt> buffer_info_stmts;
+  /*! \brief This represent maximum amount of memory being used at
+   * any point of time in the inference. This value is largely the
+   * best allocation an algorithm could achieve. Due to
+   * the complexities of conflict graphs, it would not be feasible
+   * to achieve this value, practically. However, it can be useful
+   * for iterative algorithms to know this value to define termination
+   * criteria.*/
+  Integer memory_pressure;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("buffer_info_stmts", &buffer_info_stmts);
+    v->Visit("memory_pressure", &memory_pressure);
+  }
+
+  bool SEqualReduce(const BufferInfoAnalysisNode* other, SEqualReducer equal) const {
+    return equal(buffer_info_stmts, other->buffer_info_stmts) &&
+           equal(memory_pressure, other->memory_pressure);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer_info_stmts);
+    hash_reduce(memory_pressure);
+  }
+};
+
+class BufferInfoAnalysis : public ObjectRef {
+ public:
+  TVM_DLL BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts, Integer memory_pressure);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BufferInfoAnalysis, ObjectRef, BufferInfoAnalysisNode);
+};
+
+/*!
  * \brief The pool allocation produced after the USMP algorithm
  */
 struct PoolAllocationNode : public Object {
@@ -187,6 +226,44 @@ class PoolAllocation : public ObjectRef {
 };
 
 /*!
+ * \brief This object contains information post-allocation for PoolInfo objects
+ */
+struct AllocatedPoolInfoNode : public Object {
+  /*! \brief The assigned PoolInfo object */
+  PoolInfo pool_info;
+  /*! \brief The allocated size into this pool */
+  Integer allocated_size;
+  /*! \brief An optional associated pool Var*/
+  Optional<Var> pool_var;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pool_info", &pool_info);
+    v->Visit("allocated_size", &allocated_size);
+    v->Visit("pool_var", &pool_var);
+  }
+
+  bool SEqualReduce(const AllocatedPoolInfoNode* other, SEqualReducer equal) const {
+    return equal(pool_info, other->pool_info) && equal(allocated_size, other->allocated_size) &&
+           equal(pool_var, other->pool_var);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(pool_info);
+    hash_reduce(allocated_size);
+    hash_reduce(pool_var);
+  }
+
+  static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocatedPoolInfoNode, Object);
+};
+
+class AllocatedPoolInfo : public ObjectRef {
+ public:
+  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var = Var());
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AllocatedPoolInfo, ObjectRef, AllocatedPoolInfoNode);
+};
+
+/*!
  * \brief Convert the IR-bound BufferInfo map to an array of BufferInfo
  *
  * \param buffer_info_map IR-bound BufferInfo map
@@ -209,6 +286,16 @@ Integer CalculateExtentsSize(const AllocateNode* op);
 
 }  // namespace usmp
 }  // namespace tir
+
+namespace attr {
+/*!
+ * \brief This is a BaseFunc attribute to indicate which input var represent
+ * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
+ */
+static constexpr const char* kPoolArgs = "pool_args";
+
+}  // namespace attr
+
 }  // namespace tvm
 
 #endif  // TVM_TIR_USMP_UTILS_H_

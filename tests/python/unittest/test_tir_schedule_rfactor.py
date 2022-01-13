@@ -690,11 +690,9 @@ def test_reduction_rfactor_predicate():  # pylint: disable=invalid-name
     s = tir.Schedule(rowsum_predicate, debug_mask="all")
     B = s.get_block("B")
     _, ko, _ = s.get_loops(B)
-    rf_block = s.rfactor(ko, 1)
-    tvm.ir.assert_structural_equal(s.mod["main"], rowsum_predicate_rfactor)
-    assert s.get(rf_block).same_as(s.get(s.get_block("B_rf")))
-    assert s.get(B).same_as(s.get(s.get_block("B")))
-    verify_trace_roundtrip(s, mod=rowsum_predicate)
+    # TODO: should be a tvm.tir.ScheduleError
+    with pytest.raises(tvm.TVMError):
+        rf_block = s.rfactor(ko, 1)
 
 
 def test_reduction_rfactor_with_annotation():

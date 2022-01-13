@@ -20,8 +20,8 @@
 # which is common with arm devices, we need to be able to cross-compile
 # a relay graph on x86 for AArch and then run the graph on AArch.
 if(USE_ARM_COMPUTE_LIB)
-    file(GLOB ACL_RELAY_CONTRIB_SRC src/relay/backend/contrib/arm_compute_lib/*.cc)
-    file(GLOB ACL_RUNTIME_MODULE src/runtime/contrib/arm_compute_lib/acl_runtime.cc)
+    tvm_file_glob(GLOB ACL_RELAY_CONTRIB_SRC src/relay/backend/contrib/arm_compute_lib/*.cc)
+    tvm_file_glob(GLOB ACL_RUNTIME_MODULE src/runtime/contrib/arm_compute_lib/acl_runtime.cc)
     list(APPEND COMPILER_SRCS ${ACL_RELAY_CONTRIB_SRC})
 
     if(NOT USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
@@ -48,7 +48,7 @@ if(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
         set(ACL_PATH ${USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR})
     endif()
 
-    file(GLOB ACL_CONTRIB_SRC src/runtime/contrib/arm_compute_lib/*)
+    tvm_file_glob(GLOB ACL_CONTRIB_SRC src/runtime/contrib/arm_compute_lib/*)
 
     # Cmake needs to find arm_compute, include and support directories
     # in the path specified by ACL_PATH.

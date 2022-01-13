@@ -17,20 +17,21 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
+import re
 
-from tvm import topi, relay
-from tvm.topi.utils import get_const_tuple
-
+from tvm import relay, topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from .. import op as reg
-from .. import strategy
-from ..op import OpPattern
-from .._tensor import elemwise_shape_func
-from ..strategy.generic import is_depthwise_conv2d
-from ...transform import LayoutConfig
+from tvm.topi.utils import get_const_tuple
+
 from ....ir import container
 from ....tir import expr
+from ...transform import LayoutConfig
+from .. import op as reg
+from .. import strategy
+from .._tensor import elemwise_shape_func
+from ..op import OpPattern
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -149,6 +150,11 @@ def legalize_batch_matmul(attrs, inputs, types):
 # batch_matmul
 reg.register_strategy("nn.batch_matmul", strategy.batch_matmul_strategy)
 reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# batch_norm
+reg.register_strategy("nn.batch_norm", strategy.batch_norm_strategy)
+reg.register_pattern("nn.batch_norm", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # sparse_dense
@@ -283,8 +289,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
+    need_tile = re.match(r"NCHW(\d*)c", desired_data_layout)
 
-    if desired_kernel_layout != "default":
+    if desired_kernel_layout != "default" and not need_tile:
         new_attrs["kernel_layout"] = desired_kernel_layout
         return relay.nn.conv2d(data, weight, **new_attrs)
 
@@ -309,6 +316,14 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
+    elif need_tile:
+        assert desired_kernel_layout != "default", "Kernel layout cannot be default."
+        tile = int(need_tile.group(1))
+        if isinstance(data, relay.expr.Var) and data.checked_type.shape[1] % tile != 0:
+            return relay.nn.conv2d(data, weight, **attrs)
+        else:
+            new_attrs["kernel_layout"] = desired_kernel_layout
+            return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
@@ -373,7 +388,7 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
     # Handle default kernel layouts
     if desired_data_layout == "NCHW":
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
@@ -1090,6 +1105,19 @@ def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_ohwi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & ohwi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 1] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
     """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
@@ -1103,6 +1131,8 @@ def conv_shape_func(attrs, inputs, _):
         shape_func = _conv_shape_func_nhwc_hwio
     elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
         shape_func = _conv_shape_func_nhwc_hwoi
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "OHWI":
+        shape_func = _conv_shape_func_nhwc_ohwi
     else:
         raise ValueError(
             "Unsupported data/kernel layout: %s, %s"

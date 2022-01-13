@@ -24,12 +24,14 @@
 #ifndef TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 #define TVM_RUNTIME_PIPELINE_PIPELINE_EXECUTOR_H_
 
+#include <tvm/relay/expr.h>
 #include <tvm/runtime/registry.h>
 
 #include <array>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "pipeline_scheduler.h"
@@ -67,7 +69,13 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \return The corresponding packed function.
    */
   virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
-
+  /*!
+   * \brief Using the global input name to get the index, and also get the input interface name
+     of corresponding subgraph from the input connection configuration.
+   * \param The global input name.
+   * \return Returning the index and the input interface name of corresponding subgraph.
+   */
+  Array<String> GetInputPipeplineMapping(std::string input_name);
   /*!
    * \brief Get the number of outputs.
    *
@@ -115,37 +123,27 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!\brief The class used to execute and schedule the pipeline logic.*/
   PipelineScheduler pipeline_scheduler_;
   /*!\brief The dependency information of each graph runtime module of the pipeline.*/
-  PipelineConfig pipeline_config_;
+  ConfigPipelineExecution pipeline_config_;
+  /*!\brief The map of global input and subgraph input.*/
+  InputConnectionConfig input_connection_config;
   /*!\brief The module information used to create the graph runtimes.*/
   ModuleConfig mod_config_;
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
   /*!\brief Json loader.*/
-  PipelineConfig& LoadPipelineConfig(dmlc::JSONReader* reader) {
-    reader->BeginArray();
-    while (reader->NextArrayItem()) {
-      std::string key;
-      reader->BeginObject();
-      int mod_idx = -1;
-      OutputMap output;
-      std::string dev;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "mod_idx") {
-          reader->Read(&mod_idx);
-        } else if (key == "dev") {
-          reader->Read(&dev);
-        } else if (key == "output") {
-          reader->Read(&output);
-        } else {
-          LOG(FATAL) << "do not support key " << key;
-        }
+  void LoadConfig(dmlc::JSONReader* reader) {
+    reader->BeginObject();
+    std::string key;
+    while (reader->NextObjectItem(&key)) {
+      if (key == "module_connection") {
+        reader->Read(&pipeline_config_);
+      } else if (key == "input_connection") {
+        reader->Read(&input_connection_config);
+      } else {
+        LOG(FATAL) << "do not support key " << key;
       }
-      ICHECK(mod_idx >= 0) << "Invalid mod_idx value " << mod_idx;
-      // Check if the output is successfully read.
-      ICHECK(!output.Empty()) << "Invalid output binding result.";
-      pipeline_config_.Insert(mod_idx, output);
     }
-    return pipeline_config_;
+    return;
   }
 };
 }  // namespace runtime

@@ -153,6 +153,8 @@ ALLOW_SPECIFIC_FILE = {
     # STM32 apps
     "apps/microtvm/stm32/Boards/makefile.disco-h747i",
     "apps/microtvm/stm32/Boards/makefile.nucleo-f412zg",
+    # Hexagon
+    "src/runtime/hexagon/rpc/android_bash.sh.template",
 }
 
 

@@ -99,6 +99,25 @@ def InferType():
     return _ffi_api.InferType()
 
 
+def InferTypeLocal(expr):
+    """Infer the type of a single expr, reusing type information to do so.
+
+    This populates the checked_type field in expr. We assume existing type information
+    in the graph is correct!
+
+    Parameters
+    ----------
+    expr: relay.Expr
+        The expression we want to know the type of
+
+    Returns
+    -------
+    type: relay.Type
+        The type of the expression
+    """
+    return _ffi_api.InferTypeLocal(expr)
+
+
 def FoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense. This pass will
     invoke both forward and backward scale folding.
@@ -695,9 +714,22 @@ def LambdaLift():
     return _ffi_api.LambdaLift()
 
 
-def PartitionGraph(mod_name="default"):
+def PartitionGraph(mod_name="default", bind_constants=True):
     """Partition a Relay program into regions that can be executed on different
     backends.
+
+    Parameters
+    ----------
+    mod_name : string
+        Controls the prefix of the name of each partitioned subraph.
+        If `mod_name` is None, then `tvmgen_` prefix is used.
+        Otherwise, `tvmgen_mod_name_` prefix is used.
+
+    bind_constants: bool
+        Whether or not to bind constants in partitioned subgraphs. Note that the codegen needs
+        to maintain the bound constants; Otherwise the constants will be maintained by
+        the metadata module. So it is recommended for C-source based codegens to
+        set bind_constants=False to avoid embedding large constants in a C source file.
 
     Returns
     -------
@@ -705,7 +737,7 @@ def PartitionGraph(mod_name="default"):
         The registered pass that partitions the Relay program.
     """
     mod_name = mangle_module_name(mod_name)
-    return _ffi_api.PartitionGraph(mod_name)
+    return _ffi_api.PartitionGraph(mod_name, bind_constants)
 
 
 def AnnotateTarget(targets, include_non_call_ops=True):
@@ -1151,12 +1183,12 @@ def SimplifyExpr():
 
 def PlanDevices(config):
     """
-    Uses existing "on_device" and "device_copy" CallNodes to infer the SEScope on which
+    Uses existing "on_device" and "device_copy" calls to infer the virtual device on which
     every Relay sub-expression should run and the result stored. Captures the result of that
-    analysis using new "on_device" and "device_copy" CallNodes. Sub-expressions which are
-    not otherwise constrained are assigned to the default_primitive_se_scope. However data and
-    computations which must be hosted on a CPU (such as shapes and shape functions) use the
-    cpu_se_scope.
+    analysis using new "on_device" and "device_copy" calls. Sub-expressions which are
+    not otherwise constrained are assigned to the default primitive virtual device describe by
+    config. However data and computations which must be hosted on a CPU (such as shapes and
+    shape functions) use the host virtual device of the config.
 
     Parameters
     ----------
@@ -1198,7 +1230,7 @@ def AnnotateSpans():
     return _ffi_api.AnnotateSpans()
 
 
-def FakeQuantizationToInteger():
+def FakeQuantizationToInteger(hard_fail=False):
     # pylint: disable=anomalous-backslash-in-string
     """
     Find regions of the graph of the form
@@ -1220,12 +1252,19 @@ def FakeQuantizationToInteger():
 
     Rules for rewriting indivdual ops are in fake_quantization_to_integer.py
 
+    Parameters
+    ----------
+    hard_fail : boolean
+        How do deal with errors during graph rewriting.
+        If true, raise an error.
+        If false, skip rewriting the subgraph.
+
     Returns
     -------
     ret : tvm.transform.Pass
         The registered SimplifyExpr pass.
     """
-    return _ffi_api.FakeQuantizationToInteger()
+    return _ffi_api.FakeQuantizationToInteger(hard_fail)
 
 
 def ToMixedPrecision(mixed_precision_type="float16", missing_op_mode=1):

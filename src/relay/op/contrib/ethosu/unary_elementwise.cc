@@ -50,7 +50,8 @@ struct EthosuUnaryElementwiseAttrs : public tvm::AttrsNode<EthosuUnaryElementwis
     TVM_ATTR_FIELD(operator_type)
         .describe(
             "The type of the unary elementwise operator."
-            "'ABS'");
+            "'ABS'"
+            "'CLZ'");
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
     TVM_ATTR_FIELD(ifm_zero_point)
         .describe("The quantization zero point for the Input Feature Map tensor.");
@@ -104,20 +105,28 @@ bool EthosuUnaryElementwiseRel(const Array<Type>& types, int num_inputs, const A
   CHECK(param != nullptr) << "EthosuUnaryElementwiseAttrs cannot be nullptr.";
 
   String operator_type = param->operator_type;
-  if (operator_type != "ABS") {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_unary_elementwise 'ABS' for operator_type but was"
-        << operator_type);
+  if (operator_type != "ABS" && operator_type != "CLZ") {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_unary_elementwise 'ABS' "
+                                        "or 'CLZ' for operator_type but was"
+                                     << operator_type);
     return false;
   }
 
   auto ifm_dtype = ifm->dtype;
-  if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8)) {
+  if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8) && operator_type == "ABS") {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected ethosu_unary_elementwise "
+                                     << operator_type << "input data type "
+                                     << "of type(uint8) or type(int8) but was " << ifm_dtype);
+    return false;
+  }
+
+  if (ifm_dtype != DataType::Int(32) && operator_type == "CLZ") {
     reporter->GetDiagCtx().EmitFatal(
         Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_unary_elementwise input data type "
-        << "of type(uint8) or type(int8) but was " << ifm_dtype);
+        << "Invalid operator: expected ethosu_unary_elementwise CLZ input data type "
+        << "of type(int32) but was " << ifm_dtype);
     return false;
   }
 

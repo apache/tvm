@@ -37,7 +37,7 @@
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/tir/function.h>
 
 #include "../ir/attr_functor.h"
@@ -389,12 +389,21 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  return doc << ")";
+  doc << ")";
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  return doc << Print(op->tuple) << "." << op->index;
+  doc << Print(op->tuple) << "." << op->index;
+
+  if (op->span.defined()) {
+    doc << " /* " << PrintSpan(op->span) << " */";
+  }
+  return doc;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
@@ -502,12 +511,6 @@ Doc RelayTextPrinter::VisitExpr_(const FunctionNode* op) {
 Doc RelayTextPrinter::VisitExpr_(const GlobalVarNode* op) {
   Doc doc;
   doc << "@" << op->name_hint;
-#if TVM_LOG_DEBUG
-  if (op->checked_type_.defined()) {
-    doc << " /* type=" << PrintType(op->checked_type_, /*meta=*/false) << " */";
-  }
-  doc << " /* id=" << reinterpret_cast<uint64_t>(op) << " */";
-#endif
   return doc;
 }
 
@@ -521,6 +524,11 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
+#if TVM_LOG_DEBUG
+  for (const Type& type_arg : op->type_args) {
+    args.push_back(Print(type_arg));
+  }
+#endif
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }
@@ -907,14 +915,14 @@ Doc RelayTextPrinter::PrintAttributeValue(const ObjectRef& value, bool force_met
       printed_attr << Doc::StrLiteral(GetRef<String>(str_obj));
     } else if (force_meta) {
       printed_attr = meta_->GetMetaNode(Downcast<ObjectRef>(value));
-    } else if (const auto* se_scope_node = value.as<SEScopeNode>()) {
+    } else if (const auto* virtual_device_node = value.as<VirtualDeviceNode>()) {
       if (show_meta_data_) {
-        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(se_scope_node));
+        printed_attr = meta_->GetMetaNode(GetRef<ObjectRef>(virtual_device_node));
       } else {
-        // Special case: The ReprPrinter for SEScopeNodes is much easier to work with while
+        // Special case: The ReprPrinter for VirtualDeviceNodes is much easier to work with while
         // debugging.
         std::ostringstream os;
-        os << GetRef<SEScope>(se_scope_node);
+        os << GetRef<VirtualDevice>(virtual_device_node);
         return Doc::Text(os.str());
       }
     } else if (const auto* base_attr_node = value.as<BaseAttrsNode>()) {
@@ -969,11 +977,13 @@ Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& 
   return doc;
 }
 
-Doc RelayTextPrinter::PrintSpan(const Span& span) {
+Doc RelayTextPrinter::PrintSpan(const Span& span, bool include_spans) {
   Doc doc;
-  const auto* span_node = span.as<SpanNode>();
-  ICHECK(span_node);
-  doc << span_node->source_name->name;
+  if (include_spans) {
+    const auto* span_node = span.as<SpanNode>();
+    ICHECK(span_node);
+    doc << span_node->source_name->name;
+  }
   return doc;
 }
 

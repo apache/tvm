@@ -45,18 +45,23 @@ def get_unary_elementwise_params(stmt, producers, consumers):
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
         the unary elementwise output pointer.
-
+    is_allocator : bool
+        Whether this operator allocates its output.
     """
     attrs, body = get_op_attrs(stmt)
 
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     input_pointer = None
     if isinstance(inner.value, tir.expr.Select):
+        # ABS
         input_pointer = inner.value.condition.b.buffer_var
+    if isinstance(inner.value, tir.expr.Sub):
+        # CLZ
+        input_pointer = inner.value.b.args[0].buffer_var
     output_pointer = inner.buffer_var
     # Get feature map info
     serial_ifm, _ = get_ifm_params(input_pointer, producers)
-    serial_ofm, replace_pointer = get_ofm_params(output_pointer, consumers)
+    serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)
     # Get activation info
     serial_activation = SerialActivation(
         op=attrs["activation"], clip_min=attrs["clip_min"], clip_max=attrs["clip_max"]
@@ -71,4 +76,5 @@ def get_unary_elementwise_params(stmt, producers, consumers):
         ),
         output_pointer,
         replace_pointer,
+        is_allocator,
     )

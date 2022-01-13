@@ -31,33 +31,34 @@
 namespace tvm {
 namespace tir {
 
-#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                               \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                        \
-    using T = Name::ContainerType;                                                       \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";                               \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";                               \
-    ICHECK(a.dtype() == b.dtype())                                                       \
-        << "TypeError: mismatched types. " << a.dtype() << " vs. " << b.dtype() << "\n"; \
-    ObjectPtr<T> node = make_object<T>();                                                \
-    node->dtype = a.dtype();                                                             \
-    node->a = std::move(a);                                                              \
-    node->b = std::move(b);                                                              \
-    node->span = std::move(span);                                                        \
-    data_ = std::move(node);                                                             \
+#define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                   \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
+    using T = Name::ContainerType;                                                           \
+    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
+    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
+                                  << b.dtype() << "\n";                                      \
+    ObjectPtr<T> node = make_object<T>();                                                    \
+    node->dtype = a.dtype();                                                                 \
+    node->a = std::move(a);                                                                  \
+    node->b = std::move(b);                                                                  \
+    node->span = std::move(span);                                                            \
+    data_ = std::move(node);                                                                 \
   }
 
-#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                             \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                      \
-    using T = Name::ContainerType;                                     \
-    ICHECK(a.defined()) << "ValueError: a is undefined\n";             \
-    ICHECK(b.defined()) << "ValueError: b is undefined\n";             \
-    ICHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types\n"; \
-    ObjectPtr<T> node = make_object<T>();                              \
-    node->dtype = DataType::Bool(a.dtype().lanes());                   \
-    node->a = std::move(a);                                            \
-    node->b = std::move(b);                                            \
-    node->span = std::move(span);                                      \
-    data_ = std::move(node);                                           \
+#define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                                   \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
+    using T = Name::ContainerType;                                                           \
+    ICHECK(a.defined()) << "ValueError: a is undefined\n";                                   \
+    ICHECK(b.defined()) << "ValueError: b is undefined\n";                                   \
+    CHECK(a.dtype() == b.dtype()) << "TypeError: mismatched types. " << a.dtype() << " vs. " \
+                                  << b.dtype() << "\n";                                      \
+    ObjectPtr<T> node = make_object<T>();                                                    \
+    node->dtype = DataType::Bool(a.dtype().lanes());                                         \
+    node->a = std::move(a);                                                                  \
+    node->b = std::move(b);                                                                  \
+    node->span = std::move(span);                                                            \
+    data_ = std::move(node);                                                                 \
   }
 
 // Var

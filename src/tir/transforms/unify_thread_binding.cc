@@ -58,8 +58,15 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (op->kind != ForKind::kThreadBinding) {
       return StmtExprMutator::VisitStmt_(op);
     }
-    return UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
-                                  Range::FromMinExtent(op->min, op->extent));
+    Map<String, ObjectRef> annotations = op->annotations;
+    Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
+                                       Range::FromMinExtent(op->min, op->extent));
+    if (annotations.empty()) {
+      return stmt;
+    }
+    For new_loop = Downcast<For>(stmt);
+    new_loop.CopyOnWrite()->annotations = std::move(annotations);
+    return new_loop;
   }
 
   template <typename Node>
@@ -70,7 +77,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     const String& thread_tag = old_iter_var->thread_tag;
 
     // Step 2: Increase `thread_block_depth_` if the thread tag starts with "blockIdx". If the
-    // thread block depth is 0 before the increasement, it means we are entering a new kernel, and
+    // thread block depth is 0 before the increment, it means we are entering a new kernel, and
     // therefore we need to make `thread_tag2iter_var_map_` empty, as different kernels can have
     // thread axes with different extents.
     bool is_kernel_launch_scope = false;

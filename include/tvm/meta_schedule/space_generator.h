@@ -71,10 +71,10 @@ class SpaceGeneratorNode : public Object {
 
   /*!
    * \brief Initialize the design space generator with tuning context.
-   * \param tune_context The tuning context for initialization.
+   * \param context The tuning context for initialization.
    * \note This method is supposed to be called only once before every other method.
    */
-  virtual void InitializeWithTuneContext(const TuneContext& tune_context) = 0;
+  virtual void InitializeWithTuneContext(const TuneContext& context) = 0;
 
   /*!
    * \brief Generate design spaces given a module.
@@ -92,7 +92,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
  public:
   /*!
    * \brief The function type of `InitializeWithTuneContext` method.
-   * \param tune_context The tuning context for initialization.
+   * \param context The tuning context for initialization.
    */
   using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
   /*!
@@ -102,7 +102,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
    */
   using FGenerateDesignSpace = runtime::TypedPackedFunc<Array<tir::Schedule>(const IRModule&)>;
 
-  /*! \brief The packed function to the `InitializeWithTuneContext` funcion. */
+  /*! \brief The packed function to the `InitializeWithTuneContext` function. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
   /*! \brief The packed function to the `GenerateDesignSpace` function. */
   FGenerateDesignSpace f_generate_design_space;
@@ -112,10 +112,10 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
     // `f_generate_design_space` is not visited
   }
 
-  void InitializeWithTuneContext(const TuneContext& tune_context) final {
+  void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(f_initialize_with_tune_context != nullptr)
         << "PySpaceGenerator's InitializeWithTuneContext !";
-    f_initialize_with_tune_context(tune_context);
+    f_initialize_with_tune_context(context);
   }
 
   Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final {
@@ -139,13 +139,13 @@ class SpaceGenerator : public ObjectRef {
  public:
   /*!
    * \brief Create a design space generator with customized methods on the python-side.
-   * \param initialize_with_tune_context_func The packed function of `InitializeWithTuneContext`.
-   * \param generate_design_space_func The packed function of `GenerateDesignSpace`.
+   * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
+   * \param f_generate_design_space The packed function of `GenerateDesignSpace`.
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator PySpaceGenerator(
-      PySpaceGeneratorNode::FInitializeWithTuneContext initialize_with_tune_context_func,
-      PySpaceGeneratorNode::FGenerateDesignSpace generate_design_space_func);
+      PySpaceGeneratorNode::FInitializeWithTuneContext f_initialize_with_tune_context,
+      PySpaceGeneratorNode::FGenerateDesignSpace f_generate_design_space);
 
   /*!
    * \brief Create a design space generator that is union of multiple design space generators.
@@ -153,6 +153,12 @@ class SpaceGenerator : public ObjectRef {
    * \return The design space generator created.
    */
   TVM_DLL static SpaceGenerator SpaceGeneratorUnion(Array<SpaceGenerator, void> space_generators);
+  /*!
+   * \brief Create a design space generator that generates design spaces by applying schedule rules
+   *  to blocks in post-DFS order.
+   * \return The design space generator created.
+   */
+  TVM_DLL static SpaceGenerator PostOrderApply();
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(SpaceGenerator, ObjectRef, SpaceGeneratorNode);
 };
 

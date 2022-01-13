@@ -41,6 +41,10 @@
 namespace tvm {
 namespace relay {
 
+// shape_of
+// register ShapeOfAttrs here to make sure it has been registered when vm.shape_of uses it
+TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
+
 // vm.shape_func
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
@@ -65,80 +69,6 @@ Expr ShapeOf(Expr expr) {
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vm.shape_of").set_body_typed(ShapeOf);
-
-Expr ShapeFunc(Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
-  static const Op& op = Op::Get("vm.shape_func");
-  auto attrs = make_object<ShapeFuncAttrs>();
-  attrs->is_input = is_input;
-  return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op.vm.shape_func").set_body_typed(ShapeFunc);
-
-bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                  const TypeReporter& reporter) {
-  ICHECK_EQ(types.size(), 4u);
-  auto shape_func_attrs = attrs.as<ShapeFuncAttrs>();
-  ICHECK(shape_func_attrs != nullptr) << "Internal compiler error";
-
-  auto func_type = types[0].as<FuncTypeNode>();
-  ICHECK(func_type != nullptr);
-
-  auto tuple = TupleType(func_type->arg_types);
-  auto in_types = FlattenTupleType(tuple);
-  auto out_types = FlattenTupleType(func_type->ret_type);
-  Array<Integer> is_input;
-  for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
-    auto const& aty = func_type->arg_types[i];
-    size_t num_types = 1;
-    if (aty.as<TupleTypeNode>()) {
-      num_types = FlattenTupleType(aty).size();
-    }
-    for (size_t j = 0; j < num_types; ++j) {
-      is_input.push_back(shape_func_attrs->is_input[i]);
-    }
-  }
-
-  Array<Type> shape_func_ins, shape_func_outs;
-  for (size_t i = 0; i < in_types.size(); i++) {
-    auto in_type = in_types[i];
-
-    if (is_input[i]) {
-      shape_func_ins.push_back(in_type);
-    } else {
-      auto shape = RankShape(in_type->shape);
-      shape_func_ins.push_back(TensorType(shape, DataType::Int(64)));
-    }
-  }
-
-  for (auto out_type : out_types) {
-    auto rank_shape = RankShape(out_type->shape);
-    shape_func_outs.push_back(TensorType(rank_shape, DataType::Int(64)));
-  }
-
-  auto input_type = TupleType(shape_func_ins);
-  auto output_type = TupleType(shape_func_outs);
-
-  reporter->Assign(types[1], input_type);
-  reporter->Assign(types[2], output_type);
-  reporter->Assign(types[3], TupleType::Empty());
-
-  return true;
-}
-
-RELAY_REGISTER_OP("vm.shape_func")
-    .describe(R"code(Get the shape of a tensor.)code" TVM_ADD_FILELINE)
-    .set_num_inputs(3)
-    .add_argument("func", "Function", "The operation to call")
-    .add_argument("ins", "Tuple", "The input tensors.")
-    .add_argument("outs", "Tuple", "The output tensors.")
-    .set_attrs_type_key("relay.attrs.ShapeFuncAttrs")
-    .add_type_rel("ShapeFuncRel", ShapeFuncRel)
-    .set_support_level(10)
-    .set_attr<TOpPattern>("TOpPattern", kOpaque)
-    .set_attr<TOpIsStateful>("TOpIsStateful", false)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout);
 
 // vm.invoke_tvm_op
 bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -168,14 +98,14 @@ bool InvokeTVMOpRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   return true;
 }
 
-Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs) {
+Expr InvokeTVMOp(Expr func, Expr inputs, Expr outputs, DictAttrs attrs) {
   static const Op& op = Op::Get("vm.invoke_tvm_op");
-  return Call(op, {std::move(func), std::move(inputs), std::move(outputs)}, {});
+  return Call(op, {std::move(func), std::move(inputs), std::move(outputs)}, std::move(attrs));
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vm.invoke_tvm_op")
-    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
-      return InvokeTVMOp(std::move(func), std::move(inputs), std::move(outputs));
+    .set_body_typed([](Expr func, Expr inputs, Expr outputs, DictAttrs attrs) {
+      return InvokeTVMOp(std::move(func), std::move(inputs), std::move(outputs), std::move(attrs));
     });
 
 RELAY_REGISTER_OP("vm.invoke_tvm_op")

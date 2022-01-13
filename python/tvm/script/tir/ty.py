@@ -21,6 +21,7 @@ a wrapper for uniform Type system in IR
 """
 # pylint: disable=invalid-name
 import tvm
+from .special_stmt import SpecialStmt, convert_to_int
 
 
 class TypeGeneric:  # pylint: disable=too-few-public-methods
@@ -67,6 +68,83 @@ class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
+class GenericBufferType(SpecialStmt):  # pylint: disable=too-few-public-methods, abstract-method
+    """TVM script typing class for uniform Type objects"""
+
+    def __init__(self, vtype):
+        def match_buffer_syntax_sugar(
+            shape,
+            dtype: str = "float32",
+            name: str = None,
+            data=None,
+            strides=None,
+            elem_offset=None,
+            scope="global",
+            align=-1,
+            offset_factor=0,
+            buffer_type="default",
+            span=None,
+        ):
+            if strides is None:
+                strides = []
+            align = convert_to_int(align, "align", self.context.report_error, self.node.span)
+            offset_factor = convert_to_int(
+                offset_factor, "offset_factor", self.context.report_error, self.node.span
+            )
+            buffer = tvm.tir.decl_buffer(
+                shape,
+                dtype,
+                name,
+                data,
+                strides,
+                elem_offset,
+                scope,
+                align,
+                offset_factor,
+                buffer_type,
+                span=span,
+            )
+            return buffer
+
+        self.type = vtype
+        super().__init__(match_buffer_syntax_sugar, def_symbol=True)
+
+    def __call__(
+        self,
+        shape,
+        dtype="float32",
+        *,
+        name: str = None,
+        data=None,
+        strides=None,
+        elem_offset=None,
+        scope="global",
+        align=-1,
+        offset_factor=0,
+        buffer_type="default",
+        span=None,
+    ):
+        """
+        This function is for Buffer(...) syntax sugar.
+        """
+        pass  # pylint: disable=unnecessary-pass
+
+    def __getitem__(self, args):
+        """
+        This function is for Buffer[...] syntax sugar
+        Note that args is the list of all arguments
+        """
+        if len(args) < 2:
+            raise ValueError("T.Buffer[...] needs at least two arguments: shape and dtype.")
+        shape = args[0]
+        if not isinstance(shape, tuple):
+            raise ValueError(
+                "The first argument of T.Buffer[...] needs to be a tuple, "
+                "followed by the second argument dtype as a string"
+            )
+
+
+uint8 = ConcreteType("uint8")
 int8 = ConcreteType("int8")
 int16 = ConcreteType("int16")
 int32 = ConcreteType("int32")
@@ -78,3 +156,6 @@ boolean = ConcreteType("bool")
 handle = ConcreteType("handle")
 Ptr = GenericPtrType()
 Tuple = GenericTupleType()
+# we don't have 'buffer' type on the cpp side
+# thus 'handle' is used here for convenience's sake
+Buffer = GenericBufferType("handle")

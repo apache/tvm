@@ -122,11 +122,11 @@ class RandomModel : public CostModel {
  *  This class will call functions defined in the python */
 class PythonBasedModelNode : public CostModelNode {
  public:
-  /*! \brief Pointer to the update funcion in python */
+  /*! \brief Pointer to the update function in python */
   PackedFunc update_func;
-  /*! \brief Pointer to the predict funcion in python */
+  /*! \brief Pointer to the predict function in python */
   PackedFunc predict_func;
-  /*! \brief Pointer to the predict funcion in python */
+  /*! \brief Pointer to the predict function in python */
   PackedFunc predict_stage_func;
 
   void Update(const Array<MeasureInput>& inputs, const Array<MeasureResult>& results) final;

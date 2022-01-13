@@ -979,6 +979,7 @@ class FuseMutator : private MixedModeMutator {
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
+    // TODO(mbs): "reshape" cleanup.
     if (visitor.has_call && visitor.reshape_only) {
       func = WithAttr(std::move(func), attr::kReshapeOnly, tvm::Integer(visitor.reshape_only));
     }

@@ -22,6 +22,8 @@
  */
 #include "codegen_c.h"
 
+#include <tvm/arith/analyzer.h>
+
 #include <cctype>
 #include <iomanip>
 
@@ -710,8 +712,19 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     ICHECK(is_one(op->predicate)) << "predicated load is not supported";
 
+    bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
+      const RampNode* ramp = op->index.as<RampNode>();
+      ICHECK(ramp);
+      arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
+      // The condition: {k * coeff + base} divisible by the alignment for any k
+      if (me->coeff % op->dtype.lanes() == 0 && me->base % op->dtype.lanes() == 0) {
+        can_vector_load = true;
+      }
+    }
+
+    if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {

@@ -17,7 +17,7 @@
 
 if(USE_MICRO_STANDALONE_RUNTIME)
   message(STATUS "Build with micro.standalone_runtime")
-  file(GLOB MICRO_STANDALONE_RUNTIME_SRC src/runtime/micro/standalone/*.cc)
+  tvm_file_glob(GLOB MICRO_STANDALONE_RUNTIME_SRC src/runtime/micro/standalone/*.cc)
   list(APPEND RUNTIME_SRCS ${MICRO_STANDALONE_RUNTIME_SRC})
   add_definitions(-DUSE_MICRO_STANDALONE_RUNTIME=1)
 endif(USE_MICRO_STANDALONE_RUNTIME)

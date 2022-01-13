@@ -25,10 +25,12 @@ Integrate auto_scheduler into relay. It implements the following items:
 import json
 import logging
 import threading
+import traceback
 import warnings
 
 import tvm
 from tvm import autotvm, transform
+from tvm._ffi.base import TVMError
 from tvm.ir.transform import PassContext
 from tvm.runtime import convert_to_object
 from tvm.target import Target
@@ -46,7 +48,7 @@ from .workload_registry import register_workload_tensors
 logger = logging.getLogger("auto_scheduler")
 
 
-def call_all_topi_funcs(mod, params, target, opt_level=3):
+def call_all_topi_funcs(mod, params, target, error_list, opt_level=3):
     """Call all TOPI compute to extract auto_scheduler tasks in a Relay program"""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -66,9 +68,12 @@ def call_all_topi_funcs(mod, params, target, opt_level=3):
         if params:
             compiler.set_params(params)
         mod = tvm.IRModule.from_expr(mod) if isinstance(mod, relay.Function) else mod
-        compiler.lower(mod, target)
-
-    autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
+        try:
+            compiler.lower(mod, target)
+        except TVMError:
+            error_list.append(f"{traceback.format_exc()}")
+        finally:
+            autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
 
 def extract_tasks(
@@ -126,14 +131,21 @@ def extract_tasks(
     dispatch_ctx = DispatchContext.current
     old_verbose = dispatch_ctx.verbose
     dispatch_ctx.verbose = 0
+
+    errors = []
     with env:
         # Wrap build call in a new thread to avoid the conflict
         # between python's multiprocessing and tvm's thread pool
         build_thread = threading.Thread(
-            target=call_all_topi_funcs, args=(mod, params, target, opt_level)
+            target=call_all_topi_funcs, args=(mod, params, target, errors, opt_level)
         )
         build_thread.start()
         build_thread.join()
+
+    if errors:
+        error_strings = ["Task extraction had the following errors:"] + errors
+        raise TVMError("\n".join(error_strings))
+
     dispatch_ctx.verbose = old_verbose
 
     # create search tasks

@@ -78,7 +78,7 @@ class GraphExecutorCodegen(object):
         -------
         graph_json : str
             The graph json that can be consumed by runtime.
-        mod : IRModule or Dict[str, IRModule]
+        mod : IRModule or Dict[Target, IRModule]
             The lowered functions.
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.

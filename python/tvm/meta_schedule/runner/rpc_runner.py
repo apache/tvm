@@ -17,6 +17,7 @@
 """RPC Runner"""
 import concurrent.futures
 from contextlib import contextmanager
+import logging
 import os.path as osp
 from typing import Callable, List, Optional, Union
 
@@ -31,11 +32,14 @@ from ..utils import (
 from .config import EvaluatorConfig, RPCConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
 from .utils import (
-    T_ARG_INFO_JSON_OBJ_LIST,
     T_ARGUMENT_LIST,
+    T_ARG_INFO_JSON_OBJ_LIST,
     alloc_argument_common,
     run_evaluator_common,
 )
+
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class RPCRunnerFuture(RunnerFuture):
@@ -275,6 +279,7 @@ class RPCRunner(PyRunner):
         self.f_alloc_argument = f_alloc_argument
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
+        logger.info("RPCRunner: max_workers = %d", max_workers)
         self.pool = PopenPoolExecutor(
             max_workers=max_workers,
             timeout=rpc_config.session_timeout_sec,

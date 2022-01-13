@@ -745,7 +745,8 @@ bool BatchNormRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   reporter->Assign(types[4], TensorType({axis_size}, data->dtype));
 
   // output is a tuple of the normed data (same shape as input), new running mean,
-  // and new running average (the latter two are both vectors of length dim)
+  // new running variance, saved mean and saved variance (the latter are all
+  // vectors of length dim)
   std::vector<Type> fields;
   auto vec_ty = TensorType(Array<IndexExpr>({data->shape[axis]}), data->dtype);
   fields.push_back(TensorType(data->shape, data->dtype));

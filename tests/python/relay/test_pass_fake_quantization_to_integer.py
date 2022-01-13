@@ -17,7 +17,6 @@
 # pylint: disable=unused-wildcard-import
 import numpy as np
 import pytest
-
 import tvm
 from tvm import relay
 
@@ -87,6 +86,28 @@ def test_fake_quantize_conv_per_channel():
         w_np = np.random.randint(-128, 127, size=[16, 3, 5, 5], dtype="int8")
 
         compare_fq_to_int(op, [x_np, w_np], allow_rounding_error=True)
+
+
+def test_fake_quantize_transposeconv():
+    for out_dtype in ["int8", "uint8"]:
+        x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+        w = relay.var("w", shape=[3, 16, 5, 5], dtype="int8")
+        one = relay.const(1.0)
+        zero = relay.const(0)
+
+        op = relay.op.nn.conv2d_transpose(
+            relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+            relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+            kernel_size=[5, 5],
+            data_layout="NCHW",
+            kernel_layout="IOHW",
+        )
+        op = relay.qnn.op.quantize(op, one, zero, out_dtype=out_dtype)
+
+        x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+        w_np = np.random.randint(-128, 127, size=[3, 16, 5, 5], dtype="int8")
+
+        compare_fq_to_int(op, [x_np, w_np])
 
 
 def test_fake_quantize_dense():
@@ -200,6 +221,7 @@ def test_fake_transpose_quantize_conv_bias_add_per_channel():
     one = relay.const(1.0)
     zero = relay.const(0)
     w_scale = (np.random.random([16]).astype("float32") - 0.5) / 10 + 0.5
+    noise = (np.random.random([16]).astype("float32") - 0.5) * 1e-15
     w_zp = relay.const([0] * 16)
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
@@ -208,7 +230,7 @@ def test_fake_transpose_quantize_conv_bias_add_per_channel():
         x, relay.qnn.op.dequantize(w, relay.const(w_scale), w_zp, axis=0), kernel_size=[5, 5]
     )
     op = relay.op.nn.bias_add(
-        op, relay.qnn.op.dequantize(bias, relay.const(2.0 * w_scale), w_zp, axis=0)
+        op, relay.qnn.op.dequantize(bias, relay.const(2.0 * w_scale + noise), w_zp, axis=0)
     )
     op = relay.qnn.op.quantize(op, one, zero)
 
@@ -527,3 +549,51 @@ def test_fake_quantize_depth_to_space():
     x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_max_min():
+    def run_test_case(partial_func):
+        x = relay.var("x", shape=[1, 3, 10, 10], dtype="int8")
+
+        zero = relay.const(0)
+        x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+        # To be a little more realistic since max/min will rarely be by themselves
+        x = relay.op.nn.depth_to_space(x, 4)
+        op = partial_func(x)
+        op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+        x_np = np.random.randint(-128, 127, size=[1, 3, 10, 10], dtype="int8")
+        compare_fq_to_int(op, [x_np])
+
+    run_test_case(relay.op.max)
+    run_test_case(relay.op.min)
+
+    # Test forwarding kwargs works
+    run_test_case(lambda x: relay.op.max(x, axis=1))
+    run_test_case(lambda x: relay.op.min(x, axis=1))
+
+
+def test_fq_hard_fail():
+    @tvm.ir.register_op_attr("nn.conv2d", "FTVMFakeQuantizationToInteger", level=11)
+    def conv2d(expr, type_map):  # pylint: disable=unused-variable
+        raise NotImplementedError
+
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+    w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
+    one = relay.const(1.0)
+    zero = relay.const(0)
+
+    op = relay.op.nn.conv2d(
+        relay.qnn.op.dequantize(x, relay.const(2.0), zero),
+        relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+        kernel_size=[5, 5],
+    )
+    op = relay.qnn.op.quantize(op, one, zero, out_dtype="int8")
+    mod = tvm.IRModule.from_expr(op)
+    mod = tvm.relay.transform.InferType()(mod)
+
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=False)(mod)
+    assert tvm.ir.structural_equal(mod_int, mod)
+    # Catch a generic exception because the tvm FFI eats the python exception type
+    with pytest.raises(Exception):
+        mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)

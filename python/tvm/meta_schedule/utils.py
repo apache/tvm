@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Utilities for meta schedule"""
+import ctypes
 import json
 import os
 import shutil
@@ -24,13 +25,17 @@ import psutil  # type: ignore
 import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
-from tvm.ir import Array, Map, IRModule
+from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
 from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
 
 
 @register_func("meta_schedule.cpu_count")
+def _cpu_count_impl(logical: bool = True) -> int:
+    return psutil.cpu_count(logical=logical) or 1
+
+
 def cpu_count(logical: bool = True) -> int:
     """Return the number of logical or physical CPUs in the system
 
@@ -56,7 +61,7 @@ def cpu_count(logical: bool = True) -> int:
     Setting these variables may interfere the host-side search with profiling of generated kernels
     when measuring locally.
     """
-    return psutil.cpu_count(logical=logical) or 1
+    return _cpu_count_impl(logical)
 
 
 def get_global_func_with_default_on_worker(
@@ -245,3 +250,17 @@ def check_override(
         return func
 
     return inner
+
+
+def _get_hex_address(handle: ctypes.c_void_p) -> str:
+    """Get the hexadecimal address of a handle.
+    Parameters
+    ----------
+    handle : ctypes.c_void_p
+        The handle to be converted.
+    Returns
+    -------
+    result : str
+        The hexadecimal address of the handle.
+    """
+    return hex(ctypes.cast(handle, ctypes.c_void_p).value)

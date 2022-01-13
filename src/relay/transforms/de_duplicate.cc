@@ -52,6 +52,7 @@ Expr DeDup(const Expr& e) {
     Expr DispatchVisitExpr(const Expr& e) final {
       auto ret = ExprMutator::VisitExpr(e);
       ret->checked_type_ = e->checked_type_;
+      ret->virtual_device_ = e->virtual_device_;
       return ret;
     }
 

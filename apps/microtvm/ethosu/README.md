@@ -43,12 +43,16 @@ If the demo is not run in the ci_cpu Docker container, then you will need the fo
 
 You will also need TVM which can either be:
   - Built from source (see [Install from Source](https://tvm.apache.org/docs/install/from_source.html))
+    - When building from source, the following need to be set in config.cmake:
+      - set(USE_ETHOSU ON)
+      - set(USE_MICRO ON)
+      - set(USE_LLVM ON)
   - Installed from TLCPack(see [TLCPack](https://tlcpack.ai/))
 
 You will need to update your PATH environment variable to include the path to cmake 3.19.5 and the FVP.
 For example if you've installed these in ```/opt/arm``` , then you would do the following:
 ```bash
-export PATH=/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4:/opt/arm/cmake/bin:$PATH
+export PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:/opt/arm/cmake/bin:$PATH
 ```
 
 Running the demo application

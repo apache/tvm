@@ -50,12 +50,12 @@ const Op& DeviceCopyOp() {
   return op;
 }
 
-Expr DeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope) {
-  ICHECK(!src_se_scope->IsFullyUnconstrained());
-  ICHECK(!dst_se_scope->IsFullyUnconstrained());
+Expr DeviceCopy(Expr expr, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device) {
+  ICHECK(!src_virtual_device->IsFullyUnconstrained());
+  ICHECK(!dst_virtual_device->IsFullyUnconstrained());
   auto attrs = make_object<DeviceCopyAttrs>();
-  attrs->src_se_scope = std::move(src_se_scope);
-  attrs->dst_se_scope = std::move(dst_se_scope);
+  attrs->src_virtual_device = std::move(src_virtual_device);
+  attrs->dst_virtual_device = std::move(dst_virtual_device);
   Span span = expr->span;
   return Call(DeviceCopyOp(), {std::move(expr)}, Attrs(std::move(attrs)), /*type_args=*/{},
               std::move(span));
@@ -63,12 +63,13 @@ Expr DeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope) {
 
 TVM_REGISTER_GLOBAL("relay.op._make.DeviceCopy").set_body_typed(DeviceCopy);
 
-Expr MaybeDeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope) {
-  if (src_se_scope == dst_se_scope) {
+Expr MaybeDeviceCopy(Expr expr, VirtualDevice src_virtual_device,
+                     VirtualDevice dst_virtual_device) {
+  if (src_virtual_device == dst_virtual_device) {
     // No copy needed.
     return expr;
   }
-  return DeviceCopy(std::move(expr), std::move(src_se_scope), std::move(dst_se_scope));
+  return DeviceCopy(std::move(expr), std::move(src_virtual_device), std::move(dst_virtual_device));
 }
 
 RELAY_REGISTER_OP("device_copy")
@@ -98,13 +99,14 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
     const auto* device_copy_attrs = call_node->attrs.as<DeviceCopyAttrs>();
     ICHECK(device_copy_attrs != nullptr) << "device_copy requires DeviceCopyAttrs";
     // Follow nesting:
-    //   device_copy(device_copy(expr, src_se_scope=S, dst_se_scope=T),
-    //               src_se_scope=T, dst_se_scope=U) ==> {expr, S, U}
+    //   device_copy(device_copy(expr, src_virtual_device=S, dst_virtual_device=T),
+    //               src_virtual_device=T, dst_virtual_device=U) ==> {expr, S, U}
     auto inner = GetDeviceCopyProps(call_node->args[0]);
     if (inner.body.defined()) {
-      return {inner.body, inner.src_se_scope, device_copy_attrs->dst_se_scope};
+      return {inner.body, inner.src_virtual_device, device_copy_attrs->dst_virtual_device};
     } else {
-      return {call_node->args[0], device_copy_attrs->src_se_scope, device_copy_attrs->dst_se_scope};
+      return {call_node->args[0], device_copy_attrs->src_virtual_device,
+              device_copy_attrs->dst_virtual_device};
     }
   }
   return {};
@@ -113,16 +115,6 @@ DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node) {
 DeviceCopyProps GetDeviceCopyProps(const Expr& expr) {
   if (const auto* call_node = expr.as<CallNode>()) {
     return GetDeviceCopyProps(call_node);
-  }
-  return {};
-}
-
-DeviceCopyProps GetLoweredDeviceCopyProps(const CallLoweredProps& props) {
-  if (props.attrs.metadata.count("src_se_scope") == 1 &&
-      props.attrs.metadata.count("dst_se_scope") == 1) {
-    ICHECK_EQ(props.arguments.size(), 1) << "device_copy is of arity 1";
-    return {props.arguments[0], Downcast<SEScope>(props.attrs.metadata["src_se_scope"]),
-            Downcast<SEScope>(props.attrs.metadata["dst_se_scope"])};
   }
   return {};
 }

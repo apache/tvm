@@ -23,9 +23,9 @@ include (FindPackageHandleStandardArgs)
 
 if(USE_TENSORRT_CODEGEN)
     message(STATUS "Build with TensorRT codegen")
-    file(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc)
+    tvm_file_glob(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc)
     set_source_files_properties(${COMPILER_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
-    file(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/tensorrt_runtime.cc)
+    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/tensorrt_runtime.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     list(APPEND COMPILER_SRCS ${COMPILER_TENSORRT_SRCS})
     if(NOT USE_TENSORRT_RUNTIME)
@@ -50,7 +50,7 @@ if(USE_TENSORRT_RUNTIME)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${TENSORRT_LIB_DIR})
 
     # TRT runtime sources
-    file(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/*.cc)
+    tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/*.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     list(APPEND RUNTIME_SRCS ${RUNTIME_TENSORRT_SRCS})
 

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,line-too-long
 """Various type definitions to help instantiate CUTLASS kernels."""
 import re
 import enum
@@ -28,59 +28,80 @@ class GeneratorTarget(enum.Enum):
 class DataType(enum.Enum):
     f16 = enum_auto()
     f32 = enum_auto()
+    s8 = enum_auto()
+    u8 = enum_auto()
+    s32 = enum_auto()
 
 
 ShortDataTypeNames = {
     DataType.f16: "h",
     DataType.f32: "s",
+    DataType.s32: "i",
 }
 
 
 DataTypeNames = {
     DataType.f16: "f16",
     DataType.f32: "f32",
+    DataType.s8: "s8",
+    DataType.u8: "u8",
+    DataType.s32: "s32",
 }
 
 DataTypeTag = {
     DataType.f16: "cutlass::half_t",
     DataType.f32: "float",
+    DataType.s8: "int8_t",
+    DataType.s32: "int32_t",
+    DataType.u8: "uint8_t",
 }
 
 DataTypeSize = {
     DataType.f16: 16,
     DataType.f32: 32,
+    DataType.u8: 8,
+    DataType.s8: 8,
+    DataType.s32: 32,
 }
 
 
 class MathOperation(enum.Enum):
     multiply_add = enum_auto()
+    multiply_add_saturate = enum_auto()
+    multiply_add_fast_f32 = enum_auto()
 
 
 MathOperationTag = {
     MathOperation.multiply_add: "cutlass::arch::OpMultiplyAdd",
+    MathOperation.multiply_add_saturate: "cutlass::arch::OpMultiplyAddSaturate",
+    MathOperation.multiply_add_fast_f32: "cutlass::arch::OpMultiplyAddFastF32",
 }
 
 
 class LayoutType(enum.Enum):
     ColumnMajor = enum_auto()
     RowMajor = enum_auto()
+    TensorNHWC = enum_auto()
 
 
 LayoutTag = {
     LayoutType.ColumnMajor: "cutlass::layout::ColumnMajor",
     LayoutType.RowMajor: "cutlass::layout::RowMajor",
+    LayoutType.TensorNHWC: "cutlass::layout::TensorNHWC",
 }
 
 
 TransposedLayout = {
     LayoutType.ColumnMajor: LayoutType.RowMajor,
     LayoutType.RowMajor: LayoutType.ColumnMajor,
+    LayoutType.TensorNHWC: LayoutType.TensorNHWC,
 }
 
 
 ShortLayoutTypeNames = {
     LayoutType.ColumnMajor: "n",
     LayoutType.RowMajor: "t",
+    LayoutType.TensorNHWC: "nhwc",
 }
 
 
@@ -105,11 +126,10 @@ OpcodeClassTag = {
 
 class OperationKind(enum.Enum):
     Gemm = enum_auto()
+    Conv2d = enum_auto()
 
 
-OperationKindNames = {
-    OperationKind.Gemm: "gemm",
-}
+OperationKindNames = {OperationKind.Gemm: "gemm", OperationKind.Conv2d: "conv2d"}
 
 
 class Target(enum.Enum):
@@ -145,6 +165,10 @@ class EpilogueFunctor(enum.Enum):
     LinearCombinationRelu = enum_auto()
     LinearCombinationBias = enum_auto()
     LinearCombinationGelu = enum_auto()
+    LinearCombinationSigmoid = enum_auto()
+    LinearCombinationSilu = enum_auto()
+    LinearCombinationHardSwish = enum_auto()
+    LinearCombinationResidualBlock = enum_auto()
 
 
 EpilogueFunctorTag = {
@@ -152,6 +176,10 @@ EpilogueFunctorTag = {
     EpilogueFunctor.LinearCombinationRelu: "cutlass::epilogue::thread::LinearCombinationRelu",
     EpilogueFunctor.LinearCombinationBias: "cutlass::epilogue::thread::LinearCombination",
     EpilogueFunctor.LinearCombinationGelu: "cutlass::epilogue::thread::LinearCombinationGELU",
+    EpilogueFunctor.LinearCombinationSigmoid: "cutlass::epilogue::thread::LinearCombinationSigmoid",
+    EpilogueFunctor.LinearCombinationSilu: "cutlass::epilogue::thread::LinearCombinationSilu",
+    EpilogueFunctor.LinearCombinationHardSwish: "cutlass::epilogue::thread::LinearCombinationHardSwish",
+    EpilogueFunctor.LinearCombinationResidualBlock: "cutlass::epilogue::thread::LinearCombinationResidualBlock",
 }
 
 
@@ -169,6 +197,54 @@ SwizzlingFunctorTag = {
     SwizzlingFunctor.Identity4: "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<4>",
     SwizzlingFunctor.Identity8: "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>",
     SwizzlingFunctor.Batched: "cutlass::gemm::threadblock::GemmBatchedIdentityThreadblockSwizzle",
+}
+
+
+class ConvKind(enum.Enum):
+    Fprop = enum_auto()
+
+
+ConvKindTag = {
+    ConvKind.Fprop: "cutlass::conv::Operator::kFprop",
+}
+
+
+ConvKindNames = {
+    ConvKind.Fprop: "fprop",
+}
+
+
+class StrideSupport(enum.Enum):
+    Strided = enum_auto()
+    Unity = enum_auto()
+
+
+StrideSupportTag = {
+    StrideSupport.Strided: "cutlass::conv::StrideSupport::kStrided",
+    StrideSupport.Unity: "cutlass::conv::StrideSupport::kUnity",
+}
+
+
+StrideSupportNames = {
+    StrideSupport.Strided: "",
+    StrideSupport.Unity: "unity_stride",
+}
+
+
+class IteratorAlgorithm(enum.Enum):
+    Analytic = enum_auto()
+    Optimized = enum_auto()
+
+
+IteratorAlgorithmTag = {
+    IteratorAlgorithm.Analytic: "cutlass::conv::IteratorAlgorithm::kAnalytic",
+    IteratorAlgorithm.Optimized: "cutlass::conv::IteratorAlgorithm::kOptimized",
+}
+
+
+IteratorAlgorithmNames = {
+    IteratorAlgorithm.Analytic: "analytic",
+    IteratorAlgorithm.Optimized: "optimized",
 }
 
 

@@ -189,24 +189,17 @@ void ArgLayout::Push(uint32_t* v, unsigned t_size, unsigned t_align) {
 
 }  // namespace hexagon
 
-class HexagonModuleNode final : public runtime::ModuleNode {
+class HexagonModuleNode final : public runtime::HexagonHostModuleNode {
  public:
   HexagonModuleNode(std::string data, std::string fmt,
                     std::unordered_map<std::string, FunctionInfo> fmap, std::string asm_str,
                     std::string obj_str, std::string ir_str, std::string bc_str,
                     const std::set<std::string>& packed_c_abi)
-      : hexagon_device_(),
-        dl_handle_(nullptr),
-        data_(data),
-        fmt_(fmt),
-        fmap_(fmap),
-        asm_(asm_str),
-        obj_(obj_str),
-        ir_(ir_str),
-        bc_(bc_str),
-        packed_c_abi_funcs_(packed_c_abi) {}
+      : HexagonHostModuleNode(data, fmt, fmap, asm_str, obj_str, ir_str, bc_str, packed_c_abi),
+        hexagon_device_(),
+        dl_handle_(nullptr) {}
 
-  ~HexagonModuleNode() {
+  virtual ~HexagonModuleNode() {
     if (dl_handle_) {
       hexagon_device_->Unload(dl_handle_);
     }
@@ -214,37 +207,6 @@ class HexagonModuleNode final : public runtime::ModuleNode {
 
   PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) final;
   std::string GetSource(const std::string& format) final;
-
-  const char* type_key() const final { return "hexagon"; }
-
-  void SaveToFile(const std::string& file_name, const std::string& format) final {
-    std::string fmt = runtime::GetFileFormat(file_name, format);
-    if (fmt == "so" || fmt == "dll" || fmt == "hexagon") {
-      std::string meta_file = GetMetaFilePath(file_name);
-      SaveMetaDataToFile(meta_file, fmap_);
-      std::string c = "cp " + data_ + " " + file_name;
-      ICHECK(std::system(c.c_str()) == 0) << "Cannot create " + file_name;
-    } else if (fmt == "s" || fmt == "asm") {
-      ICHECK(!asm_.empty()) << "Assembler source not available";
-      SaveBinaryToFile(file_name, asm_);
-    } else if (fmt == "o" || fmt == "obj") {
-      ICHECK(!obj_.empty()) << "Object data not available";
-      SaveBinaryToFile(file_name, obj_);
-    } else if (fmt == "ll") {
-      ICHECK(!ir_.empty()) << "LLVM IR source not available";
-      SaveBinaryToFile(file_name, ir_);
-    } else if (fmt == "bc") {
-      ICHECK(!bc_.empty()) << "LLVM IR bitcode not available";
-      SaveBinaryToFile(file_name, bc_);
-    } else {
-      LOG(FATAL) << "HexagonModuleNode::SaveToFile: unhandled format `" << fmt << "'";
-    }
-  }
-  void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-  }
 
  private:
   void CallRemotePackedCABI(void* func_ptr, const TVMArgs& args, TVMRetValue* rv) const;
@@ -258,14 +220,6 @@ class HexagonModuleNode final : public runtime::ModuleNode {
 
   std::shared_ptr<hexagon::Device> hexagon_device_;
   void* dl_handle_ = nullptr;
-  std::string data_;
-  std::string fmt_;
-  std::unordered_map<std::string, FunctionInfo> fmap_;
-  std::string asm_;
-  std::string obj_;
-  std::string ir_;
-  std::string bc_;
-  std::set<std::string> packed_c_abi_funcs_;
 };
 
 void HexagonModuleNode::CallRemotePackedCABI(void* func_ptr, const TVMArgs& args,

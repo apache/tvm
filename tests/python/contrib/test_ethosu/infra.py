@@ -192,7 +192,8 @@ def deserialize_command_stream(blob):
 def create_test_runner(accel="ethos-u55-256"):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
-    ethosu_macs = accel[accel.rfind("-") + 1 :]
+    _, ethosu_variant, ethosu_macs = accel.split("-")
+    ethosu_variant = ethosu_variant.upper()
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
@@ -205,7 +206,11 @@ def create_test_runner(accel="ethos-u55-256"):
         ethosu_release_driver(ethos_u);
         """,
         includes=["uart.h", "ethosu_55.h", "ethosu_mod.h", "hard_fault.h"],
-        parameters={"ETHOSU_TEST_ROOT": test_root, "NPU_VARIANT": ethosu_macs},
+        parameters={
+            "ETHOSU_TEST_ROOT": test_root,
+            "NPU_MACS": ethosu_macs,
+            "NPU_VARIANT": ethosu_variant,
+        },
         pass_config={
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
@@ -222,7 +227,7 @@ def build_source(module, inputs, outputs, accel="ethos-u55-256", output_toleranc
             inputs=inputs,
             outputs=outputs,
             output_tolerance=output_tolerance,
-            extra_memory_in_bytes=16 * 1024 * 1024,
+            extra_memory_in_bytes=0,
         ),
         interface_api="c",
         use_unpacked_api=True,
@@ -312,8 +317,9 @@ def make_partitioned_function(relay_op):
 
     ifm0 = relay.analysis.free_vars(relay_op)
     ifm_shape = ifm0[0].type_annotation.shape
+    ifm_dtype = ifm0[0].type_annotation.dtype
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+    ifm = relay.var("ifm", shape=ifm_shape, dtype=ifm_dtype)
 
     glb_ethosu = relay.GlobalVar("tvmgen_default_ethosu_main_0")
 
@@ -410,6 +416,7 @@ def make_ethosu_conv2d(
     padding,
     strides,
     dilation,
+    lut=relay.const([], dtype="int8"),
     activation="NONE",
     ifm_layout="NHWC",
     ofm_layout="NHWC",
@@ -429,7 +436,7 @@ def make_ethosu_conv2d(
         ifm,
         weight,
         scale_bias,
-        lut=relay.const([], dtype="int8"),
+        lut=lut,
         ifm_scale=0.5,
         ifm_zero_point=10,
         weight_zero_point=12,

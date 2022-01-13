@@ -23,6 +23,7 @@ import functools
 import itertools
 import math
 import sys
+import logging
 
 import numpy as np
 import tvm
@@ -44,6 +45,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
+from .common import set_span
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -408,11 +410,16 @@ class PyTorchOpConverter:
         ):
             return data
 
+        if target_begin is None and target_end is None:
+            return data
+
         # Process begin
         begin = [0] * ndim
-        begin[dim] = target_begin
 
-        if not isinstance(begin[dim], int):
+        if target_begin is not None:
+            begin[dim] = target_begin
+
+        if target_begin is not None and not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
                 if isinstance(b, int):
@@ -455,7 +462,7 @@ class PyTorchOpConverter:
                     )
         else:
             end = _op.cast(_op.shape_of(data), axis_dtype)
-            if not isinstance(target_end, tvm.tir.Any):
+            if target_end is not None and not isinstance(target_end, tvm.tir.Any):
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
@@ -745,7 +752,13 @@ class PyTorchOpConverter:
         else:
             stop = start + step
 
-        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
+        if inputs[3] is None:
+            import torch
+
+            dtype = _convert_data_type(str(torch.get_default_dtype()))
+        else:
+            dtype = _convert_dtype_value(inputs[3])
+
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
@@ -1724,14 +1737,19 @@ class PyTorchOpConverter:
             paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
             const_paddings = []
+            non_zero_found = False
             for pad in paddings:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
                         p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
+                    if p != 0:
+                        non_zero_found = True
 
-            if mode == "constant":
+            if not non_zero_found:
+                return data
+            elif mode == "constant":
                 return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
             else:
                 return _op.nn.pad(data, const_paddings, pad_mode=mode)
@@ -2065,16 +2083,25 @@ class PyTorchOpConverter:
         data = inputs[0]
         weight = inputs[1]
         offset = inputs[2]
-        strides = (inputs[4], inputs[5])
-        padding = (inputs[6], inputs[7])
-        dilation = (inputs[8], inputs[9])
-        groups = inputs[10]
-        deformable_groups = inputs[11]
+
+        if len(inputs) > 12:
+            strides_offset = 5
+            bias = inputs[4]
+            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+        else:
+            strides_offset = 4
+            bias = inputs[3]
+
+        strides = (inputs[strides_offset], inputs[strides_offset + 1])
+        padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
+        dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
+        groups = inputs[strides_offset + 6]
+        deformable_groups = inputs[strides_offset + 7]
         weight_shape = self.infer_shape(weight)
         output_channels = weight_shape[0]
         kernel_size = (weight_shape[2], weight_shape[3])
 
-        return _op.nn.deformable_conv2d(
+        conv_out = _op.nn.deformable_conv2d(
             data,
             offset,
             weight,
@@ -2086,6 +2113,8 @@ class PyTorchOpConverter:
             output_channels,
             kernel_size,
         )
+
+        return _op.nn.bias_add(conv_out, bias)
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
@@ -2819,6 +2848,27 @@ class PyTorchOpConverter:
 
         return out
 
+    def einsum(self, inputs, input_types):
+        equation, data = inputs
+        return _op.einsum(data, equation)
+
+    def dot(self, inputs, _):
+        lhs, rhs = inputs
+        return _op.sum(_op.multiply(lhs, rhs))
+
+    def mv(self, inputs, _):
+        lhs, rhs = inputs
+
+        # Convert the 1D matrix (vector) into a 2D matrix with the extra
+        # dimension=1
+        rhs_matrix = _op.transform.expand_dims(rhs, 0)
+
+        # Run multiplication
+        dense_result = _op.nn.dense(lhs, rhs_matrix, units=None)
+
+        # Chop off the extra result dimension
+        return _op.transform.squeeze(dense_result)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2827,18 +2877,14 @@ class PyTorchOpConverter:
             "aten::device": self.none,
             "prim::device": self.none,
             "aten::sub": self.make_elemwise("subtract"),
-            "aten::sub_": self.make_elemwise("subtract"),
             "aten::max": self.max,
             "aten::min": self.min,
             "aten::mul": self.make_elemwise("multiply"),
-            "aten::mul_": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
             "aten::arange": self.arange,
             "aten::meshgrid": self.meshgrid,
             "aten::div": self.make_elemwise("divide"),
-            "aten::div_": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
-            "aten::floor_divide_": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
@@ -2855,7 +2901,6 @@ class PyTorchOpConverter:
             "aten::to": self.to,
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
-            "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
             "aten::narrow": self.narrow,
@@ -2866,17 +2911,13 @@ class PyTorchOpConverter:
             "aten::where": self.where,
             "aten::topk": self.topk,
             "aten::relu": self.relu,
-            "aten::relu_": self.relu,
             "aten::prelu": self.prelu,
             "aten::leaky_relu": self.leaky_relu,
-            "aten::leaky_relu_": self.leaky_relu,
             "aten::elu": self.elu,
-            "aten::elu_": self.elu,
             "aten::celu": self.celu,
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
             "aten::silu": self.silu,
-            "aten::silu_": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
             "aten::adaptive_avg_pool1d": functools.partial(
                 self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
@@ -2901,18 +2942,15 @@ class PyTorchOpConverter:
             "aten::max_pool1d": self.maxpool_1d,
             "aten::max_pool3d": self.maxpool_3d,
             "aten::hardtanh": self.hardtanh,
-            "aten::hardtanh_": self.hardtanh,
             "aten::_convolution": self.convolution,
             "aten::softmax": self.softmax,
             "aten::threshold": self.threshold,
-            "aten::threshold_": self.threshold,
             "aten::contiguous": self.contiguous,
             "aten::batch_norm": self.batch_norm,
             "aten::instance_norm": self.instance_norm,
             "aten::layer_norm": self.layer_norm,
             "aten::group_norm": self.group_norm,
             "aten::transpose": self.transpose,
-            "aten::transpose_": self.transpose,
             "aten::t": self.transpose,
             "aten::flatten": self.flatten,
             "aten::addmm": self.addmm,
@@ -2922,14 +2960,12 @@ class PyTorchOpConverter:
             "aten::clone": self.clone,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
-            "aten::sigmoid_": self.sigmoid,
             "aten::softplus": self.softplus,
             "aten::avg_pool1d": self.make_avg_pool(1),
             "aten::avg_pool2d": self.make_avg_pool(2),
             "aten::avg_pool3d": self.make_avg_pool(3),
             "aten::linear": self.linear,
             "aten::dropout": self.dropout,
-            "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
             "aten::alpha_dropout": self.dropout,
             "aten::mean": self.mean,
@@ -2965,7 +3001,6 @@ class PyTorchOpConverter:
             "aten::sinh": self.make_unary("sinh"),
             "aten::tan": self.make_unary("tan"),
             "aten::tanh": self.make_unary("tanh"),
-            "aten::tanh_": self.make_unary("tanh"),
             "aten::acos": self.make_unary("acos"),
             "aten::asin": self.make_unary("asin"),
             "aten::atan": self.make_unary("atan"),
@@ -2981,13 +3016,11 @@ class PyTorchOpConverter:
             "aten::rsqrt": self.make_unary("rsqrt"),
             "aten::ceil": self.make_unary("ceil"),
             "aten::floor": self.make_unary("floor"),
-            "aten::floor_": self.make_unary("floor"),
             "aten::round": self.make_unary("round"),
             "aten::isfinite": self.make_unary("isfinite"),
             "aten::isinf": self.make_unary("isinf"),
             "aten::isnan": self.make_unary("isnan"),
             "aten::clamp": self.clamp,
-            "aten::clamp_": self.clamp,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_bicubic2d": self.make_upsample("cubic"),
@@ -3012,7 +3045,6 @@ class PyTorchOpConverter:
             "aten::one_hot": self.one_hot,
             "aten::mm": self.matmul,
             "aten::add": self.add,
-            "aten::add_": self.add,
             "aten::stack": self.stack,
             "aten::__getitem__": self.list_getitem,
             "aten::len": self.list_len,
@@ -3032,7 +3064,6 @@ class PyTorchOpConverter:
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
             "aten::index_put": self.index_put,
-            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,
@@ -3042,19 +3073,17 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
-            "aten::hardswish_": self.hard_swish,
             "aten::hardswish": self.hard_swish,
-            "aten::hardsigmoid_": self.hard_sigmoid,
             "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
-            "aten::masked_fill_": self.masked_fill,
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::nll_loss_nd": self.nll_loss,
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
@@ -3063,6 +3092,9 @@ class PyTorchOpConverter:
             "aten::searchsorted": self.searchsorted,
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
+            "aten::einsum": self.einsum,
+            "aten::dot": self.dot,
+            "aten::mv": self.mv,
         }
 
     def update_convert_map(self, custom_map):
@@ -3084,7 +3116,14 @@ class PyTorchOpConverter:
         known_ops += list(self.convert_map.keys())
         known_ops += list(qnn_torch.convert_map.keys())
 
-        missing = [op_name for op_name in op_names if op_name not in known_ops]
+        missing = []
+
+        for op_name in op_names:
+            # Also take care of in-place variant ops like aten::relu_
+            if op_name not in known_ops and not (
+                op_name.endswith("_") and op_name[:-1] in known_ops
+            ):
+                missing.append(op_name)
 
         if missing:
             msg = "The following operators are not implemented: {}".format(missing)
@@ -3237,6 +3276,9 @@ class PyTorchOpConverter:
 
     def convert_operators(self, operators, outputs, ret_names):
         """Convert each Torch IR operators to Relay equivalent"""
+        # an op node might not belong to any of scope in trace info natively
+        # use a cunter to prevent from messing up its scope in span
+        empty_counter = 0
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -3250,7 +3292,18 @@ class PyTorchOpConverter:
                 # In this case, we keep the Python list
                 outputs[node_name] = inputs
             elif operator == "prim::TupleConstruct":
-                outputs[node_name] = _expr.Tuple(inputs)
+
+                def _handel_nested_input(inputs):
+                    inputs_list = []
+                    for i, _ in enumerate(inputs):
+                        if isinstance(inputs[i], list):
+                            inputs_list.append(_handel_nested_input(inputs[i]))
+                        else:
+                            assert isinstance(inputs[i], _expr.Expr)
+                            inputs_list.append(inputs[i])
+                    return _expr.Tuple(inputs_list)
+
+                outputs[node_name] = _handel_nested_input(inputs)
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
@@ -3270,10 +3323,25 @@ class PyTorchOpConverter:
                 assert len(loop_out) == len(unpacked_names)
                 outputs.update(zip(unpacked_names, loop_out))
             else:
-                relay_op = self.convert_map[operator]
+                if operator not in self.convert_map:
+                    # At this point, the only possible ops that are not in convert_map are
+                    # in-place variant of ops like aten::relu_
+                    assert operator.endswith("_")
+                    logger.warning(
+                        "An in-place op %s found, the result will not be correct "
+                        "if the model depends on side-effects by this op.",
+                        operator,
+                    )
+                    relay_op = self.convert_map[operator[:-1]]
+                else:
+                    relay_op = self.convert_map[operator]
+
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
+                span_str, empty_counter = self._get_torch_span(op_node, empty_counter)
+                relay_out = set_span(relay_out, span_str)
+
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
@@ -3286,6 +3354,18 @@ class PyTorchOpConverter:
                     outputs[node_name] = relay_out
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
+
+    def _get_torch_span(self, node, empty_counter):
+        # torch span looks like
+        # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
+        # the scope part might not exist
+        if node.scopeName():
+            scope_name_str = "jit._trace.TopLevelTracedModule: " + node.scopeName()
+        else:
+            scope_name_str = "warning: no trace info " + str(empty_counter)
+            empty_counter += 1
+        span_str = "C.graph: {}, {}".format(node.kind(), scope_name_str)
+        return span_str, empty_counter
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

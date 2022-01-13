@@ -22,6 +22,8 @@
  * \brief Arm(R) Ethos(TM)-N NPU device integration.
  */
 
+#include "ethosn_device.h"
+
 #include <dlpack/dlpack.h>
 #include <poll.h>
 #include <tvm/runtime/ndarray.h>
@@ -32,6 +34,7 @@
 #include <memory>
 
 #include "ethosn_driver_library/Buffer.hpp"
+#include "ethosn_runtime.h"
 #include "ethosn_support_library/Support.hpp"
 
 #if defined ETHOSN_HW
@@ -43,7 +46,6 @@ namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-namespace sl = ::ethosn::support_library;
 namespace dl = ::ethosn::driver_library;
 
 bool WaitForInference(dl::Inference* inference, int timeout) {
@@ -95,18 +97,25 @@ void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
   }
 }
 
+#if _ETHOSN_API_VERSION_ <= 2102
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
                const std::vector<uint32_t>& input_order,
                const std::vector<uint32_t>& output_order) {
+#else
+bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
+#endif
   // Unpack parameters
   uint8_t argc = 0;
-  std::vector<DLTensor*> inputs(input_order.size());
-  for (uint8_t i = 0; i < network->GetInputBufferInfos().size(); i++) {
+  size_t n_inputs = input_order.size();
+  size_t n_outputs = output_order.size();
+  std::vector<DLTensor*> inputs(n_inputs);
+  for (uint8_t i = 0; i < n_inputs; i++) {
     inputs[input_order[i]] = args[argc++];
   }
-  auto out_infos = network->GetOutputBufferInfos();
-  std::vector<DLTensor*> outputs(output_order.size());
-  for (uint8_t i = 0; i < network->GetOutputBufferInfos().size(); i++) {
+  std::vector<DLTensor*> outputs(n_outputs);
+  for (uint8_t i = 0; i < n_outputs; i++) {
     outputs[output_order[i]] = args[argc++];
   }
 
@@ -128,7 +137,9 @@ bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
     ofm_raw[i] = ofm[i].get();
   }
 
+#if _ETHOSN_API_VERSION_ <= 2102
   auto npu = std::make_unique<dl::Network>(*network);
+#endif
 
   // Execute the inference.
   std::unique_ptr<dl::Inference> result(
@@ -197,11 +208,17 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     });
 
 // Allow the ethos-n support code to be tested without a device
+#if _ETHOSN_API_VERSION_ <= 2102
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
                const std::vector<uint32_t>& input_order,
                const std::vector<uint32_t>& output_order) {
+#else
+bool Inference(tvm::runtime::TVMArgs args, dl::Network* /* npu */,
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
+#endif
   std::vector<DLTensor*> outputs;
-  for (int argc = network->GetInputBufferInfos().size(); argc < args.size(); argc++) {
+  for (int argc = input_order.size(); argc < args.size(); argc++) {
     outputs.push_back(args[argc]);
   }
   bool rc = false;

@@ -33,6 +33,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace relay
 
 TVM_REGISTER_TARGET_KIND("example_target_hook", kDLCPU)
+    .set_attr<Bool>("use_device_api", Bool(true))
     .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::example_target_hooks::RelayToTIR())
     .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::example_target_hooks::TIRToRuntime);
 

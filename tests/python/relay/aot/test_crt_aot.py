@@ -733,5 +733,28 @@ def test_aot_codegen_backend_alloc_workspace_calls():
     assert source.count("TVMBackendAllocWorkspace") == 3
 
 
+@pytest.mark.parametrize("constants_byte_alignment", [8, 16, 32])
+def test_constants_alignment(constants_byte_alignment):
+    """Test that constants_byte_alignment correctly sets constants byte alignment"""
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    mod, params = testing.mobilenet.get_workload(batch_size=1)
+    data_shape = [int(x) for x in mod["main"].checked_type.arg_types[0].shape]
+    data = np.random.uniform(size=data_shape).astype("float32")
+    inputs = {"data": data}
+    output_list = generate_ref_data(mod, inputs, params)
+    target_opts = {"-constants-byte-alignment": constants_byte_alignment}
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api,
+        use_unpacked_api,
+        target_opts=target_opts,
+    )
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
+    assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

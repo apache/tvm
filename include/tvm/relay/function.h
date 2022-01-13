@@ -64,6 +64,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("attrs", &attrs);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -134,6 +135,8 @@ class Function : public BaseFunc {
  * \param opt_attrs
  * The (optional) attributes for the copied function. If none,
  * ret_function->attrs = function->attrs.
+ * \param opt_virtual_device The (optional) virtual_device for the copied function. If none,
+ * ret_function->virtual_device = function->virtual_device.
  * \param opt_span The (optional) span for the copied function. If none,
  * ret_function->span = function->span.
  * \return If all properties are null or the same as the property in the input function
@@ -146,7 +149,22 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<Type> opt_ret_type = Optional<Type>(),
                     Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
+
+/*
+ * \brief Returns the Relay FunctionNode represented by base_func if it should be optimized,
+ * otherwise returns nullptr.
+ *
+ * This means returns nullptr:
+ *  - For PrimFuncs, since not Relay Functions.
+ *  - For Functions marked for external compilation (with "Compiler").
+ *  - For Functions marked as already having an external definition (with "ExternalSymbol").
+ *  - For Functions marked as not to be optimized (with "SkipOptimization").
+ *
+ * TODO(mbs): Audit all enumerations of IRModule::functions to use this or some family of such.
+ */
+const FunctionNode* AsOptimizableFunctionNode(const BaseFunc& base_func);
 
 /*!
  * \brief namespace of the attributes that can be attached to a relay::Function.

@@ -24,7 +24,6 @@ import pathlib
 from typing import Dict, List, Optional, Union
 from tarfile import ReadError
 import argparse
-import os
 import sys
 import numpy as np
 
@@ -34,19 +33,27 @@ from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
 from tvm.relay.param_dict import load_param_dict
-import tvm.micro.project as project
-from tvm.micro.project import TemplateProjectError
-from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
-from . import common
-from .common import (
-    TVMCException,
-    TVMCSuppressedArgumentParser,
+from . import TVMCException
+from .arguments import TVMCSuppressedArgumentParser
+from .project import (
     get_project_options,
     get_and_check_options,
+    get_project_dir,
 )
+
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
+from .tracker import tracker_host_port_from_cli
+
+try:
+    import tvm.micro.project as project
+    from tvm.micro.project import TemplateProjectError
+    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
+
+    SUPPORT_MICRO = True
+except (ImportError, AttributeError) as exception:
+    SUPPORT_MICRO = False
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -135,7 +142,13 @@ def add_run_parser(subparsers, main_parser):
         # No need to augment the parser for micro targets.
         return
 
-    project_dir = known_args.PATH
+    if SUPPORT_MICRO is False:
+        sys.exit(
+            "'--device micro' is not supported. "
+            "Please build TVM with micro support (USE_MICRO ON)!"
+        )
+
+    project_dir = get_project_dir(known_args.PATH)
 
     try:
         project_ = project.GeneratedProject.from_directory(project_dir, None)
@@ -148,11 +161,13 @@ def add_run_parser(subparsers, main_parser):
 
     project_info = project_.info()
     options_by_method = get_project_options(project_info)
+    mlf_path = project_info["model_library_format_path"]
 
     parser.formatter_class = (
         argparse.RawTextHelpFormatter
     )  # Set raw help text so customized help_text format works
-    parser.set_defaults(valid_options=options_by_method["open_transport"])
+
+    parser.set_defaults(valid_options=options_by_method["open_transport"], mlf_path=mlf_path)
 
     required = any([opt["required"] for opt in options_by_method["open_transport"]])
     nargs = "+" if required else "*"
@@ -182,12 +197,14 @@ def drive_run(args):
 
     path = pathlib.Path(args.PATH)
     options = None
+    project_dir = None
     if args.device == "micro":
-        path = path / "model.tar"
-        if not path.is_file():
-            TVMCException(
-                f"Could not find model (model.tar) in the specified project dir {path.dirname()}."
-            )
+        # If it's a micro device, then grab the model.tar path from Project API instead.
+        # args.PATH will be used too since it points to the project directory. N.B.: there is no
+        # way to determine the model.tar path from the project dir or vice-verse (each platform
+        # is free to put model.tar whereever it's convenient).
+        project_dir = path
+        path = pathlib.Path(args.mlf_path)
 
         # Check for options unavailable for micro targets.
 
@@ -221,7 +238,7 @@ def drive_run(args):
             )
 
     try:
-        tvmc_package = TVMCPackage(package_path=path)
+        tvmc_package = TVMCPackage(package_path=path, project_dir=project_dir)
     except IsADirectoryError:
         raise TVMCException(f"File {path} must be an archive, not a directory.")
     except FileNotFoundError:
@@ -229,7 +246,7 @@ def drive_run(args):
     except ReadError:
         raise TVMCException(f"Could not read model from archive {path}!")
 
-    rpc_hostname, rpc_port = common.tracker_host_port_from_cli(args.rpc_tracker)
+    rpc_hostname, rpc_port = tracker_host_port_from_cli(args.rpc_tracker)
 
     try:
         inputs = np.load(args.inputs) if args.inputs else {}
@@ -486,7 +503,7 @@ def run_module(
             if tvmc_package.type != "mlf":
                 raise TVMCException(f"Model {tvmc_package.package_path} is not a MLF archive.")
 
-            project_dir = os.path.dirname(tvmc_package.package_path)
+            project_dir = get_project_dir(tvmc_package.project_dir)
 
             # This is guaranteed to work since project_dir was already checked when
             # building the dynamic parser to accommodate the project options, so no

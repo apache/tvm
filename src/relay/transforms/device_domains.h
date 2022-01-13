@@ -30,7 +30,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/target/compilation_config.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <memory>
 #include <string>
@@ -51,7 +51,7 @@ class DeviceDomains;
  *
  * \code
  *   D ::= ?x?                  -- first order, free
- *       | <se_scope>           -- first order, bound to specific device and memory scope
+ *       | <virtual_device>     -- first order, bound to specific virtual device
  *       | fn(D1, ..., Dn):Dr   -- higher order
  * \endcode
  *
@@ -59,21 +59,32 @@ class DeviceDomains;
  * a notion of the 'result domain' of a domain:
  * \code
  *   result_domain(?x?)                = ?x?
- *   result_domain(<se_scope>)         = <se_scope>
+ *   result_domain(<virtual_device>)   = <virtual_device>
  *   result_domain(fn(D1, ..., Dn):Dr) = result_domain(Dr)
  * \endcode
+ *
+ * TODO(mbs): We currently don't allow sub-VirtualDevice constraints. Eg for a function we can
+ * express that the argument and result VirtualDevices must be exactly equal, but we cannot express
+ * that though the devices and targets for arguments and results must be equal, it is ok for
+ * memory scopes to differ. At the moment we can get away with this since we run PlanDevices
+ * twice: once with all memory scopes unconstrained, then again with just memory scopes as
+ * the new property to flow. However we're on thin ice here and better would be to allow
+ * constraints on VirtualDevices to be exploded into their device/target component and their
+ * memory scope component. Should we fold layout constraints into VirtualDevices then they would
+ * probably be grouped with memory scopes.
  */
 class DeviceDomain {
  public:
   /*!
-   * \brief Constructs a first-order domain for \p se_scope, which may be
-   * fully free (ie se_scope is unconstrained), partially  free (ie se_scope has at least on
-   * of its target, device id or memory scopes known), or fully fixed (ie se_scope has its target,
-   * device id and memory scopes set).
+   * \brief Constructs a first-order domain for \p virtual_device, which may be
+   * fully free (ie virtual_device is unconstrained), partially  free (ie virtual_device has at
+   * least on of its target, device id or memory scopes known), or fully fixed (ie virtual_device
+   * has its target, device id and memory scopes set).
    *
    * CAUTION: Use DeviceDomains::MakeFirstOrderDomain instead of this ctor.
    */
-  explicit DeviceDomain(SEScope se_scope) : se_scope_(std::move(se_scope)) {}
+  explicit DeviceDomain(VirtualDevice virtual_device)
+      : virtual_device_(std::move(virtual_device)) {}
 
   /*!
    * \brief Constructs a higher-order domain, where \p args_and_result contain the
@@ -82,13 +93,14 @@ class DeviceDomain {
    * CAUTION: Use DeviceDomains::MakeHigherOrderDomain instead of this ctor.
    */
   explicit DeviceDomain(std::vector<DeviceDomainPtr> args_and_result)
-      : se_scope_(SEScope::FullyUnconstrained()), args_and_result_(std::move(args_and_result)) {}
+      : virtual_device_(VirtualDevice::FullyUnconstrained()),
+        args_and_result_(std::move(args_and_result)) {}
 
   bool is_higher_order() const { return !args_and_result_.empty(); }
 
-  SEScope first_order_se_scope() const {
+  VirtualDevice first_order_virtual_device() const {
     ICHECK(args_and_result_.empty()) << "expecting domain to be first-order";
-    return se_scope_;
+    return virtual_device_;
   }
 
   size_t function_arity() const {
@@ -114,7 +126,7 @@ class DeviceDomain {
    * (for example, the \p target and \p device_type are constrained but the \p virtual_device_id and
    * \p memory_scope are still unconstrained), or fully constrained (everything is known).
    */
-  const SEScope se_scope_;
+  const VirtualDevice virtual_device_;
 
   /*!
    * \brief If this is a function domain then the sub-domains for each of the function's
@@ -136,10 +148,10 @@ class DeviceDomains {
   const CompilationConfig& config() const { return config_; }
 
   /*!
-   * \brief Returns the domain representing \p se_scope. If \p se_scope is fully constrained
-   * then the domain will be unique that \p se_scope.
+   * \brief Returns the domain representing \p virtual_device. If \p virtual_device is fully
+   * constrained then the domain will be unique that \p virtual_device.
    */
-  DeviceDomainPtr MakeFirstOrderDomain(const SEScope& se_scope);
+  DeviceDomainPtr MakeFirstOrderDomain(const VirtualDevice& virtual_device);
 
   /*!
    * \brief Returns a higher-order domain with \p args_and_results.
@@ -149,21 +161,24 @@ class DeviceDomains {
   }
 
   /*!
-   * \brief Returns a domain appropriate for \p type who's result domain is bound to \p se_scope.
-   * If \p type is a function then all parameter domains will be completely free. It is valid for
-   * \p se_scope to be fully unconstrained.
+   * \brief Returns a domain appropriate for \p type who's result domain is bound to \p
+   * virtual_device. If \p type is a function then all parameter domains will be completely free. It
+   * is valid for \p virtual_device to be fully unconstrained.
    */
-  DeviceDomainPtr MakeDomain(const Type& type, const SEScope& se_scope);
+  DeviceDomainPtr MakeDomain(const Type& type, const VirtualDevice& virtual_device);
 
   /*!
-   * \brief Returns a domain with the given result appropriate \p non_canonical_se_scope,
-   * which cannot be fully unconstrained. We first canonicalize the scope to unsure it has
+   * \brief Returns a domain with the given result appropriate \p non_canonical_virtual_device,
+   * which cannot be fully unconstrained. We first canonicalize the virtual device to unsure it has
    * a target and is unique.
    */
-  DeviceDomainPtr ForSEScope(const Type& type, const SEScope& non_canonical_se_scope);
+  DeviceDomainPtr ForVirtualDevice(const Type& type,
+                                   const VirtualDevice& non_canonical_virtual_device);
 
   /*! \brief Returns a free domain appropriate for \p type. */
-  DeviceDomainPtr Free(const Type& type) { return MakeDomain(type, SEScope::FullyUnconstrained()); }
+  DeviceDomainPtr Free(const Type& type) {
+    return MakeDomain(type, VirtualDevice::FullyUnconstrained());
+  }
 
   /*! \brief Returns the domain representing the equivalence class containing \p domain. */
   DeviceDomainPtr Lookup(DeviceDomainPtr domain);
@@ -177,7 +192,8 @@ class DeviceDomains {
 
   /*!
    * \brief Unifies \p lhs and \p rhs, returning the most-bound of the two. Returns null if
-   * \p lhs and \p rhs are not unifiable.
+   * \p lhs and \p rhs are not unifiable, in which case the constraint system may be left in
+   * a partially modified state.
    */
   // TODO(mbs): I don't think we need an occurs check since the program is well-typed, but
   // given we have refs to functions I'm prepared to be surprised.
@@ -238,6 +254,12 @@ class DeviceDomains {
   void UnifyExprExact(const Expr& lhs, const Expr& rhs);
 
   /*!
+   * \brief Attempts to unify the domains for expressions \p lhs and \p rhs, however if they
+   * cannot be unified then returns with no change to the unification system.
+   */
+  void OptionalUnifyExprExact(const Expr& lhs, const Expr& rhs);
+
+  /*!
    * \brief Unifies the domain for \p expr with \p expected_domain.
    *
    * Aborts if unification fails.
@@ -257,16 +279,16 @@ class DeviceDomains {
   /*! \brief Returns true if \p domain is fully constrainted. */
   bool IsFullyConstrained(DeviceDomainPtr domain);
 
-  /*! \brief Force all \p SEScopes in \p domain to default to \p default_se_scope. */
-  void SetDefault(DeviceDomainPtr domain, const SEScope& default_se_scope);
+  /*! \brief Force all \p VirtualDevices in \p domain to default to \p default_virtual_device. */
+  void SetDefault(DeviceDomainPtr domain, const VirtualDevice& default_virtual_device);
 
   /*!
-   * \brief If \p domain is higher-order default it's result domain to \p default_se_scope.
-   * Then force all remaining \p SEScopes to the result domain (freshly defaulted or original).
-   * If \p domain is first-order same as \p SetDefault.
+   * \brief If \p domain is higher-order default it's result domain to \p default_virtual_device.
+   * Then force all remaining \p VirtualDevices to the result domain (freshly defaulted or
+   * original). If \p domain is first-order same as \p SetDefault.
    */
   void SetResultDefaultThenParams(const DeviceDomainPtr& domain_maybe_higher_order,
-                                  const SEScope& default_se_scope);
+                                  const VirtualDevice& default_virtual_device);
 
   /*!
    * \brief Returns the result domain for \p domain (see defn in DeviceDomain comment).
@@ -274,11 +296,11 @@ class DeviceDomains {
   DeviceDomainPtr ResultDomain(DeviceDomainPtr domain);
 
   /*!
-   * \brief Returns the result \p SEScope (possibly unconstrained) for \p domain
+   * \brief Returns the result \p VirtualDevice (possibly unconstrained) for \p domain
    * (see defn in DeviceDomain comment).
    */
-  SEScope ResultSEScope(const DeviceDomainPtr& domain) {
-    return ResultDomain(domain)->first_order_se_scope();
+  VirtualDevice ResultVirtualDevice(const DeviceDomainPtr& domain) {
+    return ResultDomain(domain)->first_order_virtual_device();
   }
 
   /*! \brief Returns one-line description of \p domain for debugging. */
@@ -293,7 +315,6 @@ class DeviceDomains {
   const Op& alloc_tensor_op = Op::Get("memory.alloc_tensor");
   const Op& shape_of_op = Op::Get("vm.shape_of");
   const Op& invoke_tvm_op = Op::Get("vm.invoke_tvm_op");
-  const Op& shape_func_op = Op::Get("vm.shape_func");
   const Op& reshape_tensor_op = Op::Get("vm.reshape_tensor");
 
   CompilationConfig config_;
@@ -316,16 +337,17 @@ class DeviceDomains {
   std::unordered_map<DeviceDomainPtr, DeviceDomainPtr> domain_to_equiv_;
 
   /*!
-   * \brief Maps fully constrained \p SEScopes to their corresponding domains. By sharing those
-   * domains we can ensure:
+   * \brief Maps fully constrained \p VirtualDevices to their corresponding domains. By sharing
+   * those domains we can ensure:
    *
    * \code
    * domain0 != domain1 && domain0 fully constrained && domain1 fully constrained
    *   ==> domain0 and domain1 are incompatible
    * \endcode
    */
-  std::unordered_map<SEScope, DeviceDomainPtr, runtime::ObjectPtrHash, runtime::ObjectPtrEqual>
-      fully_constrained_se_scope_to_domain_;
+  std::unordered_map<VirtualDevice, DeviceDomainPtr, runtime::ObjectPtrHash,
+                     runtime::ObjectPtrEqual>
+      fully_constrained_virtual_device_to_domain_;
 };
 
 }  // namespace transform

@@ -33,6 +33,29 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief Attributes used for the sliding_window operator */
+struct SlidingWindowAttrs : public tvm::AttrsNode<SlidingWindowAttrs> {
+  int axis;
+  Array<Integer> window_shape;
+  Array<Integer> strides;
+  TVM_DECLARE_ATTRS(SlidingWindowAttrs, "relay.attrs.SlidingWindowAttrs") {
+    TVM_ATTR_FIELD(axis).describe(
+        "What axis the sliding window begin forming over."
+        "Window will be slid over this axis and all following axes."
+        "The axis value determines the window shape (and thus, the"
+        "number of strides):"
+        "window shape and strides must both be of length"
+        "`data.ndim-axis`.");
+    TVM_ATTR_FIELD(window_shape)
+        .describe(
+            "The window shape to form over the input."
+            "Window shape must be of length `data.ndim-axis`.");
+    TVM_ATTR_FIELD(strides).describe(
+        "How to stride the window along each dimension."
+        "Strides must be of length `data.ndim-axis`.");
+  }
+};  // struct SlidingWindowAttrs
+
 /*! \brief data type cast */
 struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
   DataType dtype;
@@ -173,7 +196,7 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Integer batch_dims;
   Integer axis;
-  std::string mode;
+  tvm::String mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(batch_dims)
@@ -321,7 +344,7 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
   Optional<Array<Integer>> begin;
   Optional<Array<Integer>> end;
   Optional<Array<Integer>> strides;
-  std::string slice_mode;
+  tvm::String slice_mode;
   Optional<Array<Integer>> axes;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {

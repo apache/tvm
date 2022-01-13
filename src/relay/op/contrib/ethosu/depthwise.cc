@@ -56,6 +56,7 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
   String upscale;
   String ifm_layout;
   String ofm_layout;
+  String ofm_dtype;
 
   TVM_DECLARE_ATTRS(EthosuDepthwiseConv2DAttrs, "relay.attrs.EthosuDepthwiseConv2DAttrs") {
     TVM_ATTR_FIELD(ifm_scale).describe("The quantization scale for the Input Feature Map tensor.");
@@ -116,6 +117,9 @@ struct EthosuDepthwiseConv2DAttrs : public tvm::AttrsNode<EthosuDepthwiseConv2DA
     TVM_ATTR_FIELD(ofm_layout)
         .set_default("NHWC")
         .describe("The layout of the Output Feature Map tensor. Can be 'NHWC' or 'NHCWB16'.");
+    TVM_ATTR_FIELD(ofm_dtype)
+        .describe("The Output Feature Map tensor data type. Can be 'int8', 'uint8' or 'int16'.")
+        .set_default("int8");
   }
 };
 
@@ -131,6 +135,18 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
 
   const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
   ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
+
+  DataType ofm_dtype;
+
+  if (param->ofm_dtype == "int8") {
+    ofm_dtype = DataType::Int(8);
+  } else if (param->ofm_dtype == "uint8") {
+    ofm_dtype = DataType::UInt(8);
+  } else if (param->ofm_dtype == "int16") {
+    ofm_dtype = DataType::Int(16);
+  } else if (param->ofm_dtype == "int32") {
+    ofm_dtype = DataType::Int(32);
+  }
 
   if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
     reporter->GetDiagCtx().EmitFatal(
@@ -156,6 +172,15 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
     return false;
   }
 
+  if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
+      ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
+    reporter->GetDiagCtx().EmitFatal(
+        Diagnostic::Error(reporter->GetSpan())
+        << "Invalid operator: expected ethosu_depthwise_conv2d output data type "
+        << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
+    return false;
+  }
+
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};
 
@@ -169,7 +194,7 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
       EthosuInferKernelOutput(ifm->shape, param->ifm_layout, param->ofm_layout, param->kernel_shape,
                               param->ofm_channels, param->dilation, param->strides, param->padding);
 
-  reporter->Assign(types[4], TensorType(ofm_shape, ifm->dtype));
+  reporter->Assign(types[4], TensorType(ofm_shape, ofm_dtype));
 
   return true;
 }
@@ -180,7 +205,8 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
                                IndexExpr ofm_channels, Array<IndexExpr> strides,
                                Array<IndexExpr> padding, Array<IndexExpr> dilation,
                                String activation, int clip_min, int clip_max, String rounding_mode,
-                               String upscale, String ifm_layout, String ofm_layout) {
+                               String upscale, String ifm_layout, String ofm_layout,
+                               String ofm_dtype) {
   auto attrs = make_object<EthosuDepthwiseConv2DAttrs>();
   attrs->ifm_scale = ifm_scale;
   attrs->ifm_zero_point = ifm_zero_point;
@@ -199,6 +225,7 @@ Expr MakeEthosuDepthwiseConv2D(Expr ifm, Expr weight, Expr scale_bias, Expr lut,
   attrs->upscale = std::move(upscale);
   attrs->ifm_layout = std::move(ifm_layout);
   attrs->ofm_layout = std::move(ofm_layout);
+  attrs->ofm_dtype = std::move(ofm_dtype);
   static const Op& op = Op::Get("contrib.ethosu.depthwise_conv2d");
   return Call(op, {ifm, weight, scale_bias, lut}, Attrs(attrs), {});
 }

@@ -70,7 +70,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
     # Check with manual shape override
     shape_string = "input:[1,224,224,3]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
 
@@ -218,7 +218,7 @@ def test_compile_onnx_module(onnx_resnet50):
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
     shape_string = "data:[1,3,200,200]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_onnx_module(onnx_resnet50, shape_dict)
 
 
@@ -296,7 +296,7 @@ def test_compile_paddle_module(paddle_resnet50):
     verify_compile_paddle_module(paddle_resnet50)
     # Check with manual shape override
     shape_string = "inputs:[1,3,224,224]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_paddle_module(paddle_resnet50, shape_dict)
 
 
@@ -374,7 +374,7 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
 
 @pytest.mark.skipif(
     not ethosn_available(),
-    reason="--target=Ethos(TM)-N77 is not available. TVM built with 'USE_ETHOSN OFF'",
+    reason="--target=Ethos(TM)-N78 is not available. TVM built with 'USE_ETHOSN OFF'",
 )
 def test_compile_tflite_module_with_external_codegen_ethos_n77(tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
@@ -483,8 +483,8 @@ def test_compile_tflite_module_with_external_codegen_ethosu(
         tvmc.compiler.compile_model(
             tvmc_model,
             target=f"ethos-u -accelerator_config={accel_type}, c -mcpu=cortex-m55",
-            runtime=Runtime("crt", {"system-lib": True}),
-            executor=Executor("aot"),
+            runtime=Runtime("crt"),
+            executor=Executor("aot", {"unpacked-api": True}),
             output_format="mlf",
             package_path=output_file_name,
             pass_context_configs=["tir.disable_vectorize=true"],
@@ -524,10 +524,24 @@ def test_compile_check_configs_composite_target(mock_pkg, mock_pc, mock_fe, mock
     tvmc_model = tvmc.load("no_file_needed")
     tvmc.compile(tvmc_model, target="mockcodegen -testopt=value, llvm")
 
-    mock_pc.assert_called_once_with(
-        opt_level=3,
+    assert mock_pc.call_count == 2
+    codegen_partition_context = mock.call(
         config={"relay.ext.mock.options": {"testopt": "value"}},
+    )
+    codegen_compile_context = mock.call(
+        config={"relay.ext.mock.options": {"testopt": "value"}},
+        opt_level=3,
         disabled_pass=None,
+    )
+    mock_pc.assert_has_calls(
+        [
+            codegen_partition_context,
+            codegen_partition_context.__enter__(),
+            codegen_partition_context.__exit__(None, None, None),
+            codegen_compile_context,
+            codegen_compile_context.__enter__(),
+            codegen_compile_context.__exit__(None, None, None),
+        ]
     )
 
 

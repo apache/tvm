@@ -65,7 +65,7 @@ def _parse_debug_mask(debug_mask: Union[str, int]) -> int:
             debug_mask = 0
         else:
             raise ValueError(f"Unrecognizable `debug_mask`: {debug_mask}")
-    if isinstance(debug_mask, bool) or not isinstance(debug_mask, int):
+    if not isinstance(debug_mask, bool) and not isinstance(debug_mask, int):
         raise TypeError(f"`debug_mask` should be integer or boolean, but gets: {debug_mask}")
     return debug_mask
 

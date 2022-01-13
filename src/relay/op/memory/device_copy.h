@@ -40,52 +40,43 @@ const Op& DeviceCopyOp();
 
 /*!
  * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated and
- * stored at \p src_se_scope but then copied to \p dst_se_scope.
+ * stored at \p src_virtual_device but then copied to \p dst_virtual_device.
  */
-Expr DeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope);
+Expr DeviceCopy(Expr expr, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device);
 
 /*!
  * \brief Wraps \p expr in a "device_copy" CallNode indicating it should be evaluated and
- * stored at \p src_se_scope but then copied to \p dst_se_scope.However, return \p expr
- * directly if \p src_se_scope and \p dst_se_scope are (structurally) the same.
+ * stored at \p src_virtual_device but then copied to \p dst_virtual_device.However, return \p expr
+ * directly if \p src_virtual_device and \p dst_virtual_device are (structurally) the same.
  */
-Expr MaybeDeviceCopy(Expr expr, SEScope src_se_scope, SEScope dst_se_scope);
+Expr MaybeDeviceCopy(Expr expr, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device);
 
 /*! \brief Result of \p GetDeviceCopyProps. */
 struct DeviceCopyProps {
   Expr body;  // = null
-  SEScope src_se_scope = SEScope::FullyUnconstrained();
-  SEScope dst_se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice src_virtual_device = VirtualDevice::FullyUnconstrained();
+  VirtualDevice dst_virtual_device = VirtualDevice::FullyUnconstrained();
 
   DeviceCopyProps() = default;
 
-  DeviceCopyProps(Expr body, SEScope src_se_scope, SEScope dst_se_scope)
+  DeviceCopyProps(Expr body, VirtualDevice src_virtual_device, VirtualDevice dst_virtual_device)
       : body(std::move(body)),
-        src_se_scope(std::move(src_se_scope)),
-        dst_se_scope(std::move(dst_se_scope)) {}
+        src_virtual_device(std::move(src_virtual_device)),
+        dst_virtual_device(std::move(dst_virtual_device)) {}
 };
 
 /*!
- * \brief Returns the body expression, source, and destination \p SEScopes for \p call_node
+ * \brief Returns the body expression, source, and destination \p VirtualDevices for \p call_node
  * if it is a "device_copy" CallNode. Otherwise returns the null expression and unconstrained
- * device and scopes.
+ * virtual device.
  */
 DeviceCopyProps GetDeviceCopyProps(const CallNode* call_node);
 
 /*!
- * \brief Returns the body expression, source, and destination \p SEScopes for \p expr if it
- * is a "device_copy" Call. Otherwise returns the null expression and unconstrained device and
- * scopes.
+ * \brief Returns the body expression, source, and destination \p VirtualDevices for \p expr if it
+ * is a "device_copy" Call. Otherwise returns the null expression and unconstrained virtual device.
  */
 DeviceCopyProps GetDeviceCopyProps(const Expr& expr);
-
-/*!
- * \brief As for GetDeviceCopyProps, but for a lowered call rather than the original
- * "device_copy" operator.
- *
- * See te_compiler.cc for where this rewriting occurs.
- */
-DeviceCopyProps GetLoweredDeviceCopyProps(const CallLoweredProps& props);
 
 }  // namespace relay
 }  // namespace tvm
