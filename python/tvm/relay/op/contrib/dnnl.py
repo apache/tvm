@@ -47,7 +47,7 @@ def get_dnnl_version():
     Otherwise return unknown value which is bigger than any over real
     versions.
     """
-    f = tvm.get_global_func("runtime.module.dnnl_version")
+    f = tvm.get_global_func("runtime.module.dnnl_version", allow_missing=True)
     return tuple(int(el) for el in f().split(".")) if f else (100500,)
 
 
