@@ -82,7 +82,7 @@ def check_result(
     params=None,
     ref_result=None,
     atol=None,
-    desired_compiler="dnnl"
+    desired_compiler="dnnl",
 ):
     if atol is None:
         atol = tol

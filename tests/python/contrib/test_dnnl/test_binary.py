@@ -35,12 +35,12 @@ scalar_broadcast_6D = BinaryShapeConfig(lhs_shape=[2, 3, 4, 3, 2, 1], rhs_shape=
 bias_like_broadcast = BinaryShapeConfig(lhs_shape=[2, 7, 8, 8], rhs_shape=[7, 1, 1])
 
 BinaryProfile = [
-    ("Add_0D", tvm.relay.op.add, 'float32', base_0D),
-    ("Add_4D", tvm.relay.op.add, 'float32', base_4D),
-    ("Add_7D", tvm.relay.op.add, 'float32', base_6D),
-    ("Add_Broadcast_scalar_4D", tvm.relay.op.add, 'float32', scalar_broadcast_6D),
-    ("Add_BiasLike", tvm.relay.op.add, 'float32', bias_like_broadcast),
-    ("Mul_BiasLike", tvm.relay.op.multiply, 'float32', bias_like_broadcast),
+    ("Add_0D", tvm.relay.op.add, "float32", base_0D),
+    ("Add_4D", tvm.relay.op.add, "float32", base_4D),
+    ("Add_7D", tvm.relay.op.add, "float32", base_6D),
+    ("Add_Broadcast_scalar_4D", tvm.relay.op.add, "float32", scalar_broadcast_6D),
+    ("Add_BiasLike", tvm.relay.op.add, "float32", bias_like_broadcast),
+    ("Mul_BiasLike", tvm.relay.op.multiply, "float32", bias_like_broadcast),
 ]
 
 
