@@ -146,10 +146,10 @@ class PipelineModule(object):
         return self._get_params_group_pipeline_map(name)
 
     def set_params(self, params_group_name, params_data):
-        """Pipeline executor uses a map of parameters groups and module indexes to support
-        the "on the fly" parameters setting. For example, users can bind the parameter group
-        "param0" to the parameters of the 1st module. This function is used to set parameters
-        into to correct runtime module by using the parameters group name.
+        """Set the parameter group value given the parameter group name. Note that the parameter group
+        name is declared in the pipeline executor config.
+        
+        Parameters
         ----------
         params_group_name : str
             The parameters group name.
