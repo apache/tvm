@@ -146,9 +146,9 @@ class PipelineModule(object):
         return self._get_params_group_pipeline_map(name)
 
     def set_params(self, params_group_name, params_data):
-        """Set the parameter group value given the parameter group name. Note that the parameter group
-        name is declared in the pipeline executor config.
-        
+        """Set the parameter group value given the parameter group name. Note that the parameter
+        group name is declared in the pipeline executor config.
+
         Parameters
         ----------
         params_group_name : str
