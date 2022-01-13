@@ -1361,6 +1361,12 @@ constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_
  */
 constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 
+/*! \brief Mark the stage of a statement in the software pipeline */
+constexpr const char* software_pipeline_stage = "software_pipeline_stage";
+
+/*! \brief Mark the order of a statement in the software pipeline */
+constexpr const char* software_pipeline_order = "software_pipeline_order";
+
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
 constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
 

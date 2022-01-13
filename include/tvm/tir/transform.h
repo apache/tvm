@@ -492,6 +492,38 @@ TVM_DLL Pass ConvertForLoopsToSerial();
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
+/*!
+ * \brief Transform annotated loops into pipelined one that ovarlaps producers and consumers.
+ *
+ * This pass detects loops with the software pipeline annotations and rewrite them to pipelined
+ * ones. The behavior of such rewriting depending on two annotations on the loop,
+ * attr::software_pipeline_stage, and attr::software_pipeline_order, which defines the stage and the
+ * order, respectively, of the components of the software pipeline. The components of the software
+ * pipeline is the direct children (ignoring BlockRealize / Block / SeqStmt) of the annotated loop.
+ * The value of the both annotations should be array of integers, with its size the same as the
+ * number of the components.
+ *
+ * The result of the rewriting is a block that has three blocks as its direct children which
+ * represents the prologue, the body, and the epilogue of the software pipeline. In the prologue,
+ * only components whose stage is less than max_stage will be executed. In the epilogue, only
+ * components whose stage is greater than 0 will be executed. In the body, all the components will
+ * be executed. Such rewriting enables behavior like prefetching, the components are not necessarily
+ * executed in the original order. attr::software_pipeline_order defines the order of the each
+ * component. Components belong to different stages can be reordered.
+ *
+ * Buffer allocated inside the software pipeline may be resized to accommodate multiple versions
+ * of the original buffer. Block annotation attr::double_buffer_scope can be used to indicate that
+ * the block need to write in the double-buffering style.
+ *
+ * Annotations:
+ * attr::software_pipeline_stage: Array of non-negative integers, each element should be in range
+ *                                [0, max_stage], where max_stage is the maximum (inclusive) stage.
+ * attr::software_pipeline_order: Array of non-negative integers, should be a permutation of
+ *                                [0, 1, ..., num_components - 1].
+ *
+ * \return The IR transform pass.
+ */
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

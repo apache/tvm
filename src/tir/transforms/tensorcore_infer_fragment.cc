@@ -39,17 +39,6 @@ namespace tir {
 // Get fragment information from tensor intrinsics
 class FragmentGetter : public StmtExprVisitor {
  public:
-  // fragment metadata
-  struct FragmentInfo {
-    // fragment shape
-    int m, n, k;
-    // fragment layout (row-major or column-major)
-    std::string layout;
-    FragmentInfo() = default;
-    FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
-        : m(_m), n(_n), k(_k), layout(_layout) {}
-  };
-
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
 
@@ -126,6 +115,12 @@ class FragmentGetter : public StmtExprVisitor {
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
 
+std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
+  FragmentGetter getter;
+  getter(stmt);
+  return std::move(getter.fragments);
+}
+
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
 class FragmentChecker : public StmtExprVisitor {
  public:
@@ -157,8 +152,8 @@ class FragmentChecker : public StmtExprVisitor {
   bool CheckShape(const VarNode* buffer1, const VarNode* buffer2) {
     ICHECK(fragment_getter.fragments.count(buffer1));
     ICHECK(fragment_getter.fragments.count(buffer2));
-    FragmentGetter::FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
-    FragmentGetter::FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
+    FragmentInfo info1 = fragment_getter.fragments.at(buffer1);
+    FragmentInfo info2 = fragment_getter.fragments.at(buffer2);
     return info1.m == info2.m && info1.n == info2.n && info1.k == info2.k;
   }
   // Fragment infomation
@@ -175,7 +170,7 @@ class InferFragmenter : public StmtMutator {
     const VarNode* buffer = op->buffer_var.get();
     if (fragment_getter.fragments.count(buffer)) {
       // Add attribute to fragments allocation
-      FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
+      FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       // Add shape attribute to all fragments
       std::string shape =

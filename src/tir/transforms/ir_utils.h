@@ -267,6 +267,23 @@ class ConditionalBoundsContext {
   std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
 };
 
+// Information of tensor core fragment.
+struct FragmentInfo {
+  // fragment shape
+  int m, n, k;
+  // fragment layout (row-major or column-major)
+  std::string layout;
+  FragmentInfo() = default;
+  FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
+      : m(_m), n(_n), k(_k), layout(_layout) {}
+};
+
+/*!
+ * \brief Extract information of tensor core fragment from the IR.
+ * \param stmt The stmt to visit.
+ * \return Map from buffer variables to the fragment info.
+ */
+std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_
