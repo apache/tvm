@@ -1,10 +1,9 @@
 import tvm
 import tvm.relay.backend.contrib.generic
-from tvm.relay.backend.contrib.generic.ultra_trail.partitioner import partition_for_ultra_trail
+from tvm.relay.backend.contrib.generic.ultra_trail.partitioner import UltraTrailPartitioner
 from tvm import relay
 
 import torch
-
 
 class TorchModel(torch.nn.Module):
     def __init__(self):
@@ -27,7 +26,7 @@ def main():
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
-    mod = partition_for_ultra_trail(mod)
+    mod = UltraTrailPartitioner()(mod)
     lib = relay.build(mod, tvm.target.Target("c"))
     print(lib)
 

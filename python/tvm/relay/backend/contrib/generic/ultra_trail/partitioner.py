@@ -16,23 +16,13 @@
 # under the License.
 """Relay partitioner for the UltraTrail accelerator"""
 
-import tvm
-from tvm import relay
-
-custom_target_name = "ultra_trail"
+from tvm.relay.backend.contrib.generic.partitioner import GenericPartitioner
 
 
-def _register_external_op_helper(op_name, supported=True):
-    @tvm.ir.register_op_attr(op_name, f"target.{custom_target_name}")
-    def _func_wrapper(expr):
-        return supported
+class UltraTrailPartitioner(GenericPartitioner):
+    @property
+    def target_name(self):
+        return "ultra_trail"
 
-    return _func_wrapper
-
-
-def partition_for_ultra_trail(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
-    _register_external_op_helper("nn.conv1d")
-    mod = relay.transform.AnnotateTarget(custom_target_name)(mod)
-    mod = relay.transform.MergeCompilerRegions()(mod)
-    mod = relay.transform.PartitionGraph()(mod)
-    return mod
+    def register_supportet_ops(self):
+        self._register_supported_op("nn.conv1d")
