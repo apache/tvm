@@ -16,11 +16,11 @@
 # under the License.
 """Relay functions for rewriting fake quantized ops."""
 import numpy as np
-
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.tir import bijective_layout
+
 from ..op import register_fake_quantization_to_integer
 
 
@@ -100,6 +100,8 @@ register_unary_identity("expand_dims")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
+register_unary_identity("max")
+register_unary_identity("min")
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
