@@ -17,7 +17,7 @@
 import tvm
 from tvm import te
 
-
+# A test program which gives the opportunity for the CSE pass to introduce two new variables, at two different levels
 def test_cse():
     z1 = te.var("z1")
     z2 = te.var("z2")
@@ -30,7 +30,7 @@ def test_cse():
     b = te.var("b")
     dtype = "int32"
     buffer = tvm.tir.decl_buffer((50,), dtype)
-    # Test prog : 
+    # Test prog :
     # let z1=1 in let z2=2 in
     #   Mem[i1] = z1+z2;
     #   let x = 1 in let y = 1 in 
@@ -70,7 +70,6 @@ def test_cse():
 
     assert body.var.name == "z2"
     assert body.value == 2
-
     # This is the let-in for the first variable generated cse_var_1
     assert isinstance(body.body, tvm.tir.LetStmt)
 
@@ -80,7 +79,6 @@ def test_cse():
     cse_var_1 = body.var # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_1"
     assert tvm.ir.structural_equal(body.value, z1+z2)
-
     assert isinstance(body.body, tvm.tir.SeqStmt)
 
     body = body.body
@@ -97,7 +95,6 @@ def test_cse():
 
     assert body.var.name == "y"
     assert body.value == 1
-
     # This is the let-in for the second variable generated cse_var_2
     assert isinstance(body.body, tvm.tir.LetStmt)
 
@@ -123,5 +120,101 @@ def test_cse():
     assert isinstance(body.body, tvm.tir.Store)
 
 
+# First specific test for if nodes : Some duplicated computations appear only in one branch (here the Then branch), not in both branches.
+# In this case, the CSE pass should introduce the redundant computation at the top if the Then branch, not before the whole If
+# (otherwise that would lead to some computations being computed for nothing when it is the Else branch that is executed).
+def test_cse_ifNode_1():
+  b = te.var("b")
+  i1 = te.var("i1")
+  i2 = te.var("i2")
+  i3 = te.var("i3")
+  y = te.var("y")
+  z = te.var("z")
+  dtype = "int32"
+  buffer = tvm.tir.decl_buffer((50,), dtype)
+  # Test prog :
+  # let b=1 in
+  #   if(b)
+  #		{
+  #		  Mem[i1] = y+z
+  #		  Mem[i2] = y+z
+  #   }
+  #   else
+  #	  {
+  #		  Mem[i3] = y
+  # 	}
+  body = tvm.tir.LetStmt(b, 1, tvm.tir.IfThenElse(b,
+                          tvm.tir.SeqStmt([tvm.tir.Store(buffer.data, y+z, i1),
+                                            tvm.tir.Store(buffer.data, y+z, i2)]),
+                          tvm.tir.Store(buffer.data, y, i3)))
+
+  mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1,i2,i3,y,z], body))
+  body = tvm.tir.transform.CommonSubexprElim()(mod)
+
+  tvm.transform.PrintIR()(body)
+
+  body = body["main"].body # Gets the body of the main, i.e. the full statement
+
+  assert body.var.name == "b"
+  assert body.value == 1
+  assert isinstance(body.body, tvm.tir.IfThenElse)
+
+  body = body.body
+
+  assert isinstance(body.then_case, tvm.tir.LetStmt)
+
+  body = body.then_case
+
+  # The let-in introduced by the CSE should appear now, inside the Then branch of the If node
+  assert body.var.name == "cse_var_1"
+  # and it should contain the expression (y+z) that was redundant
+  assert tvm.ir.structural_equal(body.value, y+z)
+
+
+# Second test for if nodes : Some duplicated computations appear in both the Then and the Else branch.
+# In this case, the CSE pass should introduce the redundant computation before the whole If node, because
+# regardless of the execution path, it is going to be computed.
+def test_cse_ifNode_2():
+  b = te.var("b")
+  i1 = te.var("i1")
+  i2 = te.var("i2")
+  i3 = te.var("i3")
+  y = te.var("y")
+  z = te.var("z")
+  dtype = "int32"
+  buffer = tvm.tir.decl_buffer((50,), dtype)
+  # Test prog :
+  # let b=1 in
+  #   if(b)
+  #	  {
+  #		  Mem[i1] = y+z
+  #		  Mem[i2] = y
+  #   }
+  #   else
+  #	  {
+  #		  Mem[i3] = y+z
+  # 	}
+  body = tvm.tir.LetStmt(b, 1, tvm.tir.IfThenElse(b,
+                          tvm.tir.SeqStmt([tvm.tir.Store(buffer.data, y+z, i1), # (y+z)is present in the Then branch
+                                            tvm.tir.Store(buffer.data, y, i2)]),
+                          tvm.tir.Store(buffer.data, y+z, i3)))                 # and (y+z) is also present in the Else branch
+
+  mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1,i2,i3,y,z], body))
+  body = tvm.tir.transform.CommonSubexprElim()(mod)
+
+  tvm.transform.PrintIR()(body)
+
+  body = body["main"].body # Gets the body of the main, i.e. the full statement
+
+  assert isinstance(body, tvm.tir.LetStmt)
+
+  # The let-in introduced by the CSE should appear now, at the toplevel (i.e. before the If)
+  assert body.var.name == "cse_var_1"
+  # and it should contain the expression (y+z) that was redundant
+  assert tvm.ir.structural_equal(body.value, y+z)
+
+
 if __name__ == "__main__":
-    test_cse()
+  test_cse()
+  test_cse_ifNode_1()
+  test_cse_ifNode_2()

@@ -207,7 +207,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
             });
 
   // For each computation done (considering them from biggest to smallest)
-  for (int i = 0; i < semantic_comp_done_by_expr.size(); i++) {
+  for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_expr[i];
 
     // The predicate later used (when doing replacements) to select expressions that are
@@ -377,7 +377,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
             });
 
   // For each computation done (considering them from biggest to smallest)
-  for (int i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
+  for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
     std::pair<PrimExpr, size_t>& computation_and_nb = semantic_comp_done_by_stmt[i];
 
     // The predicate later used (when doing replacements) to select expressions that are

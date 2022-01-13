@@ -44,8 +44,13 @@ namespace tir {
 /*!
  * \brief A table of computations is a hashtable which associates to each expression being computed
           a number (which is the number of time that it is computed)
+					It is important to note that the hash used is a StructuralHash (and not an ObjectPtrHash)
+					as we need to hash similarly deeply equal terms.
+					The comparison used is ExprDeepEqual, which is stricter than StructuralEqual (as it does
+					not do variables remapping), so it is compatible with StructuralHash (intended to be used
+					with StructuralEqual).
  */
-using TableOfComputations = std::unordered_map<PrimExpr, size_t, ObjectPtrHash, ObjectPtrEqual>;
+using TableOfComputations = std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate
@@ -87,6 +92,10 @@ class ComputationsDoneBy : public StmtExprVisitor {
 
   void VisitExpr(const PrimExpr& expr) override;
   void VisitStmt(const Stmt& stmt) override;
+
+  void VisitStmt_(const IfThenElseNode* op) override;
+  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const WhileNode* op) override;
 
  private:
   static TableOfComputations ComputationsDoneByChildrenOf(
@@ -165,6 +174,8 @@ class UsesVarName : public StmtExprVisitor {
 /*!
  * \brief Various utility functions for the CSE pass
  */
+void PrintTableOfComputations(const TableOfComputations& table);
+
 using MaybeValue = dmlc::optional<PrimExpr>;
 
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
@@ -184,7 +195,7 @@ std::vector<B> VectorMap(const std::vector<A>& input, std::function<B(const A&)>
   // the same size as the input
   result.reserve(size);
 
-  for (int i = 0; i < size; i++) {
+  for (size_t i = 0; i < size; i++) {
     result.push_back(fun(input[i]));
   }
 
