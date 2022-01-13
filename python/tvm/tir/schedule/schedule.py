@@ -1740,7 +1740,7 @@ class Schedule(Object):
         self,
         block_or_loop: Union[BlockRV, LoopRV],
         ann_key: str,
-        ann_val: Union[str, int, float, ExprRV],
+        ann_val: Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]],
     ) -> None:
         """Annotate a block/loop with a key value pair
 
@@ -1750,7 +1750,7 @@ class Schedule(Object):
             The block/loop to be annotated
         ann_key : str
             The annotation key
-        ann_val : Union[str, int, float, ExprRV]
+        ann_val : Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]
             The annotation value
 
         Examples

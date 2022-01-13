@@ -608,6 +608,14 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
         << "TypeError: runtime::String is expected, but gets StringImm";
     return this->Get(GetRef<PrimExpr>(expr));
   }
+  if (const auto* arr = ann_val.as<ArrayNode>()) {
+    Array<ObjectRef> result;
+    result.reserve(arr->size());
+    for (size_t i = 0; i < arr->size(); i++) {
+      result.push_back(CheckAndGetAnnotationValue(arr->at(i)));
+    }
+    return std::move(result);
+  }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
       << "gets: " << ann_val->GetTypeKey();
