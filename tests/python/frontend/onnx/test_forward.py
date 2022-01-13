@@ -1282,6 +1282,39 @@ def test_batch_matmul(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_use_nt_batch_matmul(target, dev):
+    a_shape = (2, 3, 4)
+    b_shape = (2, 4, 3)
+    out_shape = [2, 3, 3]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+
+    for use_nt_batch_matmul in [True, False]:
+        mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmul_test")
+        _, shape_dict = get_input_data_shape_dict(model, [a_array, b_array])
+
+        mod, _ = relay.frontend.from_onnx(
+            model, shape_dict, convert_config={"use_nt_batch_matmul": use_nt_batch_matmul}
+        )
+        has_transpose_op = "transpose" in str(mod)
+        # use_nt_batch_matmul implies, TVM converts qualified onnx `matmul`
+        # to `transpose(weight) + nn.batch_matmul_NT`, otherwise to `nn.batch_matmul`
+        assert has_transpose_op == use_nt_batch_matmul
+
+
+@tvm.testing.parametrize_targets
 def test_matmulinteger16(target, dev):
     def verify_matmulinteger16(a_shape, b_shape, out_shape):
         a_dtype = "int16"
@@ -6287,6 +6320,7 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_use_nt_batch_matmul()
     test_global_lppool()
     test_scan()
     test_random_uniform_like()
