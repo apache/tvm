@@ -32,6 +32,12 @@ from tvm.relay.backend.contrib.ethosu import op
 
 from . import _ffi_api
 
+# We are currently using copy_constants scheduler In the long run,
+# this should be a single intelligent and a composite scheduler
+# that can perform scheduling based on user inputs such as
+# scratch memory size.
+SCHEDULER = copy_constants
+
 
 class OptimizeLUTs(ExprMutator):
     """A pass to merge an identity operator with a LUT based activation function with
@@ -356,12 +362,7 @@ def relay_to_tir(mod: tvm.ir.IRModule) -> tvm.ir.IRModule:
         gv: "ethos-u" for gv, _ in filter(lambda x: util.is_npu_func(x[1]), mod.functions.items())
     }
     mod = mod.with_attr("device_contexts", device_contexts)
-
-    # We are currently using copy_constants scheduler In the long run,
-    # this should be a single intelligent and a composite scheduler
-    # that can perform scheduling based on user inputs such as
-    # scratch memory size.
-    mod = LowerToTIR(copy_constants)(mod)
+    mod = LowerToTIR(SCHEDULER)(mod)
 
     return mod
 
