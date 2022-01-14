@@ -23,6 +23,7 @@ from tvm import relay, topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
 from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
 
 from ....ir import container
 from ....tir import expr
@@ -1060,10 +1061,22 @@ reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_injective_schedule("nn.space_to_batch_nd")
 reg.register_injective_schedule("nn.batch_to_space_nd")
 
+reg.register_pattern("nn.conv2d_backward_weight", OpPattern.OUT_ELEMWISE_FUSABLE)
 
-@_reg.register_legalize("nn.conv2d_backward_weight")
+@reg.register_legalize("nn.conv2d_backward_weight")
 def legalize_conv2d_backward_weight(attrs, inputs, types):
     data, grad = inputs
+    data_shape = get_const_tuple(data.checked_type.shape)
+    weight_shape = get_const_tuple(types[2].shape)
+    _, out_channel, grad_h, grad_w = get_const_tuple(grad.checked_type.shape)
+    batch, in_channel, in_h, in_w = data_shape
+    _, _, filter_h, filter_w = weight_shape
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(
+        get_const_tuple(attrs.padding), (filter_h, filter_w)
+    )
+    stride_h, stride_w = get_const_tuple(attrs.strides)
+    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+
     grad = relay.tile(grad, [1, in_channel // attrs.groups, 1, 1])
     grad = relay.reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
     data = relay.reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
@@ -1100,7 +1113,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
     assert padded_weight_grad_w >= filter_w
 
     if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
-        backward_weight = strided_slice(
+        backward_weight = relay.strided_slice(
             backward_weight,
             begin=[0, 0, 0, 0],
             end=[out_channel, in_channel // attrs.groups, filter_h, filter_w],

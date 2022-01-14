@@ -610,6 +610,39 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_backward_weight")
                                       out_dtype);
     });
 
+bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                             const TypeReporter& reporter) {
+  ICHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  const auto* grad = types[1].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  static const Layout kNCHW("NCHW");
+  static const Layout kOIHW("OIHW");
+
+  const auto* param = attrs.as<Conv2DAttrs>();
+  ICHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
+
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+  Array<IndexExpr> grad_shape_nchw = trans_in_layout.ForwardShape(grad->shape);
+
+  auto in_channels = dshape_nchw[1];
+  auto out_channels = grad_shape_nchw[1];
+  ICHECK(param->kernel_size.defined());
+  Array<IndexExpr> wshape_oihw(
+      {out_channels, in_channels, param->kernel_size[0], param->kernel_size[1]});
+
+  auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
+  LOG(INFO) << "wshape: " << wshape;
+  reporter->Assign(types[2], TensorType(wshape, data->dtype));
+  return true;
+}
+
 RELAY_REGISTER_OP("nn.conv2d_backward_weight")
     .describe(R"code(The gradient of the 2D convolution layer with respect to the weight.
 
@@ -625,7 +658,7 @@ TODO
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("grad", "Tensor", "The gradient tensor.")
     .set_support_level(2)
-    .add_type_rel("Conv2DBackwardWeight", Conv2DRel<Conv2DAttrs>)
+    .add_type_rel("Conv2DBackwardWeight", Conv2DBackwardWeightRel)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 }  // namespace relay
