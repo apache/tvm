@@ -96,7 +96,8 @@ class BufferSlice(ObjectGeneric):
                 if index < 0:
                     report_error("Negative index is not allowed during buffer access", span)
             elif isinstance(index, PrimExpr):
-                if index.dtype != "int32":
+                element_dtype = index.dtype.split("x", maxsplit=1)[0]
+                if element_dtype != "int32":
                     report_error(
                         "index expected an int32 type PrimExpr but got " + str(index.dtype),
                         index.span,

@@ -476,7 +476,7 @@ def fail_match_store(a: T.handle) -> None:
             T.reads([])
             T.writes(A[i, j])
             sub_A = T.match_buffer(A[i, j], ())
-            sub_A.data[0] = 1
+            sub_A[0] = 1
 
 
 @T.prim_func

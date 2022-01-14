@@ -925,7 +925,7 @@ def test_raise_exception_during_codegen():
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i in T.parallel(4):
             for j in T.parallel(4):
-                T.store(B.data, i * 4 + j, A.data[i * 4 + j] * 2.0)
+                B.data[i * 4 + j] = A.data[i * 4 + j] * 2.0
 
     with pytest.raises(tvm.TVMError) as e:
         tvm.build({"llvm": tvm.IRModule.from_expr(threadpool_nested_parallel_loop)})

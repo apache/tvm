@@ -93,134 +93,66 @@ class Module2:
         B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
         C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
         # body
-        packedB = T.allocate([32768], "float32x32", "global")
+        packedB = T.allocate([32768], "float32", "global")
         for x in T.parallel(0, 32):
             for y in T.serial(0, 1024):
-                T.store(
-                    packedB,
-                    T.ramp(((x * 32768) + (y * 32)), 1, 32),
-                    B_1.data[
-                        T.ramp(((y * 1024) + (x * 32)), 1, 32),
-                        T.broadcast(True, 32),
-                    ],
-                    T.broadcast(True, 32),
-                )
+                packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[
+                    T.ramp(((y * 1024) + (x * 32)), 1, 32)
+                ]
         for x_outer in T.parallel(0, 32):
             C_global = T.allocate([1024], "float32", "global")
             for y_outer in T.serial(0, 32):
                 for x_c_init in T.serial(0, 32):
-                    T.store(
-                        C_global,
-                        T.ramp((x_c_init * 32), 1, 32),
-                        T.broadcast(T.float32(0), 32),
-                        T.broadcast(True, 32),
-                    )
+                    C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
                 for k_outer in T.serial(0, 256):
                     for x_c in T.serial(0, 32):
-                        T.store(
-                            C_global,
-                            T.ramp((x_c * 32), 1, 32),
-                            (
-                                C_global[
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.broadcast(True, 32),
-                                ]
-                                + (
-                                    T.broadcast(
-                                        A_1.data[
-                                            (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
-                                        ],
-                                        32,
-                                    )
-                                    * packedB[
-                                        T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32),
-                                        T.broadcast(True, 32),
-                                    ]
-                                )
-                            ),
-                            T.broadcast(True, 32),
+                        C_global[T.ramp((x_c * 32), 1, 32)] = C_global[
+                            T.ramp((x_c * 32), 1, 32)
+                        ] + (
+                            T.broadcast(
+                                A_1[
+                                    (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
+                                ],
+                                32,
+                            )
+                            * packedB[T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32)]
                         )
-                        T.store(
-                            C_global,
-                            T.ramp((x_c * 32), 1, 32),
-                            (
-                                C_global[
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.broadcast(True, 32),
-                                ]
-                                + (
-                                    T.broadcast(
-                                        A_1.data[
-                                            (
-                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
-                                                + 1
-                                            ),
-                                        ],
-                                        32,
-                                    )
-                                    * packedB[
-                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32),
-                                        T.broadcast(True, 32),
-                                    ]
-                                )
-                            ),
-                            T.broadcast(True, 32),
+                        C_global[T.ramp((x_c * 32), 1, 32)] = C_global[
+                            T.ramp((x_c * 32), 1, 32)
+                        ] + (
+                            T.broadcast(
+                                A_1[
+                                    ((((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)) + 1),
+                                ],
+                                32,
+                            )
+                            * packedB[T.ramp((((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32)]
                         )
-                        T.store(
-                            C_global,
-                            T.ramp((x_c * 32), 1, 32),
-                            (
-                                C_global[
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.broadcast(True, 32),
-                                ]
-                                + (
-                                    T.broadcast(
-                                        A_1.data[
-                                            (
-                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
-                                                + 2
-                                            ),
-                                        ],
-                                        32,
-                                    )
-                                    * packedB[
-                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32),
-                                        T.broadcast(True, 32),
-                                    ]
-                                )
-                            ),
-                            T.broadcast(True, 32),
+                        C_global[T.ramp((x_c * 32), 1, 32)] = C_global[
+                            T.ramp((x_c * 32), 1, 32)
+                        ] + (
+                            T.broadcast(
+                                A_1[
+                                    ((((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)) + 2),
+                                ],
+                                32,
+                            )
+                            * packedB[T.ramp((((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32)]
                         )
-                        T.store(
-                            C_global,
-                            T.ramp((x_c * 32), 1, 32),
-                            (
-                                C_global[
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.broadcast(True, 32),
-                                ]
-                                + (
-                                    T.broadcast(
-                                        A_1.data[
-                                            (
-                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
-                                                + 3
-                                            ),
-                                        ],
-                                        32,
-                                    )
-                                    * packedB[
-                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32),
-                                        T.broadcast(True, 32),
-                                    ]
-                                )
-                            ),
-                            T.broadcast(True, 32),
+                        C_global[T.ramp((x_c * 32), 1, 32)] = C_global[
+                            T.ramp((x_c * 32), 1, 32)
+                        ] + (
+                            T.broadcast(
+                                A_1[
+                                    ((((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)) + 3),
+                                ],
+                                32,
+                            )
+                            * packedB[T.ramp((((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32)]
                         )
                 for x_inner in T.serial(0, 32):
                     for y_inner in T.serial(0, 32):
-                        C_1.data[
+                        C_1[
                             ((((x_outer * 32768) + (x_inner * 1024)) + (y_outer * 32)) + y_inner)
                         ] = C_global[((x_inner * 32) + y_inner)]
 
@@ -375,15 +307,10 @@ class Module3:
                 T.evaluate(T.tvm_throw_last_error(dtype="int32"))
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
-                    T.store(
-                        packedB,
-                        T.ramp(((x * 32768) + (y * 32)), 1, 32),
-                        B[
-                            T.ramp(((y * 1024) + (x * 32)), 1, 32),
-                            T.broadcast(True, 32),
-                        ],
+                    packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B[
+                        T.ramp(((y * 1024) + (x * 32)), 1, 32),
                         T.broadcast(True, 32),
-                    )
+                    ]
             for x_outer in T.parallel(0, 32):
                 T.attr(C_global, "storage_scope", "global")
                 T.attr(C_global, "storage_alignment", 128)
@@ -395,136 +322,93 @@ class Module3:
                         T.evaluate(T.tvm_throw_last_error(dtype="int32"))
                     for y_outer in T.serial(0, 32):
                         for x_c_init in T.serial(0, 32):
-                            T.store(
-                                C_global,
-                                T.ramp((x_c_init * 32), 1, 32),
-                                T.broadcast(T.float32(0), 32),
-                                T.broadcast(True, 32),
-                            )
+                            C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
                         for k_outer in T.serial(0, 256):
                             for x_c in T.serial(0, 32):
-                                T.store(
-                                    C_global,
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.call_llvm_pure_intrin(
-                                        T.uint32(97),
-                                        T.uint32(3),
-                                        T.broadcast(
-                                            A[
-                                                (
-                                                    ((x_outer * 32768) + (x_c * 1024))
-                                                    + (k_outer * 4)
-                                                ),
-                                            ],
-                                            32,
-                                        ),
-                                        packedB[
-                                            T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32),
-                                            T.broadcast(True, 32),
+                                C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
+                                    T.uint32(97),
+                                    T.uint32(3),
+                                    T.broadcast(
+                                        A[
+                                            (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
                                         ],
-                                        C_global[
-                                            T.ramp((x_c * 32), 1, 32),
-                                            T.broadcast(True, 32),
-                                        ],
-                                        dtype="float32x32",
+                                        32,
                                     ),
-                                    T.broadcast(True, 32),
+                                    packedB[
+                                        T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    C_global[
+                                        T.ramp((x_c * 32), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    dtype="float32x32",
                                 )
-                                T.store(
-                                    C_global,
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.call_llvm_pure_intrin(
-                                        T.uint32(97),
-                                        T.uint32(3),
-                                        T.broadcast(
-                                            A[
-                                                (
-                                                    (
-                                                        ((x_outer * 32768) + (x_c * 1024))
-                                                        + (k_outer * 4)
-                                                    )
-                                                    + 1
-                                                ),
-                                            ],
-                                            32,
-                                        ),
-                                        packedB[
-                                            T.ramp(
-                                                (((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32
+                                C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
+                                    T.uint32(97),
+                                    T.uint32(3),
+                                    T.broadcast(
+                                        A[
+                                            (
+                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
+                                                + 1
                                             ),
-                                            T.broadcast(True, 32),
                                         ],
-                                        C_global[
-                                            T.ramp((x_c * 32), 1, 32),
-                                            T.broadcast(True, 32),
-                                        ],
-                                        dtype="float32x32",
+                                        32,
                                     ),
-                                    T.broadcast(True, 32),
+                                    packedB[
+                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 32), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    C_global[
+                                        T.ramp((x_c * 32), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    dtype="float32x32",
                                 )
-                                T.store(
-                                    C_global,
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.call_llvm_pure_intrin(
-                                        T.uint32(97),
-                                        T.uint32(3),
-                                        T.broadcast(
-                                            A[
-                                                (
-                                                    (
-                                                        ((x_outer * 32768) + (x_c * 1024))
-                                                        + (k_outer * 4)
-                                                    )
-                                                    + 2
-                                                ),
-                                            ],
-                                            32,
-                                        ),
-                                        packedB[
-                                            T.ramp(
-                                                (((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32
+                                C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
+                                    T.uint32(97),
+                                    T.uint32(3),
+                                    T.broadcast(
+                                        A[
+                                            (
+                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
+                                                + 2
                                             ),
-                                            T.broadcast(True, 32),
                                         ],
-                                        C_global[
-                                            T.ramp((x_c * 32), 1, 32),
-                                            T.broadcast(True, 32),
-                                        ],
-                                        dtype="float32x32",
+                                        32,
                                     ),
-                                    T.broadcast(True, 32),
+                                    packedB[
+                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 64), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    C_global[
+                                        T.ramp((x_c * 32), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    dtype="float32x32",
                                 )
-                                T.store(
-                                    C_global,
-                                    T.ramp((x_c * 32), 1, 32),
-                                    T.call_llvm_pure_intrin(
-                                        T.uint32(97),
-                                        T.uint32(3),
-                                        T.broadcast(
-                                            A[
-                                                (
-                                                    (
-                                                        ((x_outer * 32768) + (x_c * 1024))
-                                                        + (k_outer * 4)
-                                                    )
-                                                    + 3
-                                                ),
-                                            ],
-                                            32,
-                                        ),
-                                        packedB[
-                                            T.ramp(
-                                                (((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32
+                                C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
+                                    T.uint32(97),
+                                    T.uint32(3),
+                                    T.broadcast(
+                                        A[
+                                            (
+                                                (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))
+                                                + 3
                                             ),
-                                            T.broadcast(True, 32),
                                         ],
-                                        C_global[
-                                            T.ramp((x_c * 32), 1, 32),
-                                            T.broadcast(True, 32),
-                                        ],
-                                        dtype="float32x32",
+                                        32,
                                     ),
-                                    T.broadcast(True, 32),
+                                    packedB[
+                                        T.ramp((((y_outer * 32768) + (k_outer * 128)) + 96), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    C_global[
+                                        T.ramp((x_c * 32), 1, 32),
+                                        T.broadcast(True, 32),
+                                    ],
+                                    dtype="float32x32",
                                 )
                         for x_inner in T.serial(0, 32):
                             for y_inner in T.serial(0, 32):
@@ -1078,7 +962,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1119,7 +1003,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1160,7 +1044,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1201,7 +1085,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1242,7 +1126,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1283,7 +1167,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1324,7 +1208,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1365,7 +1249,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1406,7 +1290,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1447,7 +1331,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1488,7 +1372,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1529,7 +1413,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1570,7 +1454,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1611,7 +1495,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1652,7 +1536,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                             )
                             and ((ax2 + T.floormod(bz, 14)) < 15)
                         ),
-                        A_1.data[
+                        A_1[
                             (
                                 (
                                     (
@@ -1690,7 +1574,7 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                         )
                         and ((ax2 + T.floormod(bz, 14)) < 15)
                     ),
-                    A_1.data[
+                    A_1[
                         (
                             (
                                 (
@@ -1715,11 +1599,24 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                     dtype="float16",
                 )
             with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8),
-                    W_1.data[
-                        T.ramp(
+                W_shared[T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8)] = W_1[
+                    T.ramp(
+                        (
+                            (
+                                ((((kh * 393216) + (ic_outer * 16384)) + (by * 2048)) + (ty * 512))
+                                + (tz * 256)
+                            )
+                            + (tx * 8)
+                        ),
+                        1,
+                        8,
+                    ),
+                    T.broadcast(True, 8),
+                ]
+            with T.launch_thread(tx, 32):
+                W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 2048), 1, 8)] = W_1[
+                    T.ramp(
+                        (
                             (
                                 (
                                     (
@@ -1729,144 +1626,98 @@ def opt_conv_tensorcore_lower(A: T.handle, W: T.handle, Conv: T.handle) -> None:
                                     + (tz * 256)
                                 )
                                 + (tx * 8)
-                            ),
-                            1,
-                            8,
+                            )
+                            + 8192
                         ),
-                        T.broadcast(True, 8),
-                    ],
+                        1,
+                        8,
+                    ),
                     T.broadcast(True, 8),
-                )
+                ]
             with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 2048), 1, 8),
-                    W_1.data[
-                        T.ramp(
+                W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 4096), 1, 8)] = W_1[
+                    T.ramp(
+                        (
                             (
                                 (
                                     (
-                                        (
-                                            (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
-                                            + (ty * 512)
-                                        )
-                                        + (tz * 256)
+                                        (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
+                                        + (ty * 512)
                                     )
-                                    + (tx * 8)
+                                    + (tz * 256)
                                 )
-                                + 8192
-                            ),
-                            1,
-                            8,
+                                + (tx * 8)
+                            )
+                            + 131072
                         ),
-                        T.broadcast(True, 8),
-                    ],
+                        1,
+                        8,
+                    ),
                     T.broadcast(True, 8),
-                )
+                ]
             with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 4096), 1, 8),
-                    W_1.data[
-                        T.ramp(
+                W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 6144), 1, 8)] = W_1[
+                    T.ramp(
+                        (
                             (
                                 (
                                     (
-                                        (
-                                            (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
-                                            + (ty * 512)
-                                        )
-                                        + (tz * 256)
+                                        (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
+                                        + (ty * 512)
                                     )
-                                    + (tx * 8)
+                                    + (tz * 256)
                                 )
-                                + 131072
-                            ),
-                            1,
-                            8,
+                                + (tx * 8)
+                            )
+                            + 139264
                         ),
-                        T.broadcast(True, 8),
-                    ],
+                        1,
+                        8,
+                    ),
                     T.broadcast(True, 8),
-                )
+                ]
             with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 6144), 1, 8),
-                    W_1.data[
-                        T.ramp(
+                W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 8192), 1, 8)] = W_1[
+                    T.ramp(
+                        (
                             (
                                 (
                                     (
-                                        (
-                                            (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
-                                            + (ty * 512)
-                                        )
-                                        + (tz * 256)
+                                        (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
+                                        + (ty * 512)
                                     )
-                                    + (tx * 8)
+                                    + (tz * 256)
                                 )
-                                + 139264
-                            ),
-                            1,
-                            8,
+                                + (tx * 8)
+                            )
+                            + 262144
                         ),
-                        T.broadcast(True, 8),
-                    ],
+                        1,
+                        8,
+                    ),
                     T.broadcast(True, 8),
-                )
+                ]
             with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 8192), 1, 8),
-                    W_1.data[
-                        T.ramp(
+                W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 10240), 1, 8)] = W_1[
+                    T.ramp(
+                        (
                             (
                                 (
                                     (
-                                        (
-                                            (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
-                                            + (ty * 512)
-                                        )
-                                        + (tz * 256)
+                                        (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
+                                        + (ty * 512)
                                     )
-                                    + (tx * 8)
+                                    + (tz * 256)
                                 )
-                                + 262144
-                            ),
-                            1,
-                            8,
+                                + (tx * 8)
+                            )
+                            + 270336
                         ),
-                        T.broadcast(True, 8),
-                    ],
+                        1,
+                        8,
+                    ),
                     T.broadcast(True, 8),
-                )
-            with T.launch_thread(tx, 32):
-                T.store(
-                    W_shared,
-                    T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 10240), 1, 8),
-                    W_1.data[
-                        T.ramp(
-                            (
-                                (
-                                    (
-                                        (
-                                            (((kh * 393216) + (ic_outer * 16384)) + (by * 2048))
-                                            + (ty * 512)
-                                        )
-                                        + (tz * 256)
-                                    )
-                                    + (tx * 8)
-                                )
-                                + 270336
-                            ),
-                            1,
-                            8,
-                        ),
-                        T.broadcast(True, 8),
-                    ],
-                    T.broadcast(True, 8),
-                )
+                ]
             for ic_inner in T.serial(0, 2):
                 for kw in T.serial(0, 3):
                     T.evaluate(
@@ -2559,9 +2410,9 @@ def vthread_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i2, 2)
     B = T.allocate([16], "float32", "local")
     for j in range(16):
-        B[j] = A.data[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
+        B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
     for j in range(16):
-        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * T.float32(2)
+        C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * T.float32(2)
 
 
 def test_vthread():
@@ -2840,7 +2691,7 @@ def test_rank0_buffers():
 def rank0_block(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
     B = T.alloc_buffer((), "float32")
-    T.store(B.data, 0, A.data[0])
+    B[0] = A.data[0]
 
     with T.block("update") as []:
         T.reads([A[()]])
@@ -2984,12 +2835,12 @@ def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.han
     for ax0_ax1_fused_4 in T.serial(0, 56):
         for ax2_4 in T.serial(0, 56):
             for ax3_init in T.serial(0, 64):
-                T.store(tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_init), T.uint8(0), True)
+                tensor_2[(((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_init)] = T.uint8(0)
             for rv0_rv1_fused_1, ax3_2 in T.grid(9, 64):
-                T.store(tensor_2, (((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2), T.max(tensor_2[(((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2)], T.if_then_else(((((ax0_ax1_fused_4*2) + T.floordiv(rv0_rv1_fused_1, 3)) < 112) and (((ax2_4*2) + T.floormod(rv0_rv1_fused_1, 3)) < 112)), placeholder_29.data[(((((ax0_ax1_fused_4*14336) + (T.floordiv(rv0_rv1_fused_1, 3)*7168)) + (ax2_4*128)) + (T.floormod(rv0_rv1_fused_1, 3)*64)) + ax3_2)], T.uint8(0), dtype="uint8")), True)
+                tensor_2[(((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2)] = T.max(tensor_2[(((ax0_ax1_fused_4*3584) + (ax2_4*64)) + ax3_2)], T.if_then_else(((((ax0_ax1_fused_4*2) + T.floordiv(rv0_rv1_fused_1, 3)) < 112) and (((ax2_4*2) + T.floormod(rv0_rv1_fused_1, 3)) < 112)), placeholder_29[(((((ax0_ax1_fused_4*14336) + (T.floordiv(rv0_rv1_fused_1, 3)*7168)) + (ax2_4*128)) + (T.floormod(rv0_rv1_fused_1, 3)*64)) + ax3_2)], T.uint8(0), dtype="uint8"))
     for ax0_ax1_fused_5 in T.serial(0, 56):
         for ax2_5, ax3_3 in T.grid(56, 64):
-            T.store(T_cast_7.data, (((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3), T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16"), True)
+            T_cast_7[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)] = T.cast(tensor_2[(((ax0_ax1_fused_5*3584) + (ax2_5*64)) + ax3_3)], "int16")
 # fmt: on
 
 
@@ -3009,7 +2860,7 @@ def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
-            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A.data[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
 
 
 @T.prim_func
@@ -3021,7 +2872,7 @@ def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
         T.launch_thread(threadIdx_x, 128)
         reduce_temp0 = T.allocate([1], "float32", "local")
         with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
-            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A.data[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[i * 128 + threadIdx_x], True, reduce_temp0, threadIdx_x, dtype="handle"))
 
 
 @T.prim_func

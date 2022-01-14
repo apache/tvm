@@ -54,7 +54,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
         T.writes(B[0:16, 0:16])
         A = T.allocate([256], "float32", "global")
         for i, j in T.grid(16, 16):
-            T.store(A, i * 16 + j, 1)
+            A[i * 16 + j] = 1
         for i in range(0, 16):
             for j in range(0, 16):
                 T.evaluate(A[i * 16 + j])
@@ -70,7 +70,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
 @T.prim_func
 def lca_is_func_root(a: T.handle) -> None:
     A = T.match_buffer(a, [0, 0], "float32")
-    A.data[0] = 1.0
+    A[0] = 1.0
 
 
 @T.prim_func

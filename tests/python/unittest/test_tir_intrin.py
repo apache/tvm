@@ -236,9 +236,7 @@ class Module:
         )
         # body
         for i in T.serial(0, n):
-            d_1.data[(i * stride_3)] = (
-                A_1.data[(i * stride)] * B_1.data[(i * stride_1)]
-            ) + C_1.data[(i * stride_2)]
+            d_1[(i * stride_3)] = (A_1[(i * stride)] * B_1[(i * stride_1)]) + C_1[(i * stride_2)]
 
 
 def test_fma():

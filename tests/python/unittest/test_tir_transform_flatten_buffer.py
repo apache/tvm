@@ -55,9 +55,9 @@ def flattened_elementwise_func(a: T.handle, c: T.handle) -> None:
     for i in T.serial(0, 16):
         B_new = T.allocate([16], "float32", "global")
         for j in T.serial(0, 16):
-            B_new[j] = A.data[((i * 16) + j)] + 1.0
+            B_new[j] = A[((i * 16) + j)] + 1.0
         for j in T.serial(0, 16):
-            C.data[((i * 16) + j)] = B_new[j] * 2.0
+            C[((i * 16) + j)] = B_new[j] * 2.0
 
 
 @T.prim_func
@@ -97,9 +97,9 @@ def flattened_gpu_func(a: T.handle, c: T.handle) -> None:
     T.launch_thread(i2, 2)
     B = T.allocate([16], "float32", "local")
     for j in range(0, 16):
-        B[j] = A.data[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
+        B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0
     for j in range(0, 16):
-        C.data[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
+        C[i0 * 64 + i1 * 32 + i2 * 16 + j] = B[j] * 2.0
 
 
 @T.prim_func
@@ -132,9 +132,9 @@ def flattened_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
     for i in range(0, n):
         B = T.allocate([m], "float32", "global")
         for j in range(0, m):
-            B[j] = A.data[i * m + j] + 1.0
+            B[j] = A[i * m + j] + 1.0
         for j in range(0, m):
-            C.data[i * m + j] = B[j] * 2.0
+            C[i * m + j] = B[j] * 2.0
 
 
 @T.prim_func
@@ -157,7 +157,7 @@ def flattened_predicate_func(a: T.handle, c: T.handle) -> None:
 
     for i, j in T.grid(5, 7):
         if i * 7 + j < 32:
-            C.data[i * 7 + j] = A.data[i * 7 + j] + 1.0
+            C[i * 7 + j] = A[i * 7 + j] + 1.0
 
 
 @T.prim_func
@@ -178,7 +178,7 @@ def flattened_unit_loop_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for x, z in T.grid(4, 8):
-        C.data[x * 8 + z] = A.data[x * 8 + z] + 1.0
+        C[x * 8 + z] = A[x * 8 + z] + 1.0
 
 
 @T.prim_func
@@ -205,9 +205,9 @@ def flattened_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     for i in range(0, 32):
         B = T.allocate((32,), "float32", "global")
         C = T.allocate((32,), "float32", "global")
-        B[i] = A.data[i] + 1.0
-        C[i] = A.data[i] + B[i]
-        D.data[i] = C[i] * 2.0
+        B[i] = A[i] + 1.0
+        C[i] = A[i] + B[i]
+        D[i] = C[i] * 2.0
 
 
 @T.prim_func
@@ -241,10 +241,10 @@ def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
         B_new = T.allocate([68], "float32", "global")
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
-                B_new[i1 * 17 + j] = A.data[i0 * 64 + i1 * 16 + j] + 1.0
+                B_new[i1 * 17 + j] = A[i0 * 64 + i1 * 16 + j] + 1.0
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
-                C.data[i0 * 64 + i1 * 16 + j] = B_new[i1 * 17 + j] * 2.0
+                C[i0 * 64 + i1 * 16 + j] = B_new[i1 * 17 + j] * 2.0
 
 
 @T.prim_func
