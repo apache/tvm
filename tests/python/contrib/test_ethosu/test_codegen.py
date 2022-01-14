@@ -950,7 +950,10 @@ def test_tflite_concat(shapes, axis, accel_type):
         op = tf.concat(list(inputs), axis)
         return op
 
-    _compare_tvm_with_tflite(concat_func, shapes, accel_type)
+    # TODO(lhutton1) For now output is not bit exact with TFLite.
+    # This is because TFLite reference kernels are not being used.
+    # For this, TFLite will need upgrading to 2.6.
+    _compare_tvm_with_tflite(concat_func, shapes, accel_type, output_tolerance=1)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
