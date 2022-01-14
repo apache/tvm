@@ -3770,3 +3770,33 @@ def batch_to_space_nd(data, block_shape, crops):
     """
 
     return _make.batch_to_space_nd(data, block_shape, crops)
+
+
+def conv2d_backward_weight(
+    data,
+    grad,
+    strides=(1, 1),
+    padding=(0, 0),
+    dilation=(1, 1),
+    groups=1,
+    channels=None,
+    kernel_size=None,
+    data_layout="NCHW",
+    kernel_layout="OIHW",
+    out_layout="",
+    out_dtype="",
+):
+    return _make.conv2d_backward_weight(
+        data,
+        grad,
+        strides,
+        padding,
+        dilation,
+        groups,
+        channels,
+        kernel_size,
+        data_layout,
+        kernel_layout,
+        out_layout,
+        out_dtype,
+    )
