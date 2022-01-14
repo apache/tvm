@@ -33,7 +33,9 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -71,6 +73,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   };
 
  public:
+  using ShapeInfo = Map<String, ObjectRef>;
+  using DtypeInfo = Map<String, ObjectRef>;
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
@@ -106,6 +110,12 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \return The index of input.
    */
   int GetInputIndex(const std::string& name);
+
+  /*!
+   * \brief Get the input info of Graph by parsing the input nodes.
+   * \return The shape and dtype tuple.
+   */
+  std::tuple<ShapeInfo, DtypeInfo> GetInputInfo() const;
 
   /*!
    * \brief Get the output index given the name of output.
@@ -417,6 +427,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
+  /*! \brief The parameter names. */
+  std::unordered_set<std::string> param_names_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
   /*! \brief Map of output names to output indices. */
