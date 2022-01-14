@@ -4037,6 +4037,7 @@ def _test_fully_connected(
             # reshape N H W C into N H*W*C
             in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
             out = math_ops.mat_mul(in_data_reshape, in_filter)
+            # TODO : Need to construct a fc op with (keep_num_dims == True)
 
             # if we have bias
             if bias_in_size:
