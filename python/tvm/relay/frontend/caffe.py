@@ -549,7 +549,8 @@ class OperatorConverter(object):
 
         if groups == channels:
             inputs_expr = _op.split(in_expr, groups, axis=1)
-            weights_expr = _op.split(weight_expr, groups, axis=1)
+            # changing split axis to 0, according to PR #9336
+            weights_expr = _op.split(weight_expr, groups, axis=0)
             # Preventing to create Concat layer with too many tensors(> 16)
             q = groups >> 4
             r = groups % 16
