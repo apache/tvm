@@ -127,6 +127,24 @@ def check_grad(
 
     fwd_func = run_infer_type(func)
     bwd_func = run_infer_type(gradient(fwd_func, mode=mode))
+
+    def convert_conv2d_layout(mod, desired_layouts):
+        with tvm.transform.PassContext(opt_level=3):
+            seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
+            return seq(mod)
+
+    mod = tvm.IRModule.from_expr(bwd_func)
+    # print(
+    #     convert_conv2d_layout(
+    #         mod,
+    #         {
+    #             "nn.conv2d": ["NHWC", "OHWI"],
+    #             "nn.conv2d_transpose": ["NHWC", "OHWI"],
+    #             "nn.conv2d_backward_weight": ["NHWC", "OHWI"],
+    #         },
+    #     )
+    # )
+
     bwd_func = run_opt_pass(bwd_func, relay.transform.Legalize())
 
     if scale is None:

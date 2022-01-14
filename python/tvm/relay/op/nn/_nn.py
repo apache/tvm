@@ -936,6 +936,82 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     return relay.nn.deformable_conv2d(data, offset, weight, **new_attrs)
 
 
+@reg.register_convert_op_layout("nn.conv2d_backward_weight")
+def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for conv2d op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    data, weight = inputs
+
+    # First check if there is a LayoutConfig scope, and if so, whether
+    # it indicates we should ignore this layer or not.
+    layout_config = LayoutConfig.current
+    if layout_config is not None:
+        skip_layer = layout_config.check_skip()
+        if skip_layer:
+            return relay.nn.conv2d(data, weight, **attrs)
+
+    # Prepare new layout.
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["data_layout"] = desired_data_layout
+    need_tile = re.match(r"NCHW(\d*)c", desired_data_layout)
+
+    if desired_kernel_layout != "default" and not need_tile:
+        new_attrs["kernel_layout"] = desired_kernel_layout
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
+    if desired_data_layout == "NCHW":
+        new_attrs["kernel_layout"] = "OIHW"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+    elif desired_data_layout == "NHWC":
+        # Check for depthwise convolution.
+        data_info, weight_info = tinfos
+        if is_depthwise_conv2d(
+            data_info.shape,
+            attrs["data_layout"],
+            weight_info.shape,
+            attrs["kernel_layout"],
+            attrs["groups"],
+        ):
+            new_attrs["kernel_layout"] = "HWOI"
+        else:
+            new_attrs["kernel_layout"] = "HWIO"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+    elif desired_data_layout == "HWNC":
+        new_attrs["kernel_layout"] = "HWOI"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+    elif need_tile:
+        assert desired_kernel_layout != "default", "Kernel layout cannot be default."
+        tile = int(need_tile.group(1))
+        if isinstance(data, relay.expr.Var) and data.checked_type.shape[1] % tile != 0:
+            return relay.nn.conv2d(data, weight, **attrs)
+        else:
+            new_attrs["kernel_layout"] = desired_kernel_layout
+            return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
+
+    raise ValueError("Layout %s is not yet supported." % desired_data_layout)
+
+
 # bitpack
 @reg.register_compute("nn.bitpack")
 def compute_bitpack(attrs, inputs, out_dtype):
