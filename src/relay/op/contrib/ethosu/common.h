@@ -59,6 +59,12 @@ Array<IndexExpr> EthosuInferKernelOutput(Array<IndexExpr> ifm_shape, String ifm_
                                          IndexExpr ofm_channels, Array<IndexExpr> dilation,
                                          Array<IndexExpr> strides, Array<IndexExpr> padding);
 
+/*! \brief Infer the Output Feature Map shape for operations that use upscaling.
+ * \param ifm_shape The shape of the Input Feature Map.
+ * \param ifm_layout The layout of the Input Feature Map.
+ */
+Array<IndexExpr> EthosuInferUpscaledInput(Array<IndexExpr> ifm_shape, String ifm_layout);
+
 }  // namespace ethosu
 }  // namespace contrib
 }  // namespace op

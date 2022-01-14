@@ -75,6 +75,23 @@ Array<IndexExpr> EthosuInferKernelOutput(Array<IndexExpr> ifm_shape, String ifm_
   return output_shape;
 }
 
+Array<IndexExpr> EthosuInferUpscaledInput(Array<IndexExpr> ifm_shape, String ifm_layout) {
+  if (ifm_layout == "NHCWB16") {
+    ifm_shape = {ifm_shape[0], ifm_shape[1], ifm_shape[3], ifm_shape[2] * 16};
+  }
+
+  const int scale_factor = 2;
+  Array<IndexExpr> new_ifm_shape = {ifm_shape[0], ifm_shape[1] * scale_factor,
+                                    ifm_shape[2] * scale_factor, ifm_shape[3]};
+
+  if (ifm_layout == "NHCWB16") {
+    int channel_bricks = 1 + (new_ifm_shape[3].as<IntImmNode>()->value - 1) / 16;
+    new_ifm_shape = {new_ifm_shape[0], new_ifm_shape[1], channel_bricks, new_ifm_shape[2], 16};
+  }
+
+  return new_ifm_shape;
+}
+
 }  // namespace ethosu
 }  // namespace contrib
 }  // namespace op

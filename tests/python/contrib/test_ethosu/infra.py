@@ -532,6 +532,7 @@ def make_ethosu_pooling(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     rounding_mode="TFL",
+    upscale="NONE",
 ):
     pooling = ethosu_ops.ethosu_pooling(
         ifm,
@@ -549,7 +550,7 @@ def make_ethosu_pooling(
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
         rounding_mode=rounding_mode,
-        upscale="NONE",
+        upscale=upscale,
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )
