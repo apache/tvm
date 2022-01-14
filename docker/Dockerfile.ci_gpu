@@ -29,7 +29,7 @@ COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
-RUN pip config set global.cache-dir false
+RUN pip config set global.no-cache-dir false
 
 COPY install/ubuntu1804_install_llvm.sh /install/ubuntu1804_install_llvm.sh
 RUN bash /install/ubuntu1804_install_llvm.sh
