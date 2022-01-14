@@ -30,7 +30,6 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/tir/usmp/utils.h>
 
 #include <string>
 #include <unordered_map>

@@ -33,6 +33,7 @@
 #include <tvm/target/codegen.h>
 #include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/usmp/utils.h>
 
 #include <string>
 #include <typeinfo>
