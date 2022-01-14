@@ -622,6 +622,8 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
 
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
+  ICHECK(param->kernel_size.defined());
+
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->kernel_layout);
 
@@ -633,12 +635,11 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
 
   auto in_channels = dshape_nchw[1];
   auto out_channels = grad_shape_nchw[1];
-  ICHECK(param->kernel_size.defined());
+
   Array<IndexExpr> wshape_oihw(
       {out_channels, in_channels, param->kernel_size[0], param->kernel_size[1]});
 
   auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
-  LOG(INFO) << "wshape: " << wshape;
   reporter->Assign(types[2], TensorType(wshape, data->dtype));
   return true;
 }
@@ -659,6 +660,7 @@ TODO
     .add_argument("grad", "Tensor", "The gradient tensor.")
     .set_support_level(2)
     .add_type_rel("Conv2DBackwardWeight", Conv2DBackwardWeightRel)
+    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 }  // namespace relay

@@ -127,6 +127,7 @@ def check_grad(
 
     fwd_func = run_infer_type(func)
     bwd_func = run_infer_type(gradient(fwd_func, mode=mode))
+    bwd_func = run_opt_pass(bwd_func, relay.transform.Legalize())
 
     if scale is None:
         scale = 10 * eps

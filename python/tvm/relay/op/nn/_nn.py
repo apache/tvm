@@ -1061,7 +1061,6 @@ reg.register_pattern("nn.correlation", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_injective_schedule("nn.space_to_batch_nd")
 reg.register_injective_schedule("nn.batch_to_space_nd")
 
-reg.register_pattern("nn.conv2d_backward_weight", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 @reg.register_legalize("nn.conv2d_backward_weight")
 def legalize_conv2d_backward_weight(attrs, inputs, types):
@@ -1089,6 +1088,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
         dilation=attrs.strides,
         groups=in_channel * batch,
     )
+
     # infer shape of backward_weight
     padded_weight_grad_h = (
         in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom
@@ -1096,6 +1096,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
     padded_weight_grad_w = (
         in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right
     ) // dilation_w + 1
+
     backward_weight = relay.reshape(
         backward_weight,
         [
