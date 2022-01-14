@@ -35,6 +35,7 @@ from caffe import layers as L, params as P
 from caffe.proto import caffe_pb2 as pb
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
