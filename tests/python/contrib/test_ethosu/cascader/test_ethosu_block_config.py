@@ -27,7 +27,7 @@ from .infra import make_matrices
 
 
 @pytest.mark.parametrize(
-    "id, op_type, activation, kernel, stride, dilation, padding, in_shape, out_shape",
+    "test_id, op_type, activation, kernel, stride, dilation, padding, in_shape, out_shape",
     [
         # Conv2D
         (
@@ -98,6 +98,7 @@ from .infra import make_matrices
         ),
         # Depthwise Conv2D
         (
+            6,
             "ethosu_depthwise_conv2d",
             "NONE",
             (3, 5),
@@ -106,9 +107,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 77, 23, 18),
             (1, 75, 19, 18),
-            (1, 7, 10, 16),
         ),
         (
+            7,
             "ethosu_depthwise_conv2d",
             "NONE",
             (3, 3),
@@ -117,10 +118,10 @@ from .infra import make_matrices
             (1, 1, 1, 1),
             (1, 25, 10, 276),
             (1, 13, 5, 276),
-            (1, 7, 6, 16),
         ),
         # Pooling
         (
+            8,
             "ethosu_pooling",
             "NONE",
             (13, 5),
@@ -129,9 +130,9 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 13, 5, 276),
             (1, 1, 1, 276),
-            (1, 1, 2, 80),
         ),
         (
+            9,
             "ethosu_pooling",
             "NONE",
             (7, 3),
@@ -140,7 +141,6 @@ from .infra import make_matrices
             (0, 0, 0, 0),
             (1, 317, 14, 21),
             (1, 156, 12, 21),
-            (1, 10, 6, 16),
         ),
     ],
 )
@@ -159,51 +159,79 @@ from .infra import make_matrices
         (
             "ethos-u55-32",
             [
+                # Conv2D
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
-                ((1, 10, 6, 4), (1, 16, 1, 4, 4)),
-                ((1, 10, 3, 16), (1, 10, 1, 3, 16)),
+                ((1, 10, 6, 4), (1, 5, 1, 12, 4), (1, 16, 1, 4, 4)),
+                ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
+                # Depthwise Conv2D
+                ((1, 6, 10, 16), (1, 6, 1, 10, 16)),
+                ((1, 7, 5, 16), (1, 7, 1, 5, 16)),
+                # Pooling
+                ((1, 1, 1, 16), (1, 1, 1, 1, 16)),
+                ((1, 9, 6, 16), (1, 9, 1, 6, 16)),
             ],
         ),
         (
             "ethos-u55-64",
             [
+                # Conv2D
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
                 ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
                 ((1, 8, 4, 16), (1, 8, 1, 4, 16)),
                 ((1, 10, 6, 8), (1, 16, 1, 4, 8)),
-                ((1, 10, 3, 16), (1, 10, 1, 3, 16)),
+                ((1, 6, 5, 16), (1, 6, 1, 5, 16)),
+                # Depthwise Conv2D
+                ((1, 6, 10, 16), (1, 6, 1, 10, 16)),
+                ((1, 7, 5, 16), (1, 7, 1, 5, 16)),
+                # Pooling
+                ((1, 1, 1, 16), (1, 1, 1, 1, 16)),
+                ((1, 9, 6, 16), (1, 9, 1, 6, 16)),
             ],
         ),
         (
             "ethos-u55-128",
             [
+                # Conv2D
                 ((1, 7, 6, 16), (1, 7, 1, 6, 16)),
                 ((1, 5, 8, 16), (1, 5, 1, 8, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
                 ((1, 16, 4, 16), (1, 16, 1, 4, 16)),
                 ((1, 8, 12, 8), (1, 8, 1, 12, 8)),
                 ((1, 10, 6, 16), (1, 10, 1, 6, 16)),
+                # Depthwise Conv2D
+                ((1, 7, 10, 16), (1, 7, 1, 10, 16)),
+                ((1, 7, 6, 16), (1, 7, 1, 6, 16)),
+                # Pooling
+                ((1, 1, 2, 80), (1, 1, 5, 2, 16)),
+                ((1, 10, 6, 16), (1, 10, 1, 6, 16)),
             ],
         ),
         (
             "ethos-u55-256",
             [
+                # Conv2D
                 ((1, 14, 8, 16), (1, 14, 1, 8, 16)),
                 ((1, 16, 8, 16), (1, 16, 1, 8, 16)),
                 ((1, 4, 4, 16), (1, 4, 1, 4, 16)),
-                ((1, 32, 4, 16), (1, 32, 1, 4, 16)),
+                ((1, 32, 4, 16), (1, 10, 12, 16), (1, 32, 1, 4, 16), (1, 10, 1, 12, 16)),
                 ((1, 20, 12, 8), (1, 20, 1, 12, 8)),
-                ((1, 20, 6, 16), (1, 20, 1, 6, 16)),
+                ((1, 12, 10, 16), (1, 12, 1, 10, 16)),
+                # Depthwise Conv2D
+                ((1, 8, 20, 16), (1, 8, 1, 20, 16)),
+                ((1, 14, 6, 16), (1, 14, 1, 6, 16)),
+                # Pooling
+                ((1, 2, 2, 48), (1, 2, 3, 2, 16)),
+                ((1, 10, 12, 16), (1, 10, 1, 12, 16)),
             ],
         ),
     ],
 )
 def test_best_block_config(
-    id,
+    test_id,
     op_type,
     activation,
     kernel,
@@ -299,10 +327,8 @@ def test_best_block_config(
 
     block = part.get_block_config(stripe_config)
     block_shape = tuple(int(a) for a in block.output_shape)
-    if layouts[1] == "NHCWB16":
-        assert block_shape == expected_block_configs[id][1]
-    else:
-        assert block_shape == expected_block_configs[id][0]
+
+    assert block_shape in expected_block_configs[test_id]
 
 
 if __name__ == "__main__":
