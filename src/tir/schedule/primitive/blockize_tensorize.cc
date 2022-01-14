@@ -19,6 +19,7 @@
 #include <functional>
 
 #include "../utils.h"
+#include "../ir_comparator.h"
 
 namespace tvm {
 namespace tir {
@@ -469,69 +470,72 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
 }
 
 /*!
- * \brief Update the map from the buffers in the description to the implementation of the tensor
+ * \brief Update the map from the buffers in the desc to the impl of the tensor
  * intrinsic. \param intrinsic The tensor intrinsic. \param buffer_map The map to be updated.
  */
 void RemapTensorIntrinBuffers(
     const TensorIntrin& intrinsic,
     std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_map) {
-  ICHECK_EQ(intrinsic->description->params.size(), intrinsic->implementation->params.size());
-  for (size_t i = 0; i < intrinsic->description->params.size(); ++i) {
-    const auto& lhs_var = intrinsic->description->params[i];
-    const auto& lhs_buffer = intrinsic->description->buffer_map[lhs_var];
-    const auto& rhs_var = intrinsic->implementation->params[i];
-    const auto& rhs_buffer = intrinsic->implementation->buffer_map[rhs_var];
+  ICHECK_EQ(intrinsic->desc->params.size(), intrinsic->impl->params.size());
+  for (size_t i = 0; i < intrinsic->desc->params.size(); ++i) {
+    const auto& lhs_var = intrinsic->desc->params[i];
+    const auto& lhs_buffer = intrinsic->desc->buffer_map[lhs_var];
+    const auto& rhs_var = intrinsic->impl->params[i];
+    const auto& rhs_buffer = intrinsic->impl->buffer_map[rhs_var];
     (*buffer_map)[rhs_buffer] = lhs_buffer;
   }
 }
 
-void Tensorize(ScheduleState self, const StmtSRef& loop_sref, const TensorIntrin& intrinsic) {
+void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const TensorIntrin& intrinsic) {
   /*!
    * Check:
    *   - Check buffer binding, including type, alignment, shape and etc.
-   *   - Check the sub AST is equal to the description function.
+   *   - Check the sub AST is equal to the desc function.
    *
    * Mutate:
    *   - Blockize the sub AST (please refer blockize for details)
    *   - Bind buffers
-   *   - Mutate the implementation of the tensor intrinsic by replacing its buffers with new
+   *   - Mutate the impl of the tensor intrinsic by replacing its buffers with new
    *     buffers created via match buffer region.
    *   - Replace the sub tree with the mutated function.
    */
-  const auto* loop = loop_sref->StmtAs<ForNode>();
-  CHECK(loop) << "Only support tensorize a loop for now";
-
   const auto* desc_block_realize =
-      Downcast<BlockRealize>(intrinsic->description->body)->block->body.as<BlockRealizeNode>();
+      Downcast<BlockRealize>(intrinsic->desc->body)->block->body.as<BlockRealizeNode>();
   const Block& desc_block = desc_block_realize->block;
   const auto* impl_block_realize =
-      Downcast<BlockRealize>(intrinsic->implementation->body)->block->body.as<BlockRealizeNode>();
+      Downcast<BlockRealize>(intrinsic->impl->body)->block->body.as<BlockRealizeNode>();
   Block impl_block = impl_block_realize->block;
 
-  // Step 1: Blockize the subtree rooted at the given loop
-  const StmtSRef& block_sref = Blockize(self, loop_sref);
+  // Step 1: Blockize the subtree rooted at the given loop if needed
+  StmtSRef block_sref{nullptr};
+  if (const auto* loop = block_or_loop_sref->StmtAs<ForNode>()) {
+    block_sref = Blockize(self, block_or_loop_sref);
+  } else {
+    ICHECK(block_or_loop_sref->StmtAs<BlockNode>());
+    block_sref = block_or_loop_sref;
+  }
   const BlockRealize& block_realize = GetBlockRealize(self, block_sref);
 
-  // Step 2: Compare the block with the description of the tensor intrinsic, find the correspondence
-  // between buffers in the block and the description.
-  TensorizeComparator comparator(/*assert_mode=*/true);
+  // Step 2: Compare the block with the desc of the tensor intrinsic, find the correspondence
+  // between buffers in the block and the desc.
+  TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
   comparator.VisitStmt(block_realize, GetRef<Stmt>(desc_block_realize));
 
-  // Step 3: Find the correspondence between buffers in the current AST and the implementation of
+  // Step 3: Find the correspondence between buffers in the current AST and the impl of
   // the tensor intrinsic
 
-  // Step 3.1: Map from intrinsic func buffer to description func buffer
+  // Step 3.1: Map from intrinsic func buffer to desc func buffer
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> intrin_buffer_map;
   RemapTensorIntrinBuffers(intrinsic, &intrin_buffer_map);
   // Step 3.2: Map form intrinsic func buffer to current AST buffer
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map;
   for (const auto& pair : intrin_buffer_map) {
     auto it = comparator.rhs_buffer_map_.find(pair.second);
-    ICHECK(it != comparator.rhs_buffer_map_.end());
+    ICHECK(it != comparator.rhs_buffer_map_.end()) << pair.second;
     buffer_map[pair.first] = it->second;
   }
 
-  // Step 4: Create MatchBufferRegion for the params of the implementation function of the tensor
+  // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
   // intrin to make them subregions of the buffer in the original IR.
   std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> buffer_region_map;
   for (const auto& read : impl_block->reads) {
@@ -541,9 +545,9 @@ void Tensorize(ScheduleState self, const StmtSRef& loop_sref, const TensorIntrin
     buffer_region_map.emplace(write->buffer, write->region);
   }
   Array<MatchBufferRegion> match_buffer_regions;
-  for (size_t i = 0; i < intrinsic->implementation->params.size(); ++i) {
-    const auto& param = intrinsic->implementation->params[i];
-    const auto& buffer = intrinsic->implementation->buffer_map.at(param);
+  for (size_t i = 0; i < intrinsic->impl->params.size(); ++i) {
+    const auto& param = intrinsic->impl->params[i];
+    const auto& buffer = intrinsic->impl->buffer_map.at(param);
     const auto& source = buffer_map.at(buffer);
     Region region = buffer_region_map.at(buffer);
     auto extra_indices = comparator.buffer_indices_.at(source);
@@ -555,7 +559,7 @@ void Tensorize(ScheduleState self, const StmtSRef& loop_sref, const TensorIntrin
     match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, region)));
   }
 
-  // Step 5: Replace the subtree in the original IR with the tensor intrin implementation.
+  // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
   ObjectPtr<BlockNode> new_block_ptr = make_object<BlockNode>(*block_realize->block.get());
   new_block_ptr->body = impl_block->body;
   ICHECK(new_block_ptr->match_buffers.empty());
@@ -616,14 +620,21 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, String intrin_name) {
-    return sch->Tensorize(loop_rv, intrin_name);
+  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, String intrin) {
+    if (const auto* block = block_or_loop_rv.as<BlockRVNode>()) {
+      sch->Tensorize(GetRef<BlockRV>(block), intrin);
+    } else if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
+      sch->Tensorize(GetRef<LoopRV>(loop), intrin);
+    } else {
+      LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
+      throw;
+    }
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, String intrin_name) {
+  static String UnpackedAsPython(Array<String> outputs, String block_or_loop_rv, String intrin) {
     PythonAPICall py("tensorize");
-    py.Input("loop", loop_rv);
-    py.Input("intrin", intrin_name);
+    py.Input("block_or_loop", block_or_loop_rv);
+    py.Input("intrin", intrin);
     return py.Str();
   }
 

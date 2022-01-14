@@ -193,13 +193,13 @@ class LinkedParam : public ObjectRef {
 class TensorIntrinNode : public Object {
  public:
   /*! \brief The function to describe the computation. */
-  PrimFunc description;
-  /*! \brief The intrinsic function for lower-level implementation. */
-  PrimFunc implementation;
+  PrimFunc desc;
+  /*! \brief The function of the implementation for the execution. */
+  PrimFunc impl;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("description", &description);
-    v->Visit("implementation", &implementation);
+    v->Visit("desc", &desc);
+    v->Visit("impl", &impl);
   }
 
   static constexpr const char* _type_key = "tir.TensorIntrin";
@@ -213,8 +213,8 @@ class TensorIntrin : public ObjectRef {
  public:
   /*!
    * \brief Constructor
-   * \param desc_func The function to describe the computation.
-   * \param intrin_func The intrinsic function for lower-level implementation.
+   * \param desc The function to describe the computation.
+   * \param impl The function of the implementation for the execution.
    */
   TVM_DLL explicit TensorIntrin(PrimFunc desc_func, PrimFunc intrin_func);
 
@@ -222,15 +222,17 @@ class TensorIntrin : public ObjectRef {
    * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
    * up with its name.
    * \param name The name of the TensorIntrin to register
-   * \param desc_func The function to describe the computation.
-   * \param intrin_func The intrinsic function for lower-level implementation.
-   * \return The created TensorIntrin.
+   * \param intrin The TensorIntrin to register.
+   * \throws This method throws an exception if the TensorIntrin with the specified name already
+   *         exists.
    */
-  TVM_DLL static TensorIntrin Register(String name, PrimFunc desc_func, PrimFunc intrin_func);
+  TVM_DLL static void Register(String name, TensorIntrin intrin);
 
   /*!
    * \brief Look up TensorIntrin by name. Raises an exception if not found.
    * \param name The name of the TensorIntrin.
+   * \return The TensorIntrin with the specified name.
+   * \throws This method throws an exception if the TensorIntrin does not exist.
    */
   TVM_DLL static TensorIntrin Get(String name);
 

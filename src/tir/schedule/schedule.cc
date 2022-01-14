@@ -188,15 +188,15 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_method<Schedule>(&ScheduleNode::Blockize);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
-    .set_body_typed([](Schedule self, LoopRV loop_rv, ObjectRef intrin) {
-      if (const auto* str = intrin.as<runtime::StringObj>()) {
-        return self->Tensorize(loop_rv, GetRef<String>(str));
+    .set_body_typed([](Schedule self, ObjectRef rv, String intrin) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        self->Tensorize(GetRef<BlockRV>(block_rv), intrin);
+      } else if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
       }
-      if (const auto* p_intrin = intrin.as<TensorIntrinNode>()) {
-        return self->Tensorize(loop_rv, GetRef<TensorIntrin>(p_intrin));
-      }
-      LOG(FATAL) << "TypeError: Cannot handle type: " << intrin->GetTypeKey();
-      throw;
     });
 
 /******** (FFI) Annotation ********/

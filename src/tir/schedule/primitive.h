@@ -388,12 +388,12 @@ TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer
 TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
 
 /*!
- * \brief Tensorize the computation enclosed by loop with tensor_intrin.
+ * \brief Tensorize the computation enclosed by loop with the tensor intrinsic.
  * \param self The state of the schedule
- * \param loop_sref The loop to be tensorized.
+ * \param block_or_loop_sref The block or loop to be tensorized.
  * \param intrin The tensor intrinsic.
  */
-TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& loop_sref, const TensorIntrin& intrin);
+TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const TensorIntrin& intrin);
 
 /******** Schedule: Annotation ********/
 /*!
