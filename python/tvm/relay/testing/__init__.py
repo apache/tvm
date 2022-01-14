@@ -133,17 +133,19 @@ def check_grad(
             seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
             return seq(mod)
 
-    mod = tvm.IRModule.from_expr(bwd_func)
-    # print(
-    #     convert_conv2d_layout(
-    #         mod,
-    #         {
-    #             "nn.conv2d": ["NHWC", "OHWI"],
-    #             "nn.conv2d_transpose": ["NHWC", "OHWI"],
-    #             "nn.conv2d_backward_weight": ["NHWC", "OHWI"],
-    #         },
-    #     )
-    # )
+    bwd_weight_func = relay.Function(bwd_func.params, relay.TupleGetItem(relay.TupleGetItem(bwd_func.body, 1), 1))
+    mod = tvm.IRModule.from_expr(bwd_weight_func)
+    print(mod)
+    print(
+        convert_conv2d_layout(
+            mod,
+            {
+                "nn.conv2d": ["NHWC", "OHWI"],
+                "nn.conv2d_transpose": ["NHWC", "OHWI"],
+                "nn.conv2d_backward_weight": ["NHWC", "OHWI"],
+            },
+        )
+    )
 
     bwd_func = run_opt_pass(bwd_func, relay.transform.Legalize())
 
