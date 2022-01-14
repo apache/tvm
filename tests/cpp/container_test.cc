@@ -380,6 +380,7 @@ TEST(Map, Erase) {
   }
 }
 
+#if TVM_LOG_DEBUG
 TEST(Map, Race) {
   using namespace tvm::runtime;
   Map<Integer, Integer> m;
@@ -392,6 +393,7 @@ TEST(Map, Race) {
   // changed. iterator should be re-obtained
   EXPECT_ANY_THROW({ auto& kv = *it; });
 }
+#endif  // TVM_LOG_DEBUG
 
 TEST(String, MoveFromStd) {
   using namespace std;
