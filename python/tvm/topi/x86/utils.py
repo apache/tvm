@@ -81,8 +81,8 @@ def target_has_avx512(target):
         # explicit enumeration of VNNI capable due to collision with alderlake
         "cascadelake",
         "icelake-client",
+        "icelake-server",
         "rocketlake",
-        "icelake",
         "tigerlake",
         "cooperlake",
         "sapphirerapids",
@@ -93,8 +93,8 @@ def target_has_vnni(target):
     return target in {
         "cascadelake",
         "icelake-client",
+        "icelake-server",
         "rocketlake",
-        "icelake",
         "tigerlake",
         "cooperlake",
         "sapphirerapids",
