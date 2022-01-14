@@ -38,9 +38,9 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
-    autopad,
     AttrCvt,
     Renamer,
+    autopad,
     ensure_scalar_shape,
     fold_constant,
     get_name,
@@ -557,13 +557,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
@@ -612,13 +612,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
