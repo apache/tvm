@@ -28,7 +28,7 @@ COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
 RUN bash /install/ubuntu1804_install_python.sh
 
 # Globally disable pip cache
-RUN pip config set global.cache-dir false
+RUN pip config set global.no-cache-dir false
 
 RUN apt-get update && apt-get install -y doxygen graphviz curl
 
