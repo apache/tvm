@@ -129,7 +129,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * These allocate memory based on the devices stored in devices_.
    * The memory pools must be destructed before devices_.
    */
-  ThreadMap<WorkspacePool> pool_per_thread;
+  ThreadMap<WorkspacePool> pool_per_thread_;
 
   /*! \brief The index of the active device for each CPU thread.
    *
@@ -137,7 +137,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * the device on which functions should run.  If unset, the active
    * device defaults to device_id == 0.
    */
-  ThreadMap<int> active_device_id_per_thread;
+  ThreadMap<int> active_device_id_per_thread_;
 };
 
 }  // namespace vulkan

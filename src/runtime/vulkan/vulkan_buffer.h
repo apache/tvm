@@ -95,7 +95,7 @@ class VulkanBuffer {
    * VulkanDevice may be moved to a different location while the
    * VulkanBuffer is alive.
    */
-  VkDevice device_{VK_NULL_HANDLE};
+  VkDevice device {VK_NULL_HANDLE};
 
   //! \brief Handle to the logical buffer on the device
   VkBuffer buffer{VK_NULL_HANDLE};
