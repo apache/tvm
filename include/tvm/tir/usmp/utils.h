@@ -295,7 +295,6 @@ Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info
  */
 Integer CalculateModuleWorkspaceSize(const IRModule& mod);
 
-void PrintConflicts(const Array<BufferInfo>& buffer_info_arr);
 
 /*!
  * \brief The allocate node attribute to indicate candidate memory pools.
