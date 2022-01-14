@@ -133,7 +133,9 @@ def check_grad(
             seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
             return seq(mod)
 
-    bwd_weight_func = relay.Function(bwd_func.params, relay.TupleGetItem(relay.TupleGetItem(bwd_func.body, 1), 1))
+    bwd_weight_func = relay.Function(
+        bwd_func.params, relay.TupleGetItem(relay.TupleGetItem(bwd_func.body, 1), 1)
+    )
     mod = tvm.IRModule.from_expr(bwd_weight_func)
     print(mod)
     print(
