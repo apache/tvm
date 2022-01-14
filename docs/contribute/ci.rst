@@ -63,7 +63,6 @@ can be run as described in :ref:`pr-testing`. For a closer environment to the on
 than runs in CI you can run the docker images directly, build TVM, and execute
 tests inside the container. See :ref:`docker_images` for details.
 
-.. TODO: Remove this from committer_guide.rst once skip CI PR lands
 Keeping CI Green
 ****************
 
