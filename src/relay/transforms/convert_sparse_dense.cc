@@ -135,12 +135,12 @@ Pass DenseToSparse(const Array<ObjectRef>& weight_name,
         // Remove FreeVar warnings
         auto f0 = Downcast<Function>(DenseToSparse(f, weight_name, weight_shape));
         Array<Var> sparse_params = FreeVars(f0);
-        auto f1 = Function(sparse_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
+        auto f1 = WithFields(f0, sparse_params);
         Array<Var> params = FreeVars(f1);
         for (const auto& var : sparse_params) {
           params.push_back(var);
         }
-        return Function(params, f1->body, f1->ret_type, f1->type_params, f1->attrs);
+        return WithFields(f1, params);
       };
   return CreateFunctionPass(pass_func, 4, "DenseToSparse", {"DeadCodeElimination"});
 }
