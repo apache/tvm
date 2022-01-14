@@ -27,12 +27,11 @@ build configuration specified in a `Jenkinsfile <https://github.com/apache/tvm/b
 Non-critical jobs run in GitHub Actions for Windows and MacOS jobs.
 
 A standard CI run looks something like this viewed in `Jenkins' BlueOcean viewer <https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/activity>`_.
-CI runs usually take several hours to complete and PRs cannot be merged before CI
+CI runs usually take several hours to complete and pull requests (PRs) cannot be merged before CI
 has successfully completed. To diagnose failing steps, click through to the failing
 pipeline stage then to the failing step to see the output logs.
 
-.. TODO: Before landing send to the real web-data
-.. image:: https://github.com/driazati/web-data/raw/main/tvm/docs/contribute/ci.png
+.. image:: https://github.com/tlc-pack/web-data/raw/main/images/contribute/ci.png
   :width: 800
   :alt: The Jenkins UI for a CI run
 
@@ -133,7 +132,8 @@ from the PR except for the ``Jenkinsfile`` itself, which comes from the base bra
 When branches are built, the ``Jenkinsfile`` in the branch is used, so a committer
 with write access must push PRs to a branch in apache/tvm to properly test
 ``Jenkinsfile`` changes. If your PR makes changes to the ``Jenkinsfile``, make sure
-to @ a committer and ask them to push your PR as a branch to test the changes.
+to @ a `committer <https://github.com/apache/tvm/blob/main/CONTRIBUTORS.md>`_
+and ask them to push your PR as a branch to test the changes.
 
 .. _docker_images:
 
