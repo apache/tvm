@@ -19,7 +19,7 @@
 import os
 import argparse
 
-from .git_utils import git, GitHubRepo, parse_remote
+from git_utils import git, GitHubRepo, parse_remote
 
 
 if __name__ == "__main__":

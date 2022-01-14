@@ -22,7 +22,7 @@ import argparse
 from urllib import error
 from typing import Dict, Tuple, Any
 
-from .git_utils import git, GitHubRepo, parse_remote
+from git_utils import git, GitHubRepo, parse_remote
 
 
 def commit_query(repo: str, user: str, sha: str) -> str:
@@ -102,25 +102,39 @@ def is_pr_ready(data: Any) -> bool:
 if __name__ == "__main__":
     help = "Adds label to PRs that have passed CI and are approved"
     parser = argparse.ArgumentParser(description=help)
-    parser.add_argument("--sha", required=True)
+    parser.add_argument("--sha")
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--label", default="ready-for-merge", help="label to add")
+    parser.add_argument(
+        "--pr-json", help="(testing) PR data to use instead of fetching from GitHub"
+    )
     args = parser.parse_args()
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
-    github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
 
-    data = github.graphql(commit_query(repo, user, args.sha))
-    pr = data["data"]["repository"]["object"]["associatedPullRequests"]["nodes"][0]
+    is_testing = args.pr_json is not None
+    if not is_testing and args.sha is None:
+        print("--sha must be used outside of testing")
+        exit(1)
+
+    if args.pr_json:
+        pr = json.loads(args.pr_json)
+    else:
+        github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
+
+        data = github.graphql(commit_query(repo, user, args.sha))
+        pr = data["data"]["repository"]["object"]["associatedPullRequests"]["nodes"][0]
 
     if is_pr_ready(pr):
         print("PR passed CI and is approved, labelling...")
-        github.post(f"issues/{pr['number']}/labels", {"labels": [args.label]})
+        if not is_testing:
+            github.post(f"issues/{pr['number']}/labels", {"labels": [args.label]})
     else:
         print("PR is not ready for merge")
-        try:
-            github.delete(f"issues/{pr['number']}/labels/{args.label}")
-        except error.HTTPError as e:
-            print(e)
-            print("Failed to remove label (it may not have been there at all)")
+        if not is_testing:
+            try:
+                github.delete(f"issues/{pr['number']}/labels/{args.label}")
+            except error.HTTPError as e:
+                print(e)
+                print("Failed to remove label (it may not have been there at all)")

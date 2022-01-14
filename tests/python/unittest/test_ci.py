@@ -18,11 +18,87 @@
 import pathlib
 import subprocess
 import sys
+import json
 import tempfile
 
 import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+
+
+def test_pr_is_mergable():
+    is_mergable_script = REPO_ROOT / "tests" / "scripts" / "github_check_pr_is_mergeable.py"
+
+    def run(decision, statuses, mergeable):
+        # Mock out the response from GitHub's API
+        data = {
+            "reviewDecision": decision,
+            "commits": {
+                "nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": statuses}}}}]
+            },
+        }
+        proc = subprocess.run(
+            [str(is_mergable_script), "--pr-json", json.dumps(data)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+        # Find the relevant string in the output
+        if mergeable:
+            assert "PR passed CI and is approved, labelling" in proc.stdout
+        else:
+            assert "PR is not ready for merge" in proc.stdout
+
+    # mergeable should be true iff all statuses are successful and PR is approved
+    run(decision="CHANGES_REQUESTED", statuses=[], mergeable=False)
+    run(decision="APPROVED", statuses=[], mergeable=True)
+    run(
+        decision="CHANGES_REQUESTED",
+        statuses=[
+            {
+                "context": "abc",
+                "state": "FAILED",
+            }
+        ],
+        mergeable=False,
+    )
+    run(
+        decision="APPROVED",
+        statuses=[
+            {
+                "context": "abc",
+                "state": "FAILED",
+            }
+        ],
+        mergeable=False,
+    )
+    run(
+        decision="APPROVED",
+        statuses=[
+            {
+                "context": "abc",
+                "state": "SUCCESS",
+            }
+        ],
+        mergeable=True,
+    )
+    run(
+        decision="APPROVED",
+        statuses=[
+            {
+                "context": "abc",
+                "state": "SUCCESS",
+            },
+            {
+                "context": "abc2",
+                "state": "FAILURE",
+            },
+        ],
+        mergeable=False,
+    )
 
 
 def test_skip_ci():

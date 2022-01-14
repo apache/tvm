@@ -40,4 +40,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python check_pr_is_ready.py --sha "$SHA"
+          python tests/scripts/github_check_pr_is_mergeable.py --sha "$SHA"
