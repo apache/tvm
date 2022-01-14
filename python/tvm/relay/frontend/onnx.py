@@ -248,8 +248,14 @@ def matmul_out_dtype(inputs, out_dtype):
             # Convert a and b into 3 dimensional tensors.
             a = flatten_to_nd(inputs[0], a_shape, 3)
             b = flatten_to_nd(inputs[1], b_shape, 3)
-            # Perform a NN batch matmul.
-            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
+            if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+                # Transpose matrix dimensions of b.
+                bt = _op.transpose(b, [0, 2, 1])
+                # Perform a NT batch matmul.
+                output = _op.nn.batch_matmul(a, bt, out_dtype=out_dtype)
+            else:
+                # Perform a NN batch matmul.
+                output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
         # Determine the output batch dimension.
         if a_rank > b_rank:
             out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
