@@ -957,9 +957,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         Array<tir::Var>(tir_main_func->params.begin(),
                         tir_main_func->params.begin() + tir_main_func->params.size() -
                             return_sid_.size() - pool_vars.size() - devices.size());
-    ret.metadata =
-        runtime::Metadata(inputs, pool_vars, devices, return_sid_.size(), runtime::kTvmExecutorAot,
-                          mod_name, interface_api, use_unpacked_api_, pool_var_info);
+    ret.metadata = ExecutorCodegenMetadata(inputs, pool_vars, devices, return_sid_.size(),
+                                           runtime::kTvmExecutorAot, mod_name, interface_api,
+                                           use_unpacked_api_, pool_var_info);
     return ret;
   }
 

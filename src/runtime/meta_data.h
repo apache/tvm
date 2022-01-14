@@ -51,62 +51,6 @@ inline String get_name_mangled(const String& module_name, const String& name) {
 }
 
 /*!
- * \brief Structure that can be optionally used by the executor codegen
- */
-class MetadataNode : public Object {
- public:
-  /*! \brief input information for the main function */
-  Array<tir::Var> inputs;
-  /*! \brief pool information for the main function */
-  Array<tir::Var> pools;
-  /*! \brief number of outputs of the main function */
-  unsigned int num_outputs = 1;
-  /*! \brief device contexts information for the main function */
-  Array<String> devices;
-  /*! \brief the executor to be used to run the model */
-  String executor = kTvmExecutorGraph;
-  /*! \brief The external API (packed or c) in use */
-  String interface_api;
-  /*! \brief The internal API (packed or unpacked) in use */
-  bool unpacked_api;
-  /*! \brief the input var names that correspond to pool_inputs */
-  Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
-
-  String mod_name = "";
-
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "MetadataObj";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MetadataNode, Object);
-};
-
-/*!
- * \brief Managed reference to MetadataNode.
- */
-class Metadata : public ObjectRef {
- public:
-  TVM_DLL Metadata(Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices,
-                   int num_outputs, String executor, String mod_name,
-                   String interface_api = "packed", bool unpacked_api = false,
-                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                       Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
-    auto n = make_object<MetadataNode>();
-    n->inputs = inputs;
-    n->pools = pools;
-    n->devices = devices;
-    n->num_outputs = num_outputs;
-    n->executor = executor;
-    n->interface_api = interface_api;
-    n->unpacked_api = unpacked_api;
-    n->mod_name = mod_name;
-    n->pool_inputs = pool_inputs;
-    data_ = std::move(n);
-  }
-
-  TVM_DEFINE_OBJECT_REF_METHODS(Metadata, ObjectRef, MetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(MetadataNode);
-};
-
-/*!
  * \brief Create a metadata module object.
  *
  * \param metadata The variable name to ndarray mapping.

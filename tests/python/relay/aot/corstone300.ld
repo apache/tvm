@@ -141,6 +141,8 @@ SECTIONS
     . = ALIGN (16);
     *(.rodata.tvm)
     . = ALIGN (16);
+    *(.data.tvm)
+    . = ALIGN (16);
   } > DDR
 
   .text :
@@ -248,13 +250,6 @@ SECTIONS
     *(.bss.ethosu_fast_memory);
     . = ALIGN(16);
   } > SRAM AT > SRAM
-
-  .bss.tvm :
-  {
-    . = ALIGN(16);
-    *(.bss.tvm)
-    . = ALIGN(16);
-  } > DDR
 
   .bss.NoInit :
   {

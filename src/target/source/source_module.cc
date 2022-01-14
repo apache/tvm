@@ -147,7 +147,8 @@ class ConcreteCodegenSourceBase : public CodeGenSourceBase {
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, relay::Runtime runtime, runtime::Metadata metadata)
+                               Target target, relay::Runtime runtime,
+                               relay::backend::ExecutorCodegenMetadata metadata)
       : fmt_(fmt),
         func_names_(func_names),
         target_(target),
@@ -181,7 +182,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   Array<String> func_names_;
   Target target_;
   relay::Runtime runtime_;
-  runtime::Metadata metadata_;
+  relay::backend::ExecutorCodegenMetadata metadata_;
   ConcreteCodegenSourceBase codegen_c_base_;
 
   void CreateFuncRegistry() {
@@ -230,7 +231,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       for (const auto& kv : metadata_->pool_inputs.value()) {
         tir::usmp::AllocatedPoolInfo allocated_pool_info = kv.second;
         if (allocated_pool_info->pool_info->is_internal) {
-          code_ << "__attribute__((section(\".bss.tvm\"), ";
+          code_ << "__attribute__((section(\".data.tvm\"), ";
           code_ << "aligned(" << 16 << ")))\n";
           code_ << "static uint8_t " << allocated_pool_info->pool_info->pool_name << "["
                 << allocated_pool_info->allocated_size->value << "];\n";
@@ -496,7 +497,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               relay::Runtime runtime, runtime::Metadata metadata) {
+                                               relay::Runtime runtime,
+                                               relay::backend::ExecutorCodegenMetadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -580,7 +582,8 @@ TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
     .set_body_typed([](const Array<runtime::Module>& modules, Target target,
                        relay::Runtime runtime) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::Metadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime,
+                                            relay::backend::ExecutorCodegenMetadata());
     });
 
 }  // namespace codegen
