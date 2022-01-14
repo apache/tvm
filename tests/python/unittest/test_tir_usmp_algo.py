@@ -123,7 +123,7 @@ def test_no_pool_error():
         buffer_pool_allocations = fusmp_algo(buffer_info_arr, 0)
 
 
-@pytest.mark.parametrize("algorithm", ["greedy_by_size", "greedy_by_conflicts"])
+@pytest.mark.parametrize("algorithm", ["greedy_by_size", "greedy_by_conflicts", "hill_climb"])
 def test_name_based_ordering(algorithm):
     """ This checks when the size and conlicts are same a stable result is generated"""
 
@@ -142,9 +142,9 @@ def test_name_based_ordering(algorithm):
         bi_c = usmp_utils.BufferInfo(
             name_hint="bi_c", size_bytes=10, pool_candidates=[global_workspace_pool]
         )
-        bi_a.set_conflicts([bi_b])
-        bi_b.set_conflicts([bi_c])
-        bi_c.set_conflicts([bi_a])
+        bi_a.set_conflicts([bi_b, bi_c])
+        bi_b.set_conflicts([bi_c, bi_a])
+        bi_c.set_conflicts([bi_a, bi_b])
 
         buffer_info_arr = [bi_a, bi_b, bi_c]
         fusmp_algo = tvm.get_global_func(f"tir.usmp.algo.{algorithm}")
@@ -160,7 +160,7 @@ def test_name_based_ordering(algorithm):
 
 @pytest.mark.parametrize(
     ["algorithm", "workspace_size"],
-    [("greedy_by_size", 140), ("greedy_by_conflicts", 140)],
+    [("greedy_by_size", 140), ("greedy_by_conflicts", 140), ("hill_climb", 140)],
 )
 def test_linear(algorithm, workspace_size):
     """
@@ -222,7 +222,7 @@ def test_linear(algorithm, workspace_size):
 
 @pytest.mark.parametrize(
     ["algorithm", "workspace_size"],
-    [("greedy_by_size", 190), ("greedy_by_conflicts", 320)],
+    [("greedy_by_size", 190), ("greedy_by_conflicts", 320), ("hill_climb", 190)],
 )
 def test_fanout(algorithm, workspace_size):
     """
@@ -364,7 +364,11 @@ class MobilenetStructure:
 
 @pytest.mark.parametrize(
     ["algorithm", "fast_memory_size", "slow_memory_size"],
-    [("greedy_by_size", 200704, 1418528), ("greedy_by_conflicts", 200704, 1418528)],
+    [
+        ("greedy_by_size", 200704, 1418528),
+        ("greedy_by_conflicts", 200704, 1418528),
+        ("hill_climb", 200704, 1117462),
+    ],
 )
 def test_mobilenet_subgraph(algorithm, fast_memory_size, slow_memory_size):
     target = Target("c")
@@ -529,7 +533,8 @@ class ResnetStructure:
 
 
 @pytest.mark.parametrize(
-    ["algorithm", "workspace_size"], [("greedy_by_size", 7920256), ("greedy_by_conflicts", 7200256)]
+    ["algorithm", "workspace_size"],
+    [("greedy_by_size", 7920256), ("greedy_by_conflicts", 7200256), ("hill_climb", 7200256)],
 )
 def test_resnet_subgraph(algorithm, workspace_size):
     target = Target("c")
