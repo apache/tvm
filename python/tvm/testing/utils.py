@@ -433,9 +433,7 @@ def _get_targets(target_str=None):
 
 DEFAULT_TEST_TARGETS = [
     "llvm",
-    "llvm -device=arm_cpu",
     "cuda",
-    "cuda -model=unknown -libs=cudnn",
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
