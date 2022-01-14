@@ -471,6 +471,8 @@ TVM_DLL Pass RelayToTIRTargetHook();
  */
 TVM_DLL Pass ManifestAlloc(VirtualDevice cpu_virtual_device);
 
+TVM_DLL Pass VMPlanMemory();
+
 /*!
  * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p VirtualDevice on
  * which every Relay sub-expression should run and the result stored. Captures the result of that

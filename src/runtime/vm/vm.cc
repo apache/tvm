@@ -761,6 +761,12 @@ void VirtualMachine::RunLoop() {
         pc_++;
         goto main_loop;
       }
+      case Opcode::KillRegister: {
+        OpStartHook(instr);
+        WriteRegister(instr.dst, ObjectRef());
+        pc_++;
+        goto main_loop;
+      }
       default:
         LOG(FATAL) << "Unknown instruction opcode: " << int(instr.op);
     }
