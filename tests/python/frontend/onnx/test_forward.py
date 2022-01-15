@@ -1273,6 +1273,7 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
+    verify_batch_matmul((4, 32, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
     # Test transb=False
     verify_batch_matmul(
         (2, 3, 4, 3),
