@@ -801,7 +801,7 @@ def conv(
 
     # Autoscheduler may have messed with the input layout, so we extract the
     # dimensions that it gives us
-    if auto_scheduler_rewritten_layout:
+    if auto_scheduler_rewritten_layout is not None:
         num_filter, _, *kernel_dimensions = auto_scheduler.get_shape_from_rewritten_layout(
             auto_scheduler_rewritten_layout,
             ["ff", "rc"] + [f"r{i}" for i in range(len(kernel_dimensions))],
@@ -868,7 +868,7 @@ def conv(
     )
     # if we used autoscheduler's changed layout we need to rewrite the ordering
     # of the output dimensions
-    if auto_scheduler_rewritten_layout:
+    if auto_scheduler_rewritten_layout is not None:
         out = auto_scheduler.rewrite_compute_body(out, auto_scheduler_rewritten_layout)
     return out
 
