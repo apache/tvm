@@ -354,6 +354,40 @@ std::vector<int64_t> SamplePerfectTile(
   return result;
 }
 
+tir::StmtSRef SampleComputeLocation(tir::ScheduleState self,
+                                    support::LinearCongruentialEngine::TRandState* rand_state,
+                                    const StmtSRef& block_sref, Optional<Integer>* decision) {
+  // Step 1. Collect all possible compute-at locations.
+  Array<tir::StmtSRef> location_srefs;
+  std::vector<int> location_indices;
+  std::tie(location_srefs, location_indices) = CollectComputeLocation(self, block_sref);
+  ICHECK_EQ(location_srefs.size(), location_indices.size());
+
+  // Step 2. If there was a previous decision, keep the decision unchanged if it exists in the
+  // location candidates. Otherwise, pick the location before the previous decision.
+  // Step 3. If there was not a previous decision, sample a decision from the collected locations.
+  if (decision->defined()) {
+    int64_t old_decision = Downcast<Integer>(*decision)->value;
+    auto it = std::lower_bound(location_indices.begin(), location_indices.end(), old_decision);
+    int idx = it - location_indices.begin();
+
+    if (it != location_indices.end() && *it == old_decision) {
+      *decision = Integer(old_decision);
+      return location_srefs[idx];
+    } else if (it != location_indices.begin()) {
+      *decision = Integer(location_indices[idx - 1]);
+      return location_srefs[idx - 1];
+    } else {
+      *decision = Integer(-1);
+      return StmtSRef::RootMark();
+    }
+  } else {
+    int sampled_idx = SampleInt(rand_state, 0, location_indices.size());
+    *decision = Integer(location_indices[sampled_idx]);
+    return location_srefs[sampled_idx];
+  }
+}
+
 /******** InstructionKind Registration ********/
 
 struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTraits> {
@@ -418,8 +452,38 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   friend struct ::tvm::tir::UnpackedInstTraits;
 };
 
+struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLocationTraits> {
+  static constexpr const char* kName = "SampleComputeLocation";
+  static constexpr bool kIsPure = true;
+
+ private:
+  static constexpr size_t kNumInputs = 1;
+  static constexpr size_t kNumAttrs = 0;
+  static constexpr size_t kNumDecisions = 1;
+
+  static LoopRV UnpackedApplyToSchedule(Schedule sch,      //
+                                        BlockRV block_rv,  //
+                                        Optional<Integer> decision) {
+    return sch->SampleComputeLocation(block_rv, decision);
+  }
+
+  static String UnpackedAsPython(Array<String> outputs,  //
+                                 String block_rv,        //
+                                 Optional<Integer> decision) {
+    PythonAPICall py("sample_compute_location");
+    py.Input("block", block_rv);
+    py.Decision(decision);
+    py.SingleOutput(outputs);
+    return py.Str();
+  }
+
+  template <typename>
+  friend struct ::tvm::tir::UnpackedInstTraits;
+};
+
 TVM_REGISTER_INST_KIND_TRAITS(SampleCategoricalTraits);
 TVM_REGISTER_INST_KIND_TRAITS(SamplePerfectTileTraits);
+TVM_REGISTER_INST_KIND_TRAITS(SampleComputeLocationTraits);
 
 }  // namespace tir
 }  // namespace tvm

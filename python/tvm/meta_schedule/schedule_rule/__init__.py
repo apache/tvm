@@ -17,3 +17,4 @@ Meta Schedule schedule rules are used for modification of
 blocks in a schedule. See also PostOrderApply.
 """
 from .schedule_rule import PyScheduleRule, ScheduleRule
+from .random_compute_location import RandomComputeLocation
