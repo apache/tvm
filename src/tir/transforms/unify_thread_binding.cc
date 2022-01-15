@@ -66,7 +66,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     }
     For new_loop = Downcast<For>(stmt);
     new_loop.CopyOnWrite()->annotations = std::move(annotations);
-    return new_loop;
+    return std::move(new_loop);
   }
 
   template <typename Node>
