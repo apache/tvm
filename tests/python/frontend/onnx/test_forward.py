@@ -189,6 +189,7 @@ def verify_with_ort_with_inputs(
             opt_level=opt_level,
             convert_config=convert_config,
         )
+
     if not isinstance(tvm_out, list):
         tvm_out = [tvm_out]
     if not isinstance(ort_out, list):
@@ -2891,6 +2892,14 @@ def test_convtranspose(target, dev):
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
     # Test undefined groups.
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2], group=None)
+
+    if "llvm" in target:
+        # GPU does not support groups != 1 for convtranspose, so only test llvm
+        # Test depthwise-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 10, 7, 3), [1, 2, 1, 2], group=10)
+
+        # Test grouped-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 5, 7, 3), [1, 2, 1, 2], group=5)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])
