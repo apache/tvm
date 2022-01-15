@@ -141,17 +141,17 @@ class LocalBuilder(Builder):
                 try:
                     res = future.result()
                     if res.error is not None:
+                        tb, exception = res.error
                         # instantiation error
-                        if isinstance(res.error, InstantiationError):
+                        if isinstance(exception, InstantiationError):
                             res = MeasureResult(
-                                (res.error,),
+                                (tb, exception,),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
                             )
 
                         else:
-                            tb, exception = res.error
                             if "InstantiationError" in str(exception):
                                 msg = str(exception)
                                 try:
