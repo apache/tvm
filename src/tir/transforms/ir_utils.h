@@ -231,9 +231,9 @@ Bool IsFromLegacyTESchedule(PrimFunc f);
  *\brief Context helper to update domain map within conditional scope.
  *
  * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
- *[0, 8]. Then `With<ConditionalBoundsContext> ctx(&dom_map, bounds, true)` step into scope where
- *dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(&dom_map, bounds, false)` step into
- *scope where dom_map[i] is [9, 20]
+ * [0, 8]. Then `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, true)` step
+ *into scope where dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(condition,
+ *&relax_map, &hint_map, false)` step into scope where dom_map[i] is [9, 20]
  */
 class ConditionalBoundsContext {
  private:
@@ -241,11 +241,13 @@ class ConditionalBoundsContext {
   /*!
    * \brief Construct a condition bounds context.
    * \param condition The condition holds on true branch.
-   * \param dom_map The global domain map to be updated.
+   * \param relax_map The domain map for relaxed vars to update.
+   * \param hint_map The domain map for free vars to update.
    * \param is_true_branch Whether step into the branch where condition bounds holds.
    */
   ConditionalBoundsContext(const PrimExpr& condition,
-                           std::unordered_map<const VarNode*, arith::IntSet>* dom_map,
+                           std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+                           std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
                            bool is_true_branch);
   void EnterWithScope();
   void ExitWithScope();
@@ -255,8 +257,10 @@ class ConditionalBoundsContext {
 
   /*! \brief the condition holds on true branch. */
   const PrimExpr& condition_;
-  /*! \brief global domain map to updated */
-  std::unordered_map<const VarNode*, arith::IntSet>* dom_map_;
+  /*! \brief domain map for relaxed vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
+  /*! \brief domain map for free vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
   /*! \brief whether is on true branch */
   bool is_true_branch_;
   /*! \brief used to record and restore original var bounds */
