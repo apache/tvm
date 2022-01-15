@@ -141,11 +141,18 @@ class LocalBuilder(Builder):
                 try:
                     res = future.result()
                     if res.error is not None:
+                        assert len(res.error) == 2, (
+                            f"BuildResult errors should be a 2-tuple, but it is a {len(res.error)}"
+                            "-tuple. This should not happen!"
+                        )
                         tb, exception = res.error
                         # instantiation error
                         if isinstance(exception, InstantiationError):
                             res = MeasureResult(
-                                (tb, exception,),
+                                (
+                                    tb,
+                                    exception,
+                                ),
                                 MeasureErrorNo.INSTANTIATION_ERROR,
                                 res.time_cost,
                                 time.time(),
