@@ -268,18 +268,14 @@ def matmul_out_dtype(inputs, out_dtype):
             a_broadcasted_shape = _op.concatenate(
                 [
                     out_batch,
-                    _op.strided_slice(
-                        a_shape, [a_rank - 2], [a_rank]
-                    ),
+                    _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
                 ],
                 0,
             )
             b_broadcasted_shape = _op.concatenate(
                 [
                     out_batch,
-                    _op.strided_slice(
-                        b_shape, [b_rank - 2], [b_rank]
-                    ),
+                    _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
                 ],
                 0,
             )
