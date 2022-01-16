@@ -153,6 +153,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     TVM_TRY_REWRITE(max(x, y - z) + z, max(x + z, y));
     TVM_TRY_REWRITE(max(x - z, y) + z, max(x, y + z));
 
+    TVM_TRY_REWRITE(min(c1, x - c2) + c3, min(c1 + c3, x + (c3 - c2)));
+    TVM_TRY_REWRITE(min(c1, x + c2) + c3, min(c1 + c3, x + (c3 + c2)));
+    TVM_TRY_REWRITE(min(x - c2, c1) + c3, min(x + (c3 - c2), c1 + c3));
+    TVM_TRY_REWRITE(min(x + c2, c1) + c3, min(x + (c3 + c2), c1 + c3));
+
+    TVM_TRY_REWRITE(max(c1, x - c2) + c3, max(c1 + c3, x + (c3 - c2)));
+    TVM_TRY_REWRITE(max(c1, x + c2) + c3, max(c1 + c3, x + (c3 + c2)));
+    TVM_TRY_REWRITE(max(x - c2, c1) + c3, max(x + (c3 - c2), c1 + c3));
+    TVM_TRY_REWRITE(max(x + c2, c1) + c3, max(x + (c3 + c2), c1 + c3));
+
     TVM_TRY_REWRITE_IF(min(x, y + z * c1) + z * c2, min(x + z * c2, y),
                        c1.Eval()->value == -c2.Eval()->value);
     TVM_TRY_REWRITE_IF(max(x, y + z * c1) + z * c2, max(x + z * c2, y),
@@ -295,6 +305,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE(max(y + x, z) - x, max(y, z - x));
     TVM_TRY_REWRITE(max(z, x + y) - x, max(z - x, y));
     TVM_TRY_REWRITE(max(z, y + x) - x, max(z - x, y));
+
+    TVM_TRY_REWRITE(min(c1, x - c2) - c3, min(c1 - c3, x - (c2 + c3)));
+    TVM_TRY_REWRITE(min(c1, x + c2) - c3, min(c1 - c3, x + (c2 - c3)));
+    TVM_TRY_REWRITE(min(x - c2, c1) - c3, min(x - (c2 + c3), c1 - c3));
+    TVM_TRY_REWRITE(min(x + c2, c1) - c3, min(x + (c2 - c3), c1 - c3));
+
+    TVM_TRY_REWRITE(max(c1, x - c2) - c3, max(c1 - c3, x - (c2 + c3)));
+    TVM_TRY_REWRITE(max(c1, x + c2) - c3, max(c1 - c3, x + (c2 - c3)));
+    TVM_TRY_REWRITE(max(x - c2, c1) - c3, max(x - (c2 + c3), c1 - c3));
+    TVM_TRY_REWRITE(max(x + c2, c1) - c3, max(x + (c2 - c3), c1 - c3));
 
     TVM_TRY_REWRITE(x - min(x + y, z), max(0 - y, x - z));
     TVM_TRY_REWRITE(x - min(y + x, z), max(0 - y, x - z));
