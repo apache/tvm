@@ -942,6 +942,7 @@ def ensure_scalar_shape(x):
 
     return _op.squeeze(x)
 
+
 def try_resolve_var_to_const(x, graph_params):
     """
     Try to resolve the value of tensor `x` to a specific value.
