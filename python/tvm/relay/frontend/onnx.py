@@ -3806,7 +3806,7 @@ class QLinearMatMul(OnnxOpConverter):
         # requirements.
         def try_resolve_to_const(x, dtype_override=None, allow1D=False):
             x2 = try_resolve_var_to_const(x, params)
-            x3 = ensure_scalar_shape(x2, force_assert=allow1D)
+            x3 = ensure_scalar_shape(x2, force_assert=not allow1D)
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
                 x4 = _op.cast(x3, dtype_override)
