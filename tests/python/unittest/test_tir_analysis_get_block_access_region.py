@@ -130,6 +130,41 @@ def access_in_branch_func() -> None:
                 B[i] = A[i - 1]
 
 
+@T.prim_func
+def access_of_padding_pattern() -> None:
+    X = T.alloc_buffer([28, 28])
+    X_pad = T.alloc_buffer([32, 32])
+    Y = T.alloc_buffer([28, 28])
+    for i, j in T.grid(32, 32):
+        with T.block("padding"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads(
+                [
+                    X[
+                        T.max(vi - 2, 0) : T.min(vi - 2, 27) + 1,
+                        T.max(vj - 2, 0) : T.min(vj - 2, 27) + 1,
+                    ]
+                ]
+            )
+            T.writes([X_pad[vi, vj]])
+            X_pad[vi, vj] = T.if_then_else(
+                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
+            )
+        with T.block("padding_reverse"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.reads([X_pad[T.max(vi, 2) : T.min(vi, 29) + 1, T.max(vj, 2) : T.min(vj, 29) + 1]])
+            T.writes(
+                [
+                    Y[
+                        T.max(vi - 2, 0) : T.min(vi - 2, 27) + 1,
+                        T.max(vj - 2, 0) : T.min(vj - 2, 27) + 1,
+                    ]
+                ]
+            )
+            if 2 <= vi and vi < 30 and 2 <= vj and vj < 30:
+                Y[vi - 2, vj - 2] = X_pad[vi, vj]
+
+
 def test_block_access_region_detector():
     block = func.body.block.body.block
     alloc_buffers = func.body.block.alloc_buffers
@@ -220,6 +255,36 @@ def test_access_in_branch_func():
     tvm.ir.assert_structural_equal(ret0[1], ret1[1])
 
 
+def test_access_of_padding_pattern():
+    s = tvm.tir.schedule.Schedule(access_of_padding_pattern)
+    alloc_buffers = s.get_sref(s.get_block("root")).stmt.alloc_buffers
+    buffer_var_map = {buf.data: buf for buf in alloc_buffers}
+
+    def do_compare_buffer_region(region, expect):
+        assert region.buffer == expect.buffer
+        analyzer = tvm.arith.Analyzer()
+        for k, rng in enumerate(region.region):
+            tvm.ir.assert_structural_equal(
+                analyzer.simplify(rng.min), analyzer.simplify(expect.region[k].min)
+            )
+            tvm.ir.assert_structural_equal(
+                analyzer.simplify(rng.extent), analyzer.simplify(expect.region[k].extent)
+            )
+
+    def do_check_block(block_name):
+        block = s.get_sref(s.get_block(block_name)).stmt
+        expect_reads = block.reads
+        expect_writes = block.writes
+        ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+        for i, read in enumerate(ret[0]):
+            do_compare_buffer_region(read, expect_reads[i])
+        for i, write in enumerate(ret[1]):
+            do_compare_buffer_region(write, expect_writes[i])
+
+    do_check_block("padding")
+    do_check_block("padding_reverse")
+
+
 if __name__ == "__main__":
     test_block_access_region_detector()
     test_opaque_block()
@@ -227,3 +292,4 @@ if __name__ == "__main__":
     test_match_buffer()
     test_access_in_if_then_else_func()
     test_access_in_branch_func()
+    test_access_of_padding_pattern()

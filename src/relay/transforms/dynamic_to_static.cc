@@ -240,6 +240,14 @@ class DynamicToStaticMutator : public MixedModeMutator {
     gv_ = vars[func_];
   }
 
+  Expr GetCurExpr(const Expr& original_expr) {
+    if (original_expr.as<FunctionNode>()) {
+      return mod_->Lookup(gv_);
+    } else {
+      return mod_->Lookup(gv_).as<FunctionNode>()->body;
+    }
+  }
+
   Expr PrepareInput(const Expr& expr) {
     BaseFunc func;
     if (auto* func_node = expr.as<BaseFuncNode>()) {
@@ -249,10 +257,12 @@ class DynamicToStaticMutator : public MixedModeMutator {
           relay::Function(relay::FreeVars(expr), expr, Type(), relay::FreeTypeVars(expr, mod_), {});
     }
     mod_->Update(gv_, func);
+
     mod_ = transform::FoldConstant()(mod_);
-    mod_ = transform::InferType()(mod_);
+    transform::InferTypeLocal(GetCurExpr(expr));
     mod_ = transform::FoldConstant()(mod_);
-    mod_ = transform::InferType()(mod_);
+    transform::InferTypeLocal(GetCurExpr(expr));
+
     Expr out;
     if (expr.as<FunctionNode>()) {
       out = mod_->Lookup(gv_);

@@ -32,7 +32,7 @@ COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
 
 # Globally disable pip cache
-RUN pip config set global.cache-dir false
+RUN pip config set global.no-cache-dir false
 
 COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
 RUN bash /install/ubuntu_install_cmake_source.sh

@@ -943,6 +943,15 @@ def test_forward_avgpool2d():
         torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
     )
 
+    input_shape = [1, 1, 1, 9]
+    input_data = torch.rand(input_shape).float()
+    verify_model(
+        torch.nn.AvgPool2d(
+            kernel_size=[1, 2], stride=[1, 2], ceil_mode=True, count_include_pad=True
+        ).eval(),
+        input_data=input_data,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_forward_avgpool3d():

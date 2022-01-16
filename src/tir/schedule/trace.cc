@@ -114,6 +114,9 @@ Array<ObjectRef> TranslateInputRVs(
     } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
+    } else if (input->IsInstance<ArrayNode>()) {
+      // Case 4: array
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_names));
     } else if (input->IsInstance<BlockRVNode>() || inputs->IsInstance<LoopRVNode>() ||
                inputs->IsInstance<VarNode>()) {
       LOG(FATAL) << "IndexError: Random variable is not defined " << input;
@@ -134,6 +137,11 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
     // Case 3. integer or floating-point number
     if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       results.push_back(input);
+      continue;
+    }
+    // Case 4. array
+    if (input->IsInstance<ArrayNode>()) {
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
       continue;
     }
     const auto* str = input.as<StringObj>();

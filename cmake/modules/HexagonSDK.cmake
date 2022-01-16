@@ -31,7 +31,7 @@ function(find_hexagon_sdk_root HEXAGON_SDK_PATH HEXAGON_ARCH)
 
   # Initial verification of the Hexagon SDK.
   message(STATUS "Checking Hexagon SDK root: ${HEXAGON_SDK_PATH}")
-  tvm_file_glob(GLOB_RECURSE VERSION_HEADERS "${HEXAGON_SDK_PATH}/*/version.h")
+  file(GLOB_RECURSE VERSION_HEADERS "${HEXAGON_SDK_PATH}/*/version.h")
   if(VERSION_HEADERS)
     foreach(HEADER IN LISTS VERSION_HEADERS)
       if(HEADER MATCHES "incs/version.h$")
