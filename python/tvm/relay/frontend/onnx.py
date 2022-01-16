@@ -42,7 +42,6 @@ from .common import (
     Renamer,
     autopad,
     ensure_scalar_shape,
-    try_resolve_scalar,
     fold_constant,
     get_name,
     get_relay_op,
@@ -3805,10 +3804,12 @@ class QLinearMatMul(OnnxOpConverter):
         #
         # This function attempts to present 'x' in a form that meets both of those
         # requirements.
-        def try_resolve_to_const(x, dtype_override=None):
+        def try_resolve_to_const(x, dtype_override=None, allow1D=False):
             x2 = try_resolve_var_to_const(x, params)
-            x3 = try_resolve_scalar(x2)
-
+            if allow1D:
+                x3 = x2
+            else:
+                x3 = ensure_scalar_shape(x2)
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
                 x4 = _op.cast(x3, dtype_override)
@@ -3859,8 +3860,8 @@ class QLinearMatMul(OnnxOpConverter):
         a_scale_scalar = try_resolve_to_const(a_scale)
         a_zp_scalar = try_resolve_to_const(a_zp, "int32")
 
-        b_scale_scalar = try_resolve_to_const(b_scale)
-        b_zp_scalar = try_resolve_to_const(b_zp, "int32")
+        b_scale_scalar = try_resolve_to_const(b_scale, allow1D=True)
+        b_zp_scalar = try_resolve_to_const(b_zp, "int32", allow1D=True)
 
         y_scale_scalar = try_resolve_to_const(y_scale)
         y_zp_scalar = try_resolve_to_const(y_zp, "int32")
