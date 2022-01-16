@@ -926,10 +926,11 @@ def autopad(
     return _op.nn.pad(data, fold_constant(pad), pad_value, pad_type)
 
 
-def ensure_scalar_shape(x):
+def ensure_scalar_shape(x, force_assert=True):
     """
     Assume that `x` is a tensor with one element (regardless of tensor rank).
-    Return a version of that tensor with rank 0.
+    Return a version of that tensor with rank 0. If force_assert=True, throw an exception
+    when test fails, otherwise return x itself.
     """
     x_shape = infer_shape(x)
     x_rank = len(x_shape)
@@ -938,9 +939,14 @@ def ensure_scalar_shape(x):
         return x
 
     num_elem = np.prod(x_shape)
-    assert num_elem == 1, "Cannot squeeze tensor shape {} to scalar form.".format(x_shape)
-
-    return _op.squeeze(x)
+    if num_elem == 1:
+        return _op.squeeze(x)
+    else:
+        if force_assert:
+            assert num_elem == 1, "Cannot squeeze tensor shape {} to scalar form.".format(x_shape)
+        else:
+            return x
+            
 
 
 def try_resolve_var_to_const(x, graph_params):
