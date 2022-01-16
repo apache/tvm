@@ -942,6 +942,24 @@ def ensure_scalar_shape(x):
 
     return _op.squeeze(x)
 
+def try_resolve_scalar(x):
+    """
+    Assume that `x` is a tensor with one element (regardless of tensor rank).
+    Return a version of that tensor with rank 0.
+    If not, return itself
+    """
+    x_shape = infer_shape(x)
+    x_rank = len(x_shape)
+
+    if x_rank == 0:
+        return x
+
+    num_elem = np.prod(x_shape)
+    if num_elem == 1:
+        return _op.squeeze(x)
+    else:
+        return x
+
 
 def try_resolve_var_to_const(x, graph_params):
     """

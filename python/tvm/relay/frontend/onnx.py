@@ -42,6 +42,7 @@ from .common import (
     Renamer,
     autopad,
     ensure_scalar_shape,
+    try_resolve_scalar,
     fold_constant,
     get_name,
     get_relay_op,
@@ -3804,9 +3805,9 @@ class QLinearMatMul(OnnxOpConverter):
         #
         # This function attempts to present 'x' in a form that meets both of those
         # requirements.
-        def try_resolve_to_const_scalar(x, dtype_override=None):
+        def try_resolve_to_const(x, dtype_override=None):
             x2 = try_resolve_var_to_const(x, params)
-            x3 = ensure_scalar_shape(x2)
+            x3 = try_resolve_scalar(x2)
 
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
@@ -3855,14 +3856,14 @@ class QLinearMatMul(OnnxOpConverter):
         )
 
         # _qnn.op.dense requires the zero-point values to have dtype int32.
-        a_scale_scalar = try_resolve_to_const_scalar(a_scale)
-        a_zp_scalar = try_resolve_to_const_scalar(a_zp, "int32")
+        a_scale_scalar = try_resolve_to_const(a_scale)
+        a_zp_scalar = try_resolve_to_const(a_zp, "int32")
 
-        b_scale_scalar = try_resolve_to_const_scalar(b_scale)
-        b_zp_scalar = try_resolve_to_const_scalar(b_zp, "int32")
+        b_scale_scalar = try_resolve_to_const(b_scale)
+        b_zp_scalar = try_resolve_to_const(b_zp, "int32")
 
-        y_scale_scalar = try_resolve_to_const_scalar(y_scale)
-        y_zp_scalar = try_resolve_to_const_scalar(y_zp, "int32")
+        y_scale_scalar = try_resolve_to_const(y_scale)
+        y_zp_scalar = try_resolve_to_const(y_zp, "int32")
 
         # TODO: Confirm that we're using 'num_hidden_units' correctly / as intended with
         # the '_qnn.op.dense' instance below.
