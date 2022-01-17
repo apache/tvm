@@ -37,7 +37,8 @@ def test_ethosu_inline_matcher():
     ]
     ifm_offset = [0, 0, 0]
 
-    part = match_ethosu_inline(out)
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    part = match_ethosu_inline(out, device_config)
 
     assert isinstance(part, cs.InlinePart)
     assert len(part.propagators) == 1

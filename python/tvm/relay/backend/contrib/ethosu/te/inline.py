@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 """Tensor Expressions for operations that will be inlined"""
 import numpy as np  # type: ignore
 
@@ -24,7 +25,7 @@ INLINE_OPS = {"T_reshape", "T_strided_slice"}
 
 
 @register_matcher
-def match_ethosu_inline(output_tensor):
+def match_ethosu_inline(output_tensor, device_config):
     """Match a Tensor Expression corresponding to an operator that will be inlined.
 
     If the Tensor Expression matches, an InlinePart will be created that models the
@@ -37,6 +38,8 @@ def match_ethosu_inline(output_tensor):
     ----------
     output_tensor : tvm.te.Tensor
         The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration
 
     Returns
     -------
