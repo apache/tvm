@@ -595,12 +595,10 @@ inline Expr MakeConv2dBackwardWeight(Expr data, Expr grad, Array<IndexExpr> stri
   attrs->out_dtype = std::move(out_dtype);
   attrs->kernel_layout = std::move(grad_layout);
   attrs->out_layout = std::move(kernel_layout);
-
   const Op& op = Op::Get("nn.conv2d_backward_weight");
   return Call(op, {data, grad}, Attrs(attrs), {});
 }
 
-// TODO: Clean up arguments
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_backward_weight")
     .set_body_typed([](Expr data, Expr grad, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,

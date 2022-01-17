@@ -3794,7 +3794,7 @@ def conv2d_backward_weight(
     (For example, in CUTLASS `data` acts as the filter).
 
     Note that the parameter `kernel_size` is the spatial size of the corresponding
-    forward convolution kernel, not the spatial size of `grad`. `grad_layout` and
+    forward convolution kernel, not that of `grad`. `grad_layout` and
     `kernel_layout` are the layouts of `grad` and the weight gradient respectively.
 
     Other parameters are the same as the conv2d op. See its documentation for more
