@@ -83,14 +83,13 @@ class OperatorConverter(object):
     def convert_eltwise(self, op):
         """Convert Eltwise layer"""
         inputs = op.bottom
-        assert len(inputs) == 2, "input tensors length should be 2"
+        assert len(inputs) >= 2, "input tensors length should be larger than 2"
 
+        # gethering initial 2 input expressions
         lhs_expr = self.exp_tab.get_expr(inputs[0])
         rhs_expr = self.exp_tab.get_expr(inputs[1])
-
         lhs_shape = _infer_shape(lhs_expr)
         rhs_shape = _infer_shape(rhs_expr)
-
         assert lhs_shape == rhs_shape, "input tensors shape should be equal"
 
         eltwise_params = op.eltwise_param
@@ -100,6 +99,11 @@ class OperatorConverter(object):
 
         if eltwise_type_dict[eltwise_type] == "PROD":
             out = _op.multiply(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                out = _op.multiply(out, extra_expr)
         elif eltwise_type_dict[eltwise_type] == "SUM":
             if coeff:
                 left_coeff_expr = self.exp_tab.new_const(np.asarray(coeff[0], np.float32))
@@ -109,8 +113,23 @@ class OperatorConverter(object):
                 out = _op.add(lhs_expr_scale, rhs_expr_scale)
             else:
                 out = _op.add(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                if coeff:
+                    coeff_expr = self.exp_tab.new_const(np.asarray(coeff[i + 2], np.float32))
+                    extra_expr_scale = _op.multiply(extra_expr, coeff_expr)
+                    out = _op.add(out, extra_expr_scale)
+                else:
+                    out = _op.add(out, extra_expr)
         elif eltwise_type_dict[eltwise_type] == "MAX":
             out = _op.maximum(lhs_expr, rhs_expr)
+            # for rest inputs
+            for i in range(len(inputs) - 2):
+                extra_expr = self.exp_tab.get_expr(inputs[i + 2])
+                assert _infer_shape(out) == _infer_shape(extra_expr)
+                out = _op.maximum(out, extra_expr)
         else:
             raise tvm.error.OpNotImplemented(
                 "eltwise_type {} is not supported for frontend Caffe.".format(eltwise_type)

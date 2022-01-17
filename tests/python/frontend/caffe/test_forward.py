@@ -541,6 +541,45 @@ def test_forward_Eltwise():
         operation=1,
         coeff=[0.5, 1],
     )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=0,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=2,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+        coeff=[0.5, 1, 0.2, 1.8, 3.1, 0.1],
+    )
 
 
 #######################################################################
