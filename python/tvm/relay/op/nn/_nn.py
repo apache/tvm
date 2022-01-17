@@ -964,6 +964,8 @@ def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
     new_attrs["grad_layout"] = desired_grad_layout
+    new_attrs["kernel_layout"] = new_attrs["out_layout"]
+    new_attrs.pop("out_layout")
     return relay.nn.conv2d_backward_weight(data, grad, **new_attrs)
 
 
