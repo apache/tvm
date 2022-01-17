@@ -103,6 +103,10 @@ struct CuDNNThreadEntry {
   static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
 };  // CuDNNThreadEntry
 
+void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int mode, int format, int algo, int dims,
+                        int groups, const int pad[], const int stride[], const int dilation[],
+                        DLTensor* x, DLTensor* w, DLTensor* y, const std::string& conv_dtype);
+
 }  // namespace contrib
 }  // namespace tvm
 
