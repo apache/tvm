@@ -96,7 +96,7 @@ set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 set(USE_OPENGL OFF)
 
 # Whether enable MicroTVM runtime
-set(USE_MICRO OFF)
+set(USE_MICRO ON)
 
 # Whether enable RPC runtime
 set(USE_RPC ON)
@@ -133,7 +133,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM OFF)
+set(USE_LLVM ON)
 
 #---------------------------------------------
 # Contrib libraries

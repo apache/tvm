@@ -14,13 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relay partitioner for the UltraTrail accelerator"""
+"""Relay graph patterns for the UltraTrail accelerator"""
 
-from .patterns import pattern_table
-from ..partitioner import GenericPartitioner
+from tvm.relay.op.contrib.register import register_pattern_table
+from tvm.relay.dataflow_pattern import is_op, wildcard
 
-class UltraTrailPartitioner(GenericPartitioner):
-    @property
-    def target_name(self):
-        return "ultra_trail"
 
+def example_pattern():
+    pattern = is_op("nn.conv1d")(wildcard(), wildcard())
+    pattern = is_op("nn.relu")(pattern)
+    return pattern
+
+
+@register_pattern_table("ultra_trail")
+def pattern_table():
+    return [("ultra_trail.conv1d_relu", example_pattern())]

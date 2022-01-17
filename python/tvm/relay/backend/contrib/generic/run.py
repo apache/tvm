@@ -4,6 +4,9 @@ from tvm.relay.backend.contrib.generic.ultra_trail.partitioner import UltraTrail
 from tvm import relay
 
 import torch
+import tarfile
+from pathlib import Path
+
 
 class TorchModel(torch.nn.Module):
     def __init__(self):
@@ -11,9 +14,12 @@ class TorchModel(torch.nn.Module):
         self.conv = torch.nn.Conv1d(
             16, 24, 9, bias=False, padding=0, stride=1, dilation=1, groups=1
         )
+        self.relu = torch.nn.ReLU()
 
     def forward(self, x):
         x = self.conv(x)
+        x = self.relu(x)
+        x = x + 42
         return x
 
 
@@ -26,9 +32,29 @@ def main():
     scripted_model = torch.jit.trace(torch_mod, dummy_input).eval()
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
+    # Relay target specific partitioning
     mod = UltraTrailPartitioner()(mod)
-    lib = relay.build(mod, tvm.target.Target("c"))
-    print(lib)
+
+    # Relay build (AOT C target)
+    TARGET = tvm.target.Target("c")
+    RUNTIME = tvm.relay.backend.Runtime("crt")
+    EXECUTOR = tvm.relay.backend.Executor("aot", {"unpacked-api": True})
+
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True}, disabled_pass=["AlterOpLayout"]
+    ):
+        module = relay.build(mod, target=TARGET, runtime=RUNTIME, executor=EXECUTOR, params=params)
+
+    model_library_format_tar_path = Path("build/lib.tar")
+    model_library_format_tar_path.unlink(missing_ok=True)
+    model_library_format_tar_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tvm.micro.export_model_library_format(module, model_library_format_tar_path)
+
+    print("Built MLF Library: ")
+    with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
+        print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
+        tar_f.extractall(model_library_format_tar_path.parent)
 
 
 if __name__ == "__main__":

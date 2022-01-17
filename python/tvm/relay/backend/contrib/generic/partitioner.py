@@ -18,7 +18,6 @@
 
 import tvm
 from tvm import relay
-from typing import Callable
 from abc import abstractmethod
 
 
@@ -34,29 +33,6 @@ class GenericPartitioner(object):
             The hardware target name.
         """
 
-    @abstractmethod
-    def _register_supported_ops(self) -> None:
-        """Register a set of supported relay operations which are applied to the schedule.
-
-        Example
-        -------
-        Here is an example of how two supported operations can be registered.
-
-        .. code-block:: python
-
-            def _register_supported_ops(self):
-                self._register_supported_op(op_0)
-                self._register_supported_op(op_1)
-        """
-        pass
-
-    def _register_supported_op(self, op: str) -> Callable:
-        @tvm.ir.register_op_attr(op, "target.{}".format(self.target_name))
-        def _func_wrapper(_):
-            return True
-
-        return _func_wrapper
-
     def __call__(self, mod: tvm.IRModule) -> tvm.IRModule:
         """Partition the relay graph in by the NPU supported and unsupported parts.
 
@@ -71,8 +47,16 @@ class GenericPartitioner(object):
             The partitioned relay module.
 
         """
-        self._register_supported_ops()
+        pattern = relay.op.contrib.get_pattern_table(self.target_name)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.MergeComposite(pattern)(mod)
         mod = relay.transform.AnnotateTarget(self.target_name)(mod)
         mod = relay.transform.MergeCompilerRegions()(mod)
+        mod = relay.transform.InferType()(mod)
         mod = relay.transform.PartitionGraph()(mod)
+        mod = relay.transform.InferType()(mod)
+        # Defunctionalize the partitioned functions to allow lowering
+        for gv, func in mod.functions.items():
+            mod.update_func(gv, relay.transform.Defunctionalization(func, mod))
+
         return mod

@@ -18,8 +18,8 @@
 
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.generic.codegen import GenericCodegen
-from tvm.relay.backend.contrib.generic.ultra_trail.schedules import example_sch_func
+from ..codegen import GenericCodegen
+from .schedules import example_sch_func
 
 
 class UltraTrailCodegen(GenericCodegen):
