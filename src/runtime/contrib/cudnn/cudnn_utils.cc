@@ -20,11 +20,15 @@
 /*!
  * \file Use external cudnn utils function
  */
+
 #include "cudnn_utils.h"
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/registry.h>
+
+#include <string>
+#include <vector>
 
 namespace tvm {
 namespace contrib {

@@ -28,6 +28,8 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 
+#include <string>
+
 #include "../../cuda/cuda_common.h"
 
 namespace tvm {
