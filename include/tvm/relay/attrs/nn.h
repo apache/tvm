@@ -55,9 +55,9 @@ struct Conv1DAttrs : public tvm::AttrsNode<Conv1DAttrs> {
   int groups;
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
-  std::string data_layout;
-  std::string kernel_layout;
-  std::string out_layout;
+  tvm::String data_layout;
+  tvm::String kernel_layout;
+  tvm::String out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv1DAttrs, "relay.attrs.Conv1DAttrs") {

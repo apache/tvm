@@ -24,7 +24,13 @@ CRT_ROOT ?= ${TVM_ROOT}/build/standalone_crt
 ifeq ($(shell ls -lhd $(CRT_ROOT)),)
 $(error "CRT not found. Ensure you have built the standalone_crt target and try again")
 endif
+
 FVP_DIR ?= /opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/
+
+NPU_MACS ?= 256
+NPU_VARIANT ?= U55
+
+MODEL = FVP_Corstone_SSE-300_Ethos-$(NPU_VARIANT)
 
 ARM_CPU=ARMCM55
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
@@ -118,12 +124,12 @@ cleanall:
 	$(QUIET)rm -rf $(build_dir)
 
 run: $(build_dir)/aot_test_runner
-	$(FVP_DIR)/FVP_Corstone_SSE-300_Ethos-U55 -C cpu0.CFGDTCMSZ=15 \
+	$(FVP_DIR)/$(MODEL) -C cpu0.CFGDTCMSZ=15 \
 	-C cpu0.CFGITCMSZ=15 -C mps3_board.uart0.out_file=\"-\" -C mps3_board.uart0.shutdown_tag=\"EXITTHESIM\" \
 	-C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 \
 	-C mps3_board.telnetterminal1.start_telnet=0 -C mps3_board.telnetterminal2.start_telnet=0 -C mps3_board.telnetterminal5.start_telnet=0 \
 	-C ethosu.extra_args="--fast" \
-	-C ethosu.num_macs=$(NPU_VARIANT) $(build_dir)/aot_test_runner
+	-C ethosu.num_macs=$(NPU_MACS) $(build_dir)/aot_test_runner
 
 .SUFFIXES:
 

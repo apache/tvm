@@ -2852,6 +2852,23 @@ class PyTorchOpConverter:
         equation, data = inputs
         return _op.einsum(data, equation)
 
+    def dot(self, inputs, _):
+        lhs, rhs = inputs
+        return _op.sum(_op.multiply(lhs, rhs))
+
+    def mv(self, inputs, _):
+        lhs, rhs = inputs
+
+        # Convert the 1D matrix (vector) into a 2D matrix with the extra
+        # dimension=1
+        rhs_matrix = _op.transform.expand_dims(rhs, 0)
+
+        # Run multiplication
+        dense_result = _op.nn.dense(lhs, rhs_matrix, units=None)
+
+        # Chop off the extra result dimension
+        return _op.transform.squeeze(dense_result)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3076,6 +3093,8 @@ class PyTorchOpConverter:
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
             "aten::einsum": self.einsum,
+            "aten::dot": self.dot,
+            "aten::mv": self.mv,
         }
 
     def update_convert_map(self, custom_map):
@@ -3273,7 +3292,18 @@ class PyTorchOpConverter:
                 # In this case, we keep the Python list
                 outputs[node_name] = inputs
             elif operator == "prim::TupleConstruct":
-                outputs[node_name] = _expr.Tuple(inputs)
+
+                def _handel_nested_input(inputs):
+                    inputs_list = []
+                    for i, _ in enumerate(inputs):
+                        if isinstance(inputs[i], list):
+                            inputs_list.append(_handel_nested_input(inputs[i]))
+                        else:
+                            assert isinstance(inputs[i], _expr.Expr)
+                            inputs_list.append(inputs[i])
+                    return _expr.Tuple(inputs_list)
+
+                outputs[node_name] = _handel_nested_input(inputs)
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):

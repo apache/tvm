@@ -40,7 +40,7 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False):
+def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=False, target="llvm"):
     input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(
         script_module, input_shapes, keep_quantized_weight=keep_quantized_weight
@@ -53,9 +53,9 @@ def get_tvm_runtime(script_module, input_name, ishape, keep_quantized_weight=Fal
     with tvm.transform.PassContext(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
         # also not to make CI too slow
-        lib = relay.build(mod, target="llvm", params=params)
+        lib = relay.build(mod, target=target, params=params)
 
-    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.cpu(0)))
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](tvm.device(target, 0)))
     return runtime
 
 
@@ -328,6 +328,15 @@ def test_quantized_modules():
         match_ratio = num_identical / float(np.prod(tvm_result.shape))
 
         print(module_name, max_abs_diff, mean_abs_diff, match_ratio)
+
+        if "linear" in module_name and tvm.get_global_func("tvm.contrib.cublas.matmul", True):
+            runtime = get_tvm_runtime(script_module, input_name, ishape, target="cuda -libs=cublas")
+            runtime.set_input(input_name, inp.numpy().copy())
+            runtime.run()
+            cublas_result = runtime.get_output(0).numpy()
+            # It is generally safe to enable this assertion, but disabled for CI
+            # tvm.testing.assert_allclose(cublas_result, pt_result, atol=1e-5, rtol=1e-5)
+            print(np.max(np.abs(cublas_result - pt_result)))
 
         # sample outputs
         """

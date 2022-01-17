@@ -1345,6 +1345,139 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   return GetRef<StmtSRef>(p);
 }
 
+/******** Misc ********/
+
+bool HasOp(const Stmt& stmt, const Array<Op>& ops) {
+  std::unordered_set<const Object*> op_set;
+  op_set.reserve(ops.size());
+  for (const Op& op : ops) {
+    op_set.insert(op.operator->());
+  }
+  bool found = false;
+  PreOrderVisit(stmt, [&found, &op_set](const ObjectRef& obj) -> bool {
+    if (found) {
+      return false;
+    }
+    if (const auto* call = obj.as<CallNode>()) {
+      if (op_set.count(call->op.operator->())) {
+        found = true;
+      }
+    }
+    return !found;
+  });
+  return found;
+}
+
+bool HasIfThenElse(const Stmt& stmt) {
+  bool has_branch = false;
+  auto f_visit = [&has_branch](const ObjectRef& obj) -> bool {
+    if (has_branch) {
+      // stop visiting
+      return false;
+    }
+    if (const auto* realize = obj.as<BlockRealizeNode>()) {
+      // Case 1: BlockRealize
+      if (!is_one(realize->predicate)) {
+        has_branch = true;
+      }
+    } else if (obj->IsInstance<IfThenElseNode>() || obj->IsInstance<SelectNode>()) {
+      // Case 2: IfThenElse / Select
+      has_branch = true;
+    } else if (const auto* call = obj.as<CallNode>()) {
+      // Case 3: Call the `if_then_else` operator
+      static const Op& op_if_then_else = Op::Get("tir.if_then_else");
+      if (call->op.same_as(op_if_then_else)) {
+        has_branch = true;
+      }
+    }
+    return !has_branch;
+  };
+  PreOrderVisit(stmt, f_visit);
+  return has_branch;
+}
+
+std::tuple</*exists=*/bool,
+           /*surjective=*/bool,
+           /*injective=*/bool,
+           /*ordered=*/bool,
+           /*no_const_read=*/bool,
+           /*no_shift_read=*/bool>
+AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region) {
+  static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
+      std::make_tuple(false, false, false, false, false, false);
+  // Step 1. Extract the write indices
+  int w_dim = write_region->buffer->shape.size();
+  std::unordered_map<const VarNode*, int> var2idx;
+  var2idx.reserve(w_dim);
+  for (int i = 0; i < w_dim; ++i) {
+    const Range& dom = write_region->region[i];
+    if (as_const_int(dom->extent) == nullptr) {
+      return kNotExist;
+    }
+    if (const auto* v = dom->min.as<VarNode>()) {
+      var2idx.emplace(v, i);
+    } else {
+      return kNotExist;
+    }
+  }
+  // Step 2. Map each read index to a write index
+  bool no_const_read = true;
+  bool no_shift_read = true;
+  int r_dim = read_region->buffer->shape.size();
+  std::vector<int> mapped(r_dim, -1);
+  for (int i = 0; i < r_dim; ++i) {
+    const Range& dom = read_region->region[i];
+    if (as_const_int(dom->extent) == nullptr) {
+      return kNotExist;
+    }
+    // Case 1. Read index is a constant
+    if (as_const_int(dom->min) != nullptr) {
+      no_const_read = false;
+      continue;
+    }
+    // Case 2. Read index cannot be recognized as `var +/- const`
+    // where `var` is a write index and `const` is an optional constant shift
+    Optional<IntImm> opt_const = NullOpt;
+    const VarNode* var =
+        static_cast<const VarNode*>(AnalyzeVarWithShift(dom->min, &opt_const).get());
+    if (var == nullptr || !var2idx.count(var)) {
+      return kNotExist;
+    }
+    // Case 3. Read index is `var +/- const`
+    mapped[i] = var2idx.at(var);
+    if (opt_const.defined()) {
+      no_shift_read = false;
+    }
+  }
+  // Step 3. Check if the mapping is ordered, and count how many times each var is mapped
+  std::vector<int> mapped_counter(w_dim, 0);
+  bool ordered = true;
+  int last_mapped = -1;
+  for (int i : mapped) {
+    if (i != -1) {
+      ++mapped_counter[i];
+      if (last_mapped != -1 && last_mapped > i) {
+        ordered = false;
+      }
+      last_mapped = i;
+    }
+  }
+  // Step 4. Check if the mapping is surjective or injective
+  // Surjective: each write index is mapped at least once
+  // Injective: each write index is mapped at most once
+  bool surjective = true;
+  bool injective = true;
+  for (int cnt : mapped_counter) {
+    if (cnt == 0) {
+      surjective = false;
+    } else if (cnt >= 2) {
+      injective = false;
+    }
+  }
+  return std::make_tuple(/*exist=*/true, surjective, injective, ordered, no_const_read,
+                         no_shift_read);
+}
+
 /******** Storage Scope ********/
 
 void CheckStorageScope(const ScheduleState& self, String storage_scope) {

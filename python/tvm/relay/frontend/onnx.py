@@ -38,9 +38,9 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
-    autopad,
     AttrCvt,
     Renamer,
+    autopad,
     ensure_scalar_shape,
     fold_constant,
     get_name,
@@ -238,18 +238,6 @@ def matmul_out_dtype(inputs, out_dtype):
             out = _op.reshape(x, fold_constant(newshape))
             return out
 
-        b_type = infer_type(inputs[1])
-        # Convert to dense if the second matrix is 2d and non-dynamic
-        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-            a = flatten_to_nd(inputs[0], a_shape, 2)
-            b = _op.transpose(inputs[1])
-            output = _op.nn.dense(a, b, out_dtype=out_dtype)
-        else:
-            # Convert a and b into 3 dimensional tensors.
-            a = flatten_to_nd(inputs[0], a_shape, 3)
-            b = flatten_to_nd(inputs[1], b_shape, 3)
-            # Perform a NN batch matmul.
-            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
         # Determine the output batch dimension.
         if a_rank > b_rank:
             out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
@@ -268,6 +256,42 @@ def matmul_out_dtype(inputs, out_dtype):
                 ],
                 0,
             )
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            # broadcast a and b
+            a_broadcasted_shape = _op.concatenate(
+                [
+                    out_batch,
+                    _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
+                ],
+                0,
+            )
+            b_broadcasted_shape = _op.concatenate(
+                [
+                    out_batch,
+                    _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
+                ],
+                0,
+            )
+            a = _op.transform.broadcast_to(inputs[0], fold_constant(a_broadcasted_shape))
+            b = _op.transform.broadcast_to(inputs[1], fold_constant(b_broadcasted_shape))
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(a, shape_of(a), 3)
+            b = flatten_to_nd(b, shape_of(b), 3)
+            if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+                # Transpose matrix dimensions of b.
+                bt = _op.transpose(b, [0, 2, 1])
+                # Perform a NT batch matmul.
+                output = _op.nn.batch_matmul(a, bt, out_dtype=out_dtype)
+            else:
+                # Perform a NN batch matmul.
+                output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
         # Reshape output to original dimensions.
         final_shape = _op.concatenate(
             [
@@ -551,13 +575,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
@@ -606,13 +630,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
@@ -1967,6 +1991,11 @@ class Softmax(OnnxOpConverter):
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
+        # Older ONNX Softmax op does not properly support inputs of dimension > 2
+        # But we can use our softmax when the axis is -1
+        if axis == ndim - 1:
+            return _op.nn.softmax(inputs[0], axis=axis)
+
         axes = list(range(axis, ndim))
         x = inputs[0]
         m = _op.max(x, axes, keepdims=True)
@@ -1974,16 +2003,12 @@ class Softmax(OnnxOpConverter):
         return e / _op.sum(e, axes, keepdims=True)
 
     @classmethod
-    def _impl_v13(cls, inputs, attr, params):
+    def _impl_v13(cls, inputs, attr, _):
         axis = attr.get("axis", -1)
         ndim = len(infer_shape(inputs[0]))
         if axis < 0:
             axis += ndim
-        axes = [axis]
-        x = inputs[0]
-        m = _op.max(x, axes, keepdims=True)
-        e = _op.exp(x - m)
-        return e / _op.sum(e, axes, keepdims=True)
+        return _op.nn.softmax(inputs[0], axis=axis)
 
 
 class LogSoftmax(OnnxOpConverter):

@@ -229,6 +229,34 @@ inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
   return as_const_int(loop->extent);
 }
 
+/*!
+ * \brief Check if an expression consists of a single variable,
+ * or a variable plus/minus an constant integer shift
+ * \param expr The expression to be checked
+ * \return The single variable in the expression, or NullOpt if the expression is neither a variable
+ * or a constant shift from a variable
+ */
+inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>* constant) {
+  if (const auto* var = expr.as<VarNode>()) {
+    *constant = NullOpt;
+    return GetRef<Var>(var);
+  }
+  arith::PVar<Var> var;
+  arith::PVar<IntImm> shift;
+  // match: "var + shift"
+  if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
+    *constant = shift.Eval();
+    return var.Eval();
+  }
+  // match: "var - shift"
+  if ((var - shift).Match(expr)) {
+    IntImm result = shift.Eval();
+    *constant = IntImm(result->dtype, -result->value);
+    return var.Eval();
+  }
+  return NullOpt;
+}
+
 /******** Annotation ********/
 
 /*!

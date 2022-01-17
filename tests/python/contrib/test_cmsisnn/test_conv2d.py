@@ -69,8 +69,6 @@ def make_model(
     kernel_w = kernel_shape[w_index]
     invar = relay.var("input", shape=shape, dtype=dtype)
     p = (0, 0, 0, 0)
-    if padding == "INVALID":
-        p = [1, 2, 2, 1]
     if padding == "SAME":
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
         invar = relay.nn.pad(
@@ -126,10 +124,10 @@ def make_model(
 
 
 @tvm.testing.requires_cmsisnn
-@pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
-@pytest.mark.parametrize("kernel_size", [(3, 3)])
+@pytest.mark.parametrize("ifm_shape", [(1, 25, 25, 12), (1, 64, 100, 4)])
+@pytest.mark.parametrize("kernel_size", [(5, 5)])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("strides, dilation", [((1, 1), (1, 1))])
+@pytest.mark.parametrize("strides, dilation", [((2, 2), (1, 1))])
 @pytest.mark.parametrize("relu_type", ["RELU"])
 @pytest.mark.parametrize("enable_bias", [True, False])
 @pytest.mark.parametrize(
@@ -353,19 +351,15 @@ def parameterize_for_invalid_model(test):
     in_dtype = ["uint8", "int8"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
-    padding = ["SAME", "INVALID"]
-    all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point, padding)
+    all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point)
     all_combinations = filter(
         lambda parameters: not (
-            parameters[0] == "int8"
-            and parameters[1] == "int8"
-            and parameters[2] == 0
-            and parameters[3] == "SAME"
+            parameters[0] == "int8" and parameters[1] == "int8" and parameters[2] == 0
         ),
         all_combinations,
     )
     return pytest.mark.parametrize(
-        ["in_dtype", "kernel_dtype", "kernel_zero_point", "padding"],
+        ["in_dtype", "kernel_dtype", "kernel_zero_point"],
         all_combinations,
     )(test)
 
@@ -376,7 +370,6 @@ def test_invalid_parameters(
     in_dtype,
     kernel_dtype,
     kernel_zero_point,
-    padding,
 ):
     ifm_shape = (1, 28, 28, 12)
     out_channels = 2
@@ -407,7 +400,7 @@ def test_invalid_parameters(
         kernel_scale=kernel_scale,
         output_zero_point=output_zero_point,
         output_scale=output_scale,
-        padding=padding,
+        padding="SAME",
         strides=(1, 1),
         dilation=(1, 1),
         groups=1,

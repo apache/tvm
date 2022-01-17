@@ -290,8 +290,6 @@ class Conv2DRewriter(DFPatternCallback):
             "OHWI": params.weights.shape[1:3],
             "HWOI": params.weights.shape[0:2],
         }
-        if str(params.weights.layout) not in kernel_size_map.keys():
-            raise UnsupportedLayout(str(params.weights.layout))
         activation_map = {"clip": "CLIP"}
         weight_to_ohwi_transform_map = {"HWIO": [3, 0, 1, 2]}
         weights_values = params.weights.values
@@ -375,13 +373,9 @@ class DepthwiseConv2DRewriter(DFPatternCallback):
         channels_map = {
             "NHWC": 3,
         }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
         kernel_shape_map = {
             "HWOI": params.weights.shape[0:2],
         }
-        if str(params.weights.layout) not in kernel_shape_map.keys():
-            raise UnsupportedLayout(str(params.weights.layout))
 
         weights_values = params.weights.values
         weights_values_ohwi = np.moveaxis(weights_values, [0, 1, 2, 3], [1, 2, 0, 3])
@@ -470,8 +464,6 @@ class PoolingRewriter(DFPatternCallback):
         channels_map = {
             "NHWC": 3,
         }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
 
         activation_map = {"clip": "CLIP"}
         if params.activation:
@@ -632,11 +624,6 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[1] if params.reversed_operands else post.args[0]
         params.ifm2.tensor = post.args[0] if params.reversed_operands else post.args[1]
-        channels_map = {
-            "NHWC": 3,
-        }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
 
         activation_map = {"clip": "CLIP"}
         if params.activation:
@@ -962,9 +949,6 @@ class UnaryElementwiseRewriter(DFPatternCallback):
     ) -> tvm.relay.Expr:
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[0]
-
-        if str(params.ofm.layout) != "NHWC":
-            raise UnsupportedLayout(str(params.ofm.layout))
 
         activation_map = {"clip": "CLIP"}
         if params.activation:

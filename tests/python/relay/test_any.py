@@ -1418,10 +1418,14 @@ def test_recursive_concat_with_wrong_annotation():
     start = relay.var("start", shape=(), dtype="int32")
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
+
     with DiagnosticTesting() as diagnostics:
         diagnostics.assert_message(
-            "The Relay type checker is unable to show the following types "
-            "match.\nIn particular dimension 0 conflicts: 2 does not match 1."
+            "The Relay type checker is unable to show the following types match:\n"
+            "  Tensor[(2, 1), int32]\n"
+            "  Tensor[(1, 1), int32]\n"
+            "In particular:\n"
+            "  dimension 0 conflicts: 2 does not match 1."
         )
         func = infer_type(func)
 
