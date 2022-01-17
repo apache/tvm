@@ -1214,19 +1214,22 @@ class ConcatParams:
 
     def __init__(self, func_body):
         self.concat = func_body
+        self.is_qnn_variant = self.concat.op.name == "qnn.concatenate"
         self.input_tensors = [TensorParams(tensor) for tensor in list(func_body.args[0])]
-        self.input_scales = [s.data.asnumpy() for s in list(func_body.args[1])]
-        self.input_zero_points = [zp.data.asnumpy() for zp in list(func_body.args[2])]
         self.axis = func_body.attrs.axis
+
+        if self.is_qnn_variant:
+            self.input_scales = [s.data.asnumpy() for s in list(func_body.args[1])]
+            self.input_zero_points = [zp.data.asnumpy() for zp in list(func_body.args[2])]
 
     def is_valid(self):
         """Checks whether Concatenate has compatible attributes with the hardware"""
         if not check_valid_dtypes(self.input_tensors, supported_dtypes=[np.int8]):
             return False
         # Check that the scales and zero points of input tensors are the same
-        if not all(self.input_scales == self.input_scales[0]):
+        if self.is_qnn_variant and not all(self.input_scales == self.input_scales[0]):
             return False
-        if not all(self.input_zero_points == self.input_zero_points[0]):
+        if self.is_qnn_variant and not all(self.input_zero_points == self.input_zero_points[0]):
             return False
 
         input_dim = len(self.input_tensors[0].shape)
@@ -1244,6 +1247,8 @@ class ConcatParams:
         output_shape = self.concat.checked_type.shape
         if len(output_shape) != input_dim:
             return False
+        if len(output_shape) > 3 and output_shape[0] != 1:
+            return False
         return True
 
 
@@ -1252,8 +1257,11 @@ def concat_pattern():
     tensors = is_tuple(None)
     scales = is_tuple(None)
     zero_points = is_tuple(None)
-    concat = is_op("qnn.concatenate")(tensors, scales, zero_points, is_constant(), is_constant())
-    return concat
+    qnn_concat = is_op("qnn.concatenate")(
+        tensors, scales, zero_points, is_constant(), is_constant()
+    )
+    concat = is_op("concatenate")(tensors)
+    return concat | qnn_concat
 
 
 class SplitParams:
@@ -1433,6 +1441,60 @@ def resize2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     return quant | is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
 
 
+class ExpandDimsParams:
+    """
+    This class will parse a call to a ethos-u.expand_dims composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.expand_dims"
+
+    def __init__(self, func_body):
+        self.expand_dims = func_body
+        self.input = TensorParams(func_body.args[0])
+        self.output = TensorParams(func_body)
+
+    def is_valid(self):
+        """Checks whether expand_dims has compatible attributes with the hardware."""
+        if not check_dimensions(self.input) or not check_dimensions(self.output):
+            return False
+        if not check_valid_dtypes([self.input, self.output], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def expand_dims_pattern():
+    """Create the pattern for expand_dims."""
+    return is_op("expand_dims")(wildcard())
+
+
+class SqueezeParams:
+    """
+    This class will parse a call to a ethos-u.squeeze composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.squeeze"
+
+    def __init__(self, func_body):
+        self.squeeze = func_body
+        self.input = TensorParams(func_body.args[0])
+        self.output = TensorParams(func_body)
+
+    def is_valid(self):
+        """Checks whether squeeze has compatible attributes with the hardware."""
+        if not check_dimensions(self.output):
+            return False
+        if not check_valid_dtypes([self.input, self.output], supported_dtypes=[np.int8]):
+            return False
+        return True
+
+
+def squeeze_pattern():
+    """Create the pattern for squeeze."""
+    return is_op("squeeze")(wildcard())
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1532,6 +1594,16 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             Resize2dParams.composite_name,
             resize2d_pattern(),
             lambda pat: Resize2dParams(pat).is_valid(),
+        ),
+        (
+            ExpandDimsParams.composite_name,
+            expand_dims_pattern(),
+            lambda pat: ExpandDimsParams(pat).is_valid(),
+        ),
+        (
+            SqueezeParams.composite_name,
+            squeeze_pattern(),
+            lambda pat: SqueezeParams(pat).is_valid(),
         ),
     ]
 

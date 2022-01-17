@@ -1445,6 +1445,70 @@ class LegalizeResize2d:
         pass
 
 
+class ExpandDimsRewriter(DFPatternCallback):
+    """Legalize expand dims to a reshape operator."""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.ExpandDimsParams.composite_name})
+        )(None)
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.ExpandDimsParams(post.op.body)
+        return relay.op.reshape(post.args[0], newshape=params.output.shape)
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeExpandDims:
+    """This is the pass that wraps ExpandDimsRewriter."""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(ExpandDimsRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+class SqueezeRewriter(DFPatternCallback):
+    """Legalize squeeze to a reshape operator."""
+
+    def __init__(self):
+        super().__init__(require_type=True, rewrite_once=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.SqueezeParams.composite_name})
+        )(None)
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.SqueezeParams(post.op.body)
+        return relay.op.reshape(post.args[0], newshape=params.output.shape)
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeSqueeze:
+    """This is the pass that wraps SqueezeRewriter."""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(SqueezeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1477,6 +1541,8 @@ class LegalizeEthosU:
         mod = LegalizeSigmoid()(mod)
         mod = LegalizeRequantize()(mod)
         mod = LegalizeResize2d()(mod)
+        mod = LegalizeExpandDims()(mod)
+        mod = LegalizeSqueeze()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

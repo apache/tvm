@@ -1100,5 +1100,36 @@ def test_tflite_transpose_convolution(
     _compare_tvm_with_tflite(conv2d_transpose, [ifm_shape], accel_type=accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shapes,axis",
+    [
+        ([(1, 2, 2), (1, 2, 2), (1, 2, 2)], 2),
+        ([(5, 4), (5, 4)], 1),
+        ([(1,), (1,)], 0),
+        ([(3, 1), (3, 1), (3, 1), (3, 1)], 0),
+    ],
+)
+def test_tflite_pack(accel_type, ifm_shapes, axis):
+    @tf.function
+    def pack_func(*inputs):
+        return tf.stack(inputs, axis=axis)
+
+    _compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,axis",
+    [[(1, 2, 3, 4), 1], [(2, 3), 1], [(5, 6, 7), 2]],
+)
+def test_tflite_unpack(accel_type, ifm_shape, axis):
+    @tf.function
+    def unpack_func(x):
+        return tf.unstack(x, axis=axis)
+
+    _compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
