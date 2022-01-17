@@ -3809,7 +3809,6 @@ def conv2d_backward_weight(
         dilation = (dilation, dilation)
     padding = get_pad_tuple2d(padding)
 
-    print(data_layout, grad_layout, kernel_layout)
     return _make.conv2d_backward_weight(
         data,
         grad,
