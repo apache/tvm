@@ -64,7 +64,7 @@ inline void GetCudnnStride(int nbdim, const int* dims, int* strides) {
 
 struct ConvEntry {
   cudnnConvolutionDescriptor_t conv_desc;
-  cudnnConvolutionMode_t mode;
+  cudnnConvolutionMode_t mode{CUDNN_CROSS_CORRELATION};
   cudnnFilterDescriptor_t filter_desc;
   cudnnDataType_t data_type;
   cudnnTensorFormat_t tensor_format;
@@ -103,9 +103,10 @@ struct CuDNNThreadEntry {
   static CuDNNThreadEntry* ThreadLocal(bool check_exists = true);
 };  // CuDNNThreadEntry
 
-void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int mode, int format, int algo, int dims,
-                        int groups, const int pad[], const int stride[], const int dilation[],
-                        DLTensor* x, DLTensor* w, DLTensor* y, const std::string& conv_dtype);
+void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,
+                        const int pad[], const int stride[], const int dilation[], int64_t x_dim[],
+                        int64_t w_dim[], int64_t y_dim[], DLDataType data_dtype,
+                        const std::string& conv_dtype);
 
 }  // namespace contrib
 }  // namespace tvm

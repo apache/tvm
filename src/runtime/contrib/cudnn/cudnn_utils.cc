@@ -161,22 +161,18 @@ void ConvEntry::CleanWorkspace() {
   workspace_size = 0;
 }
 
-void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int mode, int format, int algo, int dims,
-                        int groups, const int pad[], const int stride[], const int dilation[],
-                        DLTensor* x, DLTensor* w, DLTensor* y, const std::string& conv_dtype) {
-  // Set Mode
-  entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
+void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int groups,
+                        const int pad[], const int stride[], const int dilation[], int64_t x_dim[],
+                        int64_t w_dim[], int64_t y_dim[], DLDataType data_dtype,
+                        const std::string& conv_dtype) {
   // Set Format
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
-  // Set Algo
-  entry_ptr->conv_entry.fwd_algo = static_cast<cudnnConvolutionFwdAlgo_t>(algo);
-  // Set Device
-  entry_ptr->conv_entry.device = x->device;
   // Set Data Type
   entry_ptr->conv_entry.data_type =
       CuDNNDataType::DLTypeToCuDNNType(runtime::String2DLDataType(conv_dtype));
 
-  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
+  cudnnDataType_t cudnn_data_type = CuDNNDataType::DLTypeToCuDNNType(data_dtype);
+
   // Dims includes N and C
   int full_dims = dims + 2;
 
@@ -205,47 +201,49 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int mode, int format, int a
       wi = 3;
     }
 
-    // Set Filter
-    CUDNN_CALL(cudnnSetFilter4dDescriptor(
-        entry_ptr->conv_entry.filter_desc, data_type, entry_ptr->conv_entry.tensor_format,
-        static_cast<int>(w->shape[ni]), static_cast<int>(w->shape[ci]),
-        static_cast<int>(w->shape[hi]), static_cast<int>(w->shape[wi])));
     // Set Input
     CUDNN_CALL(cudnnSetTensor4dDescriptor(
-        entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.tensor_format, data_type,
-        static_cast<int>(x->shape[ni]), static_cast<int>(x->shape[ci]),
-        static_cast<int>(x->shape[hi]), static_cast<int>(x->shape[wi])));
+        entry_ptr->conv_entry.input_desc, entry_ptr->conv_entry.tensor_format, cudnn_data_type,
+        static_cast<int>(x_dim[ni]), static_cast<int>(x_dim[ci]), static_cast<int>(x_dim[hi]),
+        static_cast<int>(x_dim[wi])));
+    // Set Filter
+    CUDNN_CALL(cudnnSetFilter4dDescriptor(
+        entry_ptr->conv_entry.filter_desc, cudnn_data_type, entry_ptr->conv_entry.tensor_format,
+        static_cast<int>(w_dim[ni]), static_cast<int>(w_dim[ci]), static_cast<int>(w_dim[hi]),
+        static_cast<int>(w_dim[wi])));
     // Set Output
     CUDNN_CALL(cudnnSetTensor4dDescriptor(
-        entry_ptr->conv_entry.output_desc, entry_ptr->conv_entry.tensor_format, data_type,
-        static_cast<int>(y->shape[ni]), static_cast<int>(y->shape[ci]),
-        static_cast<int>(y->shape[hi]), static_cast<int>(y->shape[wi])));
+        entry_ptr->conv_entry.output_desc, entry_ptr->conv_entry.tensor_format, cudnn_data_type,
+        static_cast<int>(y_dim[ni]), static_cast<int>(y_dim[ci]), static_cast<int>(y_dim[hi]),
+        static_cast<int>(y_dim[wi])));
   } else {
+    ICHECK_EQ(format, 0) << "Use of layout CUDNN_TENSOR_NHWC is supported only for 4-D tensors.";
+
     CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc, dims, pad, stride,
                                                dilation, entry_ptr->conv_entry.mode,
                                                entry_ptr->conv_entry.data_type));
 
     // Set Filter
     for (int i = 0; i < full_dims; i++) {
-      dim[i] = static_cast<int>(w->shape[i]);
+      dim[i] = static_cast<int>(w_dim[i]);
     }
-    CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc, data_type,
+    CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc, cudnn_data_type,
                                           entry_ptr->conv_entry.tensor_format, full_dims,
                                           dim.data()));
     // Set Input
     for (int i = 0; i < full_dims; i++) {
-      dim[i] = static_cast<int>(x->shape[i]);
+      dim[i] = static_cast<int>(x_dim[i]);
     }
     GetCudnnStride(full_dims, dim.data(), tensor_stride.data());
-    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc, data_type, full_dims,
-                                          dim.data(), tensor_stride.data()));
+    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc, cudnn_data_type,
+                                          full_dims, dim.data(), tensor_stride.data()));
     // Set Output
     for (int i = 0; i < full_dims; i++) {
-      dim[i] = static_cast<int>(y->shape[i]);
+      dim[i] = static_cast<int>(y_dim[i]);
     }
     GetCudnnStride(full_dims, dim.data(), tensor_stride.data());
-    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc, data_type, full_dims,
-                                          dim.data(), tensor_stride.data()));
+    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.output_desc, cudnn_data_type,
+                                          full_dims, dim.data(), tensor_stride.data()));
   }
 
   if (cudnnGetVersion() > 7000) {

@@ -316,4 +316,6 @@ def test_conv_output_shape(conv_output_shape_kwargs):
 
 
 if __name__ == "__main__":
-    sys.exit(pytest.main(sys.argv))
+    # sys.exit(pytest.main(sys.argv))
+    test_conv2d()
+    test_conv3d()
