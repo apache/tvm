@@ -21,6 +21,9 @@
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -32,62 +35,114 @@ namespace contrib {
 namespace ethosu {
 namespace cascader {
 
-const std::vector<int> EthosuPartNode::GetBlockShape(const StripeConfig& output_stripe_config,
-                                                     bool is_rollling) {
-  std::vector<int> block_shape;
-  for (int axis : output_stripe_config->GetShape()) {
-    block_shape.push_back(std::min(axis, 4));
-  }
-  return block_shape;
-}
+const std::vector<int64_t> EthosuPartNode::GetBytesRead(const std::vector<int>& block_shape,
+                                                        const std::vector<int>& full_shape) {
+  std::vector<int64_t> bytes_per_input(propagators_.size(), 0);
 
-const std::vector<int> EthosuPartNode::GetBlockInputBytes_(const std::vector<int>& block_shape) {
-  std::vector<int> bytes_per_input;
-  std::vector<float> strides;
   std::vector<int> order;
   std::vector<int> stripes;
   std::vector<int> offset;
+  std::vector<float> strides;
   for (size_t i = 0; i < block_shape.size(); i++) {
-    strides.push_back(1.0);
     order.push_back(1);
-    stripes.push_back(1);
+    stripes.push_back(round_up_divide(full_shape[i], block_shape[i]));
     offset.push_back(0);
+    strides.push_back(static_cast<float>(block_shape[i]));
   }
-  StripeConfig output_block_config(block_shape, block_shape, strides, order, stripes, offset);
+
+  StripeConfig output_block_config(block_shape, full_shape, strides, order, stripes, offset);
   auto input_block_configs = CalculateInputStripeConfigs(output_block_config);
+
+  int i = 0;
   for (const auto& input_block_config : input_block_configs) {
-    bytes_per_input.push_back(mul_reduce(input_block_config->GetShape()));
+    std::map<std::vector<int>, int> input_blocks = CountStripes(input_block_config, false);
+
+    for (const auto& block : input_blocks) {
+      bytes_per_input[i] += mul_reduce(block.first) * block.second;
+    }
+    i++;
   }
+
+  if (weight_tensor_idx_ != -1) {
+    bytes_per_input[weight_tensor_idx_] *= (stripes[height_idx_] * stripes[width_idx_]);
+  }
+
   return bytes_per_input;
 }
 
-const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& output_stripe_config,
-                                                         bool is_rolling) {
-  std::vector<int> block_shape = GetBlockShape(output_stripe_config, is_rolling);
-  std::vector<int> bytes_per_input = GetBlockInputBytes_(block_shape);
-  int bytes_per_output = mul_reduce(block_shape);
-  int num_blocks = 1;
-  for (size_t i = 0; i < block_shape.size(); i++) {
-    if (!is_rolling) {
-      num_blocks *= output_stripe_config->GetShape()[i] * output_stripe_config->GetStripes()[i] /
-                    block_shape[i];
-    } else {
-      num_blocks *= output_stripe_config->GetExtent()[i] / block_shape[i];
+const BlockConfig EthosuPartNode::GetBlockConfig(const StripeConfig& output_stripe_config) {
+  BlockConfig best_block_config;
+  float best_cost = std::numeric_limits<float>::infinity();
+  std::vector<int> output_stripe_shape = output_stripe_config->GetShape();
+
+  for (const auto& block_config : valid_block_configs_) {
+    std::vector<int> output_block = block_config->GetOutputBlockShape();
+
+    std::vector<int64_t> bytes_per_input = GetBytesRead(output_block, output_stripe_shape);
+    bytes_per_input[0] *= subkernels_;
+
+    // Calculate bytes read per output element
+    float relative_cost =
+        (bytes_per_input[0] + bytes_per_input[1]) / mul_reduce(output_stripe_shape);
+
+    // Single buffering hardware optimization
+    if (mul_reduce(output_stripe_shape) <= 2 * mul_reduce(output_block)) {
+      relative_cost /= 2;
+    }
+
+    if (relative_cost < best_cost) {
+      best_block_config = block_config;
+      best_cost = relative_cost;
     }
   }
-  int num_stripes = mul_reduce(output_stripe_config->GetStripes()) - 1;
-  std::vector<size_t> read_bytes;
+
+  return best_block_config;
+}
+
+const PerformanceInfo EthosuPartNode::GetPerformanceInfo(const StripeConfig& output_stripe_config,
+                                                         BufferMode buffer_mode) {
+  BlockConfig block_config = GetBlockConfig(output_stripe_config);
+  std::vector<int> block_shape = block_config->GetOutputBlockShape();
+
+  std::vector<int64_t> bytes_per_input =
+      GetBytesRead(block_shape, output_stripe_config->GetShape());
+
+  int elements_per_block = mul_reduce(block_shape);
+  int bytes_per_output = elements_per_block;
+  float num_blocks = 1.0f;
+  for (size_t i = 0; i < block_shape.size(); i++) {
+    if (buffer_mode == BufferMode::RECOMPUTE) {
+      num_blocks *= static_cast<float>(output_stripe_config->GetShape()[i] *
+                                       output_stripe_config->GetStripes()[i]) /
+                    block_shape[i];
+    } else {
+      num_blocks *= static_cast<float>(output_stripe_config->GetExtent()[i]) / block_shape[i];
+    }
+  }
+  float num_stripes = mul_reduce(output_stripe_config->GetStripes()) - 1.0f;
+  std::vector<int64_t> read_bytes;
   for (int block_bytes : bytes_per_input) {
     read_bytes.push_back((num_blocks + num_stripes) * block_bytes);
   }
-  int write_bytes = (num_blocks + num_stripes) * bytes_per_output;
-  auto shape = output_stripe_config->GetShape();
-  PerformanceInfo info(0, read_bytes, write_bytes);
+  int64_t write_bytes = (num_blocks + num_stripes) * bytes_per_output;
+
+  int block_output_cycles = block_config->GetOutputCycles();
+  int block_compute_cycles = block_config->GetComputeCycles();
+
+  int64_t total_cycles = 0;
+  if (block_output_cycles > block_compute_cycles) {
+    total_cycles = (block_output_cycles * num_blocks) + block_compute_cycles;
+  } else {
+    total_cycles = (block_compute_cycles * num_blocks) + block_output_cycles;
+  }
+
+  PerformanceInfo info(total_cycles, read_bytes, write_bytes);
   return info;
 }
 
 EthosuPart::EthosuPart(const TESubgraph& subgraph, const std::vector<Propagator> propagators,
-                       const std::vector<int> output_quantum, int quantum_cycles) {
+                       const std::vector<int>& output_quantum, int subkernels,
+                       const std::vector<BlockConfig>& valid_block_configs, int weight_tensor_idx) {
   auto n = make_object<EthosuPartNode>();
   ICHECK_GT(propagators.size(), 0) << "The Part must include at least one Propagator.";
   n->subgraph_ = subgraph;
@@ -95,21 +150,40 @@ EthosuPart::EthosuPart(const TESubgraph& subgraph, const std::vector<Propagator>
   n->in_line_ = false;
   n->input_tensors_.resize(propagators.size());
   n->output_quantum_ = output_quantum;
-  n->quantum_cycles_ = quantum_cycles;
+  n->valid_block_configs_ = valid_block_configs;
+  n->subkernels_ = subkernels;
+  n->weight_tensor_idx_ = weight_tensor_idx;
+  if (output_quantum.size() == 5) {
+    // NHCWB16 Format
+    n->height_idx_ = 1;
+    n->width_idx_ = 3;
+  } else {
+    // NHWC Format
+    n->height_idx_ = 1;
+    n->width_idx_ = 2;
+  }
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.EthosuPart")
     .set_body_typed([](Array<te::Tensor> subgraph_inputs, te::Tensor subgraph_output,
-                       Array<Propagator> propagators, Array<Integer> output_quantum,
-                       int quantum_cycles) {
+                       Array<Propagator> propagators, Array<Integer> output_quantum, int subkernels,
+                       Array<BlockConfig> valid_block_configs, int weight_tensor_idx) {
       std::vector<te::Tensor> vsubgraph_inputs(subgraph_inputs.begin(), subgraph_inputs.end());
       std::vector<Propagator> vpropagators(propagators.begin(), propagators.end());
+      std::vector<int> voutput_quantum(output_quantum.begin(), output_quantum.end());
       TESubgraph subgraph;
       subgraph.input_tensors = vsubgraph_inputs;
       subgraph.output_tensor = subgraph_output;
-      std::vector<int> voutput_quantum = make_vector<int, Integer>(output_quantum);
-      return EthosuPart(subgraph, vpropagators, voutput_quantum, quantum_cycles);
+      std::vector<BlockConfig> vvalid_block_configs(valid_block_configs.begin(),
+                                                    valid_block_configs.end());
+      return EthosuPart(subgraph, vpropagators, voutput_quantum, subkernels, vvalid_block_configs,
+                        weight_tensor_idx);
+    });
+
+TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.EthosuPartGetBlockConfig")
+    .set_body_typed([](EthosuPart part, StripeConfig stripe_config) {
+      return part->GetBlockConfig(stripe_config);
     });
 
 TVM_REGISTER_NODE_TYPE(EthosuPartNode);

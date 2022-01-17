@@ -28,6 +28,7 @@
 
 #include <vector>
 
+#include "../block_config.h"
 #include "../graph.h"
 
 namespace tvm {
@@ -39,11 +40,10 @@ namespace cascader {
 class EthosuPartNode : public PartNode {
  public:
   /*!
-   * \brief Get the optimal block shape to use.
+   * \brief Get the optimal BlockConfig to use given a StripeConfig
    * \param output_stripe_config The output StripeConfig.
-   * \param is_rolling Whether the output config should be computed as a rolling buffer.
    */
-  const std::vector<int> GetBlockShape(const StripeConfig& output_stripe_config, bool is_rolling);
+  const BlockConfig GetBlockConfig(const StripeConfig& output_stripe_config);
   /*!
    * \brief Get the preferred alignment in each axis for a stripe of the Part.
    * \note This is used to bias the selection of StripeConfigs towards those that are integer
@@ -53,11 +53,11 @@ class EthosuPartNode : public PartNode {
   /*!
    * \brief Get the performance information for a given output stripe config.
    * \param output_stripe_config The output stripe config to compute the performance for.
-   * \param is_rolling Whether the output config should be computed as a rolling buffer.
+   * \param buffer_mode The mode of buffering, rolling or recompute.
    * \return The performance information containing the compute cycles and read/write bytes.
    */
   const PerformanceInfo GetPerformanceInfo(const StripeConfig& output_stripe_config,
-                                           bool is_rolling) final;
+                                           BufferMode buffer_mode) final;
 
   static constexpr const char* _type_key = "contrib.ethosu.cascader.EthosuPart";
   TVM_DECLARE_FINAL_OBJECT_INFO(EthosuPartNode, PartNode);
@@ -66,16 +66,27 @@ class EthosuPartNode : public PartNode {
   friend class EthosuPart;
 
   /*!
-   * \brief Get the size of input required (per input tensor) to compute a block.
-   * \param block_shape The shape of the block to compute.
+   * \brief Get the size of input required (per input tensor) to compute a stripe given a
+   * block_shape
+   * \param block_shape The shape of the block(s) the stripe is split into
+   * \param stripe_shape The shape of the full stripe to compute.
    * \return The bytes required per input tensor.
    */
-  const std::vector<int> GetBlockInputBytes_(const std::vector<int>& block_shape);
+  const std::vector<int64_t> GetBytesRead(const std::vector<int>& block_shape,
+                                          const std::vector<int>& full_shape);
 
+  /*! \brief List of block configs that are valid for this part */
+  std::vector<BlockConfig> valid_block_configs_;
   /*! \brief The output volume that is atomically computed */
   std::vector<int> output_quantum_;
-  /*! \brief The cycles taken to compute a single output quantum */
-  int quantum_cycles_;
+  /*! \brief Index for output height dimension */
+  int height_idx_;
+  /*! \brief Index for output width dimension */
+  int width_idx_;
+  /*! \brief Index of weight tensor, -1 if the Part has no weights */
+  int weight_tensor_idx_;
+  /*! \brief Number of sub-kernels the kernel has been split into */
+  int subkernels_;
 };
 
 /*!
@@ -86,7 +97,8 @@ class EthosuPartNode : public PartNode {
 class EthosuPart : public Part {
  public:
   EthosuPart(const TESubgraph& subgraph, const std::vector<Propagator> propagators,
-             const std::vector<int> output_quantum, int quantum_cycles);
+             const std::vector<int>& output_quantum, int subkernels,
+             const std::vector<BlockConfig>& valid_block_configs, int weight_tensor_idx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EthosuPart, Part, EthosuPartNode);
 };

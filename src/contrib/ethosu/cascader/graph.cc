@@ -38,12 +38,10 @@ namespace ethosu {
 namespace cascader {
 
 void PerformanceInfoNode::VisitAttrs(AttrVisitor* v) {
-  int compute_cycles_int = static_cast<int>(compute_cycles);
-  v->Visit("_compute_cycles", &compute_cycles_int);
-  Array<Integer> tmp_reads = make_array(read_bytes);
+  v->Visit("_compute_cycles", &compute_cycles);
+  Array<IntImm> tmp_reads = make_array(read_bytes);
   v->Visit("_read_bytes", &tmp_reads);
-  int write_bytes_int = static_cast<int>(write_bytes);
-  v->Visit("_write_bytes", &write_bytes_int);
+  v->Visit("_write_bytes", &write_bytes);
 }
 
 TVM_REGISTER_NODE_TYPE(PerformanceInfoNode);
@@ -147,8 +145,9 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.PartGetStripeAlignHint").set_body_t
   return make_array(align_hint);
 });
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.PartGetPerformanceInfo")
-    .set_body_typed([](Part part, StripeConfig stripe_config, bool is_rolling) {
-      return part->GetPerformanceInfo(stripe_config, is_rolling);
+    .set_body_typed([](Part part, StripeConfig stripe_config, int buffer_mode) {
+      BufferMode ebuffer_mode = static_cast<BufferMode>(buffer_mode);
+      return part->GetPerformanceInfo(stripe_config, ebuffer_mode);
     });
 
 CascaderGraphNode::CascaderGraphNode(std::vector<Tensor> input_tensors,

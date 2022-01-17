@@ -18,28 +18,40 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 
-import tvm.contrib.ethosu.cascader as pl
+import tvm.contrib.ethosu.cascader as cs
+from tvm.contrib.ethosu.cascader.graph import BufferMode
 from tvm.contrib.ethosu.cascader.parts import EthosuPart
 
 
 def test_ethosu_part():
-    te_subgraph = pl.TESubgraph([], None)
+    te_subgraph = cs.TESubgraph([], None)
     output_quantum = [1, 2, 2, 8]
-    quantum_cycles = 32
-    propagator = pl.Propagator(
+    propagator = cs.Propagator(
         [[1, 0, 0, 0, 2], [0, 1, 0, 0, 2], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [0, 0, 0, 0, 1]],
         [0, 0, 0, 0],
     )
-    stripe_config = pl.StripeConfig(
+    stripe_config = cs.StripeConfig(
         [1, 4, 4, 16], [1, 64, 72, 96], [1, 4, 4, 16], [1, 2, 3, 4], [1, 16, 13, 6], [0, 0, 0, 0]
     )
+    subkernels = 3
 
-    part = EthosuPart(te_subgraph, [propagator], output_quantum, quantum_cycles)
+    valid_block_configs = [cs.BlockConfig([1, 2, 4, 16], 15000, 7500)]
+
+    part = EthosuPart(
+        te_subgraph,
+        [propagator],
+        output_quantum,
+        subkernels,
+        valid_block_configs,
+        1,
+    )
+    input_tensor = cs.Tensor(shape=[1, 66, 74, 16], dtype="int8")
+    part.set_input(0, input_tensor)
 
     assert part.get_stripe_align_hint() == output_quantum
     # Check that the performance model runs, don't verify output
-    part.get_performance_info(stripe_config, False)
-    part.get_performance_info(stripe_config, True)
+    part.get_performance_info(stripe_config, BufferMode.ROLLING)
+    part.get_performance_info(stripe_config, BufferMode.RECOMPUTE)
 
 
 if __name__ == "__main__":
