@@ -267,6 +267,39 @@ BlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self
  */
 BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sref);
 
+/*!
+ * \brief Get the IterVarType of the specific loop, according to the blocks it's bound to
+ * \param loop_sref The loop to be checked
+ * \return The IterVarType of the specific loop
+ */
+IterVarType GetLoopIterType(const StmtSRef& loop_sref);
+
+/*!
+ * \brief Get the lowest common ancestor of an array of blocks or loops on the sref tree
+ * \param srefs The block srefs or loop srefs whose lowest common ancestor is to be queried
+ * \return The lowest common ancestor of the input block srefs or loop srefs
+ * \note The input array is required to have at least one sref
+ */
+StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs);
+
+/*!
+ * \brief Checks if the given block has been applied by multi-level tiling. We check this by
+ *        examine the block's annotation.
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block has been multi-level tiled.
+ */
+bool HasBeenMultiLevelTiled(const StmtSRef& block_sref);
+
+/*!
+ * \brief Collect all the feasible compute-at locations of the input block
+ * \param self The schedule state
+ * \param block_sref The block whose compute-at locations are to be collected
+ * \return All the feasible compute-at locations of the input block, given as an array of loop srefs
+ *         and an array of their indices among the outer loops of the input block
+ */
+std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref);
+
 /******** Producer-consumer relation ********/
 
 /*!

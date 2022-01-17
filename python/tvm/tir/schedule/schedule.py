@@ -369,6 +369,32 @@ class Schedule(Object):
             )
         )
 
+    @type_checked
+    def sample_compute_location(
+        self,
+        block: BlockRV,
+        decision: Optional[int] = None,
+    ) -> LoopRV:
+        """Sample a compute-at location of the given block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block whose compute-at location is to be sampled
+        decision : Optional[int]
+            The sampling decision
+
+        Returns
+        -------
+        result : LoopRV
+            The sampled loop where the input block is to be computed at
+        """
+        return _ffi_api.ScheduleSampleComputeLocation(  # type: ignore  # pylint: disable=no-member
+            self,
+            block,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     @type_checked
     def get_block(
