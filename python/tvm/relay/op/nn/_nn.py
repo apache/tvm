@@ -959,14 +959,11 @@ def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
     """
     data, grad = inputs
     new_attrs = dict(attrs)
-    assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
-    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of data and gradient."
+    desired_data_layout, desired_grad_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
-
-    assert desired_kernel_layout == "OHWI", "Only OHWI kernel layout is supported"
-
-    new_attrs["kernel_layout"] = desired_kernel_layout
+    new_attrs["grad_layout"] = desired_grad_layout
     return relay.nn.conv2d_backward_weight(data, grad, **new_attrs)
 
 
