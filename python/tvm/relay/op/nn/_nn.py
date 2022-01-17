@@ -938,12 +938,12 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
 
 @reg.register_convert_op_layout("nn.conv2d_backward_weight")
 def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
-    """Convert Layout pass registration for conv2d op.
+    """Convert Layout pass registration for conv2d_backward_weight op.
 
     Parameters
     ----------
     attrs : tvm.ir.Attrs
-        Attributes of current convolution
+        Attributes of current op
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
     tinfos : list of types
@@ -1098,6 +1098,22 @@ reg.register_injective_schedule("nn.batch_to_space_nd")
 
 @reg.register_legalize("nn.conv2d_backward_weight")
 def legalize_conv2d_backward_weight(attrs, inputs, types):
+    """Legalize conv2d_backward_weight op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
     data, grad = inputs
     data_shape = get_const_tuple(data.checked_type.shape)
     weight_shape = get_const_tuple(types[2].shape)

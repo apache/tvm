@@ -425,7 +425,6 @@ def conv2d_grad(orig, grad):
         output_padding=output_padding,
     )
 
-    # TODO: modify attributes related to filter
     backward_weight = _nn.conv2d_backward_weight(
         data,
         grad,

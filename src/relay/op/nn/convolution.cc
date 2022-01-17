@@ -582,8 +582,8 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.deformable_conv2d")
 inline Expr MakeConv2dBackwardWeight(Expr data, Expr grad, Array<IndexExpr> strides,
                                      Array<IndexExpr> padding, Array<IndexExpr> dilation,
                                      int groups, IndexExpr channels, Array<IndexExpr> kernel_size,
-                                     std::string data_layout, std::string kernel_layout,
-                                     std::string out_layout, DataType out_dtype) {
+                                     std::string data_layout, std::string grad_layout,
+                                     std::string kernel_layout, DataType out_dtype) {
   auto attrs = make_object<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -592,9 +592,10 @@ inline Expr MakeConv2dBackwardWeight(Expr data, Expr grad, Array<IndexExpr> stri
   attrs->channels = std::move(channels);
   attrs->kernel_size = std::move(kernel_size);
   attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
+  attrs->kernel_layout = std::move(grad_layout);
+  attrs->out_layout = std::move(kernel_layout);
+
   const Op& op = Op::Get("nn.conv2d_backward_weight");
   return Call(op, {data, grad}, Attrs(attrs), {});
 }
@@ -603,10 +604,10 @@ inline Expr MakeConv2dBackwardWeight(Expr data, Expr grad, Array<IndexExpr> stri
 TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_backward_weight")
     .set_body_typed([](Expr data, Expr grad, Array<IndexExpr> strides, Array<IndexExpr> padding,
                        Array<IndexExpr> dilation, int groups, IndexExpr channels,
-                       Array<IndexExpr> kernel_size, String data_layout, String kernel_layout,
-                       String out_layout, DataType out_dtype) {
+                       Array<IndexExpr> kernel_size, String data_layout, String grad_layout,
+                       String kernel_layout, DataType out_dtype) {
       return MakeConv2dBackwardWeight(data, grad, strides, padding, dilation, groups, channels,
-                                      kernel_size, data_layout, kernel_layout, out_layout,
+                                      kernel_size, data_layout, grad_layout, kernel_layout,
                                       out_dtype);
     });
 
@@ -622,16 +623,20 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
 
   const auto* param = attrs.as<Conv2DAttrs>();
   ICHECK(param != nullptr);
-  ICHECK(param->kernel_size.defined());
+  // Require kernel_size to be passed, to simplify the output shape determination.
+  ICHECK(param->kernel_size.defined()) << "kernel_size attribute needs to be specified";
 
+  // We repurpose Conv2dAttrs for Conv2DBackwardWeight, note the meanings of layouts.
   const Layout in_layout(param->data_layout);
-  const Layout kernel_layout(param->kernel_layout);
+  const Layout grad_layout(param->kernel_layout);
+  const Layout kernel_layout(param->out_layout);
 
   const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
+  const auto trans_grad_layout = tir::BijectiveLayout(grad_layout, kNCHW);
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
 
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
-  Array<IndexExpr> grad_shape_nchw = trans_in_layout.ForwardShape(grad->shape);
+  Array<IndexExpr> grad_shape_nchw = trans_grad_layout.ForwardShape(grad->shape);
 
   auto in_channels = dshape_nchw[1];
   auto out_channels = grad_shape_nchw[1];
@@ -647,7 +652,9 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
 RELAY_REGISTER_OP("nn.conv2d_backward_weight")
     .describe(R"code(The gradient of the 2D convolution layer with respect to the weight.
 
-TODO
+This layer computes the gradient of the conv2d op with respect to weight,
+given the origial input data and the output gradient.
+
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, in_channels, height, width) if `layout` is `NCHW`.
 - **grad**: (batch, channels, out_height, out_width) if `layout` is `NCHW`.

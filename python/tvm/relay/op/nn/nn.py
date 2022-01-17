@@ -3782,10 +3782,32 @@ def conv2d_backward_weight(
     channels=None,
     kernel_size=None,
     data_layout="NCHW",
-    kernel_layout="OIHW",
-    out_layout="",
+    grad_layout="NCHW",
+    output_kernel_layout="OIHW",
     out_dtype="",
 ):
+    r"""The gradient of conv2d with respect to weight.
+
+    This operator takes the output gradient `grad` as the convolution kernel
+    and convolves it with `data` to produce the gradeint with respect to weight.
+    Depending on an implementation, the roles of `data` and `grad` can be swapped
+    (For example, in CUTLASS `data` acts as the filter).
+
+    Note that the parameter `kernel_size` is the spatial size of the corresponding
+    forward convolution kernel, not the spatial size of `grad`.
+
+    Other parameters are the same as the conv2d op. See its documentation for more
+    details.
+
+    """
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+    if isinstance(strides, int):
+        strides = (strides, strides)
+    if isinstance(dilation, int):
+        dilation = (dilation, dilation)
+    padding = get_pad_tuple2d(padding)
+
     return _make.conv2d_backward_weight(
         data,
         grad,
@@ -3796,7 +3818,7 @@ def conv2d_backward_weight(
         channels,
         kernel_size,
         data_layout,
-        kernel_layout,
-        out_layout,
+        grad_layout,
+        output_kernel_layout,
         out_dtype,
     )
