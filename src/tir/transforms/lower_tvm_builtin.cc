@@ -111,6 +111,9 @@ class BuiltinLower : public StmtExprMutator {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
+
+    const int kMaxStackAlloca = transform::PassContext::Current()->GetConfig<Integer>("tir.max_stack_alloca", Integer(runtime::kMaxStackAlloca)).value();
+
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
     // If the buffers are for CPU and have global scope,
