@@ -73,6 +73,20 @@ Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n
   return results;
 }
 
+LoopRV TracedScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
+                                                 Optional<Integer> decision) {
+  LoopRV result = CreateRV<LoopRV>(tir::SampleComputeLocation(this->state_, &this->rand_state_,
+                                                              this->GetSRef(block_rv), &decision));
+
+  static const InstructionKind& kind = InstructionKind::Get("SampleComputeLocation");
+  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
+                                      /*inputs=*/{block_rv},
+                                      /*attrs=*/{},
+                                      /*outputs=*/{result}),
+                 /*decision=*/decision);
+  return result;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV TracedScheduleNode::GetBlock(const String& name, const String& func_name) {

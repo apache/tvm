@@ -18,3 +18,4 @@ blocks in a schedule. See also PostOrderApply.
 """
 from .auto_inline import AutoInline
 from .schedule_rule import PyScheduleRule, ScheduleRule
+from .random_compute_location import RandomComputeLocation
