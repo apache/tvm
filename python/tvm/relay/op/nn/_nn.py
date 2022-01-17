@@ -937,8 +937,12 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
 
 
 @reg.register_convert_op_layout("nn.conv2d_backward_weight")
-def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
+def convert_conv2d_backward_weight(attrs, inputs, _, desired_layouts):
     """Convert Layout pass registration for conv2d_backward_weight op.
+    Note that `desired_layouts` must be a pair [`data_layout`, `kernel_layouts`],
+    where `kernel_layouts` affects the output of this op (since the output of this op
+    is the weight gradient). The layout of the output gradient (the second input to this op)
+    is assumed to be the same as `data_layout`.
 
     Parameters
     ----------
@@ -960,11 +964,11 @@ def convert_conv2d_backward_weight(attrs, inputs, tinfos, desired_layouts):
     data, grad = inputs
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of data and gradient."
-    desired_data_layout, desired_grad_layout = map(str, desired_layouts)
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
-    new_attrs["grad_layout"] = desired_grad_layout
-    new_attrs["kernel_layout"] = new_attrs["out_layout"]
+    new_attrs["grad_layout"] = desired_data_layout
+    new_attrs["kernel_layout"] = desired_kernel_layout
     new_attrs.pop("out_layout")
     return relay.nn.conv2d_backward_weight(data, grad, **new_attrs)
 
