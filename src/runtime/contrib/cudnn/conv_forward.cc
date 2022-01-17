@@ -60,60 +60,6 @@ void ConvolutionForward(int mode, int format, int algo, int dims, int groups, co
       entry_ptr->conv_entry.output_desc, y->data));
 }
 
-void OutputShape(int format, int dims, int groups, const int pad[], const int stride[],
-                 const int dilation[], const int x_dim[], const int w_dim[], void* out_shape,
-                 const std::string& data_dtype, const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
-
-  // Set Data Type
-  entry_ptr->conv_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(conv_dtype));
-  cudnnDataType_t data_type = CuDNNDataType::DLTypeToCuDNNType(String2DLDataType(data_dtype));
-  // Set Format
-  entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
-  // Dims includes N and C
-  int full_dims = dims + 2;
-
-  // conv desc
-  CUDNN_CALL(cudnnSetConvolutionGroupCount(entry_ptr->conv_entry.conv_desc, groups));
-  CUDNN_CALL(cudnnSetConvolutionNdDescriptor(entry_ptr->conv_entry.conv_desc, dims, pad, stride,
-                                             dilation, CUDNN_CROSS_CORRELATION,
-                                             entry_ptr->conv_entry.data_type));
-
-  if (entry_ptr->conv_entry.tensor_format == CUDNN_TENSOR_NHWC) {
-    ICHECK_EQ(full_dims, 4) << "Use of layout CUDNN_TENSOR_NHWC is only supported for 4d tensors";
-
-    // Set Input
-    CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->conv_entry.input_desc,
-                                          entry_ptr->conv_entry.tensor_format, data_type, x_dim[0],
-                                          x_dim[3], x_dim[1], x_dim[2]));
-
-    // filter desc
-    CUDNN_CALL(cudnnSetFilter4dDescriptor(entry_ptr->conv_entry.filter_desc, data_type,
-                                          entry_ptr->conv_entry.tensor_format, w_dim[0], w_dim[3],
-                                          w_dim[1], w_dim[2]));
-
-    CUDNN_CALL(cudnnGetConvolution2dForwardOutputDim(
-        entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.input_desc,
-        entry_ptr->conv_entry.filter_desc, static_cast<int*>(out_shape),
-        static_cast<int*>(out_shape) + 3, static_cast<int*>(out_shape) + 1,
-        static_cast<int*>(out_shape) + 2));
-  } else {
-    // Set Input
-    std::vector<int> tensor_stride(full_dims);
-    GetCudnnStride(full_dims, x_dim, tensor_stride.data());
-
-    CUDNN_CALL(cudnnSetTensorNdDescriptor(entry_ptr->conv_entry.input_desc, data_type, full_dims,
-                                          x_dim, tensor_stride.data()));
-    // filter desc
-    CUDNN_CALL(cudnnSetFilterNdDescriptor(entry_ptr->conv_entry.filter_desc, data_type,
-                                          entry_ptr->conv_entry.tensor_format, full_dims, w_dim));
-
-    CUDNN_CALL(cudnnGetConvolutionNdForwardOutputDim(
-        entry_ptr->conv_entry.conv_desc, entry_ptr->conv_entry.input_desc,
-        entry_ptr->conv_entry.filter_desc, full_dims, static_cast<int*>(out_shape)));
-  }
-}
-
 void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
               const std::string& data_dtype, const std::string& conv_dtype, TVMRetValue* ret) {
@@ -199,24 +145,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
 
       ConvolutionForward(mode, format, algo, 3, groups, pad_v, stride_v, dilation_v, x, w, y,
                          conv_dtype);
-    });
-
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.output_shape_from_cudnn")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      int format = args[0];
-      int dims = args[1];
-      int* pad = static_cast<int*>(static_cast<void*>(args[2]));
-      int* stride = static_cast<int*>(static_cast<void*>(args[3]));
-      int* dilation = static_cast<int*>(static_cast<void*>(args[4]));
-      int* x_dim = static_cast<int*>(static_cast<void*>(args[5]));
-      int* w_dim = static_cast<int*>(static_cast<void*>(args[6]));
-      void* out_shape = args[7];
-      std::string data_dtype = args[8];
-      std::string conv_dtype = args[9];
-      int groups = args[10];
-
-      OutputShape(format, dims, groups, pad, stride, dilation, x_dim, w_dim, out_shape, data_dtype,
-                  conv_dtype);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.find_algo")
