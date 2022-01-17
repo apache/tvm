@@ -57,5 +57,6 @@ fi
 if test -d $FVP_PATH && pip3 list | grep vela; then
     cd apps/microtvm/ethosu
     ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake
+    ./run_demo.sh --fvp_path $FVP_PATH --cmake_path /opt/arm/cmake/bin/cmake --freertos_path /opt/freertos/FreeRTOSv202112.00
     cd ../../..
 fi
