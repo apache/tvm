@@ -435,8 +435,8 @@ def conv2d_grad(orig, grad):
         channels=attrs.channels,
         kernel_size=(filter_h, filter_w),
         data_layout=attrs.data_layout,
+        grad_layout=attrs.out_layout if attrs.out_layout else attrs.data_layout,
         kernel_layout=attrs.kernel_layout,
-        out_layout=attrs.out_layout,
         out_dtype=attrs.out_dtype,
     )
 
