@@ -35,6 +35,7 @@ from caffe import layers as L, params as P
 from caffe.proto import caffe_pb2 as pb
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
@@ -447,6 +448,35 @@ def test_forward_Deconvolution():
             stride_h=2,
             stride_w=1,
             dilation=1,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=16,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=16,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    data = np.random.rand(1, 100, 32, 32).astype(np.float32)
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=100,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=100,
             weight_filler=dict(type="xavier"),
             bias_filler=dict(type="xavier"),
         ),
