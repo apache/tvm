@@ -3789,7 +3789,7 @@ def conv2d_backward_weight(
     r"""The gradient of conv2d with respect to weight.
 
     This operator takes the output gradient `grad` as the convolution kernel
-    and convolves it with `data` to produce the gradeint with respect to weight.
+    and convolves it with `data` to produce the gradient with respect to weight.
     Depending on an implementation, the roles of `data` and `grad` can be swapped
     (For example, in CUTLASS `data` acts as the filter).
 

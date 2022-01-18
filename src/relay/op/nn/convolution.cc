@@ -651,7 +651,7 @@ RELAY_REGISTER_OP("nn.conv2d_backward_weight")
     .describe(R"code(The gradient of the 2D convolution layer with respect to the weight.
 
 This layer computes the gradient of the conv2d op with respect to weight,
-given the origial input data and the output gradient.
+given the original input data and the output gradient.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
             (batch_size, in_channels, height, width) if `layout` is `NCHW`.
