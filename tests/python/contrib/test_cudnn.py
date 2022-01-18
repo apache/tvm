@@ -316,6 +316,100 @@ def test_conv2d_backward_data():
     verify_conv2d_backward_data("float16", "float16", tensor_format=1, tol=1e-1)
 
 
+def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding):
+    N, C, H, W = x_np.shape
+    _, K, P, Q = dy_np.shape
+    R, S = kernel_size
+    pad_h, pad_w = padding
+    stride_h, stride_w = stride
+    dw = np.zeros((K, C, R, S)).astype(dy_np.dtype)
+
+    for k in range(K):
+        for r in range(R):
+            for s in range(S):
+                for c in range(C):
+                    acc = 0
+                    for n in range(N):
+                        for p in range(P):
+                            for q in range(Q):
+                                coord = (n, c, p * stride_h - pad_h + r, q * stride_w - pad_w + s)
+
+                                if (
+                                    coord[2] < H
+                                    and coord[2] >= 0
+                                    and coord[3] < W
+                                    and coord[3] >= 0
+                                ):
+                                    acc += dy_np[n, k, p, q] * x_np[coord]
+
+                    dw[k, c, r, s] = acc
+
+    return dw
+
+
+def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1e-5):
+    batch = 3
+    in_channel = 4
+    out_channel = 16
+    filter_h, filter_w = 3, 3
+    pad_h, pad_w = 1, 1
+    stride_h, stride_w = 1, 1
+    height, width = 32, 32
+
+    # schedule
+    if tensor_format == 0:
+        x_shape = [batch, in_channel, height, width]
+        dy_shape = [batch, out_channel, height, width]
+    else:
+        x_shape = [batch, height, width, in_channel]
+        dy_shape = [batch, height, width, out_channel]
+
+    x_np = np.random.uniform(-1, 1, x_shape).astype(data_dtype)
+    dy_np = np.random.uniform(-1, 1, dy_shape).astype(data_dtype)
+
+    dw_np = conv2d_backward_weight_nchw_python(
+        x_np, dy_np, (filter_h, filter_w), (stride_h, stride_w), (pad_h, pad_w)
+    )
+
+    x = te.placeholder(x_shape, name="x", dtype=data_dtype)
+    dy = te.placeholder(dy_shape, name="dy", dtype=data_dtype)
+    dw = cudnn.conv_backward_filter(
+        x,
+        dy,
+        [pad_h, pad_w],
+        [stride_h, stride_w],
+        [1, 1],
+        conv_mode=1,
+        tensor_format=tensor_format,
+        conv_dtype=conv_dtype,
+    )
+
+    s = te.create_schedule(dw.op)
+
+    # validation
+    dev = tvm.cuda(0)
+    f = tvm.build(s, [x, dy, dw], "cuda --host=llvm", name="conv2d_backward_filter")
+
+    x = tvm.nd.array(x_np, dev)
+    dy = tvm.nd.array(dy_np, dev)
+    dw = tvm.nd.array(dw_np, dev)
+
+    f(x, dy, dw)
+    print(np.max(np.abs(dw.numpy() - dw_np)))
+    print(np.mean(np.abs(dw.numpy() - dw_np)))
+    tvm.testing.assert_allclose(dw.numpy(), dw_np, atol=tol, rtol=tol)
+
+
+@tvm.testing.requires_gpu
+@requires_cudnn
+def test_conv2d_backward_filter():
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-5)
+    # verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-2)
+    # # The scipy convolve function does not support fp16, so the reference will be computed with
+    # # fp32. Use larger tolerance to be on the safe side (1e-2 also seems mostly ok).
+    # verify_conv2d_backward_filter("float16", "float16", tensor_format=1, tol=1e-1)
+
+
 test_kwargs_default_2d = {
     "tensor_format": 0,
     "pad": [1, 1],
@@ -390,3 +484,4 @@ def conv_output_shape_kwargs(request):
 if __name__ == "__main__":
     # sys.exit(pytest.main(sys.argv))
     test_conv2d_backward_data()
+    test_conv2d_backward_filter()
