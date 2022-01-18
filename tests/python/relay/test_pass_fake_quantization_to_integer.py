@@ -26,7 +26,6 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod = tvm.relay.transform.InferType()(mod)
 
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
-    breakpoint()
     assert not tvm.ir.structural_equal(mod, mod_int)
 
     result = (
@@ -588,7 +587,7 @@ def test_fake_quantize_max_min():
 
 
 def test_fake_quantize_tanh():
-    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
 
     zero = relay.const(0)
     x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
@@ -597,7 +596,7 @@ def test_fake_quantize_tanh():
     # Have difference scales for input/output to test if can handle
     op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
 

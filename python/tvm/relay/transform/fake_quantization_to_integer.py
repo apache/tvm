@@ -129,9 +129,8 @@ def create_integer_lookup_table(
 
     # Reinterpret bits as the real datatype
     # Note what we are doing here is a bit tricky, the canonical view of our lookup table
-    # is using the uintX version. When we run the lookup in the relay graph, we note 
-    # that the "gather" operation used supports negative indices which make the mapping
-    # valid! 
+    # is using the uintX version. When we run the lookup in the relay graph, we cast the
+    # bit pattern back into this form.
     inputs_quantized = inputs_quantized.view(in_dtype)
     inputs_quantized = relay.const(inputs_quantized, dtype=in_dtype)
     inputs_dequantized = run_const_expr(
@@ -197,9 +196,13 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
             out_axis=type_map[expr].axis,
             out_dtype=type_map[expr].dtype,
         )
-        
+
+        in_dtype_info = np.iinfo(type_map[arg].dtype)
+        in_dtype_num_bits = in_dtype_info.bits
+
         lookup_table = relay.const(lookup_table)
         index_tensor = relay.reshape(arg, [-1])
+        index_tensor = relay.reinterpret(index_tensor, f"uint{in_dtype_num_bits}")
         result = relay.gather(lookup_table, -1, index_tensor)
         result = relay.reshape_like(result, arg)
         return [result, type_map[expr]]
