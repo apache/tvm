@@ -1559,5 +1559,49 @@ def test_ethosu_requantize(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+def test_multiple_requantize_offload():
+    """
+    Testing requantize offload in the case one requauntize operation is part of
+    an existing pattern (in this case Mean: cast->mean->requantize) and the
+    other is a stand-alone requantize.
+    """
+
+    def create_model():
+        ifm = relay.var("input", shape=(1, 3, 3, 4), dtype="int8")
+        cast = relay.cast(ifm, dtype="int32")
+        mean = relay.mean(cast, axis=1, keepdims=True)
+        requantize = relay.qnn.op.requantize(
+            mean,
+            input_scale=relay.const(1.0, dtype="float32"),
+            input_zero_point=relay.const(0, dtype="int32"),
+            output_scale=relay.const(1.0, dtype="float32"),
+            output_zero_point=relay.const(0, dtype="int32"),
+        )
+        requantize = relay.qnn.op.requantize(
+            requantize,
+            input_scale=relay.const(1.0, dtype="float32"),
+            input_zero_point=relay.const(0, dtype="int32"),
+            output_scale=relay.const(1.0, dtype="float32"),
+            output_zero_point=relay.const(0, dtype="int32"),
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm], requantize))
+
+    def verify(ext_func):
+        # If mean operation and separate requantize were offloaded correctly,
+        # there should only be a pooling operation followed by an identity
+        # operation leagalized.
+        op = ext_func.body
+        assert op.op.name == "contrib.ethosu.identity"
+        op = op.args[0]
+        assert ext_func.body.args[0].op.name == "contrib.ethosu.pooling"
+        op = op.args[0]
+        assert isinstance(op, relay.Var)
+
+    mod = create_model()
+    mod = ethosu.partition_for_ethosu(mod)
+    mod = legalize.LegalizeEthosU()(mod)
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
