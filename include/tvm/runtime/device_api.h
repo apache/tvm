@@ -57,9 +57,6 @@ constexpr int kAllocAlignment = 128;
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
 constexpr int kTempAllocaAlignment = 128;
 
-/*! \brief Maximum size that can be allocated on stack */
-constexpr int kMaxStackAlloca = 1024;
-
 /*! \brief Number of bytes each allocation must align to by default in the workspace buffer to
  * service intermediate tensors */
 constexpr int kDefaultWorkspaceAlignment = 1;
