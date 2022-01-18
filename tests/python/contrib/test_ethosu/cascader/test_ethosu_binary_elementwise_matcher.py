@@ -14,16 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
+import numpy as np
+import math
+
 from tvm import te
 import tvm.contrib.ethosu.cascader as cs
 from tvm.relay.backend.contrib.ethosu.te.binary_elementwise import (
     match_ethosu_binary_elementwise,
     binary_elementwise_compute,
 )
-
-import numpy as np
-import math
-import pytest
 
 
 def _make_matrices(broadcast, ifm_layout, ifm2_layout, ofm_layout):

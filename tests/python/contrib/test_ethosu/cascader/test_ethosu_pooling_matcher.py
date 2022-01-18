@@ -14,13 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
+import numpy as np
+
 from tvm import te
 import tvm.contrib.ethosu.cascader as cs
 from tvm.relay.backend.contrib.ethosu.te.pooling import match_ethosu_pooling, pooling_compute
 from .infra import make_matrices
-
-import numpy as np
-import pytest
 
 
 @pytest.mark.parametrize("pool_shape", [(3, 3), (2, 1), (3, 5)])

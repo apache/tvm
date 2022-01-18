@@ -24,8 +24,6 @@ from tvm.relay.backend.contrib.ethosu.te.convolution import match_ethosu_conv2d,
 
 from .infra import make_matrices
 
-import pytest
-
 
 @pytest.mark.parametrize("kernel", [(3, 3), (2, 1), (3, 5)])
 @pytest.mark.parametrize("stride", [(1, 1), (2, 1), (3, 2)])
