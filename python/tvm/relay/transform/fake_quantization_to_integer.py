@@ -119,8 +119,20 @@ def create_integer_lookup_table(
 
     dtype_info = np.iinfo(in_dtype)
 
+    num_bits = dtype_info.bits
+
     # Use TVMs quantization methods via relay to be consistent
-    inputs_quantized = np.array(range(dtype_info.min, dtype_info.max + 1)).astype(in_dtype)
+    # inputs_quantized = np.array(range(dtype_info.min, dtype_info.max + 1)).astype(in_dtype)
+
+    # First generate a list of all num_bit integer patterns
+    inputs_quantized = np.array(range(0, 2 ** num_bits), dtype=f"uint{num_bits}")
+
+    # Reinterpret bits as the real datatype
+    # Note what we are doing here is a bit tricky, the canonical view of our lookup table
+    # is using the uintX version. When we run the lookup in the relay graph, we note 
+    # that the "gather" operation used supports negative indices which make the mapping
+    # valid! 
+    inputs_quantized = inputs_quantized.view(in_dtype)
     inputs_quantized = relay.const(inputs_quantized, dtype=in_dtype)
     inputs_dequantized = run_const_expr(
         relay.qnn.op.dequantize(
@@ -185,11 +197,11 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
             out_axis=type_map[expr].axis,
             out_dtype=type_map[expr].dtype,
         )
+        
         lookup_table = relay.const(lookup_table)
         index_tensor = relay.reshape(arg, [-1])
         result = relay.gather(lookup_table, -1, index_tensor)
         result = relay.reshape_like(result, arg)
-        breakpoint()
         return [result, type_map[expr]]
 
     return register_fake_quantization_to_integer(op_name, func)
