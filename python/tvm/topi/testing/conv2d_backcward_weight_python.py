@@ -19,11 +19,14 @@
 import numpy as np
 
 
+# Reference: cutlass/tools/util/include/cutlass/util/reference/host/convolution.h
 def conv2d_backward_weight_nchw_python(dy_np, x_np, stride, kernel_size, padding):
-    N, C, H, W = x_np.shape[1]
-    _, K, P, Q = dy_np.shape[1]
+    N, C, H, W = x_np.shape
+    _, K, P, Q = dy_np.shape
+    R, S = kernel_size
     pad_h, pad_w = padding
-    dw = np.zeros((K, C, kernel_size[0], kernel_size[1])).astype(dy_np.dtype)
+    stride_h, stride_w = stride
+    dw = np.zeros((K, C, R, S)).astype(dy_np.dtype)
 
     for k in range(K):
         for r in range(R):
@@ -33,7 +36,7 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, stride, kernel_size, padding
                     for n in range(N):
                         for p in range(P):
                             for q in range(Q):
-                                coord = (n, c, p - pad_h + r, q - pad_w + s)
+                                coord = (n, c, p * stride_h - pad_h + r, q * stride_w - pad_w + s)
 
                                 if (
                                     coord[2] < H
@@ -41,7 +44,7 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, stride, kernel_size, padding
                                     and coord[3] < W
                                     and coord[3] >= 0
                                 ):
-                                    acc += x[coord]
+                                    acc += dy_np[n, k, p, q] * x_np[coord]
 
                     dw[k, c, r, s] = acc
 
