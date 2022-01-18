@@ -176,7 +176,7 @@ TableOfComputations IntersectionOf3TablesOfComputations(const TableOfComputation
  *        (A U B U C) adds the individual counters found in A, B and C. So when we treat for
  *        instance an If (which contains a Cond, a Then branch and an Else branch),
  *        it will compute (Then Inter Else) U (Cond Inter Then) U (Cond Inter Else).
- *        In order to get back to the appripate number (for instance, 3 if seen one time in each
+ *        In order to get back to the appropriate number (for instance, 3 if seen one time in each
  *        bloc), it is therefore necessary to recompute the counters afterwards, which is what this
  *        function does.
  */
@@ -199,6 +199,7 @@ void RecomputeNbTimesSeenInThreeBlocs(TableOfComputations& table_main,
         current.second += it2->second;
     }
 
+    // Try to find it in the third bloc
     auto it3 = table_bloc3.find(current.first);
     if (it3 != table_bloc3.end()) {
         // If found, increase its value by the value found in the third bloc
