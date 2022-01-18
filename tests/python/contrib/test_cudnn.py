@@ -316,13 +316,21 @@ def test_conv2d_backward_data():
     verify_conv2d_backward_data("float16", "float16", tensor_format=1, tol=1e-1)
 
 
-def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding):
-    N, C, H, W = x_np.shape
-    _, K, P, Q = dy_np.shape
+def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, layout="NCHW"):
     R, S = kernel_size
+    if layout == "NCHW":
+        N, C, H, W = x_np.shape
+        _, K, P, Q = dy_np.shape
+        w_shape = (K, C, R, S)
+    else:
+        N, H, W, C = x_np.shape
+        _, P, Q, K = dy_np.shape
+        w_shape = (K, R, S, C)
+
     pad_h, pad_w = padding
     stride_h, stride_w = stride
-    dw = np.zeros((K, C, R, S)).astype(dy_np.dtype)
+
+    dw = np.zeros(w_shape).astype(dy_np.dtype)
 
     for k in range(K):
         for r in range(R):
@@ -332,17 +340,42 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding
                     for n in range(N):
                         for p in range(P):
                             for q in range(Q):
-                                coord = (n, c, p * stride_h - pad_h + r, q * stride_w - pad_w + s)
 
-                                if (
-                                    coord[2] < H
-                                    and coord[2] >= 0
-                                    and coord[3] < W
-                                    and coord[3] >= 0
-                                ):
-                                    acc += dy_np[n, k, p, q] * x_np[coord]
+                                if layout == "NCHW":
+                                    coord = (
+                                        n,
+                                        c,
+                                        p * stride_h - pad_h + r,
+                                        q * stride_w - pad_w + s,
+                                    )
 
-                    dw[k, c, r, s] = acc
+                                    if (
+                                        coord[2] < H
+                                        and coord[2] >= 0
+                                        and coord[3] < W
+                                        and coord[3] >= 0
+                                    ):
+                                        acc += dy_np[n, k, p, q] * x_np[coord]
+                                else:
+                                    coord = (
+                                        n,
+                                        p * stride_h - pad_h + r,
+                                        q * stride_w - pad_w + s,
+                                        c,
+                                    )
+
+                                    if (
+                                        coord[1] < H
+                                        and coord[1] >= 0
+                                        and coord[2] < W
+                                        and coord[2] >= 0
+                                    ):
+                                        acc += dy_np[n, p, q, k] * x_np[coord]
+
+                    if layout == "NCHW":
+                        dw[k, c, r, s] = acc
+                    else:
+                        dw[k, r, s, c] = acc
 
     return dw
 
@@ -367,8 +400,13 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
     x_np = np.random.uniform(-1, 1, x_shape).astype(data_dtype)
     dy_np = np.random.uniform(-1, 1, dy_shape).astype(data_dtype)
 
-    dw_np = conv2d_backward_weight_nchw_python(
-        x_np, dy_np, (filter_h, filter_w), (stride_h, stride_w), (pad_h, pad_w)
+    dw_np = conv2d_backward_weight_python(
+        dy_np,
+        x_np,
+        (filter_h, filter_w),
+        (stride_h, stride_w),
+        (pad_h, pad_w),
+        "NCHW" if tensor_format == 0 else "NHWC",
     )
 
     x = te.placeholder(x_shape, name="x", dtype=data_dtype)
@@ -404,10 +442,7 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
 @requires_cudnn
 def test_conv2d_backward_filter():
     verify_conv2d_backward_filter("float32", "float32", tensor_format=0, tol=1e-5)
-    # verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-2)
-    # # The scipy convolve function does not support fp16, so the reference will be computed with
-    # # fp32. Use larger tolerance to be on the safe side (1e-2 also seems mostly ok).
-    # verify_conv2d_backward_filter("float16", "float16", tensor_format=1, tol=1e-1)
+    verify_conv2d_backward_filter("float32", "float32", tensor_format=1, tol=1e-5)
 
 
 test_kwargs_default_2d = {
@@ -483,5 +518,5 @@ def conv_output_shape_kwargs(request):
 
 if __name__ == "__main__":
     # sys.exit(pytest.main(sys.argv))
-    test_conv2d_backward_data()
+    # test_conv2d_backward_data()
     test_conv2d_backward_filter()

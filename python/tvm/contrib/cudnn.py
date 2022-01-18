@@ -705,9 +705,9 @@ def conv_backward_filter(
     # TODO: fix oshape
     oshape = x_shape
     if tensor_format == 0:
-        oshape[1] = dy.shape[1]
+        oshape = [dy.shape[1], x_shape[1], 3, 3]
     else:
-        oshape[3] = dy.shape[3]
+        oshape = [dy.shape[3], 3, 3, x_shape[3]]
 
     algo = conv_backward_filter_find_algo(
         tensor_format,
