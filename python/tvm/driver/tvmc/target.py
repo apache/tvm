@@ -102,14 +102,6 @@ def validate_targets(parse_targets, additional_target_options=None):
             f"The last target needs to be a TVM target. Choices: {tvm_target_names}"
         )
 
-    tvm_targets = [t for t in targets if t in tvm_target_kinds]
-    if len(tvm_targets) > 2:
-        verbose_tvm_targets = ", ".join(tvm_targets)
-        raise TVMCException(
-            "Only two of the following targets can be used at a time. "
-            f"Found: {verbose_tvm_targets}."
-        )
-
     if additional_target_options is not None:
         for target_name in additional_target_options:
             if not any([target for target in parse_targets if target["name"] == target_name]):

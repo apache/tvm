@@ -40,6 +40,8 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${ETHOSU_PATH}/core_driver/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
+	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-I$(abspath $(BUILD_DIR))/codegen/host/include \
 	-DETHOSU_TEST_RUNNER_TOL=${ETHOSU_TEST_RUNNER_TOL}
 DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
@@ -57,6 +59,7 @@ CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
 UART_SRCS = $(wildcard ${CORSTONE_300_PATH}/*.c)
+CMSIS_NN_LIBS = $(wildcard ${CMSIS_PATH}/CMSIS/NN/build/Source/*/*.a)
 
 demo: $(BUILD_DIR)/demo
 
@@ -88,7 +91,7 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
 # Build demo application
-$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a
+$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a $(CMSIS_NN_LIBS)
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
 
