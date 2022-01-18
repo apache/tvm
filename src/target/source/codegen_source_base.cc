@@ -113,46 +113,46 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
-void CodeGenSourceBase::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  ICHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
-  if (t.is_handle()) {
+void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(*)
+  ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
+  if (type.is_handle()) {
     os << "void*";
     return;
   }
-  if (t.is_float()) {
-    if (t.bits() == 32) {
+  if (type.is_float()) {
+    if (type.bits() == 32) {
       os << "float";
       return;
     }
-    if (t.bits() == 64) {
+    if (type.bits() == 64) {
       os << "double";
       return;
     }
-  } else if (t.is_uint()) {
-    switch (t.bits()) {
+  } else if (type.is_uint()) {
+    switch (type.bits()) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "uint" << t.bits() << "_t";
+        os << "uint" << type.bits() << "_t";
         return;
       }
       case 1:
         os << "int";
         return;
     }
-  } else if (t.is_int()) {
-    switch (t.bits()) {
+  } else if (type.is_int()) {
+    switch (type.bits()) {
       case 8:
       case 16:
       case 32:
       case 64: {
-        os << "int" << t.bits() << "_t";
+        os << "int" << type.bits() << "_t";
         return;
       }
     }
   }
-  LOG(FATAL) << "Cannot convert type " << t << " to C type";
+  LOG(FATAL) << "Cannot convert type " << type << " to C type";
 }
 
 void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)

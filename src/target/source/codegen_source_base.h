@@ -53,13 +53,13 @@ class CodeGenSourceBase {
    */
   void MarkConst(std::string value);
   /*!
-   * Print Type represetnation of type t.
+   * Print Type representation of type type.
    * \param t The type representation.
    * \param os The stream to print the ctype into
    */
-  virtual void PrintType(DataType t, std::ostream& os);  // NOLINT(*)
+  virtual void PrintType(DataType type, std::ostream& os);  // NOLINT(*)
   /*!
-   * Print Type represetnation of type type.
+   * Print Type representation of type type.
    * \param type The type representation.
    * \param os The stream to print the ctype into
    */
