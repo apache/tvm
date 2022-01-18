@@ -271,7 +271,6 @@ def test_inline_consumer_chain():
     tvm.ir.assert_structural_equal(lhs=space.mod, rhs=Conv2DBiasBnReLUInlined)
 
 
-@pytest.mark.skip(reason="Flaky test")
 def test_inline_into_cache():
     mod = MultiLevelTiledConv2D
     target = Target("cuda", host="llvm")

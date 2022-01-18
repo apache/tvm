@@ -259,7 +259,9 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
   PrimExpr condition = is_true_branch_ ? condition_ : analyzer.Simplify(!condition_);
   Array<PrimExpr> equations;
   std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &var_set, &fvisit](const PrimExpr& e) {
+  Array<Var> vars;
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &var_set,
+                                                 &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
@@ -278,7 +280,12 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& var : cand_vars) var_set.insert(var);
+        for (const Var& var : cand_vars) {
+          if (!var_set.count(var)) {
+            vars.push_back(var);
+            var_set.insert(var);
+          }
+        }
         equations.push_back(Downcast<PrimExpr>(e));
       }
     } else if (e->IsInstance<AndNode>()) {
@@ -297,7 +304,6 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
     return Map<Var, Range>();
   }
   // build dom ranges for related vars
-  Array<Var> vars = Array<Var>(var_set.begin(), var_set.end());
   Map<Var, Range> ranges;
   for (const Var& v : vars) {
     arith::IntSet dom;
