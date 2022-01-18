@@ -113,8 +113,10 @@ class BuiltinLower : public StmtExprMutator {
     op = stmt.as<AllocateNode>();
 
     constexpr int kMaxStackAllocaDefault = 1024;
-    const int kMaxStackAlloca = transform::PassContext::Current()->GetConfig<Integer>(
-      "tir.max_stack_alloca", Integer(kMaxStackAllocaDefault)).value();
+    const int kMaxStackAlloca =
+        transform::PassContext::Current()
+            ->GetConfig<Integer>("tir.max_stack_alloca", Integer(kMaxStackAllocaDefault))
+            .value();
 
     // Get constant allocation bound.
     int64_t nbytes = GetVectorBytes(op->dtype);
