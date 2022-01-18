@@ -234,31 +234,34 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
     dy = relay.var("dy", shape=dy_shape, dtype=dtype)
     x = relay.var("x", shape=x_shape, dtype=dtype)
     dw = relay.nn.conv2d_backward_weight(
-        dy, x, strides=stride, padding=padding, kernel_size=kernel_size
+        x, dy, strides=stride, padding=padding, kernel_size=kernel_size
     )
+    dw_func = relay.Function([dy, x], dw)
 
-    dw_legalized = run_opt_pass(dw, relay.transform.Legalize())
+    dw_func_legalized = run_opt_pass(dw_func, relay.transform.Legalize())
 
     target = "llvm"
     dev = tvm.device(target, 0)
     dy_np = np.random.randn(*dy_shape).astype(dtype)
     x_np = np.random.randn(*x_shape).astype(dtype)
 
-    dw_np = relay.create_executor(device=dev, target=target).evaluate(dw_legalized)(dy_np, x_np)
+    dw_np = (
+        relay.create_executor(device=dev, target=target)
+        .evaluate(dw_func_legalized)(dy_np, x_np)
+        .numpy()
+    )
     ref_dw_np = tvm.topi.testing.conv2d_backward_weight_nchw_python(
         dy_np, x_np, kernel_size, stride, padding
     )
 
-    print(dw_np.shape)
-    # np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-5, atol=1e-5)
-    print(np.max(np.abs(dw_np - ref_dw_np)))
+    np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-4, atol=1e-4)
 
 
 @tvm.testing.uses_gpu
 def test_conv2d_backward_weight():
     verify_conv2d_backward_weight((2, 8, 32, 32), (2, 4, 32, 32), (3, 3), (1, 1), (1, 1))
+    verify_conv2d_backward_weight((2, 8, 15, 15), (2, 4, 32, 32), (3, 3), (2, 2), (0, 0))
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_conv2d_backward_weight()
+    pytest.main([__file__])
