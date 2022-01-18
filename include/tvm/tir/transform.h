@@ -32,9 +32,11 @@
 #include <vector>
 
 // Forward declarations from tvm::relay
-namespace tvm::relay {
+namespace tvm {
+namespace relay {
 class ConstantNode;
-}  // namespace tvm::relay
+}  // namespace relay
+}  // namespace tvm
 
 namespace tvm {
 namespace tir {

@@ -39,7 +39,8 @@
 #include <utility>
 #include <vector>
 
-namespace tvm::tir {
+namespace tvm {
+namespace tir {
 // Forward declarations from tvm::tir
 class PrimFunc;
 
@@ -78,8 +79,8 @@ class LinkedParam : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
 };
-
-}  // namespace tvm::tir
+}  // namespace tir
+}  // namespace tvm
 
 namespace tvm {
 class IRModule;
