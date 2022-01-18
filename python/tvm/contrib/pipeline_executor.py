@@ -54,6 +54,8 @@ def build(pipe_configs):
         raise RuntimeError('"module_connection" is missing')
     if "input_connection" not in config:
         raise RuntimeError('"input_connection" is missing')
+    if "param_connection" not in config:
+        raise RuntimeError('"param_connection" is missing')
 
     mod_n_configs = config["module_connection"]
     config_len = len(mod_n_configs)
@@ -91,6 +93,7 @@ def build(pipe_configs):
     # map of global input and subgraph input, and the "module_connection" is used to
     # record module dependency.
     string_config = {}
+    string_config["param_connection"] = config["param_connection"]
     string_config["input_connection"] = config["input_connection"]
     string_config["module_connection"] = module_string_config
 
@@ -114,6 +117,8 @@ class PipelineModule(object):
         # Get the packed functions from the pipeline executor.
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
+        self._get_params_group_pipeline_map = self.module["get_params_group_pipeline_map"]
+        self._set_param = self.module["set_param"]
 
     def get_input_pipeline_map(self, name):
         """Using the "name" to get the corresponding subgraph index and also get the "input name"
@@ -124,6 +129,39 @@ class PipelineModule(object):
             Returning the index and "input name" of the subgraph.
         """
         return self._get_input_pipeline_map(name)
+
+    def get_params_group_pipeline_map(self, name):
+        """Use the name of the parameters group to get the corresponding runtime module index.
+
+        Parameters
+        ----------
+        name: str
+            The parameter group name.
+
+        Returns
+        -------
+        module_index: int
+            The index of the runtime module.
+        """
+        return self._get_params_group_pipeline_map(name)
+
+    def set_params(self, params_group_name, params_data):
+        """Set the parameter group value given the parameter group name. Note that the parameter
+        group name is declared in the pipeline executor config.
+
+        Parameters
+        ----------
+        params_group_name : str
+            The parameters group name.
+
+        params_data : Dict[str, NDArray]
+            A map from parameter name to data.
+        """
+        if not params_data:
+            raise RuntimeError('"params_data is empty!"')
+
+        for key, val in params_data.items():
+            self._set_param(params_group_name, key, val)
 
     @property
     def num_outputs(self):
@@ -311,8 +349,18 @@ class PipelineConfig(object):
             if self.io_owner == binding.io_owner:
                 raise RuntimeError("Can not bind itself.")
 
+            if self.io_type == "param" and not self.is_pipeline_executor_interface():
+                raise RuntimeError(
+                    'The "param" binding can only be used by a pipeline executor interface!'
+                )
+
             if not self.is_pipeline_executor_interface() and self.io_type == "input":
                 raise RuntimeError("Module can only bind from output interface!")
+
+            if self.io_type == "param" and binding.io_type != "param":
+                raise RuntimeError(
+                    'A global "param" interface can only be bind with a module "param" interface!'
+                )
 
             if (
                 not self.is_pipeline_executor_interface()
@@ -412,6 +460,7 @@ class PipelineConfig(object):
             self.output_type = InferType()(mod)["main"].checked_type.ret_type
             self.input_bindings = PipelineConfig.BindingList(self, "input")
             self.output_bindings = PipelineConfig.BindingList(self, "output")
+            self.param_binding = PipelineConfig.Binding(self, "param", "param")
 
         def __eq__(self, other):
             if isinstance(other, PipelineConfig.ModuleWrapper):
@@ -426,6 +475,9 @@ class PipelineConfig(object):
 
                 if key == "output":
                     return self.output_bindings
+
+                if key == "param":
+                    return self.param_binding
 
                 raise RuntimeError(f"{key} not found!")
 
@@ -483,14 +535,21 @@ class PipelineConfig(object):
         self.mod_wrapper = {}
         self.input_bindings = self.BindingList(self, "input")
         self.output_bindings = self.BindingList(self, "output")
+        # There is a map of global parameters group and module index.
+        self.param_group_bindings = self.BindingList(self, "param")
 
     def __str__(self):
         # Get configuration information as a string.
 
         # Use topological sort to get correct module order.
         self.dag_topology_sort()
+        # Getting the parameters dependencies.
+        param_dump = "Params\n"
+        for param_name in self.param_group_bindings.bindings:
+            inf = self.param_group_bindings.bindings[param_name]
+            param_dump += str(inf) + "\n"
         # Get the input dependencies.
-        input_dump = "Inputs\n"
+        input_dump = "\nInputs\n"
         for input_name in self.input_bindings.bindings:
             inf = self.input_bindings.bindings[input_name]
             input_dump += str(inf) + "\n"
@@ -516,7 +575,7 @@ class PipelineConfig(object):
         for name in sorted(output.keys()):
             output_dump += f"  |output({name}) : {output[name]}\n"
 
-        return input_dump + output_dump + connections_dump
+        return param_dump + input_dump + output_dump + connections_dump
 
     def __getitem__(self, key):
         if isinstance(key, tvm.ir.module.IRModule):
@@ -529,8 +588,12 @@ class PipelineConfig(object):
                 return self.input_bindings
             if key == "output":
                 return self.output_bindings
+            if key == "param_group":
+                return self.param_group_bindings
 
-        raise RuntimeError(f"{key} not found.")
+            raise RuntimeError(f"{key} not found!")
+
+        raise RuntimeError(f'The key type "{type(key)}" is not supported!')
 
     def get_config(self):
         """Get the configuration information in dictionary form, this configuration
@@ -541,7 +604,6 @@ class PipelineConfig(object):
         self.dag_topology_sort()
         mconfig = {}
         module_connection = {}
-        input_connection = {}
         for mod in self.mod_wrapper:
             # Generate pipeline configuration.
             mconf = {}
@@ -579,22 +641,33 @@ class PipelineConfig(object):
                 "dev": module.dev,
             }
 
-            # Create a map of pipeline input and subgraph input.
-            input_connection = []
-            for input_name in self.input_bindings.bindings:
-                input_dict = self.input_bindings.bindings[input_name].get_binding_dict()
-                if "interface_name" not in input_dict["connection"][0]:
-                    raise RuntimeError("interface_name is missing in connection config!")
-                # Creating the map of global interface and subgraph interface.
-                input_map = {
-                    "global_interface_name": input_dict["interface_name"],
-                    "mod_idx": input_dict["connection"][0]["mod_idx"],
-                    "module_interface_name": input_dict["connection"][0]["interface_name"],
-                }
-                input_connection.append(input_map)
+        # Creating a map including pipeline inputs and subgraph inputs.
+        input_connection = []
+        for input_name in self.input_bindings.bindings:
+            input_dict = self.input_bindings.bindings[input_name].get_binding_dict()
+            if "interface_name" not in input_dict["connection"][0]:
+                raise RuntimeError("interface_name is missing in connection config!")
+            # Creating the map including global interfaces and subgraph interfaces.
+            input_map = {
+                "global_interface_name": input_dict["interface_name"],
+                "mod_idx": input_dict["connection"][0]["mod_idx"],
+                "module_interface_name": input_dict["connection"][0]["interface_name"],
+            }
+            input_connection.append(input_map)
+
+        # Create a map including global parameters groups and modules.
+        param_connection = []
+        for param_name in self.param_group_bindings.bindings:
+            param_dict = self.param_group_bindings.bindings[param_name].get_binding_dict()
+            param_map = {
+                "global_param_name": param_dict["interface_name"],
+                "mod_idx": param_dict["connection"][0]["mod_idx"],
+            }
+            param_connection.append(param_map)
 
         mconfig["module_connection"] = module_connection
         mconfig["input_connection"] = input_connection
+        mconfig["param_connection"] = param_connection
         return mconfig
 
     def dag_topology_sort(self):
@@ -613,8 +686,12 @@ class PipelineConfig(object):
 
             mlist += temp_list
 
+        mod_wrapper_sort = {}
         for mod, i in zip(mlist, range(len(mlist))):
             self.mod_wrapper[mod].set_idx_name(i)
+            mod_wrapper_sort[mod] = self.mod_wrapper[mod]
+
+        self.mod_wrapper = mod_wrapper_sort
 
     def get_mod_idx(self, mod):
         # Return the module index.
