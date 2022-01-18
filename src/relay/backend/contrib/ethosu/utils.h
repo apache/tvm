@@ -36,7 +36,8 @@ namespace ethosu {
 
 /*!
  * \brief Base addresses are input pointers to
- * the driver that get accessed by produced
+ * the driver that get accessed by the command stream
+ * using offsets to read/write data.
  */
 struct BaseAddressNode : public Object {
   /*! \brief The identifier, usually it the param name of the PrimFunc that gets lowered */
