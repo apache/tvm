@@ -630,7 +630,9 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
     )
 
 
-def conv_backward_data(dy, w, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1):
+def conv_backward_data(
+    dy, w, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+):
     dims = len(dy.shape)
     assert dims in (4, 5)
 
@@ -686,7 +688,9 @@ def conv_backward_data(dy, w, pad, stride, dilation, conv_mode, tensor_format, c
     )
 
 
-def conv_backward_filter(x, dy, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1):
+def conv_backward_filter(
+    x, dy, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+):
     dims = len(x.shape)
     assert dims in (4, 5)
 
@@ -740,7 +744,6 @@ def conv_backward_filter(x, dy, pad, stride, dilation, conv_mode, tensor_format,
         ),
         name="dw",
     )
-
 
 
 def softmax(x, axis=-1):
