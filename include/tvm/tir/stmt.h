@@ -559,16 +559,18 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  size_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static size_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -583,42 +585,6 @@ class Allocate : public Stmt {
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
-};
-
-/*!
- * \brief Describes one parameter that should be linked into the generated module.
- *
- * When parameters are to be linked in with generated code (i.e. on target_host-compatible
- * backends), Relay attaches instances of this object to a global TIR function. Code-generators
- * use the information contained in this node to include the parameter data in the generated
- * module.
- */
-class LinkedParamNode : public Object {
- public:
-  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
-  int64_t id;
-
-  /*! \brief Parameter data which should get linked into the final module. */
-  ::tvm::runtime::NDArray param;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("id", &id);
-    v->Visit("param", &param);
-  }
-
-  static constexpr const char* _type_key = "tir.LinkedParam";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
-};
-
-/*!
- * \brief Managed reference to LinkedParamNode.
- */
-class LinkedParam : public ObjectRef {
- public:
-  TVM_DLL LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
 };
 
 /*!
@@ -642,18 +608,27 @@ class AllocateConstNode : public StmtNode {
   Array<PrimExpr> extents;
   /*! \brief The body to be executed. */
   Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
     v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
     v->Visit("span", &span);
   }
 
   bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body);
+           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
+           equal(annotations, other->annotations);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -661,6 +636,7 @@ class AllocateConstNode : public StmtNode {
     hash_reduce(dtype);
     hash_reduce(extents);
     hash_reduce(body);
+    hash_reduce(annotations);
     hash_reduce(data);
   }
 
@@ -669,16 +645,18 @@ class AllocateConstNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  size_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static size_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.AllocateConst";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
 };
 

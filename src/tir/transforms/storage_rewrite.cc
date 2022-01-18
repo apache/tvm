@@ -729,7 +729,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                     src_entry->attach_scope_ == thread_scope_ &&
                     src_entry->elem_type == alloc->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(alloc->constant_allocation_size()) *
+                  uint64_t const_nbits = static_cast<uint64_t>(alloc->ConstantAllocationSize()) *
                                          alloc->dtype.bits() * alloc->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
@@ -801,7 +801,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->constant_allocation_size() * op_elem_bits);
+    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {

@@ -1495,7 +1495,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
 
-  int32_t constant_size = op->constant_allocation_size();
+  size_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
   StorageInfo& info = alloc_storage_info_[op->buffer_var.get()];
   if (constant_size % 4 == 0 && info.alignment == 0) {

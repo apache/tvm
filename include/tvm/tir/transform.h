@@ -25,12 +25,16 @@
 #define TVM_TIR_TRANSFORM_H_
 
 #include <tvm/ir/transform.h>
-#include <tvm/relay/expr.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 
 #include <string>
 #include <vector>
+
+// Forward declarations from tvm::relay
+namespace tvm::relay {
+class ConstantNode;
+}  // namespace tvm::relay
 
 namespace tvm {
 namespace tir {

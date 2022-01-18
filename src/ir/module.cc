@@ -35,6 +35,7 @@
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -43,7 +44,6 @@
 #include <unordered_set>
 
 namespace tvm {
-constexpr const char* IRModule::_constants_attrs_key;
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
                    std::unordered_set<String> import_set, parser::SourceMap source_map,
@@ -270,8 +270,8 @@ void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
   };
 
   ConstArrayType constant_array_ =
-      (attrs.defined() && attrs->dict.count(IRModule::_constants_attrs_key))
-          ? Downcast<ConstArrayType>(attrs->dict[IRModule::_constants_attrs_key])
+      (attrs.defined() && attrs->dict.count(tvm::attr::kConstantsArray))
+          ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
           : ConstArrayType();
 
   const ConstArrayType constant_list =
@@ -280,7 +280,7 @@ void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
     if (!attrs.defined()) {
       attrs = DictAttrs(Map<String, ObjectRef>());
     }
-    attrs.CopyOnWrite()->dict.Set(IRModule::_constants_attrs_key, constant_list);
+    attrs.CopyOnWrite()->dict.Set(tvm::attr::kConstantsArray, constant_list);
   }
 }
 

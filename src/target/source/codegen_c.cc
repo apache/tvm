@@ -852,7 +852,7 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
-  int32_t constant_size = op->constant_allocation_size();
+  size_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
   auto scope = GetPtrStorageScope(op->buffer_var);

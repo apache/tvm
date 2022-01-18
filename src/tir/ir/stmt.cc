@@ -366,19 +366,19 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   data_ = std::move(node);
 }
 
-int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
-  int64_t result = 1;
+size_t AllocateNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
+  size_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
       result *= int_size->value;
-      if (result > std::numeric_limits<int32_t>::max()) {
+      if (result > std::numeric_limits<size_t>::max()) {
         return 0;
       }
     } else {
       return 0;
     }
   }
-  return static_cast<int32_t>(result);
+  return static_cast<size_t>(result);
 }
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
@@ -446,19 +446,19 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   data_ = std::move(node);
 }
 
-int32_t AllocateConstNode::constant_allocation_size(const Array<PrimExpr>& extents) {
-  int64_t result = 1;
+size_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
+  size_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
       result *= int_size->value;
-      if (result > std::numeric_limits<int32_t>::max()) {
+      if (result > std::numeric_limits<size_t>::max()) {
         return 0;
       }
     } else {
       return 0;
     }
   }
-  return static_cast<int32_t>(result);
+  return static_cast<size_t>(result);
 }
 TVM_REGISTER_GLOBAL("tir.AllocateConst")
     .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,

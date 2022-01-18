@@ -28,7 +28,7 @@
 namespace tvm {
 namespace tir {
 
-LinkedParam::LinkedParam(int64_t id, ::tvm::runtime::NDArray param) {
+LinkedParam::LinkedParam(int64_t id, tvm::runtime::NDArray param) {
   auto n = make_object<LinkedParamNode>();
   n->id = id;
   n->param = param;
