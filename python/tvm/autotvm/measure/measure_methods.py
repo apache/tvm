@@ -393,7 +393,10 @@ class RPCRunner(Runner):
                     tb = traceback.format_exc()
                     results.append(
                         MeasureResult(
-                            (tb + "\n" + str(ex),),
+                            (
+                                tb,
+                                ex,
+                            ),
                             MeasureErrorNo.RUN_TIMEOUT,
                             self.timeout,
                             time.time(),
