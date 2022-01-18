@@ -237,7 +237,6 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
         x, dy, strides=stride, padding=padding, kernel_size=kernel_size
     )
     dw_func = relay.Function([dy, x], dw)
-
     dw_func_legalized = run_opt_pass(dw_func, relay.transform.Legalize())
 
     target = "llvm"
@@ -257,10 +256,9 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
     np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-4, atol=1e-4)
 
 
-@tvm.testing.uses_gpu
 def test_conv2d_backward_weight():
     verify_conv2d_backward_weight((2, 8, 32, 32), (2, 4, 32, 32), (3, 3), (1, 1), (1, 1))
-    verify_conv2d_backward_weight((2, 8, 15, 15), (2, 4, 32, 32), (3, 3), (2, 2), (0, 0))
+    verify_conv2d_backward_weight((2, 16, 15, 15), (2, 3, 32, 32), (3, 3), (2, 2), (0, 0))
 
 
 if __name__ == "__main__":
