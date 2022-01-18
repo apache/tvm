@@ -52,7 +52,6 @@ from .transform import (
     reshape_like,
     strided_slice,
     take,
-    tile,
     transpose,
     where,
     repeat,
