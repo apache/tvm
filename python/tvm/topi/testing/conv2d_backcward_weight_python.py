@@ -15,12 +15,37 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-"""Convolution in python"""
+"""Gradient of conv2d with respect to weight in python"""
 import numpy as np
 
 
 # Reference: cutlass/tools/util/include/cutlass/util/reference/host/convolution.h
-def conv2d_backward_weight_nchw_python(dy_np, x_np, stride, kernel_size, padding):
+def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding):
+    """Gradient of the conv2d op with respect to weight, in NCHW layout.
+
+    Parameters
+    ----------
+    dy_np : numpy.ndarray
+        4-D with shape [batch, in_channel, out_height, out_width]
+
+    x_np : numpy.ndarray
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    kernel_size : tuple of two ints
+        Height and width of the weight
+
+    stride : tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : tuple of two ints
+        Spatial padding, or [pad_h, pad_w]
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+
+    """
     N, C, H, W = x_np.shape
     _, K, P, Q = dy_np.shape
     R, S = kernel_size

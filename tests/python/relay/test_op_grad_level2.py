@@ -229,11 +229,8 @@ def test_batch_flatten_grad():
     verify_batch_flatten_grad((1, 8))
 
 
-def verify_conv2d_backward_weight(dy_shape, x_shape):
+def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, padding):
     dtype = "float32"
-    stride = (1, 1)
-    padding = (1, 1)
-    kernel_size = (3, 3)
     dy = relay.var("dy", shape=dy_shape, dtype=dtype)
     x = relay.var("x", shape=x_shape, dtype=dtype)
     dw = relay.nn.conv2d_backward_weight(
@@ -249,7 +246,7 @@ def verify_conv2d_backward_weight(dy_shape, x_shape):
 
     dw_np = relay.create_executor(device=dev, target=target).evaluate(dw_legalized)(dy_np, x_np)
     ref_dw_np = tvm.topi.testing.conv2d_backward_weight_nchw_python(
-        dy_np, x_np, stride, kernel_size, padding
+        dy_np, x_np, kernel_size, stride, padding
     )
 
     print(dw_np.shape)
@@ -259,7 +256,7 @@ def verify_conv2d_backward_weight(dy_shape, x_shape):
 
 @tvm.testing.uses_gpu
 def test_conv2d_backward_weight():
-    verify_conv2d_backward_weight((2, 8, 32, 32), (2, 4, 32, 32))
+    verify_conv2d_backward_weight((2, 8, 32, 32), (2, 4, 32, 32), (3, 3), (1, 1), (1, 1))
 
 
 if __name__ == "__main__":
