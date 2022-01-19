@@ -560,7 +560,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       int output_index = std::distance(return_sid_.begin(), output_iter);
       auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
                                          {tir::StringImm(ss.str())});
-      CopyToOutput(main_signature_[input_vars_.size() + output_index], constant,
+      CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), constant,
                    /* pack_input */ false, sinfo->storage_sizes_in_bytes[0]);
     }
   }

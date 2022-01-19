@@ -69,7 +69,6 @@ class ParamsCollector : public StmtExprVisitor {
   void VisitExpr_(const CallNode* cn) {
     if (cn->op.same_as(builtin::tvm_access_ptr())) {
       ICHECK_EQ(cn->args.size(), 5U);
-      // DataType dtype = cn->args[0].dtype();
       const Var& var = Downcast<Var>(cn->args[1]);
       const VarNode* buffer = cn->args[1].as<VarNode>();
       auto it = constant_map_.find(var);
