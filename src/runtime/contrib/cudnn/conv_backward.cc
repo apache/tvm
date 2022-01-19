@@ -239,7 +239,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
       std::string conv_dtype = args[12];
       int groups = args[13];
 
-      ConvolutionBackwardFilter(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, dy, dx,
+      ConvolutionBackwardFilter(mode, format, algo, 2, groups, pad_v, stride_v, dilation_v, dy, x,
                                 dw, conv_dtype);
     });
 

@@ -300,12 +300,16 @@ def conv_dgrad_shape(
         C = w_shape[1]
         P, Q = dy_shape[2:]
         R, S = w_shape[2:]
+        dy_shape = dy_shape[2:]
+        w_shape = w_shape[2:]
     elif tensor_format == 1:
         N = dy_shape[0]
         K = w_shape[0]
-        C = w_shape[1]
+        C = w_shape[-1]
         P, Q = dy_shape[2:]
         R, S = w_shape[2:]
+        dy_shape = dy_shape[1:-1]
+        w_shape = w_shape[1:-1]
     else:
         raise ValueError("Unsupported CuDNN tensor format: '{}'".format(tensor_format))
 
@@ -746,7 +750,7 @@ def conv_backward_data(
     )
 
     return te.extern(
-        x_shape,
+        dx_shape,
         [dy, w],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_data",
