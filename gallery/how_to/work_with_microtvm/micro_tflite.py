@@ -129,6 +129,7 @@ import tvm
 from tvm.contrib.download import download_testdata
 from tvm import relay
 
+use_physical_hw = True if os.getenv("TVM_MICRO_USE_HW") else False
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
 model_file = "sine_model.tflite"
 model_path = download_testdata(model_url, model_file, module="data")
@@ -181,7 +182,7 @@ mod, params = relay.frontend.from_tflite(
 #
 RUNTIME = tvm.relay.backend.Runtime("crt", {"system-lib": True})
 TARGET = tvm.target.target.micro("host")
-BOARD = "qemu_x86"
+
 #
 # Compiling for physical hardware
 #  When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
@@ -190,8 +191,23 @@ BOARD = "qemu_x86"
 #  board but a couple of wirings and configs differ, it's necessary to select the "stm32f746g_disco"
 #  board to generated the right firmware image.
 #
-#  TARGET = tvm.target.target.micro("stm32f746xx")
-#  BOARD = "nucleo_f746zg" # or "stm32f746g_disco#"
+
+import json
+import pathlib
+
+if use_physical_hw:
+    if os.getenv("TVM_MICRO_BOARD"):
+        BOARD = os.getenv("TVM_MICRO_BOARD")
+        with open(
+            pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
+        ) as f:
+            board_properties = json.load(f)
+            boards_model = {board: info["model"] for board, info in board_properties.items()}
+        TARGET = tvm.target.target.micro(boards_model[BOARD])
+    else:
+        BOARD = "nucleo_f746zg"
+        TARGET = tvm.target.target.micro("stm32f746xx")
+
 #
 #  For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
 #  TARGET and BOARD used to build a microTVM firmware for the mps2-an521 board. Since that board
@@ -264,7 +280,6 @@ os.unlink(model_library_format_tar_path)
 # this lives in a file ``microtvm_api_server.py`` in the root directory). Let's use the example ``host``
 # project in this tutorial, which simulates the device using a POSIX subprocess and pipes:
 
-import subprocess
 import pathlib
 
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
@@ -275,8 +290,10 @@ project_options = {}  # You can use options to provide platform-specific options
 #  For physical hardware, you can try out the Zephyr platform by using a different template project
 #  and options:
 #
-#     template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
-#     project_options = {"project_type": "host_driven", zephyr_board": "nucleo_f746zg"}}
+
+if use_physical_hw:
+    template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr"))
+    project_options = {"project_type": "host_driven", "zephyr_board": BOARD}
 
 # Create a temporary directory
 import tvm.contrib.utils
