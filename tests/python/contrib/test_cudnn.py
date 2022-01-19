@@ -514,6 +514,4 @@ def conv_output_shape_kwargs(request):
 
 
 if __name__ == "__main__":
-    # sys.exit(pytest.main(sys.argv))
-    test_conv2d_backward_data()
-    test_conv2d_backward_filter()
+    sys.exit(pytest.main(sys.argv))

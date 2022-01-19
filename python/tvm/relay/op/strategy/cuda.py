@@ -564,6 +564,25 @@ def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@conv2d_backward_weight_strategy.register(["cuda"])
+def conv2d_backward_weight_strategy_cuda(attrs, inputs, out_type, target):
+    """conv2d_backward_weight cuda strategy"""
+    strategy = _op.OpStrategy()
+    if target.kind.name == "cuda" and "cudnn" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_conv2d_backward_weight(topi.cuda.conv2d_backward_weight),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="conv2d_backward_weight_strategy.cudnn",
+            plevel=15,
+        )
+    else:
+        raise RuntimeError(
+            "conv2d_backward_weight on cuda is currently only supported with cudnn. "
+            "Please run Legalize pass to decompose this op into supported ops."
+        )
+    return strategy
+
+
 @conv2d_transpose_strategy.register(["cuda", "gpu"])
 def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d_transpose cuda strategy"""
