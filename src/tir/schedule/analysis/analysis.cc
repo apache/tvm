@@ -1661,5 +1661,191 @@ void CheckStorageScope(const ScheduleState& self, String storage_scope) {
   }
 }
 
+bool IsSpatial(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  for (const IterVar& iter_var : block->iter_vars) {
+    if (iter_var->iter_type != IterVarType::kDataPar) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  Array<StmtSRef> loops = GetLoops(block_sref);
+  Array<PrimExpr> binds = GetBlockRealize(self, block_sref)->iter_values;
+  if (loops.size() != binds.size()) {
+    return false;
+  }
+  for (int i = 0, n = loops.size(); i < n; ++i) {
+    const ForNode* loop = TVM_SREF_TO_FOR(loop, loops[i]);
+    if (binds[i].get() != loop->loop_var.get()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
+      !IsTrivialBinding(self, block_sref)) {
+    return false;
+  }
+  const BufferNode* write_buffer = block->writes[0]->buffer.get();
+  // Step 1. Sort out spatial block variables
+  std::vector<const VarNode*> spatial_block_vars;
+  spatial_block_vars.reserve(block->iter_vars.size());
+  for (const IterVar& block_var : block->iter_vars) {
+    if (block_var->iter_type == IterVarType::kDataPar) {
+      spatial_block_vars.push_back(block_var->var.get());
+    }
+  }
+  // Step 2. Enumerate each read region, check the number of block vars that are not used
+  // to index the read region
+  int total_unused_block_vars = 0;
+  std::unordered_set<const BufferNode*> read_buffers;
+  read_buffers.reserve(block->reads.size());
+  for (const BufferRegion& buffer_region : block->reads) {
+    const BufferNode* buffer = buffer_region->buffer.get();
+    const Array<Range>& regions = buffer_region->region;
+    // Step 2.1. Duplication of read buffers are not allowed
+    if (read_buffers.insert(buffer).second == false) {
+      return false;
+    }
+    // Step 2.2. Skip the reduction buffer
+    if (buffer == write_buffer) {
+      continue;
+    }
+    // Step 2.3. Collect the block vars that are used to index the read region
+    std::unordered_set<const VarNode*> vars;
+    for (const Range& range : regions) {
+      if (as_const_int(range->extent) == nullptr) {
+        return false;
+      }
+      for (const Var& var : UndefinedVars(range->min)) {
+        vars.insert(var.get());
+      }
+    }
+    // Step 2.4. Check if the block vars are not used to index the read region
+    int n_unused_block_vars = 0;
+    for (const VarNode* block_var : spatial_block_vars) {
+      if (vars.count(block_var) == 0) {
+        ++n_unused_block_vars;
+      }
+    }
+    total_unused_block_vars += n_unused_block_vars;
+  }
+  return total_unused_block_vars >= 1;
+}
+
+std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::ScheduleState& self,
+                                                                 const tir::StmtSRef& block_sref) {
+  Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
+  int64_t cum_space_len = 1, cum_reduce_len = 1;
+  /*
+   * Return (-1, -1) if
+   *   1. there is some loop with type other than kDataPar and kCommReduce;
+   *   2. there is some loop which is dynamic.
+   */
+  for (const tir::StmtSRef& loop_sref : loops) {
+    tir::IterVarType type = GetLoopIterType(loop_sref);
+    if (type == tir::kDataPar) {
+      const int64_t* extent = GetLoopIntExtent(loop_sref);
+      if (*extent != -1) {
+        cum_space_len *= *extent;
+      } else {
+        return std::make_pair(-1, -1);
+      }
+    } else if (type == tir::kCommReduce) {
+      const int64_t* extent = GetLoopIntExtent(loop_sref);
+      if (*extent != -1) {
+        cum_reduce_len *= *extent;
+      } else {
+        return std::make_pair(-1, -1);
+      }
+    } else {
+      return std::make_pair(-1, -1);
+    }
+  }
+  return std::make_pair(cum_space_len, cum_reduce_len);
+}
+
+bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
+                                        const tir::StmtSRef& block_sref,  //
+                                        int64_t max_parallel_extent,      //
+                                        int64_t max_parallel_basic) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
+
+  // Cond 1. The block has only one write buffer
+  if (block->writes.size() != 1) {
+    return false;
+  }
+
+  // Cond 2. The block is a reduction block and has trivial binding.
+  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
+                                            /*require_stage_pipeline=*/false,  //
+                                            /*require_subtree_compact_dataflow=*/false);
+  if (!(IsReductionBlock(self, block_sref, scope_sref) &&  //
+        IsTrivialBinding(self, block_sref))) {
+    return false;
+  }
+
+  // Cond 3. Every the loop axis must be either spatial axis or reduction axis.
+  for (const tir::StmtSRef& loop_sref : loops) {
+    const tir::IterVarType& type = GetLoopIterType(loop_sref);
+    if (type != tir::kDataPar && type != tir::kCommReduce) {
+      return false;
+    }
+  }
+
+  // Cond 4. Whether there is at least one reduction loop.
+  // Cond 5. The loops are continuous, and the body of the innermost loop is exactly the block.
+  bool has_reduction_loop = false;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    // Cond 4.
+    if (GetLoopIterType(loops[i]) == tir::kCommReduce) {
+      has_reduction_loop = true;
+    }
+
+    // Cond 5.
+    const ForNode* loop_i = TVM_SREF_TO_FOR(loop_i, loops[i]);
+    if (i < loops.size() - 1) {
+      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loop_i1, loops[i + 1]);
+      if (loop_i->body.get() != loop_i1) {
+        return false;
+      }
+    } else {
+      const auto* block_realize = loop_i->body.as<tir::BlockRealizeNode>();
+      if (!block_realize || block_realize->block.get() != block) {
+        return false;
+      }
+    }
+  }
+  if (!has_reduction_loop) {
+    return false;
+  }
+
+  // Cond 6. Can successfully calculating the cumulative loop length.
+  int64_t cum_space_len, cum_reduce_len;
+  std::tie(cum_space_len, cum_reduce_len) = GetCumulativeSpaceAndReductionLength(self, block_sref);
+  if (cum_space_len == -1 || cum_reduce_len == -1) {
+    return false;
+  }
+
+  // Cond 7.
+  if (NeedsMultiLevelTiling(self, block_sref)) {
+    // Do not use rfactor/cross-thread-reduction if we have enough parallelism on spatial loops.
+    return !(cum_space_len >= cum_reduce_len || cum_space_len > max_parallel_extent);
+  } else if (cum_reduce_len > 1) {
+    // Always try rfactor/cross-thread-reduction for other reduction blocks.
+    return cum_reduce_len > max_parallel_basic;
+  } else {
+    return false;
+  }
+}
+
 }  // namespace tir
 }  // namespace tvm
