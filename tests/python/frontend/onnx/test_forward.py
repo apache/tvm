@@ -5090,6 +5090,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
+    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",
