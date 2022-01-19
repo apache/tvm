@@ -94,7 +94,7 @@ class Optional : public ObjectRef {
     return T(data_);
   }
   /*!
-   * \return The internal object pointer with type T* for Optional<T>.
+   * \return The internal object pointer with container type of T.
    * \note This function do not perform not-null checking.
    */
   const ContainerType* get() const { return static_cast<ContainerType*>(data_.get()); }
