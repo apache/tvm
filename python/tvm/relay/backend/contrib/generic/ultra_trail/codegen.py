@@ -19,20 +19,21 @@
 import tvm
 from tvm import relay
 from ..codegen import GenericCodegen
-from .schedules import example_sch_func
+from .schedules import *
+from .passes import *
 
 
 class UltraTrailCodegen(GenericCodegen):
     def __init__(self):
         super(UltraTrailCodegen, self).__init__()
 
-    # 1. Tensorize
-    # 2. Generate Config
     def _register_tir_schedules(self):
-        self._register_tir_schedule(example_sch_func)
+        self._register_tir_schedule(insert_extern_calls)
 
     def _register_tir_passes(self):
-        self._register_tir_pass(0, tvm.tir.transform.Simplify())
+        self._register_tir_pass(0, CodegenGenerateConfig())
+        self._register_tir_pass(0, CodegenGenerateConstants())
+        pass
 
 
 @tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_ultra_trail")

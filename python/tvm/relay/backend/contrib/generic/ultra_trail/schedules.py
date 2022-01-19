@@ -16,8 +16,20 @@
 # under the License.
 """TIR schedule functions for the UltraTrail accelerator"""
 
-def example_sch_func(sch):
-    n, k, c, f_x, x = sch.get_loops(sch.get_block("conv1d_ncw"))
-    k_0, k_1 = sch.split(k, factors=[2, None])
-    sch.reorder(n, k_0, c, f_x, x, k_1)
+# TODO
+def insert_extern_calls(sch):
+    return sch
+
+def schedule_supported_ops(sch):
+    block_rvs = sch.get_child_blocks(sch.get_block("root"))
+    blocks = [sch.get_sref(block_rv).stmt for block_rv in block_rvs]
+
+    sch.compute_inline(sch.get_block("pad_temp"))
+    n, k, x, c, f = sch.get_loops(sch.get_block("conv1d_ncw"))
+    sch.reorder(n, k, c, f, x)
+    # sch.reverse_compute_at(sch.get_block("T_relu"), sch.get_loops(sch.get_block("conv1d_ncw"))[1])
+    # k_o, k_i = sch.split(k, factors=[None, 8])
+    # c_o, c_i = sch.split(c, factors=[None, 8])
+
+    breakpoint()
     return sch

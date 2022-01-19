@@ -12,13 +12,19 @@ class TorchModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = torch.nn.Conv1d(
-            16, 24, 9, bias=False, padding=0, stride=1, dilation=1, groups=1
+            16, 24, 9, bias=False, padding=4, stride=1, dilation=1, groups=1
         )
         self.relu = torch.nn.ReLU()
+        self.conv2 = torch.nn.Conv1d(
+            24, 24, 9, bias=False, padding=4, stride=1, dilation=1, groups=1
+        )
+        self.relu2 = torch.nn.ReLU()
 
     def forward(self, x):
         x = self.conv(x)
         x = self.relu(x)
+        x = self.conv2(x)
+        x = self.relu2(x)
         x = x + 42
         return x
 
@@ -33,7 +39,7 @@ def main():
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
     # Relay target specific partitioning
-    mod = UltraTrailPartitioner()(mod)
+    mod = UltraTrailPartitioner()(mod, params)
 
     # Relay build (AOT C target)
     TARGET = tvm.target.Target("c")

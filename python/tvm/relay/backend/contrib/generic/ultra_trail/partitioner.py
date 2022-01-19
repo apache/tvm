@@ -16,11 +16,18 @@
 # under the License.
 """Relay partitioner for the UltraTrail accelerator"""
 
-from .patterns import pattern_table
+from .passes import *
+from .patterns import *
 from ..partitioner import GenericPartitioner
+
 
 class UltraTrailPartitioner(GenericPartitioner):
     @property
     def target_name(self):
         return "ultra_trail"
 
+    def _register_patterns(self):
+        self._register_pattern("conv1d_relu", example_pattern())
+    
+    def _register_relay_passes(self):
+        self._register_relay_pass(2, ExtractConfig())

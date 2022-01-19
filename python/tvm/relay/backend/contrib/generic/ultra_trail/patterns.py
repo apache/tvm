@@ -16,7 +16,6 @@
 # under the License.
 """Relay graph patterns for the UltraTrail accelerator"""
 
-from tvm.relay.op.contrib.register import register_pattern_table
 from tvm.relay.dataflow_pattern import is_op, wildcard
 
 
@@ -24,8 +23,3 @@ def example_pattern():
     pattern = is_op("nn.conv1d")(wildcard(), wildcard())
     pattern = is_op("nn.relu")(pattern)
     return pattern
-
-
-@register_pattern_table("ultra_trail")
-def pattern_table():
-    return [("ultra_trail.conv1d_relu", example_pattern())]
