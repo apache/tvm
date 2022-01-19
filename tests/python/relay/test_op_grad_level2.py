@@ -250,7 +250,7 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
         x_np = np.random.randn(*x_shape).astype(dtype)
 
         dw_np = relay.create_executor(device=dev, target=target).evaluate(dw)(dy_np, x_np).numpy()
-        ref_dw_np = tvm.topi.testing.conv2d_backward_weight_nchw_python(
+        ref_dw_np = tvm.topi.testing.conv2d_backward_weight_python(
             dy_np, x_np, kernel_size, stride, padding
         )
 

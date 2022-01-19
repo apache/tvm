@@ -397,7 +397,7 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
     x_np = np.random.uniform(-1, 1, x_shape).astype(data_dtype)
     dy_np = np.random.uniform(-1, 1, dy_shape).astype(data_dtype)
 
-    dw_np = conv2d_backward_weight_python(
+    dw_np = tvm.topi.testing.conv2d_backward_weight_python(
         dy_np,
         x_np,
         (filter_h, filter_w),
