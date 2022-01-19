@@ -602,7 +602,7 @@ def matmul_fp16(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor
         return te.sum(v_a * v_b, axis=[k])
 
     c = te.compute((n, m), f_compute, name="C")
-    return [a, b, c]
+    return (a, b, c)
 
 
 def matmul_relu(n: int, m: int, k: int) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
