@@ -152,6 +152,50 @@ def create_integer_lookup_table(
     return output_quantized
 
 
+def create_integer_lookup_op(
+    input_arg,
+    floating_point_func,
+    in_scale,
+    in_zero_point,
+    out_scale,
+    out_zero_point,
+    in_axis=-1,
+    out_axis=-1,
+    in_dtype="uint8",
+    out_dtype="uint8",
+):
+    """
+    TODO
+    """
+    # TODO: handle multi-channel q
+    in_scale = in_scale.data.numpy().item()
+    in_zero_point = in_zero_point.data.numpy().item()
+    out_scale = out_scale.data.numpy().item()
+    out_zero_point = out_zero_point.data.numpy().item()
+
+    lookup_table = create_integer_lookup_table(
+        floating_point_func,
+        relay.const(in_scale),
+        relay.const(in_zero_point, dtype="int32"),
+        relay.const(out_scale),
+        relay.const(out_zero_point, dtype="int32"),
+        in_axis=in_axis,
+        in_dtype=in_dtype,
+        out_axis=out_axis,
+        out_dtype=out_dtype,
+    )
+
+    in_dtype_info = np.iinfo(in_dtype)
+    in_dtype_num_bits = in_dtype_info.bits
+
+    lookup_table = relay.const(lookup_table)
+    index_tensor = relay.reshape(input_arg, [-1])
+    index_tensor = relay.reinterpret(index_tensor, f"uint{in_dtype_num_bits}")
+    result = relay.gather(lookup_table, -1, index_tensor)
+    result = relay.reshape_like(result, input_arg)
+    return result
+
+
 def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
     """Implement an operator in quantized space via table lookup operations (e.g. via gather).
 
@@ -163,12 +207,31 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
     """
 
     def func(expr, type_map):
-        assert len(expr.args) == 1
+        assert len(expr.args) == 1, "only support elemwise ops for now!"
         arg = expr.args[0]
         in_scale = fold_constant(type_map[arg].scale)
         in_zero_point = fold_constant(type_map[arg].zero_point)
         out_scale = fold_constant(type_map[expr].scale)
         out_zero_point = fold_constant(type_map[expr].zero_point)
+        in_axis = type_map[arg].axis
+        in_dtype = type_map[arg].dtype
+        out_axis = type_map[expr].axis
+        out_dtype = type_map[expr].dtype
+        result = create_integer_lookup_op(
+            input_arg=arg,
+            floating_point_func=floating_point_func,
+            in_scale=in_scale,
+            in_zero_point=in_zero_point,
+            out_scale=out_scale,
+            out_zero_point=out_zero_point,
+            in_axis=in_axis,
+            in_dtype=in_dtype,
+            out_axis=out_axis,
+            out_dtype=out_dtype,
+        )
+        return [result, type_map[expr]]
+        arg = expr.args[0]
+
         if (
             not isinstance(in_scale, relay.Constant)
             or not isinstance(in_zero_point, relay.Constant)
