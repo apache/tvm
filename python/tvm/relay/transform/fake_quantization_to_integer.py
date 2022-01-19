@@ -235,6 +235,7 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
     return register_fake_quantization_to_integer(op_name, func)
 
 
+# TODO: better error messages if reference functions fail in FQ2I pass
 register_unary_elementwise_table_lookup_op("tanh", np.tanh)
 register_unary_elementwise_table_lookup_op("erf", special.erf)
 register_unary_elementwise_table_lookup_op("exp", np.exp)
