@@ -16,15 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -e
+set -u
+set -o pipefail
 
-export RUSTUP_HOME=/opt/rust
-export CARGO_HOME=/opt/rust
-# this rustc is one supported by the installed version of rust-sgx-sdk
-curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
-export PATH=$CARGO_HOME/bin:$PATH
-rustup component add rustfmt
-rustup component add clippy
+cargo install sccache
 
-# make rust usable by all users
-chmod -R a+w /opt/rust
+# The docs specifically recommend hard links: https://github.com/mozilla/sccache#known-caveats
+mkdir /opt/sccache
+ln "$(which sccache)" /opt/sccache/cc
+ln "$(which sccache)" /opt/sccache/c++

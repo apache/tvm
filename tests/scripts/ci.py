@@ -147,6 +147,15 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     """
     check_docker()
 
+    if os.getenv("USE_SCCACHE", "0") == "1":
+        scripts = [
+            "sccache --start-server",
+        ] + scripts
+        # Set the C/C++ compiler so CMake picks them up in the build
+        env["CC"] = "/opt/sccache/cc"
+        env["CXX"] = "/opt/sccache/c++"
+        env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
+
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
     command = [docker_bash, "--name", name]
     for key, value in env.items():

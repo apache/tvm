@@ -41,6 +41,10 @@ ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
 
+# wasmtime
+COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
+RUN bash /install/ubuntu_install_wasmtime.sh
+
 # java deps for rat
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
