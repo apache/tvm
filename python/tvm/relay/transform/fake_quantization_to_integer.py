@@ -167,20 +167,12 @@ def create_integer_lookup_op(
     """
     TODO
     """
-    in_scale = in_scale.data.numpy().item()
-    in_zero_point = in_zero_point.data.numpy().item()
-
-    out_scale = out_scale.data.numpy().item()
-    out_zero_point = out_zero_point.data.numpy().item()
 
     # TODO: handle multi-channel q
-    if (
-        in_scale.size() > 1
-        or out_scale.size() > 1
-        or in_zero_point.size() > 1
-        or out_zero_point.size() > 1
-    ):
-        raise ValueError("Do not support multi-channel quantization for now")
+    in_scale = in_scale.data.numpy().item()
+    in_zero_point = in_zero_point.data.numpy().item()
+    out_scale = out_scale.data.numpy().item()
+    out_zero_point = out_zero_point.data.numpy().item()
 
     lookup_table = create_integer_lookup_table(
         floating_point_func,
