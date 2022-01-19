@@ -31,6 +31,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "../../relay/backend/name_transforms.h"
 #include "../../runtime/file_utils.h"
 #include "../../support/str_escape.h"
 #include "../func_registry_generator.h"
@@ -127,10 +128,27 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
   return runtime::Module(n);
 }
 
+/*!
+ * \brief A concrete class to get access to base methods of CodegenSourceBase.
+ *
+ * This class exist to get access to methods of CodegenSourceBase without duplicating
+ * them. Therefore, keeping alignment with how codegen and source_module here generates
+ * code.
+ */
+class ConcreteCodegenSourceBase : public CodeGenSourceBase {
+  /*!
+   * \brief Do nothing as this class exist to get access to methods of CodeGenSourceBase
+   */
+  void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) final {
+    return;
+  }
+};
+
 class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
  public:
   CSourceCrtMetadataModuleNode(const Array<String>& func_names, const std::string& fmt,
-                               Target target, relay::Runtime runtime, runtime::Metadata metadata)
+                               Target target, relay::Runtime runtime,
+                               relay::backend::ExecutorCodegenMetadata metadata)
       : fmt_(fmt),
         func_names_(func_names),
         target_(target),
@@ -164,7 +182,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   Array<String> func_names_;
   Target target_;
   relay::Runtime runtime_;
-  runtime::Metadata metadata_;
+  relay::backend::ExecutorCodegenMetadata metadata_;
+  ConcreteCodegenSourceBase codegen_c_base_;
 
   void CreateFuncRegistry() {
     code_ << "#include <tvm/runtime/crt/module.h>\n";
@@ -197,45 +216,161 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           << "}\n";
   }
 
+  String GenerateDLTensorStructWrapper(String reference_arg) {
+    code_ << "DLTensor " << reference_arg << "_dltensor = {\n";
+    code_ << ".data = &" << reference_arg << "\n";
+    code_ << "};\n";
+    code_ << "TVMValue " << reference_arg << "_tvm_value = {\n";
+    code_ << ".v_handle = &" << reference_arg << "_dltensor\n";
+    code_ << "};\n";
+    return reference_arg + "_tvm_value";
+  }
+
+  void GenerateInternalWorkspaceBuffers() {
+    if (metadata_->pool_inputs.defined()) {
+      for (const auto& kv : metadata_->pool_inputs.value()) {
+        tir::usmp::AllocatedPoolInfo allocated_pool_info = kv.second;
+        if (allocated_pool_info->pool_info->is_internal) {
+          code_ << "__attribute__((section(\".data.tvm\"), ";
+          code_ << "aligned(" << 16 << ")))\n";
+          code_ << "static uint8_t " << allocated_pool_info->pool_info->pool_name << "["
+                << allocated_pool_info->allocated_size->value << "];\n";
+        }
+      }
+    }
+  }
+
+  bool IsInternalWorkspaceBuffer(const tir::Var& pool_var) {
+    if (metadata_->pool_inputs.defined()) {
+      Map<tir::Var, tir::usmp::AllocatedPoolInfo> allocated_pool_infos =
+          metadata_->pool_inputs.value();
+      if (allocated_pool_infos.find(pool_var) != allocated_pool_infos.end()) {
+        tir::usmp::AllocatedPoolInfo allocate_pool_info = allocated_pool_infos[pool_var];
+        if (allocate_pool_info->pool_info->is_internal) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   void GenerateEntrypointForUnpackedAPI(const std::string& entrypoint_name,
                                         const std::string& run_func) {
     code_ << "TVM_DLL int32_t " << run_func << "(";
-    unsigned int total_args = (metadata_->inputs.size() + metadata_->num_outputs);
-    for (unsigned int i = 0; i < total_args; ++i) {
-      code_ << "void* arg" << i;
-      if (i + 1 != total_args) {
-        code_ << ",";
+
+    {
+      std::stringstream call_args_ss;
+      for (const tir::Var& input_var : metadata_->inputs) {
+        if (input_var->type_annotation.defined()) {
+          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+        } else {
+          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+        }
+        call_args_ss << " " << input_var->name_hint << ",";
       }
+      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+        call_args_ss << "void* output" << i << ",";
+      }
+      for (const tir::Var& pool_var : metadata_->pools) {
+        if (pool_var->type_annotation.defined()) {
+          codegen_c_base_.PrintType(pool_var->type_annotation, call_args_ss);
+        } else {
+          codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
+        }
+        call_args_ss << " " << pool_var->name_hint << ",";
+      }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
     }
+
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
     code_ << "return " << run_func << "(";
-    for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
-      code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+
+    {
+      std::stringstream call_args_ss;
+      for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
+        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
+      }
+      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+        int j = metadata_->inputs.size() + i;
+        call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
+      }
+      for (const tir::Var& pool_var : metadata_->pools) {
+        if (IsInternalWorkspaceBuffer(pool_var)) {
+          call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
+                       << ",";
+        }
+      }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
+      code_ << ");\n";
+      code_ << "}\n";
     }
-    for (int i = 0; i < metadata_->num_outputs; ++i) {
-      int j = metadata_->inputs.size() + i;
-      code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
-      if (i + 1 != metadata_->num_outputs) {
-        code_ << ",";
+  }
+
+  std::unordered_map<int, ObjectRef> GenerateRunFuncToEntryPointArgMap() {
+    std::unordered_map<int, ObjectRef> run_func_to_entry_point_args;
+    int entrypoint_arg_count = 0;
+    int run_func_arg_count = 0;
+
+    for (unsigned int i = 0; i < metadata_->inputs.size(); i++) {
+      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+      entrypoint_arg_count++;
+      run_func_arg_count++;
+    }
+    for (unsigned int i = 0; i < metadata_->num_outputs; i++) {
+      run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
+      entrypoint_arg_count++;
+      run_func_arg_count++;
+    }
+    for (const tir::Var& pool_var : metadata_->pools) {
+      if (IsInternalWorkspaceBuffer(pool_var)) {
+        tir::usmp::AllocatedPoolInfo allocated_pool_info = metadata_->pool_inputs.value()[pool_var];
+        run_func_to_entry_point_args[run_func_arg_count] =
+            allocated_pool_info->pool_info->pool_name;
+        run_func_arg_count++;
       }
     }
-    code_ << ");\n";
-    code_ << "}\n";
+    return run_func_to_entry_point_args;
   }
 
   void GenerateEntrypointForPackedAPI(const std::string& entrypoint_name,
                                       const std::string& run_func) {
     code_ << "TVM_DLL int32_t " << run_func;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
-             "out_type_code, void* resource_handle);\n";
+             "out_type_code, void* resource_handle);\n\n";
+
     code_ << "int32_t " << entrypoint_name;
     code_ << "(void* args, void* type_code, int num_args, void* out_value, void* "
              "out_type_code, void* resource_handle) {\n";
+
+    // We are creating a copy of the set of pointers
+    size_t number_of_io_tensors =
+        metadata_->inputs.size() + metadata_->num_outputs + metadata_->pools.size();
+    code_ << "TVMValue tensors[" << number_of_io_tensors << "];\n";
+
+    std::unordered_map<int, ObjectRef> run_func_to_entry_point_args =
+        GenerateRunFuncToEntryPointArgMap();
+    for (unsigned int i = 0; i < number_of_io_tensors; i++) {
+      if (run_func_to_entry_point_args.find(i) != run_func_to_entry_point_args.end()) {
+        if (run_func_to_entry_point_args[i]->IsInstance<StringObj>()) {
+          String pool_name = Downcast<String>(run_func_to_entry_point_args[i]);
+          String pool_name_tvmv = GenerateDLTensorStructWrapper(pool_name);
+          code_ << "tensors[" << i << "] = " << pool_name_tvmv << ";\n";
+        } else {
+          code_ << "tensors[" << i << "] = ((TVMValue*)args)["
+                << run_func_to_entry_point_args[Integer(i)] << "];\n";
+        }
+      }
+    }
+
     code_ << "return " << run_func;
-    code_ << "(args, type_code, num_args, out_value, out_type_code, resource_handle);\n";
+    code_ << "((void*)tensors, type_code, num_args, out_value, out_type_code, resource_handle);\n";
     code_ << "}\n";
   }
 
@@ -245,14 +380,35 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
                                     const std::string& mod_name) {
     code_ << "#include <" << mod_name << ".h>\n";
     code_ << "TVM_DLL int32_t " << run_func << "(";
-    unsigned int total_args =
-        (metadata_->inputs.size() + metadata_->devices.size() + metadata_->num_outputs);
-    for (unsigned int i = 0; i < total_args; ++i) {
-      code_ << "void* arg" << i;
-      if (i + 1 != total_args) {
-        code_ << ",";
+    {
+      std::stringstream call_args_ss;
+      for (const tir::Var& input_var : metadata_->inputs) {
+        if (input_var->type_annotation.defined()) {
+          codegen_c_base_.PrintType(input_var->type_annotation, call_args_ss);
+        } else {
+          codegen_c_base_.PrintType(input_var.dtype(), call_args_ss);
+        }
+        call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
       }
+      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+        call_args_ss << "void* output" << i << ",";
+      }
+      for (const tir::Var& pool_var : metadata_->pools) {
+        if (pool_var->type_annotation.defined()) {
+          codegen_c_base_.PrintType(pool_var->type_annotation, call_args_ss);
+        } else {
+          codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
+        }
+        call_args_ss << " " << pool_var->name_hint << ",";
+      }
+      for (const String& device : metadata_->devices) {
+        call_args_ss << "void* " << device << ",";
+      }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
     }
+
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
     code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
@@ -265,32 +421,32 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     code_ << ") {"
           << "return " << run_func << "(";
-    for (const auto& input : metadata_->inputs) {
-      std::string sanitised_input = input;
-      std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
-      code_ << "inputs->" << sanitised_input << ",";
-    }
-    if (metadata_->num_outputs == 1) {
-      code_ << "outputs->output";
-    } else {
-      for (int i = 0; i < metadata_->num_outputs; ++i) {
-        code_ << "outputs->output" << i;
-        if (i + 1 != metadata_->num_outputs) {
-          code_ << ",";
+
+    {
+      std::stringstream call_args_ss;
+      for (const auto& input : metadata_->inputs) {
+        call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
+      }
+      if (metadata_->num_outputs == 1) {
+        call_args_ss << "outputs->output,";
+      } else {
+        for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+          call_args_ss << "outputs->output" << i << ",";
         }
       }
-    }
-
-    if (!metadata_->devices.empty()) {
-      code_ << ",";
+      for (const tir::Var& pool_var : metadata_->pools) {
+        if (IsInternalWorkspaceBuffer(pool_var)) {
+          call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
+                       << ",";
+        }
+      }
       for (const String& device : metadata_->devices) {
-        code_ << "devices->" << device;
-        if (device != metadata_->devices.back()) {
-          code_ << ",";
-        }
+        call_args_ss << "devices->" << device << ",";
       }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
     }
-
     code_ << ");\n";
     code_ << "}\n";
   }
@@ -308,6 +464,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << "#ifdef __cplusplus\n";
     code_ << "extern \"C\" {\n";
     code_ << "#endif\n";
+
+    GenerateInternalWorkspaceBuffers();
 
     if (metadata_->unpacked_api) {
       if (metadata_->interface_api == "c") {
@@ -339,7 +497,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 };
 
 runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                               relay::Runtime runtime, runtime::Metadata metadata) {
+                                               relay::Runtime runtime,
+                                               relay::backend::ExecutorCodegenMetadata metadata) {
   Array<String> func_names;
   for (runtime::Module mod : modules) {
     auto pf_funcs = mod.GetFunction("get_func_names");
@@ -423,7 +582,8 @@ TVM_REGISTER_GLOBAL("runtime.CreateCSourceCrtMetadataModule")
     .set_body_typed([](const Array<runtime::Module>& modules, Target target,
                        relay::Runtime runtime) {
       // Note that we don't need metadata when we compile a single operator
-      return CreateCSourceCrtMetadataModule(modules, target, runtime, runtime::Metadata());
+      return CreateCSourceCrtMetadataModule(modules, target, runtime,
+                                            relay::backend::ExecutorCodegenMetadata());
     });
 
 }  // namespace codegen
