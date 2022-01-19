@@ -78,6 +78,11 @@ Expr MakeQuantizedRsqrt(Expr x, Expr scale, Expr zero_point, Expr output_scale,
  */
 Expr QnnRsqrtCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                           const Array<tvm::relay::Type>& arg_types) {
+  // At this time, due to the complexity of implementing this op in int8 or uint8,
+  // we dequantize the input, run the op in float, and then quantize the output (as below).
+  // This acts as a placeholder for future hardware enablement, where more hardware specific
+  // canonicalization can be provided.
+
   // Get the args.
   QnnUnaryOpArguments args(new_args);
 
