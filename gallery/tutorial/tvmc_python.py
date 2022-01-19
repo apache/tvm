@@ -86,7 +86,7 @@ Let's start editing the python file in your favorite text editor.
 # In order to compile a model a tvm.target string is required.
 # To learn more about tvm.targets and their options look at the `documentation <https://tvm.apache.org/docs/api/python/target.html>`_.
 # Some examples include:
-# 
+#
 #    1. cuda (Nvidia GPU)
 #    2. llvm (CPU)
 #    3. llvm -mcpu=cascadelake (Intel CPU)
