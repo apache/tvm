@@ -669,6 +669,51 @@ def test_fake_quantize_tanh():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_erf():
+    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
+    op = relay.op.erf(x)
+
+    # Have difference scales for input/output to test if can handle
+    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
+
+    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_exp():
+    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
+    op = relay.op.exp(x)
+
+    # Have difference scales for input/output to test if can handle
+    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
+
+    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+def test_fake_quantize_sigmoid():
+    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
+    op = relay.op.sigmoid(x)
+
+    # Have difference scales for input/output to test if can handle
+    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
+
+    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
 def test_fq_hard_fail():
     @tvm.ir.register_op_attr("nn.conv2d", "FTVMFakeQuantizationToInteger", level=11)
     def conv2d(expr, type_map):  # pylint: disable=unused-variable

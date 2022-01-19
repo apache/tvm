@@ -169,6 +169,7 @@ def create_integer_lookup_op(
     """
     in_scale = in_scale.data.numpy().item()
     in_zero_point = in_zero_point.data.numpy().item()
+
     out_scale = out_scale.data.numpy().item()
     out_zero_point = out_zero_point.data.numpy().item()
 
@@ -179,7 +180,7 @@ def create_integer_lookup_op(
         or in_zero_point.size() > 1
         or out_zero_point.size() > 1
     ):
-        raise ValueError("Do no support multi-channel quantization for now")
+        raise ValueError("Do not support multi-channel quantization for now")
 
     lookup_table = create_integer_lookup_table(
         floating_point_func,
@@ -243,6 +244,9 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
 
 
 register_unary_elementwise_table_lookup_op("tanh", np.tanh)
+register_unary_elementwise_table_lookup_op("erf", np.math.erf)
+register_unary_elementwise_table_lookup_op("exp", np.math.exp)
+register_unary_elementwise_table_lookup_op("sigmoid", lambda x: 1 / (1 + np.exp(-x)))
 
 register_unary_identity("reshape")
 register_unary_identity("squeeze")
