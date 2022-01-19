@@ -17,6 +17,7 @@
 """Relay functions for rewriting fake quantized ops."""
 import numpy as np
 import tvm
+from scipy import special
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.tir import bijective_layout
@@ -167,7 +168,6 @@ def create_integer_lookup_op(
     """
     TODO
     """
-
     # TODO: handle multi-channel q
     in_scale = in_scale.data.numpy().item()
     in_zero_point = in_zero_point.data.numpy().item()
@@ -236,8 +236,8 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
 
 
 register_unary_elementwise_table_lookup_op("tanh", np.tanh)
-register_unary_elementwise_table_lookup_op("erf", np.math.erf)
-register_unary_elementwise_table_lookup_op("exp", np.math.exp)
+register_unary_elementwise_table_lookup_op("erf", special.erf)
+register_unary_elementwise_table_lookup_op("exp", np.exp)
 register_unary_elementwise_table_lookup_op("sigmoid", lambda x: 1 / (1 + np.exp(-x)))
 
 register_unary_identity("reshape")
