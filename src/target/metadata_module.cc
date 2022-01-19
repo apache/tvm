@@ -97,6 +97,10 @@ static runtime::Module CreateCppMetadataModule(
       auto metadata_module = CreateCSourceCppMetadataModule(metadata);
       metadata_module->Import(target_module);
       target_module = metadata_module;
+    } else if (target->kind->name == "llvm") {
+      auto metadata_module = CreateLLVMCppMetadataModule(metadata, target, runtime);
+      metadata_module->Import(target_module);
+      target_module = metadata_module;
     } else {
       CHECK(false) << "Don't know how to create MetadataModule for target type " << target->str();
     }

@@ -187,6 +187,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
 
+  // Get constant string
+  llvm::Constant* GetConstString(const std::string& str);
+
  protected:
   /*!
    * \brief Address and type pair to assist in handling opaque pointers.
@@ -298,8 +301,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // Get alignment given index.
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
-  // Get constant string
-  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);

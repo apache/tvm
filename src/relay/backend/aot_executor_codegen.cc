@@ -859,7 +859,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           << use_unpacked_api_ << ") when targeting c runtime";
       }
     } else if (runtime_config->name == kTvmRuntimeCpp) {
-      CHECK(static_cast<bool>(use_unpacked_api_) == false &&
+      CHECK(static_cast<bool>(use_unpacked_api_) == true ||
             static_cast<bool>(use_call_cpacked_) == true)
           << "Need unpacked-api == false (got: " << use_unpacked_api_
           << ") and interface-api == \"c\" (got: " << interface_api

@@ -512,18 +512,18 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       return runtime::Module(n);
     });
 
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target) {
+runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
+                                            tvm::relay::Runtime runtime) {
   InitializeLLVM();
   auto tm = GetLLVMTargetMachine(target);
   bool system_lib = runtime->GetAttr<Bool>("system-lib").value_or(Bool(false));
-  bool target_c_runtime = runtime->name == "crt";
   auto ctx = std::make_shared<llvm::LLVMContext>();
   std::unique_ptr<CodeGenCPU> cg{new CodeGenCPU()};
 
-  cg->Init("TVMMetadataMod", tm.get(), ctx.get(), system_lib, system_lib, target_c_runtime);
+  cg->Init("TVMMetadataMod", tm.get(), ctx.get(), system_lib, system_lib, false /* target_c_runtime */);
 
   cg->DefineMetadata(metadata);
-
+  auto mod = cg->Finish();
   mod->addModuleFlag(llvm::Module::Warning, "tvm_target",
                      llvm::MDString::get(*ctx, LLVMTargetToString(target)));
   mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
@@ -540,9 +540,6 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), ctx);
-  for (auto m : modules) {
-    n->Import(m);
-  }
   return runtime::Module(n);
 }
 
