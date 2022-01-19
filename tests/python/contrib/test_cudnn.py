@@ -414,6 +414,7 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
     dw = cudnn.conv_backward_filter(
         x,
         dy,
+        (filter_h, filter_w),
         [pad_h, pad_w],
         [stride_h, stride_w],
         [1, 1],
