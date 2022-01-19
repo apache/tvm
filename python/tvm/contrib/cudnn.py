@@ -684,7 +684,9 @@ def conv_backward_data(
         dy.shape[0], tvm.tir.expr.IntImm
     ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
 
-    x_shape = conv_dgrad_shape(tensor_format, pad, stride, dilation, dy.shape, w.shape, dy.dtype, conv_dtype, groups)
+    x_shape = conv_dgrad_shape(
+        tensor_format, pad, stride, dilation, dy.shape, w.shape, dy.dtype, conv_dtype, groups
+    )
 
     algo = conv_backward_data_find_algo(
         tensor_format,
@@ -724,7 +726,7 @@ def conv_backward_data(
 
 
 def conv_backward_filter(
-        x, dy, kernel_size, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+    x, dy, kernel_size, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
 ):
     dims = len(x.shape)
     assert dims == 4
