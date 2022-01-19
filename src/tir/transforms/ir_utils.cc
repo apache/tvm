@@ -258,10 +258,8 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
   arith::Analyzer analyzer;
   PrimExpr condition = is_true_branch_ ? condition_ : analyzer.Simplify(!condition_);
   Array<PrimExpr> equations;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set;
   Array<Var> vars;
-  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &var_set,
-                                                 &fvisit](const PrimExpr& e) {
+  std::function<void(const PrimExpr&)> fvisit = [&equations, &vars, &fvisit](const PrimExpr& e) {
     if (e->IsInstance<GENode>() || e->IsInstance<GTNode>() || e->IsInstance<LENode>() ||
         e->IsInstance<LTNode>() || e->IsInstance<EQNode>() || e->IsInstance<NENode>()) {
       bool is_simple = true;
@@ -280,10 +278,10 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
         }
       });
       if (is_simple && !cand_vars.empty()) {
-        for (const Var& var : cand_vars) {
-          if (!var_set.count(var)) {
-            vars.push_back(var);
-            var_set.insert(var);
+        for (const Var& new_var : cand_vars) {
+          if (!std::any_of(vars.begin(), vars.end(),
+                           [&new_var](const Var& v) { return v.same_as(new_var); })) {
+            vars.push_back(new_var);
           }
         }
         equations.push_back(Downcast<PrimExpr>(e));
@@ -300,7 +298,7 @@ Map<Var, Range> ConditionalBoundsContext::GetVarBoundsFromCondition() {
     }
   };
   fvisit(condition);
-  if (equations.empty() || var_set.empty()) {
+  if (equations.empty() || vars.empty()) {
     return Map<Var, Range>();
   }
   // build dom ranges for related vars

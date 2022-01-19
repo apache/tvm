@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
 import tvm
-import pytest
 from tvm.meta_schedule.space_generator.post_order_apply import PostOrderApply
 from tvm.meta_schedule.testing.schedule_rule import auto_inline
 from tvm.meta_schedule.tune_context import TuneContext
