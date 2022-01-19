@@ -157,20 +157,21 @@ enum MetadataTypeIndex : uint8_t {
   kInt64 = 1,
   kBool = 2,
   kString = 3,
-  kHandle = 4,
+  kMetadata = 4,
 };
 
 class MetadataArrayNode : public MetadataBaseNode {
  public:
-  //  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index) : array{array},
-  //  type_index{type_index} {}
-  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
-      : array(std::move(array)), c_type{c_type} {}
+  MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name) :
+      array{array}, type_index{type_index}, struct_name{struct_name} {}
+//  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
+//      : array(std::move(array)), c_type{c_type} {}
 
   std::string get_name() override;
 
   Array<ObjectRef> array;
-  const char* c_type;
+  MetadataTypeIndex type_index;
+  const char* struct_name;
   static constexpr const char* _type_key = "metadata.MetadataArrayNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataArrayNode, MetadataBaseNode);
 };
@@ -178,7 +179,7 @@ class MetadataArrayNode : public MetadataBaseNode {
 class MetadataArray : public MetadataBase {
  public:
   //  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index);
-  MetadataArray(Array<ObjectRef> array, const char* c_type);
+  MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetadataArray, MetadataBase, MetadataArrayNode);
 };
 

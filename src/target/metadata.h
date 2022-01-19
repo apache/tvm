@@ -49,7 +49,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
       inputs_array.push_back(::tvm::runtime::metadata::TensorInfo{inputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{inputs_array,
-                                                                  "struct TVMTensorInfo"};
+                                                                  runtime::metadata::MetadataTypeIndex::kMetadata,
+                                                                  "TVMTensorInfo"};
     v->Visit("inputs", &inputs_metadata_array);
     auto outputs_array = Array<ObjectRef>();
     auto outputs_accessor = outputs();
@@ -58,7 +59,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
       outputs_array.push_back(::tvm::runtime::metadata::TensorInfo{outputs_accessor[i]});
     }
     ::tvm::runtime::metadata::MetadataArray outputs_metadata_array{outputs_array,
-                                                                   "struct TVMTensorInfo"};
+                                                                   runtime::metadata::MetadataTypeIndex::kMetadata,
+                                                                   "TVMTensorInfo"};
     v->Visit("outputs", &outputs_metadata_array);
     auto devices_array = Array<ObjectRef>();
     auto devices_accessor = devices();
@@ -66,7 +68,7 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     for (int64_t i = 0; i < num_devices(); ++i) {
       devices_array.push_back(::tvm::runtime::String{devices_accessor[i]});
     }
-    ::tvm::runtime::metadata::MetadataArray devices_metadata_array{devices_array, "const char*"};
+    ::tvm::runtime::metadata::MetadataArray devices_metadata_array{devices_array, runtime::metadata::MetadataTypeIndex::kString, "const char*"};
     v->Visit("devices", &devices_metadata_array);
     ::std::string executor_cpp{data()->executor};
     v->Visit("executor", &executor_cpp);
@@ -157,7 +159,7 @@ class VisitableTensorInfoNode : public ::tvm::runtime::metadata::TensorInfoNode 
     for (int64_t i = 0; i < num_shape(); ++i) {
       shape_array.push_back(::tvm::Integer{static_cast<int>(shape_accessor[i])});
     }
-    ::tvm::runtime::metadata::MetadataArray shape_metadata_array{shape_array, "int64_t"};
+    ::tvm::runtime::metadata::MetadataArray shape_metadata_array{shape_array, runtime::metadata::MetadataTypeIndex::kInt64, "int64_t"};
     v->Visit("shape", &shape_metadata_array);
     ::tvm::runtime::DataType dtype_cpp{dtype()};
     v->Visit("dtype", &dtype_cpp);

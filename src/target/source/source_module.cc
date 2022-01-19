@@ -388,6 +388,8 @@ class CMetadataWriterVisitor : public ::tvm::AttrVisitor {
 };
 
 class MetadataStructDefiner : public AttrVisitor {
+  using MetadataTypeIndex = runtime::metadata::MetadataTypeIndex;
+
  public:
   void Visit(const char* key, double* value) final {
     // dns: mangle name
@@ -436,21 +438,19 @@ class MetadataStructDefiner : public AttrVisitor {
   }
 
   void VisitArray(const char* key, const runtime::metadata::MetadataArrayNode* array) {
-    code_ << "  " << array->c_type << "* " << key << ";" << std::endl;
+    switch (array->type_index) {
+    case MetadataTypeIndex::kUint64:
+      code_ << "  uint64_t** " << key << ";" << std::endl;
+    case MetadataTypeIndex::kInt64:
+      code_ << "  int64_t** " << key << ";" << std::endl;
+    case MetadataTypeIndex::kBool:
+      code_ << "  bool** " << key << ";" << std::endl;
+    case MetadataTypeIndex::kString:
+      code_ << "  const char** " << key << ";" << std::endl;
+    default:
+      CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
+    }
   }
-  //   switch (array->type_index) {
-  //   case MetadataTypeIndex::kUint64:
-  //     code_ << "  uint64_t** " << key << ";" << std::endl;
-  //   case MetadataTypeIndex::kInt64:
-  //     code_ << "  int64_t** " << key << ";" << std::endl;
-  //   case MetadataTypeIndex::kString:
-  //     code_ << "  const char** " << key << ";" << std::endl;
-  //   case MetadataTypeIndex::kHandle:
-  //     code_ << "  void** " << key << ";" << std::endl;
-  //   default:
-  //     CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
-  //   }
-  // }
 
   //   const ArrayNode* arr = value->as<ArrayNode>();
   //   if (arr != nullptr) {
@@ -557,6 +557,31 @@ class MetadataQueuer : public AttrVisitor {
   std::vector<std::string> address_parts_;
 };
 
+std::string MetadataArrayTypeToCType(const runtime::metadata::MetadataArrayNode* array) {
+  using MetadataTypeIndex = runtime::metadata::MetadataTypeIndex;
+
+  switch (array->type_index) {
+  case MetadataTypeIndex::kInt64:
+    return "int64_t";
+    break;
+  case MetadataTypeIndex::kUint64:
+    return "uint64_t";
+    break;
+  case MetadataTypeIndex::kBool:
+    return "int8_t";
+    break;
+  case MetadataTypeIndex::kString:
+    return "const char*";
+    break;
+  case MetadataTypeIndex::kMetadata:
+    return ::std::string{"struct "} + array->struct_name;
+    break;
+  default:
+    ICHECK(false) << "Unexpected MetadataTypeIndex " << array->type_index;
+    return "";
+  };
+}
+
 class MetadataSerializer : public AttrVisitor {
  public:
   static constexpr const char* kGlobalSymbol = "kTvmgenMetadata";
@@ -629,7 +654,7 @@ class MetadataSerializer : public AttrVisitor {
   }
 
   void VisitArray(const runtime::metadata::MetadataArrayNode* array) {
-    std::cout << "visit array " << array << ": " << array->c_type << " " << array->array.size()
+    std::cout << "visit array " << array << ": " << array->type_index << " " << array->array.size()
               << std::endl;
     auto old_is_first_item = is_first_item_;
     is_first_item_ = true;
@@ -734,11 +759,14 @@ class MetadataSerializer : public AttrVisitor {
       is_first_item_ = true;
       address_.push_back(struct_name);
       if (arr != nullptr) {
-        const char* const_part = "const ";
-        if (strcmp(arr->c_type, "const char*") == 0) {
-          const_part = "";
+        std::string c_type{"const "};
+        if (arr->type_index == runtime::metadata::MetadataTypeIndex::kString) {
+          // note drop const
+          c_type = MetadataArrayTypeToCType(arr);
+        } else {
+          c_type += MetadataArrayTypeToCType(arr);
         }
-        code_ << const_part << arr->c_type << " " << struct_name << "[" << arr->array.size()
+        code_ << c_type << "[" << arr->array.size()
               << "] = {" << std::endl;
         VisitArray(arr);
       } else {
