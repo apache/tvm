@@ -1162,7 +1162,8 @@ void VMCompiler::Codegen() {
   }
 
   lib = codegen::CreateMetadataModule(params_, lib, ext_mods, config_->host_target,
-                                      Runtime::Create("cpp"), runtime::Metadata());
+                                      Runtime::Create("cpp"),
+                                      relay::backend::ExecutorCodegenMetadata());
   exec_->SetLib(lib);
 }
 

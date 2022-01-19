@@ -26,10 +26,21 @@
 #define TVM_TIR_USMP_UTILS_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>
 
 namespace tvm {
+
+/*!
+ * \brief PassContext option to enable the USMP
+ */
+constexpr const char* kUSMPEnableOption = "tir.usmp.enable";
+/*!
+ * \brief PassContext option to select the memory planning algorithm in USMP
+ */
+constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
+
 namespace tir {
 namespace usmp {
 
@@ -59,22 +70,28 @@ struct PoolInfoNode : public Object {
   Integer size_hint_bytes;
   /*! \brief The accessibility from each Target*/
   Map<Target, String> target_access;  // 'rw' or 'ro'
+  /*! \brief Whether pool is internally generated.
+   * The internal pools will be generated as part of
+   * the entry point code generation of the executor*/
+  bool is_internal = false;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_name", &pool_name);
     v->Visit("size_hint_bytes", &size_hint_bytes);
     v->Visit("target_access", &target_access);
+    v->Visit("is_internal", &is_internal);
   }
 
   bool SEqualReduce(const PoolInfoNode* other, SEqualReducer equal) const {
     return equal(pool_name, other->pool_name) && equal(size_hint_bytes, other->size_hint_bytes) &&
-           equal(target_access, other->target_access);
+           equal(target_access, other->target_access) && equal(is_internal, other->is_internal);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(pool_name);
     hash_reduce(size_hint_bytes);
     hash_reduce(target_access);
+    hash_reduce(is_internal);
   }
 
   static constexpr const char* _type_key = "tir.usmp.PoolInfo";
@@ -89,7 +106,8 @@ static const int kUnrestrictedPoolSizeHint = -1;
 class PoolInfo : public ObjectRef {
  public:
   TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
-                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint);
+                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
+                   Bool is_internal = Bool(false));
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
 };
 
@@ -268,7 +286,14 @@ class AllocatedPoolInfo : public ObjectRef {
  *
  * \param buffer_info_map IR-bound BufferInfo map
  */
-Array<BufferInfo> CreateArrayBufferInfo(const Map<Stmt, BufferInfo>& buffer_info_map);
+Array<BufferInfo> CreateArrayBufferInfo(const Map<BufferInfo, Stmt>& buffer_info_map);
+
+/*!
+ * \brief Calculate workspace required to execute a IRModule with main expressed in TIR
+ *
+ * \param mod the IRModule with TIR-based main function
+ */
+Integer CalculateModuleWorkspaceSize(const IRModule& mod);
 
 /*!
  * \brief The allocate node attribute to indicate candidate memory pools.
@@ -284,6 +309,16 @@ static constexpr const char* kPoolCandidatesAllocateAttr = "candidate_memory_poo
  */
 Integer CalculateExtentsSize(const AllocateNode* op);
 
+/*!
+ * \brief Joins the Stmt nodes with PoolAllocation objects
+ *
+ * \param buffer_info_to_stmt the map of BufferInfo objects to Stmt nodes
+ * \param buffer_info_to_pool_allocation the map of BufferInfo objects to PoolAllocation objects
+ */
+Map<Stmt, PoolAllocation> AssignStmtPoolAllocations(
+    const Map<BufferInfo, Stmt>& buffer_info_to_stmt,
+    const Map<BufferInfo, PoolAllocation>& buffer_info_to_pool_allocation);
+
 }  // namespace usmp
 }  // namespace tir
 
@@ -293,6 +328,12 @@ namespace attr {
  * a PoolInfo Object in the form of a Map<Var, PoolInfo>.
  */
 static constexpr const char* kPoolArgs = "pool_args";
+
+/*!
+ * \brief This is a IRModule attribute that contains all the PoolInfo objects
+ * as an Array.
+ */
+static constexpr const char* kPoolInfoIRModuleAttr = "pool_infos";
 
 }  // namespace attr
 
