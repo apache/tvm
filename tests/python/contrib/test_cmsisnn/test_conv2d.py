@@ -124,10 +124,7 @@ def make_model(
 
 
 @tvm.testing.requires_cmsisnn
-@pytest.mark.parametrize("ifm_shape", [(1, 64, 100, 4)])
-@pytest.mark.parametrize("kernel_size", [(3, 3)])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("strides, dilation", [((1, 1), (1, 1))])
 @pytest.mark.parametrize("relu_type", ["RELU"])
 @pytest.mark.parametrize("enable_bias", [True, False])
 @pytest.mark.parametrize(
@@ -135,11 +132,7 @@ def make_model(
     [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
 )
 def test_conv2d_symmetric_padding_int8(
-    ifm_shape,
-    kernel_size,
     padding,
-    strides,
-    dilation,
     enable_bias,
     relu_type,
     input_zero_point,
@@ -151,6 +144,10 @@ def test_conv2d_symmetric_padding_int8(
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
 
+    ifm_shape = (1, 64, 100, 4)
+    kernel_size = (3, 3)
+    strides = (1, 1)
+    dilation = (1, 1)
     dtype = "int8"
     groups = 1
     weight_format = "HWIO"
@@ -230,22 +227,15 @@ def test_conv2d_symmetric_padding_int8(
 
 
 @tvm.testing.requires_cmsisnn
-@pytest.mark.parametrize("ifm_shape", [(1, 25, 25, 12)])
-@pytest.mark.parametrize("kernel_size", [(5, 5)])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("strides, dilation", [((2, 2), (1, 1))])
-@pytest.mark.parametrize("relu_type", ["RELU"])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
 @pytest.mark.parametrize("enable_bias", [True, False])
 @pytest.mark.parametrize(
     "input_zero_point, input_scale, kernel_scale, out_channels",
     [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
 )
 def test_conv2d_asymmetric_padding_int8(
-    ifm_shape,
-    kernel_size,
     padding,
-    strides,
-    dilation,
     enable_bias,
     relu_type,
     input_zero_point,
@@ -257,6 +247,10 @@ def test_conv2d_asymmetric_padding_int8(
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
 
+    ifm_shape = (1, 25, 25, 12)
+    kernel_size = (5, 5)
+    strides = (2, 2)
+    dilation = (1, 1)
     dtype = "int8"
     groups = 1
     weight_format = "HWIO"
