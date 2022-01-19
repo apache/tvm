@@ -553,7 +553,11 @@ class TVMScriptParser(Transformer):
 
         if isinstance(node.rhs, ast.Call):
             # Pattern 1 & Pattern 4
-            func = self.transform(node.rhs.func_name)
+            if isinstance(node.rhs.func_name, ast.Op):
+                func = None
+            else:
+                func = self.transform(node.rhs.func_name)
+
             if isinstance(func, WithScopeHandler):
                 if not func.concise_scope or not func.def_symbol:
                     self.report_error(
@@ -633,6 +637,25 @@ class TVMScriptParser(Transformer):
             self.report_error(
                 "Use of tir.Store has been deprecated in favor of tir.BufferStore.", node.span
             )
+
+    def transform_AttrAssign(self, node):
+        """Visitor for statements of the form :code:`x.y = 2`."""
+        obj = self.transform(node.params[0])
+        field = node.params[1]
+        value = self.transform(node.params[2])
+
+        if not hasattr(obj, field.name):
+            self.error(f"Field {field.name} does not exist", field.span)
+
+        var = getattr(obj, field.name)
+
+        if not isinstance(var, tvm.tir.Var):
+            self.error(
+                f"Can only assign to tir.Var attributes, not {type(var).__name__}", node.span
+            )
+
+        body = self.parse_body(node)
+        return tvm.tir.LetStmt(var, value, body, span=tvm_span_from_synr(node.span))
 
     def transform_Assert(self, node):
         """Assert visitor
@@ -859,12 +882,15 @@ class TVMScriptParser(Transformer):
         """
         # Only allowed builtin operator that can be a statement is x[1] = 3 i.e. subscript assign.
         if isinstance(node.call.func_name, ast.Op):
-            if node.call.func_name.name != ast.BuiltinOp.SubscriptAssign:
-                self.report_error(
-                    "Binary and unary operators are not allowed as a statement", node.span
-                )
-            else:
+            if node.call.func_name.name == ast.BuiltinOp.SubscriptAssign:
                 return self.transform_SubscriptAssign(node.call)
+
+            if node.call.func_name.name == ast.BuiltinOp.AttrAssign:
+                return self.transform_AttrAssign(node.call)
+
+            self.report_error(
+                "Binary and unary operators are not allowed as a statement", node.span
+            )
 
         # handle a regular function call
         func = self.transform(node.call.func_name)
