@@ -230,45 +230,6 @@ def register_unary_elementwise_table_lookup_op(op_name, floating_point_func):
             out_dtype=out_dtype,
         )
         return [result, type_map[expr]]
-        arg = expr.args[0]
-
-        if (
-            not isinstance(in_scale, relay.Constant)
-            or not isinstance(in_zero_point, relay.Constant)
-            or not isinstance(out_scale, relay.Constant)
-            or not isinstance(out_zero_point, relay.Constant)
-        ):
-            raise ValueError(
-                f"{op_name} requires input/output quantization params to be known at compile time!"
-            )
-
-        # TODO: handle multi-channel q
-        in_scale = in_scale.data.numpy().item()
-        in_zero_point = in_zero_point.data.numpy().item()
-        out_scale = out_scale.data.numpy().item()
-        out_zero_point = out_zero_point.data.numpy().item()
-
-        lookup_table = create_integer_lookup_table(
-            floating_point_func,
-            relay.const(in_scale),
-            relay.const(in_zero_point, dtype="int32"),
-            relay.const(out_scale),
-            relay.const(out_zero_point, dtype="int32"),
-            in_axis=type_map[arg].axis,
-            in_dtype=type_map[arg].dtype,
-            out_axis=type_map[expr].axis,
-            out_dtype=type_map[expr].dtype,
-        )
-
-        in_dtype_info = np.iinfo(type_map[arg].dtype)
-        in_dtype_num_bits = in_dtype_info.bits
-
-        lookup_table = relay.const(lookup_table)
-        index_tensor = relay.reshape(arg, [-1])
-        index_tensor = relay.reinterpret(index_tensor, f"uint{in_dtype_num_bits}")
-        result = relay.gather(lookup_table, -1, index_tensor)
-        result = relay.reshape_like(result, arg)
-        return [result, type_map[expr]]
 
     return register_fake_quantization_to_integer(op_name, func)
 
