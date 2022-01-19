@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
+from tvm.relay.transform import fake_quantization_to_integer
 
 
 def compare_fq_to_int(expr, args, allow_rounding_error=False):
@@ -571,6 +572,32 @@ def test_fake_quantize_max_min():
     # Test forwarding kwargs works
     run_test_case(lambda x: relay.op.max(x, axis=1))
     run_test_case(lambda x: relay.op.min(x, axis=1))
+
+
+class TestIntegerTableLookupTable:
+    """Consists of tests testing functionality of creating lookup tables for integer operations."""
+
+    # def __init__(self) -> None:
+    #     self.input = np.arange(start=0, stop=256, dtype="uint8")
+
+    def fake_identity_func_numpy(self, arr: np.ndarray):
+        return arr.astype("float32")
+
+    """
+    def fake_identity_func_relay(self):
+        fake_quantization_to_integer.register_fake_quantization_to_integer.fu
+    """
+
+    def test_int8_to_int8(self):
+        relay_result = fake_quantization_to_integer.create_integer_lookup_table(
+            self.uint8_identity_func,
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            relay.const(1.0, dtype="float32"),
+            relay.const(0, dtype="int32"),
+            in_dtype="int8",
+            out_dtype="int8",
+        )
 
 
 def test_fake_quantize_tanh():
