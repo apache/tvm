@@ -307,7 +307,7 @@ def conv_dgrad_shape(
         P, Q = dy_shape[2:]
         R, S = w_shape[2:]
     else:
-        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+        raise ValueError("Unsupported CuDNN tensor format: '{}'".format(tensor_format))
 
     input_dims = []
     for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
@@ -318,10 +318,8 @@ def conv_dgrad_shape(
 
     if tensor_format == 0:
         output = [N, C, *input_dims]
-    elif tensor_format == 1:
-        output = [N, *input_dims, C]
     else:
-        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+        output = [N, *input_dims, C]
 
     return output
 
@@ -421,7 +419,7 @@ def conv_forward_find_algo(
         y_shape,
         data_dtype,
         conv_dtype,
-        groups=1,
+        groups,
     )
 
 
@@ -480,7 +478,7 @@ def conv_backward_data_find_algo(
         dx_shape,
         data_dtype,
         conv_dtype,
-        groups=1,
+        groups,
     )
 
 
@@ -496,7 +494,7 @@ def conv_backward_filter_find_algo(
     conv_dtype,
     groups=1,
 ):
-    """Choose the best algo for the given input.
+    """Choose the best backward filter algorithm for the given input.
 
     Paramters
     ---------
@@ -539,7 +537,7 @@ def conv_backward_filter_find_algo(
         dw_shape,
         data_dtype,
         conv_dtype,
-        groups=1,
+        groups,
     )
 
 
@@ -774,7 +772,7 @@ def conv_backward_data(
 def conv_backward_filter(
     dy, x, kernel_size, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
 ):
-    """Create a CuDNN extern op that computes the gradient of 2D convolution with respect to data.
+    """Create a CuDNN extern op that computes the gradient of 2D convolution with respect to weight.
 
     Parameters
     ----------

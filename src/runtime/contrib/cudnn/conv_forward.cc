@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file Use external cudnn utils function
+ * \file cuDNN kernel calls for the forward algorithm.
  */
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>

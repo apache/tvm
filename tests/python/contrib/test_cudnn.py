@@ -245,7 +245,6 @@ def verify_conv2d_backward_data(data_dtype, conv_dtype, tensor_format=0, tol=1e-
     stride_h, stride_w = 1, 1
     height, width = 32, 32
 
-    # schedule
     if tensor_format == 0:
         xshape = [batch, in_channel, height, width]
         wshape = [out_channel, in_channel, filter_h, filter_w]
@@ -292,7 +291,6 @@ def verify_conv2d_backward_data(data_dtype, conv_dtype, tensor_format=0, tol=1e-
 
     s = te.create_schedule(dx.op)
 
-    # validation
     dev = tvm.cuda(0)
     f = tvm.build(s, [dy, w, dx], "cuda --host=llvm", name="conv2d_backward_data")
 
@@ -389,7 +387,6 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
     stride_h, stride_w = 1, 1
     height, width = 32, 32
 
-    # schedule
     if tensor_format == 0:
         x_shape = [batch, in_channel, height, width]
         dy_shape = [batch, out_channel, height, width]
@@ -425,15 +422,14 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
 
     s = te.create_schedule(dw.op)
 
-    # validation
     dev = tvm.cuda(0)
-    f = tvm.build(s, [x, dy, dw], "cuda --host=llvm", name="conv2d_backward_filter")
+    f = tvm.build(s, [dy, x, dw], "cuda --host=llvm", name="conv2d_backward_filter")
 
     x = tvm.nd.array(x_np, dev)
     dy = tvm.nd.array(dy_np, dev)
     dw = tvm.nd.array(dw_np, dev)
 
-    f(x, dy, dw)
+    f(dy, x, dw)
     print(np.max(np.abs(dw.numpy() - dw_np)))
     print(np.mean(np.abs(dw.numpy() - dw_np)))
     tvm.testing.assert_allclose(dw.numpy(), dw_np, atol=tol, rtol=tol)
@@ -519,5 +515,5 @@ def conv_output_shape_kwargs(request):
 
 if __name__ == "__main__":
     # sys.exit(pytest.main(sys.argv))
-    # test_conv2d_backward_data()
+    test_conv2d_backward_data()
     test_conv2d_backward_filter()
