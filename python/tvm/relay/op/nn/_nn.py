@@ -1080,7 +1080,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
-    data, grad = inputs
+    grad, data = inputs
     data_shape = get_const_tuple(data.checked_type.shape)
     weight_shape = get_const_tuple(types[2].shape)
     _, out_channel, grad_h, grad_w = get_const_tuple(grad.checked_type.shape)

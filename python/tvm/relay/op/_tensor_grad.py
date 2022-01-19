@@ -425,16 +425,16 @@ def conv2d_grad(orig, grad):
     )
 
     backward_weight = _nn.conv2d_backward_weight(
-        data,
         grad,
+        data,
         strides=attrs.strides,
         padding=attrs.padding,
         dilation=attrs.dilation,
         groups=attrs.groups,
         channels=attrs.channels,
         kernel_size=(filter_h, filter_w),
-        data_layout=attrs.data_layout,
         grad_layout=attrs.out_layout if attrs.out_layout else attrs.data_layout,
+        data_layout=attrs.data_layout,
         kernel_layout=attrs.kernel_layout,
         out_dtype=attrs.out_dtype,
     )

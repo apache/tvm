@@ -234,7 +234,7 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
     dy = relay.var("dy", shape=dy_shape, dtype=dtype)
     x = relay.var("x", shape=x_shape, dtype=dtype)
     dw = relay.nn.conv2d_backward_weight(
-        x, dy, strides=stride, padding=padding, kernel_size=kernel_size
+        dy, x, strides=stride, padding=padding, kernel_size=kernel_size
     )
     dw_func = relay.Function([dy, x], dw)
     dw_func_legalized = run_opt_pass(dw_func, relay.transform.Legalize())

@@ -3773,28 +3773,26 @@ def batch_to_space_nd(data, block_shape, crops):
 
 
 def conv2d_backward_weight(
-    data,
     grad,
+    data,
     strides=(1, 1),
     padding=(0, 0),
     dilation=(1, 1),
     groups=1,
     channels=None,
     kernel_size=None,
-    data_layout="NCHW",
     grad_layout="NCHW",
+    data_layout="NCHW",
     kernel_layout="OIHW",
     out_dtype="",
 ):
     r"""The gradient of conv2d with respect to weight.
 
-    This operator takes the output gradient `grad` as the convolution kernel
-    and convolves it with `data` to produce the gradient with respect to weight.
-    Depending on an implementation, the roles of `data` and `grad` can be swapped
-    (For example, in CUTLASS `data` acts as the filter).
+    This operator takes the output gradient `grad` and convolves it with `data` as
+    the convolution kernel, to produce the gradient with respect to weight.
 
     Note that the parameter `kernel_size` is the spatial size of the corresponding
-    forward convolution kernel, not that of `grad`. `grad_layout` and
+    forward convolution kernel, not that of `data`. `grad_layout` and
     `kernel_layout` are the layouts of `grad` and the weight gradient respectively.
 
     Other parameters are the same as the conv2d op. See its documentation for more
@@ -3810,16 +3808,16 @@ def conv2d_backward_weight(
     padding = get_pad_tuple2d(padding)
 
     return _make.conv2d_backward_weight(
-        data,
         grad,
+        data,
         strides,
         padding,
         dilation,
         groups,
         channels,
         kernel_size,
-        data_layout,
         grad_layout,
+        data_layout,
         kernel_layout,
         out_dtype,
     )
