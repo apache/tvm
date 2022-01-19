@@ -161,5 +161,71 @@ def test_skip_ci(tmpdir_factory):
     )
 
 
+def test_ping_reviewers():
+    reviewers_script = REPO_ROOT / "tests" / "scripts" / "ping_reviewers.py"
+
+    def run(pr, check):
+        data = {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [pr],
+                        "edges": [],
+                    }
+                }
+            }
+        }
+        proc = subprocess.run(
+            [
+                str(reviewers_script),
+                "--dry-run",
+                "--wait-time-minutes",
+                "1",
+                "--cutoff-pr-number",
+                "5",
+                "--allowlist",
+                "user",
+                "--pr-json",
+                json.dumps(data),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+        assert check in proc.stdout
+
+    run(
+        {
+            "isDraft": True,
+        },
+        "Checking 0 PRs",
+    )
+
+    run(
+        {
+            "isDraft": False,
+            "number": 2,
+        },
+        "Checking 0 PRs",
+    )
+
+    run(
+        {
+            "number": 123,
+            "url": "https://github.com/apache/tvm/pull/123",
+            "body": "cc @someone",
+            "isDraft": False,
+            "author": {"login": "user"},
+            "reviews": {"nodes": []},
+            "publishedAt": "2022-01-18T17:54:19Z",
+            "comments": {"nodes": []},
+        },
+        "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
+    )
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))
