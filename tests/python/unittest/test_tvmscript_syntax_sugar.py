@@ -172,7 +172,7 @@ def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
         with T.block("gemm"):
             vi, vj, vk = T.axis.remap("SSR", [i, j, k])
             with T.init():
-                C[vi, vj] = 0.
+                C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
