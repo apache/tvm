@@ -81,7 +81,8 @@ def test_cnn_small():
     # download the model
     base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
-    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_to_download)
+    file_saved = "cnn_s_quantized_15Dec2021.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
 
     with open(model_file, "rb") as f:
         tflite_model_buf = f.read()
