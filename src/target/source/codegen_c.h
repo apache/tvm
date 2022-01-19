@@ -163,18 +163,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  /*!
-   * Print Type represetnation of type t.
-   * \param t The type representation.
-   * \param os The stream to print the ctype into
-   */
-  virtual void PrintType(DataType t, std::ostream& os);  // NOLINT(*)
-  /*!
-   * Print Type represetnation of type type.
-   * \param type The type representation.
-   * \param os The stream to print the ctype into
-   */
-  virtual void PrintType(const Type& type, std::ostream& os);  // NOLINT(*)
+
   /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;

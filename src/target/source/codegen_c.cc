@@ -362,61 +362,6 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  
   ICHECK_EQ(scope, "global");
 }
 
-void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  ICHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
-  if (t.is_handle()) {
-    os << "void*";
-    return;
-  }
-  if (t.is_float()) {
-    if (t.bits() == 32) {
-      os << "float";
-      return;
-    }
-    if (t.bits() == 64) {
-      os << "double";
-      return;
-    }
-  } else if (t.is_uint()) {
-    switch (t.bits()) {
-      case 8:
-      case 16:
-      case 32:
-      case 64: {
-        os << "uint" << t.bits() << "_t";
-        return;
-      }
-      case 1:
-        os << "int";
-        return;
-    }
-  } else if (t.is_int()) {
-    switch (t.bits()) {
-      case 8:
-      case 16:
-      case 32:
-      case 64: {
-        os << "int" << t.bits() << "_t";
-        return;
-      }
-    }
-  }
-  LOG(FATAL) << "Cannot convert type " << t << " to C type";
-}
-
-void CodeGenC::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
-  if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    PrintType(ptr->element_type, os);
-    os << '*';
-  } else if (IsVoidType(type)) {
-    os << "void";
-  } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
-  }
-}
-
 inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
   if (op->dtype == DataType::Int(32)) {
     std::ostringstream temp;
