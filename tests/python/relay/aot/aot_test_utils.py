@@ -702,8 +702,9 @@ def run_and_check(
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
-        workspace_bytes += model.extra_memory_in_bytes
-        if interface_api == "packed":
+        workspace_bytes = model.extra_memory_in_bytes
+        use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+        if interface_api == "packed" and not use_usmp:
             workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
@@ -815,6 +816,7 @@ def compile_and_run(
         target=target,
         target_opts=target_opts,
     )
+
     run_and_check(
         models=compiled_test_mods,
         runner=runner,
