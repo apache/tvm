@@ -153,6 +153,16 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write);
   /*!
+   * \brief Create a rule: add-rfactor to some blocks if needed
+   * \param max_jobs_per_core The maximum number of jobs to be launched per CPU core. It sets the
+   * uplimit of CPU parallelism, i.e. `num_cores * max_jobs_per_core`. Use -1 to disable
+   * parallelism.
+   * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule AddRFactor(int max_jobs_per_core,  //
+                                         Optional<Integer> max_innermost_factor);
+  /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The rule created
    */
