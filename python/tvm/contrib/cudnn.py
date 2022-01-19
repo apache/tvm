@@ -258,6 +258,74 @@ def conv_output_shape(
     return output
 
 
+def conv_dgrad_shape(
+    tensor_format, pad, stride, dilation, dy_shape, w_shape, data_dtype, conv_dtype, groups=1
+):
+    """Get output shape of conv2d gradient with respect to data
+
+    Paramters
+    ---------
+    tensor_format: int
+        0: CUDNN_TENSOR_NCHW
+        1: CUDNN_TENSOR_NHWC
+    pad: int or list
+        padding
+    stride: int or list
+        stride
+    dilation: int or list
+        dilation
+    dy_shape: list
+        output gradient shape
+    w_shape: list
+        weight shape
+    data_dtype: str
+        data type
+    conv_dtype: str
+        convolution type
+    groups: int
+        number of groups
+
+    Returns
+    -------
+    oshape: list
+        output shape
+    """
+
+    assert len(dy_shape) == len(w_shape)
+    assert len(dy_shape) == 4
+
+    if tensor_format == 0:
+        N = dy_shape[0]
+        K = w_shape[0]
+        C = w_shape[1]
+        P, Q = dy_shape[2:]
+        R, S = w_shape[2:]
+    elif tensor_format == 1:
+        N = dy_shape[0]
+        K = w_shape[0]
+        C = w_shape[1]
+        P, Q = dy_shape[2:]
+        R, S = w_shape[2:]
+    else:
+        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+
+    input_dims = []
+    for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
+        dy_shape, w_shape, pad, stride, dilation
+    ):
+        input_dim = (dy_shape_i - 1) * stride_i - 2 * pad_i + (((w_shape_i - 1) * dilation_i) + 1)
+        input_dims.append(input_dim)
+
+    if tensor_format == 0:
+        output = [N, C, *input_dims]
+    elif tensor_format == 1:
+        output = [N, *input_dims, C]
+    else:
+        raise ValueError("Unknown CuDNN tensor format: '{}'".format(tensor_format))
+
+    return output
+
+
 def conv_find_algo(
     tensor_format,
     pad,
@@ -612,17 +680,11 @@ def conv_backward_data(
     conv_dtype = dy.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
 
-    x_shape = list(dy.shape)
-
     assert isinstance(
         dy.shape[0], tvm.tir.expr.IntImm
     ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
-    # TODO: fix oshape
-    oshape = x_shape
-    if tensor_format == 0:
-        oshape[1] = w.shape[1]
-    else:
-        oshape[3] = w.shape[3]
+
+    x_shape = conv_dgrad_shape(tensor_format, pad, stride, dilation, dy.shape, w.shape, dy.dtype, conv_dtype, groups)
 
     algo = conv_backward_data_find_algo(
         tensor_format,
@@ -631,14 +693,14 @@ def conv_backward_data(
         dilation,
         list(dy.shape),
         list(w.shape),
-        oshape,
+        x_shape,
         dy.dtype,
         conv_dtype,
         groups,
     )
 
     return te.extern(
-        oshape,
+        x_shape,
         [dy, w],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_data",
@@ -662,10 +724,10 @@ def conv_backward_data(
 
 
 def conv_backward_filter(
-    x, dy, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+        x, dy, kernel_size, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
 ):
     dims = len(x.shape)
-    assert dims in (4, 5)
+    assert dims == 4
 
     conv_dtype = x.dtype if conv_dtype is None else conv_dtype
     pad, stride, dilation, _, _ = _prepare_global_func_params(dims - 2, pad, stride, dilation)
@@ -675,12 +737,13 @@ def conv_backward_filter(
     assert isinstance(
         x.shape[0], tvm.tir.expr.IntImm
     ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
-    # TODO: fix oshape
+
     oshape = x_shape
+    filter_h, filter_w = kernel_size
     if tensor_format == 0:
-        oshape = [dy.shape[1], x_shape[1], 3, 3]
+        oshape = [dy.shape[1], x_shape[1], filter_h, filter_w]
     else:
-        oshape = [dy.shape[3], 3, 3, x_shape[3]]
+        oshape = [dy.shape[3], filter_h, filter_w, x_shape[3]]
 
     algo = conv_backward_filter_find_algo(
         tensor_format,
@@ -697,7 +760,7 @@ def conv_backward_filter(
 
     return te.extern(
         oshape,
-        [x, dy],
+        [dy, x],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cudnn.conv2d.backward_filter",
             conv_mode,
