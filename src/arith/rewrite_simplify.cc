@@ -820,7 +820,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
     TVM_TRY_REWRITE_IF(floordiv(x * y, y), x, CanProveGreaterEqual(y.Eval(), 0));
     TVM_TRY_REWRITE_IF(floordiv(y * x, y), x, CanProveGreaterEqual(y.Eval(), 0));
 
-    if ((floordiv(x, y)).Match(ret) && analyzer_->CanProve(x.Eval() < y.Eval())) {
+    if ((floordiv(x, y)).Match(ret) && analyzer_->CanProve(x.Eval() < y.Eval()) &&
+        analyzer_->CanProve(-x.Eval() < y.Eval())) {
       return 0;
     }
 

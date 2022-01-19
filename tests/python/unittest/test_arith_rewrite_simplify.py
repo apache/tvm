@@ -111,6 +111,14 @@ def test_vector_simplify():
         fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
         fld(tvm.tir.Ramp(x * 7, 1, 4), tvm.tir.Broadcast(64, 4)),
     )  # Example negative case: x = 9; [63, 70, 77, 84] % 64 = [0, 1, 1, 1]
+    a, b = te.var("a"), te.var("b")
+    ck.analyzer.update(a, tvm.arith.ConstIntBound(0, 99), override=True)
+    ck.analyzer.update(b, tvm.arith.ConstIntBound(100, 200), override=True)
+    ck.verify(fld(a, b), 0)
+    ck.verify(fld(a, b) + x, x)
+    ck.analyzer.update(a, tvm.arith.ConstIntBound(-99, 0), override=True)
+    ck.verify(fld(a, b), 0)
+    ck.verify(fld(a, b) + x, x)
 
     # floor mod
     ck.verify(flm(y.astype("int32x2"), x.astype("int32x2")), flm(y, x).astype("int32x2"))
