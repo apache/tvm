@@ -596,6 +596,14 @@ TVM_DLL const Op& tvm_store_matrix_sync();
  */
 TVM_DLL const Op& ptx_mma();
 
+/*!
+ * \brief tvm intrinsic for sparse tensor core ptx instructions.
+ *
+ * void tvm_ptx_mma_sp(TODO)
+ */
+TVM_DLL const Op& tvm_ptx_mma_sp();
+
+
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
