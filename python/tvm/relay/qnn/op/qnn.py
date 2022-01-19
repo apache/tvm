@@ -105,14 +105,18 @@ def quantize(data, output_scale, output_zero_point, axis=-1, out_dtype="int8"):
     ----------
     data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
-    output_zero_point : tvm.relay.Expr
-        The output zero_point.
+
     output_scale : tvm.relay.Expr
         The output scale.
+
+    output_zero_point : tvm.relay.Expr
+        The output zero_point.
+
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
     out_dtype : str, optional
         The data type of the input tensor. Can be [int8, uint8, int32]
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -132,14 +136,18 @@ def simulated_quantize(data, output_scale, output_zero_point, axis=-1, out_dtype
     ----------
     data : tvm.relay.Expr
         The input tensor to be quantized. Can be of type float32.
-    output_zero_point : tvm.relay.Expr
-        The output zero_point.
-    output_scale : tvm.relay.Expr
-        The output scale.
-    axis : int
-        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     out_dtype : string or tvm.relay.Expr
         A string or tensor indicating which datatype to quantize to.
+
+    output_scale : tvm.relay.Expr
+        The output scale.
+
+    output_zero_point : tvm.relay.Expr
+        The output zero_point.
+
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
 
     Returns
     -------
@@ -166,12 +174,16 @@ def dequantize(data, input_scale, input_zero_point, axis=-1):
     ----------
     data : tvm.relay.Expr
         The input tensor to be dequantized. Can be of type [int8, uint8, int32].
-    input_zero_point : tvm.relay.Expr
-        The input zero_point.
+
     input_scale : tvm.relay.Expr
         The input scale.
+
+    input_zero_point : tvm.relay.Expr
+        The input zero_point.
+
     axis : int
         The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     Returns
     -------
     result : tvm.relay.Expr
@@ -191,14 +203,18 @@ def simulated_dequantize(data, input_scale, input_zero_point, axis=-1, in_dtype=
     ----------
     data : tvm.relay.Expr
         The input tensor to be dequantized.
-    input_zero_point : tvm.relay.Expr
-        The input zero_point.
-    input_scale : tvm.relay.Expr
-        The input scale.
-    axis : int
-        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
+
     in_dtype : string or tvm.relay.Expr
         A string or tensor indicating which datatype to dequantize from.
+
+    input_scale : tvm.relay.Expr
+        The input scale.
+
+    input_zero_point : tvm.relay.Expr
+        The input zero_point.
+
+    axis : int
+        The channel axis for quantization. Default value is -1 which corresponds to the last axis.
 
     Returns
     -------
