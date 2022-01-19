@@ -22,8 +22,9 @@
 name: PR
 
 on:
+  # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target
   pull_request_target:
-    types: [assigned, opened, synchronize, reopened]
+    types: [assigned, opened, synchronize, reopened, edited, ready_for_review]
 
 concurrency:
   group: PR-${{ github.event.pull_request.number }}
