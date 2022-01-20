@@ -1462,9 +1462,9 @@ class PyTorchOpConverter:
         a_shape = self.infer_shape_with_prelude(inputs[0])
         b_shape = self.infer_shape_with_prelude(inputs[1])
         if len(a_shape) == 2 and len(b_shape) == 2:
-            mm_out = _op.nn.dense(inputs[0], inputs[1])
+            mm_out = _op.nn.dense(*inputs[0:2:1])
         elif len(b_shape) == 1:
-            mm_out = self.matmul([inputs[0], inputs[1]], input_types[:2])
+            mm_out = self.matmul([*inputs[0:2:1]], input_types[:2])
         else:
             mm_out = self.matmul(
                 [inputs[0], _op.transpose(inputs[1], axes=(1, 0))], input_types[:2]
