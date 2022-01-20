@@ -316,8 +316,9 @@ class BlockizedBindingExtractor {
         outer_iter_vars.push_back(iter_var);
       } else {
         // create iter var for the outer block
-        const IterVar outer_var(Range::FromMinExtent(0, division[i][0]->extent),
-                                iter_var->var.copy_with_suffix("o"), iter_var->iter_type);
+        const IterVar outer_var(/*dom=*/Range::FromMinExtent(0, division[i][0]->extent),
+                                /*var=*/iter_var->var.copy_with_suffix("_o"),
+                                /*iter_type=*/iter_var->iter_type);
         outer_bindings.push_back(
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(outer_binding)));
         outer_iter_vars.push_back(outer_var);
