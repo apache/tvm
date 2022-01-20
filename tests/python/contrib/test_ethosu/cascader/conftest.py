@@ -29,7 +29,11 @@ if ethosu_enabled:
     from tvm.relay.testing import run_opt_pass
 
     from .infra import create_te_graph
-    from ..infra import make_ethosu_conv2d
+    from ..infra import (
+        make_ethosu_conv2d,
+        make_ethosu_depthwise_conv2d,
+        make_ethosu_binary_elementwise,
+    )
 
     def make_TwoConv2DWithSliceTE():
         def _get_func():
@@ -71,3 +75,62 @@ if ethosu_enabled:
     @pytest.fixture
     def TwoConv2DWithSliceTE():
         return make_TwoConv2DWithSliceTE()
+
+    def make_MobileNetv2DiamondTE():
+        def _get_func():
+            ifm = relay.var("ifm", shape=(1, 56, 56, 96), dtype="int8")
+            conv1 = make_ethosu_conv2d(
+                ifm=ifm,
+                ifm_channels=96,
+                ofm_channels=24,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv2 = make_ethosu_conv2d(
+                ifm=conv1,
+                ifm_channels=24,
+                ofm_channels=144,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            depth1 = make_ethosu_depthwise_conv2d(
+                ifm=conv2,
+                channels=144,
+                kernel_shape=(3, 3),
+                padding=(1, 1, 1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            conv3 = make_ethosu_conv2d(
+                ifm=depth1,
+                ifm_channels=144,
+                ofm_channels=24,
+                kernel_shape=(1, 1),
+                padding=(0, 0, 0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+            )
+            add1 = make_ethosu_binary_elementwise(
+                ifm=conv1,
+                ifm2=conv3,
+                ifm_channels=24,
+                ifm2_channels=24,
+                operator_type="ADD",
+                ofm_dtype="int8",
+            )
+            func = relay.Function(relay.analysis.free_vars(add1), add1)
+            func = run_opt_pass(func, relay.transform.InferType())
+            return func
+
+        func = _get_func()
+        te_graph, const_dict = create_te_graph(func)
+        sch = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+        return sch, te_graph, const_dict
+
+    @pytest.fixture
+    def MobileNetv2DiamondTE():
+        return make_MobileNetv2DiamondTE()

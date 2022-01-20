@@ -297,7 +297,9 @@ def match_ethosu_conv2d(output_tensor, device_config):
         conv2d.op.name, ifm_channels, ifm_dtype, kernel_elements
     )
     subkernels = len(
-        device_config.get_kernel_steps(kernel_height, kernel_width, ifm_dtype, is_part_kernel)
+        device_config.get_kernel_steps(
+            conv2d.op.name, kernel_height, kernel_width, ifm_dtype, is_part_kernel
+        )
     )
 
     output_layout = convert_to_nhcwb16.op.attrs["layout"]
