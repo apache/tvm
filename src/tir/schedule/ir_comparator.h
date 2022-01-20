@@ -19,6 +19,11 @@
 #ifndef TVM_TIR_SCHEDULE_IR_COMPARATOR_H_
 #define TVM_TIR_SCHEDULE_IR_COMPARATOR_H_
 
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
 #include "./utils.h"
 
 namespace tvm {

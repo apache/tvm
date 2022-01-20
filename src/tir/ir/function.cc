@@ -76,10 +76,14 @@ class TensorIntrinManager {
 
 TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   // Check the number of func var is equal
-  CHECK_EQ(desc->params.size(), impl->params.size()) << "ValueError: The number of parameters of the description and the implementation of the tensor intrinsic doesn't match.";
+  CHECK_EQ(desc->params.size(), impl->params.size())
+      << "ValueError: The number of parameters of the description and the implementation of the "
+         "tensor intrinsic doesn't match.";
   for (size_t i = 0; i < desc->params.size(); i++) {
-      CHECK(desc->params[i]->dtype.is_handle()) << "ValueError: Parameters of the description of the tensor intrinsic should be handle only.";
-      CHECK(impl->params[i]->dtype.is_handle()) << "ValueError: Parameters of the implementation of the tensor intrinsic should be handle only.";
+    CHECK(desc->params[i]->dtype.is_handle()) << "ValueError: Parameters of the description of the "
+                                                 "tensor intrinsic should be handle only.";
+    CHECK(impl->params[i]->dtype.is_handle()) << "ValueError: Parameters of the implementation of "
+                                                 "the tensor intrinsic should be handle only.";
   }
   ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
 
@@ -99,8 +103,7 @@ void TensorIntrin::Register(String name, TensorIntrin intrin) {
 TensorIntrin TensorIntrin::Get(String name) {
   const TensorIntrinManager* manager = TensorIntrinManager::Global();
   auto it = manager->reg.find(name);
-  CHECK(it != manager->reg.end())
-      << "ValueError: TensorIntrin '" << name << "' is not registered";
+  CHECK(it != manager->reg.end()) << "ValueError: TensorIntrin '" << name << "' is not registered";
   return manager->reg.at(name);
 }
 

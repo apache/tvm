@@ -393,7 +393,8 @@ TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
  * \param block_or_loop_sref The block or loop to be tensorized.
  * \param intrin The tensor intrinsic.
  */
-TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const TensorIntrin& intrin);
+TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
+                       const TensorIntrin& intrin);
 
 /******** Schedule: Annotation ********/
 /*!
