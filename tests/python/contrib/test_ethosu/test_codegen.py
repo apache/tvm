@@ -1000,7 +1000,6 @@ def test_tflite_split(accel_type, ifm_shape, num_or_size_splits, axis):
 )
 def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     dtype = "int8"
-    ifm_shape = [1, 8, 8, 3]
 
     def create_model():
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")

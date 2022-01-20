@@ -1509,7 +1509,6 @@ def test_tflite_split_v_legalize(ifm_shape, num_or_size_splits, axis):
 )
 def test_ethosu_requantize(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
     dtype = "int8"
-    ifm_shape = [1, 8, 8, 3]
 
     def create_model():
         ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
@@ -1561,7 +1560,7 @@ def test_ethosu_requantize(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
 
 def test_multiple_requantize_offload():
     """
-    Testing requantize offload in the case one requauntize operation is part of
+    Testing requantize offload in the case one requantize operation is part of
     an existing pattern (in this case Mean: cast->mean->requantize) and the
     other is a stand-alone requantize.
     """
