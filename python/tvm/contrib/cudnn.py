@@ -285,68 +285,6 @@ def conv_output_shape(
     return output
 
 
-def _conv_output_shape_from_cudnn(
-    tensor_format, pad, stride, dilation, x_shape, w_shape, data_dtype, conv_dtype, groups=1
-):
-    """Get output shape of 2D or 3D convolution.  The output of this
-    function should be identical to that of conv_output_shape, but
-    requires a GPU with CuDNN to be present.  This is maintained for
-    testing purposes to validate the output of conv_output_shape.
-
-    Paramters
-    ---------
-    tensor_format: int
-        0: CUDNN_TENSOR_NCHW
-        1: CUDNN_TENSOR_NHWC
-        2: CUDNN_TENSOR_NCHW_VECT_C
-    pad: int or list
-        padding
-    stride: int or list
-        stride
-    dilation: int or list
-        dilation
-    x_shape: list
-        input shape
-    w_shape: list
-        weight shape
-    data_dtype: str
-        data type
-    conv_dtype: str
-        convolution type
-    groups: int
-        number of groups
-
-    Returns
-    -------
-    oshape: list
-        output shape
-
-    """
-    dims = len(x_shape)
-    assert dims in (4, 5)
-
-    pad, stride, dilation, xshape, wshape = _prepare_global_func_params(
-        dims - 2, pad, stride, dilation, x_shape, w_shape
-    )
-    oshape = np.zeros((dims), dtype=np.int32)
-
-    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn")
-    func(
-        tensor_format,
-        dims - 2,
-        _get_np_int32_array_handle(pad),
-        _get_np_int32_array_handle(stride),
-        _get_np_int32_array_handle(dilation),
-        _get_np_int32_array_handle(xshape),
-        _get_np_int32_array_handle(wshape),
-        _get_np_int32_array_handle(oshape),
-        data_dtype,
-        conv_dtype,
-        groups,
-    )
-    return list(oshape)
-
-
 def conv_find_algo(
     tensor_format,
     pad,

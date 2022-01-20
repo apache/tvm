@@ -17,56 +17,9 @@
 # under the License.
 
 import os
-import json
 import argparse
-import subprocess
-import re
-from urllib import request
-from typing import Dict, Tuple, Any
 
-
-class GitHubRepo:
-    def __init__(self, user, repo, token):
-        self.token = token
-        self.user = user
-        self.repo = repo
-        self.base = f"https://api.github.com/repos/{user}/{repo}/"
-
-    def headers(self):
-        return {
-            "Authorization": f"Bearer {self.token}",
-        }
-
-    def get(self, url: str) -> Dict[str, Any]:
-        url = self.base + url
-        print("Requesting", url)
-        req = request.Request(url, headers=self.headers())
-        with request.urlopen(req) as response:
-            response = json.loads(response.read())
-        return response
-
-
-def parse_remote(remote: str) -> Tuple[str, str]:
-    """
-    Get a GitHub (user, repo) pair out of a git remote
-    """
-    if remote.startswith("https://"):
-        # Parse HTTP remote
-        parts = remote.split("/")
-        if len(parts) < 2:
-            raise RuntimeError(f"Unable to parse remote '{remote}'")
-        return parts[-2], parts[-1].replace(".git", "")
-    else:
-        # Parse SSH remote
-        m = re.search(r":(.*)/(.*)\.git", remote)
-        if m is None or len(m.groups()) != 2:
-            raise RuntimeError(f"Unable to parse remote '{remote}'")
-        return m.groups()
-
-
-def git(command):
-    proc = subprocess.run(["git"] + command, stdout=subprocess.PIPE, check=True)
-    return proc.stdout.decode().strip()
+from git_utils import git, GitHubRepo, parse_remote
 
 
 if __name__ == "__main__":

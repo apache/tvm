@@ -214,7 +214,7 @@ def create_test_runner(accel="ethos-u55-256"):
         pass_config={
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
-            }
+            },
         },
     )
 

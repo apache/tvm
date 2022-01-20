@@ -33,7 +33,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "../runtime/meta_data.h"
+#include "../relay/backend/utils.h"
 
 namespace tvm {
 namespace codegen {
@@ -54,7 +54,7 @@ namespace codegen {
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
     const Array<runtime::Module>& ext_modules, Target target, tvm::relay::Runtime runtime,
-    runtime::Metadata metadata);
+    relay::backend::ExecutorCodegenMetadata metadata);
 
 }  // namespace codegen
 }  // namespace tvm

@@ -318,6 +318,26 @@ struct ThreadedTraceApply {
   Item* items_;
 };
 
+/*!
+ * \brief Get the number of cores in CPU
+ * \param target The target
+ * \return The number of cores.
+ */
+inline int GetTargetNumCores(const Target& target) {
+  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1);
+  if (num_cores == -1) {
+    static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
+    ICHECK(f_cpu_count)
+        << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
+    num_cores = (*f_cpu_count)(false);
+    LOG(FATAL)
+        << "Target does not have attribute \"num-cores\", physical core number must be "
+           "defined! For example, on the local machine, the target must be \"llvm -num-cores "
+        << num_cores << "\"";
+  }
+  return num_cores;
+}
+
 }  // namespace meta_schedule
 }  // namespace tvm
 

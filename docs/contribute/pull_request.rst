@@ -86,6 +86,8 @@ Here is the protocol to update CI image:
 - Tag the new version as the latest.
 - Periodically cleanup the old versions on local workers
 
+.. _pr-testing:
+
 Testing
 -------
 Even though we have hooks to run unit tests automatically for each pull request, it's always recommended to run unit tests

@@ -37,9 +37,25 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   } else if (name == "get_input_pipeline_map") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        *rv = this->GetInputPipeplineMapping(args[0].operator String());
+        *rv = this->GetInputPipeplineMap(args[0].operator String());
       } else {
         LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "get_params_group_pipeline_map") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        *rv = this->GetParamsGroupPipelineMap(args[0].operator String());
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "set_param") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0]) && String::CanConvertFrom(args[1])) {
+        this->SetParam(args[0].operator String(), args[1].operator String(), args[2]);
+      } else {
+        LOG(FATAL) << "Function only support the parameter name and the key in the form of string";
       }
     });
   } else {
@@ -55,9 +71,18 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
  * \param The global input name.
  * \return Returning the index and the input interface name of corresponding subgraph.
  */
-Array<String> PipelineExecutor::GetInputPipeplineMapping(std::string input_name) {
+Array<String> PipelineExecutor::GetInputPipeplineMap(std::string input_name) {
   std::pair<int, std::string> map = input_connection_config[input_name];
   return {std::to_string(map.first), map.second};
+}
+
+/*!
+ * \brief Return the module index for the parameters group name.
+ * \param name The parameters group name.
+ * \return int The module index.
+ */
+int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
+  return param_connection_config[name];
 }
 
 /*!
@@ -115,7 +140,18 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
   }
   return ret;
 }
-
+/*!
+ * \brief Set a parameter into a graph module.
+ * \param param_group_name The parameters group name.
+ * \param param_key_name The parameter key name.
+ * \param data_in The parameter data.
+ */
+void PipelineExecutor::SetParam(std::string param_group_name, std::string param_key_name,
+                                DLTensor* data_in) {
+  // Get the module index from the param name.
+  int module_index = this->GetParamsGroupPipelineMap(param_group_name);
+  // TODO(huajsj): set the parameters into runtime module.
+}
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.

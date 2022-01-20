@@ -123,12 +123,11 @@ class ExtractConstants(ExprMutator):
 
     def visit_constant(self, const):
         if isinstance(const.checked_type, relay.ty.TensorType):
-            if const.checked_type.concrete_shape != ():
-                self.constants.append(const.data.asnumpy())
-                name = "p" + str(len(self.constants))
-                var = relay.var(type_annotation=const.checked_type, name_hint=name)
-                self.const_vars.append(var)
-                return var
+            self.constants.append(const.data.asnumpy())
+            name = "p" + str(len(self.constants))
+            var = relay.var(type_annotation=const.checked_type, name_hint=name)
+            self.const_vars.append(var)
+            return var
 
         return const
 

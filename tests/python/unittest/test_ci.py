@@ -18,11 +18,39 @@
 import pathlib
 import subprocess
 import sys
+import json
 import tempfile
 
 import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+
+
+def test_cc_reviewers():
+    reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
+
+    def run(pr_body, expected_reviewers):
+        proc = subprocess.run(
+            [str(reviewers_script), "--dry-run"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={"PR": json.dumps({"number": 1, "body": pr_body})},
+            encoding="utf-8",
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+        assert proc.stdout.strip().endswith(f"Adding reviewers: {expected_reviewers}")
+
+    run(pr_body="abc", expected_reviewers=[])
+    run(pr_body="cc @abc", expected_reviewers=["abc"])
+    run(pr_body="cc @", expected_reviewers=[])
+    run(pr_body="cc @abc @def", expected_reviewers=["abc", "def"])
+    run(pr_body="some text cc @abc @def something else", expected_reviewers=["abc", "def"])
+    run(
+        pr_body="some text cc @abc @def something else\n\n another cc @zzz z",
+        expected_reviewers=["abc", "def", "zzz"],
+    )
 
 
 def test_skip_ci():

@@ -16,3 +16,4 @@
 # under the License.
 """The tvm.meta_schedule.postproc package."""
 from .postproc import Postproc, PyPostproc
+from .verify_gpu_code import VerifyGPUCode

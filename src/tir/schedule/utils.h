@@ -308,6 +308,72 @@ inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& an
   return result.defined() && result.value() == ann_val;
 }
 
+/*!
+ * \brief Check if a Block/For has a specific pair of annotation key and values
+ * \param sref The sref to the block or the for loop
+ * \param ann_key The annotation key to be checked
+ * \param ann_val The boolean annotation value to be checked
+ * \return Whether a Block/For has a specific pair of annotation key and values
+ */
+inline bool HasAnn(const StmtSRef& sref, const String& ann_key, bool ann_val) {
+  Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
+  return result.defined() && result.value()->value == ann_val;
+}
+
+/********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/
+
+/*!
+ * \brief Reorder the reduction loops to innermost positions if needed.
+ * \param sch The schedule
+ * \param block_rv The block where to apply the reorder
+ * \param fused_reduce_loop The fusion-generated loop to return.
+ * \param num_spatial_loops The number of spatial loops to return.
+ * \note Before invoking this helper function, make sure that the block has only spatial and
+ *       reduction loop axes.
+ */
+inline void ReorderAndFuseReductionLoops(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                         tir::LoopRV* fused_reduce_loop,
+                                         size_t* num_spatial_loops) {
+  Array<tir::LoopRV> loops = sch->GetLoops(block_rv);
+  Array<tir::StmtSRef> loop_srefs;
+  for (const tir::LoopRV& loop_rv : loops) {
+    loop_srefs.push_back(sch->GetSRef(loop_rv));
+  }
+
+  Array<tir::LoopRV> new_order;
+  // Step 1. Add spatial loops.
+  *num_spatial_loops = 0;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (GetLoopIterType(loop_srefs[i]) == tir::kDataPar) {
+      new_order.push_back(loops[i]);
+      (*num_spatial_loops)++;
+    }
+  }
+  // Step 2. Add reduction loops.
+  Array<tir::LoopRV> reduction_loops;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (GetLoopIterType(loop_srefs[i]) == tir::kCommReduce) {
+      new_order.push_back(loops[i]);
+      reduction_loops.push_back(loops[i]);
+    }
+  }
+  // Step 3. Apply reordering if new_order differs from the original order.
+  ICHECK_EQ(new_order.size(), loops.size());
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (!new_order[i].same_as(loops[i])) {
+      sch->Reorder(new_order);
+      break;
+    }
+  }
+  // Step 4. Fuse all the reduction loops if there are multiple reduction loops.
+  CHECK(!reduction_loops.empty()) << "ValueError: There should be at least one reduction loop";
+  if (reduction_loops.size() > 1) {
+    *fused_reduce_loop = sch->Fuse(reduction_loops);
+  } else {
+    *fused_reduce_loop = reduction_loops[0];
+  }
+}
+
 }  // namespace tir
 }  // namespace tvm
 
