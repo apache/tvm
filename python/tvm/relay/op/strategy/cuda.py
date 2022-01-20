@@ -598,6 +598,15 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
         wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
         name="conv2d_transpose_nchw.cuda",
     )
+
+    if target.kind.name == "cuda" and "cudnn" in target.libs and attrs.kernel_layout == "IOHW":
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="conv2d_transpose.cudnn.cuda",
+            plevel=25,
+        )
+    # TODO(masahi): Support conv2d_transpose NHWC.
     return strategy
 
 

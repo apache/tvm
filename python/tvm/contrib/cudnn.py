@@ -258,7 +258,9 @@ def conv_output_shape(
     return output
 
 
-def conv_dgrad_shape(tensor_format, pad, stride, dilation, dy_shape, w_shape):
+def conv_dgrad_shape(
+    tensor_format, pad, stride, dilation, dy_shape, w_shape, output_padding=(0, 0)
+):
     """Get output shape of conv2d gradient with respect to data
 
     Paramters
@@ -306,10 +308,12 @@ def conv_dgrad_shape(tensor_format, pad, stride, dilation, dy_shape, w_shape):
         raise ValueError("Unsupported CuDNN tensor format: '{}'".format(tensor_format))
 
     input_dims = []
-    for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i in zip(
-        dy_shape, w_shape, pad, stride, dilation
+    for dy_shape_i, w_shape_i, pad_i, stride_i, dilation_i, out_pad in zip(
+        dy_shape, w_shape, pad, stride, dilation, output_padding
     ):
-        input_dim = (dy_shape_i - 1) * stride_i - 2 * pad_i + (((w_shape_i - 1) * dilation_i) + 1)
+        input_dim = (
+            (dy_shape_i - 1) * stride_i - 2 * pad_i + (((w_shape_i - 1) * dilation_i) + 1) + out_pad
+        )
         input_dims.append(input_dim)
 
     if tensor_format == 0:
@@ -682,7 +686,16 @@ def conv_forward(x, w, pad, stride, dilation, conv_mode, tensor_format, algo, co
 
 
 def conv_backward_data(
-    dy, w, pad, stride, dilation, conv_mode, tensor_format, conv_dtype, groups=1
+    dy,
+    w,
+    pad,
+    stride,
+    dilation,
+    conv_mode,
+    tensor_format,
+    conv_dtype,
+    groups=1,
+    output_padding=(0, 0),
 ):
     """Create a CuDNN extern op that computes the gradient of 2D convolution with respect to data.
 
@@ -724,7 +737,9 @@ def conv_backward_data(
         dy.shape[0], tvm.tir.expr.IntImm
     ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
 
-    dx_shape = conv_dgrad_shape(tensor_format, pad, stride, dilation, dy.shape, w.shape)
+    dx_shape = conv_dgrad_shape(
+        tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding
+    )
 
     algo = conv_backward_data_find_algo(
         tensor_format,
