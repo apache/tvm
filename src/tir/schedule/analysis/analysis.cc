@@ -1778,7 +1778,7 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
                                         int64_t max_parallel_basic) {
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
-  
+
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
     return false;
