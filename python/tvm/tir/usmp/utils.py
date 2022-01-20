@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name
 
 from typing import Dict, Optional, List, Union
-from tvm import target
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
