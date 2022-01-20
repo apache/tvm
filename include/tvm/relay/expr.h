@@ -28,7 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/op.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <functional>
 #include <stack>
@@ -72,6 +72,7 @@ class ConstantNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -108,6 +109,7 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -158,7 +160,7 @@ class Tuple : public Expr {
  * ret_tuple->span = tuple->span.
  */
 Tuple WithFields(Tuple tuple, Optional<Array<Expr>> opt_fields = Optional<Array<Expr>>(),
-                 Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                 Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                  Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -196,6 +198,7 @@ class VarNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -234,6 +237,15 @@ class Var : public Expr {
    */
   TVM_DLL Var(Id vid, Type type_annotation, Span span = Span());
 
+  /*!
+   * \brief Return a globally fresh name. Helps with debugging to follow the same
+   * variable between passes and sub-expressions.
+   *
+   * TODO(mbs): Replace with name creation w.r.t. scopes once available as part of
+   * name gen overhaul.
+   */
+  static Var GenSym(Type type_annotation = {}, Span span = {});
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
 };
@@ -255,7 +267,7 @@ class Var : public Expr {
  */
 Var WithFields(Var var, Optional<Id> opt_vid = Optional<Id>(),
                Optional<Type> opt_type_annotation = Optional<Type>(),
-               Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -310,6 +322,7 @@ class CallNode : public ExprNode {
     v->Visit("args", &args);
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -382,7 +395,7 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<Expr>> opt_args = Optional<Array<Expr>>(),
                 Optional<Attrs> opt_attrs = Optional<Attrs>(),
                 Optional<Array<Type>> opt_type_args = Optional<Array<Type>>(),
-                Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                 Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -416,6 +429,7 @@ class LetNode : public ExprNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -478,7 +492,7 @@ class Let : public Expr {
 Let WithFields(Let let, Optional<Var> opt_var = Optional<Var>(),
                Optional<Expr> opt_value = Optional<Expr>(),
                Optional<Expr> opt_body = Optional<Expr>(),
-               Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+               Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                Optional<Span> opt_span = Optional<Span>());
 
 /*!
@@ -507,6 +521,7 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -565,7 +580,7 @@ class If : public Expr {
 If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
               Optional<Expr> opt_true_branch = Optional<Expr>(),
               Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+              Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
               Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get index-th field out of a tuple. */
@@ -580,6 +595,7 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -631,7 +647,7 @@ class TupleGetItem : public Expr {
  */
 TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple = Optional<Expr>(),
                         Optional<Integer> opt_index = Optional<Integer>(),
-                        Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                        Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                         Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Create a new Reference out of initial value. */
@@ -643,6 +659,7 @@ class RefCreateNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -692,7 +709,7 @@ class RefCreate : public Expr {
  * ret_ref_create->value = opt_value.value()).
  */
 RefCreate WithFields(RefCreate ref_create, Optional<Expr> opt_value = Optional<Expr>(),
-                     Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                     Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                      Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Get value out of Reference. */
@@ -704,6 +721,7 @@ class RefReadNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -752,7 +770,7 @@ class RefRead : public Expr {
  * if opt_ref.value() != ref_read->ref, then ret_ref_read->ref = opt_ref.value()).
  */
 RefRead WithFields(RefRead ref_read, Optional<Expr> opt_ref = Optional<Expr>(),
-                   Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                   Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                    Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
@@ -767,6 +785,7 @@ class RefWriteNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ref", &ref);
     v->Visit("value", &value);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -820,7 +839,7 @@ class RefWrite : public Expr {
  */
 RefWrite WithFields(RefWrite ref_write, Optional<Expr> opt_ref = Optional<Expr>(),
                     Optional<Expr> opt_value = Optional<Expr>(),
-                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*!

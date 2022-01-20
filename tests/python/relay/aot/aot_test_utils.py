@@ -31,6 +31,8 @@ from typing import Any, NamedTuple, Union, Optional, List, Dict
 import pytest
 import numpy as np
 
+pytest.importorskip("tvm.micro")
+
 import tvm
 from tvm import relay
 from tvm import te
@@ -144,7 +146,11 @@ AOT_CORSTONE300_RUNNER = AOTTestRunner(
     uart_init();
     """,
     includes=["uart.h"],
-    parameters={"NPU_VARIANT": "256"},
+    pass_config={
+        "relay.ext.cmsisnn.options": {
+            "mcpu": "cortex-m55",
+        }
+    },
 )
 
 
@@ -696,8 +702,9 @@ def run_and_check(
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
-        workspace_bytes += model.extra_memory_in_bytes
-        if interface_api == "packed":
+        workspace_bytes = model.extra_memory_in_bytes
+        use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+        if interface_api == "packed" and not use_usmp:
             workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
         for key in model.inputs:
@@ -809,6 +816,7 @@ def compile_and_run(
         target=target,
         target_opts=target_opts,
     )
+
     run_and_check(
         models=compiled_test_mods,
         runner=runner,

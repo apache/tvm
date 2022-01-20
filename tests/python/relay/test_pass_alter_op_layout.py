@@ -24,6 +24,7 @@ from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.relay.testing import run_infer_type
 import numpy as np
 import tvm.testing
+from tvm.relay import testing
 
 
 def run_opt_pass(expr, passes):
@@ -1450,6 +1451,24 @@ def test_conv2d_strided_slice_packed_to_unpacked():
         a = run_opt_pass(before(), transform.AlterOpLayout())
         b = run_opt_pass(expected(), transform.InferType())
         assert tvm.ir.structural_equal(a, b)
+
+
+def test_conv2d_reduce_channels():
+    x = relay.var("data", shape=(1, 8, 48, 48))
+    y = relay.nn.conv2d(
+        data=x,
+        weight=relay.var("weight"),
+        kernel_size=(1, 1),
+        channels=8,
+        dilation=1,
+        strides=(47, 47),
+    )
+    z = relay.argmin(y, axis=1)
+
+    mod, params = testing.create_workload(z)
+
+    with tvm.transform.PassContext(opt_level=3):
+        relay.build(mod, params=params, target="llvm")
 
 
 if __name__ == "__main__":

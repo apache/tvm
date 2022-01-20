@@ -141,6 +141,8 @@ SECTIONS
     . = ALIGN (16);
     *(.rodata.tvm)
     . = ALIGN (16);
+    *(.data.tvm)
+    . = ALIGN (16);
   } > DDR
 
   .text :

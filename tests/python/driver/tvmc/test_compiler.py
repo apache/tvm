@@ -70,7 +70,7 @@ def test_compile_tflite_module(tflite_mobilenet_v1_1_quant):
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant)
     # Check with manual shape override
     shape_string = "input:[1,224,224,3]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_tflite_module(tflite_mobilenet_v1_1_quant, shape_dict)
 
 
@@ -218,7 +218,7 @@ def test_compile_onnx_module(onnx_resnet50):
     verify_compile_onnx_module(onnx_resnet50)
     # Test with manual shape dict
     shape_string = "data:[1,3,200,200]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_onnx_module(onnx_resnet50, shape_dict)
 
 
@@ -296,7 +296,7 @@ def test_compile_paddle_module(paddle_resnet50):
     verify_compile_paddle_module(paddle_resnet50)
     # Check with manual shape override
     shape_string = "inputs:[1,3,224,224]"
-    shape_dict = tvmc.common.parse_shape_string(shape_string)
+    shape_dict = tvmc.shape_parser.parse_shape_string(shape_string)
     verify_compile_paddle_module(paddle_resnet50, shape_dict)
 
 

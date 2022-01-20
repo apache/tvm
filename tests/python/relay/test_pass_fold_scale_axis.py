@@ -413,6 +413,46 @@ def test_fold_fwd_negative_scale():
     check((2, 2, 10, 10, 2), 8, (2, 2))
 
 
+def test_fold_fwd_dense():
+    """dense testcase."""
+
+    def before(x, weight, in_bias, in_scale):
+        args = [x, weight, in_bias]
+        x = relay.multiply(x, in_scale)
+        x = relay.nn.relu(x)
+        x = relay.add(x, in_bias)
+        y = relay.nn.dense(x, weight)
+        return relay.Function(args, y)
+
+    def expected(x, weight, in_bias, in_scale):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, weight, in_bias]
+        x = relay.nn.relu(x)
+        in_bias = relay.divide(in_bias, in_scale)
+        x = relay.add(x, in_bias)
+        weight = relay.multiply(weight, in_scale)
+        y = relay.nn.dense(x, weight)
+        return relay.Function(args, y)
+
+    def check(data_shape, weight_shape):
+        x = relay.var("x", shape=data_shape)
+        weight = relay.var("weight", shape=weight_shape)
+        in_channels = data_shape[1]
+        in_bias = relay.var("in_bias", shape=(in_channels,))
+        in_scale = relay.const(_get_positive_scale((in_channels,)))
+        y1 = before(x, weight, in_bias, in_scale)
+        y1 = run_opt_pass(y1, transform.InferType())
+        y1_folded = run_opt_pass(y1, transform.ForwardFoldScaleAxis())
+        y1_expected = expected(x, weight, in_bias, in_scale)
+
+        y1_folded = run_opt_pass(y1_folded, transform.InferType())
+        y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        assert tvm.ir.structural_equal(y1_folded, y1_expected)
+
+    check((2, 4), (3, 4))
+    check((3, 5), (4, 5))
+
+
 def test_fold_bwd_simple():
     """Simple testcase."""
 
@@ -888,15 +928,118 @@ def test_fold_bwd_negative_scale():
     check((2, 2, 10, 10, 2), 8, (2, 2))
 
 
+def test_fold_bwd_dense():
+    """dense testcase."""
+
+    def before(x, weight, in_bias, in_scale):
+        args = [x, weight, in_bias]
+        x = relay.nn.dense(x, weight)
+        x = relay.add(x, in_bias)
+        x = relay.nn.relu(x)
+        y = relay.multiply(x, in_scale)
+        return relay.Function(args, y)
+
+    def expected(x, weight, in_bias, in_scale):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, weight, in_bias]
+        scale = relay.expand_dims(in_scale, axis=1)
+        weight = relay.multiply(weight, scale)
+        x = relay.nn.dense(x, weight)
+        bias = relay.multiply(in_bias, in_scale)
+        x = relay.add(x, bias)
+        y = relay.nn.relu(x)
+        return relay.Function(args, y)
+
+    def check(data_shape, weight_shape):
+        x = relay.var("x", shape=data_shape)
+        weight = relay.var("weight", shape=weight_shape)
+        out_channels = weight_shape[0]
+        in_bias = relay.var("in_bias", shape=(out_channels,))
+        in_scale = relay.const(_get_positive_scale((out_channels,)))
+        y1 = before(x, weight, in_bias, in_scale)
+        y1 = run_opt_pass(y1, transform.InferType())
+        y1_folded = run_opt_pass(y1, transform.BackwardFoldScaleAxis())
+        y1_expected = expected(x, weight, in_bias, in_scale)
+
+        y1_folded = run_opt_pass(y1_folded, transform.InferType())
+        y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        assert tvm.ir.structural_equal(y1_folded, y1_expected)
+
+    check((2, 4), (3, 4))
+    check((3, 5), (4, 5))
+
+
+def test_fold_bwd_bias_add():
+    """bias add testcase."""
+
+    def before(x, conv_weight, out_bias, out_scale, channels):
+        args = [x, conv_weight, out_bias]
+        y = relay.nn.conv2d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.nn.bias_add(y, out_bias)
+        y = relay.nn.relu(y)
+        y = relay.multiply(y, out_scale)
+        return relay.Function(args, y)
+
+    def expected(x, conv_weight, out_bias, out_scale, channels):
+        # use a fixed order of args so alpha equal check can pass
+        args = [x, conv_weight, out_bias]
+        squeezed_scale = relay.squeeze(out_scale, axis=[1, 2])
+        conv_weight = relay.multiply(
+            conv_weight, relay.expand_dims(squeezed_scale, axis=1, num_newaxis=3)
+        )
+
+        y = relay.nn.conv2d(
+            x,
+            conv_weight,
+            channels=channels,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+
+        out_bias = relay.multiply(out_bias, squeezed_scale)
+        y = relay.nn.bias_add(y, out_bias)
+        y = relay.nn.relu(y)
+        return relay.Function(args, y)
+
+    def check(shape, channels):
+        x = relay.var("x", shape=shape)
+        weight = relay.var("weight")
+        out_bias = relay.var("out_bias", shape=(channels,))
+        out_scale = relay.const(_get_positive_scale((channels, 1, 1)))
+        y1 = before(x, weight, out_bias, out_scale, channels)
+        y1 = run_opt_pass(y1, transform.InferType())
+        type_dict = {x.name_hint: x.checked_type for x in y1.params}
+        weight = relay.var("weight", type_dict["weight"])
+        y1_folded = run_opt_pass(y1, transform.BackwardFoldScaleAxis())
+        y1_expected = expected(x, weight, out_bias, out_scale, channels)
+        y1_expected = run_opt_pass(y1_expected, transform.InferType())
+        assert tvm.ir.structural_equal(y1_folded, y1_expected)
+
+    check((2, 4, 10, 10), 4)
+
+
 if __name__ == "__main__":
     test_fold_fwd_simple()
     test_fold_fwd_dual_path()
     test_fold_fwd_fail()
     test_fold_fwd_relu_fail()
     test_fold_fwd_negative_scale()
+    test_fold_fwd_dense()
     test_fold_bwd_simple()
     test_fold_bwd_dual_path()
     test_fold_bwd_dual_consumer()
     test_fold_bwd_fail()
     test_fold_bwd_relu_fail()
     test_fold_bwd_negative_scale()
+    test_fold_bwd_dense()
+    test_fold_bwd_bias_add()

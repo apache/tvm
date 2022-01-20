@@ -189,6 +189,7 @@ def verify_with_ort_with_inputs(
             opt_level=opt_level,
             convert_config=convert_config,
         )
+
     if not isinstance(tvm_out, list):
         tvm_out = [tvm_out]
     if not isinstance(ort_out, list):
@@ -1272,6 +1273,7 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
+    verify_batch_matmul((4, 32, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
     # Test transb=False
     verify_batch_matmul(
         (2, 3, 4, 3),
@@ -1279,6 +1281,39 @@ def test_batch_matmul(target, dev):
         (2, 3, 4, 4),
         convert_config={"use_nt_batch_matmul": False},
     )
+
+
+@tvm.testing.parametrize_targets
+def test_use_nt_batch_matmul(target, dev):
+    a_shape = (2, 3, 4)
+    b_shape = (2, 4, 3)
+    out_shape = [2, 3, 3]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+
+    for use_nt_batch_matmul in [True, False]:
+        mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmul_test")
+        _, shape_dict = get_input_data_shape_dict(model, [a_array, b_array])
+
+        mod, _ = relay.frontend.from_onnx(
+            model, shape_dict, convert_config={"use_nt_batch_matmul": use_nt_batch_matmul}
+        )
+        has_transpose_op = "transpose" in str(mod)
+        # use_nt_batch_matmul implies, TVM converts qualified onnx `matmul`
+        # to `transpose(weight) + nn.batch_matmul_NT`, otherwise to `nn.batch_matmul`
+        assert has_transpose_op == use_nt_batch_matmul
 
 
 @tvm.testing.parametrize_targets
@@ -2858,6 +2893,14 @@ def test_convtranspose(target, dev):
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
     # Test undefined groups.
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2], group=None)
+
+    if "llvm" in target:
+        # GPU does not support groups != 1 for convtranspose, so only test llvm
+        # Test depthwise-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 10, 7, 3), [1, 2, 1, 2], group=10)
+
+        # Test grouped-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 5, 7, 3), [1, 2, 1, 2], group=5)
 
     def repeat(N, D):
         return tuple([N for _ in range(D)])
@@ -5047,6 +5090,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
+    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",
@@ -6287,6 +6331,7 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_use_nt_batch_matmul()
     test_global_lppool()
     test_scan()
     test_random_uniform_like()

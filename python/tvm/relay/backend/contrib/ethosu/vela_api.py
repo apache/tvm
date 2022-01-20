@@ -316,7 +316,10 @@ def _quantize_scale(scale: float) -> Tuple[int, int]:
     mantissa_scaled = mantissa * (1 << 31)
     mantissa_scaled = int(util.round_away_zero(mantissa_scaled))
     required_shift = 31 - exponent
-    assert 0 <= required_shift < (1 << 6)
+    if required_shift < 0 or required_shift >= (1 << 6):
+        # Shift outside of valid range, set scale to 0
+        return 0, 16
+
     return mantissa_scaled, required_shift
 
 
@@ -332,6 +335,11 @@ def _reduced_quantize_scale(scale: float) -> Tuple[int, int]:
     else:
         reduced_mantissa_scaled = (mantissa_scaled + (1 << 15)) >> 16
     reduced_shift = required_shift - 16
+
+    if required_shift < 0 or required_shift >= (1 << 6):
+        # Shift outside of valid range, set scale to 0
+        return 0, 16
+
     return reduced_mantissa_scaled, reduced_shift
 
 
@@ -380,6 +388,7 @@ def get_accelerator_config() -> vapi.NpuAccelerator:
         "ethos-u55-128": vapi.NpuAccelerator.Ethos_U55_128,
         "ethos-u55-64": vapi.NpuAccelerator.Ethos_U55_64,
         "ethos-u55-32": vapi.NpuAccelerator.Ethos_U55_32,
+        "ethos-u65-256": vapi.NpuAccelerator.Ethos_U65_256,
     }
     compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     accel_config_str = compiler_attrs.accelerator_config

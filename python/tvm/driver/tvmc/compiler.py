@@ -29,11 +29,14 @@ from tvm.driver.tvmc.registry import generate_registry_args, reconstruct_registr
 from tvm.target import Target
 from tvm.relay.backend import Executor, Runtime
 
-from . import common, composite_target, frontends
+from . import composite_target, frontends
 from .model import TVMCModel, TVMCPackage
 from .main import register_parser
-from .target import generate_target_args, reconstruct_target_args
-
+from .target import target_from_cli, generate_target_args, reconstruct_target_args
+from .pass_config import parse_configs
+from .pass_list import parse_pass_list_str
+from .transform import convert_graph_layout
+from .shape_parser import parse_shape_string
 
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
@@ -76,7 +79,7 @@ def add_compile_parser(subparsers, _):
         "-o",
         "--output",
         default="module.tar",
-        help="output the compiled module to a specifed archive. Defaults to 'module.tar'.",
+        help="output the compiled module to a specified archive. Defaults to 'module.tar'.",
     )
     parser.add_argument(
         "-f",
@@ -112,16 +115,25 @@ def add_compile_parser(subparsers, _):
     #     or URL, for example.
     parser.add_argument("FILE", help="path to the input model file.")
     parser.add_argument(
+        "-O",
+        "--opt-level",
+        default=3,
+        type=int,
+        choices=range(0, 4),
+        metavar="[0-3]",
+        help="specify which optimization level to use. Defaults to '3'.",
+    )
+    parser.add_argument(
         "--input-shapes",
         help="specify non-generic shapes for model to run, format is "
         '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]".',
-        type=common.parse_shape_string,
+        type=parse_shape_string,
         default=None,
     )
     parser.add_argument(
         "--disabled-pass",
         help="disable specific passes, comma-separated list of pass names.",
-        type=common.parse_pass_list_str,
+        type=parse_pass_list_str,
         default="",
     )
 
@@ -147,6 +159,7 @@ def drive_compile(args):
     compile_model(
         tvmc_model,
         args.target,
+        opt_level=args.opt_level,
         executor=reconstruct_registry_entity(args, Executor),
         runtime=reconstruct_registry_entity(args, Runtime),
         tuning_records=args.tuning_records,
@@ -168,6 +181,7 @@ def drive_compile(args):
 def compile_model(
     tvmc_model: TVMCModel,
     target: str,
+    opt_level: int = 3,
     executor: Optional[Executor] = Executor("graph"),
     runtime: Optional[Runtime] = Runtime("cpp"),
     tuning_records: Optional[str] = None,
@@ -195,6 +209,8 @@ def compile_model(
     target : str
         The target for which to compile. Can be a plain string or
         a path.
+    opt_level : int
+        The option that controls various sorts of optimizations.
     tuning_records : str
         A path to tuning records produced using tvmc.tune. When provided,
         compilation will use more optimized kernels leading to better results.
@@ -236,12 +252,12 @@ def compile_model(
     """
     mod, params = tvmc_model.mod, tvmc_model.params
 
-    config = common.parse_configs(pass_context_configs)
+    config = parse_configs(pass_context_configs)
 
     if desired_layout:
-        mod = common.convert_graph_layout(mod, desired_layout)
+        mod = convert_graph_layout(mod, desired_layout)
 
-    tvm_target, extra_targets = common.target_from_cli(target, additional_target_options)
+    tvm_target, extra_targets = target_from_cli(target, additional_target_options)
     tvm_target, target_host = Target.check_and_update_host_consist(tvm_target, target_host)
 
     for codegen_from_cli in extra_targets:
@@ -266,7 +282,7 @@ def compile_model(
             with auto_scheduler.ApplyHistoryBest(tuning_records):
                 config["relay.backend.use_auto_scheduler"] = True
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with autoscheduler")
                     graph_module = relay.build(
@@ -275,14 +291,16 @@ def compile_model(
         else:
             with autotvm.apply_history_best(tuning_records):
                 with tvm.transform.PassContext(
-                    opt_level=3, config=config, disabled_pass=disabled_pass
+                    opt_level=opt_level, config=config, disabled_pass=disabled_pass
                 ):
                     logger.debug("building relay graph with tuning records")
                     graph_module = relay.build(
                         mod, target=tvm_target, executor=executor, runtime=runtime, params=params
                     )
     else:
-        with tvm.transform.PassContext(opt_level=3, config=config, disabled_pass=disabled_pass):
+        with tvm.transform.PassContext(
+            opt_level=opt_level, config=config, disabled_pass=disabled_pass
+        ):
             logger.debug("building relay graph (no tuning records provided)")
             graph_module = relay.build(
                 mod, target=tvm_target, executor=executor, runtime=runtime, params=params

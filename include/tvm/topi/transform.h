@@ -48,6 +48,90 @@ using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
+ * \brief Creates an operation to slide a window over the input x.
+ *
+ * \param x The input tensor.
+ * \param axis What axis the window begins sliding over. Window will be slid
+ * over this axis and all following axes. The axis value determines the window
+ * shape (and thus, the number of strides): window shape and strides must both
+ * be of length `data.ndim-axis`.
+ * \param window_shape The window shape to form over the input. Window shape
+ * must be of length `data.ndim-axis`.
+ * \param strides How to stride the window along each dimension. Strides must be
+ * of length `data.ndim-axis`.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the sliding_window operation
+ */
+inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_shape,
+                             Array<Integer> strides, std::string name = "T_sliding_window",
+                             std::string tag = "") {
+  CHECK_GE(axis, 0);
+  auto _axis = size_t(axis);
+  CHECK_LT(_axis, x->shape.size()) << "axis must be a valid dimension index of x.";
+  CHECK_EQ(x->shape.size() - _axis, window_shape.size())
+      << "There must be a window shape for every dimension of x "
+      << "over which we are sliding the window.";
+  CHECK_EQ(strides.size(), window_shape.size()) << "Windows and strides should be the same length.";
+
+  // Compute the new shape.
+  Array<PrimExpr> new_shape;
+  // Dimensions up until `axis` remain the same.
+  for (size_t i = 0; i < _axis; ++i) {
+    new_shape.push_back(x->shape[i]);
+  }
+
+  // New dimensions which result from sliding the window in each dimension. One new dimension per
+  // window dimension.
+  for (size_t i = 0; i < window_shape.size(); ++i) {
+    // Length of the shape along this dimension.
+    auto dim_len = x->shape[_axis + i];
+    // Length of the window along this dimension.
+    auto window_len = window_shape[i];
+    // Strides along this dimension.
+    auto stride = strides[i];
+
+    new_shape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
+  }
+
+  // Dimensions comprising the window.
+  for (size_t i = 0; i < window_shape.size(); ++i) {
+    new_shape.push_back(window_shape[i]);
+  }
+
+  ICHECK(new_shape.size() == _axis + 2 * window_shape.size());
+
+  return compute(
+      new_shape,
+      [&](const Array<Var>& indices) {
+        // The index at which to index the old tensor x.
+        Array<PrimExpr> idx;
+
+        // Dimensions up until `axis` remain the same.
+        for (size_t i = 0; i < _axis; ++i) {
+          idx.push_back(indices[i]);
+        }
+
+        for (size_t i = 0; i < window_shape.size(); ++i) {
+          // Which window in this dimension we are indexing.
+          auto window_idx = indices[_axis + i];
+          // Which index within the window we are indexing.
+          auto idx_within_window = indices[_axis + window_shape.size() + i];
+          // Stride value for this dimension.
+          auto stride = strides[i];
+
+          idx.push_back(window_idx * stride + idx_within_window);
+        }
+
+        ICHECK(idx.size() == x->shape.size());
+
+        return x(idx);
+      },
+      name, tag);
+}
+
+/*!
  * \brief Creates an operation to insert new dimensions of length 1
  *
  * \param x The input tensor

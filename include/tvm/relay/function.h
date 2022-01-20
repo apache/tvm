@@ -64,6 +64,7 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("attrs", &attrs);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -148,7 +149,7 @@ Function WithFields(Function function, Optional<Array<Var>> opt_params = Optiona
                     Optional<Type> opt_ret_type = Optional<Type>(),
                     Optional<Array<TypeVar>> opt_ty_params = Optional<Array<TypeVar>>(),
                     Optional<DictAttrs> opt_attrs = Optional<DictAttrs>(),
-                    Optional<SEScope> opt_virtual_device = Optional<SEScope>(),
+                    Optional<VirtualDevice> opt_virtual_device = Optional<VirtualDevice>(),
                     Optional<Span> opt_span = Optional<Span>());
 
 /*

@@ -103,7 +103,9 @@ struct ExecutorCodegen {
 
   Array<String> ListDevices() { return CallFunc<Array<String>>("get_devices"); }
 
-  runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
+  relay::backend::ExecutorCodegenMetadata GetMetadata() {
+    return CallFunc<relay::backend::ExecutorCodegenMetadata>("get_metadata");
+  }
   virtual ~ExecutorCodegen() {}
 
  protected:
@@ -424,7 +426,7 @@ class RelayBuildModule : public runtime::ModuleNode {
       lowered_funcs.Set(ext_dev, IRModule());
     }
 
-    const Target& host_target = config_->host_se_scope->target;
+    const Target& host_target = config_->host_virtual_device->target;
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
 
     // Generate a placeholder function that attaches linked params as its arguments.

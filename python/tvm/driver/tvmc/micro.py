@@ -23,10 +23,10 @@ from pathlib import Path
 import shutil
 import sys
 
+from . import TVMCException
 from .main import register_parser
-from .common import (
-    TVMCException,
-    TVMCSuppressedArgumentParser,
+from .arguments import TVMCSuppressedArgumentParser
+from .project import (
     get_project_options,
     get_and_check_options,
     get_project_dir,

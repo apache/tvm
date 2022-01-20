@@ -16,11 +16,11 @@
 # under the License.
 """Relay functions for rewriting fake quantized ops."""
 import numpy as np
-
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
 from tvm.tir import bijective_layout
+
 from ..op import register_fake_quantization_to_integer
 
 
@@ -100,6 +100,8 @@ register_unary_identity("expand_dims")
 register_unary_identity("nn.max_pool2d")
 register_unary_identity("nn.batch_flatten")
 register_unary_identity("nn.depth_to_space")
+register_unary_identity("max")
+register_unary_identity("min")
 
 
 @register_fake_quantization_to_integer("nn.avg_pool2d")
@@ -161,6 +163,25 @@ def conv2d(expr, type_map):
     conv_scale = fold_constant(x_t.scale * w_t.scale)
     conv_zp = get_zeros(conv_scale)
     out = relay.qnn.op.conv2d(
+        x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
+    )
+    out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]
+    out_axis = bijective_layout(out_layout, "NCHW").backward_index(list(range(4)))[1]
+    return [out, TensorAffineType(conv_scale, conv_zp, out.attrs.out_dtype, out_axis.value)]
+
+
+@register_fake_quantization_to_integer("nn.conv2d_transpose")
+def conv2d_transpose(expr, type_map):
+    """Rewrite a conv2d_transpose op"""
+    attrs = {**expr.attrs}
+    attrs.pop("out_dtype")
+    x, weight = expr.args
+    x_t = type_map[x]
+    w_t = type_map[weight]
+    conv_scale = fold_constant(x_t.scale * w_t.scale)
+    conv_zp = get_zeros(conv_scale)
+
+    out = relay.qnn.op.conv2d_transpose(
         x, weight, x_t.zero_point, w_t.zero_point, x_t.scale, w_t.scale, **attrs
     )
     out_layout = attrs["out_layout"] if attrs["out_layout"] != "" else attrs["data_layout"]

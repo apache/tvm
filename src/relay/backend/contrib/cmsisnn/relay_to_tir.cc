@@ -29,6 +29,8 @@
 
 #include "../../../qnn/utils.h"
 #include "../../../transforms/pattern_utils.h"
+#include "buffer_size.h"
+#include "compiler_attrs.h"
 
 namespace tvm {
 namespace relay {
@@ -159,6 +161,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // CMSIS-NN data structure "cmsis_nn_dims" for ifm expects input layout as NHWC
     // This is the same layout we expect in Relay
     Array<PrimExpr> input_shape = conv2d_call->args[0]->type_as<TensorTypeNode>()->shape;
+    int32_t input_n = qnn::get_const_int(input_shape[0]);
+    int32_t input_h = qnn::get_const_int(input_shape[1]);
+    int32_t input_c = qnn::get_const_int(input_shape[3]);
 
     // CMSIS-NN data structure "cmsis_nn_dims" for weights expects following layouts
     // OHWI for Conv2D and IHWO for Depthwise convolutions
@@ -167,6 +172,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> bias_shape{1, 1, 1, out_channels};
 
     Array<PrimExpr> output_shape = conv2d_call->type_as<TensorTypeNode>()->shape;
+    int32_t output_h = qnn::get_const_int(output_shape[1]);
+    int32_t output_w = qnn::get_const_int(output_shape[2]);
+    int32_t output_c = qnn::get_const_int(output_shape[3]);
 
     int32_t depth_multiplier = -1;
     int kernel_pos_o = kernel_layout.find("O");
@@ -179,7 +187,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     // original filter_layout for depthwise is HWOI
     std::string cmsisnn_api = "arm_convolve_wrapper_s8";
-    if (depth_multiplier != -1) {
+    bool is_depthwise = depth_multiplier != -1;
+    if (is_depthwise) {
       cmsisnn_api = "arm_depthwise_conv_wrapper_s8";
       int filter_pos_h = kernel_layout.find("H");
       int filter_pos_w = kernel_layout.find("W");
@@ -187,6 +196,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
                                              filter_shape[filter_pos_w], out_channels};
       filter_shape = depthwise_filter_shape;
     }
+    int32_t filter_h = qnn::get_const_int(filter_shape[1]);
+    int32_t filter_w = qnn::get_const_int(filter_shape[2]);
 
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter, multiplier};
     if (bias_add_call) {
@@ -195,11 +206,18 @@ class RelayToTIRVisitor : public MixedModeMutator {
     call_ext_args.push_back(shift);
     call_ext_args.push_back(output);
 
-    // https://github.com/ARM-software/CMSIS_5/blob/d788fd583984388553391de18afd8b4d2a146868/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_s8.c#L367
     std::string context_buffer_name = "NULL";
-    size_t context_buffer_size =
-        (2 * qnn::get_const_int(input_shape[3]) * qnn::get_const_int(filter_shape[2]) *
-         qnn::get_const_int(filter_shape[1]) * (int32_t)sizeof(int16_t));
+    CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
+    size_t context_buffer_size;
+    if (is_depthwise) {
+      context_buffer_size =
+          DepthwiseConv2dBufferSize(flags, input_n, input_c, output_c, filter_w, filter_h);
+    } else {
+      context_buffer_size =
+          Conv2dBufferSize(flags, padding_w, padding_h, input_n, input_h, input_c, output_h,
+                           output_w, stride_w, stride_h, filter_w, filter_h);
+    }
+
     if (context_buffer_size) {
       context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
     }
@@ -397,8 +415,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     int context_buffer_size = 0;
     std::string context_buffer_name = "NULL";
     if (pool_name == "cmsisnn.qnn_avg_pool2d") {
-      // TODO(@Mousius): Need to move this into buffer_size calculations
-      context_buffer_size = qnn::get_const_int(input_shape[3]) * sizeof(int32_t);
+      CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
+      int32_t input_c = qnn::get_const_int(input_shape[3]);
+      context_buffer_size = AvgPoolBufferSize(flags, input_c);
       context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
     }
     tvm::Array<PrimExpr> context_buffer_args = {tir::StringImm(context_buffer_name),

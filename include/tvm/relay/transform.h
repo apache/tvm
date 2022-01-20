@@ -31,8 +31,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/target/compilation_config.h>
-#include <tvm/target/se_scope.h>
 #include <tvm/target/target.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -250,13 +250,28 @@ TVM_DLL Pass DynamicToStatic();
 /*!
  * \brief Infer the type of an expression.
  *
- * The result of type checking is a new expression with unambigous
+ * The result of type checking is a new expression with unambiguous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
  * \return The pass.
  */
 TVM_DLL Pass InferType();
+
+/*!
+ * \brief Infer the type of an expression, reusing existing type information.
+ *
+ * The result of type checking is a new expression with unambiguous
+ * type information filled in for the given node only. The local
+ * version can use existing type information populated throughout
+ * the expression and assumes this information is correct. The local
+ * version also avoids examining large amounts of the graph assuming
+ * type information is filled in properly which makes it much faster if we
+ * iteratively call type inference.
+ *
+ * \return The type of the expression.
+ */
+TVM_DLL Type InferTypeLocal(const Expr& expr);
 
 /*!
  * \brief Search and eliminate common subexpression. For example, if there are
@@ -449,22 +464,22 @@ TVM_DLL Pass RelayToTIRTargetHook();
  * \brief A pass for manifesting explicit memory allocations and rewriting
  * specific dialects.
  *
- * \param cpu_se_scope SEScope for computations and data which must reside on a CPU, such as
- * shapes and shape functions.
+ * \param cpu_virtual_device VirtualDevice for computations and data which must reside on a CPU,
+ * such as shapes and shape functions.
  *
  * \return The pass.
  */
-TVM_DLL Pass ManifestAlloc(SEScope cpu_se_scope);
+TVM_DLL Pass ManifestAlloc(VirtualDevice cpu_virtual_device);
 
 /*!
- * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p SEScope on which
- * every Relay sub-expression should run and the result stored. Captures the result of that
+ * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p VirtualDevice on
+ * which every Relay sub-expression should run and the result stored. Captures the result of that
  * analysis using new "on_device" and "device_copy" CallNodes.
  *
  * See tvm::relay::transform::{LexicalOnDeviceMixin,DeviceAwareExprVisitor,DeviceAwareExprMutator}
  * for help recovering the device for an arbitrary sub-expression in downstream transformations.
  *
- * \param config Describes the targets and default \p SEScope for all primitive operators and
+ * \param config Describes the targets and default \p VirtualDevice for all primitive operators and
  * host sub-expressions.
  *
  * \return The pass.

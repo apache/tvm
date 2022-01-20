@@ -37,7 +37,7 @@ from tests.python.relay.aot.aot_test_utils import generate_ref_data
 from . import infra
 
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
 def infer_type_function_pass(func):
@@ -240,6 +240,41 @@ def test_ethosu_conv2d_double(
     cmms = bytes.fromhex(compilation_artifacts[0].command_stream)
     infra.print_payload(cmms)
     infra.verify_source(compiled_models, accel_type)
+
+
+@pytest.mark.parametrize("weight_min, weight_max", [(0.0, 1e-11), (-1e10, 1e10)])
+def test_out_of_range_scaling(weight_min, weight_max):
+    ifm_shape = (1, 6, 6, 2)
+    strides = (1, 1)
+    kernel_shape = (1, 1)
+    dilation = (1, 1)
+    padding = "SAME"
+    activation = "RELU"
+    accel_type = "ethos-u55-128"
+
+    @tf.function
+    def conv_invalid_scale(x):
+        # Use tf.nn API to create the model
+        tf_strides = [1, strides[0], strides[1], 1]
+        weights = np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 2, 2])
+        # Overwrite to force quantization that produces out of range shift values
+        weights[0][0][0][0] = weight_min
+        weights[0][0][1][0] = weight_max
+        op = tf.nn.conv2d(
+            x,
+            filters=tf.constant(
+                weights,
+                dtype=tf.float32,
+            ),
+            strides=tf_strides,
+            padding=padding,
+            dilations=dilation,
+        )
+        if activation:
+            op = tf.nn.relu(op)
+        return op
+
+    _compare_tvm_with_tflite(conv_invalid_scale, [ifm_shape], accel_type)
 
 
 def _compare_ethosu_with_reference(
@@ -594,12 +629,13 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
-def test_elementwise_add_from_constant_scalar(accel_type, dtype):
+@pytest.mark.parametrize("constant", [np.ones((1, 1, 1, 1)), np.array(1)])
+def test_elementwise_add_from_constant_scalar(accel_type, dtype, constant):
     ifm_shape = (1, 4, 4, 8)
 
     def create_relay_graph():
         inp = relay.var("input", shape=ifm_shape, dtype=dtype)
-        scalar = relay.const(np.ones((1, 1, 1, 1), dtype=dtype), dtype=dtype)
+        scalar = relay.const(constant, dtype=dtype)
         add = relay.qnn.op.add(
             inp,
             scalar,

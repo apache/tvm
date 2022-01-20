@@ -46,8 +46,22 @@ class ExtractConstantsMutator : public MixedModeMutator {
  private:
   String gen_var_name() { return "tvm_var_extract_const_" + std::to_string(var_count_++); }
 
+  using MixedModeMutator::VisitExpr_;
+
   Expr VisitExpr_(const FunctionNode* function) final {
     Function func = GetRef<Function>(function);
+    auto composite_name = func->GetAttr<String>(attr::kComposite);
+    if (composite_name.defined()) {
+      std::string name = composite_name.value().operator std::string();
+      if (name.find("cmsis-nn") == std::string::npos) {
+        return func;
+      }
+    }
+    auto compiler_name = func->GetAttr<String>(::tvm::relay::attr::kCompiler);
+    if (compiler_name.defined() && compiler_name != "cmsis-nn") {
+      return func;
+    }
+
     function_to_constants_.Set(func, Array<Constant>{});
     functions_.push_back(func);
     auto new_body = VisitExpr(func->body);
@@ -56,7 +70,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
       func = Function(FreeVars(new_body), new_body, func->ret_type, FreeTypeVars(new_body, mod_),
                       func->attrs);
     }
-    return func;
+    return std::move(func);
   }
 
   Expr Rewrite_(const CallNode* call, const Expr& post) final {

@@ -31,8 +31,9 @@
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/usmp/utils.h>
 
 #include <string>
 #include <typeinfo>
@@ -54,6 +55,63 @@ namespace backend {
 using Pass = tvm::transform::Pass;
 
 /*!
+ * \brief Structure that can be optionally used by the executor codegen
+ */
+class ExecutorCodegenMetadataNode : public Object {
+ public:
+  /*! \brief input information for the main function */
+  Array<tir::Var> inputs;
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
+  /*! \brief number of outputs of the main function */
+  unsigned int num_outputs = 1;
+  /*! \brief device contexts information for the main function */
+  Array<String> devices;
+  /*! \brief the executor to be used to run the model */
+  String executor = runtime::kTvmExecutorGraph;
+  /*! \brief The external API (packed or c) in use */
+  String interface_api;
+  /*! \brief The internal API (packed or unpacked) in use */
+  bool unpacked_api;
+  /*! \brief the input var names that correspond to pool_inputs */
+  Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+
+  String mod_name = "";
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "MetadataObj";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ExecutorCodegenMetadataNode.
+ */
+class ExecutorCodegenMetadata : public ObjectRef {
+ public:
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
+                                  Array<String> devices, int num_outputs, String executor,
+                                  String mod_name, String interface_api = "packed",
+                                  bool unpacked_api = false,
+                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
+    auto n = make_object<ExecutorCodegenMetadataNode>();
+    n->inputs = inputs;
+    n->pools = pools;
+    n->devices = devices;
+    n->num_outputs = num_outputs;
+    n->executor = executor;
+    n->interface_api = interface_api;
+    n->unpacked_api = unpacked_api;
+    n->mod_name = mod_name;
+    n->pool_inputs = pool_inputs;
+    data_ = std::move(n);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef, ExecutorCodegenMetadataNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecutorCodegenMetadataNode);
+};
+
+/*!
  * \brief The static storage information for each Tensor in the result of a Relay expression
  * (as per relay::FlattenTupleType).
  */
@@ -62,8 +120,8 @@ class StorageInfoNode : public Object {
   // TODO(mbs): Switch from struct-of-array to array-of-struct repr throughout.
   /*! \brief The set of storage ids where the expression is stored. */
   std::vector<int64_t> storage_ids;
-  /* \brief The SEScopes these expressions are stored within. */
-  std::vector<SEScope> se_scopes;
+  /* \brief The virtual devices these expressions are stored within. */
+  std::vector<VirtualDevice> virtual_devices;
   /* \brief The sizes of each storage element, in bytes. */
   std::vector<int64_t> storage_sizes_in_bytes;
 
@@ -77,7 +135,7 @@ class StorageInfoNode : public Object {
 /*! \brief The storage information for a single expression. */
 class StorageInfo : public ObjectRef {
  public:
-  StorageInfo(std::vector<int64_t> storage_ids, std::vector<SEScope> se_scopes,
+  StorageInfo(std::vector<int64_t> storage_ids, std::vector<VirtualDevice> virtual_devices,
               std::vector<int64_t> storage_sizes_in_bytes);
   TVM_DEFINE_OBJECT_REF_METHODS(StorageInfo, ObjectRef, StorageInfoNode);
 };
@@ -147,7 +205,7 @@ struct LoweredOutput {
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-  runtime::Metadata metadata;
+  ExecutorCodegenMetadata metadata;
 };
 
 /*!
@@ -389,7 +447,6 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * "nn.relu"}
  * \return A CallNode corresponding to the root op, whose name is expected_op_names[0]
  */
-
 inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
                                    const std::vector<std::string>& expected_op_names) {
   ICHECK(current_call && depth >= 0 && static_cast<size_t>(depth) < expected_op_names.size() &&
@@ -403,6 +460,24 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
 
   const auto* next_call = current_call->args[0].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
+}
+
+/*!
+ * \brief Retrieve the "root" op nested inside a fused call, such as conv2d in relu(add(conv2d))
+ * Unlike the previous definition, it does not verify operator names of intermediate nodes. Instead,
+ * it recursively visit child nodes until it finds a call node with the given op_name.
+ * \param call A Relay call node.
+ * \param op_name The name of an op to look for, such as ""nn.conv2d".
+ * \return A CallNode corresponding to the root op with the given op_name
+ */
+inline const CallNode* GetRootCall(const CallNode* current_call, const std::string& op_name) {
+  if (current_call == nullptr) return nullptr;
+  if (IsOp(current_call, op_name)) return current_call;
+
+  ICHECK_GT(current_call->args.size(), 0);
+
+  const auto* next_call = current_call->args[0].as<CallNode>();
+  return GetRootCall(next_call, op_name);
 }
 
 /*!
