@@ -168,7 +168,7 @@ class CutlassGemmProfiler:
         For now, the default kernel was picked arbitrary.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32
+            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, lambda _: True, use_3xtf32
         )
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
 

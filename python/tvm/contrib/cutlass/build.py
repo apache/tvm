@@ -237,6 +237,7 @@ def handle_conv2d(
     data_dtype,
     weight_dtype,
     use_3xtf32,
+        profile_all_alignments,
     profile_all,
     use_multiprocessing,
 ):
@@ -257,6 +258,7 @@ def handle_conv2d(
             data_dtype,
             weight_dtype,
             use_3xtf32,
+            profile_all_alignments,
             profile_all=profile_all,
             use_multiprocessing=use_multiprocessing,
         )
