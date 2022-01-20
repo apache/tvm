@@ -1004,20 +1004,19 @@ def test_custom_dtype():
 
     assert_parses_as(
         "let %_ : Tensor[(1), custom_myfloat32] = (); ()",
-        relay.Let(relay.Var("_", relay.TensorType(
-            (1,), "custom_myfloat32")), UNIT, UNIT),
+        relay.Let(relay.Var("_", relay.TensorType((1,), "custom_myfloat32")), UNIT, UNIT),
     )
 
     assert_parses_as(
         "let %_ : Tensor[(1, 1), custom_myfloat32] = (); ()",
-        relay.Let(relay.Var("_", relay.TensorType(
-            (1, 1), "custom_myfloat32")), UNIT, UNIT),
+        relay.Let(relay.Var("_", relay.TensorType((1, 1), "custom_myfloat32")), UNIT, UNIT),
     )
 
     assert_parses_as(
         "let %_ : Tensor[(?, 1), custom_myfloat32] = (); ()",
-        relay.Let(relay.Var("_", relay.TensorType(
-            (tvm.tir.Any(), 1), "custom_myfloat32")), UNIT, UNIT),
+        relay.Let(
+            relay.Var("_", relay.TensorType((tvm.tir.Any(), 1), "custom_myfloat32")), UNIT, UNIT
+        ),
     )
 
 
