@@ -694,7 +694,7 @@ def run_through_rpc(
             msg = msg[: msg.index("Stack trace returned")]
         if "CUDA Source" in msg:
             msg = msg[: msg.index("CUDA Source")]
-        costs = (RuntimeError(msg[:1024]),)
+        costs = (traceback.format_exc(), RuntimeError(msg[:1024]),)
         errno = MeasureErrorNo.RUNTIME_DEVICE
     tstamp = time.time()
     time.sleep(cooldown_interval)
