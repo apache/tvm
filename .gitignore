@@ -256,3 +256,6 @@ jvm/target
 src/runtime/hexagon/rpc/hexagon_rpc.h
 src/runtime/hexagon/rpc/hexagon_rpc_skel.c
 src/runtime/hexagon/rpc/hexagon_rpc_stub.c
+
+# Local tvm-site checkout
+tvm-site/
