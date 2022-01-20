@@ -168,14 +168,6 @@ class CutlassConv2DProfiler:
         )
         return {"name": name, "opdef": opdef}
 
-    def check_align(self, op_name, C, K):
-        """Filter out kernels that cannot be supported."""
-        match = re.match(".*_align([1-9]+)", op_name)
-        assert match is not None and len(match.groups()) == 1
-        # The same alignment is used for all axes
-        align = int(match.groups()[0])
-        return all([dim % align == 0 for dim in [C, K]])
-
     def select_op(
         self,
         d_shape,
@@ -187,6 +179,7 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32,
+        profile_all_alignments=False,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -216,10 +209,14 @@ class CutlassConv2DProfiler:
             return self.cache[workload]
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, data_dtype, weight_dtype, enumerate_conv2d_operators, use_3xtf32
+            out_dtype,
+            data_dtype,
+            weight_dtype,
+            enumerate_conv2d_operators,
+            lambda align: all([dim % align == 0 for dim in [IC, OC]]),
+            use_3xtf32,
+            profile_all_alignments,
         )
-
-        ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
 
         if profile_all:
             self.engine.compile_all(ops, use_multiprocessing)
@@ -252,6 +249,7 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32=True,
+        profile_all_alignments=False,
         profile_all=True,
         use_multiprocessing=False,
     ):
@@ -269,8 +267,9 @@ class CutlassConv2DProfiler:
             data_dtype,
             weight_dtype,
             use_3xtf32,
-            profile_all=profile_all,
-            use_multiprocessing=use_multiprocessing,
+            profile_all_alignments,
+            profile_all,
+            use_multiprocessing
         )
 
         name, opdef = create_conv2d_operator_with_epilogue(
