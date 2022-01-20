@@ -188,6 +188,7 @@ def profile_and_build(
         mod,
         sm,
         use_3xtf32=use_3xtf32,
+        profile_all_alignments=True,
         profile_all=False,
         use_multiprocessing=False,
         tmp_dir=tmp_dir,

@@ -272,7 +272,7 @@ def handle_conv2d(
 
 
 def tune_cutlass_kernels(
-    mod, sm, use_3xtf32=True, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
+        mod, sm, use_3xtf32=True, profile_all_alignments=False, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
 ):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
@@ -285,6 +285,9 @@ def tune_cutlass_kernels(
     sm : int
         An integer specifying the compute capability. For example, 75 for Turing and
         80 or 86 for Ampere.
+
+    profile_all_alignments : bool
+        TODO
 
     profile_all : bool
         Whether or not profile all candidate kernels, or stop profiling after
@@ -342,6 +345,7 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
+                        profile_all_alignments,
                         profile_all,
                         use_multiprocessing,
                     )
