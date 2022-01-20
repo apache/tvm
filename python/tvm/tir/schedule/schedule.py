@@ -1813,17 +1813,17 @@ class Schedule(Object):
                 B: T.Buffer[(128, 128), "float32"]
             )-> None:
                 for i_0, j_0 in T.grid(8, 8):
-                    with T.block("blockized_B"):
+                    with T.block("B_o"):
                         vio, vjo = T.axis.remap("SS", [i_0, j_0])
                         T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         for i_1, j_1 in T.grid(16, 16):
                             with T.block("B"):
-                                vi = T.axis.spatial(128, vio * 16 + i_1)
-                                vj = T.axis.spatial(128, vjo * 16 + j_1)
-                                T.reads(A[vi, vj])
-                                T.writes(B[vi, vj])
-                                B[vi, vj] = A[vi, vj] * T.float32(2)
+                                vi, vj = T.axis.remap("SS", [i_1, j_1])
+                                T.reads(A[vio * 16 + vi, vjo * 16 + vj])
+                                T.writes(B[vio * 16 + vi, vjo * 16 + vj])
+                                B[vio * 16 + vi, vjo * 16 + vj] = A[vio * 16 + vi, vjo * 16 + vj] *
+                                                                  T.float32(2)
 
         Note
         ----

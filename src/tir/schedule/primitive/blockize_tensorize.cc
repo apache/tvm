@@ -18,8 +18,8 @@
  */
 #include <functional>
 
-#include "../utils.h"
 #include "../ir_comparator.h"
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -66,7 +66,7 @@ class SubspaceNotDivisibleError : public ScheduleError {
  * \param bindings The values of iter_vars
  * \param outer_loops Iterators outside the subspace.
  * \param inner_loops Iterators of the subspace
- * \param predicate The predicate constaints on the input iterators.
+ * \param predicate The predicate constraint on the input iterators.
  * \return The result of the subspace division.
  */
 Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter_vars,
@@ -75,16 +75,25 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
                                                       const Array<Var>& inner_iters,
                                                       const PrimExpr& predicate) {
   if (!is_one(predicate)) return {};
-  std::vector<Array<arith::IterMark>> res;
+  Array<Array<arith::IterMark>> res;
   std::unordered_set<const VarNode*> outer_loop_vars;
   std::unordered_set<const VarNode*> inner_loop_vars;
-  for (const Var& var : outer_iters) {
-    outer_loop_vars.insert(var.get());
-  }
-  for (const Var& var : inner_iters) {
-    inner_loop_vars.insert(var.get());
-  }
-  const arith::IterMark unit_iter_mark(arith::IterSumExpr({}, 0), 1);
+
+  auto make_uses_var = [](const Array<Var>& vars) -> std::function<bool(const PrimExpr& expr)> {
+    std::unordered_set<const VarNode*> var_set;
+    var_set.reserve(vars.size());
+    for (const Var& var : vars) {
+      var_set.insert(var.get());
+    }
+    return [var_set = std::move(var_set)](const PrimExpr& expr) -> bool {
+      return UsesVar(expr, [&var_set](const VarNode* var) {
+        return var_set.count(var);  //
+      });
+    };
+  };
+  auto use_outer_loop_vars = make_uses_var(outer_iters);
+  auto use_inner_loop_vars = make_uses_var(inner_iters);
+  arith::IterMark unit_iter_mark(arith::IterSumExpr({}, 0), 1);
 
   for (size_t i = 0; i < bindings.size(); ++i) {
     bool outer = UsesVar(
@@ -100,18 +109,11 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
       iter_mark = arith::IterMark(arith::IterSumExpr({}, bindings[i]), iter_vars[i]->dom->extent);
     }
     if (outer && !inner) {
-      arith::IterMark outer{nullptr};
-      const auto& outer_iter = iter_mark;
-      const auto& inner_iter = unit_iter_mark;
-      res.push_back({outer_iter, inner_iter});
+      res.push_back({/*outer_iter=*/iter_mark, /*inner_iter=*/unit_iter_mark});
     } else if (inner && !outer) {
-      const auto& outer_iter = unit_iter_mark;
-      const auto& inner_iter = iter_mark;
-      res.push_back({outer_iter, inner_iter});
+      res.push_back({/*outer_iter=*/unit_iter_mark, /*inner_iter=*/iter_mark});
     } else if (!outer && !inner) {
-      const auto& outer_iter = unit_iter_mark;
-      const auto& inner_iter = unit_iter_mark;
-      res.push_back({outer_iter, inner_iter});
+      res.push_back({/*outer_iter=*/unit_iter_mark, /*inner_iter=*/unit_iter_mark});
     } else {
       return {};
     }
@@ -140,7 +142,7 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
     const PrimExpr& binding = inner_block_realize->iter_values[i];
     if (iter_var->iter_type == IterVarType::kDataPar &&
         UsesVar(block->init.value(),
-                [&iter_var](const VarNode* var) { return var == iter_var->var.get(); })) {
+                [tgt_var = iter_var->var.get()](const VarNode* var) { return var == tgt_var; })) {
       init_block_iters.push_back(iter_var);
       init_bindings.push_back(binding);
     }
@@ -151,8 +153,9 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
   for (const ForNode* inner_loop : inner_loops) {
     for (const PrimExpr& init_binding : init_bindings) {
       if (UsesVar(init_binding,
-                  [inner_loop](const VarNode* var) { return var == inner_loop->loop_var.get(); })) {
+          [tgt_var = inner_loop->loop_var.get()](const VarNode* var) { return var == tgt_var; })) {
         init_loops.push_back(inner_loop);
+        break;
       }
     }
   }
@@ -169,16 +172,16 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
   }
 
   // Step 4: Generate loop nests and the init block
-  Block init_block{/*iter_vars=*/init_block_iters,            //
-                   /*reads=*/{},                              //
-                   /*writes=*/block->writes,                  //
-                   /*name_hint=*/block->name_hint + "_init",  //
-                   /*body=*/block->init.value(),              //
-                   /*init=*/NullOpt};
   Stmt new_init = BlockRealize(
       /*iter_values=*/init_bindings,
       /*predicate=*/inner_block_realize->predicate,
-      /*block=*/std::move(init_block));
+      /*block=*/
+      Block{/*iter_vars=*/init_block_iters,
+            /*reads=*/{},
+            /*writes=*/block->writes,
+            /*name_hint=*/block->name_hint + "_init",
+            /*body=*/block->init.value(),
+            /*init=*/NullOpt});
 
   // Step 5: Generate the parent loops for the init block
   for (const ForNode* init_loop : init_loops) {
@@ -207,7 +210,7 @@ class LoopSubspaceCollector {
   /*!
    * \brief Collect the parent loops of the block and store the result in the corresponding fields.
    * \param block_sref The sref to the target block.
-   * \param loop_sref The sref to the separator loop.
+   * \param loop_sref The sref to the separator loop. The loop itself is counted as an inner loop.
    */
   void Collect(const StmtSRef& block_sref, const StmtSRef& loop_sref) {
     bool inner = true;
@@ -287,16 +290,14 @@ class BlockizedBindingExtractor {
    * \param division The result of the subspace division.
    */
   void ExtractBindings(const Array<IterVar>& iter_vars,
-                       const Array<Array<arith::IterMark>>& division) {
-    ICHECK(iter_vars.size() + 1 == division.size());
+                       const Array<Array<arith::IterMark>>& division, arith::Analyzer* analyzer) {
+    ICHECK_EQ(iter_vars.size() + 1, division.size());
     for (size_t i = 0; i < iter_vars.size(); ++i) {
       const IterVar& iter_var = iter_vars[i];
-      const arith::IterMapExprNode* outer_binding =
-          division[i][0]->source.as<arith::IterMapExprNode>();
-      const arith::IterMapExprNode* inner_binding =
-          division[i][1]->source.as<arith::IterMapExprNode>();
-      ICHECK(outer_binding);
-      ICHECK(inner_binding);
+      arith::IterMark outer_mark = division[i][0];
+      arith::IterMark inner_mark = division[i][1];
+      const auto* outer_binding = TVM_TYPE_AS(outer_binding, outer_mark->source, arith::IterMapExprNode);
+      const auto* inner_binding = TVM_TYPE_AS(inner_binding, inner_mark->source, arith::IterMapExprNode);
 
       // After computing the subspace division, bindings[i] can be written as
       // outer_binding * inner_binding->extent + inner_binding
@@ -316,20 +317,21 @@ class BlockizedBindingExtractor {
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(outer_binding)));
         outer_iter_vars.push_back(outer_var);
         PrimExpr base = is_one(division[i][0]->extent) ? 0 : outer_var * division[i][1]->extent;
-        if (const auto* op = division[i][1]->source.as<arith::IterSumExprNode>()) {
-          base = base + op->base;
-          inner_bindings.push_back(base +
-                                   arith::NormalizeIterMapToExpr(arith::IterSumExpr(op->args, 0)));
-        } else {
-          inner_bindings.push_back(
-              base + arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(inner_binding)));
-        }
-        inner_iter_vars.push_back(iter_var);
         inner_iter_relaxed_range.Set(iter_var->var,
                                      arith::IntSet::FromMinExtent(base, division[i][1]->extent));
+        IterVar new_iter = iter_var;
+        auto* new_iter_node = new_iter.CopyOnWrite();
+        new_iter_node->dom = Range::FromMinExtent(0, division[i][1]->extent);
+        analyzer->Bind(new_iter->var, new_iter->dom);
+        // new_iter_node->dom
+        inner_iter_vars.push_back(new_iter);
+        inner_bindings.push_back(
+            arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(inner_binding)));
+        inner_iter_subst_map.Set(iter_var->var, base + new_iter->var);
       }
     }
   }
+  Map<Var, PrimExpr> inner_iter_subst_map;
   /*! \brief Iters of the outer block. */
   Array<IterVar> outer_iter_vars;
   /*! \brief Iters of the outer block. */
@@ -343,6 +345,54 @@ class BlockizedBindingExtractor {
    * inner block iters.
    */
   Map<Var, arith::IntSet> inner_iter_relaxed_range;
+};
+
+/*!
+ * \brief Replacer for the inner block after blockize. Inner block iters will be replaced with
+ * base + inner_iter and the expressions after substituion will be simplified if possible.
+ */
+class InnerIterReplacer : public StmtExprMutator {
+ public:
+  /*!
+   * \brief The constructor
+   * \param subst_map The substitution map of the inner block iters.
+   * \param analyzer The arithmetic analyzer.
+   * \param block_sref_reuse The map to save the block reuse information.
+   */
+  InnerIterReplacer(Map<Var, PrimExpr> subst_map, arith::Analyzer* analyzer,
+                    Map<Block, Block>* block_sref_reuse)
+      : subst_map_(std::move(subst_map)),
+        analyzer_(analyzer),
+        block_sref_reuse_(block_sref_reuse) {}
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    auto it = subst_map_.find(GetRef<Var>(op));
+    if (it != subst_map_.end()) {
+      return (*it).second;
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr(const PrimExpr& op) final {
+    PrimExpr result = StmtExprMutator::VisitExpr(op);
+    if (!result.same_as(op)) {
+      return analyzer_->Simplify(result);
+    }
+    return result;
+  }
+
+  Stmt VisitStmt_(const BlockNode* op) final {
+    Stmt result = StmtExprMutator::VisitStmt_(op);
+    if (!result.same_as(GetRef<Stmt>(op))) {
+      block_sref_reuse_->Set(GetRef<Block>(op), Downcast<Block>(result));
+    }
+    return result;
+  }
+
+ private:
+  Map<Var, PrimExpr> subst_map_;
+  arith::Analyzer* analyzer_;
+  Map<Block, Block>* block_sref_reuse_;
 };
 
 /*!
@@ -398,7 +448,7 @@ BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extrac
   new_writes.MutateByApply(f_mutate);
 
   // Step 3: Generate the body of the outer block. The body of the outer block is the inner block
-  // realize and its surounding loops.
+  // realize and its surrounding loops.
   Stmt outer_block_body = inner_block_realize;
   for (const ForNode* loop : inner_loops) {
     ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
@@ -407,16 +457,15 @@ BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extrac
   }
 
   // Step 4: Generate the outer block and block realize.
-  Block outer_block{/*iter_vars=*/extractor.outer_iter_vars,        //
-                    /*reads=*/new_reads,                            //
-                    /*writes=*/new_writes,                          //
-                    /*name_hint=*/"blockized_" + block->name_hint,  //
-                    /*body=*/std::move(outer_block_body),           //
-                    /*init=*/new_init};
-  BlockRealize outer_block_realize{/*iter_values=*/extractor.outer_bindings,
-                                   /*predicate=*/std::move(predicate),
-                                   /*block=*/std::move(outer_block)};
-  return outer_block_realize;
+  return BlockRealize(/*iter_values=*/std::move(extractor.outer_bindings),
+                      /*predicate=*/std::move(predicate),
+                      /*block=*/
+                      Block(/*iter_vars=*/std::move(extractor.outer_iter_vars),  //
+                            /*reads=*/std::move(new_reads),                      //
+                            /*writes=*/std::move(new_writes),                    //
+                            /*name_hint=*/block->name_hint + "_o",               //
+                            /*body=*/std::move(outer_block_body),                //
+                            /*init=*/std::move(new_init)));
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
@@ -439,54 +488,60 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   // Step 4: Generate bindings for the outer block and the inner block based on the result of
   // the subspace division.
   BlockizedBindingExtractor extractor;
-  extractor.ExtractBindings(block->iter_vars, division);
+  extractor.ExtractBindings(block->iter_vars, division, &analyzer);
   const PrimExpr& outer_pred = division.back()[0]->extent;
   const PrimExpr& inner_pred = division.back()[1]->extent;
 
   // Step 5: Generate the inner block.
+  Map<Block, Block> block_sref_reuse;
   BlockRealizeNode* inner_block_realize = block_realize.CopyOnWrite();
   BlockNode* inner_block = inner_block_realize->block.CopyOnWrite();
   inner_block_realize->iter_values = extractor.inner_bindings;
   inner_block_realize->predicate = inner_pred;
   inner_block->iter_vars = extractor.inner_iter_vars;
   inner_block->init = NullOpt;
+  InnerIterReplacer replacer(std::move(extractor.inner_iter_subst_map), &analyzer,
+                             &block_sref_reuse);
+  inner_block_realize->block = Downcast<Block>(replacer(inner_block_realize->block));
 
   // Step 6: Generate the outer block.
   BlockRealize outer_realize =
       GenerateBlockizedOuterBlock(extractor, block, GetRef<BlockRealize>(inner_block_realize),
                                   collector.inner_loops, outer_pred, &analyzer);
   // Step 7: Do the actual replacement
-  self->Replace(loop_sref, outer_realize, {{block, GetRef<Block>(inner_block)}});
+  self->Replace(loop_sref, outer_realize, block_sref_reuse);
 
   // Step 8: Update the cached flags
-  const StmtSRef& outer_block_sref = self->stmt2ref.at(outer_realize->block.get());
+  StmtSRef outer_block_sref = self->stmt2ref.at(outer_realize->block.get());
   StmtSRef scope_root = tir::GetScopeRoot(self, outer_block_sref, /*require_stage_pipeline=*/false,
                                           /*require_subtree_compact_dataflow=*/false);
-  BlockInfo old_block_info = self->GetBlockInfo(scope_root);
+  bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
   self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
-  // 'affine_binding' depends on the outer loops and are not changed.
-  self->block_info[scope_root].affine_binding = old_block_info.affine_binding;
+  self->block_info[scope_root].affine_binding = scope_block_affine_binding;
   return outer_block_sref;
 }
 
 /*!
  * \brief Update the map from the buffers in the desc to the impl of the tensor
- * intrinsic. \param intrinsic The tensor intrinsic. \param buffer_map The map to be updated.
+ * intrinsic.
+ * \param intrinsic The tensor intrinsic.
+ * \param buffer_map The map to be updated.
  */
 void RemapTensorIntrinBuffers(
     const TensorIntrin& intrinsic,
     std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_map) {
   ICHECK_EQ(intrinsic->desc->params.size(), intrinsic->impl->params.size());
   for (size_t i = 0; i < intrinsic->desc->params.size(); ++i) {
-    const auto& lhs_var = intrinsic->desc->params[i];
-    const auto& lhs_buffer = intrinsic->desc->buffer_map[lhs_var];
-    const auto& rhs_var = intrinsic->impl->params[i];
-    const auto& rhs_buffer = intrinsic->impl->buffer_map[rhs_var];
+    const Var& lhs_var = intrinsic->desc->params[i];
+    const Buffer& lhs_buffer = intrinsic->desc->buffer_map[lhs_var];
+    const Var& rhs_var = intrinsic->impl->params[i];
+    const Buffer& rhs_buffer = intrinsic->impl->buffer_map[rhs_var];
     (*buffer_map)[rhs_buffer] = lhs_buffer;
   }
 }
 
-void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const TensorIntrin& intrinsic) {
+void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
+               const TensorIntrin& intrinsic) {
   /*!
    * Check:
    *   - Check buffer binding, including type, alignment, shape and etc.
@@ -499,11 +554,8 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const Ten
    *     buffers created via match buffer region.
    *   - Replace the sub tree with the mutated function.
    */
-  const auto* desc_block_realize =
-      Downcast<BlockRealize>(intrinsic->desc->body)->block->body.as<BlockRealizeNode>();
-  const Block& desc_block = desc_block_realize->block;
-  const auto* impl_block_realize =
-      Downcast<BlockRealize>(intrinsic->impl->body)->block->body.as<BlockRealizeNode>();
+  const BlockRealize& desc_block_realize = Downcast<BlockRealize>(intrinsic->desc->body);
+  const BlockRealize& impl_block_realize = Downcast<BlockRealize>(intrinsic->impl->body);
   Block impl_block = impl_block_realize->block;
 
   // Step 1: Blockize the subtree rooted at the given loop if needed
@@ -519,11 +571,10 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const Ten
   // Step 2: Compare the block with the desc of the tensor intrinsic, find the correspondence
   // between buffers in the block and the desc.
   TensorizeComparator comparator(self->mod, /*assert_mode=*/true);
-  comparator.VisitStmt(block_realize, GetRef<Stmt>(desc_block_realize));
+  comparator.VisitStmt(block_realize, desc_block_realize);
 
   // Step 3: Find the correspondence between buffers in the current AST and the impl of
   // the tensor intrinsic
-
   // Step 3.1: Map from intrinsic func buffer to desc func buffer
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> intrin_buffer_map;
   RemapTensorIntrinBuffers(intrinsic, &intrin_buffer_map);
@@ -545,18 +596,24 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const Ten
     buffer_region_map.emplace(write->buffer, write->region);
   }
   Array<MatchBufferRegion> match_buffer_regions;
+  match_buffer_regions.reserve(intrinsic->impl->params.size());
   for (size_t i = 0; i < intrinsic->impl->params.size(); ++i) {
     const auto& param = intrinsic->impl->params[i];
     const auto& buffer = intrinsic->impl->buffer_map.at(param);
     const auto& source = buffer_map.at(buffer);
-    Region region = buffer_region_map.at(buffer);
-    auto extra_indices = comparator.buffer_indices_.at(source);
-    std::vector<Range> extra_buffer_ranges;
-    std::transform(extra_indices.begin(), extra_indices.end(),
-                   std::back_inserter(extra_buffer_ranges),
-                   [](const PrimExpr& index) { return Range::FromMinExtent(index, 1); });
-    region.insert(region.begin(), extra_buffer_ranges.begin(), extra_buffer_ranges.end());
-    match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, region)));
+    // add the detected base indices to each buffer access region of the tensor intrinsic
+    Region old_region = buffer_region_map.at(buffer);
+    const auto& indices_base = comparator.buffer_indices_.at(source);
+    int offset = indices_base.size() - old_region.size();
+    Region new_region;
+    new_region.reserve(source->shape.size());
+    for (int i = 0; i < offset; i++) {
+      new_region.push_back(Range::FromMinExtent(indices_base[i], 1));
+    }
+    for (int i = 0; i < old_region.size(); i++) {
+      new_region.push_back(Range::FromMinExtent(indices_base[i + offset], old_region[i]->extent));
+    }
+    match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, new_region)));
   }
 
   // Step 5: Replace the subtree in the original IR with the tensor intrin impl.
@@ -566,17 +623,6 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref, const Ten
   new_block_ptr->match_buffers = std::move(match_buffer_regions);
   Block new_block(new_block_ptr);
 
-  // Substitution map for the intrin block to get the correct bindings.
-  Map<Var, PrimExpr> bv_map;
-  for (size_t i = 0; i < desc_block->iter_vars.size(); ++i) {
-    auto it = comparator.equal_map_.find(desc_block->iter_vars[i]->var);
-    if (it != comparator.equal_map_.end()) {
-      bv_map.Set(impl_block->iter_vars[i]->var, Downcast<PrimExpr>(it->second));
-    } else {
-      bv_map.Set(impl_block->iter_vars[i]->var, Integer(0));
-    }
-  }
-  new_block = Downcast<Block>(SubstituteInScope(new_block, bv_map));
   self->Replace(block_sref, new_block, {{block_realize->block, new_block}});
 
   // Step 6: Update the cached flags.
@@ -626,8 +672,8 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
     } else if (const auto* loop = block_or_loop_rv.as<LoopRVNode>()) {
       sch->Tensorize(GetRef<LoopRV>(loop), intrin);
     } else {
-      LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: " << block_or_loop_rv->GetTypeKey();
-      throw;
+      LOG(FATAL) << "TypeError: Expected Block or Loop, but gets: "
+                 << block_or_loop_rv->GetTypeKey();
     }
   }
 

@@ -33,14 +33,11 @@ def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
     with T.block("root"):
-        vi = T.axis.S(16, 0)
-        vj = T.axis.S(16, 0)
-        vk = T.axis.R(16, 0)
+        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        T.writes(C[0 : 16, 0 : 16])
         for i, j, k in T.grid(16, 16, 16):
             with T.block("update"):
-                vii = T.axis.S(16, vi + i)
-                vjj = T.axis.S(16, vj + j)
-                vkk = T.axis.R(16, vk + k)
+                vii, vjj, vkk = T.axis.remap("SSR", [i, j, k])
                 C[vii, vjj] = C[vii, vjj] + A[vii, vkk] * B[vjj, vkk]
 
 
@@ -51,17 +48,8 @@ def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
 
     with T.block("root"):
-        vi = T.axis.S(16, 0)
-        vj = T.axis.S(16, 0)
-        vk = T.axis.R(16, 0)
-        T.reads(
-            [
-                C[vi : vi + 16, vj : vj + 16],
-                A[vi : vi + 16, vk : vk + 16],
-                B[vj : vj + 16, vk : vk + 16],
-            ]
-        )
-        T.writes(C[vi : vi + 16, vj : vj + 16])
+        T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
+        T.writes(C[0 : 16, 0 : 16])
         T.evaluate(
             T.tvm_mma_sync(
                 C.data,
@@ -84,10 +72,11 @@ def dot_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, ())
 
     with T.block("root"):
-        v0 = T.axis.R(4, 0)
+        T.reads(C[()], A[0 : 4], B[0 : 4])
+        T.writes(C[()])
         for i in range(0, 4):
             with T.block("update"):
-                vi = T.axis.R(4, v0 + i)
+                vi = T.axis.remap("R", [i])
                 C[()] = C[()] + A[vi] * B[vi]
 
 
@@ -98,8 +87,7 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (), offset_factor=1)
 
     with T.block("root"):
-        v0 = T.axis.R(4, 0)
-        T.reads(C[()], A[v0 : v0 + 4], B[v0 : v0 + 4])
+        T.reads(C[()], A[0 : 4], B[0 : 4])
         T.writes(C[()])
         T.evaluate(
             T.call_extern(
@@ -117,43 +105,36 @@ def dot_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def outer_product_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 1))
-    B = T.match_buffer(b, (16, 1))
-    C = T.match_buffer(c, (16, 16))
+    A = T.match_buffer(a, (16, 1), offset_factor=1)
+    B = T.match_buffer(b, (16, 1), offset_factor=1)
+    C = T.match_buffer(c, (16, 16), offset_factor=1)
 
     with T.block("root"):
-        vi = T.axis.S(16, 0)
-        vj = T.axis.S(16, 0)
-        vk = T.axis.R(1, 0)
         T.reads(
-            C[vi : vi + 16, vj : vj + 16],
-            A[vi : vi + 16, vk : vk + 1],
-            B[vj : vj + 16, vk : vk + 1],
+            C[0 : 16, 0 : 16],
+            A[0 : 16, 0 : 1],
+            B[0 : 16, 0 : 1],
         )
-        T.writes(C[vi : vi + 16, vj : vj + 16])
+        T.writes(C[0 : 16, 0 : 16])
         for i, j in T.grid(16, 16):
             with T.block("update"):
-                vii = T.axis.S(16, vi + i)
-                vjj = T.axis.S(16, vj + j)
-                C[vii, vjj] = C[vii, vjj] + A[vii, vk] * B[vjj, vk]
+                vii, vjj = T.axis.remap("SS", [i, j])
+                C[vii, vjj] = C[vii, vjj] + A[vii, 0] * B[vjj, 0]
 
 
 @T.prim_func
 def outer_product_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 1))
-    B = T.match_buffer(b, (16, 1))
-    C = T.match_buffer(c, (16, 16))
+    A = T.match_buffer(a, (16, 1), offset_factor=1)
+    B = T.match_buffer(b, (16, 1), offset_factor=1)
+    C = T.match_buffer(c, (16, 16), offset_factor=1)
 
     with T.block("root"):
-        vi = T.axis.S(16, 0)
-        vj = T.axis.S(16, 0)
-        vk = T.axis.R(1, 0)
         T.reads(
-            C[vi : vi + 16, vj : vj + 16],
-            A[vi : vi + 16, vk : vk + 1],
-            B[vj : vj + 16, vk : vk + 1],
+            C[0 : 16, 0 : 16],
+            A[0 : 16, 0 : 1],
+            B[0 : 16, 0 : 1],
         )
-        T.writes(C[vi : vi + 16, vj : vj + 16])
+        T.writes(C[0 : 16, 0 : 16])
         T.evaluate(
             T.call_extern(
                 "outer_product",
@@ -371,14 +352,18 @@ def tensorized_batch_matmul_outer_product(
                 B[vn, vjo * 16 : vjo * 16 + 16, vk],
             )
             T.writes(C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-            A_1 = T.match_buffer(A[vn, vio * 16 : vio * 16 + 16, 0], [16, 1], dtype="float32")
-            B_1 = T.match_buffer(B[vn, vjo * 16 : vjo * 16 + 16, 0], [16, 1], dtype="float32")
+            A_1 = T.match_buffer(A[vn, vio * 16 : vio * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1)
+            B_1 = T.match_buffer(B[vn, vjo * 16 : vjo * 16 + 16, vk], [16, 1], dtype="float32", offset_factor=1
+            )
             C_1 = T.match_buffer(
-                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32"
+                C[vn, vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16], [16, 16], dtype="float32", offset_factor=1
             )
             T.evaluate(
-                T.call_extern("outer_product", C_1.data, 0, A_1.data, 0, B_1.data, 0, dtype="int32")
+                T.call_extern("outer_product", C_1.data, C_1.elem_offset, A_1.data, A_1.elem_offset,
+                              B_1.data, B_1.elem_offset, dtype="int32"
+                )
             )
+
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks

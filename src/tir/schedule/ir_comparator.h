@@ -35,16 +35,8 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
    * \param assert_mode Whether to raise an error if the two IR ASTs do not match.
    * \param lhs_mod The IRModule of the LHS. This is used for error reporting.
    */
-  explicit TensorizeComparator(IRModule lhs_mod, bool assert_mode = true) : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {
-  }
-
-  // Map from rhs buffer to lhs buffer
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> rhs_buffer_map_;
-  // Buffer indices mapping
-  std::unordered_map<Buffer, std::vector<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> buffer_indices_;
-  std::vector<IterVar> extra_block_vars_;
-  // variable remap if any
-  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
+  explicit TensorizeComparator(IRModule lhs_mod, bool assert_mode = true)
+      : lhs_mod_(std::move(lhs_mod)), assert_mode_(assert_mode) {}
 
   bool VisitExpr(const PrimExpr& n, const PrimExpr& other) override;
   bool VisitStmt(const Stmt& n, const Stmt& other) override;
@@ -78,7 +70,13 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr_(const VarNode* op, const PrimExpr& other) override;
   bool VisitExpr_(const BufferLoadNode* op, const PrimExpr& other) override;
 
-  bool DefEqual(const ObjectRef& lhs, const ObjectRef& rhs);
+  /*! \brief Map from RHS buffer to LHS buffer */
+  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> rhs_buffer_map_;
+  /*! \brief Base indices of the LHS buffer. */
+  std::unordered_map<Buffer, std::vector<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> buffer_indices_;
+
+ protected:
+  bool DefEqual(const Var& lhs, const Var& rhs);
   virtual bool CompareBuffer(const Buffer& lhs, const Buffer& rhs);
   bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
   bool CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
@@ -89,16 +87,21 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   template <typename T, typename F>
   bool CompareArray(const Array<T>& lhs, const Array<T>& rhs, F cmp);
   bool CompareRange(const Range& lhs, const Range& rhs);
-  bool CompareType(const DataType& lhs, const DataType& rhs);
+  bool CompareIterVar(const IterVar& lhs, const IterVar& rhs);
+  void EmitError(const std::string& error_message);
 
- protected:
+  /*! \brief IRModule of the LHS stmt. */
   IRModule lhs_mod_;
-  // Map<Buffer, Array<BufferRegion>> lhs_root_access_region_;
-  BlockNode* lhs_scope_block;
+  /*! \brief Whether assertion mode is enabled. */
   bool assert_mode_;
+  /*! \brief Whether it is visiting the scope block (the outermost block). */
   bool is_scope_block = true;
-  bool is_inner_block = true;
-  arith::Analyzer analyzer;
+  /*! \brief The arithmetic analyzer. */
+  arith::Analyzer analyzer_;
+  /*! \brief Additional error messages. Only used when assert_mode is true. */
+  std::vector<std::string> error_messages_;
+  // variable remap if any
+  std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_;
 };
 
 }  // namespace tir

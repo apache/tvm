@@ -62,7 +62,7 @@ def single_elementwise_blockized2(
             T.writes(B[vi, 0:128])
             for j in T.serial(128):
                 with T.block("B"):
-                    vj = T.axis.spatial(128, j)
+                    vj = T.axis.remap("S", [j])
                     T.reads(A[vi, vj])
                     T.writes(B[vi, vj])
                     B[vi, vj] = A[vi, vj] * T.float32(2)
@@ -90,38 +90,28 @@ def two_elementwise_blockized(
     A: T.Buffer[(128, 128), "float32"],
     C: T.Buffer[(128, 128), "float32"]
 ) -> None:
-    with T.block("root"):
-        T.reads([])
-        T.writes([])
-        B = T.alloc_buffer([128, 128], "float32")
-        for i0_outer in range(0, 8):
-            for i1_outer in range(0, 8):
-                with T.block("blockized_B"):
-                    vio = T.axis.S(8, i0_outer)
-                    vjo = T.axis.S(8, i1_outer)
-                    T.reads([A[(vio * 16) : ((vio * 16) + 16), (vjo * 16) : ((vjo * 16) + 16)]])
-                    T.writes([B[(vio * 16) : ((vio * 16) + 16), (vjo * 16) : ((vjo * 16) + 16)]])
-                    for i0_inner in range(0, 16):
-                        for i1_inner in range(0, 16):
-                            with T.block("B"):
-                                vi = T.axis.S(128, ((vio * 16) + i0_inner))
-                                vj = T.axis.S(128, ((vjo * 16) + i1_inner))
-                                T.reads([A[vi : (vi + 1), vj : (vj + 1)]])
-                                T.writes([B[vi : (vi + 1), vj : (vj + 1)]])
-                                B[vi, vj] = A[vi, vj] * T.float32(2)
-                with T.block("blockized_C"):
-                    vio = T.axis.S(8, i0_outer)
-                    vjo = T.axis.S(8, i1_outer)
-                    T.reads([B[(vio * 16) : ((vio * 16) + 16), (vjo * 16) : ((vjo * 16) + 16)]])
-                    T.writes([C[(vio * 16) : ((vio * 16) + 16), (vjo * 16) : ((vjo * 16) + 16)]])
-                    for ax0 in range(0, 16):
-                        for ax1 in range(0, 16):
-                            with T.block("C"):
-                                vi = T.axis.S(128, ((vio * 16) + ax0))
-                                vj = T.axis.S(128, ((vjo * 16) + ax1))
-                                T.reads([B[vi : (vi + 1), vj : (vj + 1)]])
-                                T.writes([C[vi : (vi + 1), vj : (vj + 1)]])
-                                C[vi, vj] = B[vi, vj] + T.float32(1)
+    B = T.alloc_buffer([128, 128], dtype="float32")
+    for i_0, j_0 in T.grid(8, 8):
+        with T.block("blockized_B"):
+            vio, vjo = T.axis.remap("SS", [i_0, j_0])
+            T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+            T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+            for i_1, j_1 in T.grid(16, 16):
+                with T.block("B"):
+                    vi, vj = T.axis.remap("SS", [i_1, j_1])
+                    T.reads(A[vio * 16 + vi, vjo * 16 + vj])
+                    T.writes(B[vio * 16 + vi, vjo * 16 + vj])
+                    B[vio * 16 + vi, vjo * 16 + vj] = A[vio * 16 + vi, vjo * 16 + vj] * T.float32(2)
+        with T.block("blockized_C"):
+            vio, vjo = T.axis.remap("SS", [i_0, j_0])
+            T.reads(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+            T.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+            for ax0, ax1 in T.grid(16, 16):
+                with T.block("C"):
+                    vi, vj = T.axis.remap("SS", [ax0, ax1])
+                    T.reads(B[vio * 16 + vi, vjo * 16 + vj])
+                    T.writes(C[vio * 16 + vi, vjo * 16 + vj])
+                    C[vio * 16 + vi, vjo * 16 + vj] = B[vio * 16 + vi, vjo * 16 + vj] + T.float32(1)
 
 
 @T.prim_func
@@ -160,6 +150,7 @@ def test_blockize_outer():
     B = s.get_block("B")
     x, y = s.get_loops(B)
     s.blockize(x)
+    print(s.mod['main'].script())
     tvm.ir.assert_structural_equal(s.mod["main"], single_elementwise_blockized1)
     verify_trace_roundtrip(sch=s, mod=func)
 
@@ -171,7 +162,6 @@ def test_blockize_inner():
     B = s.get_block("B")
     x, y = s.get_loops(B)
     s.blockize(y)
-    print(s.mod["main"].script())
     tvm.ir.assert_structural_equal(s.mod["main"], single_elementwise_blockized2)
     verify_trace_roundtrip(sch=s, mod=func)
 

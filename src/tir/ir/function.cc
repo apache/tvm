@@ -83,28 +83,6 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
   }
   ICHECK_EQ(desc->buffer_map.size(), impl->buffer_map.size());
 
-  // check both functions' bodies are directly block
-  const auto* desc_realize =
-      Downcast<BlockRealize>(desc->body)->block->body.as<BlockRealizeNode>();
-  const auto* impl_realize =
-      Downcast<BlockRealize>(impl->body)->block->body.as<BlockRealizeNode>();
-  CHECK(desc_realize != nullptr) << "description function's body expect a directly block";
-  CHECK(impl_realize != nullptr) << "intrinsic function's body expect a directly block";
-
-  const Block& desc_block = desc_realize->block;
-  const Block& impl_block = impl_realize->block;
-
-  // check block var number and iter type
-  CHECK_EQ(desc_block->iter_vars.size(), impl_block->iter_vars.size())
-      << "ValueError: The blocks in the description and the implementation should have the same number of block vars";
-  for (size_t i = 0; i < desc_block->iter_vars.size(); i++) {
-    const IterVar& desc_var = desc_block->iter_vars[i];
-    const IterVar& impl_var = impl_block->iter_vars[i];
-    CHECK(desc_var->iter_type == impl_var->iter_type)
-        << "Block iter_type mismatch between " << IterVarType2String(desc_var->iter_type) << " and "
-        << IterVarType2String(impl_var->iter_type);
-  }
-
   ObjectPtr<TensorIntrinNode> n = make_object<TensorIntrinNode>();
   n->desc = std::move(desc);
   n->impl = std::move(impl);
