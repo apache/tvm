@@ -11,10 +11,17 @@ include(ExternalProject)
 #   USE_HEXAGON_ARCH
 #   USE_HEXAGON_SDK
 #   USE_HEXAGON_TOOLCHAIN (Path to Hexagon toolchain ending with "Tools")
+# Optional variable:
+#   USE_OUTPUT_BINARY_DIR (Path to copy the output binaries to)
 
 set(TVM_SOURCE_DIR "${CMAKE_SOURCE_DIR}/../..")
-set(HEXAGON_API_BINARY_DIR "${CMAKE_BINARY_DIR}/hexagon_rpc")
 
+if(DEFINED USE_OUTPUT_BINARY_DIR)
+  set(HEXAGON_API_BINARY_DIR "${USE_OUTPUT_BINARY_DIR}")
+else()
+  set(HEXAGON_API_BINARY_DIR "${CMAKE_BINARY_DIR}/hexagon_rpc")
+endif()
+file(MAKE_DIRECTORY ${HEXAGON_API_BINARY_DIR})
 
 # Build Android binaries:
 # - libtvm_runtime.so

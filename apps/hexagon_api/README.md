@@ -41,10 +41,14 @@ Hexagon toolchain included in the SDK, for example
 in the path is the toolchain version number, which is specific to the
 version of the SDK.
 
+Additionally, the variable `USE_OUTPUT_BINARY_DIR` can be set to indicate
+the location where the generated binaries will be placed. If not set, it
+defaults to `hexagon_rpc` subdirectory in the current build directory.
+
+
 ## Build
 
-The build will create a subdirectory `hexagon_rpc` with the following
-binaries
+The build will generate the following binaries:
 - `tvm_runtime.so`: TVM runtime for Android (shared library).
 - `tvm_rpc_android`: RPC server for Android.
 - `libhexagon_rpc_skel.so`: RPC library for Hexagon.
