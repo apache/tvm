@@ -1779,6 +1779,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
 
+  if (!block->annotations.empty()) {
+    return false;
+  }
   // Cond 1. The block has only one write buffer
   if (block->writes.size() != 1) {
     return false;
@@ -1788,8 +1791,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
                                             /*require_stage_pipeline=*/false,  //
                                             /*require_subtree_compact_dataflow=*/false);
-  if (!(IsReductionBlock(self, block_sref, scope_sref) &&  //
-        IsTrivialBinding(self, block_sref))) {
+  if (!IsReductionBlock(self, block_sref, scope_sref)  //
+      || !IsTrivialBinding(self, block_sref)           //
+      || HasBeenMultiLevelTiled(block_sref)) {
     return false;
   }
 
