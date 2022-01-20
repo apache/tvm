@@ -29,7 +29,9 @@ def create_te_graph(func):
     return te_graph, consts
 
 
-def make_matrices(kernel, stride, dilation, padding, ifm_channels, ifm_layout, ofm_layout):
+def make_matrices(
+    op_type, kernel, stride, padding, ifm_layout, ofm_layout, dilation=(1, 1), ifm_channels=1
+):
     kernel_h, kernel_w = kernel
     stride_h, stride_w = stride
     dilation_h, dilation_w = dilation
@@ -50,20 +52,51 @@ def make_matrices(kernel, stride, dilation, padding, ifm_channels, ifm_layout, o
         [0, 0, 16, 0, 1, -16],
         [0, 0, 0, 0, 0, 1],
     ]
-    ifm_matrix = [
-        [1, 0, 0, 0, 0],
-        [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
-        [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
-        [0, 0, 0, 0, ifm_channels],
-        [0, 0, 0, 0, 1],
-    ]
-    weight_matrix = [
-        [0, 0, 0, 1, 0],
-        [0, 0, 0, 0, kernel_h],
-        [0, 0, 0, 0, kernel_w],
-        [0, 0, 0, 0, ifm_channels],
-        [0, 0, 0, 0, 1],
-    ]
+    if op_type == "ethosu_conv2d":
+        ifm_matrix = [
+            [1, 0, 0, 0, 0],
+            [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
+            [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
+            [0, 0, 0, 0, ifm_channels],
+            [0, 0, 0, 0, 1],
+        ]
+        weight_matrix = [
+            [0, 0, 0, 1, 0],
+            [0, 0, 0, 0, kernel_h],
+            [0, 0, 0, 0, kernel_w],
+            [0, 0, 0, 0, ifm_channels],
+            [0, 0, 0, 0, 1],
+        ]
+    elif op_type == "ethosu_depthwise_conv2d":
+        ifm_matrix = [
+            [1, 0, 0, 0, 0],
+            [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
+            [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
+            [0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 1],
+        ]
+        weight_matrix = [
+            [0, 0, 0, 1, 0],
+            [0, 0, 0, 0, kernel_h],
+            [0, 0, 0, 0, kernel_w],
+            [0, 0, 0, 0, 1],
+            [0, 0, 0, 0, 1],
+        ]
+    elif op_type == "ethosu_pooling":
+        ifm_matrix = [
+            [1, 0, 0, 0, 0],
+            [0, stride_h, 0, 0, (dilated_kernel_h - stride_h)],
+            [0, 0, stride_w, 0, (dilated_kernel_w - stride_w)],
+            [0, 0, 0, 1, 0],
+            [0, 0, 0, 0, 1],
+        ]
+        weight_matrix = [
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0],
+        ]
     scale_bias_matrix = [
         [0, 0, 0, 1, 0],
         [0, 0, 0, 0, 10],
