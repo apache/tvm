@@ -148,6 +148,11 @@ class LivenessAnalyzer : public ExprVisitor {
     use_[GetRef<Expr>(tuple_node)] = use;
   }
 
+  void VisitExpr_(const TupleGetItemNode* get_node) override {
+    TSuper::VisitExpr_(get_node);
+    use_[GetRef<Expr>(get_node)] = use_[get_node->tuple];
+  }
+
   void VisitExpr_(const GlobalVarNode* global_var_node) override {
     use_[GetRef<Expr>(global_var_node)] = empty_set_;
   }
@@ -342,7 +347,7 @@ Pass VMPlanMemory() {
     // lva.DebugDump();
     MemoryPlanner mp;
     Expr nf = mp.PlanMemory(f);
-    std::cout << PrettyPrint(nf);
+    // std::cout << PrettyPrint(nf);
     return Downcast<Function>(nf);
   };
   return CreateFunctionPass(pass_func, 0, "VMPlanMemory", {});
