@@ -448,7 +448,9 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     }
     // Add its inputs as "used" ones
     for (const ObjectRef& obj : inst->inputs) {
-      if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
+      if (!obj.defined()) {
+        continue;
+      } else if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
           obj->IsInstance<VarNode>()) {
         used_rvs.insert(obj.get());
         continue;
