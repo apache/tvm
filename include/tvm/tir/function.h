@@ -216,7 +216,7 @@ class TensorIntrin : public ObjectRef {
    * \param desc The function to describe the computation.
    * \param impl The function of the implementation for the execution.
    */
-  TVM_DLL explicit TensorIntrin(PrimFunc desc_func, PrimFunc intrin_func);
+  TVM_DLL explicit TensorIntrin(PrimFunc desc, PrimFunc impl);
 
   /*!
    * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
