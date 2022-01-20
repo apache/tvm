@@ -152,8 +152,9 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
   std::vector<const ForNode*> init_loops;
   for (const ForNode* inner_loop : inner_loops) {
     for (const PrimExpr& init_binding : init_bindings) {
-      if (UsesVar(init_binding,
-          [tgt_var = inner_loop->loop_var.get()](const VarNode* var) { return var == tgt_var; })) {
+      if (UsesVar(init_binding, [tgt_var = inner_loop->loop_var.get()](const VarNode* var) {
+            return var == tgt_var;
+          })) {
         init_loops.push_back(inner_loop);
         break;
       }
@@ -296,14 +297,17 @@ class BlockizedBindingExtractor {
       const IterVar& iter_var = iter_vars[i];
       arith::IterMark outer_mark = division[i][0];
       arith::IterMark inner_mark = division[i][1];
-      const auto* outer_binding = TVM_TYPE_AS(outer_binding, outer_mark->source, arith::IterMapExprNode);
-      const auto* inner_binding = TVM_TYPE_AS(inner_binding, inner_mark->source, arith::IterMapExprNode);
+      const auto* outer_binding =
+          TVM_TYPE_AS(outer_binding, outer_mark->source, arith::IterMapExprNode);
+      const auto* inner_binding =
+          TVM_TYPE_AS(inner_binding, inner_mark->source, arith::IterMapExprNode);
 
       // After computing the subspace division, bindings[i] can be written as
       // outer_binding * inner_binding->extent + inner_binding
       // The outer block will have binding: iter_outer -> outer_binding
-      // The inner block will have binding: iter_inner -> iter_outer * inner_binding->extent +
-      // inner_binding
+      // The inner block will have binding: iter_inner -> inner_binding
+      // The iter in the original block will be substituted with base + iter_inner where
+      // base == iter_outer * iter_inner_extent
 
       if (is_one(division[i][1]->extent)) {  // IsOuter
         // extract this iter var to outer block directly
@@ -311,19 +315,19 @@ class BlockizedBindingExtractor {
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(outer_binding)));
         outer_iter_vars.push_back(iter_var);
       } else {
+        // create iter var for the outer block
         const IterVar outer_var(Range::FromMinExtent(0, division[i][0]->extent),
                                 iter_var->var.copy_with_suffix("o"), iter_var->iter_type);
         outer_bindings.push_back(
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(outer_binding)));
         outer_iter_vars.push_back(outer_var);
         PrimExpr base = is_one(division[i][0]->extent) ? 0 : outer_var * division[i][1]->extent;
-        inner_iter_relaxed_range.Set(iter_var->var,
-                                     arith::IntSet::FromMinExtent(base, division[i][1]->extent));
+        // create iter var for the inner block
         IterVar new_iter = iter_var;
         auto* new_iter_node = new_iter.CopyOnWrite();
         new_iter_node->dom = Range::FromMinExtent(0, division[i][1]->extent);
+        inner_iter_dom_map.Set(new_iter->var, arith::IntSet::FromRange(new_iter->dom));
         analyzer->Bind(new_iter->var, new_iter->dom);
-        // new_iter_node->dom
         inner_iter_vars.push_back(new_iter);
         inner_bindings.push_back(
             arith::NormalizeIterMapToExpr(GetRef<arith::IterMapExpr>(inner_binding)));
@@ -340,11 +344,8 @@ class BlockizedBindingExtractor {
   Array<PrimExpr> outer_bindings;
   /*! \brief Binding values of the inner block. */
   Array<PrimExpr> inner_bindings;
-
-  /*! \brief The range of the inner block iters Note that this is different from the domain of the
-   * inner block iters.
-   */
-  Map<Var, arith::IntSet> inner_iter_relaxed_range;
+  /*! \brief The domain of the inner block iters. */
+  Map<Var, arith::IntSet> inner_iter_dom_map;
 };
 
 /*!
@@ -399,12 +400,10 @@ class InnerIterReplacer : public StmtExprMutator {
  * \brief Compute the access region of the outer block by relaxing the inner loops.
  * \param buffer_region The original buffer region.
  * \param The range of the inner loops.
- * \param analyzer The arithmetic analyzer.
  * \return The new buffer region.
  */
 BufferRegion RelaxBlockizedInnerIters(const BufferRegion& buffer_region,
-                                      const Map<Var, arith::IntSet>& inner_iter_relaxed_range,
-                                      arith::Analyzer* analyzer) {
+                                      const Map<Var, arith::IntSet>& inner_iter_relaxed_range) {
   Array<Range> new_region;
   new_region.reserve(buffer_region->region.size());
   Array<arith::IntSet> relaxed_int_set =
@@ -424,13 +423,12 @@ BufferRegion RelaxBlockizedInnerIters(const BufferRegion& buffer_region,
  * \param inner_block_realize The block realize of the inner block after blockize.
  * \param inner_loops The inner loops after blockize.
  * \param predicate The outer predicate of the subspace division.
- * \param analyzer The arithmetic analyzer.
  * \return The block realize of the outer block after blockize.
  */
 BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extractor,
                                          const Block& block, BlockRealize inner_block_realize,
                                          const std::vector<const ForNode*>& inner_loops,
-                                         PrimExpr predicate, arith::Analyzer* analyzer) {
+                                         PrimExpr predicate) {
   // Step 1: Generate the init block if needed
   Optional<Stmt> new_init = NullOpt;
   if (block->init.defined()) {
@@ -442,7 +440,7 @@ BlockRealize GenerateBlockizedOuterBlock(const BlockizedBindingExtractor& extrac
   Array<BufferRegion> new_writes = block->writes;
 
   auto f_mutate = [&](const BufferRegion& buffer_region) {
-    return RelaxBlockizedInnerIters(buffer_region, extractor.inner_iter_relaxed_range, analyzer);
+    return RelaxBlockizedInnerIters(buffer_region, extractor.inner_iter_dom_map);
   };
   new_reads.MutateByApply(f_mutate);
   new_writes.MutateByApply(f_mutate);
@@ -492,22 +490,27 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
   const PrimExpr& outer_pred = division.back()[0]->extent;
   const PrimExpr& inner_pred = division.back()[1]->extent;
 
-  // Step 5: Generate the inner block.
+  // Step 5: Substitute the iter vars in the original block with the inner iters after the subspace
+  // division
   Map<Block, Block> block_sref_reuse;
-  BlockRealizeNode* inner_block_realize = block_realize.CopyOnWrite();
-  BlockNode* inner_block = inner_block_realize->block.CopyOnWrite();
-  inner_block_realize->iter_values = extractor.inner_bindings;
-  inner_block_realize->predicate = inner_pred;
-  inner_block->iter_vars = extractor.inner_iter_vars;
-  inner_block->init = NullOpt;
   InnerIterReplacer replacer(std::move(extractor.inner_iter_subst_map), &analyzer,
                              &block_sref_reuse);
-  inner_block_realize->block = Downcast<Block>(replacer(inner_block_realize->block));
+  Block new_block = Downcast<Block>(replacer(block));
+
+  // Step 6: Generate the inner block.
+  BlockRealizeNode* inner_block_realize = block_realize.CopyOnWrite();
+  inner_block_realize->iter_values = extractor.inner_bindings;
+  inner_block_realize->predicate = inner_pred;
+  inner_block_realize->block = new_block;
+  BlockNode* inner_block = inner_block_realize->block.CopyOnWrite();
+  inner_block->iter_vars = extractor.inner_iter_vars;
+  inner_block->init = NullOpt;
+  block_sref_reuse.Set(block, inner_block_realize->block);
 
   // Step 6: Generate the outer block.
   BlockRealize outer_realize =
-      GenerateBlockizedOuterBlock(extractor, block, GetRef<BlockRealize>(inner_block_realize),
-                                  collector.inner_loops, outer_pred, &analyzer);
+      GenerateBlockizedOuterBlock(extractor, new_block, GetRef<BlockRealize>(inner_block_realize),
+                                  collector.inner_loops, outer_pred);
   // Step 7: Do the actual replacement
   self->Replace(loop_sref, outer_realize, block_sref_reuse);
 
@@ -589,10 +592,10 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
   // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
   // intrin to make them subregions of the buffer in the original IR.
   std::unordered_map<Buffer, Array<Range>, ObjectPtrHash, ObjectPtrEqual> buffer_region_map;
-  for (const auto& read : impl_block->reads) {
+  for (const BufferRegion& read : impl_block->reads) {
     buffer_region_map.emplace(read->buffer, read->region);
   }
-  for (const auto& write : impl_block->writes) {
+  for (const BufferRegion& write : impl_block->writes) {
     buffer_region_map.emplace(write->buffer, write->region);
   }
   Array<MatchBufferRegion> match_buffer_regions;
