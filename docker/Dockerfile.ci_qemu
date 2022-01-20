@@ -42,10 +42,7 @@ COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
 ENV RUSTUP_HOME /opt/rust
 ENV CARGO_HOME /opt/rust
-
-# wasmtime
-COPY install/ubuntu_install_wasmtime.sh /install/ubuntu_install_wasmtime.sh
-RUN bash /install/ubuntu_install_wasmtime.sh
+ENV PATH $PATH:$CARGO_HOME/bin
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
