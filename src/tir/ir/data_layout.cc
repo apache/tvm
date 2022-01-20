@@ -131,8 +131,6 @@ Layout::Layout(const std::string& name) {  // NOLINT(*)
     ICHECK_EQ(axis_str.size(), 1);
     char axis = axis_str[0];
     ICHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
-    // skip this check to support multi-blocking layout
-    // ICHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
