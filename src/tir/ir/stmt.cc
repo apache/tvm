@@ -241,6 +241,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // Store
 Store::Store(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate, Span span) {
+  LOG(FATAL) << "Unexpected use of deprecated Store node for buffer " << buffer_var->name_hint
+             << ".  Use BufferStore instead.";
   ICHECK(value.defined());
   ICHECK(index.defined());
   ICHECK(predicate.defined());
