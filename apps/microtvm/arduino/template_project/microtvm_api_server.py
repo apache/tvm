@@ -427,7 +427,7 @@ class Handler(server.ProjectAPIHandler):
 
                 # Remove trailing whitespace used for padding
                 parsed_row.append(str_cell.rstrip())
-                
+
             del parsed_row[1]
             yield parsed_row
 
@@ -483,7 +483,6 @@ class Handler(server.ProjectAPIHandler):
                 time.sleep(1.0)
                 if retry <= 0:
                     raise e
-
 
     def open_transport(self, options):
         # Zephyr example doesn't throw an error in this case
