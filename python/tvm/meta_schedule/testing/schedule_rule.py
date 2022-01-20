@@ -55,6 +55,7 @@ def add_rfactor(target: Target) -> ScheduleRule:
         return AddRFactor(max_jobs_per_core=16, max_innermost_factor=64)
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
+
 def cross_thread_reduction(target: Target) -> ScheduleRule:
     """Default schedule rules for with cross-thread reduction"""
     if target.kind.name == "cuda":
