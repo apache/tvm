@@ -630,13 +630,8 @@ class TVMScriptParser(Transformer):
                     f"Store is only allowed with one index, but {len(indexes)} were provided.",
                     node.params[1].span,
                 )
-            # Store
-            return tvm.tir.Store(
-                symbol,
-                tvm.runtime.convert(rhs, span=rhs_span),
-                indexes[0],
-                tvm.runtime.convert(True, span=tvm_span_from_synr(node.span)),
-                span=tvm_span_from_synr(node.span),
+            self.report_error(
+                "Use of tir.Store has been deprecated in favor of tir.BufferStore.", node.span
             )
 
     def transform_Assert(self, node):
@@ -950,15 +945,8 @@ class TVMScriptParser(Transformer):
                     node.span,
                 )
 
-            return call_with_error_reporting(
-                self.report_error,
-                node.span,
-                tvm.tir.Load,
-                "float32",
-                symbol,
-                index,
-                True,
-                span=tvm_span_from_synr(node.span),
+            self.report_error(
+                "Use of tir.Load has been deprecated in favor of tir.BufferLoad", node.span
             )
         elif isinstance(symbol, tvm.tir.Buffer):
             return BufferSlice(
