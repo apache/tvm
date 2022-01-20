@@ -41,4 +41,4 @@ python3 -m pip install --user tlcpack-sphinx-addon==0.2.1 synr==0.6.0
 (cd build && rm -rf pytest-results)
 
 # Install tvm as a local package to allow tvmc to work
-python3 -m pip install --user ./python
+python3 -m pip install --user -e ./python
