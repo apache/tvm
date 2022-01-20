@@ -16,32 +16,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
-# Python is required by apps/bundle_deploy
-source tests/scripts/setup-pytest-env.sh
-
-export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
-# NOTE: important to use abspath, when VTA is enabled.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-
-# to avoid CI thread throttling.
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
-
-# Build cpptest suite
-make cpptest -j2
-
-# "make crttest" requires USE_MICRO to be enabled, which is not always the case.
-if grep crttest build/Makefile > /dev/null; then
-    make crttest  # NOTE: don't parallelize, due to issue with build deps.
-fi
-
-cd build && ctest --gtest_death_test_style=threadsafe && cd ..
-
-# Test MISRA-C runtime
-cd apps/bundle_deploy
-rm -rf build
-make test_dynamic test_static
-cd ../..
+pushd apps/microtvm/ethosu
+./run_demo.sh --cmake_path /opt/arm/cmake/bin/cmake
+popd
