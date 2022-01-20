@@ -451,7 +451,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
       if (!obj.defined()) {
         continue;
       } else if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
-          obj->IsInstance<VarNode>()) {
+                 obj->IsInstance<VarNode>()) {
         used_rvs.insert(obj.get());
         continue;
       } else if (obj->IsInstance<PrimExprNode>()) {
