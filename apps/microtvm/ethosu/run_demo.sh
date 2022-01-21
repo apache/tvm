@@ -124,7 +124,7 @@ mkdir -p build
 cd build
 
 # Get mobilenet_v2 tflite model
-mobilenet_url='https://github.com/ARM-software/ML-zoo/raw/master/models/image_classification/mobilenet_v2_1.0_224/tflite_int8/mobilenet_v2_1.0_224_INT8.tflite'
+mobilenet_url='https://github.com/ARM-software/ML-zoo/raw/b9e26e662c00e0c0b23587888e75ac1205a99b6e/models/image_classification/mobilenet_v2_1.0_224/tflite_int8/mobilenet_v2_1.0_224_INT8.tflite'
 curl --retry 64 -sSL ${mobilenet_url} -o ./mobilenet_v2_1.0_224_INT8.tflite
 
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU

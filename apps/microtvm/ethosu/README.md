@@ -75,7 +75,7 @@ the locations for these can be specified as arguments to run_demo.sh, for exampl
 This will:
 - Download a quantized (int8) mobilenet v2 model
 - Use tvmc to compile the model for Cortex(R)-M55 CPU, Ethos(TM)-U55 NPU and CMSIS-NN
-- Download an image of a penguig to run the model on
+- Download an image of a penguin to run the model on
 - Create a C header file inputs.c containing the image data as a C array
 - Create a C header file outputs.c containing a C array where the output of inference will be stored
 - Build the Ethos(TM)-U55 core driver
