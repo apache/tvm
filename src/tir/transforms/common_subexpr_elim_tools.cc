@@ -124,6 +124,14 @@ void UnionOf2TablesOfComputations(TableOfComputations& table_main,
  * \param table1 One of the three tables, which won't change.
  * \param table2 One of the three tables, which won't change.
  * \param table3 One of the three tables, which won't change.
+ * \note We don't need (at least yet) to have a function working for N tables, even if this
+ *       function for 3 tables seems at first glance redundant with the one for 2 tables defined
+ *       just above. The reason is that in order to do the union for N tables, we need to know how
+ *       to do it for two. That's because we would compute for N tables using the associativity
+ *       of the union : T1 U T2 U T3 ... U Tn = ((T1 U T2) U T3) ... U Tn
+ *       Therefore, we need one for 2 tables anyway. And as the one for N (N>=3) would only be used
+ *       (at least for now) for N=3, there is at the moment no need for such a generic union over
+ *       N tables.
  */
 TableOfComputations UnionOf3TablesOfComputations(const TableOfComputations& table1,
             const TableOfComputations& table2, const TableOfComputations& table3) {
@@ -156,6 +164,15 @@ TableOfComputations IntersectionOf2TablesOfComputations(const TableOfComputation
  * \param table1 One of the three tables, which won't change.
  * \param table2 One of the three tables, which won't change.
  * \param table3 One of the three tables, which won't change.
+ * \note We don't need (at least yet) to have a function working for N tables, even if this
+ *       function for 3 tables seems at first glance redundant with the one for 2 tables defined
+ *       just above. The reason is that in order to do the intersection for N tables, we need to
+ *       know how to do it for two. That's because we would compute for N tables using the
+ *       associativity of the intersection : T1 Inter T2 Inter T3 ... Inter Tn
+ *       = ((T1 Inter T2) Inter T3) ... Inter Tn
+ *       Therefore, we need one for 2 tables anyway. And as the one for N (N>=3) would only be used
+ *       (at least for now) for N=3, there is at the moment no need for such a generic intersection
+ *       over N tables.
  */
 TableOfComputations IntersectionOf3TablesOfComputations(const TableOfComputations& table1,
                   const TableOfComputations& table2, const TableOfComputations& table3) {
