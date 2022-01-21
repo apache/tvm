@@ -1078,7 +1078,7 @@ def _convert_repeat_vector(
     return out
 
 
-def _convert_l2_normalize(inexpr, keras_layer, _, data_layout):
+def _convert_l2_normalize(inexpr, keras_layer, data_layout):
     l2_normalize_is_loaded = False
     param_list = []
     for i in dis.get_instructions(keras_layer.function):
@@ -1171,7 +1171,7 @@ def _convert_lambda(inexpr, keras_layer, etab, data_layout):
         and len(fcode.co_names) > 0
         and fcode.co_names[-1] == "l2_normalize"
     ):
-        return _convert_l2_normalize(inexpr, keras_layer, etab, data_layout)
+        return _convert_l2_normalize(inexpr, keras_layer, data_layout)
     raise tvm.error.OpNotImplemented(
         "Function {} used in Lambda layer is not supported in frontend Keras.".format(
             fcode.co_names
