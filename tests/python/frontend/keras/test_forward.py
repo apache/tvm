@@ -624,7 +624,6 @@ class TestKeras:
             verify_keras_frontend(keras_model, layout="NCHW")
             verify_keras_frontend(keras_model, layout="NHWC")
 
-
     def test_forward_time_distributed(self, keras):
         conv2d_inputs = keras.Input(shape=(10, 128, 128, 3))
         conv_2d_layer = keras.layers.Conv2D(64, (3, 3))
