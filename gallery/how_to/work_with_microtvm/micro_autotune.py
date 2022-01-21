@@ -18,7 +18,7 @@
 """
 .. _tutorial-micro-autotune:
 
-Autotuning with micro TVM
+Autotuning with microTVM
 =========================
 **Authors**:
 `Andrew Reusch <https://github.com/areusch>`_,
@@ -28,11 +28,10 @@ This tutorial explains how to autotune a model using the C runtime.
 """
 
 import numpy as np
-import subprocess
 import pathlib
 
 import tvm
-from tvm.relay.backend import Executor, Runtime
+from tvm.relay.backend import Runtime
 
 ####################
 # Defining the model
@@ -67,7 +66,7 @@ weight_sample = np.random.rand(
 params = {"weight": weight_sample}
 
 #######################
-# Defining the target #
+# Defining the target
 #######################
 # Now we define the TVM target that describes the execution environment. This looks very similar
 # to target definitions from other microTVM tutorials. Alongside this we pick the C Runtime to code
