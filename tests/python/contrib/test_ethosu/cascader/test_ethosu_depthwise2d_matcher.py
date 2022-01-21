@@ -18,10 +18,14 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 
+import numpy as np
+
 from tvm import te
 import tvm.contrib.ethosu.cascader as cs
-from tvm.relay.backend.contrib.ethosu.te.convolution import match_ethosu_conv2d, conv2d_compute
-
+from tvm.relay.backend.contrib.ethosu.te.depthwise import (
+    match_ethosu_depthwise_conv2d,
+    depthwise_conv2d_compute,
+)
 from .infra import make_matrices
 
 
@@ -29,23 +33,20 @@ from .infra import make_matrices
 @pytest.mark.parametrize("stride", [(1, 1), (2, 1), (3, 2)])
 @pytest.mark.parametrize("dilation", [(1, 1), (2, 1), (3, 2)])
 @pytest.mark.parametrize("padding", [(0, 0, 0, 0), (3, 2, 3, 2), (2, 1, 0, 1)])
-@pytest.mark.parametrize("ifm_channels", [8, 57])
 @pytest.mark.parametrize("ifm_layout", ["NHWC", "NHCWB16"])
 @pytest.mark.parametrize("ofm_layout", ["NHWC", "NHCWB16"])
-def test_ethosu_conv2d_matcher(
-    kernel, stride, dilation, padding, ifm_channels, ifm_layout, ofm_layout
-):
+def test_ethosu_depthwise2d_matcher(kernel, stride, dilation, padding, ifm_layout, ofm_layout):
+    ofm_channels = 57
     if ifm_layout == "NHWC":
-        ifm_shape = (1, 12, 15, ifm_channels)
+        ifm_shape = (1, 12, 15, ofm_channels)
     else:
-        ifm_shape = (1, 12, 1 + ((ifm_channels - 1) // 16), 15, 16)
-    ofm_channels = 8
+        ifm_shape = (1, 12, 1 + ((ofm_channels - 1) // 16), 15, 16)
     kernel_h, kernel_w = kernel
     ifm = te.placeholder(ifm_shape, dtype="int8")
-    weight = te.placeholder((ofm_channels, kernel_h, kernel_w, ifm_channels), dtype="int8")
+    weight = te.placeholder((ofm_channels, kernel_h, kernel_w, 1), dtype="int8")
     scale_bias = te.placeholder((ofm_channels, 10), dtype="uint8")
     lut = te.placeholder((), dtype="uint8")
-    out = conv2d_compute(
+    out = depthwise_conv2d_compute(
         ifm=ifm,
         weight=weight,
         scale_bias=scale_bias,
@@ -61,10 +62,11 @@ def test_ethosu_conv2d_matcher(
         activation="NONE",
         clip_min=0,
         clip_max=0,
-        upscale="NONE",
         rounding_mode="TFL",
+        upscale="NONE",
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
+        ofm_dtype=ifm.dtype,
     )
     (
         ifm_transform,
@@ -74,18 +76,17 @@ def test_ethosu_conv2d_matcher(
         scale_bias_transform,
         scale_bias_offset,
     ) = make_matrices(
-        "ethosu_conv2d",
+        "ethosu_depthwise_conv2d",
         kernel,
         stride,
         padding,
         ifm_layout,
         ofm_layout,
         dilation,
-        ifm_channels,
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")
-    part = match_ethosu_conv2d(out, device_config)
+    part = match_ethosu_depthwise_conv2d(out, device_config)
 
     assert isinstance(part, cs.EthosuPart)
     assert len(part.propagators) == 3

@@ -18,13 +18,13 @@
 
 import tvm
 from tvm import relay
+from tvm import ir
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.expr_functor import ExprMutator
-from tvm.ir.transform import Pass
 
 # pylint: disable=unused-import
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
@@ -109,13 +109,11 @@ class OptimizeLUTs(ExprMutator):
         return new_call
 
 
-@relay.transform.function_pass(opt_level=1, name="LUTsOptimizer")
-class LUTsOptimizer(Pass):
+@ir.transform.module_pass(opt_level=1, name="LUTsOptimizer")
+class LUTsOptimizer:
     """Register LUTsOptimizer as a relay pass."""
 
-    def transform_function(
-        self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
-    ) -> tvm.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.IRModule:
         """Visit relay nodes in the given module.
 
         Parameters
@@ -131,7 +129,13 @@ class LUTsOptimizer(Pass):
             New module with optimized LUTs.
         """
         assert len(mod.functions.items()) == 1, "Module can only contain one function."
-        return OptimizeLUTs().visit(func)
+        global_var, func = mod.functions.items()[0]
+        optimized_func = OptimizeLUTs().visit(func)
+        mod.update_func(global_var, optimized_func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
 
 
 class LayoutOptimization(ExprMutator):
@@ -247,19 +251,23 @@ class LayoutOptimization(ExprMutator):
         return super().visit_call(call)
 
 
-@relay.transform.function_pass(opt_level=1, name="LayoutOptimizer")
-class LayoutOptimizer(Pass):
+@ir.transform.module_pass(opt_level=1, name="LayoutOptimizer")
+class LayoutOptimizer:
     """Register LayoutOptimizer as a Relay pass."""
 
-    def transform_function(
-        self, func: tvm.relay.function.Function, mod: tvm.IRModule, _
-    ) -> tvm.IRModule:
+    def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.IRModule:
         """A pass to optimize the layout of NPU operations. If both the
         producer and consumer of a tensor are NPU operators, then the
         layout is converted from NHWC to NHCWB16 as this is the layout NPU
         uses internally."""
         assert len(mod.functions.items()) == 1, "Module can only contain one function."
-        return LayoutOptimization().visit(func)
+        global_var, func = mod.functions.items()[0]
+        optimized_func = LayoutOptimization().visit(func)
+        mod.update_func(global_var, optimized_func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
 
 
 @tvm._ffi.register_func("relay.ext.ethos-u.constant_updater")
