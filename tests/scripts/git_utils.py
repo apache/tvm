@@ -36,7 +36,10 @@ class GitHubRepo:
         }
 
     def graphql(self, query: str) -> Dict[str, Any]:
-        return self._post("https://api.github.com/graphql", {"query": query})
+        res = self._post("https://api.github.com/graphql", {"query": compress_query(query)})
+        if "data" not in res:
+            raise RuntimeError(f"Error querying GraphQL: {res}")
+        return res
 
     def _post(self, full_url: str, body: Dict[str, Any]) -> Dict[str, Any]:
         print("Requesting POST to", full_url, "with", body)
@@ -68,6 +71,12 @@ class GitHubRepo:
         with request.urlopen(req) as response:
             response = json.loads(response.read())
         return response
+
+
+def compress_query(query: str) -> str:
+    query = query.replace("\n", "")
+    query = re.sub("\s+", " ", query)
+    return query
 
 
 def parse_remote(remote: str) -> Tuple[str, str]:
