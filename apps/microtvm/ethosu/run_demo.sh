@@ -120,6 +120,7 @@ done
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Make build directory
+make cleanall
 mkdir -p build
 cd build
 
