@@ -1163,7 +1163,7 @@ def _convert_l2_normalize(inexpr, keras_layer, data_layout):
     return _op.nn.l2_normalize(inexpr, eps=1e-12, axis=axis)
 
 
-def _convert_lambda(inexpr, keras_layer, etab, data_layout):
+def _convert_lambda(inexpr, keras_layer, _, data_layout):
     fcode = keras_layer.function.__code__
     # Convert l2_normalize
     if (
