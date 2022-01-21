@@ -434,7 +434,7 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
-  const Stmt& ref_to_op = GetRef<Stmt>(op);
+  Stmt ref_to_op = GetRef<Stmt>(op);
   cache_.cache_stmt_table_computations_[ref_to_op] = table_of_computations_;
 }
 
@@ -469,7 +469,7 @@ void ComputationsDoneBy::VisitStmt_(const ForNode* op) {
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
-  const Stmt& ref_to_op = GetRef<Stmt>(op);
+  Stmt ref_to_op = GetRef<Stmt>(op);
   cache_.cache_stmt_table_computations_[ref_to_op] = table_of_computations_;
 }
 
@@ -499,7 +499,7 @@ void ComputationsDoneBy::VisitStmt_(const WhileNode* op) {
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
-  const Stmt& ref_to_op = GetRef<Stmt>(op);
+  Stmt ref_to_op = GetRef<Stmt>(op);
   cache_.cache_stmt_table_computations_[ref_to_op] = table_of_computations_;
 }
 
@@ -689,6 +689,9 @@ void UsesVarName::VisitStmt(const Stmt& stmt) {
 /* ********************************** Utility functions for CSE *********************************
 *********************************************************************************************** */
 
+/*!
+ * \brief Print a table of computation.
+ */
 void PrintTableOfComputations(const TableOfComputations& table)
  {
   std::cout << "{" << std::endl;
