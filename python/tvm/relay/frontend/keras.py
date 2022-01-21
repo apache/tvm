@@ -1078,7 +1078,7 @@ def _convert_repeat_vector(
     return out
 
 
-def _convert_l2_normalize(inexpr, keras_layer, etab):
+def _convert_l2_normalize(inexpr, keras_layer, etab, data_layout):
     l2_normalize_is_loaded = False
     param_list = []
     for i in dis.get_instructions(keras_layer.function):
@@ -1149,7 +1149,7 @@ def _convert_l2_normalize(inexpr, keras_layer, etab):
     if isinstance(axis, int):
         axis = [axis]
 
-    if etab.data_layout == "NCHW":
+    if data_layout == "NCHW":
         dims = len(keras_layer.input_shape)
 
         def fix_axis_for_nchw(axis):
@@ -1391,7 +1391,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
-    def _convert_layer(keras_layer, etab, scope=""):
+    def _convert_layer(keras_layer, etab, data_layout, scope=""):
         inbound_nodes = (
             keras_layer.inbound_nodes
             if hasattr(keras_layer, "inbound_nodes")
@@ -1470,7 +1470,7 @@ def from_keras(model, shape=None, layout="NCHW"):
                     inexpr = inexpr[0]
                 outs.extend(
                     keras_op_to_relay(
-                        inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab
+                        inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab, layout
                     )
                 )
         return outs
@@ -1516,7 +1516,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
         else:
-            _convert_layer(keras_layer, etab)
+            _convert_layer(keras_layer, etab, layout)
 
     # model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor_index(oc[2])
     # Get all output nodes in etab using the name made from above values.
