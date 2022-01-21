@@ -78,22 +78,34 @@ template <typename T>
 void CopyOutput(dl::Buffer* source_buffers[], std::vector<DLTensor*>* outputs) {
   for (DLTensor* tensor : *outputs) {
     dl::Buffer* source_buffer = source_buffers[0];
-    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
-    size_t size = source_buffer->GetSize();
     T* dest_pointer = static_cast<T*>(tensor->data);
+    size_t size = source_buffer->GetSize();
+#if _ETHOSN_API_VERSION_ < 2111
+    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
+#else
+    uint8_t* source_buffer_data = source_buffer->Map();
+#endif
     std::copy_backward(source_buffer_data, source_buffer_data + size, dest_pointer + size);
+#if _ETHOSN_API_VERSION_ >= 2111
+    source_buffer->Unmap();
+#else
+#endif
     source_buffers++;
   }
 }
 
 void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
-                   const std::vector<DLTensor*>& tensors) {
+                   const std::vector<DLTensor*>& tensors, bool input) {
   int index = 0;
   for (auto buffer : tensors) {
     auto* data = static_cast<uint8_t*>(buffer->data);
     // The NPU only needs the size of the tensor * uint8_t.
     auto data_size = static_cast<uint32_t>(GetDataSize(*buffer));
-    (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
+    if (input) {
+      (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
+    } else {
+      (*fm)[index++] = std::make_shared<dl::Buffer>(data_size, dl::DataFormat::NHWC);
+    }
   }
 }
 
@@ -121,11 +133,11 @@ bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
 
   // Set up input buffers
   std::vector<std::shared_ptr<dl::Buffer> > ifm(inputs.size());
-  CreateBuffers(&ifm, inputs);
+  CreateBuffers(&ifm, inputs, true);
 
   // Set up output buffers
   std::vector<std::shared_ptr<dl::Buffer> > ofm(outputs.size());
-  CreateBuffers(&ofm, outputs);
+  CreateBuffers(&ofm, outputs, false);
 
   // Raw pointers for the inference
   dl::Buffer* ifm_raw[inputs.size()];
