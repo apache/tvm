@@ -47,7 +47,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
     Function main = Downcast<Function>(ir_module_->Lookup(main_global_var));
-    Function mutated_main = WithFields(std::move(main), main->params, VisitExpr(main->body));
+    Function mutated_main = WithFields(main, main->params, VisitExpr(main->body));
 
     ir_module_->Update(main_global_var, mutated_main);
 

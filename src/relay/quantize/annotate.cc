@@ -98,7 +98,7 @@ Pass QuantizeAnnotate() {
         for (const auto& x : FreeVars(func)) {
           new_params.push_back(x);
         }
-        return WithFields(func, std::move(new_params));
+        return WithFields(func, new_params);
       };
   return CreateFunctionPass(pass_func, 1, "QuantizeAnnotate", {});
 }
