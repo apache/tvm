@@ -18,6 +18,7 @@
 from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
     AutoInline,
+    CrossThreadReduction,
     ScheduleRule,
 )
 from tvm.target import Target
@@ -52,4 +53,11 @@ def add_rfactor(target: Target) -> ScheduleRule:
     """Default schedule rules for with add_rfactor"""
     if target.kind.name == "llvm":
         return AddRFactor(max_jobs_per_core=16, max_innermost_factor=64)
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def cross_thread_reduction(target: Target) -> ScheduleRule:
+    """Default schedule rules for with cross-thread reduction"""
+    if target.kind.name == "cuda":
+        return CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
     raise NotImplementedError(f"{target.kind.name} is not supported")
