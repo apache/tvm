@@ -1470,7 +1470,11 @@ def from_keras(model, shape=None, layout="NCHW"):
                     inexpr = inexpr[0]
                 outs.extend(
                     keras_op_to_relay(
-                        inexpr, keras_layer, scope + keras_layer.name + ":" + str(node_idx), etab, layout
+                        inexpr,
+                        keras_layer,
+                        scope + keras_layer.name + ":" + str(node_idx),
+                        etab,
+                        layout
                     )
                 )
         return outs
