@@ -189,7 +189,7 @@ def deserialize_command_stream(blob):
     return cmms
 
 
-def create_test_runner(accel="ethos-u55-256"):
+def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
     _, ethosu_variant, ethosu_macs = accel.split("-")
@@ -215,12 +215,15 @@ def create_test_runner(accel="ethos-u55-256"):
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
             },
+            "tir.usmp.enable": enable_usmp,
         },
     )
 
 
-def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
-    test_runner = create_test_runner(accel)
+def build_source(
+    module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0, enable_usmp=True
+):
+    test_runner = create_test_runner(accel, enable_usmp)
     return compile_models(
         models=AOTTestModel(
             module=module,

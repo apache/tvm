@@ -189,7 +189,7 @@ PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::Upda
     si.params.push_back(pool_var);
     si.pools_to_params.Set(pool_info, pool_var);
     si.allocated_pool_params.push_back(AllocatedPoolInfo(
-        allocated_pool_info->pool_info, allocated_pool_info->allocated_size, pool_var));
+        allocated_pool_info->pool_info, allocated_pool_info->allocated_size, si.params.size() - 1));
 
     int pool_size = all_pools_sizes_[pool_info];
     String buffer_var_name = pool_ref_name + "_buffer_var";
@@ -258,7 +258,7 @@ Array<PrimExpr> PoolAllocationToOffsetConverter::ReplaceAllocateArgsWithLetArgs(
         allocate_buf_to_let_var_.find(Downcast<Var>(arg)) != allocate_buf_to_let_var_.end()) {
       ret.push_back(allocate_buf_to_let_var_[Downcast<Var>(arg)]);
     } else {
-      ret.push_back(arg);
+      ret.push_back(VisitExpr(arg));
     }
   }
   return ret;

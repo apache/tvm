@@ -181,42 +181,26 @@ def _build_function_memory_map(function_metadata):
     """
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
-    num_targets = len(main_func_metadata.workspace_sizes.items())
-    from tvm.driver import tvmc  # pylint: disable=import-outside-toplevel
-
-    external_codegens = tvmc.composite_target.get_codegen_names()
     func_entries = []
     target_local_entries = dict()
-    for i in range(num_targets):
-        main_target = main_func_metadata.workspace_sizes.items()[i][0]
-        device_max_workspace[main_target] = 0
-        for func_name, finfo in function_metadata.items():
-            if func_name == MAIN_FUNC_NAME_STR:
-                continue
-            target_local_entries[func_name] = list()
 
-        for func_name, finfo in function_metadata.items():
-            # Skip a few unsupported cases:
-            # 1. The main function metadata is exported elsewhere.
-            # 2. BYOC operator implementations do not currently export useful FunctionInfo.
-            if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
-                continue
-            assert (
-                len(finfo.constant_sizes.items()) == num_targets
-            ), f"{func_name}: found {finfo.constant_sizes!r} vs {num_targets}"
-            assert len(finfo.io_sizes.items()) == num_targets
-            target = finfo.workspace_sizes.items()[i][0]
-            workspace_size = finfo.workspace_sizes.items()[i][1]
+    for func_name, finfo in function_metadata.items():
+        # Skip a few unsupported cases:
+        # 1. The main function metadata is exported elsewhere.
+        # 2. BYOC operator implementations do not currently export useful FunctionInfo.
+        if func_name == MAIN_FUNC_NAME_STR or not finfo.tir_primfuncs:
+            continue
+        if func_name not in target_local_entries.keys():
+            target_local_entries[func_name] = list()
+        for target in dict(finfo.workspace_sizes).keys():
+            workspace_size = finfo.workspace_sizes[target]
             target_entry = {
                 "device": int(target.kind.device_type),
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size > device_max_workspace.get(target, 0):
-                device_max_workspace[target] = workspace_size
-            # TODO(Mousius) - Remove this massive hack when Targets are unified
-            if target.kind.name in external_codegens:
-                device_max_workspace[main_target] += int(workspace_size)
+            if workspace_size >= device_max_workspace.get(int(target.kind.device_type), 0):
+                device_max_workspace[int(target.kind.device_type)] = workspace_size
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -225,25 +209,46 @@ def _build_function_memory_map(function_metadata):
         }
         func_entries.append(func_entry)
 
-    target_main_entries = list()
-    for i in range(num_targets):
-        target = main_func_metadata.workspace_sizes.items()[i][0]
-        main_func_local_workspace = main_func_metadata.workspace_sizes.items()[i][1]
-        main_func_constants = main_func_metadata.constant_sizes.items()[i][1]
-        main_func_io = main_func_metadata.io_sizes.items()[i][1]
-        target_main_entries.append(
-            {
-                "device": int(target.kind.device_type),
-                "workspace_size_bytes": int(device_max_workspace[target])
-                + int(main_func_local_workspace),
-                "constants_size_bytes": int(main_func_constants),
-                "io_size_bytes": int(main_func_io),
-            }
+    target_main_entries = dict()
+
+    def _create_empty_entry(target_device_type):
+        return {
+            "device": int(target_device_type),
+            "workspace_size_bytes": 0,
+            "constants_size_bytes": 0,
+            "io_size_bytes": 0,
+        }
+
+    for target in dict(main_func_metadata.workspace_sizes).keys():
+        main_func_local_workspace = main_func_metadata.workspace_sizes[target]
+        target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+            int(target.kind.device_type)
+        )
+        target_main_entries[int(target.kind.device_type)]["workspace_size_bytes"] = int(
+            device_max_workspace.get(int(target.kind.device_type), 0)
+        ) + int(main_func_local_workspace)
+
+    for target in dict(main_func_metadata.constant_sizes).keys():
+        if int(target.kind.device_type) not in target_main_entries.keys():
+            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+                int(target.kind.device_type)
+            )
+        target_main_entries[int(target.kind.device_type)]["constants_size_bytes"] = int(
+            main_func_metadata.constant_sizes[target]
+        )
+
+    for target in dict(main_func_metadata.io_sizes).keys():
+        if int(target.kind.device_type) not in target_main_entries.keys():
+            target_main_entries[int(target.kind.device_type)] = _create_empty_entry(
+                int(target.kind.device_type)
+            )
+        target_main_entries[int(target.kind.device_type)]["io_size_bytes"] = int(
+            main_func_metadata.io_sizes[target]
         )
 
     ret = {
         "operator_functions": func_entries,
-        "main": target_main_entries,
+        "main": list(target_main_entries.values()),
     }
     return ret
 
