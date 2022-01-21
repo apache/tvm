@@ -1078,7 +1078,7 @@ def _convert_repeat_vector(
     return out
 
 
-def _convert_l2_normalize(inexpr, keras_layer, etab, data_layout):
+def _convert_l2_normalize(inexpr, keras_layer, _, data_layout):
     l2_normalize_is_loaded = False
     param_list = []
     for i in dis.get_instructions(keras_layer.function):
@@ -1391,7 +1391,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         input_shape = shape[input_name] if shape is not None and input_name in shape else None
         etab.set_expr(input_name, new_var(input_name, shape=input_shape))
 
-    def _convert_layer(keras_layer, etab, data_layout, scope=""):
+    def _convert_layer(keras_layer, etab, scope=""):
         inbound_nodes = (
             keras_layer.inbound_nodes
             if hasattr(keras_layer, "inbound_nodes")
@@ -1520,7 +1520,7 @@ def from_keras(model, shape=None, layout="NCHW"):
         if isinstance(keras_layer, input_layer_class):
             _convert_input_layer(keras_layer)
         else:
-            _convert_layer(keras_layer, etab, layout)
+            _convert_layer(keras_layer, etab)
 
     # model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor_index(oc[2])
     # Get all output nodes in etab using the name made from above values.
