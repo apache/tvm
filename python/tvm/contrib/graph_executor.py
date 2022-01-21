@@ -158,6 +158,7 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._get_input_index = module["get_input_index"]
+        self._get_input_info = module["get_input_info"]
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
@@ -257,6 +258,32 @@ class GraphModule(object):
             The input index. -1 will be returned if the given input name is not found.
         """
         return self._get_input_index(name)
+
+    def get_input_info(self):
+        """Return the 'shape' and 'dtype' dictionaries of the graph.
+
+        .. note::
+            We can't simply get the input tensors from a TVM graph
+            because weight tensors are treated equivalently. Therefore, to
+            find the input tensors we look at the 'arg_nodes' in the graph
+            (which are either weights or inputs) and check which ones don't
+            appear in the params (where the weights are stored). These nodes
+            are therefore inferred to be input tensors.
+
+        Returns
+        -------
+        shape_dict : Map
+            Shape dictionary - {input_name: tuple}.
+        dtype_dict : Map
+            dtype dictionary - {input_name: dtype}.
+        """
+        input_info = self._get_input_info()
+        assert "shape" in input_info
+        shape_dict = input_info["shape"]
+        assert "dtype" in input_info
+        dtype_dict = input_info["dtype"]
+
+        return shape_dict, dtype_dict
 
     def get_output(self, index, out=None):
         """Get index-th output to out

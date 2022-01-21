@@ -143,8 +143,10 @@ def schedule_conv_NCHWc_cpu_common_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -226,8 +228,8 @@ def schedule_conv_NCHWc_cpu_common_int8(
             batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+            s[C].compute_at(s[O], ow_block)
             parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[C].compute_at(s[O], parallel_axis)
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         elif out_ndim == 4:
@@ -235,8 +237,8 @@ def schedule_conv_NCHWc_cpu_common_int8(
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
+            s[C].compute_at(s[O], ow_block)
             parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[C].compute_at(s[O], parallel_axis)
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         else:
@@ -269,8 +271,10 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
         # only in autotuning, input data of conv2d_NCHWc will be 4-D.
         # skip this part during tuning to make records accurate.
         # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+        if isinstance(data_vec.op, te.tensor.ComputeOp):
+            s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        if isinstance(kernel_vec.op, te.tensor.ComputeOp):
+            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
     elif isinstance(kernel_vec.op, te.tensor.ComputeOp) and kernel_vec.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -297,8 +301,8 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
     s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
     s[C].vectorize(oc_block)
 
+    s[CC].compute_at(s[C], ow_inner)
     parallel_axis = s[C].fuse(batch, oc_chunk, oh_outer)
-    s[CC].compute_at(s[C], parallel_axis)
     if C == O:
         s[C].parallel(parallel_axis)
 
@@ -342,8 +346,8 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
             s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
+            s[C].compute_at(s[O], ow_inner)
             parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[C].compute_at(s[O], parallel_axis)
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         elif out_ndim == 4:
@@ -353,8 +357,8 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
             s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
+            s[C].compute_at(s[O], ow_inner)
             parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[C].compute_at(s[O], parallel_axis)
             s[O].vectorize(oc_block)
             s[O].parallel(parallel_axis)
         else:

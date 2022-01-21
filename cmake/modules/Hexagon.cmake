@@ -301,9 +301,6 @@ if(USE_HEXAGON_RPC)
     ${HEXAGON_RPC_OUTPUT} COPYONLY)
 
   set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${HEXAGON_RPC_OUTPUT}")
-
-  # Used in `src/target/llvm/llvm_common.h`
-  add_definitions(-DTVM_USE_HEXAGON_LLVM)
 endif()
 
 if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")

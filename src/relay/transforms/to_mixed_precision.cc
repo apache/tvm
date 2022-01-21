@@ -194,7 +194,9 @@ class MixedPrecisionPass : public MixedModeMutator {
        If ignore_non_float, then ignore non-floating types.
      */
     if (const TensorTypeNode* tensor_type = t.as<TensorTypeNode>()) {
-      return (!ignore_non_float || (tensor_type->dtype).is_float()) &&
+      bool is_supported_floating_point_type =
+          (tensor_type->dtype).is_float() || (tensor_type->dtype).is_bfloat16();
+      return (ignore_non_float && !is_supported_floating_point_type) ||
              tensor_type->dtype == mixed_precision_type_;
     } else if (const TupleTypeNode* tuple_type = t.as<TupleTypeNode>()) {
       for (Type t : tuple_type->fields) {

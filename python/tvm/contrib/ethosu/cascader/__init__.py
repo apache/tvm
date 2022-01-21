@@ -20,6 +20,17 @@ This component performs inter-operator scheduling to optimize
 for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
 """
 from .stripe_config import StripeConfig
+from .block_config import BlockConfig
 from .propagator import Propagator
-from .graph import PerformanceInfo, Tensor, Part, TESubgraph, CascaderGraph
-from .parts import InlinePart
+from .graph import (
+    PerformanceInfo,
+    Tensor,
+    Part,
+    TESubgraph,
+    CascaderGraph,
+    BufferMode,
+    register_matcher,
+    create_cascader_graph,
+)
+from .parts import InlinePart, EthosuPart
+from .device_config import EthosuDeviceConfig

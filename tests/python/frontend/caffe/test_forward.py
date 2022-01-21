@@ -35,6 +35,7 @@ from caffe import layers as L, params as P
 from caffe.proto import caffe_pb2 as pb
 
 import tvm
+import tvm.testing
 from tvm import relay
 from tvm.contrib import utils, graph_executor
 from tvm.contrib.download import download_testdata
@@ -451,6 +452,35 @@ def test_forward_Deconvolution():
             bias_filler=dict(type="xavier"),
         ),
     )
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=16,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=16,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
+    data = np.random.rand(1, 100, 32, 32).astype(np.float32)
+    _test_deconvolution(
+        data,
+        convolution_param=dict(
+            num_output=100,
+            bias_term=False,
+            pad=0,
+            kernel_size=2,
+            stride=2,
+            dilation=1,
+            group=100,
+            weight_filler=dict(type="xavier"),
+            bias_filler=dict(type="xavier"),
+        ),
+    )
 
 
 #######################################################################
@@ -510,6 +540,45 @@ def test_forward_Eltwise():
         ],
         operation=1,
         coeff=[0.5, 1],
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=0,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=2,
+    )
+    _test_eltwise(
+        [
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+            np.random.rand(1, 3, 10, 11).astype(np.float32),
+        ],
+        operation=1,
+        coeff=[0.5, 1, 0.2, 1.8, 3.1, 0.1],
     )
 
 
@@ -583,6 +652,27 @@ def test_forward_LRN():
         beta=0.5,
     )
     _test_lrn(data, local_size=3, alpha=2.0, beta=0.5, k=2.0)
+
+
+#######################################################################
+# Permute
+# -------
+
+
+def _test_permute(data, **kwargs):
+    """One iteration of Permute."""
+    _test_op(data, L.Permute, "Permute", **kwargs)
+
+
+def test_forward_Permute():
+    """Permute"""
+    data = np.random.rand(2, 3, 4).astype(np.float32)
+    _test_permute(data, permute_param={"order": [0, 1, 2]})
+    _test_permute(data, permute_param={"order": [0, 2, 1]})
+    _test_permute(data, permute_param={"order": [1, 0, 2]})
+    _test_permute(data, permute_param={"order": [1, 2, 0]})
+    _test_permute(data, permute_param={"order": [2, 0, 1]})
+    _test_permute(data, permute_param={"order": [2, 1, 0]})
 
 
 #######################################################################
@@ -760,6 +850,85 @@ def test_forward_TanH():
     _test_tanh(np.random.rand(3, 10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10, 10).astype(np.float32))
     _test_tanh(np.random.rand(10).astype(np.float32))
+
+
+#######################################################################
+# Reduction
+# -----------
+
+
+def _test_reduction(data, **kwargs):
+    """ One iteration of Reduction """
+    _test_op(data, L.Reduction, "Reduction", **kwargs)
+
+
+def test_forward_Reduction():
+    """ Reduction """
+    reduction_op = {"SUM": 1, "ASUM": 2, "SUMSQ": 3, "MEAN": 4}
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUM"], axis=0)
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32), operation=reduction_op["SUM"], axis=3
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32), operation=reduction_op["SUM"], axis=1
+    )
+    _test_reduction(
+        np.random.rand(10).astype(np.float32), operation=reduction_op["SUM"], axis=0, coeff=0.5
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32),
+        operation=reduction_op["SUM"],
+        axis=3,
+        coeff=5.0,
+    )
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["ASUM"])
+    _test_reduction(
+        np.random.rand(10, 20).astype(np.float32), operation=reduction_op["ASUM"], axis=1
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32), operation=reduction_op["ASUM"], axis=3
+    )
+    _test_reduction(
+        np.random.rand(10).astype(np.float32), operation=reduction_op["ASUM"], axis=0, coeff=0.0
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30).astype(np.float32),
+        operation=reduction_op["ASUM"],
+        axis=2,
+        coeff=7.0,
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40, 10).astype(np.float32),
+        operation=reduction_op["ASUM"],
+        axis=3,
+        coeff=1.0,
+    )
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["SUMSQ"], axis=0)
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32), operation=reduction_op["SUMSQ"], axis=3
+    )
+    _test_reduction(
+        np.random.rand(10).astype(np.float32), operation=reduction_op["SUMSQ"], axis=0, coeff=0.0
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40, 50).astype(np.float32),
+        operation=reduction_op["SUMSQ"],
+        axis=4,
+        coeff=2.0,
+    )
+    _test_reduction(np.random.rand(10).astype(np.float32), operation=reduction_op["MEAN"], axis=0)
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32), operation=reduction_op["MEAN"], axis=3
+    )
+    _test_reduction(
+        np.random.rand(10).astype(np.float32), operation=reduction_op["MEAN"], axis=0, coeff=0.0
+    )
+    _test_reduction(
+        np.random.rand(10, 20, 30, 40).astype(np.float32),
+        operation=reduction_op["MEAN"],
+        axis=3,
+        coeff=2.0,
+    )
 
 
 #######################################################################
@@ -994,6 +1163,7 @@ if __name__ == "__main__":
     # Reshape
     test_forward_Reshape()
     test_forward_Flatten()
+    test_forward_Reduction()
 
     # Math
     test_forward_Concat()

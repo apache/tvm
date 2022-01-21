@@ -38,6 +38,7 @@
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/transform.h>
 
+#include <sstream>
 #include <vector>
 
 #include "../../transforms/infer_layout_utils.h"
@@ -50,6 +51,77 @@
 namespace tvm {
 namespace relay {
 using tir::IntImmNode;
+
+TVM_REGISTER_NODE_TYPE(SlidingWindowAttrs);
+
+bool SlidingWindowRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
+                      const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  ICHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "SlidingWindow operator expects input to be of TensorType "
+                                     << "but got " << PrettyPrint(types[0]));
+    return false;
+  }
+  const auto* param = attrs.as<SlidingWindowAttrs>();
+  const int axis = param->axis;
+
+  std::vector<IndexExpr> oshape;
+
+  // Dimensions up until `axis` remain the same.
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+
+  // New dimensions which result from sliding the window in each dimension. One new dimension per
+  // window dimension.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    // Length of the shape along this dimension.
+    auto dim_len = data->shape[axis + i];
+    // Length of the window along this dimension.
+    auto window_len = param->window_shape[i];
+    // Strides along this dimension.
+    auto stride = param->strides[i];
+
+    oshape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
+  }
+
+  // Dimensions comprising the window.
+  for (size_t i = 0; i < param->window_shape.size(); ++i) {
+    oshape.push_back(param->window_shape[i]);
+  }
+
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
+  return true;
+}
+
+Array<te::Tensor> SlidingWindowCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
+  const SlidingWindowAttrs* param = attrs.as<SlidingWindowAttrs>();
+  ICHECK(param != nullptr);
+  return {topi::sliding_window(inputs[0], param->axis, param->window_shape, param->strides)};
+}
+
+Expr MakeSlidingWindow(Expr data, int axis, Array<Integer> window_shape, Array<Integer> strides) {
+  auto attrs = make_object<SlidingWindowAttrs>();
+  attrs->axis = axis;
+  attrs->window_shape = window_shape;
+  attrs->strides = strides;
+  static const Op& op = Op::Get("sliding_window");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ir.sliding_window").set_body_typed(MakeSlidingWindow);
+
+RELAY_REGISTER_OP("sliding_window")
+    .describe(R"code(Slide window over a tensor.)code" TVM_ADD_FILELINE)
+    .set_num_inputs(1)
+    .set_attrs_type<SlidingWindowAttrs>()
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_type_rel("SlidingWindow", SlidingWindowRel)
+    .set_attr<TOpPattern>("TOpPattern", kOpaque);
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -704,9 +776,17 @@ bool ReshapeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
     data_shape_sum *= Downcast<tvm::Integer>(x)->value;
   }
-  if (!found_dynamic) {
+  if (!found_dynamic && oshape_sum != data_shape_sum) {
+    std::ostringstream oshape_str, data_shape_str;
+    for (auto iter = oshape.begin(); iter != oshape.end(); iter++) {
+      oshape_str << (iter != oshape.begin() ? "," : "") << *iter;
+    }
+    for (auto iter = data_shape.begin(); iter != data_shape.end(); iter++) {
+      data_shape_str << (iter != data_shape.begin() ? "," : "") << *iter;
+    }
     ICHECK_EQ(oshape_sum, data_shape_sum)
-        << "Input tensor shape and reshaped shape are not compatible";
+        << "Input tensor shape(" << oshape_str.str() << ") and reshaped shape("
+        << data_shape_str.str() << ") are not compatible!";
   }
 
   reporter->Assign(types[1], TensorType(oshape, data->dtype));

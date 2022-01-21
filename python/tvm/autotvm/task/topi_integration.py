@@ -233,7 +233,10 @@ def register_topi_schedule(task_name, func=None):
             """wrapper function for topi schedule"""
             workload = get_workload(outs, task_name)
             if workload is None:
-                raise RuntimeError("Cannot find workload in attribute of this schedule")
+                raise RuntimeError(
+                    f"Cannot find TOPI workload {task_name}. "
+                    "Is it registered with `register_topi_compute`?"
+                )
             tgt = Target.current()
             cfg = DispatchContext.current.query(tgt, workload)
             return topi_schedule(cfg, outs, *args, **kwargs)
@@ -253,7 +256,7 @@ def get_workload(outs, task_name=None):
         for t in tensors:
             op = t.op
             wkl = traverse(op.input_tensors)
-            if wkl:
+            if wkl is not None:
                 return wkl
 
             if "workload" in op.attrs:

@@ -140,29 +140,35 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DA
   int out_channels, kernel_h, kernel_w;
   int channel_multiplier = -1;
   bool depthwise = is_depthwise(param);
-  if (param->kernel_layout == "OIHW") {
-    out_channels = get_const_int(kernel_shape[0]);
-    kernel_h = get_const_int(kernel_shape[2]);
-    kernel_w = get_const_int(kernel_shape[3]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[1]);
-    }
-  } else if (param->kernel_layout == "HWIO") {
-    kernel_h = get_const_int(kernel_shape[0]);
-    kernel_w = get_const_int(kernel_shape[1]);
-    out_channels = get_const_int(kernel_shape[3]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[2]);
-    }
+  int index_k = 0;
+  int index_h = 2;
+  int index_w = 3;
+  int index_c = 1;
+  if (param->kernel_layout == "HWIO") {
+    index_k = 3;
+    index_h = 0;
+    index_w = 1;
+    index_c = 2;
   } else if (param->kernel_layout == "HWOI") {
-    kernel_h = get_const_int(kernel_shape[0]);
-    kernel_w = get_const_int(kernel_shape[1]);
-    out_channels = get_const_int(kernel_shape[2]);
-    if (depthwise) {
-      channel_multiplier = get_const_int(kernel_shape[3]);
-    }
-  } else {
+    index_k = 2;
+    index_h = 0;
+    index_w = 1;
+    index_c = 3;
+  } else if (param->kernel_layout == "OHWI") {
+    index_k = 0;
+    index_h = 1;
+    index_w = 2;
+    index_c = 3;
+  } else if (param->kernel_layout != "OIHW") {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
+  }
+
+  kernel_h = get_const_int(kernel_shape[index_h]);
+  kernel_w = get_const_int(kernel_shape[index_w]);
+  out_channels = get_const_int(kernel_shape[index_k]);
+
+  if (depthwise) {
+    channel_multiplier = get_const_int(kernel_shape[index_c]);
   }
 
   return std::make_tuple(batch_size, in_channels, out_channels, kernel_h, kernel_w,
@@ -519,6 +525,8 @@ Expr Conv2DThirdTerm(const Expr& weight, const Expr& input_zero_point, const Con
     axes_t3 = {0, 1, 2};
   } else if (param->kernel_layout == "HWOI") {
     axes_t3 = {0, 1, 3};
+  } else if (param->kernel_layout == "OHWI") {
+    axes_t3 = {1, 2, 3};
   } else {
     LOG(FATAL) << "qnn.conv2d does not support " << param->kernel_layout << " layout";
   }
@@ -701,8 +709,8 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   ICHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
   ICHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||
-         param->kernel_layout == "HWOI")
-      << "qnn.conv2d supports only OIHW/HWIO/HWOI kernel data layout.";
+         param->kernel_layout == "HWOI" || param->kernel_layout == "OHWI")
+      << "qnn.conv2d supports only OIHW/HWIO/HWOI/OHWI kernel data layout.";
   ICHECK(param->kernel_size.defined()) << "qnn.conv2d requires kernel size to be specified.";
 
   int batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier;

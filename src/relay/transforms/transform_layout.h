@@ -300,7 +300,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
         Expr tmp = push_back_one_arg(x);
         fields.push_back(tmp);
       }
-      normal_new_args.push_back(WithFields(tuple_new_arg, std::move(fields)));
+      normal_new_args.push_back(WithFields(tuple_new_arg, fields));
     } else {
       Expr tmp = push_back_one_arg(new_arg);
       normal_new_args.push_back(tmp);
@@ -383,7 +383,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
         transformed_tuple_arg.push_back(memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
         pt++;
       }
-      transformed_args.push_back(WithFields(tuple_arg, std::move(transformed_tuple_arg)));
+      transformed_args.push_back(WithFields(tuple_arg, transformed_tuple_arg));
     } else {
       transformed_args.push_back(memorizer.Transform(arg, new_in[pt], new_in2[pt]));
       pt++;

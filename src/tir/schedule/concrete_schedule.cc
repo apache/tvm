@@ -242,6 +242,15 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
   throw;
 }
 
+LoopRV ConcreteScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
+                                                   Optional<Integer> decision) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  return CreateRV<LoopRV>(
+      tir::SampleComputeLocation(state_, &this->rand_state_, this->GetSRef(block_rv), &decision));
+  TVM_TIR_SCHEDULE_END("sample-compute-location", this->error_render_level_);
+  throw;
+}
+
 /******** Schedule: Get blocks & loops ********/
 
 BlockRV ConcreteScheduleNode::GetBlock(const String& name, const String& func_name) {
@@ -607,6 +616,14 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
     ICHECK(!ann_val->IsInstance<StringImmNode>())
         << "TypeError: runtime::String is expected, but gets StringImm";
     return this->Get(GetRef<PrimExpr>(expr));
+  }
+  if (const auto* arr = ann_val.as<ArrayNode>()) {
+    Array<ObjectRef> result;
+    result.reserve(arr->size());
+    for (size_t i = 0; i < arr->size(); i++) {
+      result.push_back(CheckAndGetAnnotationValue(arr->at(i)));
+    }
+    return std::move(result);
   }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "

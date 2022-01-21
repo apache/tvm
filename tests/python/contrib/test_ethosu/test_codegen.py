@@ -37,7 +37,7 @@ from tests.python.relay.aot.aot_test_utils import generate_ref_data
 from . import infra
 
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
 def infer_type_function_pass(func):
@@ -629,12 +629,13 @@ def test_mean(accel_type, ifm_shape, axis, keep_dims, use_same_quantization):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("dtype", ["int8", "uint8"])
-def test_elementwise_add_from_constant_scalar(accel_type, dtype):
+@pytest.mark.parametrize("constant", [np.ones((1, 1, 1, 1)), np.array(1)])
+def test_elementwise_add_from_constant_scalar(accel_type, dtype, constant):
     ifm_shape = (1, 4, 4, 8)
 
     def create_relay_graph():
         inp = relay.var("input", shape=ifm_shape, dtype=dtype)
-        scalar = relay.const(np.ones((1, 1, 1, 1), dtype=dtype), dtype=dtype)
+        scalar = relay.const(constant, dtype=dtype)
         add = relay.qnn.op.add(
             inp,
             scalar,

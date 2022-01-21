@@ -29,7 +29,7 @@ import tvm.testing
 
 
 requires_cudnn = pytest.mark.skipif(
-    tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape_from_cudnn", True) is None,
+    tvm.get_global_func("tvm.contrib.cudnn.conv2d.forward", True) is None,
     reason="CuDNN is not enabled",
 )
 
@@ -305,14 +305,6 @@ conv_output_shape_conditions = {
 )
 def conv_output_shape_kwargs(request):
     return request.param
-
-
-@tvm.testing.requires_gpu
-@requires_cudnn
-def test_conv_output_shape(conv_output_shape_kwargs):
-    shape_from_cudnn = cudnn._conv_output_shape_from_cudnn(**conv_output_shape_kwargs)
-    shape_from_python = cudnn.conv_output_shape(**conv_output_shape_kwargs)
-    assert shape_from_cudnn == shape_from_python
 
 
 if __name__ == "__main__":

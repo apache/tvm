@@ -369,6 +369,32 @@ class Schedule(Object):
             )
         )
 
+    @type_checked
+    def sample_compute_location(
+        self,
+        block: BlockRV,
+        decision: Optional[int] = None,
+    ) -> LoopRV:
+        """Sample a compute-at location of the given block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block whose compute-at location is to be sampled
+        decision : Optional[int]
+            The sampling decision
+
+        Returns
+        -------
+        result : LoopRV
+            The sampled loop where the input block is to be computed at
+        """
+        return _ffi_api.ScheduleSampleComputeLocation(  # type: ignore  # pylint: disable=no-member
+            self,
+            block,
+            decision,
+        )
+
     ########## Schedule: Get blocks & loops ##########
     @type_checked
     def get_block(
@@ -1740,7 +1766,7 @@ class Schedule(Object):
         self,
         block_or_loop: Union[BlockRV, LoopRV],
         ann_key: str,
-        ann_val: Union[str, int, float, ExprRV],
+        ann_val: Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]],
     ) -> None:
         """Annotate a block/loop with a key value pair
 
@@ -1750,7 +1776,7 @@ class Schedule(Object):
             The block/loop to be annotated
         ann_key : str
             The annotation key
-        ann_val : Union[str, int, float, ExprRV]
+        ann_val : Union[str, int, float, ExprRV, List[Union[str, int, float, ExprRV]]]
             The annotation value
 
         Examples

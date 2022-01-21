@@ -72,10 +72,11 @@ class AcceleratorArchConfig:
 
 def get_accelerator_arch_config(accel_type):
     accel_config_str_map = {
-        "ethos-u55-256": AcceleratorArchConfig(48),
-        "ethos-u55-128": AcceleratorArchConfig(24),
-        "ethos-u55-64": AcceleratorArchConfig(16),
         "ethos-u55-32": AcceleratorArchConfig(16),
+        "ethos-u55-64": AcceleratorArchConfig(16),
+        "ethos-u55-128": AcceleratorArchConfig(24),
+        "ethos-u55-256": AcceleratorArchConfig(48),
+        "ethos-u65-256": AcceleratorArchConfig(48),
     }
     return accel_config_str_map[accel_type]
 

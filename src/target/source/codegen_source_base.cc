@@ -113,5 +113,60 @@ void CodeGenSourceBase::EndScope(int scope_id) {
   indent_ -= 2;
 }
 
+void CodeGenSourceBase::PrintType(DataType type, std::ostream& os) {  // NOLINT(*)
+  ICHECK_EQ(type.lanes(), 1) << "do not yet support vector types";
+  if (type.is_handle()) {
+    os << "void*";
+    return;
+  }
+  if (type.is_float()) {
+    if (type.bits() == 32) {
+      os << "float";
+      return;
+    }
+    if (type.bits() == 64) {
+      os << "double";
+      return;
+    }
+  } else if (type.is_uint()) {
+    switch (type.bits()) {
+      case 8:
+      case 16:
+      case 32:
+      case 64: {
+        os << "uint" << type.bits() << "_t";
+        return;
+      }
+      case 1:
+        os << "int";
+        return;
+    }
+  } else if (type.is_int()) {
+    switch (type.bits()) {
+      case 8:
+      case 16:
+      case 32:
+      case 64: {
+        os << "int" << type.bits() << "_t";
+        return;
+      }
+    }
+  }
+  LOG(FATAL) << "Cannot convert type " << type << " to C type";
+}
+
+void CodeGenSourceBase::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
+  if (auto* ptr = type.as<PrimTypeNode>()) {
+    return PrintType(ptr->dtype, os);
+  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+    PrintType(ptr->element_type, os);
+    os << '*';
+  } else if (IsVoidType(type)) {
+    os << "void";
+  } else {
+    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+  }
+}
+
 }  // namespace codegen
 }  // namespace tvm

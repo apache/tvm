@@ -28,6 +28,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+#include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <stack>
@@ -120,12 +121,15 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   /*! \brief This is a helper to append the pool args to
    * the callsite of the function.
    */
-  Array<PrimExpr> AppendPoolParamsToArgs(const Array<PrimExpr>& args);
+  Array<PrimExpr> AppendPoolParamsToArgs(Array<PrimExpr> args, const PrimFunc& func);
   /*! \brief Some arguments that used to be Allocate nodes
    * should be replaced by Let nodes in the pass that loads
    * the space from a pool variable.
    */
   Array<PrimExpr> ReplaceAllocateArgsWithLetArgs(const Array<PrimExpr>& args);
+  /*! \brief Obtain a resource handle if its there
+   */
+  Optional<Var> GetResourceHandle(const PrimFunc& func);
 
   /*! \brief The tir::Var map to PoolInfo objects */
   Map<tir::Var, PoolInfo> primfunc_args_to_pool_info_map_;
@@ -151,10 +155,23 @@ class PoolAllocationToOffsetConverter : public StmtExprMutator {
   std::unordered_set<PrimFunc, ObjectPtrHash, ObjectPtrEqual> visited_primfuncs;
 };
 
+Optional<Var> PoolAllocationToOffsetConverter::GetResourceHandle(const PrimFunc& func) {
+  if (func->buffer_map.find(func->params.back()) == func->buffer_map.end()) {
+    return func->params.back();
+  }
+  return Optional<Var>();
+}
+
 PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(
     const PrimFunc& original_func) {
   ScopeInfo si;
+
+  Optional<Var> resource_handle = GetResourceHandle(original_func);
   si.params = original_func->params;
+  if (resource_handle) {
+    si.params.pop_back();
+    ICHECK(si.params.size() == original_func->params.size() - 1);
+  }
   si.buffer_map = original_func->buffer_map;
   Map<tir::Var, PoolInfo> ret;
   for (const AllocatedPoolInfo& allocated_pool_info : allocated_pool_ordering_) {
@@ -179,6 +196,9 @@ PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::Upda
     si.buffer_map.Set(pool_var, Buffer(buffer_var, elem_dtype, {pool_size}, {1}, 1, buffer_var_name,
                                        16, 1, BufferType::kDefault));
   }
+  if (resource_handle) {
+    si.params.push_back(resource_handle.value());
+  }
   return si;
 }
 
@@ -199,7 +219,7 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
     PrimFunc ret =
         PrimFunc(si.params, new_body, original_primfunc->ret_type, si.buffer_map, original_attrs);
     if (!emit_tvmscript_printable_) {
-      return WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
+      ret = WithAttr(ret, tvm::attr::kPoolArgs, si.allocated_pool_params);
     }
     visited_primfuncs.insert(ret);
     return ret;
@@ -207,9 +227,14 @@ PrimFunc PoolAllocationToOffsetConverter::CreatePrimFuncWithPoolParams(
   return original_primfunc;
 }
 
-Array<PrimExpr> PoolAllocationToOffsetConverter::AppendPoolParamsToArgs(
-    const Array<PrimExpr>& args) {
+Array<PrimExpr> PoolAllocationToOffsetConverter::AppendPoolParamsToArgs(Array<PrimExpr> args,
+                                                                        const PrimFunc& func) {
   Array<PrimExpr> new_args;
+  PrimExpr resource_handle_arg;
+  if (args.size() == func->params.size() + 1) {
+    resource_handle_arg = args.back();
+    args.pop_back();
+  }
   for (const auto& arg : args) {
     new_args.push_back(VisitExpr(arg));
   }
@@ -218,6 +243,9 @@ Array<PrimExpr> PoolAllocationToOffsetConverter::AppendPoolParamsToArgs(
     tir::Var pool_var = pools_vars.second;
     Buffer buffer_var = top_scope.buffer_map[pool_var];
     new_args.push_back(buffer_var->data);
+  }
+  if (resource_handle_arg.defined()) {
+    new_args.push_back(resource_handle_arg);
   }
   return new_args;
 }
@@ -240,12 +268,13 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::call_extern()) || op->op.same_as(builtin::tvm_call_cpacked())) {
     String func_name = Downcast<StringImm>(op->args[0])->value;
     Array<PrimExpr> new_args;
-    if (module_->ContainGlobalVar(func_name)) {
+    if (module_->ContainGlobalVar(func_name) &&
+        module_->Lookup(func_name)->IsInstance<PrimFuncNode>()) {
       GlobalVar gv = module_->GetGlobalVar(func_name);
       PrimFunc func = Downcast<PrimFunc>(module_->Lookup(gv));
       PrimFunc prim_func = CreatePrimFuncWithPoolParams(func);
       module_->Update(gv, prim_func);
-      new_args = AppendPoolParamsToArgs(op->args);
+      new_args = AppendPoolParamsToArgs(op->args, prim_func);
       new_args = ReplaceAllocateArgsWithLetArgs(new_args);
     } else {
       new_args = ReplaceAllocateArgsWithLetArgs(op->args);
@@ -255,8 +284,7 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const CallNode* op) {
   if (op->op->IsInstance<PrimFuncNode>()) {
     PrimFunc func = Downcast<PrimFunc>(op->op);
     PrimFunc prim_func = CreatePrimFuncWithPoolParams(func);
-    Array<PrimExpr> new_args = AppendPoolParamsToArgs(op->args);
-    new_args = AppendPoolParamsToArgs(new_args);
+    Array<PrimExpr> new_args = AppendPoolParamsToArgs(op->args, prim_func);
     new_args = ReplaceAllocateArgsWithLetArgs(new_args);
     return Call(op->dtype, prim_func, new_args);
   }
@@ -329,8 +357,7 @@ IRModule PoolAllocationToOffsetConverter::operator()() {
 namespace transform {
 
 tvm::transform::Pass ConvertPoolAllocationsToOffsets(
-    const Map<tir::Stmt, PoolAllocation>& pool_allocations,
-    Bool emit_tvmscript_printable = Bool(false)) {
+    const Map<tir::Stmt, PoolAllocation>& pool_allocations, Bool emit_tvmscript_printable) {
   auto pass_func = [=](IRModule m, tvm::transform::PassContext ctx) {
     return Downcast<IRModule>(PoolAllocationToOffsetConverter(
         m, pool_allocations, emit_tvmscript_printable->value != 0)());

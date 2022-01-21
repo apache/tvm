@@ -20,6 +20,7 @@ import sys
 import pytest
 from tvm.ir import assert_structural_equal
 from tvm.script import tir as T
+from tvm.script.parser import from_source
 from tvm.testing import check_error
 
 
@@ -156,6 +157,28 @@ def test_match_buffer_no_kwargs_failed():
             b: T.Buffer[(128, 128, 128, 128)],
         ) -> None:
             pass
+
+
+# dynamic shape gemm
+@T.prim_func
+def gemm_dyn_shape(a: T.handle, b: T.handle, c: T.handle):
+    N = T.var("int32")
+    M = T.var("int32")
+    K = T.var("int32")
+    A = T.match_buffer(a, (N, K), "float32")
+    B = T.match_buffer(b, (K, M), "float32")
+    C = T.match_buffer(c, (N, M), "float32")
+    for i, j, k in T.grid(N, M, K):
+        with T.block("gemm"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
+def test_dynamic_shape_gemm():
+    gemm_dyn_shape_roundtrip = from_source(gemm_dyn_shape.script())
+    assert_structural_equal(gemm_dyn_shape, gemm_dyn_shape_roundtrip)
 
 
 if __name__ == "__main__":

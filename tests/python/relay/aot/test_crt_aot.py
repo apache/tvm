@@ -515,8 +515,8 @@ def test_quant_mobilenet_tfl():
 
     import tvm.relay.testing.tf as tf_testing
 
-    interface_api = "packed"
-    use_unpacked_api = False
+    use_unpacked_api = True
+    interface_api = "c"
     test_runner = AOT_DEFAULT_RUNNER
 
     tflite_model_file = tf_testing.get_workload_official(
@@ -654,42 +654,6 @@ def test_deprecated_target_arguments(capsys):
         use_unpacked_api,
         use_runtime_executor=False,
         target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
-    )
-
-
-@pytest.mark.parametrize(
-    "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
-    [
-        (8, 10368, 15200),
-        (16, 10368, 15232),
-        (256, 10752, 17408),
-    ],
-)
-def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
-    mod, params = tvm.relay.testing.synthetic.get_workload()
-    target = "c"
-    runtime = Runtime("crt")
-    executor = Executor(
-        "aot",
-        {
-            "workspace-byte-alignment": workspace_byte_alignment,
-        },
-    )
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
-
-    assert (
-        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
-    )
-    assert (
-        sum(
-            [
-                size
-                for metadata in lib.function_metadata.values()
-                for size in metadata.workspace_sizes.values()
-            ]
-        )
-        == sum_workspace_size
     )
 
 

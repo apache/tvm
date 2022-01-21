@@ -20,6 +20,7 @@
 #define TVM_META_SCHEDULE_UTILS_H_
 
 #include <dmlc/memory_io.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
@@ -43,7 +44,10 @@
 #include "../printer/text_printer.h"
 #include "../support/array.h"
 #include "../support/base64.h"
+#include "../support/nd_int_set.h"
+#include "../support/utils.h"
 #include "../tir/schedule/primitive.h"
+#include "../tir/schedule/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -313,6 +317,26 @@ struct ThreadedTraceApply {
   /*! \brief The pointer to the list of postprocessor items. */
   Item* items_;
 };
+
+/*!
+ * \brief Get the number of cores in CPU
+ * \param target The target
+ * \return The number of cores.
+ */
+inline int GetTargetNumCores(const Target& target) {
+  int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1);
+  if (num_cores == -1) {
+    static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
+    ICHECK(f_cpu_count)
+        << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
+    num_cores = (*f_cpu_count)(false);
+    LOG(FATAL)
+        << "Target does not have attribute \"num-cores\", physical core number must be "
+           "defined! For example, on the local machine, the target must be \"llvm -num-cores "
+        << num_cores << "\"";
+  }
+  return num_cores;
+}
 
 }  // namespace meta_schedule
 }  // namespace tvm
