@@ -14,7 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The tvm.meta_schedule.postproc package."""
-from .postproc import Postproc, PyPostproc
-from .rewrite_reduction_block import RewriteReductionBlock
-from .verify_gpu_code import VerifyGPUCode
+"""A postprocessor that rewrites reduction block by moving the init block out."""
+
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.RewriteReductionBlock")
+class RewriteReductionBlock(Postproc):
+    """A postprocessor that rewrites reduction block by moving the init block out."""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocRewriteReductionBlock,  # type: ignore # pylint: disable=no-member
+        )
