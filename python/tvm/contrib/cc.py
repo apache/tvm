@@ -23,7 +23,40 @@ import subprocess
 from .._ffi.base import py_str
 
 
-def create_shared(output, objects, options=None, cc="g++"):
+def _is_linux_like():
+    return (
+        sys.platform == "darwin"
+        or sys.platform.startswith("linux")
+        or sys.platform.startswith("freebsd")
+    )
+
+
+def get_cc():
+    """Return the path to the default C/C++ compiler.
+
+    Returns
+    -------
+    out: Optional[str]
+        The path to the default C/C++ compiler, or None if none was found.
+    """
+
+    if not _is_linux_like():
+        return None
+
+    env_cxx = os.environ.get("CXX") or os.environ.get("CC")
+    if env_cxx:
+        return env_cxx
+    cc_names = ["g++", "gcc", "clang++", "clang", "c++", "cc"]
+    dirs_in_path = os.get_exec_path()
+    for cc in cc_names:
+        for d in dirs_in_path:
+            cc_path = os.path.join(d, cc)
+            if os.path.isfile(cc_path) and os.access(cc_path, os.X_OK):
+                return cc_path
+    return None
+
+
+def create_shared(output, objects, options=None, cc=None):
     """Create shared library.
 
     Parameters
@@ -40,11 +73,9 @@ def create_shared(output, objects, options=None, cc="g++"):
     cc : Optional[str]
         The compiler command.
     """
-    if (
-        sys.platform == "darwin"
-        or sys.platform.startswith("linux")
-        or sys.platform.startswith("freebsd")
-    ):
+    cc = cc or get_cc()
+
+    if _is_linux_like():
         _linux_compile(output, objects, options, cc, compile_shared=True)
     elif sys.platform == "win32":
         _windows_compile(output, objects, options)
@@ -52,7 +83,7 @@ def create_shared(output, objects, options=None, cc="g++"):
         raise ValueError("Unsupported platform")
 
 
-def create_executable(output, objects, options=None, cc="g++"):
+def create_executable(output, objects, options=None, cc=None):
     """Create executable binary.
 
     Parameters
@@ -69,7 +100,9 @@ def create_executable(output, objects, options=None, cc="g++"):
     cc : Optional[str]
         The compiler command.
     """
-    if sys.platform == "darwin" or sys.platform.startswith("linux"):
+    cc = cc or get_cc()
+
+    if _is_linux_like():
         _linux_compile(output, objects, options, cc)
     elif sys.platform == "win32":
         _windows_compile(output, objects, options)
@@ -109,11 +142,7 @@ def get_target_by_dump_machine(compiler):
 
 # assign so as default output format
 create_shared.output_format = "so" if sys.platform != "win32" else "dll"
-create_shared.get_target_triple = get_target_by_dump_machine(
-    os.environ.get(
-        "CXX", "g++" if sys.platform == "darwin" or sys.platform.startswith("linux") else None
-    )
-)
+create_shared.get_target_triple = get_target_by_dump_machine(os.environ.get("CXX", get_cc()))
 
 
 def cross_compiler(
@@ -190,7 +219,7 @@ def cross_compiler(
     return _fcompile
 
 
-def _linux_compile(output, objects, options, compile_cmd="g++", compile_shared=False):
+def _linux_compile(output, objects, options, compile_cmd, compile_shared=False):
     cmd = [compile_cmd]
     if compile_cmd != "nvcc":
         if compile_shared or output.endswith(".so") or output.endswith(".dylib"):
