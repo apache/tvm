@@ -220,6 +220,15 @@ inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
 }
 
 /*!
+ * \brief Check if the thread scope is blockIdx
+ * \param thread_scope The thread scope to be checked
+ * \return True if the thread scope is blockIdx
+ */
+inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+  return thread_scope.rank == 0;  // The rank of blockIdx is 0
+}
+
+/*!
  * \brief Check if the thread scope is threadIdx
  * \param thread_scope The thread scope to be checked
  * \return True if the thread scope is threadIdx

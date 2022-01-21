@@ -24,7 +24,7 @@ Git Usage Tips
 Here are some tips for git workflow.
 
 How to resolve a conflict with ``main``
--------------------------------------
+---------------------------------------
 
 - First rebase to most recent main
 

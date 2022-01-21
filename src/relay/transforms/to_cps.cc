@@ -216,7 +216,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
       std::function<Expr()> next;
       next = [&]() {
         return (fields.size() == tuple_node->fields.size())
-                   ? k(WithFields(GetRef<Tuple>(tuple_node), std::move(fields)))
+                   ? k(WithFields(GetRef<Tuple>(tuple_node), fields))
                    : VisitExpr(tuple_node->fields[fields.size()], [&](const Expr& v) {
                        fields.push_back(v);
                        return next();
