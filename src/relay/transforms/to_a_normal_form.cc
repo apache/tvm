@@ -255,7 +255,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     for (const auto& a : tuple_node->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, WithFields(GetRef<Tuple>(tuple_node), std::move(fields)), v);
+    return Compound(e, WithFields(GetRef<Tuple>(tuple_node), fields), v);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
