@@ -299,8 +299,6 @@ def verify_conv2d_backward_data(data_dtype, conv_dtype, tensor_format=0, tol=1e-
     dx = tvm.nd.array(dx_np, dev)
 
     f(dy, w, dx)
-    print(np.max(np.abs(dx.numpy() - dx_np)))
-    print(np.mean(np.abs(dx.numpy() - dx_np)))
     tvm.testing.assert_allclose(dx.numpy(), dx_np, atol=tol, rtol=tol)
 
 
@@ -366,8 +364,6 @@ def verify_conv2d_backward_filter(data_dtype, conv_dtype, tensor_format=0, tol=1
     dw = tvm.nd.array(dw_np, dev)
 
     f(dy, x, dw)
-    print(np.max(np.abs(dw.numpy() - dw_np)))
-    print(np.mean(np.abs(dw.numpy() - dw_np)))
     tvm.testing.assert_allclose(dw.numpy(), dw_np, atol=tol, rtol=tol)
 
 

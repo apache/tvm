@@ -570,7 +570,7 @@ def conv2d_backward_weight_strategy_cuda(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if target.kind.name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(
-            wrap_compute_conv2d_backward_weight(topi.cuda.conv2d_backward_weight),
+            wrap_compute_conv2d_backward_weight(topi.cuda.conv2d_backward_weight_cudnn),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="conv2d_backward_weight_strategy.cudnn",
             plevel=15,

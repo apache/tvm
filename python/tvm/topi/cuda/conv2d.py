@@ -125,7 +125,7 @@ def schedule_conv2d_cudnn(cfg, outs):
     return generic.schedule_extern(outs)
 
 
-def conv2d_backward_weight(
+def conv2d_backward_weight_cudnn(
     dy, x, kernel_size, padding, stride, dilation, groups, layout, output_dtype
 ):
     """Compute conv2d wgrad using CuDNN library"""
