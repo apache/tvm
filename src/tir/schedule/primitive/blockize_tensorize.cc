@@ -564,7 +564,7 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
 
   // Step 1: Blockize the subtree rooted at the given loop if needed
   StmtSRef block_sref{nullptr};
-  if (const auto* loop = block_or_loop_sref->StmtAs<ForNode>()) {
+  if (block_or_loop_sref->StmtAs<ForNode>()) {
     block_sref = Blockize(self, block_or_loop_sref);
   } else {
     ICHECK(block_or_loop_sref->StmtAs<BlockNode>());
@@ -608,13 +608,14 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
     // add the detected base indices to each buffer access region of the tensor intrinsic
     Region old_region = buffer_region_map.at(buffer);
     const auto& indices_base = comparator.buffer_indices_.at(source);
-    int offset = indices_base.size() - old_region.size();
+    int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());
+    ICHECK(offset >= 0);
     Region new_region;
     new_region.reserve(source->shape.size());
     for (int i = 0; i < offset; i++) {
       new_region.push_back(Range::FromMinExtent(indices_base[i], 1));
     }
-    for (int i = 0; i < old_region.size(); i++) {
+    for (int i = 0; i < static_cast<int>(old_region.size()); i++) {
       new_region.push_back(Range::FromMinExtent(indices_base[i + offset], old_region[i]->extent));
     }
     match_buffer_regions.push_back(MatchBufferRegion(buffer, BufferRegion(source, new_region)));
