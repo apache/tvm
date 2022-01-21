@@ -653,7 +653,7 @@ class GraphExecutor implements Disposable {
    */
   async benchmarkRuns(dev: DLDevice, number=10, repeat=4): Promise<number[]> {
     // Skip first run as it can involve GPU warmup and module loading time.
-    const perf = compact.getPeformance();
+    const perf = compact.getPerformance();
     const results = [];
     this.run();
     await dev.sync();
@@ -1049,7 +1049,7 @@ export class Instance implements Disposable {
   /** Register global packed functions needed by the backend to the env. */
   private registerEnvGlobalPackedFuncs(): void {
     // Register the timer function to enable the time_evaluator.
-    const perf = compact.getPeformance();
+    const perf = compact.getPerformance();
 
     // Helper function to time the finvoke
     const timeExecution = async (

@@ -230,7 +230,7 @@ class LegalizeTanh:
 
 def sigmoid_calc_func(x: float) -> float:
     """Function to calculate the values for sigmoid"""
-    # Thse limits are inherited from TFLite
+    # These limits are inherited from TFLite
     upper_limit = 8.0
     lower_limit = -8.0
 

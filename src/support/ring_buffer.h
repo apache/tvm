@@ -87,7 +87,7 @@ class RingBuffer {
   }
 
   /*!
-   * \brief Peform a non-blocking read from buffer
+   * \brief Perform a non-blocking read from buffer
    *  size must be smaller than this->bytes_available()
    * \param data the data pointer.
    * \param size The number of bytes to read.
