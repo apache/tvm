@@ -1105,7 +1105,7 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -3318,7 +3318,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of gather must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());
