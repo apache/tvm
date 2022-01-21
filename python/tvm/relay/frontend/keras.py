@@ -1474,7 +1474,7 @@ def from_keras(model, shape=None, layout="NCHW"):
                         keras_layer,
                         scope + keras_layer.name + ":" + str(node_idx),
                         etab,
-                        layout
+                        layout,
                     )
                 )
         return outs
