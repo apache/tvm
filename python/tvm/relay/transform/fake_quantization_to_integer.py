@@ -111,6 +111,9 @@ def create_integer_lookup_table(
     in_dtype="uint8",
     out_dtype="uint8",
 ):
+    """
+    TODO
+    """
     if not np.issubdtype(np.dtype(in_dtype), np.integer) or not np.issubdtype(
         np.dtype(out_dtype), np.integer
     ):
