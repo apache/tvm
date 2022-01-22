@@ -18,6 +18,7 @@
  */
 #include <tvm/runtime/logging.h>
 
+#include <stdexcept>
 #include <string>
 
 #if TVM_LOG_STACK_TRACE
@@ -120,7 +121,22 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
 
 std::string Backtrace() {
   BacktraceInfo bt;
-  bt.max_size = 500;
+
+  // Limit backtrace length based on TVM_BACKTRACE_LIMIT env variable
+  auto user_limit_s = getenv("TVM_BACKTRACE_LIMIT");
+  const auto default_limit = 500;
+
+  if (user_limit_s == nullptr) {
+    bt.max_size = default_limit;
+  } else {
+    // Parse out the user-set backtrace limit
+    try {
+      bt.max_size = std::stoi(user_limit_s);
+    } catch (const std::invalid_argument& e) {
+      bt.max_size = default_limit;
+    }
+  }
+
   if (_bt_state == nullptr) {
     return "";
   }
