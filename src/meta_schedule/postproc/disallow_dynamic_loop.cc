@@ -21,7 +21,7 @@
 namespace tvm {
 namespace tir {
 
-/*! \brief Check if the loop is dynamic. */
+/*! \brief Check if an IRModule has any dynamic loop. */
 struct DynamicExtentFinder : private StmtVisitor {
  public:
   static bool Find(const IRModule& mod) {
