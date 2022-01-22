@@ -151,9 +151,9 @@ class LivenessAnalyzer : public ExprVisitor {
       return;
     }
 
-    // TODO: figure out the closure nesting thing
+    // TODO(@altanh): figure out the closure nesting thing
     ICHECK(!function_node->HasNonzeroAttr(attr::kClosure)) << "closures not supported yet";
-    ICHECK(func_depth_ == 0) << "nested functions not supported";
+    ICHECK(func_depth_ == 0) << "nested functions should have been transformed away";
 
     use_.clear();
     def_.clear();
