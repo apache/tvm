@@ -313,6 +313,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             and layout in ["NCHW", "NHWC"]
             and padding[0] == padding[2]
             and padding[1] == padding[3]
+            and not (data.dtype in ["uint8", "int8"] or kernel.dtype in ["uint8", "int8"])
         ):
             # add cudnn implementation
             if layout == "NHWC":
@@ -347,7 +348,12 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         # add cudnn implementation, if any
         cudnn_impl = False
         if target.kind.name == "cuda" and "cudnn" in target.libs:
-            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and padding[1] == padding[3]:
+            if (
+                layout in ["NCHW", "NHWC"]
+                and padding[0] == padding[2]
+                and padding[1] == padding[3]
+                and not (data.dtype in ["uint8", "int8"] or kernel.dtype in ["uint8", "int8"])
+            ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(
                         topi.cuda.conv2d_cudnn, need_data_layout=True, has_groups=True
