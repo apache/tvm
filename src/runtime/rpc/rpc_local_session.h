@@ -60,7 +60,7 @@ class LocalSession : public RPCSession {
 
  protected:
   /*!
-   * \brief internal encode return fucntion.
+   * \brief internal encode return function.
    * \param rv The return value.
    * \param encode_return The encoding function.
    */

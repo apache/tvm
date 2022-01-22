@@ -39,7 +39,7 @@ class GitHubRepo:
         return self._post("https://api.github.com/graphql", {"query": query})
 
     def _post(self, full_url: str, body: Dict[str, Any]) -> Dict[str, Any]:
-        print("Requesting", full_url)
+        print("Requesting POST to", full_url, "with", body)
         req = request.Request(full_url, headers=self.headers(), method="POST")
         req.add_header("Content-Type", "application/json; charset=utf-8")
         data = json.dumps(body)
@@ -55,7 +55,7 @@ class GitHubRepo:
 
     def get(self, url: str) -> Dict[str, Any]:
         url = self.base + url
-        print("Requesting", url)
+        print("Requesting GET to", url)
         req = request.Request(url, headers=self.headers())
         with request.urlopen(req) as response:
             response = json.loads(response.read())
@@ -63,7 +63,7 @@ class GitHubRepo:
 
     def delete(self, url: str) -> Dict[str, Any]:
         url = self.base + url
-        print("Requesting", url)
+        print("Requesting DELETE to", url)
         req = request.Request(url, headers=self.headers(), method="DELETE")
         with request.urlopen(req) as response:
             response = json.loads(response.read())

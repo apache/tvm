@@ -163,6 +163,13 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule AddRFactor(int max_jobs_per_core,  //
                                          Optional<Integer> max_innermost_factor);
   /*!
+   * \brief Create a schedule rule which applies cross-thread reduction to some reduction blocks
+   * correspondingly when needed
+   * \param thread_extents Candidates of thread axis extent (values are required to be positive).
+   * \return The schedule rule created
+   */
+  TVM_DLL static ScheduleRule CrossThreadReduction(Array<Integer> thread_extents);
+  /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The rule created
    */
