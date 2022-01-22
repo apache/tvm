@@ -27,21 +27,6 @@
 #include "../../transforms/device_aware_visitors.h"
 #include "../../transforms/let_list.h"
 
-// pipeline: ManifestAlloc -> CoalesceStorage -> PlanMemory
-
-// PlanMemory: analyze liveness info and insert kill operations
-
-// A LIVE storage:
-//   - has live tensors or
-//   - has pending tensor allocations
-// So a DEAD storage has no live tensors and provably no pending tensor allocations
-
-// A LIVE tensor:
-//   - has pending dependent tensor computations
-//   - a tuple is like a weird kind of aliasing
-//   - var aliasing
-//   - what if it escapes? e.g. func ret value -> always alive
-
 namespace tvm {
 namespace relay {
 namespace transform {
