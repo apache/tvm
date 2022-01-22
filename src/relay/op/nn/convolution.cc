@@ -665,7 +665,6 @@ given the original input data and the output gradient.
     .add_argument("data", "Tensor", "The input tensor.")
     .set_support_level(2)
     .add_type_rel("Conv2DBackwardWeight", Conv2DBackwardWeightRel)
-    .set_attr<TNonComputational>("TNonComputational", true)
     .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
 
 }  // namespace relay

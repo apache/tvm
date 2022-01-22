@@ -1841,3 +1841,41 @@ def einsum_strategy(attrs, inputs, out_type, target):
         name="einsum.generic",
     )
     return strategy
+
+
+# conv2d_backward_weight
+def wrap_compute_conv2d_backward_weight(topi_compute):
+    """wrap conv2d_backward_weight topi compute"""
+
+    def _compute_conv2d_backward_weight(attrs, inputs, out_dtype):
+        kernel_size = get_const_tuple(attrs.kernel_size)
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        dilation = get_const_tuple(attrs.dilation)
+        groups = attrs.groups
+        out_dtype = attrs.out_dtype
+        layout = attrs.data_layout
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        out = topi_compute(
+            inputs[0],
+            inputs[1],
+            kernel_size,
+            padding,
+            strides,
+            dilation,
+            groups,
+            layout,
+            out_dtype,
+        )
+        return [out]
+
+    return _compute_conv2d_backward_weight
+
+
+@override_native_generic_func("conv2d_backward_weight_strategy")
+def conv2d_backward_weight_strategy(attrs, inputs, out_type, target):
+    """wgrad generic strategy"""
+    raise RuntimeError(
+        "conv2d_backward_weight is currently only supported with cudnn. "
+        "Please run Legalize pass to decompose this op into supported ops."
+    )
