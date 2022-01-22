@@ -14,8 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The tvm.meta_schedule.postproc package."""
-from .postproc import Postproc, PyPostproc
-from .disallow_dynamic_loop import DisallowDynamicLoop
-from .rewrite_reduction_block import RewriteReductionBlock
-from .verify_gpu_code import VerifyGPUCode
+"""A postprocessor that checks if the IRModule has any loop with non-constant extent"""
+
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.DisallowDynamicLoop")
+class DisallowDynamicLoop(Postproc):
+    """A postprocessor that checks if the IRModule has any loop with non-constant extent"""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocDisallowDynamicLoop,  # type: ignore # pylint: disable=no-member
+        )
