@@ -764,6 +764,7 @@ void VirtualMachine::RunLoop() {
       case Opcode::KillRegister: {
         OpStartHook(instr);
         WriteRegister(instr.dst, ObjectRef());
+        OpStopHook();
         pc_++;
         goto main_loop;
       }

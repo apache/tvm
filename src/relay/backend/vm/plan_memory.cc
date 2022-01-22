@@ -23,9 +23,9 @@
  */
 
 #include <tvm/relay/transform.h>
-#include "../../transforms/let_list.h"
 
 #include "../../transforms/device_aware_visitors.h"
+#include "../../transforms/let_list.h"
 
 // pipeline: ManifestAlloc -> CoalesceStorage -> PlanMemory
 
@@ -46,47 +46,6 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
-// x = 1
-// y = x
-// z = y
-// return z
-
-/*
-
-let x = op(in);
-let y = x;
-let z = op(y);
-let w = if (z) {
-  let xx = op(x);
-  op(xx)
-} else {
-  let zz = op(z);
-  op(zz);
-};
-op(w)
-
----
-
-block0:
-  x <- op(in);
-  y <- x;
-  z <- = op(y);
-  jz z block2
-
-block1:
-  xx <- op(x);
-  w <- op(xx)
-  jmp block3
-
-block2:
-  zz <- op(z)
-  w <- op(zz)
-
-block3:
-  ret op(w)
-*/
-
-
 class LivenessAnalyzer : public ExprVisitor {
  private:
   using TVarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
@@ -103,8 +62,10 @@ class LivenessAnalyzer : public ExprVisitor {
       Var rhs = Downcast<Var>(value);
       ICHECK(alias_.count(rhs)) << "aliasing info of rhs should be tracked";
       alias_[var] = alias_[rhs];
+      alias_[rhs]->insert(var);
     } else {
-      alias_[var] = var;
+      alias_[var] = std::make_shared<TVarSet>();
+      alias_[var]->insert(var);
     }
 
     VisitExpr(var);
@@ -114,28 +75,34 @@ class LivenessAnalyzer : public ExprVisitor {
   void PostVisitLetBlock_(const LetNode* let_node) {
     Expr expr = GetRef<Expr>(let_node);
     while (const LetNode* inner_let_node = expr.as<LetNode>()) {
-      if (!inner_let_node->value.as<VarNode>()) {
-        ICHECK(use_.count(inner_let_node->value));
-        def_[expr] = inner_let_node->var;
-        use_[expr] = use_[inner_let_node->value];
-      }
+      ICHECK(use_.count(inner_let_node->value));
+      def_[expr] = inner_let_node->var;
+      use_[expr] = TVarSet(use_[inner_let_node->value].begin(), use_[inner_let_node->value].end());
       expr = inner_let_node->body;
     }
   }
 
   void VisitExpr_(const LetNode* let_node) {
-    std::vector<const LetNode*> bindings;
     Expr expr = GetRef<Expr>(let_node);
     while (const auto* inner_let_node = expr.as<LetNode>()) {
       PreVisitLetBinding_(inner_let_node->var, inner_let_node->value);
-      bindings.emplace_back(inner_let_node);
-      expr = inner_let_node->body;
+
+      Expr let_body = inner_let_node->body;
+      if (const auto* ite = AsIgnoringOnDevice<IfNode>(inner_let_node->value)) {
+        succ_[expr] = {ite->true_branch, ite->false_branch};
+        succ_[ite->true_branch] = {let_body};
+        succ_[ite->false_branch] = {let_body};
+      } else {
+        succ_[expr] = {let_body};
+      }
+
+      expr = let_body;
     }
 
     VisitExpr(expr);
 
     PostVisitLetBlock_(let_node);
-}
+  }
 
   void VisitExpr_(const TupleNode* tuple_node) override {
     TSuper::VisitExpr_(tuple_node);
@@ -160,7 +127,7 @@ class LivenessAnalyzer : public ExprVisitor {
   void VisitExpr_(const VarNode* var_node) override {
     Var var = GetRef<Var>(var_node);
     ICHECK(alias_.count(var));
-    use_[var] = {alias_[var]};
+    use_[var] = {var};
   }
 
   void VisitExpr_(const ConstantNode* const_node) override {
@@ -193,7 +160,8 @@ class LivenessAnalyzer : public ExprVisitor {
     alias_.clear();
 
     for (const Var& param : function_node->params) {
-      alias_[param] = param;
+      alias_[param] = std::make_shared<TVarSet>();
+      alias_[param]->insert(param);
     }
 
     ++func_depth_;
@@ -204,50 +172,20 @@ class LivenessAnalyzer : public ExprVisitor {
   }
 
   void VisitExpr_(const IfNode* if_node) override {
-    LOG(FATAL) << "if not supported yet";
+    TSuper::VisitExpr_(if_node);
+    use_[GetRef<Expr>(if_node)] = use_[if_node->cond];
   }
 
-  void DebugDump() {
-    // for (auto pr : alias_) {
-    //   std::cout << pr.first << " -> " << pr.second << std::endl;
-    // }
-    // for (auto pr : use_) {
-    //   std::cout << pr.first.get() << " uses";
-    //   for (auto var : pr.second) {
-    //     std::cout << " " << var;
-    //   }
-    //   std::cout << std::endl;
-    // }
-    // for (auto pr : def_) {
-    //   std::cout << pr.first.get() << " defs " << pr.second << std::endl;
-    // }
-    for (auto pr : live_in_) {
-      if (auto* l = pr.first.as<LetNode>()) {
-        auto lo = live_out_[GetRef<Expr>(l)];
-        std::cout << l->var->name_hint() << " kill";
-        for (auto v : pr.second) {
-          if (!lo.count(v)) {
-            std::cout << " " << v->name_hint();
-          }
-        }
-        std::cout << std::endl;
-        // std::cout << l->var->name_hint() << " = " << (l->value) << " live in: ";
-        // for (auto var : pr.second) {
-        //   std::cout << " " << var->name_hint();
-        // }
-        // std::cout << std::endl;
+  bool SetEqual(const TVarSet& a, const TVarSet& b) {
+    if (a.size() != b.size()) {
+      return false;
+    }
+    for (auto& xa : a) {
+      if (!b.count(xa)) {
+        return false;
       }
     }
-
-    // for (auto pr : live_out_) {
-    //   if (auto* l = pr.first.as<LetNode>()) {
-    //     std::cout << l->var->name_hint() << " = " << (l->value) << " live out: ";
-    //     for (auto var : pr.second) {
-    //       std::cout << " " << var->name_hint();
-    //     }
-    //     std::cout << std::endl;
-    //   }
-    // }
+    return true;
   }
 
   void ComputeLiveness(const Expr& expr) {
@@ -255,29 +193,33 @@ class LivenessAnalyzer : public ExprVisitor {
 
     bool did_work = true;
 
+    // see https://lambda.uta.edu/cse5317/notes/node40.html for an overview of the algorithm
     auto visitor = [&](const Expr& n) {
       TVarSet old_in_n = this->live_in_[n];
       TVarSet old_out_n = this->live_out_[n];
 
+      // we only compute live in/out for bindings
+      if (!n.as<LetNode>()) {
+        return;
+      }
+
       this->live_in_[n] = TVarSet(this->use_[n].begin(), this->use_[n].end());
-      for (auto v : this->live_out_[n]) {
+      for (const Var& v : this->live_out_[n]) {
         if (!v.same_as(this->def_[n])) {
           this->live_in_[n].insert(v);
         }
       }
-      if (auto* l = n.as<LetNode>()) {
-        this->live_out_[n] = this->live_in_[l->body];
+
+      ICHECK(succ_.count(n));
+      this->live_out_[n] = TVarSet();
+      for (const Expr& s : succ_[n]) {
+        this->live_out_[n].insert(this->live_in_[s].begin(), this->live_in_[s].end());
       }
 
-      if (old_in_n.size() != this->live_in_[n].size() || old_out_n.size() != this->live_out_[n].size()) {
+      if (!SetEqual(old_in_n, this->live_in_[n])) {
         did_work = true;
-      } else {
-        for (auto o : old_in_n) {
-          did_work |= !this->live_in_[n].count(o);
-        }
-        for (auto o : old_out_n) {
-          did_work |= !this->live_out_[n].count(o);
-        }
+      } else if (!SetEqual(old_out_n, this->live_out_[n])) {
+        did_work = true;
       }
     };
 
@@ -290,14 +232,32 @@ class LivenessAnalyzer : public ExprVisitor {
  private:
   friend class MemoryPlanner;
 
-  // v in use_[n] means v is read in n
+  // v in use_[n] means v is read in n.
+  // NOTE: the use set of an If expression does not include the branches, just the condition.
+  //       This lets us pretend the IR is composed of basic blocks (seq of bindings) + unstructured
+  //       control flow, which is what most data-flow algorithms assume as input.
   std::unordered_map<Expr, TVarSet, ObjectPtrHash, ObjectPtrEqual> use_;
-  // def_[n] = v means n is an expr "let v = ...; ..."
-  std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> def_;
-  // e.g. alias_[x] = y means y is an alias of x, created by "let y = x; ..."
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> alias_;
 
+  // def_[n] = v means n is an expr "let v = ...; ..."
+  // TODO(@altanh): pretty sure this can be removed since we don't allow binding the same var twice
+  //                (unless I'm misremembering).
+  std::unordered_map<Expr, Var, ObjectPtrHash, ObjectPtrEqual> def_;
+
+  // y in alias_[x] means y is an alias of x, created by let binding y to an alias of x.
+  // NOTE: x in alias_[x] for all x.
+  std::unordered_map<Var, std::shared_ptr<TVarSet>, ObjectPtrHash, ObjectPtrEqual> alias_;
+
+  // Maps expr -> {successor expr/basic block}.
+  // NOTE: a pair of bindings without control flow, e.g. e = "b0; b1; body", results in a linear
+  //       successor e -> b1. If expressions on the other hand, e.g.
+  //       e = "let x = if (cond) { true_b } else { false_b }; body" have branching
+  //       e -> {true_b, false_b} -> body.
+  std::unordered_map<Expr, std::vector<Expr>, ObjectPtrHash, ObjectPtrEqual> succ_;
+
+  // Maps expr -> {v: Var | v is live before expr}
   std::unordered_map<Expr, TVarSet, ObjectPtrHash, ObjectPtrEqual> live_in_;
+
+  // Maps expr -> {v: Var | v is live after expr}
   std::unordered_map<Expr, TVarSet, ObjectPtrHash, ObjectPtrEqual> live_out_;
 
   size_t func_depth_ = 0;
@@ -315,25 +275,36 @@ class MemoryPlanner : public ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* let_node) override {
-    Expr value = VisitExpr(let_node->value);
-    Let let = GetRef<Let>(let_node);
-    auto li = lva_.live_in_[let];
-    auto lo = lva_.live_out_[let];
-    LivenessAnalyzer::TVarSet kills;
-    for (auto v : li) {
-      if (!lo.count(v)) {
-        kills.insert(v);
+    Expr expr = GetRef<Expr>(let_node);
+    LetList ll;
+
+    while (const LetNode* inner_let_node = expr.as<LetNode>()) {
+      ll.Push(inner_let_node->var, VisitExpr(inner_let_node->value));
+
+      auto& li = lva_.live_in_[expr];
+      auto& lo = lva_.live_out_[expr];
+
+      // killed vars = live in - live out
+      LivenessAnalyzer::TVarSet kills;
+      for (auto& v : li) {
+        if (!lo.count(v)) {
+          kills.insert(v);
+        }
       }
-    }
-    if (!kills.empty()) {
-      LetList ll;
-      ll.Push(let->var, value);
-      for (auto v : kills) {
-        ll.Push(Call(Op::Get("memory.kill"), {v}));
+
+      // remove dead aliases from their alias sets
+      for (auto& v : kills) {
+        lva_.alias_[v]->erase(v);
+        if (lva_.alias_[v]->empty()) {
+          // all aliases are dead, so we can actually kill the register
+          ll.Push(Call(Op::Get("memory.kill"), {v}));
+        }
       }
-      return ll.Get(VisitExpr(let_node->body));
+
+      expr = inner_let_node->body;
     }
-    return Let(let->var, value, VisitExpr(let_node->body));
+
+    return ll.Get(VisitExpr(expr));
   }
 
  private:
@@ -342,12 +313,8 @@ class MemoryPlanner : public ExprMutator {
 
 Pass VMPlanMemory() {
   auto pass_func = [](Function f, IRModule m, PassContext pc) -> Function {
-    // LivenessAnalyzer lva;
-    // lva.ComputeLiveness(f);
-    // lva.DebugDump();
     MemoryPlanner mp;
     Expr nf = mp.PlanMemory(f);
-    // std::cout << PrettyPrint(nf);
     return Downcast<Function>(nf);
   };
   return CreateFunctionPass(pass_func, 0, "VMPlanMemory", {});
