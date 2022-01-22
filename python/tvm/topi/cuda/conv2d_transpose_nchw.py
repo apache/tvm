@@ -19,6 +19,7 @@
 
 import tvm
 from tvm import te
+from tvm.contrib import cudnn
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from .. import nn
@@ -286,3 +287,10 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
 
     return s
+
+
+def conv2d_transpose_cudnn(x, w, stride, padding, out_dtype, output_padding=(0, 0)):
+    """Compute conv2d_tranpose using cudnn dgrad kernel"""
+    return cudnn.conv_backward_data(
+        x, w, padding, stride, (1, 1), 1, 0, out_dtype, groups=1, output_padding=output_padding
+    )
