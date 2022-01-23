@@ -299,7 +299,7 @@ def tune_cutlass_kernels(
         fp32 inputs on tensorcore.
 
     profile_all_alignments : bool
-        When True, profile all kernal varaints with smaller alignments than the largest possible.
+        When True, profile all kernal variants with smaller alignments than the largest possible.
 
     profile_all : bool
         Whether or not profile all candidate kernels, or stop profiling after
