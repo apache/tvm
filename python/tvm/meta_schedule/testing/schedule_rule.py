@@ -19,6 +19,8 @@ from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
     AutoInline,
     CrossThreadReduction,
+    ParallelizeVectorizeUnroll,
+    RandomComputeLocation,
     ScheduleRule,
 )
 from tvm.target import Target
@@ -60,4 +62,30 @@ def cross_thread_reduction(target: Target) -> ScheduleRule:
     """Default schedule rules for with cross-thread reduction"""
     if target.kind.name == "cuda":
         return CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def random_compute_location(target: Target) -> ScheduleRule:
+    """Default schedule rules for with random-compute-location"""
+    if target.kind.name == "llvm":
+        return RandomComputeLocation()
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def parallel_vectorize_unroll(target: Target) -> ScheduleRule:
+    """Default schedule rules for with parallel-vectorize-unroll"""
+    if target.kind.name == "llvm":
+        return ParallelizeVectorizeUnroll(
+            max_jobs_per_core=16,
+            max_vectorize_extent=32,
+            unroll_max_steps=[0, 16, 64, 512],
+            unroll_explicit=True,
+        )
+    if target.kind.name == "cuda":
+        return ParallelizeVectorizeUnroll(
+            max_jobs_per_core=-1,
+            max_vectorize_extent=-1,
+            unroll_max_steps=[0, 16, 64, 512, 1024],
+            unroll_explicit=True,
+        )
     raise NotImplementedError(f"{target.kind.name} is not supported")

@@ -171,19 +171,20 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule CrossThreadReduction(Array<Integer> thread_extents);
   /*!
    * \brief A rule that randomly select a compute-at location for a free block
-   * \return The rule created
+   * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule RandomComputeLocation();
   /*!
-   * \brief Mark parallelize, vectorize and unroll to each block correspondingly
+   * \brief Mark parallelize, vectorize and unroll to the root block. The mark will be applied to
+   * each block in a follow-up post processor
    * \param max_jobs_per_core The maximum number of jobs to be launched per CPU core. It sets the
-   * uplimit of CPU parallelism, i.e. `num_cores * max_jobs_per_core`. Use -1 to disable
+   * upper limit of CPU parallelism, i.e. `num_cores * max_jobs_per_core`. Use -1 to disable
    * parallelism.
    * \param max_vectorize_extent The maximum extent to be vectorized.
-   * It sets the uplimit of the CPU vectorization. Use -1 to disable vectorization.
-   * \param unroll_max_steps The maximum number of unroll steps to be done.
+   * It sets the upper limit of the hardware target vectorization. Use -1 to disable vectorization.
+   * \param unroll_max_steps The options of the maximum number of unroll steps to be done.
    * Use an empty array to disable unroll.
-   * \param unroll_explicit Whether to explicitly unroll the loop, or just add a unroll pragma.
+   * \param unroll_explicit Whether to explicitly unroll the loop, or just add an "unroll" pragma.
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,            //
