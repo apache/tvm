@@ -269,7 +269,7 @@ class CutlassConv2DProfiler:
             use_3xtf32,
             profile_all_alignments,
             profile_all,
-            use_multiprocessing
+            use_multiprocessing,
         )
 
         name, opdef = create_conv2d_operator_with_epilogue(

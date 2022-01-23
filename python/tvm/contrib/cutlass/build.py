@@ -237,7 +237,7 @@ def handle_conv2d(
     data_dtype,
     weight_dtype,
     use_3xtf32,
-        profile_all_alignments,
+    profile_all_alignments,
     profile_all,
     use_multiprocessing,
 ):
@@ -274,7 +274,13 @@ def handle_conv2d(
 
 
 def tune_cutlass_kernels(
-        mod, sm, use_3xtf32=True, profile_all_alignments=False, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
+    mod,
+    sm,
+    use_3xtf32=True,
+    profile_all_alignments=False,
+    profile_all=True,
+    use_multiprocessing=False,
+    tmp_dir="./tmp",
 ):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.

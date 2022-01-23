@@ -350,12 +350,7 @@ def test_dense():
     )
     # 3xtf32
     verify_dense(
-        dense_fp32,
-        M,
-        N,
-        K,
-        data_dtype="float32",
-        weight_dtype="float32",
+        dense_fp32, M, N, K, data_dtype="float32", weight_dtype="float32",
     )
 
 
@@ -382,11 +377,7 @@ def test_dense_dynamic():
         # TVM native fp16 dense (without tensorcore), using fp16 accum, seems to have accuracy issues
         # Use cublas as a reference
         verify_dense(
-            get_dense_with_shape(data_shape, weight_shape),
-            M,
-            N,
-            K,
-            ref_target="cuda -libs=cublas",
+            get_dense_with_shape(data_shape, weight_shape), M, N, K, ref_target="cuda -libs=cublas",
         )
 
     verify_dense(
