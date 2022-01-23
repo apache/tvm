@@ -68,14 +68,15 @@ class PackedFuncObj : public Object {
    * \param args The arguments
    * \param rv The return value.
    */
-  inline void CallPacked(TVMArgs args, TVMRetValue* rv) const;
+  inline TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return f_call_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
   bool operator!=(std::nullptr_t null) const { return f_call_ != nullptr; }
 
-  static constexpr const char* _type_key = "PackedFuncObj";
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimePackedFunc;
+  static constexpr const char* _type_key = "runtime.PackedFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncObj, Object);
 
  protected:
@@ -94,7 +95,7 @@ class PackedFuncObj : public Object {
   };
 
   /*! \brief The internal callable function type. */
-  using FCall = void(const PackedFuncObj*, TVMArgs, TVMRetValue*);
+  using FCallPacked = void(const PackedFuncObj*, TVMArgs, TVMRetValue*);
   
   /*!
    * \brief Constructing a packed function object from a function pointer.
@@ -103,7 +104,7 @@ class PackedFuncObj : public Object {
   explicit PackedFuncObj(FCall* f_call) : f_call_(f_call) {}
 
   /*! \brief Internal callable function pointer used to call the packed function. */
-  FCall* f_call_;
+  FCallPacked* f_call_packed_;
 };
 
 /*! \brief Derived object class for constructing PackedFuncObj. */
@@ -137,7 +138,7 @@ class PackedFunc : public ObjectRef {
   /*! \brief constructor from null */
   PackedFunc(std::nullptr_t null): ObjectRef(nullptr) {}  // NOLINT(*)
   /*!
-   * \brief constructing a packed function from a type-erased callable type.
+   * \brief constructing a packed function from a callable type whose signature is consistent with `PackedFunc`
    * \param data the internal container of packed function.
    */
   template <typename TCallable,
@@ -169,7 +170,7 @@ class PackedFunc : public ObjectRef {
    * \param args The arguments
    * \param rv The return value.
    */
-  inline void CallPacked(TVMArgs args, TVMRetValue* rv) const;
+  inline TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return data_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -1197,12 +1198,12 @@ void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj,
   (static_cast<const TPackedFuncSubObj*>(obj))->callable_(args, rv);
 }
 
-inline void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+inline TVM_ALWAYS_INLINE void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
   (*f_call_)(this, args, rv); 
 }
 
 
-inline void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+inline TVM_ALWAYS_INLINE void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
   (static_cast<PackedFuncObj*>(data_.get()))->CallPacked(args, rv);
 }
 
