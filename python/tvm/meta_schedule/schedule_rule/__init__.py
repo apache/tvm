@@ -19,5 +19,6 @@ blocks in a schedule. See also PostOrderApply.
 from .add_rfactor import AddRFactor
 from .auto_inline import AutoInline
 from .cross_thread_reduction import CrossThreadReduction
-from .schedule_rule import PyScheduleRule, ScheduleRule
+from .parallel_vectorize_unroll import ParallelizeVectorizeUnroll
 from .random_compute_location import RandomComputeLocation
+from .schedule_rule import PyScheduleRule, ScheduleRule
