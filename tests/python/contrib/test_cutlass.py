@@ -188,7 +188,7 @@ def profile_and_build(
         mod,
         sm,
         use_3xtf32=use_3xtf32,
-        profile_all_alignments=True,
+        profile_all_alignments=False,
         profile_all=False,
         use_multiprocessing=False,
         tmp_dir=tmp_dir,
@@ -531,9 +531,9 @@ def test_conv2d():
     mod_nchw = get_conv2d_nchw(d_shape, w_shape, padding)
     mod_dyn = get_conv2d_nchw(dyn_batch_shape, w_shape, padding)
 
-    # verify_conv2d(
-    #     mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
-    # )
+    verify_conv2d(
+        mod_dyn, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
+    )
 
     for data_dtype, weight_dtype, out_dtype in [
         ("float32", "float32", "float32"),  # 3xtf32

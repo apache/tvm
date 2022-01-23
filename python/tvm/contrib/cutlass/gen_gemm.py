@@ -30,12 +30,7 @@ from .library import (
 
 
 def create_gemm_operator_with_epilogue(
-    op_type,
-    tile_description,
-    data_type,
-    alignment,
-    swizzling_functor,
-    batched=False,
+    op_type, tile_description, data_type, alignment, swizzling_functor, batched=False,
 ):
     """
     Instantiate a cutlass kernel from the given configuration,
@@ -63,8 +58,9 @@ def create_gemm_operator_with_epilogue(
         swizzling_functor,
     )
 
-    return op.procedural_name(), EmitGemmInstance().emit(
-        op, no_beta_scaling=no_beta_scaling, batched=batched
+    return (
+        op.procedural_name(),
+        EmitGemmInstance().emit(op, no_beta_scaling=no_beta_scaling, batched=batched),
     )
 
 
@@ -168,8 +164,15 @@ class CutlassGemmProfiler:
         For now, the default kernel was picked arbitrary.
         """
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, lambda _: True, use_3xtf32
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            enumerate_gemm_operators,
+            lambda _: True,
+            use_3xtf32,
+            profile_all_alignments=True,  # To include align1 kernels
         )
+
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
 
         if arg0_dtype == "float32":
@@ -212,11 +215,7 @@ class CutlassGemmProfiler:
             return op
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype,
-            arg0_dtype,
-            arg1_dtype,
-            enumerate_gemm_operators,
-            use_3xtf32=use_3xtf32,
+            out_dtype, arg0_dtype, arg1_dtype, enumerate_gemm_operators, use_3xtf32=use_3xtf32,
         )
         ops = list(filter(lambda op: self.check_align(op["name"], M, N, K), ops))
 
