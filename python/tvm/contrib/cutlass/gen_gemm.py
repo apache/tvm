@@ -156,9 +156,9 @@ class CutlassGemmProfiler:
             arg0_dtype,
             arg1_dtype,
             enumerate_gemm_operators,
-            lambda align: align == 1,  # Only request align1 kernels
+            lambda align: align == 1  # Only request align1 kernels
             use_3xtf32,
-            profile_all_alignments=False,
+            profile_all_alignments=True,  # To include all align1 kernels
         )
 
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
