@@ -218,7 +218,7 @@ class CutlassGemmProfiler:
             arg1_dtype,
             enumerate_gemm_operators,
             lambda align: all([dim % align == 0 for dim in [M, N, K]]),
-            use_3xtf32=use_3xtf32,
+            use_3xtf32,
             profile_all_alignments=profile_all_alignments,
         )
 

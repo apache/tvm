@@ -240,6 +240,9 @@ def verify_dense(
 ):
     if not has_cutlass():
         return
+    if sm < 80 and data_dtype == "float32":
+        return
+
     mod = tvm.IRModule.from_expr(func)
     typ = relay.transform.InferType()(mod)["main"].body.checked_type
     out_dtype = typ.dtype
@@ -450,6 +453,8 @@ def verify_conv2d(
     ref_target="cuda",
 ):
     if not has_cutlass():
+        return
+    if sm < 80 and data_dtype == "float32":
         return
 
     mod_nchw = tvm.IRModule.from_expr(expr_nchw)
