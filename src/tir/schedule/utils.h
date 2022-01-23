@@ -193,6 +193,18 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
   return {stmt};
 }
 
+/*!
+ * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \param stmt The statement to be checked
+ * \return A boolean indicating the result
+ */
+inline bool IsSingleStmt(const Stmt& stmt) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+    return seq_stmt->seq.size() == 1;
+  }
+  return true;
+}
+
 /******** IterVar ********/
 
 /*!
