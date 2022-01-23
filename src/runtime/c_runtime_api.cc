@@ -474,7 +474,7 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
 
   TVMRetValue rv;
   (static_cast<const PackedFuncObj*>(func))
-      ->CallPacked(TVMArgs(args, arg_type_codes, num_args), &rv);  
+      ->CallPacked(TVMArgs(args, arg_type_codes, num_args), &rv);
   // handle return string.
   if (rv.type_code() == kTVMStr || rv.type_code() == kTVMDataType || rv.type_code() == kTVMBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();

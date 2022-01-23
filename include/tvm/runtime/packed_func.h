@@ -68,12 +68,12 @@ class PackedFuncObj : public Object {
    * \param args The arguments
    * \param rv The return value.
    */
-  inline TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
-  
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
+
   /*! \return Whether the packed function is nullptr */
-  bool operator==(std::nullptr_t null) const { return f_call_ == nullptr; }
+  bool operator==(std::nullptr_t null) const { return f_call_packed_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
-  bool operator!=(std::nullptr_t null) const { return f_call_ != nullptr; }
+  bool operator!=(std::nullptr_t null) const { return f_call_packed_ != nullptr; }
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimePackedFunc;
   static constexpr const char* _type_key = "runtime.PackedFunc";
@@ -96,12 +96,12 @@ class PackedFuncObj : public Object {
 
   /*! \brief The internal callable function type. */
   using FCallPacked = void(const PackedFuncObj*, TVMArgs, TVMRetValue*);
-  
+
   /*!
    * \brief Constructing a packed function object from a function pointer.
    * \param f_call The function pointer used to call the packed function.
    */
-  explicit PackedFuncObj(FCall* f_call) : f_call_(f_call) {}
+  explicit PackedFuncObj(FCallPacked* f_call_pack) : f_call_packed_(f_call_pack) {}
 
   /*! \brief Internal callable function pointer used to call the packed function. */
   FCallPacked* f_call_packed_;
@@ -170,7 +170,7 @@ class PackedFunc : public ObjectRef {
    * \param args The arguments
    * \param rv The return value.
    */
-  inline TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return data_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -809,7 +809,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator Device;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Module;
-  using TVMPODValue_::operator PackedFunc;  
+  using TVMPODValue_::operator PackedFunc;
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
 
@@ -1194,16 +1194,18 @@ inline TVMArgValue TVMArgs::operator[](int i) const {
 inline int TVMArgs::size() const { return num_args; }
 
 template <class TPackedFuncSubObj>
-void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj, TVMArgs args, TVMRetValue* rv) {
+void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj,
+                                                       TVMArgs args,
+                                                       TVMRetValue* rv) {
   (static_cast<const TPackedFuncSubObj*>(obj))->callable_(args, rv);
 }
 
-inline TVM_ALWAYS_INLINE void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
-  (*f_call_)(this, args, rv); 
+TVM_ALWAYS_INLINE void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+  (*f_call_packed_)(this, args, rv);
 }
 
 
-inline TVM_ALWAYS_INLINE void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
+TVM_ALWAYS_INLINE void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
   (static_cast<PackedFuncObj*>(data_.get()))->CallPacked(args, rv);
 }
 
