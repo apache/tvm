@@ -29,7 +29,12 @@ from .library import (
 
 
 def create_gemm_operator_with_epilogue(
-    op_type, tile_description, data_type, alignment, swizzling_functor, batched=False,
+    op_type,
+    tile_description,
+    data_type,
+    alignment,
+    swizzling_functor,
+    batched=False,
 ):
     """
     Instantiate a cutlass kernel from the given configuration,
@@ -156,7 +161,7 @@ class CutlassGemmProfiler:
             arg0_dtype,
             arg1_dtype,
             enumerate_gemm_operators,
-            lambda align: align == 1  # Only request align1 kernels
+            lambda align: align == 1,  # Only request align1 kernels
             use_3xtf32,
             profile_all_alignments=True,  # To include all align1 kernels
         )
