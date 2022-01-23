@@ -294,8 +294,12 @@ def tune_cutlass_kernels(
         An integer specifying the compute capability. For example, 75 for Turing and
         80 or 86 for Ampere.
 
+    use_3xtf32 : bool
+        Wheter or not use slower but very accurate (compared to tf32) 3xtf32 mode for
+        fp32 inputs on tensorcore.
+
     profile_all_alignments : bool
-        TODO
+        When True, profile all kernal varaints with smaller alignments than the largest possible.
 
     profile_all : bool
         Whether or not profile all candidate kernels, or stop profiling after
