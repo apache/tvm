@@ -32,8 +32,6 @@ tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
 tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
-tvm_option(USE_HEXAGON_LAUNCHER "Build the Hexagon graph launcher application" OFF)
-tvm_option(USE_HEXAGON_PROXY_RPC "Build the Hexagon Proxy RPC server application" OFF)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -323,7 +321,7 @@ if(BUILD_FOR_HEXAGON)
   # runtime, since it would cause multiple definition errors with the
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/android/hexagon_posix.cc)
     # Allow undefined symbols (there will be some from libc).
     set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
@@ -559,12 +557,6 @@ else()
   target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
-if(BUILD_FOR_HEXAGON)
-  # Wrap pthread_create to allow setting custom stack size.
-  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
-                        "-Wl,--wrap=pthread_create")
-endif()
-
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -697,6 +689,18 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
       COMMENT "Running dsymutil"
       VERBATIM
 		  )
+endif()
+
+if(BUILD_FOR_HEXAGON)
+  # Wrap pthread_create to allow setting custom stack size.
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
+                        "-Wl,--wrap=pthread_create")
+  # Link tvm_runtime into the RPC skel library. Make sure it's built
+  # as a part of the "runtime" target.
+  if(USE_HEXAGON_RPC)
+    target_link_libraries(hexagon_rpc_skel -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    add_dependencies(runtime hexagon_rpc_skel)
+  endif()
 endif()
 
 #Caches the build.
