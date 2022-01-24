@@ -105,6 +105,7 @@ Expr QnnRsqrtCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   return Quantize(output, args.output_scale, args.output_zero_point, input_type.dtype, types, -1);
 }
 
+// Canonicalization set in python/tvm/relay/qnn/op/canonicalizations.py
 RELAY_REGISTER_OP("qnn.rsqrt")
     .describe("Elementwise rsqrt for quantized tensors.")
     .set_num_inputs(5)
@@ -116,8 +117,7 @@ RELAY_REGISTER_OP("qnn.rsqrt")
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("QRsqrt", QnnRsqrtRel)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnRsqrtCanonicalize);
+    .set_attr<TNonComputational>("TNonComputational", true);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.rsqrt").set_body_typed(MakeQuantizedRsqrt);
 
