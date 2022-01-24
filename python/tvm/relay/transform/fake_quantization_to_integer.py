@@ -17,9 +17,11 @@
 """Relay functions for rewriting fake quantized ops."""
 import numpy as np
 import tvm
-from scipy import special
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+
+# import to register canonicalization funcs for fq2i
+from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
