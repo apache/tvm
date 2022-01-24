@@ -22,8 +22,8 @@ Executing a Tiny Model with TVMC Micro
 =========================
 **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
-This tutorial explains how to compile a tiny model for a micro device, 
-build a program on Zephyr platform to execute this model, flash the program 
+This tutorial explains how to compile a tiny model for a micro device,
+build a program on Zephyr platform to execute this model, flash the program
 and run the model all using `tvmc micro` command.
 """
 
@@ -47,7 +47,7 @@ and run the model all using `tvmc micro` command.
 ############################################################
 #
 # TVMC is a python package which is installed as a part of TVM Python packages. Accessing this
-# package varies based on your machine setup. First option is to use ``tvmc`` command directly. ◊◊◊
+# package varies based on your machine setup. First option is to use ``tvmc`` command directly.
 # Alternatively, if you have TVM as a Python module on your ``$PYTHONPATH``, you can access this
 # driver with ``python -m tvm.driver.tvm`` command. This tutorial will use TVMC command as
 # ``tvmc`` for simplicity.
@@ -114,7 +114,7 @@ and run the model all using `tvmc micro` command.
 
 
 ############################################################
-# Create a Zephyr Projecg Using Model Library Format
+# Create a Zephyr Project Using Model Library Format
 ############################################################
 #
 # To generate a Zephyr project we use TVM Micro subcommand ``create``. We pass the MLF format and the path
@@ -152,10 +152,10 @@ and run the model all using `tvmc micro` command.
 #       --project-option zephyr_board=qemu_x86
 #
 # This will build the project in `project` directory and generates binary files under `project/build`. To build
-# Zephyr project for a different Zephyr baord, change `zephyr_board` project option.
+# Zephyr project for a different Zephyr board, change `zephyr_board` project option.
 #
 # Next, we flash the Zephyr binary file to Zephyr device. For `qemu_x86` Zephyr board this step does not
-# actually perform any action, however you need this step for physical hardware.
+# actually perform any action since QEMU will be used, however you need this step for physical hardware.
 #
 # .. code-block:: bash
 #
@@ -169,7 +169,7 @@ and run the model all using `tvmc micro` command.
 # Run Tiny Model on Micro Target
 ############################################################
 #
-# To run the model in microtvm using TVMC, we use ``tvmc run`` subcommand and we pass ``--device micro``
+# To run the flashed model on the device using TVMC, we use ``tvmc run`` subcommand and we pass ``--device micro``
 # to specify the device type.
 #
 # .. code-block:: bash
