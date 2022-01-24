@@ -196,6 +196,12 @@ bool TensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& o
   return CompareBufferAccess(op, rhs);
 }
 
+bool TensorizeComparator::VisitExpr_(const SelectNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<SelectNode>();
+  return VisitExpr(op->condition, rhs->condition) && VisitExpr(op->true_value, rhs->true_value)
+    && VisitExpr(op->false_value, rhs->false_value);
+}
+
 bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   if (lhs.same_as(rhs)) return true;
   auto it = equal_map_.find(lhs);
@@ -253,7 +259,14 @@ bool TensorizeComparator::CompareBuffer(const Buffer& lhs, const Buffer& rhs) {
 }
 
 bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs) {
-  if (!CompareBuffer(lhs->buffer, rhs->buffer)) return false;
+  if (!CompareBuffer(lhs->buffer, rhs->buffer)) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "Buffer mismatch: " << lhs->buffer << " vs " << rhs->buffer;
+      EmitError(os.str());
+    }
+    return false;
+  }
   int offset = static_cast<int>(lhs->region.size()) - static_cast<int>(rhs->region.size());
   // Number of indices in RHS (desc of the tensor intrinsic) must be smaller than it in LHS
   if (offset < 0) return false;
