@@ -550,6 +550,11 @@ inline Expr Sqrt(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
+inline Expr Rsqrt(Expr x) {
+  static const Op& op = Op::Get("rsqrt");
+  return Call(op, {x}, Attrs(), {});
+}
+
 inline Expr Relu(Expr x) {
   static const Op& op = Op::Get("nn.relu");
   return Call(op, {x}, Attrs(), {});
