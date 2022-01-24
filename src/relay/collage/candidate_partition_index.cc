@@ -25,6 +25,7 @@
 #include "./candidate_partition_index.h"
 
 #include "./gather_partition_specs.h"
+#include "./prune_candidates.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -40,10 +41,7 @@ CandidatePartitionIndex::CandidatePartitionIndex(
 
 void CandidatePartitionIndex::Index(const Array<PartitionSpec>& partition_specs) {
   std::vector<CandidatePartition> candidates = Collect(partition_specs);
-
-  // (The candidates could be pruned at this point to elliminate those which are heuristically
-  //  unlikely to appear in the optimal partitioning.)
-
+  candidates = PruneCandidates(*dataflow_graph_, candidates);
   // Index the candidates by their first inside index.
   for (auto& candidate : candidates) {
     first_inside_index_to_candidates_[candidate->sub_graph_->first_inside_index_].emplace_back(

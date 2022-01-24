@@ -64,39 +64,6 @@ class CostEstimator : public ObjectRef {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(CostEstimator, ObjectRef, CostEstimatorNode);
 };
 
-/*!
- * \brief A mock cost estimator which can determine the cost of a candidate based on both
- * the candidate's target and the number of operator calls inside it.
- *
- * The estimator also ICHECKs the given module has all "Compiler" functions outlined and @main
- * takes only tensor arguments (ie no tuple types).
- *
- * To support testing only.
- */
-class MockEstimatorNode : public CostEstimatorNode {
- public:
-  Cost Estimate(const IRModule& mod, const Target& target) const override;
-
-  static constexpr const char* _type_key = "relay.collage.MockEstimator";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MockEstimatorNode, CostEstimatorNode);
-
- protected:
-  friend class MockEstimator;
-
-  /*!
-   * \brief Map from target kind name to assumed baseline cost (in integer seconds) for all
-   * operator calls.
-   */
-  Map<String, Integer> target_costs_;
-};
-
-class MockEstimator : public CostEstimator {
- public:
-  explicit MockEstimator(Map<String, Integer> target_costs);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(MockEstimator, CostEstimator, MockEstimatorNode);
-};
-
 }  // namespace collage
 }  // namespace relay
 }  // namespace tvm

@@ -20,7 +20,7 @@ import tvm.testing
 import pytest
 from tvm.relay.transform import CollagePartition, InferType, CapturePostDfsIndexInSpans
 from tvm.target import make_compilation_config
-from tvm.relay.collage import MockEstimator
+from tvm.relay.collage import MockCostEstimator
 from unittest.mock import patch
 from tvm.relay.dataflow_pattern import is_op, wildcard
 
@@ -105,7 +105,7 @@ def test_partition_single_op_llvm(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 1,
             "example_target_hook": 2,
@@ -143,7 +143,7 @@ def test_partition_single_op_byoc(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 2,
             "example_target_hook": 1,
@@ -224,7 +224,7 @@ def test_partition_diamond_valid_topology(mock_get_pattern_table, byoc_max_depth
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 2,
             "example_target_hook": 1,
@@ -300,7 +300,7 @@ def test_tvm_max_depth(mock_get_pattern_table, tvm_max_depth):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 100,
             "example_target_hook": 99,
@@ -379,7 +379,7 @@ def test_byoc_max_depth(mock_get_pattern_table, byoc_max_depth):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 99,
             "example_target_hook": 100,
@@ -431,7 +431,7 @@ def test_partition_output_tuple(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 2,
             "example_target_hook": 1,
@@ -488,7 +488,7 @@ def test_partition_intermediate_tuple(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 2,
             "example_target_hook": 1,
@@ -550,7 +550,7 @@ def test_fusion_benefit(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 5,
             "example_target_hook": 6,
@@ -604,11 +604,77 @@ def test_double_residual(mock_get_pattern_table):
         tvm.target.Target("llvm"),
         tvm.target.Target("example_target_hook"),
     ]
-    cost_estimator = MockEstimator(
+    cost_estimator = MockCostEstimator(
         {
             "llvm": 2,
             "example_target_hook": 1,
         }
+    )
+    run_collage(mod, targets, cost_estimator, expected_mod, tvm_max_depth=4, byoc_max_depth=4)
+
+
+@patch("tvm.relay.op.contrib.get_pattern_table", wraps=_mock_get_pattern_table)
+def test_pruning_heuristic(mock_get_pattern_table):
+    # In this example both the default TVM partition spec and the 'example_target_hook' partition
+    # spec will yield the same set of candidates, and those candidates will include all 7
+    # partitions of the four operators (ie 14 in total).
+    #
+    # However, the pruning heuristics will reduce those back to just two 'maximal' candidates
+    # which have all four operators fused. We'll then just estimate those for the two targets.
+    mod_txt = """
+      #[version = "0.0.5"]
+      def @main(%x: Tensor[(10, 10), float32]) {
+        %0 = nn.relu(%x);
+        %1 = nn.relu(%0);
+        %2 = add(%0, %1);
+        add(%1, %2)
+      }
+    """
+    mod = tvm.parser.fromtext(mod_txt)
+
+    expected_txt = """
+      #[version = "0.0.5"]
+      def @collage_example_target_hook_nn_relu_nn_relu_add_add(
+        %FunctionVar_0: Tensor[(10, 10), float32],
+        Primitive=1,
+        Compiler="example_target_hook",
+        global_symbol="collage_example_target_hook_nn_relu_nn_relu_add_add") -> Tensor[(10, 10), float32] {
+        %0 = fn (%FunctionVar_03: Tensor[(10, 10), float32] , Composite="relu") -> Tensor[(10, 10), float32] {
+          nn.relu(%FunctionVar_03) 
+        };
+        %1 = %0(%FunctionVar_0) ;
+        %2 = fn (%FunctionVar_02: Tensor[(10, 10), float32] , Composite="relu") -> Tensor[(10, 10), float32] {
+          nn.relu(%FunctionVar_02) 
+        };
+        %3 = %2(%1);
+        %4 = fn (%FunctionVar_04: Tensor[(10, 10), float32] , %FunctionVar_11: Tensor[(10, 10), float32] , Composite="add") -> Tensor[(10, 10), float32] {
+          add(%FunctionVar_04, %FunctionVar_11) 
+        };
+        %5 = %4(%1, %3);
+        %6 = fn (%FunctionVar_01: Tensor[(10, 10), float32] , %FunctionVar_1: Tensor[(10, 10), float32] , Composite="add") -> Tensor[(10, 10), float32] {
+          add(%FunctionVar_01, %FunctionVar_1) 
+        };
+        %6(%3, %5) 
+      }
+
+      def @main(%x: Tensor[(10, 10), float32] ) -> Tensor[(10, 10), float32] {
+        @collage_example_target_hook_nn_relu_nn_relu_add_add(%x) 
+      }
+    """
+    expected_mod = tvm.parser.fromtext(expected_txt)
+
+    targets = [
+        tvm.target.Target("llvm"),
+        tvm.target.Target("example_target_hook"),
+    ]
+
+    cost_estimator = MockCostEstimator(
+        {
+            "llvm": 2,
+            "example_target_hook": 1,
+        },
+        # Limit the number of cost estimations to 2 to assert pruning did its job.
+        max_estimates=2,
     )
     run_collage(mod, targets, cost_estimator, expected_mod, tvm_max_depth=4, byoc_max_depth=4)
 

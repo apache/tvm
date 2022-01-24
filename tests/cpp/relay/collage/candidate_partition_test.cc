@@ -26,6 +26,7 @@
 #include <tvm/relay/transform.h>
 
 #include "../../../src/relay/collage/partition_spec.h"
+#include "../../../../src/relay/collage/mock_cost_estimator.h"
 
 namespace tvm {
 namespace relay {
@@ -73,13 +74,13 @@ CandidatePartition MakeCandidate(const DataflowGraph& graph, const PartitionSpec
 CostEstimator StandardEstimator() {
   Map<String, Integer> target_costs;
   target_costs.Set("llvm", 3);
-  return MockEstimator(std::move(target_costs));
+  return MockCostEstimator(std::move(target_costs));
 }
 
 CostEstimator AlternateEstimator() {
   Map<String, Integer> target_costs;
   target_costs.Set("llvm", 7);
-  return MockEstimator(std::move(target_costs));
+  return MockCostEstimator(std::move(target_costs));
 }
 
 std::shared_ptr<CandidateFunctionCache> Cache() {
