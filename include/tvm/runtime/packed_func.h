@@ -81,12 +81,12 @@ class PackedFuncObj : public Object {
 
  protected:
   /*!
-  * \brief Internal struct for extracting the callable method from callable type.
-  */
+   * \brief Internal struct for extracting the callable method from callable type.
+   */
   template <class TPackedFuncSubObj>
   struct Extractor {
-    /*! 
-     * \brief extracting the callable method from callable type. 
+    /*!
+     * \brief Extracting the callable method from callable type.
      * \param obj The base packed function object class.
      * \param args The arguments
      * \param rv The return value.
@@ -115,8 +115,8 @@ class PackedFuncSubObj : public PackedFuncObj {
  public:
   /*! \brief The type of derived object class */
   using TSelf = PackedFuncSubObj<TCallable>;
-  /*! 
-   * \brief Derived object class for constructing PackedFuncObj. 
+  /*!
+   * \brief Derived object class for constructing PackedFuncObj.
    * \param callable The type-erased callable object.
    */
   explicit PackedFuncSubObj(TCallable callable)
@@ -135,10 +135,11 @@ class PackedFuncSubObj : public PackedFuncObj {
  */
 class PackedFunc : public ObjectRef {
  public:
-  /*! \brief constructor from null */
-  PackedFunc(std::nullptr_t null): ObjectRef(nullptr) {}  // NOLINT(*)
+  /*! \brief Constructor from null */
+  PackedFunc(std::nullptr_t null) : ObjectRef(nullptr) {}  // NOLINT(*)
   /*!
-   * \brief constructing a packed function from a callable type whose signature is consistent with `PackedFunc`
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
    * \param data the internal container of packed function.
    */
   template <typename TCallable,
@@ -1194,8 +1195,7 @@ inline TVMArgValue TVMArgs::operator[](int i) const {
 inline int TVMArgs::size() const { return num_args; }
 
 template <class TPackedFuncSubObj>
-void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj,
-                                                       TVMArgs args,
+void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj, TVMArgs args,
                                                        TVMRetValue* rv) {
   (static_cast<const TPackedFuncSubObj*>(obj))->callable_(args, rv);
 }
@@ -1203,7 +1203,6 @@ void PackedFuncObj::Extractor<TPackedFuncSubObj>::Call(const PackedFuncObj* obj,
 TVM_ALWAYS_INLINE void PackedFuncObj::CallPacked(TVMArgs args, TVMRetValue* rv) const {
   (*f_call_packed_)(this, args, rv);
 }
-
 
 TVM_ALWAYS_INLINE void PackedFunc::CallPacked(TVMArgs args, TVMRetValue* rv) const {
   (static_cast<PackedFuncObj*>(data_.get()))->CallPacked(args, rv);
