@@ -3,6 +3,7 @@ from typing import Callable
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.qnn.op.op import register_qnn_canonicalize
 
 
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
@@ -83,7 +84,7 @@ def create_integer_lookup_op(
     """
     TODO
     """
-    # TODO: handle multi-channel q, if below fails it's probably that
+    # TODO: handle multi-channel q, below will fail with multi-channel q
     in_scale = in_scale.data.numpy().item()
     in_zero_point = in_zero_point.data.numpy().item()
     out_scale = out_scale.data.numpy().item()
@@ -112,10 +113,16 @@ def create_integer_lookup_op(
     return result
 
 
-"""
-# TODO: better error messages if reference functions fail in FQ2I pass
-register_unary_elementwise_table_lookup_op("tanh", np.tanh)
-register_unary_elementwise_table_lookup_op("erf", special.erf)
-register_unary_elementwise_table_lookup_op("exp", np.exp)
-register_unary_elementwise_table_lookup_op("sigmoid", lambda x: 1 / (1 + np.exp(-x)))
-"""
+@register_qnn_canonicalize("qnn.rsqrt")
+def canonicalize_rsqrt(attrs, args, arg_types):
+    """Canonicalization for rsqrt"""
+    return create_integer_lookup_op(
+        args[0],
+        lambda arr: 1 / np.sqrt(arr),
+        args[1],
+        args[2],
+        args[3],
+        args[4],
+        in_dtype=arg_types[0].dtype,
+        out_dtype=arg_types[0].dtype,
+    )
