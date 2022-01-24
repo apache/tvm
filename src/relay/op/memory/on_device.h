@@ -39,25 +39,25 @@ namespace relay {
 const Op& OnDeviceOp();
 
 /*!
- * \brief Wraps \p body in an "on_device" CallNode for \p se_scope.
+ * \brief Wraps \p body in an "on_device" CallNode for \p virtual_device.
  *
  * See \p OnDeviceAttrs for an overview.
  */
-Call OnDevice(Expr body, SEScope se_scope, bool constrain_result = false,
+Call OnDevice(Expr body, VirtualDevice virtual_device, bool constrain_result = false,
               bool constrain_body = true);
 
 /*! \brief Result of \p GetOnDeviceProps. */
 struct OnDeviceProps {
   Expr body;  // = null
-  SEScope se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
   bool constrain_result = false;
   bool constrain_body = false;
 
   OnDeviceProps() = default;
 
-  OnDeviceProps(Expr body, SEScope se_scope, bool constrain_result, bool constrain_body)
+  OnDeviceProps(Expr body, VirtualDevice virtual_device, bool constrain_result, bool constrain_body)
       : body(std::move(body)),
-        se_scope(std::move(se_scope)),
+        virtual_device(std::move(virtual_device)),
         constrain_result(constrain_result),
         constrain_body(constrain_body) {}
 
@@ -70,7 +70,8 @@ struct OnDeviceProps {
  * props.
  */
 inline Call OnDeviceWithProps(Expr body, const OnDeviceProps& props) {
-  return OnDevice(std::move(body), props.se_scope, props.constrain_result, props.constrain_body);
+  return OnDevice(std::move(body), props.virtual_device, props.constrain_result,
+                  props.constrain_body);
 }
 
 /*!
@@ -80,50 +81,50 @@ inline Call OnDeviceWithProps(Expr body, const OnDeviceProps& props) {
  * choices.
  */
 inline Call OnDeviceCopyOk(Expr body) {
-  return OnDevice(std::move(body), SEScope::FullyUnconstrained(),
+  return OnDevice(std::move(body), VirtualDevice::FullyUnconstrained(),
                   /*constrain_result=*/false, /*constrain_body=*/false);
 }
 
 /*!
- * \brief Wraps \p expr in an "on_device" CallNode for \p se_scope and \p constraint if the
- * \p SEScope for \p expr cannot otherwise be recovered by the lexical scoping convention.
+ * \brief Wraps \p expr in an "on_device" CallNode for \p virtual_device and \p constraint if the
+ * \p VirtualDevice for \p expr cannot otherwise be recovered by the lexical scoping convention.
  * This means we will NOT wrap if:
- *  - \p se_scope is full unconstrained, which signals there are no device annotations
+ *  - \p virtual_device is full unconstrained, which signals there are no device annotations
  *    already in play.
  *  - \p expr is an operator or primitive function literal. These are device polymorphic.
  *  - \p expr is a non-primitive function literal. The device is captured by the
- *    "result_se_scope" attribute on the function itself.
+ *    "result_virtual_device" attribute on the function itself.
  *  - \p expr is a global var. The device is on the function attributes the global is bound to.
  *  - \p expr is a local var. The device is tracked by the device aware visitors for us.
  *  - \p expr is a constructor. These are device polymorphic.
  * Nested on_device calls will never be constructed, they are instead merged on-the-fly.
  */
-Expr MaybeOnDevice(Expr body, SEScope se_scope, bool constrain_result = false,
+Expr MaybeOnDevice(Expr body, VirtualDevice virtual_device, bool constrain_result = false,
                    bool constrain_body = true);
 
 /*! \brief As for MaybeOnDevice, but with both body and result constrained. */
-inline Expr MaybeOnDeviceFixed(Expr body, SEScope se_scope) {
-  return MaybeOnDevice(std::move(body), std::move(se_scope), /*constrain_result=*/true,
+inline Expr MaybeOnDeviceFixed(Expr body, VirtualDevice virtual_device) {
+  return MaybeOnDevice(std::move(body), std::move(virtual_device), /*constrain_result=*/true,
                        /*constrain_body=*/true);
 }
 
 /*! \brief As for MaybeOnDevice, but with fields other than body taken from \p props. */
 inline Expr MaybeOnDeviceWithProps(Expr body, const OnDeviceProps& props) {
-  return MaybeOnDevice(std::move(body), props.se_scope, props.constrain_result,
+  return MaybeOnDevice(std::move(body), props.virtual_device, props.constrain_result,
                        props.constrain_body);
 }
 
 /*!
- * \brief Returns the body expression, \p SEScope, and constraint field for \p call_node if it
+ * \brief Returns the body expression, \p VirtualDevice, and constraint field for \p call_node if it
  * is an "on_device" CallNode. Otherwise returns the null expression, the unconstrained
- * \p SEScope, and \p kBody.
+ * \p VirtualDevice, and \p kBody.
  */
 OnDeviceProps GetOnDeviceProps(const CallNode* call_node);
 
 /*!
- * \brief Returns the body expression, \p SEScope, and constraint field for \p expr if it is an
- * "on_device" CallNode. Otherwise returns the null expression, the unconstrained \p SEScope,
- * and \p kBody.
+ * \brief Returns the body expression, \p VirtualDevice, and constraint field for \p expr if it is
+ * an "on_device" CallNode. Otherwise returns the null expression, the unconstrained \p
+ * VirtualDevice, and \p kBody.
  */
 OnDeviceProps GetOnDeviceProps(const Expr& expr);
 
@@ -154,29 +155,31 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
 }
 
 /*!
- * \brief Returns \p function annotated with "param_se_scopes" and "result_se_scope"
- * attributes capturing parameter and result \p SEScopes respectively.
+ * \brief Returns \p function annotated with "param_virtual_devices" and "result_virtual_device"
+ * attributes capturing parameter and result \p VirtualDevices respectively.
  */
-Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes, SEScope body_se_scope);
+Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
+                          VirtualDevice body_virtual_device);
 
 /*!
  * \brief As for \p FunctionOnDevice, but returns \p function unchanged if all parameters and
- * result \p SEScopes are unconstrained.
+ * result \p VirtualDevices are unconstrained.
  */
-Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
-                               SEScope result_se_scope);
+Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
+                               VirtualDevice result_virtual_device);
 
 /*!
- * \brief Returns the \p SEScope for the resut of \p function_node, or the unconstrained
- * \p SEScope if function does not have the "result_se_scope" annotation.
+ * \brief Returns the \p VirtualDevice for the resut of \p function_node, or the unconstrained
+ * \p VirtualDevice if function does not have the "result_virtual_device" annotation.
  */
-SEScope GetFunctionResultSEScope(const FunctionNode* function_node);
+VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node);
 
 /*!
- * \brief Returns the \p SEScope for the \p i'th parameter of \p function_node, or
- * the unconstrained \p SEScope if function does not have the "param_se_scopes" annotation.
+ * \brief Returns the \p VirtualDevice for the \p i'th parameter of \p function_node, or
+ * the unconstrained \p VirtualDevice if function does not have the "param_virtual_devices"
+ * annotation.
  */
-SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i);
+VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i);
 
 }  // namespace relay
 }  // namespace tvm

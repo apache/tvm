@@ -55,6 +55,7 @@ class BuilderInput : public runtime::ObjectRef {
    * \brief Constructor of BuilderInput.
    * \param mod The IRModule to be built.
    * \param target The target to be built for.
+   * \param params The optional parameters used for build
    */
   TVM_DLL explicit BuilderInput(IRModule mod, Target target,
                                 Optional<Map<String, runtime::NDArray>> params = NullOpt);

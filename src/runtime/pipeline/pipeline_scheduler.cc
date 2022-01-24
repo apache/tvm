@@ -28,7 +28,7 @@ namespace runtime {
  * \param pipeline_conf The dependency information of each graph executor module.
  */
 size_t PipelineScheduler::PipelineInit(const std::vector<Module>& modules,
-                                       const PipelineConfig& pipeline_config) {
+                                       const ConfigPipelineExecution& pipeline_config) {
   graph_modules_ = modules;
   int num_output = pipeline_config.GetGlobalOutputNum();
   return num_output;

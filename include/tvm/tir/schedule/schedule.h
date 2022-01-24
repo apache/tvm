@@ -458,6 +458,34 @@ class ScheduleNode : public runtime::Object {
   virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
   /******** Schedule: Blockize & Tensorize ********/
   /******** Schedule: Annotation ********/
+  /*!
+   * \brief Annotate a loop with a key value pair
+   * \param loop_rv The loop to be annotated
+   * \param ann_key The annotation key
+   * \param ann_val The annotation value, a string or a ExprRV
+   */
+  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) = 0;
+  /*!
+   * \brief Annotate a block with a key value pair
+   * \param block_rv The block to be annotated
+   * \param ann_key The annotation key
+   * \param ann_val The annotation value, a string or a ExprRV
+   */
+  virtual void Annotate(const BlockRV& block_rv, const String& ann_key,
+                        const ObjectRef& ann_val) = 0;
+  /*!
+   * \brief Unannotate a loop's annotation with key ann_key
+   * \param loop_rv The loop to be unannotated
+   * \param ann_key The annotation key
+   */
+  virtual void Unannotate(const LoopRV& loop_rv, const String& ann_key) = 0;
+  /*!
+   * \brief Unannotate a block's annotation with key ann_key
+   * \param block_rv The block to be unannotated
+   * \param ann_key The annotation key
+   */
+  virtual void Unannotate(const BlockRV& block_rv, const String& ann_key) = 0;
+
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */
   virtual void EnterPostproc() = 0;

@@ -20,7 +20,7 @@ from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
 import tvm.tir
-from tvm.runtime import Object
+from tvm.runtime import Object, String
 from tvm.ir import Span, Range
 from tvm.tir import Stmt, PrimExpr, IterVar, Var, Buffer, BufferRegion, ForKind
 
@@ -486,7 +486,7 @@ class ForScopeHandler(ScopeHandler):
         self.annotations: Mapping[str, Object] = {}
         if annotations is not None:
             self.annotations = {
-                key: tvm.tir.StringImm(val) if isinstance(val, str) else val
+                key: String(val) if isinstance(val, str) else val
                 for key, val in annotations.items()
             }
 

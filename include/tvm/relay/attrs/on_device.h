@@ -25,7 +25,7 @@
 #define TVM_RELAY_ATTRS_ON_DEVICE_H_
 
 #include <tvm/ir/attrs.h>
-#include <tvm/target/se_scope.h>
+#include <tvm/target/virtual_device.h>
 
 #include <string>
 
@@ -37,42 +37,43 @@ namespace relay {
  *
  * The Relay call:
  * \code
- *   on_device(sub_expr, se_scope=S)
+ *   on_device(sub_expr, virtual_device=S)
  * \endcode
- * constrains \p sub_expr to execute and store its result on the \p SEScope \p S.
+ * constrains \p sub_expr to execute and store its result on the \p VirtualDevice \p S.
  * However the annotation itself may appear in an expression to be executed and stored on a
- * different \p SEScope. If so the compiler will automatically insert a "device_copy" call to
- * mediate the transition between \p SEScopes.
+ * different \p VirtualDevice. If so the compiler will automatically insert a "device_copy" call to
+ * mediate the transition between \p VirtualDevices.
  *
  * E.g.: Assuming %x and %y reside on the GPU and %z on the CPU then:
  * \code
- *   multiply(on_device(add(%x, %y), se_scope=GPU), %z)
+ *   multiply(on_device(add(%x, %y), virtual_device=GPU), %z)
  * \endcode
  * indicates the \p add should execute on the GPU but the \p multiply should execute on the CPU.
  * The compiler will rewrite this to:
  * \code
- *   multiply(device_copy(add(%x, %y), src_se_scope=GPU, dst_se_scope=CPU), %z)
+ *   multiply(device_copy(add(%x, %y), src_virtual_device=GPU, dst_virtual_device=CPU), %z)
  * \endcode
  *
  * The \p constraint_body (default true) and \p constraint_result (default false) fields can be
- * used by passes for finer-grained control over how the \p SEScope constraint should be applied.
+ * used by passes for finer-grained control over how the \p VirtualDevice constraint should be
+ * applied.
  */
 struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   /*!
-   * \brief The \p SEScope to constraint to apply to the body, result, or both body and result
+   * \brief The \p VirtualDevice to constraint to apply to the body, result, or both body and result
    * of the "on_device" call.
    */
-  SEScope se_scope = SEScope::FullyUnconstrained();
+  VirtualDevice virtual_device = VirtualDevice::FullyUnconstrained();
 
   /*!
    * \brief If false (the default), the result of the "on_device" call is not constrained to be
-   * \p se_scope.
+   * \p virtual_device.
    */
   bool constrain_result = false;
 
   /*!
    * \brief If true (the default), the body of the "on_device" call is constrained to be \p
-   * se_scope.
+   * virtual_device.
    */
   bool constrain_body = true;
 
@@ -87,9 +88,9 @@ struct OnDeviceAttrs : public tvm::AttrsNode<OnDeviceAttrs> {
   bool is_normal() const { return !constrain_result && constrain_body; }
 
   TVM_DECLARE_ATTRS(OnDeviceAttrs, "relay.attrs.OnDeviceAttrs") {
-    TVM_ATTR_FIELD(se_scope)
+    TVM_ATTR_FIELD(virtual_device)
         .describe("The (virtual) device to constrain to.")
-        .set_default(SEScope::FullyUnconstrained());
+        .set_default(VirtualDevice::FullyUnconstrained());
     TVM_ATTR_FIELD(constrain_result)
         .describe("Whether the constraint applies to the overall expression")
         .set_default(false);

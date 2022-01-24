@@ -27,11 +27,11 @@ from ..expr import Tuple, Expr, Constant
 from . import op as reg
 
 
-def _make_se_scope(device):
+def _make_virtual_device(device):
     if isinstance(device, _Device):
-        return target.make_se_scope(device)
+        return target.make_virtual_device(device)
     if isinstance(device, str):
-        return target.make_se_scope(_nd.device(device))
+        return target.make_virtual_device(_nd.device(device))
     raise ValueError("expecting a Device or device name, but received a %s" % (type(device)))
 
 
@@ -1211,7 +1211,9 @@ def device_copy(data, src_device, dst_device):
     result : tvm.relay.Expr
         The copied result.
     """
-    return _make.DeviceCopy(data, _make_se_scope(src_device), _make_se_scope(dst_device))
+    return _make.DeviceCopy(
+        data, _make_virtual_device(src_device), _make_virtual_device(dst_device)
+    )
 
 
 def shape_of(data, dtype="int32"):

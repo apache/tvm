@@ -43,11 +43,12 @@ const Op& OnDeviceOp() {
   return op;
 }
 
-Call OnDevice(Expr body, SEScope se_scope, bool constrain_result, bool constrain_body) {
-  ICHECK((!constrain_result && !constrain_body) || !se_scope->IsFullyUnconstrained());
+Call OnDevice(Expr body, VirtualDevice virtual_device, bool constrain_result, bool constrain_body) {
+  ICHECK((!constrain_result && !constrain_body) || !virtual_device->IsFullyUnconstrained());
   auto attrs = make_object<OnDeviceAttrs>();
-  attrs->se_scope =
-      (constrain_result || constrain_body) ? std::move(se_scope) : SEScope::FullyUnconstrained();
+  attrs->virtual_device = (constrain_result || constrain_body)
+                              ? std::move(virtual_device)
+                              : VirtualDevice::FullyUnconstrained();
   attrs->constrain_result = constrain_result;
   attrs->constrain_body = constrain_body;
   Span span = body->span;  // about to be moved
@@ -57,8 +58,9 @@ Call OnDevice(Expr body, SEScope se_scope, bool constrain_result, bool constrain
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.OnDevice").set_body_typed(OnDevice);
 
-Expr MaybeOnDevice(Expr body, SEScope se_scope, bool constrain_result, bool constrain_body) {
-  if (se_scope->IsFullyUnconstrained()) {
+Expr MaybeOnDevice(Expr body, VirtualDevice virtual_device, bool constrain_result,
+                   bool constrain_body) {
+  if (virtual_device->IsFullyUnconstrained()) {
     // Nothing to annotate with.
     return body;
   }
@@ -72,40 +74,40 @@ Expr MaybeOnDevice(Expr body, SEScope se_scope, bool constrain_result, bool cons
   }
   if (body->IsInstance<FunctionNode>()) {
     // If a primitive function then it is device polymorphic. Otherwise the device is captured
-    // by the function's "result_se_scope" attribute.
+    // by the function's "result_virtual_device" attribute.
     return body;
   }
   OnDeviceProps props = GetOnDeviceProps(body);
   if (props.body.defined()) {
     // The user is asking for
-    //   on_device(on_device(body, se_scope=inner), se_scope=outer)
+    //   on_device(on_device(body, virtual_device=inner), virtual_device=outer)
     //   ^         ^         ^
     //   outer     middle    inner
     // First recover the implied constraints (if any) for outer and inner, and check they don't
     // contradict.
-    const SEScope& inner = props.se_scope;
-    const SEScope& outer = se_scope;
+    const VirtualDevice& inner = props.virtual_device;
+    const VirtualDevice& outer = virtual_device;
     bool constrain_outer = constrain_result;
     bool constrain_inner = props.constrain_body;
     if (constrain_outer && constrain_inner) {
-      ICHECK(inner == outer)
-          << "Cannot constrain result and body of nested on_device calls to different SEScopes";
+      ICHECK(inner == outer) << "Cannot constrain result and body of nested on_device calls to "
+                                "different virtual devices";
     }
     // There are two possible ways the middle sub-expression may be constrained, check they don't
     // contradict.
     bool constrain_middle_via_outer = constrain_body;
     bool constrain_middle_via_inner = props.constrain_result;
     if (constrain_middle_via_outer && constrain_middle_via_inner) {
-      ICHECK(inner == outer)
-          << "Cannot constrain intermediate result of nested on_device calls to different SEScopes";
+      ICHECK(inner == outer) << "Cannot constrain intermediate result of nested on_device calls to "
+                                "different virtual devices";
     }
     // We can now ignore the middle constraint.
-    // If the outer on_device has any constraint then use se_scope given for it.
-    // Otherwise we can use the existing inner se_scope.
+    // If the outer on_device has any constraint then use virtual_device given for it.
+    // Otherwise we can use the existing inner virtual_device.
     return OnDevice(props.body, (constrain_inner || constrain_outer) ? outer : inner,
                     constrain_outer, constrain_inner);
   } else {
-    return OnDevice(body, std::move(se_scope), constrain_result, constrain_body);
+    return OnDevice(body, std::move(virtual_device), constrain_result, constrain_body);
   }
 }
 
@@ -127,7 +129,7 @@ OnDeviceProps GetOnDeviceProps(const CallNode* call_node) {
     ICHECK(call_node->attrs.defined()) << "on_device requires attributes";
     const auto* on_device_attrs = call_node->attrs.as<OnDeviceAttrs>();
     ICHECK(on_device_attrs != nullptr) << "on_device requires OnDeviceAttrs";
-    return {call_node->args[0], on_device_attrs->se_scope, on_device_attrs->constrain_result,
+    return {call_node->args[0], on_device_attrs->virtual_device, on_device_attrs->constrain_result,
             on_device_attrs->constrain_body};
   }
   return {};
@@ -140,38 +142,42 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
   return {};
 }
 
-Function FunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
-                          SEScope result_se_scope) {
-  return WithAttrs(std::move(function), {{tvm::attr::kParamSEScopes, std::move(param_se_scopes)},
-                                         {tvm::attr::kResultSEScope, std::move(result_se_scope)}});
+Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
+                          VirtualDevice result_virtual_device) {
+  return WithAttrs(std::move(function),
+                   {{tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices)},
+                    {tvm::attr::kResultVirtualDevice, std::move(result_virtual_device)}});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
 
-Function MaybeFunctionOnDevice(Function function, Array<SEScope> param_se_scopes,
-                               SEScope result_se_scope) {
-  if (std::all_of(param_se_scopes.begin(), param_se_scopes.end(),
-                  [](const SEScope& se_scope) { return se_scope->IsFullyUnconstrained(); }) &&
-      result_se_scope->IsFullyUnconstrained()) {
+Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
+                               VirtualDevice result_virtual_device) {
+  if (std::all_of(param_virtual_devices.begin(), param_virtual_devices.end(),
+                  [](const VirtualDevice& virtual_device) {
+                    return virtual_device->IsFullyUnconstrained();
+                  }) &&
+      result_virtual_device->IsFullyUnconstrained()) {
     // Nothing to annotate.
     return function;
   }
-  return FunctionOnDevice(function, std::move(param_se_scopes), std::move(result_se_scope));
+  return FunctionOnDevice(function, std::move(param_virtual_devices),
+                          std::move(result_virtual_device));
 }
 
-SEScope GetFunctionResultSEScope(const FunctionNode* function_node) {
-  auto opt_se_scope = function_node->GetAttr<SEScope>(tvm::attr::kResultSEScope);
-  return opt_se_scope.value_or(SEScope::FullyUnconstrained());
+VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node) {
+  auto opt_virtual_device = function_node->GetAttr<VirtualDevice>(tvm::attr::kResultVirtualDevice);
+  return opt_virtual_device.value_or(VirtualDevice::FullyUnconstrained());
 }
 
-SEScope GetFunctionParamSEScope(const FunctionNode* function_node, size_t i) {
+VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i) {
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
-  auto opt_array = function_node->GetAttr<Array<SEScope>>(tvm::attr::kParamSEScopes);
+  auto opt_array = function_node->GetAttr<Array<VirtualDevice>>(tvm::attr::kParamVirtualDevice);
   if (!opt_array) {
     // No annotation.
-    return SEScope::FullyUnconstrained();
+    return VirtualDevice::FullyUnconstrained();
   }
   ICHECK_EQ(opt_array.value().size(), function_node->params.size())
       << "annotation parameters do not match function arity";

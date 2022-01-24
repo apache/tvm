@@ -61,6 +61,46 @@ def matmul_relu(a: T.handle, b: T.handle, d: T.handle) -> None:
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
+@T.prim_func
+def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024))
+    B = T.match_buffer(b, (1024, 1024))
+    C = T.alloc_buffer((1024, 1024))
+    D = T.match_buffer(d, (1024, 1024))
+    for i in T.serial(0, 1024, annotations={"test1": "aaa"}):
+        for j in T.serial(0, 1024, annotations={"test2": 612}):
+            for k in T.serial(0, 1024):
+                with T.block("matmul"):
+                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                    with T.init():
+                        C[vi, vj] = 0.0
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(1024, 1024):
+        with T.block("relu"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
+
+
+@T.prim_func
+def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
+    A = T.match_buffer(a, (1024, 1024))
+    B = T.match_buffer(b, (1024, 1024))
+    C = T.alloc_buffer((1024, 1024))
+    D = T.match_buffer(d, (1024, 1024))
+    for i, j, k in T.grid(1024, 1024, 1024):
+        with T.block("matmul"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = 0.0
+            T.block_attr({"test1": "aaa"})
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+    for i, j in T.grid(1024, 1024):
+        with T.block("relu"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            T.block_attr({"test2": 0.22})
+            D[vi, vj] = T.max(C[vi, vj], 0.0)
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -197,6 +237,32 @@ def test_get_consumers():
         sch.get_sref(sch.get_block("relu")).stmt,
     )
     verify_trace_roundtrip(sch, mod=matmul_relu)
+
+
+def test_annotate_unannotate_loop():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    matmul = sch.get_block("matmul")
+    relu = sch.get_block("relu")
+    sch.annotate(sch.get_loops(matmul)[0], "test1", "aaa")
+    sch.annotate(sch.get_loops(matmul)[1], "test2", 612)
+    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann1)
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+    sch.unannotate(sch.get_loops(matmul)[0], "test1")
+    sch.unannotate(sch.get_loops(matmul)[1], "test2")
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+
+
+def test_annotate_unannotate_block():
+    sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
+    matmul = sch.get_block("matmul")
+    relu = sch.get_block("relu")
+    sch.annotate(matmul, "test1", "aaa")
+    sch.annotate(relu, "test2", 0.22)
+    tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann2)
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
+    sch.unannotate(matmul, "test1")
+    sch.unannotate(relu, "test2")
+    verify_trace_roundtrip(sch=sch, mod=matmul_relu)
 
 
 if __name__ == "__main__":

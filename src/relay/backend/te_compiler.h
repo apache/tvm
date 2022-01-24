@@ -214,10 +214,11 @@ IRModule LowerTE(
  * \param module_name The name of this module
  * \param process_fn Callback allowing one-level up code generators to process
  * each function that we lower
- * \param host_se_scope \p SEScope for host data and computations
+ * \param host_virtual_device \p VirtualDevice for host data and computations
  * \returns The pass which lowers primative functions to TIR
  */
-transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn, SEScope host_se_scope);
+transform::Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
+                            VirtualDevice host_virtual_device);
 }  // namespace tec
 }  // namespace relay
 }  // namespace tvm

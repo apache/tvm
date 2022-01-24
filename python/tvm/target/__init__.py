@@ -71,7 +71,7 @@ from .target import (
     riscv_cpu,
     hexagon,
 )
-from .se_scope import make_se_scope
+from .virtual_device import make_virtual_device
 from .compilation_config import make_compilation_config
 from .tag import list_tags
 from .generic_func import GenericFunc
