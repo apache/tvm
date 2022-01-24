@@ -46,10 +46,10 @@ and run the model all using `tvmc micro` command.
 # Using TVMC Micro
 ############################################################
 #
-# TVMC is a python package which is installed as a part of TVM Python packages. Accessing this
-# package varies based on your machine setup. First option is to use ``tvmc`` command directly.
+# TVMC is a command-line tool which is installed as a part of TVM Python packages. Accessing this
+# package varies based on your machine setup. In many cases, you can use the ``tvmc`` command directly.
 # Alternatively, if you have TVM as a Python module on your ``$PYTHONPATH``, you can access this
-# driver with ``python -m tvm.driver.tvm`` command. This tutorial will use TVMC command as
+# driver with ``python -m tvm.driver.tvmc`` command. This tutorial will use TVMC command as
 # ``tvmc`` for simplicity.
 #
 # To check if you have TVMC command installed on your machine, you can run:
@@ -74,7 +74,7 @@ and run the model all using `tvmc micro` command.
 # Obtain a Tiny Model
 ############################################################
 #
-# For this tutorial, we will use Magic Wand model from tflite micro. Magin Wand is a
+# For this tutorial, we will use Magic Wand model from tflite micro. Magic Wand is a
 # Depthwise Convolution Layer model which recognizes gestures with an accelerometer.
 #
 # For this tutorial we will be using the model in tflite format.
@@ -129,8 +129,11 @@ and run the model all using `tvmc micro` command.
 #       zephyr \
 #       --project-option project_type=host_driven zephyr_board=qemu_x86
 #
-# This will generate a Zephyr project for `qemu_x86` zephyr board. To get more information about
-# TVMC Micro ``create`` subcommand:
+# This will generate a `Host-Driven` Zephyr project for `qemu_x86` Zephyr board. In Host-Driven template project,
+# the Graph Executor will run on host and perform the model execution on Zephyr device by issuing commands to the
+# device using an RPC mechanism. Read more about `Host-Driven Execution <https://tvm.apache.org/docs/arch/microtvm_design.html#host-driven-execution>`_.
+#
+# To get more information about TVMC Micro ``create`` subcommand:
 #
 # .. code-block:: bash
 #
@@ -142,7 +145,7 @@ and run the model all using `tvmc micro` command.
 ############################################################
 #
 # Next step is to build the Zephyr project which includes TVM generated code for running the tiny model, Zephyr
-# template code to run a model in host_driven mode and TVM runtime source/header files. To build the project:
+# template code to run a model in Host-Driven mode and TVM runtime source/header files. To build the project:
 #
 # .. code-block:: bash
 #
@@ -169,8 +172,11 @@ and run the model all using `tvmc micro` command.
 # Run Tiny Model on Micro Target
 ############################################################
 #
-# To run the flashed model on the device using TVMC, we use ``tvmc run`` subcommand and we pass ``--device micro``
-# to specify the device type.
+# After flashing the device, the compiled model and TVM host driven `Graph Executor` handler are programmed on the device.
+# The Zephyr board is waiting for host to open a communication channel. MicroTVM devices typicall communicate
+# using a serial communication (UART). To run the flashed model on the device using TVMC, we use ``tvmc run`` subcommand
+# and we pass ``--device micro`` to specify the device type. This command will open a communication channel, set input
+# values, run full model on the device using `Graph Executor` and send model output to the host machine.
 #
 # .. code-block:: bash
 #
@@ -188,5 +194,4 @@ and run the model all using `tvmc micro` command.
 #     # [[3.         1.         2.         0.        ]
 #     # [0.47213247 0.41364592 0.07525456 0.03896701]]
 #
-# This command sets the input of the model to all ones, runs the model on Zephyr board and shows the top
-# four values of the output with their indices.
+# Specifically, this command sets the input of the model to all ones and shows the four values of the output with their indices.
