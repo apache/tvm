@@ -1,6 +1,9 @@
+from typing import Callable
+
 import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.op.transform import arange
 from tvm.relay.qnn.op import canonicalizations
 
 
@@ -13,6 +16,7 @@ class TestIntegerTableLookupTable:
     def fake_identity_func_relay(
         self,
         input_arg=None,
+        floating_point_func: Callable[[np.ndarray], np.ndarray] = fake_identity_func_numpy,
         in_scale=relay.const(1.0, dtype="float32"),
         in_zero_point=relay.const(0, dtype="int32"),
         out_scale=relay.const(1.0, dtype="float32"),
@@ -28,7 +32,7 @@ class TestIntegerTableLookupTable:
         return (
             canonicalizations.create_integer_lookup_op(
                 input_arg=input_arg,
-                floating_point_func=self.fake_identity_func_numpy,
+                floating_point_func=floating_point_func,
                 in_scale=in_scale,
                 in_zero_point=in_zero_point,
                 out_scale=out_scale,
@@ -44,7 +48,7 @@ class TestIntegerTableLookupTable:
     def dequantize_numpy(self, np_arr, np_scale=1.0, np_zero_point=0):
         return (np_arr.astype("int32") - np_zero_point) * np_scale
 
-    def run_identity_function_test(
+    def run_function_test(
         self,
         in_scale: float,
         in_zero_point: int,
@@ -52,10 +56,14 @@ class TestIntegerTableLookupTable:
         out_zero_point: int,
         in_dtype: str,
         out_dtype: str,
+        floating_point_func: Callable[[np.ndarray], np.ndarray] = fake_identity_func_numpy,
+        input_arg: relay.Expr = None,
         rtol=1e-7,
         atol=0,
     ):
         relay_lookup, input_arg = self.fake_identity_func_relay(
+            input_arg=input_arg,
+            floating_point_func=floating_point_func,
             in_scale=relay.const(in_scale, "float32"),
             in_zero_point=relay.const(in_zero_point, "int32"),
             out_scale=relay.const(out_scale, "float32"),
@@ -65,15 +73,18 @@ class TestIntegerTableLookupTable:
         )
         result = canonicalizations.run_const_expr(relay_lookup)
         np.testing.assert_allclose(
-            self.dequantize_numpy(input_arg, np_scale=in_scale, np_zero_point=in_zero_point),
+            floating_point_func(
+                self.dequantize_numpy(input_arg, np_scale=in_scale, np_zero_point=in_zero_point)
+            ),
             self.dequantize_numpy(result, np_scale=out_scale, np_zero_point=out_zero_point),
             atol=atol,
             rtol=rtol,
         )
 
+    """Test mapping between different input/output dtypes"""
+
     def test_int8_to_int8(self):
-        """Test int8 input to int8 output mapping workings"""
-        self.run_identity_function_test(
+        self.run_function_test(
             in_scale=1.0,
             in_zero_point=0,
             out_scale=1.0,
@@ -83,7 +94,7 @@ class TestIntegerTableLookupTable:
         )
 
     def test_uint8_to_uint8(self):
-        self.run_identity_function_test(
+        self.run_function_test(
             in_scale=1.0,
             in_zero_point=128,
             out_scale=1.0,
@@ -93,7 +104,7 @@ class TestIntegerTableLookupTable:
         )
 
     def test_int8_to_uint8(self):
-        self.run_identity_function_test(
+        self.run_function_test(
             in_scale=1.0,
             in_zero_point=0,
             out_scale=1.0,
@@ -103,7 +114,7 @@ class TestIntegerTableLookupTable:
         )
 
     def test_uint8_to_int8(self):
-        self.run_identity_function_test(
+        self.run_function_test(
             in_scale=1.0,
             in_zero_point=128,
             out_scale=1.0,
@@ -112,9 +123,10 @@ class TestIntegerTableLookupTable:
             out_dtype="int8",
         )
 
+    """Test mapping with different in/out qparams works."""
+
     def test_different_in_out_qparams(self):
-        """Test mapping with different in/out qparams works."""
-        self.run_identity_function_test(
+        self.run_function_test(
             in_scale=1.0,
             in_zero_point=128,
             out_scale=1.0,
@@ -125,64 +137,35 @@ class TestIntegerTableLookupTable:
             rtol=0,
         )
 
+    """Test some simple functions"""
 
-"""
-def test_fake_quantize_tanh():
-    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
+    def test_tanh(self):
+        # 1 / 64 in scale -- input range is ~ (-2, 2), tanh(+-2) ~= +-1
+        # 1 / 128 out_scale -- output range is ~(-1, 1)
+        self.run_function_test(
+            input_arg=relay.const(np.arange(-128, 128).astype("int8")),
+            in_scale=1 / 64,
+            in_zero_point=0,
+            out_scale=1 / 128,
+            out_zero_point=0,
+            in_dtype="int8",
+            out_dtype="int8",
+            floating_point_func=np.tanh,
+            atol=0.01,
+            rtol=0.01,
+        )
 
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
-    op = relay.op.tanh(x)
-
-    # Have difference scales for input/output to test if can handle
-    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
-
-    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
-
-    compare_fq_to_int(op, [x_np])
-
-
-def test_fake_quantize_erf():
-    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
-
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
-    op = relay.op.erf(x)
-
-    # Have difference scales for input/output to test if can handle
-    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
-
-    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
-
-    compare_fq_to_int(op, [x_np])
-
-
-def test_fake_quantize_exp():
-    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
-
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
-    op = relay.op.exp(x)
-
-    # Have difference scales for input/output to test if can handle
-    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
-
-    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
-
-    compare_fq_to_int(op, [x_np])
-
-
-def test_fake_quantize_sigmoid():
-    x = relay.var("x", shape=[3, 3, 3, 3], dtype="int8")
-
-    zero = relay.const(0)
-    x = relay.qnn.op.dequantize(x, relay.const(0.03), zero)
-    op = relay.op.sigmoid(x)
-
-    # Have difference scales for input/output to test if can handle
-    op = relay.qnn.op.quantize(op, relay.const(0.01), zero)
-
-    x_np = np.random.randint(-128, 127, size=[3, 3, 3, 3], dtype="int8")
-
-    compare_fq_to_int(op, [x_np])
-"""
+    def test_exp(self):
+        # input in floating point ~[-2, 2], final output ~[0, 8]
+        self.run_function_test(
+            input_arg=relay.const(np.arange(-128, 128).astype("int8")),
+            in_scale=0.015,
+            in_zero_point=0,
+            out_scale=16 / 256,
+            out_zero_point=0,
+            in_dtype="int8",
+            out_dtype="int8",
+            floating_point_func=np.exp,
+            atol=0.03,
+            rtol=0.01,
+        )
