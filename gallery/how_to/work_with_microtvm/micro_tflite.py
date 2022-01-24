@@ -123,11 +123,16 @@ model with Relay.
 # directory into a buffer
 
 import os
+import json
+import tarfile
+import pathlib
+import tempfile
 import numpy as np
 
 import tvm
-from tvm.contrib.download import download_testdata
 from tvm import relay
+import tvm.contrib.utils
+from tvm.contrib.download import download_testdata
 
 use_physical_hw = True if os.getenv("TVM_MICRO_USE_HW") else False
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
@@ -192,21 +197,13 @@ TARGET = tvm.target.target.micro("host")
 #  board to generated the right firmware image.
 #
 
-import json
-import pathlib
+boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
+with open(boards_file) as f:
+    boards = json.load(f)
 
-if use_physical_hw:
-    if os.getenv("TVM_MICRO_BOARD"):
-        BOARD = os.getenv("TVM_MICRO_BOARD")
-        with open(
-            pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-        ) as f:
-            board_properties = json.load(f)
-            boards_model = {board: info["model"] for board, info in board_properties.items()}
-        TARGET = tvm.target.target.micro(boards_model[BOARD])
-    else:
-        BOARD = "nucleo_f746zg"
-        TARGET = tvm.target.target.micro("stm32f746xx")
+BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+TARGET = tvm.target.target.micro(boards[BOARD]["model"])
+
 
 #
 #  For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
@@ -253,14 +250,11 @@ print("\n".join(first_few_lines))
 # (:doc:`Model Library Format` </dev/model_library_format>`). This is a tarball with a standard layout:
 
 # Get a temporary path where we can store the tarball (since this is running as a tutorial).
-import tempfile
 
 fd, model_library_format_tar_path = tempfile.mkstemp()
 os.close(fd)
 os.unlink(model_library_format_tar_path)
 tvm.micro.export_model_library_format(module, model_library_format_tar_path)
-
-import tarfile
 
 with tarfile.open(model_library_format_tar_path, "r:*") as tar_f:
     print("\n".join(f" - {m.name}" for m in tar_f.getmembers()))
@@ -280,8 +274,6 @@ os.unlink(model_library_format_tar_path)
 # this lives in a file ``microtvm_api_server.py`` in the root directory). Let's use the example ``host``
 # project in this tutorial, which simulates the device using a POSIX subprocess and pipes:
 
-import pathlib
-
 template_project_path = pathlib.Path(tvm.micro.get_microtvm_template_projects("crt"))
 project_options = {}  # You can use options to provide platform-specific options through TVM.
 
@@ -296,7 +288,6 @@ if use_physical_hw:
     project_options = {"project_type": "host_driven", "zephyr_board": BOARD}
 
 # Create a temporary directory
-import tvm.contrib.utils
 
 temp_dir = tvm.contrib.utils.tempdir()
 generated_project_dir = temp_dir / "generated-project"
