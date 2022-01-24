@@ -303,6 +303,19 @@ def test_fake_quantize_global_avg_pool():
     compare_fq_to_int(op, [x_np], True)
 
 
+def test_fake_quantize_rsqrt():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+    zero = relay.const(0)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.rsqrt(x)
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+
+    compare_fq_to_int(op, [x_np], True)
+
+
 def test_fake_quantize_reshape():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
