@@ -3804,9 +3804,13 @@ class QLinearMatMul(OnnxOpConverter):
         #
         # This function attempts to present 'x' in a form that meets both of those
         # requirements.
-        def try_resolve_to_const(x, dtype_override=None, allow1D=False):
+        def try_resolve_to_const(x, dtype_override=None):
             x2 = try_resolve_var_to_const(x, params)
-            x3 = ensure_scalar_shape(x2, force_assert=not allow1D)
+            num_elem = np.prod(infer_shape(x))
+            if num_elem == 1:
+                x3 = ensure_scalar_shape(x2)
+            else:
+                x3 = x2
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
                 x4 = _op.cast(x3, dtype_override)
@@ -3857,8 +3861,8 @@ class QLinearMatMul(OnnxOpConverter):
         a_scale_scalar = try_resolve_to_const(a_scale)
         a_zp_scalar = try_resolve_to_const(a_zp, "int32")
 
-        b_scale_scalar = try_resolve_to_const(b_scale, allow1D=True)
-        b_zp_scalar = try_resolve_to_const(b_zp, "int32", allow1D=True)
+        b_scale_scalar = try_resolve_to_const(b_scale)
+        b_zp_scalar = try_resolve_to_const(b_zp, "int32")
 
         y_scale_scalar = try_resolve_to_const(y_scale)
         y_zp_scalar = try_resolve_to_const(y_zp, "int32")
