@@ -217,7 +217,7 @@ class CutlassConv2DProfiler:
             profile_all_alignments,
         )
 
-        if find_first_valid:
+        if not find_first_valid:
             self.engine.compile_all(ops, use_multiprocessing)
 
         args = (
