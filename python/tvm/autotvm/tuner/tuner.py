@@ -141,7 +141,7 @@ class Tuner(object):
                 else:
                     flops = 0
                     error_ct += 1
-                    tb, error = res.costs[0]
+                    tb, error = res.costs
                     if isinstance(error, str):
                         errors.append(tb + "\n" + error)
                     else:
