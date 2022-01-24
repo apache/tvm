@@ -271,7 +271,7 @@ def assign_addresses(buffer_info, npu_ops):
         This is the dictionary obtained via calling extract_buffer_info.
         The key is the buffer name to BufferInfo
     npu_ops : list
-        A list of Vela NpuOps with tir.Loads for addresses
+        A list of Vela NpuOps with tir.BufferLoads for addresses
     Returns
     -------
     npu_ops : list
@@ -283,16 +283,19 @@ def assign_addresses(buffer_info, npu_ops):
     """
 
     def replace_npu_fm_with_address(npu_fm):
-        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.Load)
+        assert isinstance(npu_fm.tiles.addresses[0], tvm.tir.BufferLoad)
         # We currently does not support tiles
         # Change this when tiles are needed
         # (i.e. when using rolling buffers)
         assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
         npu_fm.tiles.addresses[1:] = [0, 0, 0]
-        buffer = npu_fm.tiles.addresses[0].buffer_var
+        buffer = npu_fm.tiles.addresses[0].buffer.data
         assert buffer in buffer_addresses.keys()
         address, buffer_type = buffer_addresses[buffer]
-        index = npu_fm.tiles.addresses[0].index * (
+        assert (
+            len(npu_fm.tiles.addresses[0].indices) == 1
+        ), "Ethos-U translation expects flattened buffers"
+        index = npu_fm.tiles.addresses[0].indices[0] * (
             np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
         )
         npu_fm.tiles.addresses[0] = address + int(index)
@@ -300,8 +303,8 @@ def assign_addresses(buffer_info, npu_ops):
         return npu_fm
 
     def replace_npu_address_range_with_address(npu_addr_range):
-        assert isinstance(npu_addr_range.address, tvm.tir.Load)
-        buffer = npu_addr_range.address.buffer_var
+        assert isinstance(npu_addr_range.address, tvm.tir.BufferLoad)
+        buffer = npu_addr_range.address.buffer.data
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
         return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
@@ -316,11 +319,11 @@ def assign_addresses(buffer_info, npu_ops):
     def classify_io(buffer):
         for _npu_op in npu_ops:
             if issubclass(type(_npu_op), vapi.NpuBlockOperation):
-                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm and _npu_op.ifm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ifm2 and _npu_op.ifm2.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.input
-                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer_var == buffer:
+                if _npu_op.ofm and _npu_op.ofm.tiles.addresses[0].buffer.data == buffer:
                     return BufferType.output
 
         raise ValueError(f"Unused IO : {buffer} in tir module.")

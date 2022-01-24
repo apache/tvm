@@ -50,17 +50,16 @@ def get_copy_params(stmt, producers, consumers):
     _, body = get_op_attrs(stmt)
     length = body.extent
     write_store = body.body
-    write_base = get_base_address(write_store.index)
+    write_base = [get_base_address(index) for index in write_store.indices]
     read_load = body.body.value
-    read_base = get_base_address(read_load.index)
-    dtype = body.body.value.dtype
+    read_base = [get_base_address(index) for index in read_load.indices]
     return (
         SerialCopy(
-            read_address=tvm.tir.expr.Load(dtype, read_load.buffer_var, read_base),
+            read_address=tvm.tir.expr.BufferLoad(read_load.buffer, read_base),
             length=length,
-            write_address=tvm.tir.expr.Load(dtype, write_store.buffer_var, write_base),
+            write_address=tvm.tir.expr.BufferLoad(write_store.buffer, write_base),
         ),
-        write_store.buffer_var,
+        write_store.buffer.data,
         None,
         True,
     )

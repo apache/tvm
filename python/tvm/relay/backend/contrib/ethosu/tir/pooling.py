@@ -61,8 +61,8 @@ def get_pooling_params(
     loads = get_loads(rw.body)
     # stores = [output]
     stores = get_stores(rw.body)
-    input_pointer = loads[1].buffer_var
-    output_pointer = stores[0].buffer_var
+    input_pointer = loads[1].buffer.data
+    output_pointer = stores[0].buffer.data
     # Get feature map info
     serial_ifm, serial_padding = get_ifm_params(input_pointer, producers)
     serial_ofm, replace_pointer, is_allocator = get_ofm_params(output_pointer, consumers, producers)

@@ -93,10 +93,10 @@ class SerialFeatureMap(SerializableFormat):
         tile_height_0: int,
         tile_height_1: int,
         tile_width_0: int,
-        tile_address_0: tvm.tir.expr.Load,
-        tile_address_1: Union[tvm.tir.expr.Load, int],
-        tile_address_2: Union[tvm.tir.expr.Load, int],
-        tile_address_3: Union[tvm.tir.expr.Load, int],
+        tile_address_0: tvm.tir.expr.BufferLoad,
+        tile_address_1: Union[tvm.tir.expr.BufferLoad, int],
+        tile_address_2: Union[tvm.tir.expr.BufferLoad, int],
+        tile_address_3: Union[tvm.tir.expr.BufferLoad, int],
         scale: float,
         zero_point: int,
         layout: str,
@@ -148,7 +148,7 @@ class SerialAddressRange(SerializableFormat):
     """Specialization class to retrieve arguments of a AddressRange
     (similiar to NpuAddressRange of Vela) on a predefined ordering"""
 
-    def __init__(self, address: tvm.tir.expr.Load, length: int):
+    def __init__(self, address: tvm.tir.expr.BufferLoad, length: int):
         self.address = address
         self.length = length
 
@@ -237,7 +237,10 @@ class SerialCopy(SerializableFormat):
     a ethosu.copy tir extern call on a predefined ordering"""
 
     def __init__(
-        self, read_address: tvm.tir.expr.Load, length: int, write_address: tvm.tir.expr.Load
+        self,
+        read_address: tvm.tir.expr.BufferLoad,
+        length: int,
+        write_address: tvm.tir.expr.BufferLoad,
     ):
         self.read_address = read_address
         self.length = length

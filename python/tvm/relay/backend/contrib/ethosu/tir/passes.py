@@ -28,7 +28,7 @@ from .binary_elementwise import get_binary_elementwise_params
 from .identity import get_identity_params
 from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
-from .utils import get_weights_pointer, get_scale_bias_pointer
+from .utils import get_weights_buffer, get_scale_bias_buffer
 
 
 def RemoveZeroStores():
@@ -82,8 +82,8 @@ def ReplaceOperators():
         loads = []
 
         def _get_loads(stmt):
-            if isinstance(stmt, tvm.tir.Load):
-                loads.append(stmt.buffer_var)
+            if isinstance(stmt, tvm.tir.BufferLoad):
+                loads.append(stmt.buffer.data)
 
         if isinstance(stmt, tvm.tir.Allocate):
             pointer_to_extents[stmt.buffer_var] = stmt.extents
@@ -94,8 +94,8 @@ def ReplaceOperators():
         elif isinstance(stmt, tvm.tir.AttrStmt):
             if stmt.attr_key == "pragma_op":
                 tvm.tir.stmt_functor.post_order_visit(stmt, _get_loads)
-                for load_buffer in loads:
-                    pointer_to_consumer[load_buffer] = stmt
+                for load_pointer in loads:
+                    pointer_to_consumer[load_pointer] = stmt
 
     def _replace_operator(stmt):
         """Replace operators with call_externs, having derived the parameters
@@ -232,11 +232,14 @@ def DivideConstants(const_dict):
     def _visit(stmt):
         new_args = []
         for i, arg in enumerate(stmt.args):
-            if isinstance(arg, tvm.tir.expr.Load):
+            if isinstance(arg, tvm.tir.expr.BufferLoad):
                 # If we're trying to load a buffer that maps to a constant
-                if arg.buffer_var in buffer_to_const:
-                    const = buffer_to_const[arg.buffer_var]
-                    offset = int(arg.index)
+                if arg.buffer.data in buffer_to_const:
+                    const = buffer_to_const[arg.buffer.data]
+
+                    assert len(arg.indices) == 1, "Ethos-U passes expects flattened buffers"
+
+                    offset = int(arg.indices[0])
                     # Note by convention the arg after a constant read is the length of the read
                     length = int(stmt.args[i + 1])
                     # If it's anything other than a full read, create a new buffer
@@ -244,9 +247,9 @@ def DivideConstants(const_dict):
                         new_consts.append(const[offset : offset + length])
                         new_buffer = tvm.tir.decl_buffer((length,), arg.dtype)
                         new_buffers.append(new_buffer)
-                        new_args.append(tvm.tir.expr.Load(new_buffer.dtype, new_buffer.data, 0))
+                        new_args.append(tvm.tir.expr.BufferLoad(new_buffer.data, [0]))
                         continue
-                    keep_buffers.add(arg.buffer_var)
+                    keep_buffers.add(arg.buffer.data)
 
             new_args.append(arg)
 
@@ -278,7 +281,15 @@ def DivideConstants(const_dict):
             new_buffer_map[handle] = new_buffer
             new_const_dict[len(new_params) - 1] = new_consts[i]
 
-        new_f = tvm.tir.PrimFunc(new_params, new_body, f.ret_type, new_buffer_map, f.attrs, f.span)
+        new_f = tvm.tir.PrimFunc(
+            new_params,
+            new_body,
+            f.ret_type,
+            new_buffer_map,
+            f.preflattened_buffer_map,
+            f.attrs,
+            f.span,
+        )
         return new_f
 
     def _divide_constants(mod):
@@ -343,30 +354,31 @@ def EncodeConstants(const_dict):
             # Handle copies as a special-case by propagating the buffer information
             # from the read to the write pointer.
             if stmt.args[0] == "ethosu_copy":
-                read_pointer = stmt.args[1].buffer_var
+                read_pointer = stmt.args[1].buffer.data
                 if read_pointer in pointer_to_buffer:
-                    write_pointer = stmt.args[3].buffer_var
+                    write_pointer = stmt.args[3].buffer.data
                     # Assert writing to the base of the write_var (pre-StorageRewrite)
-                    assert stmt.args[3].index == 0
-                    assert stmt.args[1].index == 0
+                    assert list(stmt.args[3].indices) == [0]
+                    assert list(stmt.args[1].indices) == [0]
                     pointer_to_buffer[write_pointer] = pointer_to_buffer[read_pointer]
+                    rewrite_buffer[stmt.args[3].buffer] = stmt.args[1].buffer
             else:
                 # Encode the weights
-                weights_pointer = get_weights_pointer(stmt)
-                if weights_pointer is not None:
-                    assert weights_pointer in pointer_to_buffer
-                    weights_buffer = pointer_to_buffer[weights_pointer]
-                    weights_value = buffer_to_const[weights_buffer]
+                old_weights_buffer = get_weights_buffer(stmt)
+                if old_weights_buffer is not None:
+                    assert old_weights_buffer.data in pointer_to_buffer
+                    new_weights_buffer = pointer_to_buffer[old_weights_buffer.data]
+                    weights_value = buffer_to_const[new_weights_buffer]
                     new_weights_value = _encode_weights(stmt, weights_value)
-                    _new_buffer(weights_buffer, new_weights_value)
+                    _new_buffer(new_weights_buffer, new_weights_value)
                 # Align the scale_bias to 16 bytes
-                scale_bias_pointer = get_scale_bias_pointer(stmt)
-                if scale_bias_pointer is not None:
-                    assert scale_bias_pointer in pointer_to_buffer
-                    scale_bias_buffer = pointer_to_buffer[scale_bias_pointer]
-                    scale_bias_value = buffer_to_const[scale_bias_buffer]
+                old_scale_bias_buffer = get_scale_bias_buffer(stmt)
+                if old_scale_bias_buffer is not None:
+                    assert old_scale_bias_buffer.data in pointer_to_buffer
+                    new_scale_bias_buffer = pointer_to_buffer[old_scale_bias_buffer.data]
+                    scale_bias_value = buffer_to_const[new_scale_bias_buffer]
                     new_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
-                    _new_buffer(scale_bias_buffer, new_scale_bias_value)
+                    _new_buffer(new_scale_bias_buffer, new_scale_bias_value)
 
     def _visit_encode_post(stmt):
         # Because encoding may change the data type (e.g. bias to uint8) and type information
@@ -398,14 +410,14 @@ def EncodeConstants(const_dict):
             new_buffers = rewrite_buffer.values()
             for i in range(1, len(stmt.args)):
                 # If the previous argument was a load, the current should be a length
-                if isinstance(stmt.args[i - 1], tvm.tir.Load):
+                if isinstance(stmt.args[i - 1], tvm.tir.BufferLoad):
                     load = stmt.args[i - 1]
-                    pointer = load.buffer_var
-                    if pointer in pointer_to_buffer:
-                        buffer = pointer_to_buffer[pointer]
+                    old_buffer = load.buffer
+                    if old_buffer.data in pointer_to_buffer:
+                        new_buffer = pointer_to_buffer[old_buffer.data]
                         # Only rewrite the arguments of buffers that have been encoded
-                        if buffer in new_buffers:
-                            new_arg = np.prod(list(pointer_to_buffer[pointer].shape))
+                        if new_buffer in new_buffers:
+                            new_arg = np.prod(list(new_buffer.shape))
                             new_args.append(new_arg)
                             continue
                 new_args.append(stmt.args[i])
@@ -429,14 +441,12 @@ def EncodeConstants(const_dict):
         # The following rewrites would be better expressed by just rewriting the Vars, however
         # ir_transform doesn't seem to visit Vars. So instead we do the next best thing and rewrite
         # the nodes which contain the Vars.
-        if isinstance(stmt, tvm.tir.Load):
-            load_pointer = stmt.buffer_var
-            if load_pointer in rewrite_pointer:
-                new_pointer = rewrite_pointer[load_pointer]
-                element_type = new_pointer.type_annotation.element_type.dtype
-                return tvm.tir.Load(
-                    element_type, new_pointer, stmt.index, stmt.predicate, stmt.span
-                )
+        if isinstance(stmt, tvm.tir.BufferLoad):
+            if stmt.buffer.data in pointer_to_buffer:
+                load_buffer = pointer_to_buffer[stmt.buffer.data]
+                if load_buffer in rewrite_buffer:
+                    new_buffer = rewrite_buffer[load_buffer]
+                    return tvm.tir.BufferLoad(new_buffer, stmt.indices, stmt.span)
         if isinstance(stmt, tvm.tir.AttrStmt):
             node_pointer = stmt.node
             if node_pointer in rewrite_pointer:
@@ -457,7 +467,10 @@ def EncodeConstants(const_dict):
         )
         # Then perform the rewrites
         new_body = tvm.tir.stmt_functor.ir_transform(
-            f.body, None, _visit_rewrite, ["tir.Call", "tir.Allocate", "tir.Load", "tir.AttrStmt"]
+            f.body,
+            None,
+            _visit_rewrite,
+            ["tir.Call", "tir.Allocate", "tir.BufferLoad", "tir.AttrStmt"],
         )
         new_buffer_map = {}
         # Rewrite the buffer map and const dict to instead use the encoded versions
@@ -474,7 +487,15 @@ def EncodeConstants(const_dict):
             else:
                 new_buffer_map[param] = buffer
 
-        new_f = tvm.tir.PrimFunc(f.params, new_body, f.ret_type, new_buffer_map, f.attrs, f.span)
+        new_f = tvm.tir.PrimFunc(
+            f.params,
+            new_body,
+            f.ret_type,
+            new_buffer_map,
+            f.preflattened_buffer_map,
+            f.attrs,
+            f.span,
+        )
         return new_f
 
     def _encode_constants(mod):
