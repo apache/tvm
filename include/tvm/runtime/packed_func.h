@@ -99,7 +99,7 @@ class PackedFuncObj : public Object {
 
   /*!
    * \brief Constructing a packed function object from a function pointer.
-   * \param f_call The function pointer used to call the packed function.
+   * \param f_call_pack The function pointer used to call the packed function.
    */
   explicit PackedFuncObj(FCallPacked* f_call_pack) : f_call_packed_(f_call_pack) {}
 
