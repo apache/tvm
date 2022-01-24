@@ -2751,5 +2751,60 @@ def test_tflite_fully_connected(
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("ifm_shape", [(1, 5, 5, 3), (1, 12, 9, 1)])
+def test_tflite_hard_swish(ifm_shape):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                op = tf.keras.layers.Lambda(
+                    lambda x: x * tf.keras.activations.relu(x + 3.0, max_value=6.0) / 6.0
+                )(x)
+                return op
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+
+        return tflite_model
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+
+    mod = ethosu.partition_for_ethosu(mod, params)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.HardSwishRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    func_body = mod["tvmgen_default_ethos_u_main_0"].body
+    assert func_body.op.name == "contrib.ethosu.identity"
+    assert func_body.attrs.activation == "LUT"
+    assert tuple(func_body.args[0].checked_type.shape) == (ifm_shape)
+    assert tuple(func_body.args[1].checked_type.shape) == (256,)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
