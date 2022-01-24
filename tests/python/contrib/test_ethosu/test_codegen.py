@@ -1021,6 +1021,28 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape,axis", [((2,), 0), ((1, 3, 3), 2)])
+def test_tflite_expand_dims(accel_type, ifm_shape, axis):
+    @tf.function
+    def expand_dims_func(x):
+        return tf.expand_dims(x, axis=axis)
+
+    _compare_tvm_with_tflite(expand_dims_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,axis", [((1, 1, 2, 1), 0), ((1, 3, 3, 1), 3), ((1, 1, 2, 1), None)]
+)
+def test_tflite_squeeze(accel_type, ifm_shape, axis):
+    @tf.function
+    def squeeze_func(x):
+        return tf.squeeze(x, axis=axis)
+
+    _compare_tvm_with_tflite(squeeze_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape,size",
     [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
@@ -1115,7 +1137,10 @@ def test_tflite_pack(accel_type, ifm_shapes, axis):
     def pack_func(*inputs):
         return tf.stack(inputs, axis=axis)
 
-    _compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type)
+    # TODO(lhutton1) For now output is not bit exact with TFLite.
+    # This is because TFLite reference kernels are not being used.
+    # For this, TFLite will need upgrading to 2.6.
+    _compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type, output_tolerance=1)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
