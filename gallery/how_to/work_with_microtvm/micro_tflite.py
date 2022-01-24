@@ -134,7 +134,7 @@ from tvm import relay
 import tvm.contrib.utils
 from tvm.contrib.download import download_testdata
 
-use_physical_hw = True if os.getenv("TVM_MICRO_USE_HW") else False
+use_physical_hw = bool(os.getenv("TVM_MICRO_USE_HW"))
 model_url = "https://people.linaro.org/~tom.gall/sine_model.tflite"
 model_file = "sine_model.tflite"
 model_path = download_testdata(model_url, model_file, module="data")
