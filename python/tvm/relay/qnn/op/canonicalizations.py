@@ -5,8 +5,8 @@ import tvm
 from tvm import relay
 
 
-# TODO: replace with constant folding
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
+    """Run a const expression, receiving result as np array."""
     mod = tvm.IRModule.from_expr(expr)
     vm_exe = relay.create_executor("vm", mod=mod)
     return vm_exe.evaluate()().asnumpy()
