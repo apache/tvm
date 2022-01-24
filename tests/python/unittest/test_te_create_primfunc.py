@@ -359,6 +359,75 @@ def test_tensor_attr():
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
+def te_argmax():
+    # x and y are the operands of reduction, both of them is a tuple of index
+    # and value.
+    def fcombine(x, y):
+        lhs = tvm.tir.Select((x[1] >= y[1]), x[0], y[0])
+        rhs = tvm.tir.Select((x[1] >= y[1]), x[1], y[1])
+        return lhs, rhs
+
+    # our identity element also need to be a tuple, so `fidentity` accepts
+    # two types as inputs.
+    def fidentity(t0, t1):
+        return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
+
+    argmax = te.comm_reducer(fcombine, fidentity, name="argmax")
+
+    # describe the reduction computation
+    m = te.var("m")
+    n = te.var("n")
+    idx = te.placeholder((m, n), name="idx", dtype="int32")
+    val = te.placeholder((m, n), name="val", dtype="int32")
+    k = te.reduce_axis((0, n), "k")
+    T0, T1 = te.compute((m,), lambda i: argmax((idx[i, k], val[i, k]), axis=k), name="T")
+    return [idx, val, T0, T1]
+
+
+@T.prim_func
+def tir_argmax(
+    var_idx: T.handle, var_val: T.handle, var_T_v0: T.handle, var_T_v1: T.handle
+) -> None:
+    m = T.var("int32")
+    n = T.var("int32")
+    idx = T.match_buffer(var_idx, [m, n], dtype="int32")
+    val = T.match_buffer(var_val, [m, n], dtype="int32")
+    T_v0 = T.match_buffer(var_T_v0, [m], dtype="int32")
+    T_v1 = T.match_buffer(var_T_v1, [m], dtype="int32")
+    # body
+    # with T.block("root")
+    for i0, i1 in T.grid(m, n):
+        with T.block("T.v0"):
+            i, k = T.axis.remap("SR", [i0, i1])
+            with T.init():
+                T_v0[i] = -1
+                T_v1[i] = -2147483648
+            T_v0[i] = T.Select(T_v1[i] >= val[i, k], T_v0[i], idx[i, k])
+            T_v1[i] = T.Select(T_v1[i] >= val[i, k], T_v1[i], val[i, k])
+
+
+def test_argmax():
+    _check_workload(te_argmax, tir_argmax)
+
+    dtype = "int32"
+    func = te.create_prim_func(te_argmax())
+    assert len(func.params) == 4
+
+    func = tvm.build(func)
+
+    idx_np = np.arange(100, dtype=dtype).reshape((10, 10))
+    val_np = np.random.permutation(100).reshape((10, 10)).astype(dtype)
+    c = tvm.nd.array(np.zeros(10, dtype=dtype))  # argmax index
+    d = tvm.nd.array(np.zeros(10, dtype=dtype))  # max value
+    func(tvm.nd.array(idx_np), tvm.nd.array(val_np), c, d)
+
+    c_expected = idx_np[np.arange(10), np.argmax(val_np, axis=1)]
+    d_expected = np.amax(val_np, axis=1)
+
+    tvm.testing.assert_allclose(c_expected, c.numpy())
+    tvm.testing.assert_allclose(d_expected, d.numpy())
+
+
 if __name__ == "__main__":
     test_unique_name()
     test_matmul()
@@ -371,3 +440,4 @@ if __name__ == "__main__":
     test_constant()
     test_select_simplify()
     test_tensor_attr()
+    test_argmax()
