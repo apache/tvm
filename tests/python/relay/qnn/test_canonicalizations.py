@@ -1,9 +1,7 @@
 from typing import Callable
 
 import numpy as np
-import tvm
 from tvm import relay
-from tvm.relay.op.transform import arange
 from tvm.relay.qnn.op import canonicalizations
 
 
