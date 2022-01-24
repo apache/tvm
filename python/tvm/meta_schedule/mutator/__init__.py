@@ -20,3 +20,4 @@ Meta Schedule mutator that mutates the trace to explore the
 design space.
 """
 from .mutator import Mutator, PyMutator
+from .mutate_compute_location import MutateComputeLocation
