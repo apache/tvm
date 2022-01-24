@@ -164,25 +164,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
         out_channel, channel_multiplier, kh, kw = get_const_tuple(kernel_tensor.shape)
         ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-        n_elems = 4
-
-        # convert kernel data layout from 4D to 7D
-        data_expr, kernel_expr = inputs
-        kernel_IHWO = relay.transpose(kernel_expr, axes=(1, 2, 3, 0))
-        kernel_IHWOo = relay.reshape(kernel_IHWO, (in_channel, kh, kw, out_channel // oc_bn, oc_bn))
-        kernel_OHWoI = relay.transpose(kernel_IHWOo, axes=(3, 1, 2, 4, 0))
-        kernel_OHWoIi = relay.reshape(
-            kernel_OHWoI, (out_channel // oc_bn, kh, kw, oc_bn, in_channel // ic_bn, ic_bn)
-        )
-        kernel_OHWoIie = relay.reshape(
-            kernel_OHWoIi,
-            (out_channel // oc_bn, kh, kw, oc_bn, in_channel // ic_bn, ic_bn // n_elems, n_elems),
-        )
-        kernel_OIHWioe = relay.transpose(kernel_OHWoIie, axes=(0, 4, 1, 2, 5, 3, 6))
 
         # update new attrs
+        n_elems = 4
         new_attrs["channels"] = out_channel
         new_attrs["data_layout"] = "NCHW%dc" % ic_bn
+        new_attrs["kernel_layout"] = "OIHW{:n}i{:n}o{:n}i".format(ic_bn // n_elems, oc_bn, n_elems)
         new_attrs["out_layout"] = "NCHW%dc" % oc_bn
 
         # Store altered operator's config.
@@ -208,7 +195,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         )
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.contrib_conv2d_nchwc(data_expr, kernel_OIHWioe, **new_attrs)
+        return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
 
     if topi_tmpl == "depthwise_conv2d_NCHWc.x86":
         if data_layout == "NCHW" and kernel_layout == "OIHW":
