@@ -197,13 +197,13 @@ TARGET = tvm.target.target.micro("host")
 #  board to generated the right firmware image.
 #
 
-boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
-with open(boards_file) as f:
-    boards = json.load(f)
+if use_physical_hw:
+    boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
+    with open(boards_file) as f:
+        boards = json.load(f)
 
-BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
-TARGET = tvm.target.target.micro(boards[BOARD]["model"])
-
+    BOARD = os.getenv("TVM_MICRO_BOARD", default="nucleo_f746zg")
+    TARGET = tvm.target.target.micro(boards[BOARD]["model"])
 
 #
 #  For some boards, Zephyr runs them emulated by default, using QEMU. For example, below is the
