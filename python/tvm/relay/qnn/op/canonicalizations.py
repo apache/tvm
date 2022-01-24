@@ -83,7 +83,7 @@ def create_integer_lookup_op(
     """
     TODO
     """
-    # TODO: handle multi-channel q
+    # TODO: handle multi-channel q, if below fails it's probably that
     in_scale = in_scale.data.numpy().item()
     in_zero_point = in_zero_point.data.numpy().item()
     out_scale = out_scale.data.numpy().item()
