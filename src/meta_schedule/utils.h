@@ -247,6 +247,19 @@ inline std::string Concat(const Array<String>& strs, const std::string& delim) {
 }
 
 /*!
+ * \brief Get the BlockRV from a block StmtSRef
+ * \param sch The schedule
+ * \param block_sref The block StmtSRef
+ * \param global_var_name The global variable name
+ * \return The BlockRV
+ */
+inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
+                                  const String& global_var_name) {
+  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  return sch->GetBlock(block->name_hint, global_var_name);
+}
+
+/*!
  * \brief A helper data structure that replays a trace and collects failure counts
  * for each postprocessor
  */

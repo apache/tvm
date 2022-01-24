@@ -1226,6 +1226,49 @@ class LegalizeConcat:
         pass
 
 
+class RequantizeRewriter(DFPatternCallback):
+    """Convert ethos-u.requantize composite function to an identity operation."""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.RequantizeParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.RequantizeParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        lut = relay.const([], "int8")
+
+        return ethosu_ops.ethosu_identity(
+            ifm=params.ifm.tensor,
+            lut=lut,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeRequantize:
+    """This is the pass that wraps RequantizeRewriter."""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(RequantizeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1255,6 +1298,7 @@ class LegalizeEthosU:
         mod = LegalizeMean()(mod)
         mod = LegalizeConcat()(mod)
         mod = LegalizeSigmoid()(mod)
+        mod = LegalizeRequantize()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

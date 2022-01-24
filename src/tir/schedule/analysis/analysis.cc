@@ -1788,8 +1788,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
                                             /*require_stage_pipeline=*/false,  //
                                             /*require_subtree_compact_dataflow=*/false);
-  if (!(IsReductionBlock(self, block_sref, scope_sref) &&  //
-        IsTrivialBinding(self, block_sref))) {
+  if (!IsReductionBlock(self, block_sref, scope_sref)  //
+      || !IsTrivialBinding(self, block_sref)           //
+      || HasBeenMultiLevelTiled(block_sref)) {
     return false;
   }
 
