@@ -20,6 +20,8 @@ import tvm._ffi
 
 from .propagator import Propagator
 from .graph import Part, TESubgraph
+from .block_config import BlockConfig
+from .stripe_config import StripeConfig
 from . import _ffi_api
 
 
@@ -52,7 +54,9 @@ class EthosuPart(Part):
         te_subgraph: TESubgraph,
         propagators: List[Propagator],
         output_quantum: List[int],
-        quantum_cycles: int,
+        subkernels: int,
+        valid_block_configs: List[BlockConfig],
+        weight_tensor_idx: int = -1,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.EthosuPart,
@@ -60,5 +64,10 @@ class EthosuPart(Part):
             te_subgraph.output_tensor,
             propagators,
             output_quantum,
-            quantum_cycles,
+            subkernels,
+            valid_block_configs,
+            weight_tensor_idx,
         )
+
+    def get_block_config(self, stripe_config: StripeConfig) -> BlockConfig:
+        return _ffi_api.EthosuPartGetBlockConfig(self, stripe_config)

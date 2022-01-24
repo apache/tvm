@@ -120,6 +120,21 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
   return loops;
 }
 
+/*!
+ * \brief Convert an array of block rvs to an array of block StmtSRefs
+ * \param sch The schedule used to evaluate the random variables
+ * \param block_rvs The random variables to be converted
+ * \return The conversion result srefs
+ */
+inline Array<StmtSRef> BlockRVs2StmtSRefs(const Schedule& sch, const Array<BlockRV>& block_rvs) {
+  Array<StmtSRef> block_srefs;
+  block_srefs.reserve(block_rvs.size());
+  for (const BlockRV& block_rv : block_rvs) {
+    block_srefs.push_back(sch->GetSRef(block_rv));
+  }
+  return block_srefs;
+}
+
 /******** Storage scope ********/
 
 /*!
@@ -178,6 +193,18 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
   return {stmt};
 }
 
+/*!
+ * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \param stmt The statement to be checked
+ * \return A boolean indicating the result
+ */
+inline bool IsSingleStmt(const Stmt& stmt) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+    return seq_stmt->seq.size() == 1;
+  }
+  return true;
+}
+
 /******** IterVar ********/
 
 /*!
@@ -190,6 +217,36 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
 inline IterVar IterVarFromLoop(const For& loop, String name, IterVarType iter_var_type) {
   return IterVar(Range::FromMinExtent(loop->min, loop->extent),
                  Var(std::move(name), loop->loop_var.dtype()), iter_var_type);
+}
+
+/*!
+ * \brief Get the thread scope bound to the specific loop
+ * \param loop The loop to be inspected
+ * \return The thread scope bound to the loop
+ */
+inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
+  if (loop->kind == ForKind::kThreadBinding) {
+    return runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+  }
+  return runtime::ThreadScope{-1, -1};
+}
+
+/*!
+ * \brief Check if the thread scope is blockIdx
+ * \param thread_scope The thread scope to be checked
+ * \return True if the thread scope is blockIdx
+ */
+inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+  return thread_scope.rank == 0;  // The rank of blockIdx is 0
+}
+
+/*!
+ * \brief Check if the thread scope is threadIdx
+ * \param thread_scope The thread scope to be checked
+ * \return True if the thread scope is threadIdx
+ */
+inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
+  return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
 /******** Integer set ********/
@@ -227,6 +284,34 @@ inline const int64_t* GetLoopIntExtent(const ForNode* loop) { return as_const_in
 inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   return as_const_int(loop->extent);
+}
+
+/*!
+ * \brief Check if an expression consists of a single variable,
+ * or a variable plus/minus an constant integer shift
+ * \param expr The expression to be checked
+ * \return The single variable in the expression, or NullOpt if the expression is neither a variable
+ * or a constant shift from a variable
+ */
+inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>* constant) {
+  if (const auto* var = expr.as<VarNode>()) {
+    *constant = NullOpt;
+    return GetRef<Var>(var);
+  }
+  arith::PVar<Var> var;
+  arith::PVar<IntImm> shift;
+  // match: "var + shift"
+  if ((var + shift).Match(expr) || (shift + var).Match(expr)) {
+    *constant = shift.Eval();
+    return var.Eval();
+  }
+  // match: "var - shift"
+  if ((var - shift).Match(expr)) {
+    IntImm result = shift.Eval();
+    *constant = IntImm(result->dtype, -result->value);
+    return var.Eval();
+  }
+  return NullOpt;
 }
 
 /******** Annotation ********/
@@ -278,6 +363,72 @@ inline Optional<TObjectRef> GetAnn(const StmtSRef& sref, const String& ann_key) 
 inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& ann_val) {
   Optional<String> result = GetAnn<String>(sref, ann_key);
   return result.defined() && result.value() == ann_val;
+}
+
+/*!
+ * \brief Check if a Block/For has a specific pair of annotation key and values
+ * \param sref The sref to the block or the for loop
+ * \param ann_key The annotation key to be checked
+ * \param ann_val The boolean annotation value to be checked
+ * \return Whether a Block/For has a specific pair of annotation key and values
+ */
+inline bool HasAnn(const StmtSRef& sref, const String& ann_key, bool ann_val) {
+  Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
+  return result.defined() && result.value()->value == ann_val;
+}
+
+/********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/
+
+/*!
+ * \brief Reorder the reduction loops to innermost positions if needed.
+ * \param sch The schedule
+ * \param block_rv The block where to apply the reorder
+ * \param fused_reduce_loop The fusion-generated loop to return.
+ * \param num_spatial_loops The number of spatial loops to return.
+ * \note Before invoking this helper function, make sure that the block has only spatial and
+ *       reduction loop axes.
+ */
+inline void ReorderAndFuseReductionLoops(const tir::Schedule& sch, const tir::BlockRV& block_rv,
+                                         tir::LoopRV* fused_reduce_loop,
+                                         size_t* num_spatial_loops) {
+  Array<tir::LoopRV> loops = sch->GetLoops(block_rv);
+  Array<tir::StmtSRef> loop_srefs;
+  for (const tir::LoopRV& loop_rv : loops) {
+    loop_srefs.push_back(sch->GetSRef(loop_rv));
+  }
+
+  Array<tir::LoopRV> new_order;
+  // Step 1. Add spatial loops.
+  *num_spatial_loops = 0;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (GetLoopIterType(loop_srefs[i]) == tir::kDataPar) {
+      new_order.push_back(loops[i]);
+      (*num_spatial_loops)++;
+    }
+  }
+  // Step 2. Add reduction loops.
+  Array<tir::LoopRV> reduction_loops;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (GetLoopIterType(loop_srefs[i]) == tir::kCommReduce) {
+      new_order.push_back(loops[i]);
+      reduction_loops.push_back(loops[i]);
+    }
+  }
+  // Step 3. Apply reordering if new_order differs from the original order.
+  ICHECK_EQ(new_order.size(), loops.size());
+  for (size_t i = 0; i < loops.size(); ++i) {
+    if (!new_order[i].same_as(loops[i])) {
+      sch->Reorder(new_order);
+      break;
+    }
+  }
+  // Step 4. Fuse all the reduction loops if there are multiple reduction loops.
+  CHECK(!reduction_loops.empty()) << "ValueError: There should be at least one reduction loop";
+  if (reduction_loops.size() > 1) {
+    *fused_reduce_loop = sch->Fuse(reduction_loops);
+  } else {
+    *fused_reduce_loop = reduction_loops[0];
+  }
 }
 
 }  // namespace tir

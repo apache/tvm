@@ -25,7 +25,6 @@ Server is TCP based with the following protocol:
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 # pylint: disable=invalid-name
-import os
 import ctypes
 import socket
 import select
@@ -75,9 +74,6 @@ def _server_env(load_library, work_path=None):
     @tvm._ffi.register_func("tvm.rpc.server.download_linked_module", override=True)
     def download_linked_module(file_name):
         """Load module from remote side."""
-        # c++ compiler/linker
-        cc = os.environ.get("CXX", "g++")
-
         # pylint: disable=import-outside-toplevel
         path = temp.relpath(file_name)
 
@@ -85,7 +81,7 @@ def _server_env(load_library, work_path=None):
             # Extra dependencies during runtime.
             from tvm.contrib import cc as _cc
 
-            _cc.create_shared(path + ".so", path, cc=cc)
+            _cc.create_shared(path + ".so", path)
             path += ".so"
         elif path.endswith(".tar"):
             # Extra dependencies during runtime.
@@ -94,7 +90,7 @@ def _server_env(load_library, work_path=None):
             tar_temp = utils.tempdir(custom_path=path.replace(".tar", ""))
             _tar.untar(path, tar_temp.temp_dir)
             files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-            _cc.create_shared(path + ".so", files, cc=cc)
+            _cc.create_shared(path + ".so", files)
             path += ".so"
         elif path.endswith(".dylib") or path.endswith(".so"):
             pass

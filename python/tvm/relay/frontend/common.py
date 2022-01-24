@@ -716,11 +716,11 @@ def gru_cell(
     b_inp, b_hid : relay.Expr
         bias matrices. The same order of internal parts as for weights. shape = (3 * hidden_size)
     r_act : relay.op
-        activation funtion for reset gate. it is sigmoid by default
+        activation function for reset gate. it is sigmoid by default
     z_act : relay.op
-        activation funtion for update gate. it is sigmoid by default
+        activation function for update gate. it is sigmoid by default
     n_act : relay.op
-        activation funtion for new gate. it is tanh by default
+        activation function for new gate. it is tanh by default
     backwards : bool
         Flag for reverse pass of GRU
 
@@ -812,7 +812,7 @@ def lstm_cell(
     p_i, p_f, p_o : relay.Expr
         peephole LSTM matrices. shape = (batch, hidden_size)
     f_act, g_act, h_act : relay.op
-        activation funtions
+        activation functions
     backwards : bool
         Flag for reverse pass of LSTM
 

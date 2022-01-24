@@ -127,6 +127,11 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const std::string& name) {
   }
 }
 
+std::string ModuleNode::GetFormat() {
+  LOG(FATAL) << "Module[" << type_key() << "] does not support GetFormat";
+  return "";
+}
+
 bool RuntimeEnabled(const std::string& target) {
   std::string f_name;
   if (target == "cpu") {
@@ -177,6 +182,10 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetImport").set_body_typed([](Module mod, int
 
 TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
   return std::string(mod->type_key());
+});
+
+TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
+  return mod->GetFormat();
 });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);

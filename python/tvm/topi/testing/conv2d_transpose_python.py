@@ -73,7 +73,7 @@ def _conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
             dilated_a_np.shape[2] + bpad_top + bpad_bottom,
             dilated_a_np.shape[3] + bpad_left + bpad_right,
         )
-    )
+    ).astype(a_np.dtype)
     padded_a_np[
         :,
         :,
@@ -83,7 +83,7 @@ def _conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     # convolution stage
     out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h + opad_h
     out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad_w
-    b_np = np.zeros((batch, out_c, out_h, out_w))
+    b_np = np.zeros((batch, out_c, out_h, out_w)).astype(a_np.dtype)
     for n in range(batch):
         for f in range(out_c):
             for c in range(in_c):

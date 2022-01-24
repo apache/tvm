@@ -3169,6 +3169,7 @@ def test_global_pooling(target, dev):
         verify_global_pooling([4, 1, 2, 6, 4], mode)
 
 
+@pytest.mark.skip("flaky")
 @tvm.testing.parametrize_targets
 def test_qlinear_average_pool(target, dev):
     def verify_qlinear_average_pool(
@@ -5090,6 +5091,7 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
+    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",

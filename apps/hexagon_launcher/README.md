@@ -31,43 +31,6 @@ The supported Snapdragon architectures are 855, 865, and 888.
 Android NDK can be downloaded from https://developer.android.com/ndk.
 Hexagon SDK is available at //developer.qualcomm.com/software/hexagon-dsp-sdk.
 
-### Compilation with TVM
-
-Building the Hexagon launcher application as a component of the main TVM build
-used for Hexagon codegen can be achieved by setting `USE_HEXAGON_LAUNCHER=ON`.
-This option will compile core tvm, the android launcher binary and its corresponding
-tvm_runtime, as well as the Hexagon launcher shared library and its corresponding
-tvm_runtime. As described in the [Manual compilation](#Manual compilation) section
-each component requires Hexagon and android dependencies. When building the launcher
-along with TVM these configurations must be providing when invoking cmake. A minimal
-example invocation for compiling TVM along with the Hexagon launcher is included below:
-
-```
-cmake -DCMAKE_C_COMPILER=/path/to/clang \
-      -DCMAKE_CXX_COMPILER=/path/to/clang++ \
-      -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
-      -DCMAKE_CXX_STANDARD=14 \
-      -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
-      -DUSE_HEXAGON_ARCH=v65|v66|v68 \
-      -DUSE_HEXAGON_LAUNCHER=ON \
-      -DUSE_HEXAGON_SDK=/path/to/hexagon/SDK \
-      -DUSE_HEXAGON_TOOLCHAIN=/path/to/hexagon/toolchain/ ..
-      -DANDROID_ABI=arm64-v8a \
-      -DANDROID_PLATFORM=android-28 \
-      -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
-      ..
-```
-
-where `v65|v66|v68` means "one of" these architecture versions.
-The Hexagon launcher application is an android binary and thus requires the use
-of an android toolchain for compilation. Similarly, the Hexagon tvm runtime
-requires the use of the Hexagon toolchain and depends on the Hexagon SDK. The
-resulting hexagon launcher binaries can be found in the `apps_hexagon_launcher`
-subdirectory of the cmake build directory. The above command
-will build support for Hexagon codegen in the TVM library that requires 
-`USE_LLVM` to be set to an llvm-config that has the Hexagon target built in.
-
-
 ### Manual compilation
 
 Since some source files are shared between the Hexagon and android builds,

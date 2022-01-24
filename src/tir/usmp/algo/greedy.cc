@@ -40,6 +40,7 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/usmp/algo/greedy.h>
+#include <tvm/tir/usmp/algorithms.h>
 #include <tvm/tir/usmp/utils.h>
 
 namespace tvm {

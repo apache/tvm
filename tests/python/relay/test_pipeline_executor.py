@@ -126,44 +126,76 @@ def get_manual_conf(mods, target):
     return mod_config
 
 
-def test_pipe_config_check():
-    # This function is used to trigger runtime error by applying wrong logic connection.
+def recreate_parameters(mod):
+    # Get the binding parameters from a module, then create the same parameters with different data.
+    # This function is used to test the "parameter" connection.
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, "llvm")
 
-    # Get three pipeline modules here.
-    (mod1, mod2, mod3), dshape = get_mannual_mod()
+    mod_customized_params = {}
+    for key, value in lib.params.items():
+        new_value = value.numpy() + np.full(value.shape, 10).astype(value.dtype)
+        mod_customized_params[key] = tvm.nd.array(new_value)
+    return mod_customized_params
 
-    # The input or output name is illegal and expects a runtime error.
-    pipe_error = pipeline_executor.PipelineConfig()
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["output"][9]
 
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["input"]["data_9"]
+def test_pipe_runtime_error_check():
+    # This function is used to trigger runtime error by applying wrong logic.
+    if pipeline_executor.pipeline_executor_enabled():
+        # Get three pipeline modules here.
+        (mod1, mod2, mod3), dshape = get_mannual_mod()
 
-    # The module connection will cause a cycle in DAG and expects runtime error.
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
-        pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
+        # The input or output name is illegal and expects a runtime error.
+        pipe_error = pipeline_executor.PipelineConfig()
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["output"][9]
 
-    # The module connection is illegal and expects runtime error.
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["input"]["data_9"]
 
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
+        # The module connection will cause a cycle in DAG and expects runtime error.
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["output"][0].connect(pipe_error[mod2]["input"]["data_0"])
+            pipe_error[mod2]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod1]["input"]["data_0"])
+        # The module connection is illegal and expects runtime error.
 
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod2]["input"]["data_0"])
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["output"][0].connect(pipe_error[mod1]["input"]["data_0"])
 
-    with pytest.raises(RuntimeError):
-        pipe_error[mod1]["output"][0].connect(pipe_error["input"]["data_0"])
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod1]["input"]["data_0"])
 
-    with pytest.raises(RuntimeError):
-        pipe_error["input"]["data_0"].connect(pipe_error[mod1]["output"][0])
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["input"]["data_0"].connect(pipe_error[mod2]["input"]["data_0"])
 
-    with pytest.raises(RuntimeError):
-        pipe_error["output"]["0"].connect(pipe_error[mod1]["output"][0])
+        with pytest.raises(RuntimeError):
+            pipe_error[mod1]["output"][0].connect(pipe_error["input"]["data_0"])
+
+        with pytest.raises(RuntimeError):
+            pipe_error["input"]["data_0"].connect(pipe_error[mod1]["output"][0])
+
+        with pytest.raises(RuntimeError):
+            pipe_error["output"]["0"].connect(pipe_error[mod1]["output"][0])
+
+        # Create pipeline executor to check the executor runtime errors.
+        pipe_config = pipeline_executor.PipelineConfig()
+        pipe_config[mod1].target = "llvm"
+        pipe_config[mod1].dev = tvm.cpu(0)
+        pipe_config["param_group"]["param_0"].connect(pipe_config[mod1]["param"])
+        pipe_config[mod1]["output"][0].connect(pipe_config["output"]["0"])
+        # Build and create a pipeline module.
+        with tvm.transform.PassContext(opt_level=3):
+            pipeline_mod_factory = pipeline_executor.build(pipe_config)
+        pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
+        customized_parameters = recreate_parameters(mod1)
+
+        # Checking the pipeline executor runtime errors.
+        with pytest.raises(RuntimeError):
+            pipeline_module.set_params("param_0", None)
+
+        with pytest.raises(RuntimeError):
+            pipeline_module.set_params("param_1", customized_parameters)
 
 
 def test_pipeline():
@@ -180,6 +212,9 @@ def test_pipeline():
 
             pipe_config = pipeline_executor.PipelineConfig()
 
+            customized_parameters = recreate_parameters(mod2)
+            # The global parameters group named "param_0" will be connected to "mod1" as parameters.
+            pipe_config["param_group"]["param_0"].connect(pipe_config[mod2]["param"])
             # The pipeline input named "data_0" will be connected to a input named "data_0"
             # of mod1.
             pipe_config["input"]["data_a"].connect(pipe_config[mod1]["input"]["data_0"])
@@ -202,6 +237,7 @@ def test_pipeline():
 
             # The mod3 output[0] will be connected to pipeline output[1].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
+            print(pipe_config)
             # Print configueration (print(pipe_config)), the result looks like following.
             #
             # Inputs
@@ -254,6 +290,10 @@ def test_pipeline():
             assert input_map[0] == "1" and input_map[1] == "data_1"
             input_map = pipeline_module_test.get_input_pipeline_map("data_a")
             assert input_map[0] == "0" and input_map[1] == "data_0"
+            module_index = pipeline_module_test.get_params_group_pipeline_map("param_0")
+            assert module_index == 1
+            # Use the parameters group name to set parameters.
+            pipeline_module_test.set_params("param_0", customized_parameters)
 
 
 if __name__ == "__main__":

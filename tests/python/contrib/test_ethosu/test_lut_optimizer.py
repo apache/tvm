@@ -21,9 +21,16 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 
+import tensorflow as tf
+import numpy as np
+
 import tvm
 from tvm import relay
 from tvm.relay.backend.contrib.ethosu.codegen import LUTsOptimizer
+from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir_func
+from tvm.relay.op.contrib.ethosu import partition_for_ethosu
+
+from .test_codegen import _get_tflite_graph
 from . import infra
 
 
@@ -59,6 +66,7 @@ def test_merge_lut_into_conv():
         return mod
 
     mod = LUTsOptimizer()(before())
+    mod = relay.transform.InferType()(mod)
 
     assert tvm.ir.structural_equal(mod, after())
 
@@ -91,5 +99,35 @@ def test_multiple_luts():
         return mod
 
     mod = LUTsOptimizer()(before())
+    mod = relay.transform.InferType()(mod)
 
     assert tvm.ir.structural_equal(mod, after())
+
+
+def test_lut_optimizer_runs_in_compilation_pipeline():
+    """Test that the LUT optimization pass runs as part of the NPU compilation pipeline."""
+    ifm_shape = (1, 4, 4, 4)
+
+    @tf.function
+    def get_graph(x):
+        weight1 = tf.constant(np.random.uniform(size=(1, 1, 4, 4)), dtype=tf.float32)
+        op = tf.nn.conv2d(x, weight1, (1, 1), "VALID")
+        op = tf.nn.tanh(op)
+        weight2 = tf.constant(np.random.uniform(size=(1, 1, 4, 1)), dtype=tf.float32)
+        op = tf.nn.depthwise_conv2d(op, weight2, (1, 1, 1, 1), "VALID")
+        return tf.nn.tanh(op)
+
+    mod, _ = _get_tflite_graph(get_graph, [ifm_shape])
+    mod = partition_for_ethosu(mod)
+
+    external_gv_name = mod["main"].body.op.name_hint
+    external_func = mod[external_gv_name]
+    prim_func = relay_to_tir_func(external_func)
+
+    # Check for hints in the TIR prim func that the LUT optimization pass has ran.
+    # If the module was optimized, there should be no identity operations.
+    def check_identity(stmt):
+        if isinstance(stmt, tvm.tir.expr.Call):
+            assert stmt.args[0] != "ethosu_identity"
+
+    tvm.tir.stmt_functor.post_order_visit(prim_func.body, check_identity)

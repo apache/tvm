@@ -905,7 +905,7 @@ class FuseMutator : private MixedModeMutator {
     }
     // This tuple is an intermediate node in the group
     Array<Expr> new_fields = GetNewArguments(tuple_node->fields, ret_group);
-    return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
+    return WithFields(GetRef<Tuple>(tuple_node), new_fields);
   }
 
   Expr Rewrite_(const TupleGetItemNode* tuple_get, const Expr& post) {
