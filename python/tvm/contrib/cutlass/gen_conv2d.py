@@ -179,7 +179,7 @@ class CutlassConv2DProfiler:
         weight_dtype,
         use_3xtf32,
         profile_all_alignments=False,
-        profile_all=True,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """
@@ -217,7 +217,7 @@ class CutlassConv2DProfiler:
             profile_all_alignments,
         )
 
-        if profile_all:
+        if find_first_valid:
             self.engine.compile_all(ops, use_multiprocessing)
 
         args = (
@@ -228,7 +228,7 @@ class CutlassConv2DProfiler:
         for op in ops:
             out = self.engine.evaluate(op, args.split(" "))
             op["runtime"] = out
-            if out < float("inf") and not profile_all:
+            if out < float("inf") and find_first_valid:
                 self.cache[workload] = op
                 return op
 
@@ -249,11 +249,11 @@ class CutlassConv2DProfiler:
         weight_dtype,
         use_3xtf32=True,
         profile_all_alignments=False,
-        profile_all=True,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """Profile and select the best kernel from candidate kernels.
-        If profile_all is False, return immediately after the first applicable kernel is found.
+        If find_first_valid is True, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
@@ -267,7 +267,7 @@ class CutlassConv2DProfiler:
             weight_dtype,
             use_3xtf32,
             profile_all_alignments,
-            profile_all,
+            find_first_valid,
             use_multiprocessing,
         )
 

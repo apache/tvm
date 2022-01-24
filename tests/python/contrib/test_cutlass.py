@@ -189,7 +189,7 @@ def profile_and_build(
         sm,
         use_3xtf32=use_3xtf32,
         profile_all_alignments=False,
-        profile_all=False,
+        find_first_valid=True,
         use_multiprocessing=False,
         tmp_dir=tmp_dir,
     )
