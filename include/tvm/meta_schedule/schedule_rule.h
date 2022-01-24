@@ -139,7 +139,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * - [blockIdx.x, vthread.x, threadIdx.x] on GPU
    * \param use_tensor_core Whether to apply tensor core wmma intrinsic for the computation
    * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
-   * \param vector_load_max_len The length of vector lane in vectorized cooperative fetching.
+   * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
    * NullOpt means disable vectorization
    * \param reuse_read Data reuse configuration for reading. NullOpt means no reuse.
    * \param reuse_write Data reuse configuration for writing. NullOpt means no reuse.
@@ -149,7 +149,7 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<String>> tile_binds,           //
                                                bool use_tensor_core,                         //
                                                Optional<Integer> max_innermost_factor,       //
-                                               Optional<Integer> vector_load_max_len,        //
+                                               Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
                                                Optional<Map<String, ObjectRef>> reuse_write);
   /*!
