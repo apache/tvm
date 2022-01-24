@@ -15,8 +15,8 @@ class TestIntegerTableLookupTable:
 
     def fake_identity_func_relay(
         self,
+        floating_point_func: Callable[[np.ndarray], np.ndarray],
         input_arg=None,
-        floating_point_func: Callable[[np.ndarray], np.ndarray] = fake_identity_func_numpy,
         in_scale=relay.const(1.0, dtype="float32"),
         in_zero_point=relay.const(0, dtype="int32"),
         out_scale=relay.const(1.0, dtype="float32"),
@@ -56,7 +56,7 @@ class TestIntegerTableLookupTable:
         out_zero_point: int,
         in_dtype: str,
         out_dtype: str,
-        floating_point_func: Callable[[np.ndarray], np.ndarray] = fake_identity_func_numpy,
+        floating_point_func: Callable[[np.ndarray], np.ndarray],
         input_arg: relay.Expr = None,
         rtol=1e-7,
         atol=0,
@@ -91,6 +91,7 @@ class TestIntegerTableLookupTable:
             out_zero_point=0,
             in_dtype="int8",
             out_dtype="int8",
+            floating_point_func=self.fake_identity_func_numpy,
         )
 
     def test_uint8_to_uint8(self):
@@ -101,6 +102,7 @@ class TestIntegerTableLookupTable:
             out_zero_point=128,
             in_dtype="uint8",
             out_dtype="uint8",
+            floating_point_func=self.fake_identity_func_numpy,
         )
 
     def test_int8_to_uint8(self):
@@ -111,6 +113,7 @@ class TestIntegerTableLookupTable:
             out_zero_point=128,
             in_dtype="int8",
             out_dtype="uint8",
+            floating_point_func=self.fake_identity_func_numpy,
         )
 
     def test_uint8_to_int8(self):
@@ -121,6 +124,48 @@ class TestIntegerTableLookupTable:
             out_zero_point=0,
             in_dtype="uint8",
             out_dtype="int8",
+            floating_point_func=self.fake_identity_func_numpy,
+        )
+
+    """Test different input shapes"""
+
+    def test_keep_input_shapes(self):
+        # input in floating point ~[-2, 2], final output ~[0, 8]
+        self.run_function_test(
+            input_arg=relay.const(np.arange(-128, 128).astype("int8").reshape([2, 2, 8, 8])),
+            in_scale=0.015,
+            in_zero_point=0,
+            out_scale=16 / 256,
+            out_zero_point=0,
+            in_dtype="int8",
+            out_dtype="int8",
+            floating_point_func=self.fake_identity_func_numpy,
+            atol=0.03,
+            rtol=0.01,
+        )
+        self.run_function_test(
+            input_arg=relay.const(np.arange(-128, 128).astype("int8").reshape([2, 2, 64])),
+            in_scale=0.015,
+            in_zero_point=0,
+            out_scale=16 / 256,
+            out_zero_point=0,
+            in_dtype="int8",
+            out_dtype="int8",
+            floating_point_func=self.fake_identity_func_numpy,
+            atol=0.03,
+            rtol=0.01,
+        )
+        self.run_function_test(
+            input_arg=relay.const(np.arange(-128, 128).astype("int8").reshape([2, 128])),
+            in_scale=0.015,
+            in_zero_point=0,
+            out_scale=16 / 256,
+            out_zero_point=0,
+            in_dtype="int8",
+            out_dtype="int8",
+            floating_point_func=self.fake_identity_func_numpy,
+            atol=0.03,
+            rtol=0.01,
         )
 
     """Test mapping with different in/out qparams works."""
@@ -133,6 +178,7 @@ class TestIntegerTableLookupTable:
             out_zero_point=128,
             in_dtype="uint8",
             out_dtype="uint8",
+            floating_point_func=self.fake_identity_func_numpy,
             atol=1,  # numbers range from -128 -> 128 so not that big error
             rtol=0,
         )
