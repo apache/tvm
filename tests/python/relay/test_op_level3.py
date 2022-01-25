@@ -1296,7 +1296,6 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
     verify_gather(data, axis, indices, ref_res)
     verify_gather(data, axis, indices, ref_res, indices_dtype="uint32")
 
-    verify_gather(data, axis, indices, ref_res)
 
 
 def test_gather_nd(target, dev, executor_kind):
