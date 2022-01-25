@@ -523,6 +523,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * \return The IR transform pass.
  */
+TVM_DLL Pass InjectSoftwarePipeline();
 
 }  // namespace transform
 }  // namespace tir
