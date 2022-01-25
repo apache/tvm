@@ -454,7 +454,6 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   if (fn->ret_type.defined()) {
     doc << "-> " << Print(fn->ret_type) << " ";
   }
-
   doc << PrintBody(fn->body);
   return doc;
 }
