@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
 import numpy as np
+import tvm
 from tvm import relay
 
 
@@ -51,6 +51,7 @@ def test_saturation():
     func = relay.Function([x], y)
     mod = tvm.IRModule.from_expr(func)
     mod = relay.transform.InferType()(mod)
+    mod = relay.qnn.transform.Legalize()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -77,6 +78,7 @@ def test_saturation():
     func = relay.Function([x], y)
     mod = tvm.IRModule.from_expr(func)
     mod = relay.transform.InferType()(mod)
+    mod = relay.qnn.transform.Legalize()(mod)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
