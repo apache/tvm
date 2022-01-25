@@ -69,7 +69,9 @@ Expr MakeQuantizedRsqrt(Expr x, Expr scale, Expr zero_point, Expr output_scale,
   return Call(op, {x, scale, zero_point, output_scale, output_zero_point}, Attrs(), {});
 }
 
-// Canonicalization set in python/tvm/relay/qnn/op/canonicalizations.py
+// Translation to relay is done via canonicalization/legalization functions in python
+// e.g. python/tvm/relay/qnn/op/canonicalizations.py or
+//      python/tvm/relay/qnn/op/legalizations.py
 RELAY_REGISTER_OP("qnn.rsqrt")
     .describe("Elementwise rsqrt for quantized tensors.")
     .set_num_inputs(5)

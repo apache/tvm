@@ -160,18 +160,3 @@ def create_integer_lookup_op(
     result = relay.gather(lookup_table, -1, index_tensor)
     result = relay.reshape_like(result, input_arg)
     return result
-
-
-@register_qnn_canonicalize("qnn.rsqrt")
-def canonicalize_rsqrt(attrs, args, arg_types):
-    """Canonicalization for rsqrt"""
-    return create_integer_lookup_op(
-        input_arg=args[0],
-        floating_point_func=lambda arr: 1 / np.sqrt(arr),
-        in_scale=args[1],
-        in_zero_point=args[2],
-        out_scale=args[3],
-        out_zero_point=args[4],
-        in_dtype=arg_types[0].dtype,
-        out_dtype=arg_types[0].dtype,
-    )
