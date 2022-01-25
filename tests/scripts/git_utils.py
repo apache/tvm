@@ -88,8 +88,8 @@ def parse_remote(remote: str) -> Tuple[str, str]:
         return m.groups()
 
 
-def git(command):
+def git(command, **kwargs):
     command = ["git"] + command
     print("Running", command)
-    proc = subprocess.run(command, stdout=subprocess.PIPE, check=True)
+    proc = subprocess.run(command, stdout=subprocess.PIPE, check=True, **kwargs)
     return proc.stdout.decode().strip()
