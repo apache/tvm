@@ -29,6 +29,7 @@
 
 #include <array>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -83,6 +84,18 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   int GetParamsGroupPipelineMap(const std::string& name);
   /*!
+   * \brief Use the input name to set the input data of pipeline executor.
+   * \param input_name The input name.
+   * \param data_in The input data.
+   */
+  void SetInput(std::string input_name, DLTensor* data_in);
+  /*!
+   * \brief Use the input name to get the input data.
+   * \param input name The input name.
+   * \return Return input data.
+   */
+  NDArray GetInput(std::string input_name);
+  /*!
    * \brief Use the parameters group name to get the specific backend runtime then use
    *  the param_key_name to set param data for the said backend runtime.
    * \param param_group_name The parameters group name.
@@ -96,6 +109,22 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \return The number of outputs.
    */
   int NumOutputs() const { return num_outputs_; }
+  /*!
+   * \brief Run the pipeline executor.
+   * \param serialized_mode Whether run the pipeline executor in serialized mode.
+   */
+  void Run(bool serialized_mode);
+  /*!
+   * \brief Stop the pipeline executor.
+   */
+  void Stop();
+  /*!
+   * \brief A pipeline input with a specific name correspond with a input of a specific
+   *  backend module, this function return a module index and a input index in "pair"
+   *  form for a input name.
+   *  return Return a module index and a input index.
+   */
+  std::pair<int, int> GetInputIndex(const std::string& name);
   /*!\brief Load the module files information.*/
   ModuleConfig& LoadModuleConfig(dmlc::JSONReader* reader) {
     reader->BeginArray();
@@ -145,6 +174,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   ModuleConfig mod_config_;
   /*!\brief How many outputs are in this pipeline executor.*/
   size_t num_outputs_ = 0;
+  /*!The list of backend runtime module.*/
+  std::vector<std::shared_ptr<BackendRuntime>> runtimes_;
   /*!\brief Json loader.*/
   void LoadConfig(dmlc::JSONReader* reader) {
     reader->BeginObject();

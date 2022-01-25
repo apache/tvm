@@ -16,26 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "pipeline_scheduler.h"
 
-#include <utility>
-#include <vector>
-namespace tvm {
-namespace runtime {
 /*!
- * \brief Initialize the pipeline.
- * \param modules The list of graph executor modules.
- * \param pipeline_conf The dependency information of each graph executor module.
+ * \file ptx_mma.h
+ * \brief MMA code generation with inlined PTX code.
  */
-std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
-    const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config) {
-  std::vector<std::shared_ptr<BackendRuntime>> runtimes;
-  graph_modules_ = modules;
-  for (size_t i = 0; i < graph_modules_.size(); i++) {
-    auto runItem = std::make_shared<BackendRuntime>(graph_modules_[i], i);
-    runtimes.push_back(runItem);
-  }
-  return runtimes;
-}
-}  // namespace runtime
+#ifndef TVM_TARGET_SOURCE_PTX_MMA_H_
+#define TVM_TARGET_SOURCE_PTX_MMA_H_
+
+#include <tvm/runtime/logging.h>
+
+#include <string>
+#include <tuple>
+
+namespace tvm {
+namespace codegen {
+
+std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
+                             const std::string& B_layout, const std::string& A_dtype,
+                             const std::string& B_dtype, const std::string& C_dtype,
+                             const std::string& a_ref, const std::string& a_bias,
+                             const std::string& b_ref, const std::string& b_bias,
+                             const std::string& c_ref, const std::string& c_bias, bool saturate);
+
+}  // namespace codegen
 }  // namespace tvm
+
+#endif  // TVM_TARGET_SOURCE_PTX_MMA_H_

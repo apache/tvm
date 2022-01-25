@@ -83,6 +83,59 @@ struct QnnBinaryOpArguments {
 };
 
 /*
+ * Number of inputs for the Qnn unary operators.
+ */
+static constexpr int kNumQnnUnaryOpInputs = 5;
+
+/*
+ * Number of expected arg types.
+ */
+static constexpr int kNumQnnUnaryOpArgTypes = 6;
+
+/*
+ * \brief Simple struct to organize the inputs to the Qnn
+ * unary operators. The main reason to have a struct
+ * is to be able to perform the common checks needed at a
+ * central location.
+ */
+struct QnnUnaryOpArguments {
+  Expr x;
+  Expr scale;
+  Expr zero_point;
+  Expr output_scale;
+  Expr output_zero_point;
+
+  explicit QnnUnaryOpArguments(const Array<Expr>& new_args) {
+    ICHECK_EQ(new_args.size(), kNumQnnUnaryOpInputs);
+    int idx = 0;
+    x = new_args[idx++];
+    scale = new_args[idx++];
+    zero_point = new_args[idx++];
+    output_scale = new_args[idx++];
+    output_zero_point = new_args[idx++];
+    ICHECK_EQ(idx, kNumQnnUnaryOpInputs);
+  }
+};
+
+/*
+ * \brief Simple structure to hold the input tensor's dtype
+ * and shape. This structure allows a common point to do
+ * all the validation checks for Qnn unary operators.
+ */
+struct QnnUnaryOpTensorType {
+  DataType dtype;
+  Array<PrimExpr> shape;
+
+  explicit QnnUnaryOpTensorType(const Array<tvm::relay::Type>& arg_types, const int32_t arg_idx) {
+    ICHECK_EQ(arg_types.size(), kNumQnnUnaryOpArgTypes);
+    auto tensor_type = arg_types[arg_idx].as<TensorTypeNode>();
+    ICHECK(tensor_type != nullptr);
+    dtype = tensor_type->dtype;
+    shape = tensor_type->shape;
+  }
+};
+
+/*
  * \brief Simple structure to hold the input tensor's dtype
  * and shape. This structure allows a common point to do
  * all the validation checks for Qnn binary operators.

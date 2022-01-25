@@ -292,8 +292,17 @@ def test_pipeline():
             assert input_map[0] == "0" and input_map[1] == "data_0"
             module_index = pipeline_module_test.get_params_group_pipeline_map("param_0")
             assert module_index == 1
-            # Use the parameters group name to set parameters.
+            # Using the parameters group name to set parameters.
             pipeline_module_test.set_params("param_0", customized_parameters)
+            # Getting the result from the pipeline executor
+            data_a = np.full(dshape, 1).astype("float32")
+            data_b = np.full(dshape, 2).astype("float32")
+            pipeline_module_test.set_input("data_a", data_a)
+            pipeline_module_test.set_input("data_b", data_b)
+            input_data = pipeline_module_test.get_input("data_b")
+            tvm.testing.assert_allclose(data_b, input_data.numpy())
+            input_data = pipeline_module_test.get_input("data_a")
+            tvm.testing.assert_allclose(data_a, input_data.numpy())
 
 
 if __name__ == "__main__":
