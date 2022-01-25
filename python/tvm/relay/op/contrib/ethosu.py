@@ -17,8 +17,8 @@
 # pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
-
 from typing import Dict, List, Tuple, Callable, Optional
+
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -1239,16 +1239,17 @@ class Resize2dParams:
         Checks whether image.resize2d has compatible attributes with HW.
         """
 
-        def check_compatible_size(mode, method, upscale_size, height, width):
+        def check_compatible_size(mode, method, upscale_size, ifm_size):
             """Checking the provided upscale_size is compatible with the NPU. The NPU only
             supports upsampling when the upsampling size is 2 * input_size, or when there is
             no upsampling to be done, so check that this is the case. In the special case of
             resize_bilinear with align_corners=True, the NPU only supports an upsampling
             size of 2 * input_size - 1."""
             delta = 1 if mode == "align_corners" and method == "linear" else 0
-            upscale_height = height * 2 - delta
-            upscale_width = width * 2 - delta
-            return upscale_height == int(upscale_size[0]) and upscale_width == int(upscale_size[1])
+            upscale_size = np.array(upscale_size)
+            ifm_size = np.array(ifm_size)
+            ifm_upscaled = ifm_size * 2 - delta
+            return (ifm_upscaled == upscale_size).all() or (ifm_size == upscale_size).all()
 
         tensor_params = [self.ifm, self.ofm]
         if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
@@ -1265,8 +1266,7 @@ class Resize2dParams:
             self.coordinate_transformation_mode,
             self.method,
             self.size,
-            self.ifm.shape[1],
-            self.ifm.shape[2],
+            self.ifm.shape[1:3],
         ):
             return False
         if self.rounding_method != "":

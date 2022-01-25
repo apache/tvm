@@ -1274,6 +1274,8 @@ class Resize2dRewriter(DFPatternCallback):
     Convert ethos-u.resize2d composite function to an equivalent operation that
     performs the relevant upsampling operation.
 
+    Case 1: No upsampling (upscale factor of 1):
+        Identity.
     Case 1: Nearest neighbor upsampling:
         1x1 pooling with 2x2 nearest neighbor upsampling.
     Case 2: Bilinear upsampling:
@@ -1296,23 +1298,32 @@ class Resize2dRewriter(DFPatternCallback):
         ifm_shape = params.ifm.shape
         in_channels = ifm_shape[-1]
         reduced_op = params.ifm.tensor
+        current_size = np.array(ifm_shape[1:3])
+        output_size = np.array(params.size)
 
-        if params.method == "nearest_neighbor":
-            pool_shape = [1, 1]
-            padding = [0, 0, 0, 0]
-            rounding_mode = "TFL"
-        else:  # Bilinear upsampling
+        if (current_size == output_size).all():
+            return ethosu_ops.ethosu_identity(
+                reduced_op,
+                lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+            )
+
+        padding = [0, 0, 0, 0]
+        rounding_mode = "TFL"
+        pool_shape = [1, 1]
+        if params.method == "linear":
             pool_shape = [2, 2]
             rounding_mode = "NATURAL"
-            # For align_corners use VALID padding, otherwise use SAME padding
-            if params.coordinate_transformation_mode == "align_corners":
-                padding = [0, 0, 0, 0]
-            else:
+            if params.coordinate_transformation_mode == "asymmetric":
+                # Use SAME padding.
                 ypad = Resize2dRewriter.get_required_padding(ifm_shape[1])
                 xpad = Resize2dRewriter.get_required_padding(ifm_shape[2])
                 padding = [ypad // 2, xpad // 2, (ypad + 1) // 2, (xpad + 1) // 2]
 
-        reduced_op = ethosu_ops.ethosu_pooling(
+        return ethosu_ops.ethosu_pooling(
             ifm=reduced_op,
             lut=lut,
             pooling_type="AVG",
@@ -1327,8 +1338,6 @@ class Resize2dRewriter(DFPatternCallback):
             upscale="NEAREST",
             rounding_mode=rounding_mode,
         )
-
-        return reduced_op
 
     @staticmethod
     def get_required_padding(input_size: int, pool_size: int = 2) -> int:

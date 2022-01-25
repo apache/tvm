@@ -1608,6 +1608,7 @@ def test_multiple_requantize_offload():
     [
         [(1, 2, 2, 1), (4, 4)],
         [(1, 4, 7, 3), (8, 14)],
+        [(1, 3, 5, 3), (3, 5)],
     ],
 )
 def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
@@ -1647,21 +1648,25 @@ def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
         return mod
 
     def verify(ext_func):
-        identity = ext_func.body
-        in_var = identity.args[0]
+        op = ext_func.body
+        in_var = op.args[0]
 
         # check IFM
         assert tuple(in_var.checked_type.shape) == ifm_shape
         assert in_var.checked_type.dtype == dtype
 
         # check OFM
-        attrs = dict(identity.attrs)
+        attrs = dict(op.attrs)
         out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
-        assert tuple(identity.checked_type.shape) == out_shape
-        assert identity.checked_type.dtype == dtype
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
 
         # Check Op attributes
-        assert attrs["upscale"] == "NEAREST"
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
+        else:
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
 
     rewriter = legalize.Resize2dRewriter()
     pattern_table = [
@@ -1687,6 +1692,7 @@ def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
         [(1, 4, 7, 3), (8, 14), False],
         [(1, 2, 2, 1), (3, 3), True],
         [(1, 4, 7, 3), (7, 13), True],
+        [(1, 3, 5, 3), (3, 5), False],
     ],
 )
 def test_tflite_resize2d_bilinear(ifm_shape, size, align_corners):
@@ -1725,28 +1731,31 @@ def test_tflite_resize2d_bilinear(ifm_shape, size, align_corners):
         return mod
 
     def verify(ext_func):
-        avg_pool = ext_func.body
-        in_var = avg_pool.args[0]
+        op = ext_func.body
+        in_var = op.args[0]
 
         # check IFM
         assert tuple(in_var.checked_type.shape) == ifm_shape
         assert in_var.checked_type.dtype == dtype
 
         # check OFM
-        attrs = dict(avg_pool.attrs)
+        attrs = dict(op.attrs)
         out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
-        assert tuple(avg_pool.checked_type.shape) == out_shape
-        assert avg_pool.checked_type.dtype == dtype
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
 
         # Check Op attributes
-        assert attrs["pooling_type"] == "AVG"
-        assert attrs["upscale"] == "NEAREST"
-
-        # Check padding
-        if align_corners:
-            assert list(attrs["padding"]) == [0, 0, 0, 0]
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
         else:
-            assert list(attrs["padding"]) == [0, 0, 1, 1]
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
+
+            # Check padding
+            if align_corners:
+                assert list(attrs["padding"]) == [0, 0, 0, 0]
+            else:
+                assert list(attrs["padding"]) == [0, 0, 1, 1]
 
     rewriter = legalize.Resize2dRewriter()
     pattern_table = [

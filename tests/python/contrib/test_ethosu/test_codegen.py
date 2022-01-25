@@ -1023,10 +1023,7 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape,size",
-    [
-        [(1, 2, 2, 1), (4, 4)],
-        [(1, 4, 7, 3), (8, 14)],
-    ],
+    [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
 )
 def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
     align_corners = False
@@ -1048,6 +1045,7 @@ def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
         [(1, 4, 7, 3), (8, 14), False],
         [(1, 2, 2, 1), (3, 3), True],
         [(1, 4, 7, 3), (7, 13), True],
+        [(1, 3, 5, 3), (3, 5), False],
     ],
 )
 def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
