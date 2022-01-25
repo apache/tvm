@@ -175,7 +175,7 @@ class TaskExtraction(MetaScheduleContext):
 
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
-    """An integration context that allows application of historically best records from a database"""
+    """An integration context that allows application of historically best record from database"""
 
     database: Database
     """ The database to be queried from"""
