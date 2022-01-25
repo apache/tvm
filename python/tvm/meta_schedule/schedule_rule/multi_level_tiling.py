@@ -68,7 +68,6 @@ class MultiLevelTiling(ScheduleRule):
         self,
         structure: str,
         tile_binds: Optional[List[str]] = None,
-        use_tensor_core: bool = False,
         max_innermost_factor: Optional[int] = None,
         vector_load_lens: Optional[List[int]] = None,
         reuse_read: Optional[ReuseType] = None,
