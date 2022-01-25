@@ -21,17 +21,14 @@ from typing import Callable, Optional
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
-
 from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
 from utils import ref_funcs
-
 
 executor_kind = tvm.testing.parameter("graph", "debug")
 
@@ -1267,12 +1264,12 @@ class TestScatterAdd:
     ],
 )
 def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
-    def verify_gather(data, axis, indices, ref_res):
+    def verify_gather(data, axis, indices, ref_res, indices_dtype="int32"):
         data = np.asarray(data, dtype="float32")
-        indices = np.asarray(indices, dtype="int32")
+        indices = np.asarray(indices, dtype=indices_dtype)
         ref_res = np.asarray(ref_res)
         d = relay.var("x", relay.TensorType(data.shape, "float32"))
-        i = relay.var("y", relay.TensorType(indices.shape, "int32"))
+        i = relay.var("y", relay.TensorType(indices.shape, indices_dtype))
         z = relay.gather(d, axis, i)
 
         func = relay.Function([d, i], z)
@@ -1283,6 +1280,7 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather(data, axis, indices, ref_res)
+    verify_gather(data, axis, indices, ref_res, indices_dtype="uint32")
 
 
 def test_gather_nd(target, dev, executor_kind):
