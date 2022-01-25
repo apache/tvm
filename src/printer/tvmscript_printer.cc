@@ -1485,9 +1485,6 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     header_attr << PrintSep(attrs, Doc::Text(", ")) << "})";
   }
   // print buffer declarations(buffers not defined by buffer_bind or buffer_allocate)
-
-  // TODO: Now that T.allocate returns a buffer object, it shouldn't
-  // have a buffer_decl anymore.
   Doc header_buf;
   std::vector<const BufferNode*> bufs;
   for (const auto& it : memo_buf_) {

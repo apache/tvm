@@ -515,9 +515,17 @@ Buffer::Buffer(Var data, DataType dtype, Array<PrimExpr> shape, Array<PrimExpr> 
   if (storage_dtype == DataType::Bool()) {
     storage_dtype = DataType::Int(8);
   }
-  ICHECK(IsPointerType(data->type_annotation, storage_dtype))
-      << "Buffer data field expect to have the right pointer type annotation"
-      << " annotation=" << data->type_annotation << ", storage_dtype=" << storage_dtype;
+  // The buffer dtype may differ from the dtype of the underlying
+  // allocation, such as a single allocation that backs multiple
+  // tensors without a common datatype.  Therefore, we check that the
+  // data pointer is a pointer, but not the exact type of the
+  // pointed-to values.
+  ICHECK(data->type_annotation.defined())
+      << "Variable " << data->name_hint << " is missing a type annotation.";
+  ICHECK(data->type_annotation.as<PointerTypeNode>())
+      << "Variable " << data->name_hint << " is not a pointer.";
+  ICHECK(data->type_annotation.as<PointerTypeNode>()->element_type.as<PrimTypeNode>())
+      << "Variable " << data->name_hint << " does not point to a primitive.";
 
   auto n = make_object<BufferNode>();
   n->data = std::move(data);
