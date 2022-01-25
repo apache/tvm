@@ -33,14 +33,17 @@ import tvm
 from tvm import relay
 from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.backend.contrib.ethosu.codegen import LayoutOptimizer
+from tvm.relay.backend.contrib.ethosu.codegen import relay_to_tir_func
 
 from . import infra
 
 
-def _run_pass(expr, relay_pass):
-    """Create IRModule and run Relay pass."""
+def _optimize(expr, optimize=True):
+    """Create IRModule and run layout optimizer pass."""
     mod = tvm.IRModule.from_expr(expr)
-    mod = relay_pass(mod)
+    mod = relay.transform.InferType()(mod)
+    if optimize:
+        mod = LayoutOptimizer()(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
@@ -111,8 +114,8 @@ def test_single_convolution():
         )
         return relay.Function(relay.analysis.free_vars(x), x)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -144,8 +147,8 @@ def test_multiple_convolution():
             )
         return relay.Function(relay.analysis.free_vars(x), x)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -176,8 +179,8 @@ def test_multiple_depthwise_convolution():
             )
         return relay.Function(relay.analysis.free_vars(x), x)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -222,8 +225,8 @@ def test_ignore_transform_operations():
         )
         return relay.Function(relay.analysis.free_vars(conv_2), conv_2)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -268,8 +271,8 @@ def test_ignore_concatenate():
         )
         return relay.Function(relay.analysis.free_vars(conv_2), conv_2)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -322,8 +325,8 @@ def test_ignore_concatnate_with_layout_transform():
         )
         return relay.Function(relay.analysis.free_vars(pool_3), pool_3)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -368,8 +371,8 @@ def test_multiple_inputs():
         )
         return relay.Function(relay.analysis.free_vars(conv), conv)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -413,8 +416,8 @@ def test_multiple_outputs():
         concat = relay.concatenate(poolings, axis=0)
         return relay.Function(relay.analysis.free_vars(concat), concat)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -467,8 +470,8 @@ def test_multiple_binary_elementwise():
         )
         return relay.Function(relay.analysis.free_vars(add_3), add_3)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -500,8 +503,8 @@ def test_multiple_pooling():
             )
         return relay.Function(relay.analysis.free_vars(x), x)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -530,8 +533,8 @@ def test_multiple_unary_elementwise():
             )
         return relay.Function(relay.analysis.free_vars(x), x)
 
-    a = _run_pass(get_graph(), LayoutOptimizer())
-    b = _run_pass(get_graph(get_expected=True), relay.transform.InferType())
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
     _assert_structural_equal(a, b)
 
 
@@ -617,6 +620,33 @@ def test_same_output_multiple_pooling():
         return converter.convert()
 
     _compile_and_compare_model(create_model(), ifm_shape, dtype)
+
+
+def test_layout_optimizer_runs_in_compilation_pipeline():
+    """Checks that the layout optimization pass runs as part of the NPU compilation
+    pipeline."""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 4, 4, 4), dtype="int8")
+        for _ in range(2):
+            x = relay.nn.max_pool2d(x, layout="NHWC")
+
+        func = relay.Function(relay.analysis.free_vars(x), x)
+        return tvm.IRModule.from_expr(func)
+
+    mod = get_graph()
+    mod = partition_for_ethosu(mod)
+
+    external_gv_name = mod["main"].body.op.name_hint
+    external_func = mod[external_gv_name]
+    prim_func = relay_to_tir_func(external_func)
+
+    # Check for hints in the TIR prim func that the layout optimization pass has ran
+    ops = prim_func.body.body.seq
+    max_pool1, max_pool2 = ops
+
+    assert str(max_pool1.value.args[31]) == '"NHCWB16"'
+    assert str(max_pool2.value.args[14]) == '"NHCWB16"'
 
 
 if __name__ == "__main__":

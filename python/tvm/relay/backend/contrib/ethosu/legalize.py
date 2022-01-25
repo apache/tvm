@@ -230,7 +230,7 @@ class LegalizeTanh:
 
 def sigmoid_calc_func(x: float) -> float:
     """Function to calculate the values for sigmoid"""
-    # Thse limits are inherited from TFLite
+    # These limits are inherited from TFLite
     upper_limit = 8.0
     lower_limit = -8.0
 
@@ -290,8 +290,6 @@ class Conv2DRewriter(DFPatternCallback):
             "OHWI": params.weights.shape[1:3],
             "HWOI": params.weights.shape[0:2],
         }
-        if str(params.weights.layout) not in kernel_size_map.keys():
-            raise UnsupportedLayout(str(params.weights.layout))
         activation_map = {"clip": "CLIP"}
         weight_to_ohwi_transform_map = {"HWIO": [3, 0, 1, 2]}
         weights_values = params.weights.values
@@ -375,13 +373,9 @@ class DepthwiseConv2DRewriter(DFPatternCallback):
         channels_map = {
             "NHWC": 3,
         }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
         kernel_shape_map = {
             "HWOI": params.weights.shape[0:2],
         }
-        if str(params.weights.layout) not in kernel_shape_map.keys():
-            raise UnsupportedLayout(str(params.weights.layout))
 
         weights_values = params.weights.values
         weights_values_ohwi = np.moveaxis(weights_values, [0, 1, 2, 3], [1, 2, 0, 3])
@@ -470,8 +464,6 @@ class PoolingRewriter(DFPatternCallback):
         channels_map = {
             "NHWC": 3,
         }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
 
         activation_map = {"clip": "CLIP"}
         if params.activation:
@@ -632,11 +624,6 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[1] if params.reversed_operands else post.args[0]
         params.ifm2.tensor = post.args[0] if params.reversed_operands else post.args[1]
-        channels_map = {
-            "NHWC": 3,
-        }
-        if str(params.ofm.layout) not in channels_map.keys():
-            raise UnsupportedLayout(str(params.ofm.layout))
 
         activation_map = {"clip": "CLIP"}
         if params.activation:
@@ -665,8 +652,8 @@ class BinaryElementwiseRewriter(DFPatternCallback):
             ifm2_zero_point=int(params.ifm2.q_params.zero_point),
             ofm_scale=float(params.ofm.q_params.scale_f32),
             ofm_zero_point=int(params.ofm.q_params.zero_point),
-            ifm_channels=params.ifm.shape[-1],
-            ifm2_channels=params.ifm2.shape[-1],
+            ifm_channels=params.ifm.shape[-1] if params.ifm.shape else 1,
+            ifm2_channels=params.ifm2.shape[-1] if params.ifm2.shape else 1,
             reversed_operands=params.reversed_operands,
             ofm_dtype=params.ofm.dtype,
             activation=activation,
@@ -963,9 +950,6 @@ class UnaryElementwiseRewriter(DFPatternCallback):
         params = self.params_class(post.op.body)
         params.ifm.tensor = post.args[0]
 
-        if str(params.ofm.layout) != "NHWC":
-            raise UnsupportedLayout(str(params.ofm.layout))
-
         activation_map = {"clip": "CLIP"}
         if params.activation:
             activation = activation_map[params.activation.op.name]
@@ -1242,6 +1226,49 @@ class LegalizeConcat:
         pass
 
 
+class RequantizeRewriter(DFPatternCallback):
+    """Convert ethos-u.requantize composite function to an identity operation."""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.RequantizeParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.RequantizeParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        lut = relay.const([], "int8")
+
+        return ethosu_ops.ethosu_identity(
+            ifm=params.ifm.tensor,
+            lut=lut,
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+        )
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeRequantize:
+    """This is the pass that wraps RequantizeRewriter."""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(RequantizeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1271,6 +1298,7 @@ class LegalizeEthosU:
         mod = LegalizeMean()(mod)
         mod = LegalizeConcat()(mod)
         mod = LegalizeSigmoid()(mod)
+        mod = LegalizeRequantize()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

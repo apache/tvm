@@ -27,11 +27,15 @@ namespace runtime {
  * \param modules The list of graph executor modules.
  * \param pipeline_conf The dependency information of each graph executor module.
  */
-size_t PipelineScheduler::PipelineInit(const std::vector<Module>& modules,
-                                       const ConfigPipelineExecution& pipeline_config) {
+std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
+    const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config) {
+  std::vector<std::shared_ptr<BackendRuntime>> runtimes;
   graph_modules_ = modules;
-  int num_output = pipeline_config.GetGlobalOutputNum();
-  return num_output;
+  for (size_t i = 0; i < graph_modules_.size(); i++) {
+    auto runItem = std::make_shared<BackendRuntime>(graph_modules_[i], i);
+    runtimes.push_back(runItem);
+  }
+  return runtimes;
 }
 }  // namespace runtime
 }  // namespace tvm

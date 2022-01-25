@@ -1361,6 +1361,25 @@ constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_
  */
 constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 
+/*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
+constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
+
+/*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
+constexpr const char* meta_schedule_random_compute_producer =
+    "meta_schedule.random_compute_producer";
+
+/*! \brief Mark auto-parallel setting on the block. */
+constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
+
+/*! \brief Mark auto-vectorize setting on the block. */
+constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

@@ -16,3 +16,7 @@
 # under the License.
 """The tvm.meta_schedule.postproc package."""
 from .postproc import Postproc, PyPostproc
+from .disallow_dynamic_loop import DisallowDynamicLoop
+from .rewrite_reduction_block import RewriteReductionBlock
+from .rewrite_unbound_block import RewriteUnboundBlock
+from .verify_gpu_code import VerifyGPUCode

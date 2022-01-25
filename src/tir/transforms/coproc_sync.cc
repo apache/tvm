@@ -450,7 +450,7 @@ class CoProcInstDepDetector : public StmtVisitor {
     std::unordered_set<int> exit_ctx;
     // existing pop performed at enter
     std::vector<std::pair<int, int> > enter_pop;
-    // existing push peformed at exit
+    // existing push performed at exit
     std::vector<std::pair<int, int> > exit_push;
     // clear the state
     void clear() {

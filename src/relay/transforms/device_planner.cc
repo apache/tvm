@@ -334,7 +334,7 @@ class RewriteOnDevices : public ExprMutator {
     Expr tuple = VisitExpr(tuple_get_item_node->tuple);
     OnDeviceProps props = GetOnDeviceProps(tuple);
 
-    Expr tuple_get_item = WithFields(GetRef<TupleGetItem>(tuple_get_item_node), std::move(tuple));
+    Expr tuple_get_item = WithFields(GetRef<TupleGetItem>(tuple_get_item_node), tuple);
     if (props.body.defined() && props.is_normal()) {
       VLOG(2) << "wrapping tuple get item:" << std::endl
               << PrettyPrint(GetRef<TupleGetItem>(tuple_get_item_node)) << std::endl
@@ -363,8 +363,8 @@ class RewriteOnDevices : public ExprMutator {
     }
     expr = VisitExpr(expr);
     for (auto itr = bindings.rbegin(); itr != bindings.rend(); ++itr) {
-      expr = WithFields(/*let=*/std::move(std::get<0>(*itr)), /*opt_var=*/{},
-                        /*opt_value=*/std::move(std::get<1>(*itr)), /*opt_body=*/std::move(expr));
+      expr = WithFields(/*let=*/std::get<0>(*itr), /*opt_var=*/{},
+                        /*opt_value=*/std::get<1>(*itr), /*opt_body=*/expr);
     }
     return expr;
   }
@@ -378,7 +378,7 @@ class RewriteOnDevices : public ExprMutator {
               << "to be fixed to VirtualDevice " << props.virtual_device;
       body = MaybeOnDeviceFixed(props.body, props.virtual_device);
     }
-    return WithFields(GetRef<Function>(function_node), function_node->params, std::move(body));
+    return WithFields(GetRef<Function>(function_node), function_node->params, body);
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
@@ -990,7 +990,7 @@ class DeviceCapturer : public ExprMutator {
     for (const auto& field : tuple_node->fields) {
       fields.push_back(VisitChild(tuple, field));
     }
-    return WithFields(std::move(tuple), std::move(fields));
+    return WithFields(tuple, fields);
   }
 
   Expr VisitExpr_(const FunctionNode* function_node) final {
@@ -1025,8 +1025,7 @@ class DeviceCapturer : public ExprMutator {
         /*expected_virtual_device=*/result_virtual_device,
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
 
-    Function func = WithFields(GetRef<Function>(function_node), std::move(function_node->params),
-                               std::move(body));
+    Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
     return FunctionOnDevice(func, std::move(param_virtual_devices),
                             std::move(result_virtual_device));
   }
@@ -1102,9 +1101,9 @@ class DeviceCapturer : public ExprMutator {
     if (call_node->op == CallLoweredOp()) {
       Call new_call =
           CallLowered(Downcast<GlobalVar>(op), args, /*call_lowered_attrs=*/{}, /*span=*/{});
-      return WithFields(call, std::move(new_call->op), std::move(new_call->args));
+      return WithFields(call, new_call->op, new_call->args);
     } else {
-      return WithFields(call, std::move(op), std::move(args));
+      return WithFields(call, op, args);
     }
   }
 
@@ -1145,33 +1144,32 @@ class DeviceCapturer : public ExprMutator {
     Expr cond = VisitChild(ife, if_node->cond);
     Expr true_branch = VisitChild(ife, if_node->true_branch);
     Expr false_branch = VisitChild(ife, if_node->false_branch);
-    return WithFields(std::move(ife), std::move(cond), std::move(true_branch),
-                      std::move(false_branch));
+    return WithFields(ife, cond, true_branch, false_branch);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* tuple_get_item_node) final {
     auto tuple_get_item = GetRef<TupleGetItem>(tuple_get_item_node);
     Expr tuple = VisitChild(tuple_get_item, tuple_get_item_node->tuple);
-    return WithFields(std::move(tuple_get_item), std::move(tuple));
+    return WithFields(tuple_get_item, tuple);
   }
 
   Expr VisitExpr_(const RefCreateNode* ref_create_node) final {
     auto ref_create = GetRef<RefCreate>(ref_create_node);
     Expr value = VisitChild(ref_create, ref_create_node->value);
-    return WithFields(std::move(ref_create), std::move(value));
+    return WithFields(ref_create, value);
   }
 
   Expr VisitExpr_(const RefReadNode* ref_read_node) final {
     auto ref_read = GetRef<RefRead>(ref_read_node);
     Expr ref = VisitChild(ref_read, ref_read_node->ref);
-    return WithFields(std::move(ref_read), std::move(ref));
+    return WithFields(ref_read, ref);
   }
 
   Expr VisitExpr_(const RefWriteNode* ref_write_node) final {
     auto ref_write = GetRef<RefWrite>(ref_write_node);
     Expr ref = VisitChild(ref_write, ref_write_node->ref);
     Expr value = VisitChild(ref_write, ref_write_node->value);
-    return WithFields(std::move(ref_write), std::move(ref), std::move(value));
+    return WithFields(ref_write, ref, value);
   }
 
   Expr VisitExpr_(const MatchNode* match_node) final {
@@ -1184,7 +1182,7 @@ class DeviceCapturer : public ExprMutator {
       Expr rhs = VisitChild(match, clause->rhs);
       clauses.push_back(Clause(lhs, rhs));
     }
-    return WithFields(std::move(match), std::move(data), std::move(clauses));
+    return WithFields(match, data, clauses);
   }
 
   VirtualDevice GetVirtualDevice(const Expr& expr) {

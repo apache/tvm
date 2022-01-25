@@ -109,6 +109,33 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
                          attrs.operator->(), input_shape, attrs->out_dtype);
 }
 
+Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,
+                     const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
+                     const DequantizeAttrs* attrs);
+
+static inline Expr Dequantize(const Expr& data, const Expr& input_scale,
+                              const Expr& input_zero_point, const Array<tvm::relay::Type>& types,
+                              const int& axis = -1) {
+  auto attrs = make_object<DequantizeAttrs>();
+  attrs->axis = std::move(axis);
+
+  return DequantizeLower(data, input_scale, input_zero_point, types, attrs.operator->());
+}
+
+Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
+                   const Expr& output_zero_point, const Array<tvm::relay::Type>& types,
+                   const QuantizeAttrs* attrs);
+
+static inline Expr Quantize(const Expr& data, const Expr& output_scale,
+                            const Expr& output_zero_point, const DataType& out_dtype,
+                            const Array<tvm::relay::Type>& types, const int& axis = -1) {
+  auto attrs = make_object<QuantizeAttrs>();
+  attrs->axis = std::move(axis);
+  attrs->out_dtype = std::move(out_dtype);
+
+  return QuantizeLower(data, output_scale, output_zero_point, types, attrs.operator->());
+}
+
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
   auto* value_ptr = tir::as_const_int(x);
   ICHECK(value_ptr) << "Expr is not a constant int";

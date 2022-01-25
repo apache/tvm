@@ -267,6 +267,39 @@ BlockRealize CheckGetSingleChildBlockRealizeOnSRefTree(const ScheduleState& self
  */
 BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sref);
 
+/*!
+ * \brief Get the IterVarType of the specific loop, according to the blocks it's bound to
+ * \param loop_sref The loop to be checked
+ * \return The IterVarType of the specific loop
+ */
+IterVarType GetLoopIterType(const StmtSRef& loop_sref);
+
+/*!
+ * \brief Get the lowest common ancestor of an array of blocks or loops on the sref tree
+ * \param srefs The block srefs or loop srefs whose lowest common ancestor is to be queried
+ * \return The lowest common ancestor of the input block srefs or loop srefs
+ * \note The input array is required to have at least one sref
+ */
+StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs);
+
+/*!
+ * \brief Checks if the given block has been applied by multi-level tiling. We check this by
+ *        examine the block's annotation.
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block has been multi-level tiled.
+ */
+bool HasBeenMultiLevelTiled(const StmtSRef& block_sref);
+
+/*!
+ * \brief Collect all the feasible compute-at locations of the input block
+ * \param self The schedule state
+ * \param block_sref The block whose compute-at locations are to be collected
+ * \return All the feasible compute-at locations of the input block, given as an array of loop srefs
+ *         and an array of their indices among the outer loops of the input block
+ */
+std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref);
+
 /******** Producer-consumer relation ********/
 
 /*!
@@ -486,6 +519,44 @@ std::tuple</*exists=*/bool,
            /*no_const_read=*/bool,
            /*no_shift_read=*/bool>
 AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region);
+
+/*!
+ * \brief Check if the block is a data parallel block, i.e. all the block vars are data parallel
+ * \param block_sref The block to be checked
+ * \return A boolean flag indicating if the block is a data parallel block
+ */
+bool IsSpatial(const StmtSRef& block_sref);
+
+/*!
+ * \brief Check whether a block has a trivial binding, i.e. each block var is bound to a outer loop,
+ * from outer to inner.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean flag indicating if the block has a trivial binding
+ */
+bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if the given block has data reuse opportunity and thus multi-level tiling is
+ * beneficial.
+ * \param self The schedule state
+ * \param block_sref The block to be checked
+ * \return A boolean indicating whether the block has data reuse opportunity
+ */
+bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if the rfactor or cross thread reduction is beneficial to the given block.
+ * \param self The schedule state.
+ * \param block_sref The block to be checked.
+ * \param max_parallel_extent The maximum parallel jobs on the target.
+ * \param max_parallel_basic The maximum cores on the target.
+ * \return A boolean indicating whether the operation is beneficial.
+ */
+bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
+                                        const tir::StmtSRef& block_sref,  //
+                                        int64_t max_parallel_extent,      //
+                                        int64_t max_parallel_basic);
 
 }  // namespace tir
 }  // namespace tvm
