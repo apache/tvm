@@ -374,10 +374,10 @@ inline Bool operator&&(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() && b.operator bool());
 }
 
-inline Bool operator==(const Bool& a, bool b) { return Bool(a.operator bool() == b); }
-inline Bool operator==(bool a, const Bool& b) { return Bool(a == b.operator bool()); }
-inline Bool operator==(const Bool& a, const Bool& b) {
-  return Bool(a.operator bool() == b.operator bool());
+inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
+inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
+inline bool operator==(const Bool& a, const Bool& b) {
+  return a.operator bool() == b.operator bool();
 }
 
 /*!
