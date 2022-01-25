@@ -123,21 +123,17 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const auto* param = attrs.as<EthosuPoolingAttrs>();
   ICHECK(param != nullptr) << "EthosuPoolingAttrs cannot be nullptr.";
 
+  const String operator_name = "ethosu_pooling";
+
   if (param->pooling_type != "AVG" && param->pooling_type != "MAX") {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected pooling_type 'AVG' or 'MAX' but was "
-        << param->pooling_type);
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected " << operator_name
+                                     << " type 'AVG' or 'MAX' but was " << param->pooling_type);
     return false;
   }
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: Expected pool type(uint8) or type(int8) for ifm but was "
-        << ifm->dtype);
-    return false;
-  }
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm",
+                param->pooling_type);
 
   const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
   if (upscale_methods.find(param->upscale) == upscale_methods.end()) {

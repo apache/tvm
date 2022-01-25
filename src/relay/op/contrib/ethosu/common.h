@@ -27,6 +27,8 @@
 
 #include <tvm/relay/expr.h>
 
+#include <unordered_set>
+
 namespace tvm {
 namespace relay {
 namespace op {
@@ -64,6 +66,40 @@ Array<IndexExpr> EthosuInferKernelOutput(Array<IndexExpr> ifm_shape, String ifm_
  * \param ifm_layout The layout of the Input Feature Map.
  */
 Array<IndexExpr> EthosuInferUpscaledInput(Array<IndexExpr> ifm_shape, String ifm_layout);
+
+/*! \brief Get data type from string representation.
+ * \param dtype Data type in lower case format followed by number of bits e.g. "int8".
+ */
+DataType DataTypeFromString(const String& dtype);
+
+/*! \brief Check the data type for a given input matches one given in allowed_data_types. Raise a
+ * type inference error if not.
+ * \param reporter The infer type reporter.
+ * \param data_type The data ntype to check.
+ * \param allowed_data_types An unordered set of allowed data types.
+ * \param operator_name The name of the operator to report.
+ * \param tensor_name The name of the tensor to report e.g. "ifm", "ofm".
+ * \param operator_type The type of the operator to report e.g. "ADD" for binary_elementwise.
+ */
+void CheckDataType(const TypeReporter& reporter, const DataType& data_type,
+                   const std::unordered_set<DataType>& allowed_data_types,
+                   const String& operator_name, const String& tensor_name,
+                   const String& operator_type = "");
+
+/*! \brief Check the data type matches that of the second data type provided. Raise a type inference
+ * error if not.
+ * \param reporter The infer type reporter.
+ * \param data_type The data type to check.
+ * \param data_type2 The second data type to check.
+ * \param operator_name The name of the operator to report.
+ * \param tensor_name The name of the tensor to report e.g. "ifm", "ofm".
+ * \param tensor_name2 The name of the second tensor to report e.g. "ifm2".
+ * \param operator_type The type of the operator to report e.g. "ADD" for binary_elementwise.
+ */
+void CheckDataTypeMatch(const TypeReporter& reporter, const DataType& data_type,
+                        const DataType& data_type2, const String& operator_name,
+                        const String& tensor_name, const String& tensor_name2,
+                        const String& operator_type = "");
 
 }  // namespace ethosu
 }  // namespace contrib

@@ -69,15 +69,11 @@ bool EthosuIdentityRel(const Array<Type>& types, int num_inputs, const Attrs& at
   if (ifm == nullptr) return false;
 
   const auto* param = attrs.as<EthosuIdentityAttrs>();
-
   ICHECK(param != nullptr) << "EthosuIdentityAttrs cannot be nullptr.";
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: Expected type(uint8) or type(int8) for ifm but was " << ifm->dtype);
-    return false;
-  }
+  const String operator_name = "ethosu_identity";
+
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm");
 
   if (ifm->shape.size() > 4) {
     reporter->GetDiagCtx().EmitFatal(

@@ -24,6 +24,9 @@
 
 #include "common.h"
 
+#include <sstream>
+#include <unordered_set>
+
 #include "../../op_common.h"
 
 namespace tvm {
@@ -90,6 +93,56 @@ Array<IndexExpr> EthosuInferUpscaledInput(Array<IndexExpr> ifm_shape, String ifm
   }
 
   return new_ifm_shape;
+}
+
+DataType DataTypeFromString(const String& dtype) {
+  DLDataType dl_dtype = tvm::runtime::String2DLDataType(dtype);
+  return DataType(dl_dtype);
+}
+
+void CheckDataType(const TypeReporter& reporter, const DataType& data_type,
+                   const std::unordered_set<DataType>& allowed_data_types,
+                   const String& operator_name, const String& tensor_name,
+                   const String& operator_type) {
+  if (allowed_data_types.find(data_type) != allowed_data_types.end()) {
+    return;
+  }
+
+  std::ostringstream message;
+  message << "Invalid operator: expected " << operator_name << " ";
+  if (operator_type != "") {
+    message << operator_type << " ";
+  }
+  message << "to have type in {";
+  for (auto it = allowed_data_types.begin(); it != allowed_data_types.end(); ++it) {
+    message << *it;
+    if (std::next(it) != allowed_data_types.end()) {
+      message << ", ";
+    }
+  }
+  message << "}";
+  message << " for " << tensor_name << " but was " << data_type << ".";
+
+  reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan()) << message.str());
+}
+
+void CheckDataTypeMatch(const TypeReporter& reporter, const DataType& data_type,
+                        const DataType& data_type2, const String& operator_name,
+                        const String& tensor_name, const String& tensor_name2,
+                        const String& operator_type) {
+  if (data_type == data_type2) {
+    return;
+  }
+
+  std::ostringstream message;
+  message << "Invalid operator: expected " << operator_name << " ";
+  if (operator_type != " ") {
+    message << operator_type << " ";
+  }
+  message << "data types for " << tensor_name << " and " << tensor_name2 << " to match, but was "
+          << data_type << " and " << data_type2;
+
+  reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan()) << message.str());
 }
 
 }  // namespace ethosu
