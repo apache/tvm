@@ -3808,17 +3808,12 @@ class QLinearMatMul(OnnxOpConverter):
             x2 = try_resolve_var_to_const(x, params)
             num_elem = np.prod(infer_shape(x))
             if num_elem == 1:
-                x3 = ensure_scalar_shape(x2)
-            else:
-                x3 = x2
+                x2 = ensure_scalar_shape(x2)
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
-                x4 = _op.cast(x3, dtype_override)
-            else:
-                x4 = x3
-
-            x5 = fold_constant(x4)
-            return x5
+                x2 = _op.cast(x2, dtype_override)
+            x3 = fold_constant(x2)
+            return x3
 
         # Unpack the inputs and obtain some type info...
         a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
