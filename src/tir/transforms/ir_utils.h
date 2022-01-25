@@ -284,6 +284,7 @@ struct FragmentInfo {
  * \return Map from buffer variables to the fragment info.
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_TRANSFORMS_IR_UTILS_H_
