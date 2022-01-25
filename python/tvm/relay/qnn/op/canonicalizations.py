@@ -23,7 +23,7 @@ from tvm.relay.qnn.op.op import register_qnn_canonicalize
 
 
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
-    """Run a const expression, receiving result as np array."""
+    """Evaluate a const expression, receiving result as np array."""
     mod = tvm.IRModule.from_expr(expr)
     vm_exe = relay.create_executor("vm", mod=mod)
     return vm_exe.evaluate()().asnumpy()
@@ -41,7 +41,24 @@ def create_integer_lookup_table(
     out_dtype: str = "uint8",
 ) -> np.ndarray:
     """
-    TODO
+    Return a table where each input indexes to the quantized output approximating the given function.
+
+    Note this also supports mapping unsigned and signed integers to each other.
+
+    Args:
+      floating_point_func: The numpy function which this table is to approximate
+      input_scale: The scale of the quantized input tensor.
+      input_zero_point: The zero point of the quantized input tensor.
+      output_scale: The scale of the quantized output tensor.
+      output_zero_point: The zero point of the quantized output tensor.
+      in_axis: The axis for multi-channel quantization of the input if applicable.
+      out_axis: The axis for multi-channel quantization of the output if applicable.
+      in_dtype: The dtype of the input tensor.
+      out_dtype: The wanted dtype of the output tensor.
+
+    Returns:
+      A numpy array where values in quantized space will index to the output in quantized space
+      approximating the given function.
     """
     if not np.issubdtype(np.dtype(in_dtype), np.integer) or not np.issubdtype(
         np.dtype(out_dtype), np.integer
@@ -98,8 +115,24 @@ def create_integer_lookup_op(
     out_dtype: str = "uint8",
 ) -> "relay.Expr":
     """
-    TODO
+    Create a quantized version of the given floating point unary operation using table lookup.
+
+    Args:
+      input_arg: The quantized input to the final function.
+      floating_point_func: The numpy function which this table is to approximate
+      in_scale: The scale of the quantized input tensor.
+      in_zero_point: The zero point of the quantized input tensor.
+      out_scale: The scale of the quantized output tensor.
+      out_zero_point: The zero point of the quantized output tensor.
+      in_axis: The axis for multi-channel quantization of the input if applicable.
+      out_axis: The axis for multi-channel quantization of the output if applicable.
+      in_dtype: The dtype of the input tensor.
+      out_dtype: The wanted dtype of the output tensor.
+
+    Returns:
+      A Relay expression representing a quantized version of the given function.
     """
+
     # TODO: handle multi-channel q, below will fail with multi-channel q
     in_scale = in_scale.data.numpy().item()
     in_zero_point = in_zero_point.data.numpy().item()
@@ -133,12 +166,12 @@ def create_integer_lookup_op(
 def canonicalize_rsqrt(attrs, args, arg_types):
     """Canonicalization for rsqrt"""
     return create_integer_lookup_op(
-        args[0],
-        lambda arr: 1 / np.sqrt(arr),
-        args[1],
-        args[2],
-        args[3],
-        args[4],
+        input_arg=args[0],
+        floating_point_func=lambda arr: 1 / np.sqrt(arr),
+        in_scale=args[1],
+        in_zero_point=args[2],
+        out_scale=args[3],
+        out_zero_point=args[4],
         in_dtype=arg_types[0].dtype,
         out_dtype=arg_types[0].dtype,
     )
