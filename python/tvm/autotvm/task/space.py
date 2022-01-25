@@ -233,6 +233,7 @@ class SplitSpace(TransformSpace):
             self._generate_space(0, [None] * (self.num_output - 1), enforce_no_tail=no_tail)
 
         self.entities = list(filter(fil, self.entities))
+        assert len(self.entities) > 0, "Provided filter generated no entities"
 
     def _generate_space(self, now, tmp_stack, enforce_no_tail=False):
         """Generate space by DFS"""

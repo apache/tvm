@@ -120,7 +120,16 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
 
 
 def schedule_conv_NCHWc_cpu_common_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
+    s,
+    cfg,
+    data_vec,
+    kernel_vec,
+    conv_out,
+    last,
+    int32_lanes=16,
+    int8_elems=4,
+    intrin=None,
+    inline_fused=False,
 ):
     """
     Defines the schedule for INT8 for Intel and ARM machines
@@ -176,14 +185,14 @@ def schedule_conv_NCHWc_cpu_common_int8(
     if C == O:
         s[C].parallel(parallel_axis)
 
-    s[CC].compute_at(s[C], ow_chunk)
+    s[CC].compute_at(s[C], parallel_axis)
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
 
-    assert oc_bn % int32_lanes == 0
-    assert ic_bn % int8_elems == 0  # (u)int8 elements in (u)int32
+    assert oc_bn % int32_lanes == 0, f"{oc_bn=} % {int32_lanes=} != 0"
+    assert ic_bn % int8_elems == 0, f"{ic_bn=} % {int8_elems=} != 0"  # (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
@@ -228,27 +237,35 @@ def schedule_conv_NCHWc_cpu_common_int8(
             batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-            s[C].compute_at(s[O], ow_block)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         elif out_ndim == 4:
             batch, oc, oh, ow = s[O].op.axis
             ow_chunk, ow_block = s[O].split(ow, factor=reg_n)
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-            s[C].compute_at(s[O], ow_block)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh)
+        if inline_fused:
+            s[C].compute_at(s[O], ow_block)
+        else:
+            s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+        s[O].parallel(parallel_axis)
 
     return s
 
 
 def schedule_conv_NCHWc_cpu_1x1_int8(
-    s, cfg, data_vec, kernel_vec, conv_out, last, int32_lanes=16, int8_elems=4, intrin=None
+    s,
+    cfg,
+    data_vec,
+    kernel_vec,
+    conv_out,
+    last,
+    int32_lanes=16,
+    int8_elems=4,
+    intrin=None,
+    inline_fused=False,
 ):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
@@ -301,10 +318,10 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
     s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
     s[C].vectorize(oc_block)
 
-    s[CC].compute_at(s[C], ow_inner)
     parallel_axis = s[C].fuse(batch, oc_chunk, oh_outer)
     if C == O:
         s[C].parallel(parallel_axis)
+    s[CC].compute_at(s[C], parallel_axis)  # good perf on mobilenet, but not on individuals?
 
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
@@ -344,25 +361,22 @@ def schedule_conv_NCHWc_cpu_1x1_int8(
             batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
             oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-            s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-            s[C].compute_at(s[O], ow_inner)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         elif out_ndim == 4:
             batch, oc, oh, ow = s[O].op.axis
             oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
             oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
             ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
-            s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
-
-            s[C].compute_at(s[O], ow_inner)
-            parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
-            s[O].vectorize(oc_block)
-            s[O].parallel(parallel_axis)
         else:
             raise ValueError("Unsupported output ndim: %s" % out_ndim)
+
+        s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
+        parallel_axis = s[O].fuse(batch, oc_chunk, oh_outer)
+        if inline_fused:
+            s[C].compute_at(s[O], ow_inner)
+        else:
+            s[C].compute_at(s[O], parallel_axis)
+        s[O].vectorize(oc_block)
+        s[O].parallel(parallel_axis)
 
     return s
 

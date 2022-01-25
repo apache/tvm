@@ -132,7 +132,7 @@ def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
 
 def schedule_conv2d_nchw(outs):
     """Create schedule for tensors"""
-    return schedule_conv2d_NCHWc(outs)
+    return schedule_conv2d_NCHWc_x86(outs)
 
 
 def _pack_data(cfg, data, kernel):
@@ -170,6 +170,14 @@ def _pack_data(cfg, data, kernel):
 
 @autotvm.register_topi_compute("conv2d_NCHWc.x86")
 def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
+    return conv2d_NCHWc_compute(
+        cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+    )
+
+
+def conv2d_NCHWc_compute(
+    cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
+):
     """Compute conv2d with NCHWc layout."""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
@@ -238,6 +246,10 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
 
 @autotvm.register_topi_schedule("conv2d_NCHWc.x86")
+def schedule_conv2d_NCHWc_x86(cfg, outs):
+    return schedule_conv2d_NCHWc(cfg, outs)
+
+
 def schedule_conv2d_NCHWc(cfg, outs):
     """Create schedule for tensors"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs

@@ -443,7 +443,13 @@ class Parser {
    */
   Expr LookupGraphBinding(const Token& token) {
     auto graph_no = token.ToNumber();
-    return this->graph_ctx.at(graph_no);
+    auto it = this->graph_ctx.find(graph_no);
+    if (it != this->graph_ctx.end()) {
+      return it->second;
+    } else {
+      LOG(FATAL) << "Local variable %" << graph_no << " has not yet been defined";
+      throw;
+    }
   }
 
   /*! \brief Bind a local variable in the expression scope.
