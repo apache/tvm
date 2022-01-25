@@ -1434,8 +1434,29 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     if (simple_buf.count(buf)) continue;
     buf_not_in_headers_.insert(buf.get());
     body << Print(buf) << " = " << tir_prefix_ << ".match_buffer(";
+    ICHECK(memo_buf_decl_.count(buf));
     body << Print((*it).first) << ", " << memo_buf_decl_[buf];
     body << ")" << Doc::NewLine();
+  }
+  // print preflattened buffer map
+  for (const auto& param : op->params) {
+    auto pf_buf_it = op->preflattened_buffer_map.find(param);
+    if (pf_buf_it != op->preflattened_buffer_map.end()) {
+      const Buffer& preflattened = (*pf_buf_it).second;
+
+      auto buf_it = op->buffer_map.find(param);
+      ICHECK(buf_it != op->buffer_map.end()) << "Found pre-flattened buffer " << preflattened->name
+                                             << " with no corresponding post-flatten buffer.";
+      const Buffer& postflattened = (*buf_it).second;
+
+      // Call Print() without assigning in order to fill memo_buf_decl_.
+      Print(preflattened);
+      buf_not_in_headers_.insert(preflattened.get());
+      ICHECK(memo_buf_decl_.count(preflattened));
+
+      body << tir_prefix_ << ".preflattened_buffer(" << Print(postflattened) << ", "
+           << memo_buf_decl_.at(preflattened) << ")" << Doc::NewLine();
+    }
   }
   // print body
   body << "# body" << Doc::NewLine();
@@ -1464,6 +1485,9 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     header_attr << PrintSep(attrs, Doc::Text(", ")) << "})";
   }
   // print buffer declarations(buffers not defined by buffer_bind or buffer_allocate)
+
+  // TODO: Now that T.allocate returns a buffer object, it shouldn't
+  // have a buffer_decl anymore.
   Doc header_buf;
   std::vector<const BufferNode*> bufs;
   for (const auto& it : memo_buf_) {
