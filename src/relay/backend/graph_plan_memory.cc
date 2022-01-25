@@ -279,6 +279,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       smap.Set(GetRef<Expr>(kv.first), storage_info);
     }
     // Either all or none of the nodes should be annotated.
+    VLOG(1) << "num annotated nodes / num_nodes: " << num_annotated_nodes << " / " << num_nodes
+            << std::endl;
     if (num_annotated_nodes != 0 && num_annotated_nodes != num_nodes) {
       LOG(FATAL) << num_annotated_nodes << " out of " << num_nodes
                  << "expressions are assigned with virtual device types. Either all "
