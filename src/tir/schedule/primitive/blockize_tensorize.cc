@@ -96,10 +96,8 @@ Array<Array<arith::IterMark>> TrivialSubspaceDivision(const Array<IterVar>& iter
   arith::IterMark unit_iter_mark(arith::IterSumExpr({}, 0), 1);
 
   for (size_t i = 0; i < bindings.size(); ++i) {
-    bool outer = UsesVar(
-        bindings[i], [&outer_loop_vars](const VarNode* var) { return outer_loop_vars.count(var); });
-    bool inner = UsesVar(
-        bindings[i], [&inner_loop_vars](const VarNode* var) { return inner_loop_vars.count(var); });
+    bool outer = use_outer_loop_vars(bindings[i]);
+    bool inner = use_inner_loop_vars(bindings[i]);
     arith::IterMark iter_mark;
     if (bindings[i]->IsInstance<VarNode>()) {
       iter_mark = arith::IterMark(
@@ -165,10 +163,10 @@ Stmt GenerateBlockizedInit(const Block& block, const BlockRealize& inner_block_r
   Map<Var, PrimExpr> subst_map;
   for (size_t i = 0; i < init_block_iters.size(); i++) {
     IterVar new_iter_var = init_block_iters[i];
-    auto* new_init_var_node = new_iter_var.CopyOnWrite();
     Var old_var = new_iter_var->var;
-    new_init_var_node->var = old_var.copy_with_suffix("_init");
-    subst_map.Set(old_var, new_iter_var->var);
+    Var new_var = old_var.copy_with_suffix("_init");
+    new_iter_var.CopyOnWrite()->var = new_var;
+    subst_map.Set(old_var, new_var);
     init_block_iters.Set(i, std::move(new_iter_var));
   }
 
