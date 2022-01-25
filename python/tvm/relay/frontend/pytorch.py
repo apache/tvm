@@ -1766,7 +1766,8 @@ class PyTorchOpConverter:
 
         return pad
 
-    def clamp(self, inputs, input_types):
+    def clamp_common(self, inputs, min_only=False, max_only=False):
+        assert not (min_only and max_only)
         data = inputs[0]
 
         def get_v(v, default_v):
@@ -1780,9 +1781,26 @@ class PyTorchOpConverter:
                 return v
             return default_v
 
-        amin = get_v(inputs[1], np.finfo(np.float32).min)
-        amax = get_v(inputs[2], np.finfo(np.float32).max)
+        if min_only:
+            amin = get_v(inputs[1], np.finfo(np.float32).min)
+            amax = np.finfo(np.float32).max
+        elif max_only:
+            amin = np.finfo(np.float32).min
+            amax = get_v(inputs[1], np.finfo(np.float32).max)
+        else:
+            amin = get_v(inputs[1], np.finfo(np.float32).min)
+            amax = get_v(inputs[2], np.finfo(np.float32).max)
+
         return _op.clip(data, amin, amax)
+
+    def clamp(self, inputs, _):
+        return self.clamp_common(inputs)
+
+    def clamp_min(self, inputs, input_types):
+        return self.clamp_common(inputs, min_only=True)
+
+    def clamp_max(self, inputs, input_types):
+        return self.clamp_common(inputs, max_only=True)
 
     def to(self, inputs, input_types):
         data = inputs[0]
@@ -3031,6 +3049,8 @@ class PyTorchOpConverter:
             "aten::isinf": self.make_unary("isinf"),
             "aten::isnan": self.make_unary("isnan"),
             "aten::clamp": self.clamp,
+            "aten::clamp_min": self.clamp_min,
+            "aten::clamp_min": self.clamp_max,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_bicubic2d": self.make_upsample("cubic"),
