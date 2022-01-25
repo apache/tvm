@@ -41,8 +41,8 @@ class PipelineScheduler {
    * \param modules The list of graph executor module.
    * \param pipeline_config The dependency information of each graph executor module.
    */
-  size_t PipelineInit(const std::vector<Module>& modules,
-                      const ConfigPipelineExecution& pipeline_config);
+  std::vector<std::shared_ptr<BackendRuntime>> PipelineInit(
+      const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config);
 
  private:
   /*!\brief The list of graph executors.*/
