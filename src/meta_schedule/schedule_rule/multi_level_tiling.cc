@@ -115,20 +115,11 @@ struct State {
   BlockRV block_rv;
   /*! \brief The loop tiles */
   Array<Array<LoopRV>> tiles;
-  /*! \brief Whether Tensor Core is used for the inner computation */
-  bool tensor_core_is_used;
-  /*! \brief The Tensor Core cache read block A for Tensor Core computation */
-  Optional<BlockRV> tensor_core_load_A;
-  /*! \brief The Tensor Core cache read block B for Tensor Core computation */
-  Optional<BlockRV> tensor_core_load_B;
-  /*! \brief The Tensor Core cache write block for Tensor Core computation */
-  Optional<BlockRV> tensor_core_store;
 
   /*! \brief Default constructor */
   explicit State(Schedule sch, BlockRV block_rv, Optional<BlockRV> write_cache = NullOpt,
-                 bool write_cache_is_added = false, Array<Array<LoopRV>> tiles = {},
-                 bool tensor_core_is_used = false)
-      : sch(sch), block_rv(block_rv), tiles(tiles), tensor_core_is_used(tensor_core_is_used) {}
+                 bool write_cache_is_added = false, Array<Array<LoopRV>> tiles = {})
+      : sch(sch), block_rv(block_rv), tiles(tiles) {}
 };
 
 /*!
@@ -200,8 +191,6 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   String structure;
   /*! \brief For each level of tiles, which thread axis it is bound to */
   Array<String> tile_binds;
-  /*! \brief Whether to use Tensor Core */
-  bool use_tensor_core;
   /*! \brief The maximum size of the innermost factor */
   int max_innermost_factor;
   /*! \brief The length of vector lane in vectorized cooperative fetching */
@@ -222,7 +211,6 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);
     v->Visit("tile_binds", &tile_binds);
-    v->Visit("use_tensor_core", &use_tensor_core);
     v->Visit("max_innermost_factor", &max_innermost_factor);
     // `vector_load_lens` is not visited
     // `reuse_read_` is not visited
@@ -392,7 +380,6 @@ inline std::vector<State> MultiLevelTilingNode::AddReadReuse(State state) const 
 // Constructor
 
 ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<String>> tile_binds,
-                                            bool use_tensor_core,
                                             Optional<Integer> max_innermost_factor,
                                             Optional<Array<Integer>> vector_load_lens,
                                             Optional<Map<String, ObjectRef>> reuse_read,
@@ -400,8 +387,6 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
   ObjectPtr<MultiLevelTilingNode> n = make_object<MultiLevelTilingNode>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});
-  // TODO(jinhongyii): enable tensorization for multi level tiling
-  n->use_tensor_core = false;
   n->max_innermost_factor = max_innermost_factor.value_or(Integer(-1))->value;
   n->vector_load_lens = vector_load_lens.defined()
                             ? support::AsVector<Integer, int>(vector_load_lens.value())

@@ -147,7 +147,6 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
                                                Optional<Array<String>> tile_binds,           //
-                                               bool use_tensor_core,                         //
                                                Optional<Integer> max_innermost_factor,       //
                                                Optional<Array<Integer>> vector_load_lens,    //
                                                Optional<Map<String, ObjectRef>> reuse_read,  //
