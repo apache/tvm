@@ -198,8 +198,8 @@ bool TensorizeComparator::VisitExpr_(const BufferLoadNode* op, const PrimExpr& o
 
 bool TensorizeComparator::VisitExpr_(const SelectNode* op, const PrimExpr& other) {
   const auto* rhs = other.as<SelectNode>();
-  return VisitExpr(op->condition, rhs->condition) && VisitExpr(op->true_value, rhs->true_value)
-    && VisitExpr(op->false_value, rhs->false_value);
+  return VisitExpr(op->condition, rhs->condition) && VisitExpr(op->true_value, rhs->true_value) &&
+         VisitExpr(op->false_value, rhs->false_value);
 }
 
 bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
