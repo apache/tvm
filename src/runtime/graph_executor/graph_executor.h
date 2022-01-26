@@ -419,6 +419,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<uint32_t> input_nodes_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
+  /*! \brief Map of input names to flags, which indicates that tensor was set. */
+  mutable std::unordered_map<uint32_t, bool> input_set_;
   /*! \brief Map of output names to output indices. */
   std::unordered_map<std::string, uint32_t> output_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */
@@ -454,8 +456,6 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * When the module does not include linked parmeters, module_lookup_linked_param_ will be nullptr.
    */
   bool module_lookup_linked_param_valid_;
-  /*! \brief True when parameters are set.*/
-  bool params_set_;
 };
 
 std::vector<Device> GetAllDevice(const TVMArgs& args, int dev_start_arg);
