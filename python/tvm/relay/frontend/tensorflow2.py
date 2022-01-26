@@ -36,7 +36,6 @@ from .. import analysis
 from .. import function as _function
 from ..loops import while_loop as _while_loop
 from .common import infer_type as _infer_type
-from .common import set_span
 
 from .tensorflow_ops import _convert_map as _convert_map_common
 from .tensorflow_ops import _get_more_static_shape_rank
@@ -57,6 +56,22 @@ _tensor_list_write_ops = {
 def _infer_type_with_prelude(val, prelude):
     body = _infer_type(val, prelude.mod)
     return body.checked_type
+
+
+def set_span(sym, node_name):
+    """set span of symbol"""
+
+    span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
+    if isinstance(sym, _expr.Call):
+        sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
+    elif isinstance(sym, _expr.TupleWrapper):
+        tuple_value = sym.tuple_value
+        if isinstance(tuple_value, _expr.Call):
+            tuple_value = _expr.Call(
+                tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
+            )
+            sym = _expr.TupleWrapper(tuple_value, sym.size)
+    return sym
 
 
 def is_tensor_list_constuctor(tf_node):
