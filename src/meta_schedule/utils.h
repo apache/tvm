@@ -247,6 +247,19 @@ inline std::string Concat(const Array<String>& strs, const std::string& delim) {
 }
 
 /*!
+ * \brief Get the BlockRV from a block StmtSRef
+ * \param sch The schedule
+ * \param block_sref The block StmtSRef
+ * \param global_var_name The global variable name
+ * \return The BlockRV
+ */
+inline tir::BlockRV GetRVFromSRef(const tir::Schedule& sch, const tir::StmtSRef& block_sref,
+                                  const String& global_var_name) {
+  const tir::BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  return sch->GetBlock(block->name_hint, global_var_name);
+}
+
+/*!
  * \brief A helper data structure that replays a trace and collects failure counts
  * for each postprocessor
  */
@@ -336,6 +349,22 @@ inline int GetTargetNumCores(const Target& target) {
         << num_cores << "\"";
   }
   return num_cores;
+}
+
+/*!
+ * \brief Unify the function name in workload to "main".
+ * \param mod The workload.
+ * \return The new workload with unified function name.
+ * \note If the name is not unified, the workload may not be found in database.
+ */
+inline IRModule UnifyFuncName(const IRModule& mod) {
+  if (!mod->ContainGlobalVar("main") && mod->GetGlobalTypeVars().size() == 1) {
+    IRModule new_mod = IRModule(
+        Map<GlobalVar, BaseFunc>({{GlobalVar("main"), mod->functions[mod->GetGlobalVars()[0]]}}));
+    return new_mod;
+  } else {
+    return mod;
+  }
 }
 
 }  // namespace meta_schedule

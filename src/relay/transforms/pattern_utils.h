@@ -550,6 +550,11 @@ inline Expr Sqrt(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
+inline Expr Rsqrt(Expr x) {
+  static const Op& op = Op::Get("rsqrt");
+  return Call(op, {x}, Attrs(), {});
+}
+
 inline Expr Relu(Expr x) {
   static const Op& op = Op::Get("nn.relu");
   return Call(op, {x}, Attrs(), {});
@@ -557,6 +562,11 @@ inline Expr Relu(Expr x) {
 
 inline Expr Round(Expr x) {
   static const Op& op = Op::Get("round");
+  return Call(op, {x}, Attrs(), {});
+}
+
+inline Expr Floor(Expr x) {
+  static const Op& op = Op::Get("floor");
   return Call(op, {x}, Attrs(), {});
 }
 
@@ -657,9 +667,29 @@ static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   return Call(op, {condition, x, y});
 }
 
+static inline Expr LogicalOr(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("logical_or");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
 static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   static const Op& op = Op::Get("greater_equal");
   return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Equal(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("equal");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr Less(const Expr& lhs, const Expr& rhs) {
+  static const Op& op = Op::Get("less");
+  return Call(op, {lhs, rhs}, Attrs(), {});
+}
+
+static inline Expr IsFinite(const Expr x) {
+  static const Op& op = Op::Get("isfinite");
+  return Call(op, {x}, Attrs(), {});
 }
 
 static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {

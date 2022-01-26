@@ -298,7 +298,6 @@ def conv2d_transpose_legalize(attrs, inputs, types):
     result : tvm.relay.Expr
         The legalized expr
     """
-
     data, kernel = inputs
     kernel_layout = attrs["kernel_layout"]
     if attrs["data_layout"] == "NHWC":

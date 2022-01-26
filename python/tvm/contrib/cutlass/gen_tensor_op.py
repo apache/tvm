@@ -62,7 +62,9 @@ def generate_tensor_op_common(
     return ops
 
 
-def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
+def generate_sm75_tensor_op_1688(
+    out_dtype, arg0_dtype, arg1_dtype, op_creator, check_align, _, profile_all_alignments=False
+):
     """Generate GEMM or Conv2D kernels for Turing."""
     assert out_dtype in ["float32", "float16", "int32"]
     min_cc = 75
@@ -114,6 +116,12 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
             ([64, 64, 64], 2, [2, 2, 1], min_cc, max_cc),
         ]
 
+    alignment_constraints = [align for align in alignment_constraints if check_align(align)]
+    assert len(alignment_constraints) > 0
+
+    if not profile_all_alignments:
+        alignment_constraints = [alignment_constraints[0]]
+
     def get_tile_descriptions(math_inst):
         return [
             TileDescription(threadblock_shape, stages, warp_count, math_inst, min_cc, max_cc)
@@ -125,7 +133,15 @@ def generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator):
     )
 
 
-def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator, use_3xtf32=True):
+def generate_sm80_tensor_op_16816(
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    use_3xtf32=True,
+    profile_all_alignments=False,
+):
     """Generate GEMM or Conv2D kernels for Ampere."""
     min_cc = 80
     max_cc = 1024
@@ -218,15 +234,31 @@ def generate_sm80_tensor_op_16816(out_dtype, arg0_dtype, arg1_dtype, op_creator,
             for threadblock_shape, stages, warp_count, min_cc, max_cc in tile_descriptions
         ]
 
+    alignment_constraints = [align for align in alignment_constraints if check_align(align)]
+
+    if len(alignment_constraints) > 0 and not profile_all_alignments:
+        alignment_constraints = [alignment_constraints[0]]
+
     if arg0_dtype != "float32" and arg1_dtype != "float32":
-        sm75_kernels = generate_sm75_tensor_op_1688(out_dtype, arg0_dtype, arg1_dtype, op_creator)
+        sm75_kernels = generate_sm75_tensor_op_1688(
+            out_dtype,
+            arg0_dtype,
+            arg1_dtype,
+            op_creator,
+            check_align,
+            False,
+            profile_all_alignments,
+        )
     else:
         # TF32 (float32 + float32 case) is only supported on sm80
         sm75_kernels = []
 
-    sm80_kernels = generate_tensor_op_common(
-        math_instructions, alignment_constraints, get_tile_descriptions, op_creator
-    )
+    if len(alignment_constraints) > 0:
+        sm80_kernels = generate_tensor_op_common(
+            math_instructions, alignment_constraints, get_tile_descriptions, op_creator
+        )
+    else:
+        sm80_kernels = []
 
     # TODO(masahi): For int8 kernels, The CUTLASS generator modifies the output tensor alignment
     # after ops are created. Revisit how important this modification is.

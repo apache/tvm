@@ -17,7 +17,10 @@
 # pylint: disable=invalid-name,unused-argument
 """Tensor Expressions for binary_elementwise"""
 import operator
+import numpy as np
 from tvm import te
+from tvm.contrib.ethosu.cascader import TESubgraph, EthosuPart, Propagator, register_matcher
+
 from .dma import dma_ofm_compute, dma_ifm_compute
 
 
@@ -123,6 +126,12 @@ def binary_elementwise_compute(
     te.Tensor
         The Output Feature Map tensor.
     """
+    assert ifm.shape[0] == 1
+    assert ifm2.shape[0] == 1
+    assert ifm_layout in {"NHWC", "NHCWB16"}
+    assert ifm2_layout in {"NHWC", "NHCWB16"}
+    assert ofm_layout in {"NHWC", "NHCWB16"}
+
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(
         ifm, ifm_layout, ifm_zero_point, ifm_scale, ifm_channels, (0, 0, 0, 0)
@@ -187,5 +196,147 @@ def binary_elementwise_compute(
             attrs=binary_elementwise_attrs,
         )
 
+    nhwc_to_nhcwb16 = [
+        [1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 1 / 16, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 16],
+        [0, 0, 0, 0, 1],
+    ]
+    nhcwb16_to_nhwc = [
+        [1, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0],
+        [0, 0, 16, 0, 1, -16],
+        [0, 0, 0, 0, 0, 1],
+    ]
+    ifm_matrix = [
+        [1, 0, 0, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 0, 1, 0],
+        [0, 0, 0, 0, 1],
+    ]
+    ifm2_matrix = [
+        [1, 0, 0, 0, 0],
+        [0, (1 - int(broadcast[1])), 0, 0, int(broadcast[1])],
+        [0, 0, (1 - int(broadcast[2])), 0, int(broadcast[2])],
+        [0, 0, 0, (1 - int(broadcast[3])), int(broadcast[3])],
+        [0, 0, 0, 0, 1],
+    ]
+    if ofm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(ifm_matrix, nhcwb16_to_nhwc).tolist()
+        ifm2_matrix = np.matmul(ifm2_matrix, nhcwb16_to_nhwc).tolist()
+    if ifm_layout == "NHCWB16":
+        ifm_matrix = np.matmul(nhwc_to_nhcwb16, ifm_matrix).tolist()
+    if ifm2_layout == "NHCWB16":
+        ifm2_matrix = np.matmul(nhwc_to_nhcwb16, ifm2_matrix).tolist()
+    ifm_propagator = Propagator(
+        ifm_matrix,
+        [0, 0, 0, 0] if ifm_layout == "NHWC" else [0, 0, 0, 0, 0],
+    )
+    ifm2_propagator = Propagator(
+        ifm2_matrix,
+        [0, 0, 0, 0] if ifm2_layout == "NHWC" else [0, 0, 0, 0, 0],
+    )
+    propagator_attrs = {
+        "ifm_propagator": ifm_propagator,
+        "ifm2_propagator": ifm2_propagator,
+    }
+
     # Compute operation for the OFM DMA pipeline
-    return dma_ofm_compute(binary_elementwise, ofm_layout, ofm_zero_point, ofm_scale, ifm_channels)
+    return dma_ofm_compute(
+        binary_elementwise,
+        ofm_layout,
+        ofm_zero_point,
+        ofm_scale,
+        ifm_channels,
+        attrs=propagator_attrs,
+    )
+
+
+@register_matcher
+def match_ethosu_binary_elementwise(output_tensor, device_config):
+    """Match a Tensor Expression corresponding to an NPU Binary Elementwise.
+
+    If the Tensor Expression matches, an EthosuPart will be created that models the
+    matched Tensor Expression. Otherwise, None will be returned.
+
+    Parameters
+    ----------
+    output_tensor : tvm.te.Tensor
+        The tensor to attempt to match with.
+    device_config : EthosuDeviceConfig
+        Target device configuration
+
+    Returns
+    -------
+    Union[None, EthosuPart]
+        The created EthosuPart if there was a match, otherwise None.
+
+    """
+    write = output_tensor
+    if write.op.name != "ethosu_write":
+        return None
+    convert_to_nhcwb16 = write.op.input_tensors[0]
+    if convert_to_nhcwb16.op.name != "ethosu_convert_to_nhcwb16":
+        return None
+    binary_elementwise = convert_to_nhcwb16.op.input_tensors[0]
+    if binary_elementwise.op.name != "ethosu_binary_elementwise":
+        return None
+    pad = binary_elementwise.op.input_tensors[0]
+    if pad.op.name != "ethosu_pad":
+        return None
+    convert_to_nhwc = pad.op.input_tensors[0]
+    if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
+        return None
+    read = convert_to_nhwc.op.input_tensors[0]
+    if read.op.name != "ethosu_read":
+        return None
+    pad2 = binary_elementwise.op.input_tensors[1]
+    if pad2.op.name != "ethosu_pad":
+        return None
+    convert_to_nhwc2 = pad2.op.input_tensors[0]
+    if convert_to_nhwc2.op.name != "ethosu_convert_to_nhwc":
+        return None
+    read2 = convert_to_nhwc2.op.input_tensors[0]
+    if read2.op.name != "ethosu_read":
+        return None
+
+    input_tensors = [
+        read.op.input_tensors[0],
+        read2.op.input_tensors[0],
+    ]
+    subgraph = TESubgraph(input_tensors, output_tensor)
+    propagators = [
+        write.op.attrs["ifm_propagator"],
+        write.op.attrs["ifm2_propagator"],
+    ]
+    ifm_dtype = input_tensors[0].dtype
+    ofm_dtype = output_tensor.dtype
+
+    output_layout = convert_to_nhcwb16.op.attrs["layout"]
+    input_layout = convert_to_nhwc.op.attrs["layout"]
+    input2_layout = convert_to_nhwc2.op.attrs["layout"]
+    output_quantum = device_config.get_output_quantum(output_layout)
+
+    block_config = device_config.get_elementwise_block_config(
+        propagators[0],
+        propagators[1],
+        binary_elementwise.op.attrs,
+        output_tensor.shape,
+        output_layout,
+        input_layout,
+        input2_layout,
+        ifm_dtype,
+        ofm_dtype,
+    )
+
+    return EthosuPart(
+        subgraph,
+        propagators,
+        output_quantum,
+        1,
+        block_config,
+    )

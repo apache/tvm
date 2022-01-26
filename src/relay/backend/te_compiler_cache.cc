@@ -192,7 +192,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
         }
       }
 
-      // Use TOPI schdule if user specificed, or the function has no auto_scheduler schedule.
+      // Use TOPI schedule if user specificed, or the function has no auto_scheduler schedule.
       if (!schedule.defined() && !prim_func.defined()) {
         ICHECK(anchor_implementation_.defined());
         schedule = anchor_implementation_.Schedule(anchor_attrs_, tensor_outs, target_);

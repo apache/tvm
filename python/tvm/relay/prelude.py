@@ -73,7 +73,7 @@ def get_tensor_array_shape(expr, dtype, prelude):
     return None
 
 
-def _get_name_static(canonical, dtype, shape, batch_dim=None):
+def _get_name_static(canonical, dtype, shape, batch_dim=None, extra_shapes=None):
     """Get name for static shape tensor array op
 
     By design, static ADT tensor in TVM has type name in the format
@@ -100,14 +100,12 @@ def _get_name_static(canonical, dtype, shape, batch_dim=None):
     name : String
         The tensor array op name
     """
-    dim_names = []
-    for dim in shape:
-        if isinstance(dim, Any):
-            dim_names.append("any")
-        else:
-            dim_names.append(str(dim))
+    shape_str = _to_str(shape)
 
-    shape_str = "_".join(dim_names)
+    if extra_shapes is not None:
+        for n, s in extra_shapes.items():
+            extra_shape_str = "_{}_{}".format(n, _to_str(s))
+            shape_str += extra_shape_str
 
     if len(shape_str) == 0:
         shape_str = "scalar"
@@ -118,6 +116,16 @@ def _get_name_static(canonical, dtype, shape, batch_dim=None):
     if batch_dim != 1:
         return "{}_{}_{}".format(canonical, dtype, shape_str)
     return "{}_{}_batch{}_{}".format(canonical, dtype, str(batch_dim), shape_str)
+
+
+def _to_str(shape):
+    dim_names = []
+    for dim in shape:
+        if isinstance(dim, Any):
+            dim_names.append("any")
+        else:
+            dim_names.append(str(dim))
+    return "_".join(dim_names)
 
 
 class StaticTensorArrayOps(object):
@@ -131,9 +139,9 @@ class StaticTensorArrayOps(object):
         self.batch_dim = batch_dim
         self.list, self.cons, self.nil = self.prelude.mod.get_type("List")
 
-    def get_name(self, canonical):
+    def get_name(self, canonical, extra_shapes=None):
         """Get name corresponding to the canonical name"""
-        return _get_name_static(canonical, self.dtype, self.shape, self.batch_dim)
+        return _get_name_static(canonical, self.dtype, self.shape, self.batch_dim, extra_shapes)
 
     def get_global_var(self, canonical):
         """Get global corresponding to the canonical name"""
@@ -408,11 +416,16 @@ class StaticTensorArrayOps(object):
         # When this operator has already been registered, only update
         # when force_update is set. This should be used only when we need to
         # redefine this op for static indices shape.
-        tensor_array_scatter_name = self.get_name("tensor_array_scatter")
+
+        extra_shapes = {"indices": indices_shape} if indices_shape is not None else None
+        tensor_array_scatter_name = self.get_name("tensor_array_scatter", extra_shapes)
         if hasattr(self.prelude, tensor_array_scatter_name) and not force_update:
             return
 
-        tensor_array_scatter_helper_name = self.get_name("tensor_array_scatter_helper")
+        tensor_array_scatter_helper_name = self.get_name(
+            "tensor_array_scatter_helper", extra_shapes
+        )
+
         tensor_array_scatter_helper_var = self._create_global_var(tensor_array_scatter_helper_name)
         ta = Var("ta", self.list(self.tensor_type_var()))
         current = Var("current", scalar_type("int32"))

@@ -120,6 +120,21 @@ inline Array<For> LoopSRefs2Loops(const Array<StmtSRef>& loop_srefs) {
   return loops;
 }
 
+/*!
+ * \brief Convert an array of block rvs to an array of block StmtSRefs
+ * \param sch The schedule used to evaluate the random variables
+ * \param block_rvs The random variables to be converted
+ * \return The conversion result srefs
+ */
+inline Array<StmtSRef> BlockRVs2StmtSRefs(const Schedule& sch, const Array<BlockRV>& block_rvs) {
+  Array<StmtSRef> block_srefs;
+  block_srefs.reserve(block_rvs.size());
+  for (const BlockRV& block_rv : block_rvs) {
+    block_srefs.push_back(sch->GetSRef(block_rv));
+  }
+  return block_srefs;
+}
+
 /******** Storage scope ********/
 
 /*!
@@ -178,6 +193,18 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
   return {stmt};
 }
 
+/*!
+ * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \param stmt The statement to be checked
+ * \return A boolean indicating the result
+ */
+inline bool IsSingleStmt(const Stmt& stmt) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+    return seq_stmt->seq.size() == 1;
+  }
+  return true;
+}
+
 /******** IterVar ********/
 
 /*!
@@ -190,6 +217,36 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
 inline IterVar IterVarFromLoop(const For& loop, String name, IterVarType iter_var_type) {
   return IterVar(Range::FromMinExtent(loop->min, loop->extent),
                  Var(std::move(name), loop->loop_var.dtype()), iter_var_type);
+}
+
+/*!
+ * \brief Get the thread scope bound to the specific loop
+ * \param loop The loop to be inspected
+ * \return The thread scope bound to the loop
+ */
+inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
+  if (loop->kind == ForKind::kThreadBinding) {
+    return runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+  }
+  return runtime::ThreadScope{-1, -1};
+}
+
+/*!
+ * \brief Check if the thread scope is blockIdx
+ * \param thread_scope The thread scope to be checked
+ * \return True if the thread scope is blockIdx
+ */
+inline bool IsBlockIdx(const runtime::ThreadScope& thread_scope) {
+  return thread_scope.rank == 0;  // The rank of blockIdx is 0
+}
+
+/*!
+ * \brief Check if the thread scope is threadIdx
+ * \param thread_scope The thread scope to be checked
+ * \return True if the thread scope is threadIdx
+ */
+inline bool IsThreadIdx(const runtime::ThreadScope& thread_scope) {
+  return thread_scope.rank == 1 && thread_scope.dim_index >= 0;
 }
 
 /******** Integer set ********/
@@ -317,7 +374,7 @@ inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& an
  */
 inline bool HasAnn(const StmtSRef& sref, const String& ann_key, bool ann_val) {
   Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
-  return result.defined() && result.value()->value == ann_val;
+  return result.defined() && result.value() == ann_val;
 }
 
 /********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/
