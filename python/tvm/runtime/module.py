@@ -411,7 +411,8 @@ class Module(object):
                         "c",
                         "cc",
                         "cpp",
-                    ], "The module.format needs to be either c, cc or cpp"
+                        "cu",
+                    ], "The module.format needs to be either c, cc, cpp or cu."
                     object_format = module.format
                     has_c_module = True
                 else:
@@ -426,7 +427,8 @@ class Module(object):
                             "c",
                             "cc",
                             "cpp",
-                        ], "The module.format needs to be either c, cc or cpp"
+                            "cu",
+                        ], "The module.format needs to be either c, cc, cpp, or cu."
                         object_format = module.format
                     else:
                         object_format = "c"
