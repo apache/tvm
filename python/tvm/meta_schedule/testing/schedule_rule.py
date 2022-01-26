@@ -19,8 +19,10 @@ from tvm.meta_schedule.schedule_rule import (
     AddRFactor,
     AutoInline,
     CrossThreadReduction,
+    MultiLevelTiling,
     ParallelizeVectorizeUnroll,
     RandomComputeLocation,
+    ReuseType,
     ScheduleRule,
 )
 from tvm.target import Target
@@ -62,6 +64,41 @@ def cross_thread_reduction(target: Target) -> ScheduleRule:
     """Default schedule rules for with cross-thread reduction"""
     if target.kind.name == "cuda":
         return CrossThreadReduction(thread_extents=[4, 8, 16, 32, 64, 128, 256, 512])
+    raise NotImplementedError(f"{target.kind.name} is not supported")
+
+
+def multi_level_tiling(target: Target) -> ScheduleRule:
+    """Default schedule rules for with multi-level tiling and reuse"""
+    if target.kind.name == "llvm":
+        return MultiLevelTiling(
+            structure="SSRSRS",
+            tile_binds=None,
+            max_innermost_factor=64,
+            vector_load_lens=None,
+            reuse_read=None,
+            reuse_write=ReuseType(
+                req="may",
+                levels=[1, 2],
+                scope="global",
+            ),
+        )
+    if target.kind.name == "cuda":
+        return MultiLevelTiling(
+            structure="SSSRRSRS",
+            tile_binds=["blockIdx.x", "vthread.x", "threadIdx.x"],
+            max_innermost_factor=64,
+            vector_load_lens=[1, 2, 3, 4],
+            reuse_read=ReuseType(
+                req="must",
+                levels=[4],
+                scope="shared",
+            ),
+            reuse_write=ReuseType(
+                req="must",
+                levels=[3],
+                scope="local",
+            ),
+        )
     raise NotImplementedError(f"{target.kind.name} is not supported")
 
 
