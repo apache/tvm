@@ -213,9 +213,8 @@ class Partitioner : public MixedModeMutator {
     auto glob_funcs = module_->functions;
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
-        auto func = GetRef<Function>(fn);
-        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                        func->attrs);
+        Function func = GetRef<Function>(fn);
+        func = WithFields(func, func->params, VisitExpr(func->body));
         module_->Update(pair.first, func);
         module_ = transform::InferType()(module_);
       }
@@ -429,7 +428,7 @@ IRModule RemoveDefaultAnnotations(IRModule module) {
       auto func = GetRef<Function>(fn);
       DefaultRemover remover;
       auto removed = PostOrderRewrite(func->body, &remover);
-      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      func = WithFields(func, func->params, removed);
       module->Update(pair.first, func);
       module = relay::transform::InferType()(module);
     }
@@ -482,10 +481,10 @@ IRModule FlattenTupleOutputs(IRModule module) {
   module.CopyOnWrite();
   for (const auto& pair : glob_funcs) {
     if (auto* fn = pair.second.as<FunctionNode>()) {
-      auto func = GetRef<Function>(fn);
+      Function func = GetRef<Function>(fn);
       TupleOutFlattener to_flattener;
       auto removed = PostOrderRewrite(func->body, &to_flattener);
-      func = Function(func->params, removed, func->ret_type, func->type_params, func->attrs);
+      func = WithFields(func, func->params, removed);
       module->Update(pair.first, func);
       module = relay::transform::InferType()(module);
     }
@@ -527,12 +526,12 @@ class NameMangleExtFuncs : public MixedModeMutator {
           auto new_dict = func->attrs->dict;
           new_dict.Set(tvm::attr::kGlobalSymbol,
                        String(relay::backend::SanitizeName(mangle_fn_(pair.first->name_hint))));
-          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                          DictAttrs(new_dict));
+          func = WithFields(func, func->params, VisitExpr(func->body), func->ret_type,
+                            func->type_params, DictAttrs(new_dict));
+
           new_module->Add(mangled_gvars_[pair.first->name_hint], func);
         } else {
-          func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                          func->attrs);
+          func = WithFields(func, func->params, VisitExpr(func->body));
           new_module->Add(pair.first, func);
         }
       }
