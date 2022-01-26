@@ -511,15 +511,84 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * executed in the original order. attr::software_pipeline_order defines the order of the each
  * component. Components belong to different stages can be reordered.
  *
+ * Nested software pipelines are allowed. In this case, the inner software pipeline will be
+ * generated first. As a result, this may affect the number of components, i.e. the number of the
+ * direct children of the outer loop. In this case, the annotations for the outer software
+ * pipeline should include the result of the inner software pipeline, which is three blocks as
+ * discussed above.
+ *
  * Buffer allocated inside the software pipeline may be resized to accommodate multiple versions
  * of the original buffer. Block annotation attr::double_buffer_scope can be used to indicate that
  * the block need to write in the double-buffering style.
  *
- * Annotations:
- * attr::software_pipeline_stage: Array of non-negative integers, each element should be in range
- *                                [0, max_stage], where max_stage is the maximum (inclusive) stage.
- * attr::software_pipeline_order: Array of non-negative integers, should be a permutation of
- *                                [0, 1, ..., num_components - 1].
+ * The following annotations are used to specify the behavior of this pass:
+ *     attr::software_pipeline_stage: Array of non-negative integers, each element should be in
+ *                                    range [0, max_stage], where max_stage is the maximum
+ *                                    (inclusive) stage.
+ *     attr::software_pipeline_order: Array of non-negative integers, should be a permutation of
+ *                                    [0, 1, ..., num_components - 1].
+ *     attr::double_buffer_scope: Integer index of the write regions of the block. Mark a buffer
+ *                                should be double-buffered during the software pipelining.
+ *
+ * Example:
+ *
+ * Before this pass, the TIR is:
+ *
+ * @T.prim_func
+ * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+ *         for i in T.serial(0, 16,
+ *                           annotations={"software_pipeline_stage": [0, 1],
+ *                                        "software_pipeline_order": [0, 1]}
+ *                          ):
+ *             with T.block():
+ *                 T.reads(A[tx, i])
+ *                 T.writes(C[tx, i])
+ *                 B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+ *                 with T.block("B"):
+ *                     T.reads(A[tx, i])
+ *                     T.writes(B[tx, 0])
+ *                     B[tx, 0] = A[tx, i] * T.float32(2)
+ *                 with T.block("C"):
+ *                     T.reads(B[tx, 0])
+ *                     T.writes(C[tx, i])
+ *                     C[tx, i] = B[tx, 0] + T.float32(1)
+ *
+ * The TIR above annotate the loop as a two-stage pipeline, the components are not reordered.
+ * After this pass, the TIR is:
+ *
+ * @T.prim_func
+ * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+ *         with T.block():
+ *             T.reads([A[tx, 0:16]])
+ *             T.writes([C[tx, 0:16]])
+ *             B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+ *             with T.block("prologue"):
+ *                 T.reads([A[tx, 0]])
+ *                 T.writes([B[0, tx, 0]])
+ *                 B[0, tx, 0] = A[tx, 0] * T.float32(2)
+ *             with T.block("body"):
+ *                 T.reads([A[tx, 1:16], B[0:2, tx, 0]])
+ *                 T.writes([B[0:2, tx, 0], C[tx, 0:15]])
+ *                 for i in T.serial(0, 15):
+ *                     with T.block("B"):
+ *                         T.reads([A[tx, i + 1]])
+ *                         T.writes([B[(i + 1) % 2, tx, 0]])
+ *                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+ *                     with T.block("C"):
+ *                         T.reads([B[i % 2, tx, 0]])
+ *                         T.writes([C[tx, i]])
+ *                         C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
+ *             with T.block("epilogue"):
+ *                 T.reads([B[1, tx, 0]])
+ *                 T.writes([C[tx, 15]])
+ *                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
+ *
+ * The original loop has two blocks, B and C, as its direct children. The loop annotations indicate
+ * that block B has stage == 0, order == 0, block C has stage == 1, order == 1. Therefore, block B
+ * should be executed in advance of block C by one iteration. The order 0 and 1 specifies the order
+ * of block B and C inside the body block inside the result TIR.
  *
  * \return The IR transform pass.
  */
