@@ -20,6 +20,8 @@
 #include <tvm/relay/function.h>
 #include <tvm/tir/function.h>
 
+#include "./utils.h"
+
 namespace tvm {
 namespace meta_schedule {
 
@@ -112,7 +114,21 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
 
 Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
                                                 Optional<Array<IRModule>> dispatched) {
-  throw;
+  ICHECK(dispatched.defined());
+  ICHECK_EQ(dispatched.value().size(), 1);
+  ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
+  IRModule prim_mod = dispatched.value()[0];
+  ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
+  // Unify func name to make sure it can be found in database
+  prim_mod = UnifyFuncName(prim_mod);
+  if (database->HasWorkload(prim_mod)) {
+    Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
+    if (records.size() == 1) {
+      LOG(INFO) << "Applied history best for " << task_name << ".";
+      return records[0]->workload->mod;
+    }
+  }
+  return NullOpt;
 }
 
 /**************** FFI ****************/
@@ -146,6 +162,10 @@ TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextQuery")
 TVM_REGISTER_GLOBAL("meta_schedule.TaskExtraction").set_body_typed([]() -> TaskExtraction {
   return TaskExtraction();
 });
+TVM_REGISTER_GLOBAL("meta_schedule.ApplyHistoryBest")
+    .set_body_typed([](Database database) -> ApplyHistoryBest {
+      return ApplyHistoryBest(database);
+    });
 
 }  // namespace meta_schedule
 }  // namespace tvm
