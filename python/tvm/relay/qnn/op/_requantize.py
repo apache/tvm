@@ -14,11 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-The tvm.meta_schedule.mutator package.
-Meta Schedule mutator that mutates the trace to explore the
-design space.
-"""
-from .mutator import Mutator, PyMutator
-from .mutate_compute_location import MutateComputeLocation
-from .mutate_unroll import MutateUnroll
+# pylint: disable=unused-argument
+"""Internal module for qnn requantization."""
+import tvm._ffi
+
+tvm._ffi._init_api("relay._requantize", __name__)

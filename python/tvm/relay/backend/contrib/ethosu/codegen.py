@@ -297,8 +297,6 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
         This returns the scheduled PrimFunc
     """
     assert len(ext_func.params) == 1
-    input_size = util.calculate_size_bytes(ext_func.params[0])
-    output_size = util.calculate_size_bytes(ext_func.body)
     mod = tvm.IRModule()
     mod["main"] = ext_func
     mod = LegalizeEthosU()(mod)
@@ -317,8 +315,6 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     primfunc = tir_mod["main"]
     primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
     primfunc = primfunc.with_attr("ethos-u.constants", const_dict)
-    primfunc = primfunc.with_attr("ethos-u.input_size", input_size)
-    primfunc = primfunc.with_attr("ethos-u.output_size", output_size)
     return primfunc
 
 
@@ -342,8 +338,6 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
     """
     symbol = str(primfunc.attrs["global_symbol"])
     const_dict = primfunc.attrs["ethos-u.constants"]
-    input_size = primfunc.attrs["ethos-u.input_size"]
-    output_size = primfunc.attrs["ethos-u.output_size"]
     tir_mod = tvm.IRModule()
     tir_mod[symbol] = primfunc
 
@@ -351,9 +345,7 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
     for idx in const_dict.keys():
         const_dict_with_int_keys[int(idx)] = const_dict[idx].numpy()
 
-    cmms, encoded_constants, scratch_size = tir_to_cs_translator.translate(
+    cmms, encoded_constants, base_addresses = tir_to_cs_translator.translate(
         tir_mod, const_dict_with_int_keys
     )
-    return util.CompilationArtifact(
-        cmms, encoded_constants, scratch_size, input_size, output_size, symbol
-    )
+    return util.CompilationArtifact(symbol, cmms, encoded_constants, base_addresses)
