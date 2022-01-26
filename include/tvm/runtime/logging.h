@@ -302,7 +302,14 @@ TVM_DLL void LogMessageImpl(const std::string& file, int lineno, const std::stri
 class LogFatal {
  public:
   LogFatal(const std::string& file, int lineno) : file_(file), lineno_(lineno) {}
+#ifdef _MSC_VER
+#pragma disagnostic push
+#pragma warning(disable : 4722)
+#endif
   ~LogFatal() TVM_THROW_EXCEPTION { LogFatalImpl(file_, lineno_, stream_.str()); }
+#ifdef _MSC_VER
+#pragma disagnostic pop
+#endif
   std::ostringstream& stream() { return stream_; }
 
  private:
