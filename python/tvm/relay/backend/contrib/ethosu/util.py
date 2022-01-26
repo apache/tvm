@@ -23,7 +23,7 @@ Refer to the description inside such functions
 
 from inspect import signature
 from enum import Enum
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -239,6 +239,31 @@ def calculate_size_bytes(expr):
     return element_size * elements
 
 
+@register_object("relay.ext.ethos-u.BaseAddress")
+class BaseAddress(Object):
+    """
+    This is a structure to hold base addresses for pointers
+    provided for the driver.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        primfunc_param_idx: int,
+        region: int,
+        size: int,
+        is_runtime_allocation: bool = False,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BaseAddress,  # type: ignore # pylint: disable=no-member
+            name,
+            primfunc_param_idx,
+            region,
+            size,
+            is_runtime_allocation,
+        )
+
+
 @register_object("relay.ext.ethos-u.CompilationArtifact")
 class CompilationArtifact(Object):
     """
@@ -248,19 +273,15 @@ class CompilationArtifact(Object):
 
     def __init__(
         self,
+        function_name: str,
         command_stream: str,
         encoded_constants: str,
-        scratch_size: int,
-        input_size: int,
-        output_size: int,
-        function_name: str,
+        base_addresses: List[BaseAddress],
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.CompilationArtifact,  # type: ignore # pylint: disable=no-member
+            function_name,
             command_stream,
             encoded_constants,
-            scratch_size,
-            input_size,
-            output_size,
-            function_name,
+            base_addresses,
         )
