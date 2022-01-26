@@ -52,6 +52,7 @@ has_tensorrt_runtime = pytest.mark.skipif(
     not tensorrt.is_tensorrt_runtime_enabled(), reason="TensorRT runtime not available"
 )
 
+
 # conv2d+relu network
 def get_conv2d_relu(
     data_shape,
@@ -224,6 +225,9 @@ def test_conv2d_relu():
     verify_meta_schedule_with_tensorrt(mod, params, data_shape)
 
 
+@tvm.testing.requires_cuda
+@has_tensorrt_codegen
+@has_tensorrt_runtime
 @pytest.mark.parametrize(
     "model_name",
     ["resnet-50", "mobilenet"],
