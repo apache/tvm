@@ -449,7 +449,6 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   if (fn->ret_type.defined()) {
     doc << "-> " << Print(fn->ret_type) << " ";
   }
-  doc << "Virtual Device: " << Print(fn->virtual_device()) << " \n";
   doc << PrintBody(fn->body);
   return doc;
 }
