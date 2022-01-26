@@ -298,8 +298,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
         PushBoundVar(f->params[i], GetFunctionParamVirtualDevice(f, i));
       }
       EnterFunctionBody();
-      ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
-                     f->type_params, f->attrs);
+      ret = WithFields(GetRef<Function>(f), f->params,
+                       GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)));
       // We are done with this function.
       ExitFunctionBody();
       for (size_t i = 0; i < f->params.size(); ++i) {

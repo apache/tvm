@@ -45,6 +45,7 @@ using namespace tvm::runtime;
 Constant::Constant(runtime::NDArray data, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
