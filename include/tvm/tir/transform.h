@@ -534,6 +534,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *
  * Before this pass, the TIR is:
  *
+ * \code{.py}
  * @T.prim_func
  * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -553,10 +554,12 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *                     T.reads(B[tx, 0])
  *                     T.writes(C[tx, i])
  *                     C[tx, i] = B[tx, 0] + T.float32(1)
+ * \endcode
  *
  * The TIR above annotate the loop as a two-stage pipeline, the components are not reordered.
  * After this pass, the TIR is:
  *
+ * \code{.py}
  * @T.prim_func
  * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
  *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -584,6 +587,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *                 T.reads([B[1, tx, 0]])
  *                 T.writes([C[tx, 15]])
  *                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
+ * \endcode
  *
  * The original loop has two blocks, B and C, as its direct children. The loop annotations indicate
  * that block B has stage == 0, order == 0, block C has stage == 1, order == 1. Therefore, block B
