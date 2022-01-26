@@ -98,10 +98,6 @@ if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
   message(SEND_ERROR "USE_HEXAGON_LAUNCHER is deprecated, please build apps separately")
 endif()
 
-if(USE_HEXAGON_PROXY_RPC STREQUAL "ON")
-  message(SEND_ERROR "USE_HEXAGON_PROXY_RPC is deprecated, please build apps separately")
-endif()
-
 # find_hexagon_sdk_root has been called at this point.
 
 if(USE_HEXAGON_RPC)
