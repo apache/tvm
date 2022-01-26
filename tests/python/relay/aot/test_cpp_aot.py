@@ -45,21 +45,35 @@ def print_mod_tree(m, indent=0):
         print_mod_tree(i, indent + 2)
 
 
-def test_conv2d():
+unpacked_api = tvm.testing.parameter(True, False)
+
+
+def test_conv2d(unpacked_api):
     RELAY_MODEL = textwrap.dedent(
         """\
         #[version = "0.0.5"]
-        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
+        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
             %1 = nn.conv2d(
                  %data,
                  %weight,
                  padding=[2, 2],
-                 channels=8,
+                 channels=3,
                  kernel_size=[5, 5],
                  data_layout="NCHW",
                  kernel_layout="OIHW",
                  out_dtype="int32");
-          %1
+            %2 = cast(nn.max_pool2d(%1, pool_size=[3, 3]), dtype="int8");
+            %3 = nn.conv2d(
+                 %2,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %4 = nn.max_pool2d(%3, pool_size=[3, 3]);
+            %4
         }
     """
     )
@@ -81,13 +95,13 @@ def test_conv2d():
             ir_mod,
             params=params,
             target="c",
-            executor=backend.Executor("aot", {"interface-api": "c"}),
+            executor=backend.Executor("aot", {"unpacked-api": unpacked_api, "interface-api": "packed"}),
         )
 
     print_mod_tree(mod.module)
 
     with tvm.contrib.utils.TempDirectory.set_keep_for_debug():
-        mod.export_library("test.so")
+        mod.export_library("test.so", options=["-fpermissive"])
     mod.export_library("test.tar")
     runner = tvm.runtime.load_module("test.so")
     print_mod_tree(runner)

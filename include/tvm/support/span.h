@@ -35,6 +35,12 @@ namespace support {
 template <class T, class W>
 class Span {
  public:
+  using value_type = W;
+  using reference = W&;
+  using const_reference = const W&;
+  using pointer = W*;
+  using const_pointer = const W*;
+
   class iterator : public std::iterator<std::input_iterator_tag, W> {
    public:
     inline iterator(T* ptr, T* end) : ptr_{ptr}, end_{end} { CHECK_GE(end, ptr); }
@@ -46,21 +52,23 @@ class Span {
       return *this;
     }
 
-    inline bool operator==(iterator other) { return ptr_ == other.ptr_ && end_ == other.end_; }
+    inline bool operator==(iterator other) const { return ptr_ == other.ptr_ && end_ == other.end_; }
 
-    inline bool operator!=(iterator other) { return !(*this == other); }
+    inline bool operator!=(iterator other) const { return !(*this == other); }
 
-   private:
+   protected:
     T* ptr_;
     T* end_;
   };
 
+  using const_iterator = iterator;
+
   inline Span(T* begin, int num_elements) : begin_{begin}, end_{begin + num_elements} {}
   inline Span(T* begin, T* end) : begin_{begin}, end_{end} {}
 
-  inline iterator begin() { return iterator(begin_, end_); }
+  inline iterator begin() const { return iterator(begin_, end_); }
 
-  inline iterator end() { return iterator(end_, end_); }
+  inline iterator end() const { return iterator(end_, end_); }
 
   inline W operator[](int i) {
     T* to_return = begin_ + i;

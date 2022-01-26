@@ -253,7 +253,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
       virtual_devices.push_back(virtual_device);
       storage_sizes_in_bytes.push_back(GetMemorySizeBytes(ttype));
     }
-    LOG(INFO) << "CreateStorage: " << expr;
+//    LOG(INFO) << "CreateStorage: " << expr;
     storage_device_map_[expr] = StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                             std::move(storage_sizes_in_bytes));
   }
@@ -337,6 +337,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * a DLTensor on stack.
    */
   PrimExpr MakeDLTensor(Expr relay_arg, TensorType ttype, PrimExpr data) {
+    LOG(INFO) << "MakeDLTensor: " << relay_arg << " (ttype " << ttype << "): " << data;
     return data;
   }
   //   for (Var v : input_vars_) {
