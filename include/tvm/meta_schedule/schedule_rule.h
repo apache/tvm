@@ -137,7 +137,6 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param tile_binds For each level of tiles, which thread axis it is bound to. Recommended:
    * - NullOpt on CPU
    * - [blockIdx.x, vthread.x, threadIdx.x] on GPU
-   * \param use_tensor_core Whether to apply tensor core wmma intrinsic for the computation
    * \param max_innermost_factor The maximum size of the innermost factor. NullOpt means no limit
    * \param vector_load_lens The length of vector lane in vectorized cooperative fetching.
    * NullOpt means disable vectorization
