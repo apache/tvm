@@ -33,7 +33,6 @@ import tvm.relay as relay
 from tvm.relay.backend import Executor, Runtime
 
 from tvm.contrib.download import download_testdata
-from tvm.micro.model_library_format import generate_c_interface_header
 from tvm.micro.testing import aot_transport_init_wait, aot_transport_find_message
 
 import test_utils
@@ -78,41 +77,19 @@ def test_tflite(temp_dir, board, west_cmd, tvm_debug):
     sample_path = download_testdata(sample_url, "keyword_spotting_int8_6.pyc.npy", module="data")
     sample = np.load(sample_path)
 
-    with tempfile.NamedTemporaryFile() as tar_temp_file:
-        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
-            with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir, "include")
-                os.mkdir(model_files_path)
-                header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], [], 0, model_files_path
-                )
-                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
+    project, _ = test_utils.generate_project(
+        temp_dir,
+        board,
+        west_cmd,
+        lowered,
+        build_config,
+        sample,
+        output_shape,
+        "int8",
+        load_cmsis=False,
+    )
 
-            test_utils.create_header_file("input_data", sample, "include", tf)
-            test_utils.create_header_file(
-                "output_data", np.zeros(shape=output_shape, dtype="int8"), "include", tf
-            )
-
-        project, _ = test_utils.build_project(
-            temp_dir,
-            board,
-            west_cmd,
-            lowered,
-            build_config,
-            extra_files_tar=tar_temp_file.name,
-        )
-
-    project.flash()
-    with project.transport() as transport:
-        aot_transport_init_wait(transport)
-        transport.write(b"infer%", timeout_sec=5)
-        result_line = aot_transport_find_message(transport, "result", timeout_sec=60)
-
-    result_line = result_line.strip("\n")
-    result_line = result_line.split(":")
-    result = int(result_line[1])
-    time = int(result_line[2])
-    logging.info(f"Result: {result}\ttime: {time} ms")
+    result, time = test_utils.run_model(project)
     assert result == 6
 
 
@@ -140,31 +117,10 @@ def test_qemu_make_fail(temp_dir, board, west_cmd, tvm_debug):
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lowered = relay.build(ir_mod, target, executor=executor, runtime=runtime)
 
-    # Generate input/output header files
-    with tempfile.NamedTemporaryFile() as tar_temp_file:
-        with tarfile.open(tar_temp_file.name, "w:gz") as tf:
-            with tempfile.TemporaryDirectory() as tar_temp_dir:
-                model_files_path = os.path.join(tar_temp_dir, "include")
-                os.mkdir(model_files_path)
-                header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], [], 0, model_files_path
-                )
-                tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
-            test_utils.create_header_file(
-                "input_data", np.zeros(shape=shape, dtype=dtype), "include", tf
-            )
-            test_utils.create_header_file(
-                "output_data", np.zeros(shape=shape, dtype=dtype), "include", tf
-            )
-
-        project, project_dir = test_utils.build_project(
-            temp_dir,
-            board,
-            west_cmd,
-            lowered,
-            build_config,
-            extra_files_tar=tar_temp_file.name,
-        )
+    sample = np.zeros(shape=shape, dtype=dtype)
+    project, project_dir = test_utils.generate_project(
+        temp_dir, board, west_cmd, lowered, build_config, sample, shape, dtype, load_cmsis=False
+    )
 
     file_path = (
         pathlib.Path(project_dir) / "build" / "zephyr" / "CMakeFiles" / "run.dir" / "build.make"

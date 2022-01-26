@@ -526,23 +526,6 @@ class Conv(OnnxOpConverter):
                 raise tvm.error.OpAttributeInvalid(msg.format(attr["auto_pad"]))
             attr.pop("auto_pad")
 
-        # Check if the requested convolution is a group conv1d, if so convert it to conv2d.
-        # TODO(jwfromm) Remove once proper group_conv1d is supported.
-        group_conv1d = False
-        if dimension_picker("conv")(attr) == "conv1d" and attr.get("group") != 1:
-            group_conv1d = True
-            # Expand input from NCW to NCHW
-            data = _op.expand_dims(data, axis=2)
-            # Expand kernel from OIW to OIHW
-            kernel = _op.expand_dims(kernel, axis=2)
-            # Add new value to kernel_shape, strices, dilation, pads, if needed
-            attr["kernel_shape"] = [1] + list(attr["kernel_shape"])
-            if "strides" in attr:
-                attr["strides"] = [1] + list(attr["strides"])
-            if "dilations" in attr:
-                attr["dilations"] = [1] + list(attr["dilations"])
-            if "pads" in attr:
-                attr["pads"] = [0, attr["pads"][0], 0, attr["pads"][1]]
         attr["channels"] = kernel_shapes[0][0]
         out = AttrCvt(
             op_name=dimension_picker("conv"),
@@ -554,10 +537,6 @@ class Conv(OnnxOpConverter):
             },
             custom_check=dimension_constraint(),
         )([data, kernel], attr, params)
-
-        # If this was a group_conv1d, squish output back to NCW.
-        if group_conv1d:
-            out = _op.squeeze(out, axis=[2])
 
         use_bias = len(inputs) == 3
         if use_bias:

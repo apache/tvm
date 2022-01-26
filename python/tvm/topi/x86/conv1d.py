@@ -126,3 +126,11 @@ def schedule_conv1d_nwc(outs):
 
     traverse(output_op)
     return s
+
+
+def schedule_group_conv1d_ncw(outs):
+    return schedule_conv1d_ncw(outs)
+
+
+def schedule_group_conv1d_nwc(outs):
+    return schedule_conv1d_nwc(outs)

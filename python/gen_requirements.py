@@ -87,6 +87,18 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
     ),
     # Relay frontends.
     (
+        "importer-caffe",
+        (
+            "Requirements for the Caffe importer",
+            [
+                "numpy",
+                "protobuf",
+                "scikit-image",
+                "six",
+            ],
+        ),
+    ),
+    (
         "importer-caffe2",
         (
             "Requirements for the Caffe2 importer",
@@ -248,9 +260,12 @@ CONSTRAINTS = [
     ("paddlepaddle", None),
     ("pillow", None),
     ("progressbar", None),
+    ("protobuf", None),
     ("psutil", None),
     ("pylint", None),
+    ("scikit-image", None),
     ("scipy", None),
+    ("six", None),
     ("sphinx", None),
     ("sphinx_autodoc_annotation", None),
     ("sphinx_gallery", None),

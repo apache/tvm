@@ -319,6 +319,17 @@ def test_target_host_merge_2():
     assert tgt.host.kind.name == "llvm"
 
 
+def test_target_tvm_object():
+    """Test creating Target by using TVM Objects"""
+    String = tvm.runtime.container.String
+    tgt = tvm.target.Target(target=String("cuda --host llvm"))
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+    tgt = tvm.target.Target(target=String("cuda"), host=String("llvm"))
+    assert tgt.kind.name == "cuda"
+    assert tgt.host.kind.name == "llvm"
+
+
 @pytest.mark.skip(reason="Causing infinite loop because of pytest and handle issue")
 def test_target_host_merge_3():
     with pytest.raises(ValueError, match=r"target host has to be a string or dictionary."):
@@ -370,6 +381,27 @@ def test_check_and_update_host_consist_3():
     assert target.host.kind.name == "llvm"
     assert host.kind.name == "llvm"
     assert target.host == host
+
+
+def test_check_and_update_host_consist_4():
+    """Test `check_and_update_host_consist` by using TVM Objects"""
+    cuda_device_type = tvm.device("cuda").device_type
+    target = {cuda_device_type: Target(target="cuda", host="llvm")}
+    host = None
+    target_1, host_1 = Target.check_and_update_host_consist(target, host)
+    assert isinstance(target_1, dict)
+    assert target_1[cuda_device_type].kind.name == "cuda"
+    assert target_1[cuda_device_type].host.kind.name == "llvm"
+    assert host_1 is None
+
+    target = {cuda_device_type: Target(tvm.runtime.container.String("cuda"))}
+    host = Target(tvm.runtime.container.String("llvm"))
+    target = tvm.runtime.convert(target)
+    assert isinstance(target, tvm.ir.container.Map)
+    target_2, host_2 = Target.check_and_update_host_consist(target, host)
+    assert isinstance(target_2, dict)
+    assert target_2[cuda_device_type].kind.name == "cuda"
+    assert host_2.kind.name == "llvm"
 
 
 def test_target_attr_bool_value():

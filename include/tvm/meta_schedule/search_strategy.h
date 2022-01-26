@@ -28,6 +28,8 @@ namespace meta_schedule {
 
 // Forward declaration
 class TuneContext;
+class CostModel;
+class Database;
 
 /*! \brief The schedule (with input shapes) to be measured. */
 class MeasureCandidateNode : public runtime::Object {
@@ -133,9 +135,13 @@ class SearchStrategyNode : public runtime::Object {
 
   /*!
    * \brief Update the search strategy with measurement results.
+   * \param context The tuning context.
+   * \param measure_candidates The candidates to be measured.
    * \param results The measurement results from the runner.
    */
-  virtual void NotifyRunnerResults(const Array<RunnerResult>& results) = 0;
+  virtual void NotifyRunnerResults(const TuneContext& context,
+                                   const Array<MeasureCandidate>& measure_candidates,
+                                   const Array<RunnerResult>& results) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.SearchStrategy";
   TVM_DECLARE_BASE_OBJECT_INFO(SearchStrategyNode, Object);
@@ -165,7 +171,8 @@ class PySearchStrategyNode : public SearchStrategyNode {
    * \brief The function type of `NotifyRunnerResults` method.
    * \param results The measurement results from the runner.
    */
-  using FNotifyRunnerResults = runtime::TypedPackedFunc<void(const Array<RunnerResult>&)>;
+  using FNotifyRunnerResults = runtime::TypedPackedFunc<void(
+      const TuneContext&, const Array<MeasureCandidate>&, const Array<RunnerResult>&)>;
 
   /*! \brief The packed function to the `InitializeWithTuneContext` method. */
   FInitializeWithTuneContext f_initialize_with_tune_context;
@@ -208,10 +215,12 @@ class PySearchStrategyNode : public SearchStrategyNode {
     return this->f_generate_measure_candidates();
   }
 
-  void NotifyRunnerResults(const Array<RunnerResult>& results) final {
+  void NotifyRunnerResults(const TuneContext& context,
+                           const Array<MeasureCandidate>& measure_candidates,
+                           const Array<RunnerResult>& results) final {
     ICHECK(f_notify_runner_results != nullptr)
         << "PySearchStrategy's NotifyRunnerResults method not implemented!";
-    this->f_notify_runner_results(results);
+    this->f_notify_runner_results(context, measure_candidates, results);
   }
 
   static constexpr const char* _type_key = "meta_schedule.PySearchStrategy";
@@ -246,6 +255,35 @@ class SearchStrategy : public runtime::ObjectRef {
    * \param num_trials_total The total number of trials for trace replaying.
    */
   TVM_DLL static SearchStrategy ReplayTrace(int num_trials_per_iter, int num_trials_total);
+
+  /*!
+   * \brief Constructor of replay func search strategy.
+   * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
+   * \param num_trials_total The total number of trials for func replaying.
+   */
+  TVM_DLL static SearchStrategy ReplayFunc(int num_trials_per_iter, int num_trials_total);
+
+  /*!
+   * \brief Constructor of evolutionary search strategy.
+   * \param num_trials_per_iter The number of trials per iteration, i.e., the batch size.
+   * \param num_trials_total The total number of trials for evolutionary search.
+   * \param population_size The initial sample population.
+   * \param init_measured_ratio The ratio of measures samples in initial population.
+   * \param init_max_fail_count The maximum number to fail trace replaying.
+   * \param genetic_num_iters The iterations to run the genetic algorithm.
+   * \param genetic_mutate_prob The probability of mutation.
+   * \param genetic_max_fail_count The maximum number to try evolving the given trace.
+   * \param eps_greedy The ratio to select samples in a greedy fashion via their predicted score.
+   */
+  TVM_DLL static SearchStrategy EvolutionarySearch(int num_trials_per_iter,     //
+                                                   int num_trials_total,        //
+                                                   int population_size,         //
+                                                   double init_measured_ratio,  //
+                                                   int init_max_fail_count,     //
+                                                   int genetic_num_iters,       //
+                                                   double genetic_mutate_prob,  //
+                                                   int genetic_max_fail_count,  //
+                                                   double eps_greedy);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(SearchStrategy, ObjectRef, SearchStrategyNode);
 };

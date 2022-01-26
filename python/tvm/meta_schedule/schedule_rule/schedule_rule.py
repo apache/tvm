@@ -35,16 +35,16 @@ if TYPE_CHECKING:
 class ScheduleRule(Object):
     """Rules to modify a block in a schedule."""
 
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the schedule rule with a tune context.
 
         Parameters
         ----------
-        tune_context : TuneContext
+        context : TuneContext
             The tuning context for initializing the schedule rule.
         """
         _ffi_api.ScheduleRuleInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
-            self, tune_context
+            self, context
         )
 
     def apply(self, sch: Schedule, block: BlockRV) -> List[Schedule]:
@@ -75,8 +75,8 @@ class PyScheduleRule(ScheduleRule):
         """Constructor."""
 
         @check_override(self.__class__, ScheduleRule)
-        def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
-            self.initialize_with_tune_context(tune_context)
+        def f_initialize_with_tune_context(context: "TuneContext") -> None:
+            self.initialize_with_tune_context(context)
 
         @check_override(self.__class__, ScheduleRule)
         def f_apply(sch: Schedule, block: BlockRV) -> List[Schedule]:

@@ -378,26 +378,20 @@ def test_quantized_imagenet():
     from torchvision.models.quantization import mobilenet as qmobilenet
     from torchvision.models.quantization import inception as qinception
     from torchvision.models.quantization import googlenet as qgooglenet
+    from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
 
-    qmodels = []
-
-    for per_channel in [False, True]:
-        qmodels += [
-            ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
-            ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
-            # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
-            # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
-            # ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
-            # tracing quantized googlenet broken as of v1.6
-            # ("googlenet", qgooglenet(pretrained=True), per_channel),
-        ]
-
-    if is_version_greater_than("1.7.1"):
-        from torchvision.models.quantization import mobilenet_v3_large as qmobilenet_v3_large
-
-        qmodels.append(
-            ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
-        )
+    per_channel = True
+    qmodels = [
+        ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
+        ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
+        ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
+        # tracing quantized googlenet broken as of v1.6
+        # ("googlenet", qgooglenet(pretrained=True), per_channel),
+        # As of v1.10, quantized mobilenet v3 has a weird segfault issue
+        # during make_conv_packed_param
+        # See https://ci.tlcpack.ai/blue/organizations/jenkins/tvm/detail/ci-docker-staging/192
+        # ("mobilenet_v3_large", qmobilenet_v3_large(pretrained=True, quantize=True).eval(), True)
+    ]
 
     results = []
 

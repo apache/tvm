@@ -70,7 +70,7 @@ def make_model(
     invar = relay.var("input", shape=shape, dtype=dtype)
     p = (0, 0, 0, 0)
     if padding == "INVALID":
-        p = [1, 2, 1, 2]
+        p = [1, 2, 2, 1]
     if padding == "SAME":
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
         invar = relay.nn.pad(

@@ -689,20 +689,36 @@ def conv1d_strategy_cuda(attrs, inputs, out_type, target):
     if dilation[0] < 1:
         raise ValueError("dilation should be a positive value")
     strategy = _op.OpStrategy()
-    if layout == "NCW":
-        strategy.add_implementation(
-            wrap_compute_conv1d(topi.cuda.conv1d_ncw),
-            wrap_topi_schedule(topi.cuda.schedule_conv1d_ncw),
-            name="conv1d_ncw.cuda",
-        )
-    elif layout == "NWC":
-        strategy.add_implementation(
-            wrap_compute_conv1d(topi.cuda.conv1d_nwc),
-            wrap_topi_schedule(topi.cuda.schedule_conv1d_nwc),
-            name="conv1d_nwc.cuda",
-        )
+    if attrs.groups == 1:
+        if layout == "NCW":
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.cuda.conv1d_ncw),
+                wrap_topi_schedule(topi.cuda.schedule_conv1d_ncw),
+                name="conv1d_ncw.cuda",
+            )
+        elif layout == "NWC":
+            strategy.add_implementation(
+                wrap_compute_conv1d(topi.cuda.conv1d_nwc),
+                wrap_topi_schedule(topi.cuda.schedule_conv1d_nwc),
+                name="conv1d_nwc.cuda",
+            )
+        else:
+            raise ValueError("Unsupported conv1d layout {}".format(layout))
     else:
-        raise ValueError("Unsupported conv1d layout {}".format(layout))
+        if layout == "NCW":
+            strategy.add_implementation(
+                wrap_compute_group_conv1d(topi.cuda.group_conv1d_ncw),
+                wrap_topi_schedule(topi.cuda.schedule_group_conv1d_ncw),
+                name="group_conv1d_ncw.cuda",
+            )
+        elif layout == "NWC":
+            strategy.add_implementation(
+                wrap_compute_group_conv1d(topi.cuda.group_conv1d_nwc),
+                wrap_topi_schedule(topi.cuda.schedule_group_conv1d_nwc),
+                name="group_conv1d_nwc.cuda",
+            )
+        else:
+            raise ValueError("Unsupported conv1d layout {}".format(layout))
     return strategy
 
 

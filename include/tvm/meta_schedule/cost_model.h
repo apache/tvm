@@ -51,20 +51,20 @@ class CostModelNode : public runtime::Object {
 
   /*!
    * \brief Update the cost model given running results.
-   * \param tune_context The tuning context.
+   * \param context The tuning context.
    * \param candidates The measure candidates.
    * \param results The running results of the measure candidates.
    */
-  virtual void Update(const TuneContext& tune_context, const Array<MeasureCandidate>& candidates,
+  virtual void Update(const TuneContext& context, const Array<MeasureCandidate>& candidates,
                       const Array<RunnerResult>& results) = 0;
 
   /*!
    * \brief Predict the normalized score (the larger the better) of given measure candidates.
-   * \param tune_context The tuning context.
+   * \param context The tuning context.
    * \param candidates The measure candidates.
    * \return The predicted normalized score.
    */
-  virtual std::vector<double> Predict(const TuneContext& tune_context,
+  virtual std::vector<double> Predict(const TuneContext& context,
                                       const Array<MeasureCandidate>& candidates) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.CostModel";
@@ -86,7 +86,7 @@ class PyCostModelNode : public CostModelNode {
   using FSave = runtime::TypedPackedFunc<void(String)>;
   /*!
    * \brief Update the cost model given running results.
-   * \param tune_context The tuning context.
+   * \param context The tuning context.
    * \param candidates The measure candidates.
    * \param results The running results of the measure candidates.
    * \return Whether cost model was updated successfully.
@@ -95,7 +95,7 @@ class PyCostModelNode : public CostModelNode {
                                                 const Array<RunnerResult>&)>;
   /*!
    * \brief Predict the running results of given measure candidates.
-   * \param tune_context The tuning context.
+   * \param context The tuning context.
    * \param candidates The measure candidates.
    * \param p_addr The address to save the the estimated running results.
    */
@@ -135,17 +135,17 @@ class PyCostModelNode : public CostModelNode {
     ICHECK(f_save != nullptr) << "PyCostModel's Save method not implemented!";
     f_save(path);
   }
-  void Update(const TuneContext& tune_context, const Array<MeasureCandidate>& candidates,
+  void Update(const TuneContext& context, const Array<MeasureCandidate>& candidates,
               const Array<RunnerResult>& results) {
     ICHECK(f_update != nullptr) << "PyCostModel's Update method not implemented!";
-    f_update(tune_context, candidates, results);
+    f_update(context, candidates, results);
   }
 
-  std::vector<double> Predict(const TuneContext& tune_context,
+  std::vector<double> Predict(const TuneContext& context,
                               const Array<MeasureCandidate>& candidates) {
     ICHECK(f_predict != nullptr) << "PyCostModel's Predict method not implemented!";
     std::vector<double> result(candidates.size(), 0.0);
-    f_predict(tune_context, candidates, result.data());
+    f_predict(context, candidates, result.data());
     return result;
   }
 

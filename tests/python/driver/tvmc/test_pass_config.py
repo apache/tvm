@@ -18,33 +18,33 @@
 import pytest
 
 from tvm.contrib.target.vitis_ai import vitis_ai_available
-from tvm.driver import tvmc
 
-from tvm.driver.tvmc.common import TVMCException
+from tvm.driver.tvmc import TVMCException
+from tvm.driver.tvmc.pass_config import parse_configs
 
 
 def test_config_invalid_format():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.parse_configs(["relay.backend.use_auto_scheduler.missing.value"])
+        _ = parse_configs(["relay.backend.use_auto_scheduler.missing.value"])
 
 
 def test_config_missing_from_tvm():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.parse_configs(["relay.backend.use_auto_scheduler.missing.value=1234"])
+        _ = parse_configs(["relay.backend.use_auto_scheduler.missing.value=1234"])
 
 
 def test_config_unsupported_tvmc_config():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.parse_configs(["tir.LoopPartition=value"])
+        _ = parse_configs(["tir.LoopPartition=value"])
 
 
 def test_config_empty():
     with pytest.raises(TVMCException):
-        _ = tvmc.common.parse_configs([""])
+        _ = parse_configs([""])
 
 
 def test_config_valid_config_bool():
-    configs = tvmc.common.parse_configs(["relay.backend.use_auto_scheduler=true"])
+    configs = parse_configs(["relay.backend.use_auto_scheduler=true"])
 
     assert len(configs) == 1
     assert "relay.backend.use_auto_scheduler" in configs.keys()
@@ -56,7 +56,7 @@ def test_config_valid_config_bool():
     reason="--target vitis-ai is not available. TVM built with 'USE_VITIS_AI OFF'",
 )
 def test_config_valid_multiple_configs():
-    configs = tvmc.common.parse_configs(
+    configs = parse_configs(
         [
             "relay.backend.use_auto_scheduler=false",
             "tir.detect_global_barrier=10",

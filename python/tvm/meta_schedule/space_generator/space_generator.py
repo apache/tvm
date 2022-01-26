@@ -36,16 +36,16 @@ if TYPE_CHECKING:
 class SpaceGenerator(Object):
     """The abstract design space generator interface."""
 
-    def initialize_with_tune_context(self, tune_context: "TuneContext") -> None:
+    def initialize_with_tune_context(self, context: "TuneContext") -> None:
         """Initialize the design space generator with tuning context.
 
         Parameters
         ----------
-        tune_context : TuneContext
+        context : TuneContext
             The tuning context for initializing the design space generator.
         """
         _ffi_api.SpaceGeneratorInitializeWithTuneContext(  # type: ignore # pylint: disable=no-member
-            self, tune_context
+            self, context
         )
 
     def generate_design_space(self, mod: IRModule) -> List[Schedule]:
@@ -72,8 +72,8 @@ class PySpaceGenerator(SpaceGenerator):
         """Constructor."""
 
         @check_override(self.__class__, SpaceGenerator)
-        def f_initialize_with_tune_context(tune_context: "TuneContext") -> None:
-            self.initialize_with_tune_context(tune_context)
+        def f_initialize_with_tune_context(context: "TuneContext") -> None:
+            self.initialize_with_tune_context(context)
 
         @check_override(self.__class__, SpaceGenerator)
         def f_generate_design_space(mod: IRModule) -> List[Schedule]:

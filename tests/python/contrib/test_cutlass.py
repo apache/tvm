@@ -130,6 +130,17 @@ def get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype="float16"):
     return relay.nn.bias_add(conv2d, bias)
 
 
+def silu(x):
+    return x * relay.sigmoid(x)
+
+
+def hardswish(x, out_dtype="float16"):
+    return x * (
+        relay.clip(x + relay.const(3, dtype=out_dtype), a_min=0, a_max=6)
+        / relay.const(6, dtype=out_dtype)
+    )
+
+
 def get_conv2d_nchw_bias_relu(d_shape, w_shape, padding, out_dtype="float16"):
     return relay.nn.relu(get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype))
 
@@ -140,15 +151,29 @@ def get_conv2d_nchw_bias_sigmoid(d_shape, w_shape, padding, out_dtype="float16")
 
 def get_conv2d_nchw_bias_silu(d_shape, w_shape, padding, out_dtype="float16"):
     conv_out = get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype)
-    return conv_out * relay.sigmoid(conv_out)
+    return silu(conv_out)
 
 
 def get_conv2d_nchw_bias_hardswish(d_shape, w_shape, padding, out_dtype="float16"):
-    conv2d_out = get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype)
-    return conv2d_out * (
-        relay.clip(conv2d_out + relay.const(3, dtype=out_dtype), a_min=0, a_max=6)
-        / relay.const(6, dtype=out_dtype)
+    conv_out = get_conv2d_nchw_bias(d_shape, w_shape, padding, out_dtype=out_dtype)
+    return hardswish(conv_out, out_dtype)
+
+
+def get_conv2d_nchw_bias_residual(d_shape, w_shape, padding, out_dtype="float16"):
+    data = relay.var("data", shape=d_shape, dtype="float16")
+    weight = relay.var("weight", shape=w_shape, dtype="float16")
+    bias = relay.var("bias", shape=(w_shape[0],), dtype=out_dtype)
+    out_channel = w_shape[0]
+    conv2d = relay.nn.conv2d(
+        data=data,
+        weight=weight,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        out_dtype=out_dtype,
     )
+    bias_add = relay.nn.bias_add(conv2d, bias)
+    return bias_add, data
 
 
 def profile_and_build(mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False):
@@ -490,6 +515,26 @@ def test_conv2d_fusion():
     verify_conv2d(
         mod_nchw, mod_nchw, d_shape, w_shape, sm=80, atol=1e-5, rtol=1e-5, run_benchmark=False
     )
+
+
+def test_conv2d_residual_block():
+    d_shape = (16, 16, 32, 32)
+    w_shape = (16, 16, 3, 3)
+    padding = (1, 1)
+
+    bias_add, residual_input = get_conv2d_nchw_bias_residual(d_shape, w_shape, padding)
+
+    for func, tol in [
+        (relay.nn.relu(bias_add + residual_input), 1e-5),
+        (relay.nn.relu(bias_add) + residual_input, 1e-5),
+        (relay.sigmoid(bias_add) * residual_input, 1e-5),
+        (relay.nn.relu(silu(bias_add) * residual_input), 1e-5),
+        # HardSwish requires higher tolerance since vectoring the residual block epilogue
+        # in cutlass.
+        # TODO(masahi): Invesitigate this issue
+        (relay.nn.relu(hardswish(bias_add) + residual_input), 1e-3),
+    ]:
+        verify_conv2d(func, func, d_shape, w_shape, sm=80, atol=tol, rtol=tol, run_benchmark=False)
 
 
 if __name__ == "__main__":

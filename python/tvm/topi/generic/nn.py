@@ -54,6 +54,40 @@ def schedule_conv1d_nwc(outs):
     return _default_schedule(outs, False)
 
 
+def schedule_group_conv1d_ncw(outs):
+    """Schedule for group_conv1d_ncw
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv1d_ncw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_group_conv1d_nwc(outs):
+    """Schedule for group_conv1d_nwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of group_conv1d_nwc
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
 def schedule_conv2d_hwcn(outs):
     """Schedule for conv2d_hwcn
 

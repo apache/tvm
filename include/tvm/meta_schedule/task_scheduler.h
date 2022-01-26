@@ -20,7 +20,9 @@
 #define TVM_META_SCHEDULE_TASK_SCHEDULER_H_
 
 #include <tvm/meta_schedule/builder.h>
+#include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
+#include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/tune_context.h>
 
@@ -78,7 +80,7 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The list of measure callbacks of the scheduler. */
   Array<MeasureCallback> measure_callbacks;
 
-  /*! \brief The default desctructor. */
+  /*! \brief The default destructor. */
   virtual ~TaskSchedulerNode() = default;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -247,16 +249,39 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param builder The builder of the scheduler.
    * \param runner The runner of the scheduler.
    * \param database The database of the scheduler.
+   * \param cost_model The cost model of the scheduler.
+   * \param measure_callbacks The measure callbacks of the scheduler.
+   * \return The task scheduler created.
    */
-  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,  //
-                                          Builder builder,           //
-                                          Runner runner,             //
-                                          Database database);        //
+  TVM_DLL static TaskScheduler RoundRobin(Array<TuneContext> tasks,        //
+                                          Builder builder,                 //
+                                          Runner runner,                   //
+                                          Database database,               //
+                                          Optional<CostModel> cost_model,  //
+                                          Optional<Array<MeasureCallback>> measure_callbacks);
+  /*!
+   * \brief Create a task scheduler with customized methods on the python-side.
+   * \param tasks The tasks to be tuned.
+   * \param builder The builder of the scheduler.
+   * \param runner The runner of the scheduler.
+   * \param database The database of the scheduler.
+   * \param cost_model The cost model of the scheduler.
+   * \param measure_callbacks The measure callbacks of the scheduler.
+   * \param f_tune The packed function of `Tune`.
+   * \param f_initialize_task The packed function of `InitializeTask`.
+   * \param f_set_task_stopped The packed function of `SetTaskStopped`.
+   * \param f_is_task_running The packed function of `IsTaskRunning`.
+   * \param f_join_running_task The packed function of `JoinRunningTask`.
+   * \param f_next_task_id The packed function of `NextTaskId`.
+   * \return The task scheduler created.
+   */
   TVM_DLL static TaskScheduler PyTaskScheduler(
       Array<TuneContext> tasks,                                   //
       Builder builder,                                            //
       Runner runner,                                              //
       Database database,                                          //
+      Optional<CostModel> cost_model,                             //
+      Optional<Array<MeasureCallback>> measure_callbacks,         //
       PyTaskSchedulerNode::FTune f_tune,                          //
       PyTaskSchedulerNode::FInitializeTask f_initialize_task,     //
       PyTaskSchedulerNode::FSetTaskStopped f_set_task_stopped,    //
