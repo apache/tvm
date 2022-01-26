@@ -92,7 +92,7 @@ and run the model all using `tvmc micro` command.
 # containing a file for each piece of the TVM compiler output which can be used on micro targets outside
 # TVM environment. Read more about `Model Library Format <https://tvm.apache.org/docs//arch/model_library_format.html>`_.
 #
-# Here, we generate a MLF file for `qemu_x86` Zephyr board. To generate MLF output for the `magic_wand` tflite model:
+# Here, we generate a MLF file for ``qemu_x86`` Zephyr board. To generate MLF output for the ``magic_wand`` tflite model:
 #
 # .. code-block:: bash
 #
@@ -107,8 +107,8 @@ and run the model all using `tvmc micro` command.
 #       --pass-config tir.disable_vectorize=1 \
 #       --disabled-pass=AlterOpLayout
 #
-# This will generate a `model.tar` file which contains TVM compiler output files. To run this command for
-# a different Zephyr device, you need to update `target`. For instance, for `nrf5340dk_nrf5340_cpuapp` board
+# This will generate a ``model.tar`` file which contains TVM compiler output files. To run this command for
+# a different Zephyr device, you need to update ``target``. For instance, for ``nrf5340dk_nrf5340_cpuapp`` board
 # the target is ``--target='c -keys=cpu -link-params=0 -model=nrf5340dk'``.
 #
 
@@ -129,7 +129,7 @@ and run the model all using `tvmc micro` command.
 #       zephyr \
 #       --project-option project_type=host_driven zephyr_board=qemu_x86
 #
-# This will generate a `Host-Driven` Zephyr project for `qemu_x86` Zephyr board. In Host-Driven template project,
+# This will generate a ``Host-Driven`` Zephyr project for ``qemu_x86`` Zephyr board. In Host-Driven template project,
 # the Graph Executor will run on host and perform the model execution on Zephyr device by issuing commands to the
 # device using an RPC mechanism. Read more about `Host-Driven Execution <https://tvm.apache.org/docs/arch/microtvm_design.html#host-driven-execution>`_.
 #
@@ -154,10 +154,10 @@ and run the model all using `tvmc micro` command.
 #       zephyr \
 #       --project-option zephyr_board=qemu_x86
 #
-# This will build the project in `project` directory and generates binary files under `project/build`. To build
-# Zephyr project for a different Zephyr board, change `zephyr_board` project option.
+# This will build the project in ``project`` directory and generates binary files under ``project/build``. To build
+# Zephyr project for a different Zephyr board, change ``zephyr_board`` project option.
 #
-# Next, we flash the Zephyr binary file to Zephyr device. For `qemu_x86` Zephyr board this step does not
+# Next, we flash the Zephyr binary file to Zephyr device. For ``qemu_x86`` Zephyr board this step does not
 # actually perform any action since QEMU will be used, however you need this step for physical hardware.
 #
 # .. code-block:: bash
@@ -175,8 +175,8 @@ and run the model all using `tvmc micro` command.
 # After flashing the device, the compiled model and TVM RPC server are programmed on the device.
 # The Zephyr board is waiting for host to open a communication channel. MicroTVM devices typicall communicate
 # using a serial communication (UART). To run the flashed model on the device using TVMC, we use ``tvmc run`` subcommand
-# and we pass ``--device micro`` to specify the device type. This command will open a communication channel, set input
-# values, run full model on the device using `Graph Executor` and send model output to the host machine.
+# and pass ``--device micro`` to specify the device type. This command will open a communication channel, set input
+# values using ``Graph Executor`` on host and run full model on the device. Then it gets output from the device.
 #
 # .. code-block:: bash
 #
