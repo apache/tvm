@@ -90,14 +90,17 @@ class PipelineBodyRewriter : public StmtExprMutator {
    * \param access_all_versions Whether all versions the the buffers in the software pipeline are
    *        accessed. This will be used to update block access region. In the prologue and epilogue
    *        of a two-stage software pipeline, only one version of these buffers are accessed.
+   * \param fragment_info Information about tensor core fragment
    */
   PipelineBodyRewriter(const Map<Var, Buffer>& buffer_data_to_buffer,
                        const Map<Buffer, Buffer>& buffer_remap, For pipeline_loop,
-                       bool access_all_versions)
+                       bool access_all_versions,
+                       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
       : buffer_data_to_buffer_(buffer_data_to_buffer),
         buffer_remap_(buffer_remap),
         pipeline_loop_(pipeline_loop),
-        access_all_versions_(access_all_versions) {}
+        access_all_versions_(access_all_versions),
+        fragment_info_(fragment_info) {}
 
  private:
   BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
@@ -166,7 +169,9 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   int GetWmmaFragmentSize(const Buffer& buffer) {
-    const FragmentInfo& info = fragment_info_.at(buffer->data.get());
+    auto it = fragment_info_.find(buffer->data.get());
+    ICHECK(it != fragment_info_.end());
+    const FragmentInfo& info = (*it).second;
     String scope = buffer.scope();
     if (scope == "wmma.matrix_a") {
       return info.m * info.k;
@@ -250,7 +255,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
   Map<Buffer, Buffer> buffer_remap_;
   For pipeline_loop_;
   bool access_all_versions_;
-  std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
+  const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
 };
 
 /*!
@@ -495,8 +500,11 @@ class PipelineRewriter : public StmtExprMutator {
     Array<Stmt> stmts;
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
+
+    auto make_nop = []() { return BlockRealize({}, Bool(true), MakeBlock(Evaluate(0), {})); };
+
     if (!analyzer_.CanProve(extent > 0)) {
-      return BlockRealize({}, Bool(true), MakeBlock(Evaluate(0), buffer_data_to_buffer_));
+      return make_nop();
     }
     bool is_unit_loop = analyzer_.CanProveEqual(extent, 1);
     if (is_unit_loop) {
@@ -515,8 +523,9 @@ class PipelineRewriter : public StmtExprMutator {
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
-      Block new_block = Downcast<Block>(PipelineBodyRewriter(
-          buffer_data_to_buffer_, buffer_remap_, pipeline_loop_, max_stage_ != 1)(block));
+      Block new_block = Downcast<Block>(PipelineBodyRewriter(buffer_data_to_buffer_, buffer_remap_,
+                                                             pipeline_loop_, max_stage_ != 1,
+                                                             fragment_info_)(block));
       Map<Var, PrimExpr> subst_map;
       if (is_unit_loop) {
         subst_map.Set(pipeline_loop_->loop_var, skewed_loop_var);
@@ -531,8 +540,9 @@ class PipelineRewriter : public StmtExprMutator {
     Stmt new_loop{nullptr};
 
     if (stmts.empty()) {
-      new_loop = Evaluate(0);
-    } else if (stmts.size() == 1) {
+      return make_nop();
+    }
+    if (stmts.size() == 1) {
       new_loop = stmts[0];
     } else {
       new_loop = SeqStmt(stmts);
@@ -543,7 +553,6 @@ class PipelineRewriter : public StmtExprMutator {
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop));
     }
     return BlockRealize({}, Bool(true), MakeBlock(std::move(new_loop), buffer_data_to_buffer_));
-    ;
   }
 
   arith::Analyzer analyzer_;
@@ -552,7 +561,7 @@ class PipelineRewriter : public StmtExprMutator {
   Array<Buffer> pipeline_allocs_;
   For pipeline_loop_;
   PipelineInfo pipeline_info_;
-  std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
+  const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
   int max_stage_ = -1;
   Map<Buffer, Buffer> buffer_remap_;
   Array<Block> ordered_stmts_;
