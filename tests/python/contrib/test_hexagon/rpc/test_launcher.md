@@ -57,7 +57,7 @@ cmake -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
         -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
         -DUSE_HEXAGON_SDK=/path/to/Hexagon/SDK \
         -DUSE_HEXAGON_ARCH=v65|v66|v68 \
-        -DUSE_HEXAGON_DEVICE=target ..
+        -DUSE_HEXAGON_DEVICE=sim ..
 ```
 
 ## Testing Using HexagonLauncher
