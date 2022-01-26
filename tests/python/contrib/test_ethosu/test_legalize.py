@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, unused-argument, not-callable
 
 import pytest
 
@@ -103,13 +103,15 @@ def test_split_indices_legalize():
 
     mod_axis1 = tvm.IRModule()
     mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1)
-    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
+    mod_axis1 = legalize.PartitionedSplitRewriter()(mod_axis1)
+    mod_axis1 = legalize.SplitRewriter()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
     mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2)
-    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
+    mod_axis2 = legalize.PartitionedSplitRewriter()(mod_axis2)
+    mod_axis2 = legalize.SplitRewriter()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
@@ -199,13 +201,15 @@ def test_split_sections_legalize():
 
     mod_axis1 = tvm.IRModule()
     mod_axis1["tvmgen_default_ethos_u_main_0"] = create_graph(1, 5)
-    mod_axis1 = legalize.LegalizeSplit()(mod_axis1)
+    mod_axis1 = legalize.PartitionedSplitRewriter()(mod_axis1)
+    mod_axis1 = legalize.SplitRewriter()(mod_axis1)
     expected_axis1 = expected_mod_axis1()
     tvm.ir.assert_structural_equal(mod_axis1, expected_axis1)
 
     mod_axis2 = tvm.IRModule()
     mod_axis2["tvmgen_default_ethos_u_main_0"] = create_graph(2, 5)
-    mod_axis2 = legalize.LegalizeSplit()(mod_axis2)
+    mod_axis2 = legalize.PartitionedSplitRewriter()(mod_axis2)
+    mod_axis2 = legalize.SplitRewriter()(mod_axis2)
     expected_axis2 = expected_mod_axis2()
     tvm.ir.assert_structural_equal(mod_axis2, expected_axis2)
 
@@ -340,11 +344,7 @@ def test_tflite_conv2d_legalize(ifm_shape, kernel_shape, padding, strides, dilat
 
     mod["main"] = bind_params_by_name(mod["main"], conv_params)
     mod = partition_ethosu_by_table(mod, conv2d_pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.Conv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-
+    mod = legalize.Conv2DRewriter()(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -452,10 +452,7 @@ def test_tflite_depthwise_conv_2d_legalize(
 
     mod["main"] = bind_params_by_name(mod["main"], params)
     mod = partition_ethosu_by_table(mod, depthwise_pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.DepthwiseConv2DRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = legalize.DepthwiseConv2DRewriter()(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -546,10 +543,7 @@ def test_tflite_pool2d_legalize(
         dtype_dict={"x": dtype},
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -696,10 +690,7 @@ def test_tflite_binary_elemwise_legalize(
         dtype_dict={"x": dtype, "y": dtype},
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -743,10 +734,7 @@ def test_binary_add_from_constant_scalar():
 
     mod = create_graph()
     mod = partition_ethosu_by_table(mod, pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -796,10 +784,7 @@ def test_ethosu_left_shift_binary_elemwise_legalize(ifm_shape, ifm2_shape, rever
 
     mod = create_graph()
     mod = partition_ethosu_by_table(mod, pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -830,12 +815,8 @@ def test_relay_reshape_legalize(ifm_shape, new_shape):
     ]
 
     mod = partition_ethosu_by_table(mod, reshape_pattern_table)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.ReshapeRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = legalize.ReshapeRewriter()(mod)
+    mod = legalize.NoOpRewriter()(mod)
     mod = relay.transform.InferType()(mod)
 
     ext_func = mod["tvmgen_default_ethos_u_main_0"]
@@ -878,12 +859,8 @@ def test_relay_strided_slice_legalize(ifm_shape, begin, end):
     ]
 
     mod = partition_ethosu_by_table(mod, strided_slice_pattern_table)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.StridedSliceRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = legalize.StridedSliceRewriter()(mod)
+    mod = legalize.NoOpRewriter()(mod)
     mod = relay.transform.InferType()(mod)
 
     ext_func = mod["tvmgen_default_ethos_u_main_0"]
@@ -996,9 +973,7 @@ def test_tflite_unary_elemwise_legalize(
         dtype_dict={"input": dtype},
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -1043,9 +1018,7 @@ def test_tflite_tanh_legalize():
     )
 
     mod = ethosu.partition_for_ethosu(mod, params)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.TanhRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = legalize.TanhRewriter()(mod)
     mod = relay.transform.InferType()(mod)
 
     func_body = mod["tvmgen_default_ethos_u_main_0"].body
@@ -1208,9 +1181,7 @@ def test_mean(ifm_shape, axis, keep_dims, use_same_quantization):
         else create_tflite_graph()
     )
     mod = partition_ethosu_by_table(mod, pattern_table)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -1281,15 +1252,9 @@ def test_tflite_concat_legalize(shapes, axis):
     )
     mod = partition_ethosu_by_table(relay_module, concat_pattern_table)
 
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.ConcatRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.NoOpRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
-        "tvmgen_default_ethos_u_main_0"
-    ]
+    mod = legalize.ConcatRewriter()(mod)
+    mod = legalize.NoOpRewriter()(mod)
+    mod = relay.transform.InferType()(mod)
 
 
 def test_tflite_sigmoid_legalize():
@@ -1333,9 +1298,7 @@ def test_tflite_sigmoid_legalize():
     )
 
     mod = ethosu.partition_for_ethosu(mod, params)
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.SigmoidRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = legalize.SigmoidRewriter()(mod)
     mod = relay.transform.InferType()(mod)
 
     func_body = mod["tvmgen_default_ethos_u_main_0"].body
@@ -1409,15 +1372,8 @@ def test_tflite_split_legalize(ifm_shape, num_or_size_splits, axis):
         dtype_dict={"input": dtype},
     )
     mod = ethosu.partition_for_ethosu(mod)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.PartitionedSplitRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-
-    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
-        "tvmgen_default_ethos_u_main_0"
-    ]
-
+    mod = legalize.PartitionedSplitRewriter()(mod)
+    mod = relay.transform.InferType()(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
@@ -1491,14 +1447,8 @@ def test_tflite_split_v_legalize(ifm_shape, num_or_size_splits, axis):
         dtype_dict={"input": dtype},
     )
     mod = ethosu.partition_for_ethosu(mod)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        legalize.PartitionedSplitRewriter(), mod["tvmgen_default_ethos_u_main_0"]
-    )
-
-    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
-        "tvmgen_default_ethos_u_main_0"
-    ]
+    mod = legalize.PartitionedSplitRewriter()(mod)
+    mod = relay.transform.InferType()(mod)
 
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
@@ -1551,10 +1501,7 @@ def test_ethosu_requantize(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
 
     mod = create_model()
     mod = partition_ethosu_by_table(mod, pattern_table)
-
-    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
-        rewriter, mod["tvmgen_default_ethos_u_main_0"]
-    )
+    mod = rewriter(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 

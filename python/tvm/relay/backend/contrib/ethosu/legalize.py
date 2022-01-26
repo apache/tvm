@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
+# pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter, not-callable
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type, Callable
+from typing import List, Type, Callable, Optional
 import math
 
 import numpy as np  # type: ignore
@@ -35,6 +35,40 @@ from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.op.contrib import ethosu as ethosu_patterns  # type: ignore
 
 
+def legalize_pass(
+    rewriter_cls: DFPatternCallback, name: Optional[str] = "", opt_level: Optional[int] = 1
+) -> "RewriterWrapper":
+    """
+    Wraps a pattern rewriter as a module pass.
+
+    Parameters
+    ----------
+    rewriter_class : DFPatternCallback
+        Rewrites a matched pattern subject to callback function.
+    name : Optional[str]
+        Name for the module pass.
+    opt_level : Optional[int]
+        Optimization level for the module pass. Default 1.
+
+    Returns
+    -------
+    RewriterWrapper
+        The module pass.
+
+    """
+
+    @ir.transform.module_pass(opt_level=opt_level, name=name)
+    class RewriterWrapper:
+        def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.ir.IRModule:
+            for global_var, func in mod.functions.items():
+                func = rewrite(rewriter_cls(), func)
+                mod.update_func(global_var, func)
+            return mod
+
+    return RewriterWrapper
+
+
+@legalize_pass
 class SplitRewriter(DFPatternCallback):
     """This rewriting converts split operations into a sequence of
     strided_slice operations, because codegen is going to be based
@@ -108,6 +142,7 @@ class SplitRewriter(DFPatternCallback):
         return relay.Tuple(strided_slices)
 
 
+@legalize_pass
 class PartitionedSplitRewriter(DFPatternCallback):
     """This pass brings the split out of the partitioned function"""
 
@@ -125,23 +160,6 @@ class PartitionedSplitRewriter(DFPatternCallback):
         indices_or_sections = split_params.indices_or_sections
         axis = split_params.axis
         return relay.op.split(split_input, indices_or_sections, axis=axis).astuple()
-
-
-@ir.transform.module_pass(opt_level=1)
-class LegalizeSplit:
-    """This is the pass that wraps SplitRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(PartitionedSplitRewriter(), func)
-            func = rewrite(SplitRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
 
 
 def get_lut_from_func(
@@ -203,6 +221,7 @@ class LutActivationRewriter(DFPatternCallback):
         return identity
 
 
+@legalize_pass
 class TanhRewriter(LutActivationRewriter):
     """This pass adds tanh as a LUT to the identity operator"""
 
@@ -210,22 +229,6 @@ class TanhRewriter(LutActivationRewriter):
         super().__init__(
             params_class=ethosu_patterns.TanhParams, activation_type="TANH", calc_func=math.tanh
         )
-
-
-@ir.transform.module_pass(opt_level=1)
-class LegalizeTanh:
-    """This is the pass that wraps TanhRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(TanhRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
 
 
 def sigmoid_calc_func(x: float) -> float:
@@ -243,6 +246,7 @@ def sigmoid_calc_func(x: float) -> float:
     return y
 
 
+@legalize_pass
 class SigmoidRewriter(LutActivationRewriter):
     """This pass adds sigmoid as a LUT for identity op"""
 
@@ -254,22 +258,7 @@ class SigmoidRewriter(LutActivationRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeSigmoid:
-    """This is the pass that wraps SigmoidRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(SigmoidRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class Conv2DRewriter(DFPatternCallback):
     """Convert conv2d related composite functions into ethosu_conv2d operators"""
 
@@ -337,22 +326,7 @@ class Conv2DRewriter(DFPatternCallback):
         return ethosu_conv2d
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeConv2D:
-    """This is the pass that wraps the Conv2DRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(Conv2DRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class DepthwiseConv2DRewriter(DFPatternCallback):
     """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d
     operators"""
@@ -427,22 +401,6 @@ class DepthwiseConv2DRewriter(DFPatternCallback):
         return ethosu_depthwise_conv2d
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeDepthwiseConv2D:
-    """This is the pass that wraps the DepthwiseConv2DRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(DepthwiseConv2DRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
 class PoolingRewriter(DFPatternCallback):
     """Convert ethosu.avgpool2d and ethosu.maxpool2d composite functions to
     ethosu_pooling operators"""
@@ -499,6 +457,7 @@ class PoolingRewriter(DFPatternCallback):
         )
 
 
+@legalize_pass
 class MaxPoolingRewriter(PoolingRewriter):
     def __init__(self):
         super().__init__(
@@ -509,22 +468,7 @@ class MaxPoolingRewriter(PoolingRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeMaxPooling:
-    """This is the pass that wraps the MaxPoolingRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(MaxPoolingRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class AvgPoolingRewriter(PoolingRewriter):
     def __init__(self):
         super().__init__(
@@ -533,22 +477,6 @@ class AvgPoolingRewriter(PoolingRewriter):
                 wildcard().has_attr({"Composite": ethosu_patterns.AvgPool2DParams.composite_name})
             )(wildcard()),
         )
-
-
-@ir.transform.module_pass(opt_level=1)
-class LegalizeAvgPooling:
-    """This is the pass that wraps the AvgPoolingRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(AvgPoolingRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
 
 
 class BinaryElementwiseRewriter(DFPatternCallback):
@@ -667,6 +595,7 @@ class BinaryElementwiseRewriter(DFPatternCallback):
         return output
 
 
+@legalize_pass
 class AddRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -677,22 +606,7 @@ class AddRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeAdd:
-    """This is the pass that wraps the AddRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(AddRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class SubRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -703,22 +617,7 @@ class SubRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeSub:
-    """This is the pass that wraps the SubRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(SubRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class MulRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -729,22 +628,7 @@ class MulRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeMul:
-    """This is the pass that wraps the MulRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(MulRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class MinRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -755,22 +639,7 @@ class MinRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeMin:
-    """This is the pass that wraps the MinRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(MinRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class MaxRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -781,22 +650,7 @@ class MaxRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeMax:
-    """This is the pass that wraps the MaxRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(MaxRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class ShlRewriter(BinaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -807,22 +661,7 @@ class ShlRewriter(BinaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeShl:
-    """This is the pass that wraps the ShlRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(ShlRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class StridedSliceRewriter(DFPatternCallback):
     """This pass brings the strided slice out of the partitioned function"""
 
@@ -849,22 +688,7 @@ class StridedSliceRewriter(DFPatternCallback):
         return strided_slice
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeStridedSlice:
-    """This is the pass that wraps StridedSliceRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(StridedSliceRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class ReshapeRewriter(DFPatternCallback):
     """This pass brings the reshape out of the partitioned function"""
 
@@ -883,22 +707,7 @@ class ReshapeRewriter(DFPatternCallback):
         return relay.op.reshape(reshape_input, newshape=new_shape)
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeReshape:
-    """This is the pass that wraps ReshapeRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(ReshapeRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class NoOpRewriter(DFPatternCallback):
     """This pass adds an idenity operator to reshape and strided slice to avoid a no op
     without a consumer"""
@@ -915,22 +724,6 @@ class NoOpRewriter(DFPatternCallback):
         if pre.checked_type.dtype == "int32":
             return post
         return ethosu_ops.ethosu_identity(ifm=post, lut=relay.const([], dtype="int8"))
-
-
-@ir.transform.module_pass(opt_level=1)
-class LegalizeNoOps:
-    """This is the pass that wraps RewriteNoOps"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(NoOpRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
 
 
 class UnaryElementwiseRewriter(DFPatternCallback):
@@ -994,6 +787,7 @@ class UnaryElementwiseRewriter(DFPatternCallback):
         return op
 
 
+@legalize_pass
 class AbsRewriter(UnaryElementwiseRewriter):
     def __init__(self):
         super().__init__(
@@ -1004,22 +798,7 @@ class AbsRewriter(UnaryElementwiseRewriter):
         )
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeAbs:
-    """This is the pass that wraps the AbsRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(AbsRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class MeanRewriter(DFPatternCallback):
     """Convert ethosu.mean composite functions to to an equivalent legalization:
     - Case 1 (axis == [1, 2] and keepsdims == True):
@@ -1168,22 +947,7 @@ class MeanRewriter(DFPatternCallback):
         return reduced_op
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeMean:
-    """This is the pass that wraps the MeanRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(MeanRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class ConcatRewriter(DFPatternCallback):
     """The newer versions of TFLite converters return a concatenate operator that concatenates
     tensors with same QNN params (if the QNN params of tensors were initially different,
@@ -1210,22 +974,7 @@ class ConcatRewriter(DFPatternCallback):
         return concat
 
 
-@ir.transform.module_pass(opt_level=1)
-class LegalizeConcat:
-    """This is the pass that wraps ConcatRewriter"""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(ConcatRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
+@legalize_pass
 class RequantizeRewriter(DFPatternCallback):
     """Convert ethos-u.requantize composite function to an identity operation."""
 
@@ -1254,22 +1003,6 @@ class RequantizeRewriter(DFPatternCallback):
 
 
 @ir.transform.module_pass(opt_level=1)
-class LegalizeRequantize:
-    """This is the pass that wraps RequantizeRewriter."""
-
-    def transform_module(
-        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
-    ) -> tvm.ir.IRModule:
-        for global_var, func in mod.functions.items():
-            func = rewrite(RequantizeRewriter(), func)
-            mod.update_func(global_var, func)
-        return mod
-
-    def __call__(self, *args, **kwargs):
-        pass
-
-
-@ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
     in a way such that the operations are replaced with hardware/codegen supported
@@ -1282,26 +1015,27 @@ class LegalizeEthosU:
         """This is the method that replaces the operations with hardware/codegen supported
         operations.
         """
-        mod = LegalizeSplit()(mod)
-        mod = LegalizeConv2D()(mod)
-        mod = LegalizeDepthwiseConv2D()(mod)
-        mod = LegalizeMaxPooling()(mod)
-        mod = LegalizeAvgPooling()(mod)
-        mod = LegalizeAdd()(mod)
-        mod = LegalizeSub()(mod)
-        mod = LegalizeMul()(mod)
-        mod = LegalizeMin()(mod)
-        mod = LegalizeMax()(mod)
-        mod = LegalizeShl()(mod)
-        mod = LegalizeAbs()(mod)
-        mod = LegalizeTanh()(mod)
-        mod = LegalizeMean()(mod)
-        mod = LegalizeConcat()(mod)
-        mod = LegalizeSigmoid()(mod)
-        mod = LegalizeRequantize()(mod)
-        mod = LegalizeReshape()(mod)
-        mod = LegalizeStridedSlice()(mod)
-        mod = LegalizeNoOps()(mod)
+        mod = PartitionedSplitRewriter()(mod)
+        mod = SplitRewriter()(mod)
+        mod = Conv2DRewriter()(mod)
+        mod = DepthwiseConv2DRewriter()(mod)
+        mod = MaxPoolingRewriter()(mod)
+        mod = AvgPoolingRewriter()(mod)
+        mod = AddRewriter()(mod)
+        mod = SubRewriter()(mod)
+        mod = MulRewriter()(mod)
+        mod = MinRewriter()(mod)
+        mod = MaxRewriter()(mod)
+        mod = ShlRewriter()(mod)
+        mod = AbsRewriter()(mod)
+        mod = TanhRewriter()(mod)
+        mod = MeanRewriter()(mod)
+        mod = ConcatRewriter()(mod)
+        mod = SigmoidRewriter()(mod)
+        mod = RequantizeRewriter()(mod)
+        mod = ReshapeRewriter()(mod)
+        mod = StridedSliceRewriter()(mod)
+        mod = NoOpRewriter()(mod)
         return mod
 
     def __call__(self, *args, **kwargs):
