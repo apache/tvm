@@ -374,7 +374,7 @@ inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& an
  */
 inline bool HasAnn(const StmtSRef& sref, const String& ann_key, bool ann_val) {
   Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
-  return result.defined() && result.value()->value == ann_val;
+  return result.defined() && result.value() == ann_val;
 }
 
 /********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/
