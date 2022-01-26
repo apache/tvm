@@ -498,12 +498,13 @@ std::shared_ptr<Device> Device::Global() {
 #endif
 
   static std::shared_ptr<Device> dev(
-#ifdef __ANDROID__
-      CreateHexagonTarget()
-#else
-      CreateHexagonSimulator()
-#endif
-  );  // NOLINT
+      // TODO(mehrdadh): fix this hack
+      // #ifdef __ANDROID__
+      //       CreateHexagonTarget()
+      // #else
+      //       CreateHexagonSimulator()
+      // #endif
+      nullptr);  // NOLINT
 
   return dev;
 }
