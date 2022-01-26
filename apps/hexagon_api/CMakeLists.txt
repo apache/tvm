@@ -88,3 +88,6 @@ ExternalProject_Add_Step(hexagon_tvm_runtime_rpc copy_binaries
   DEPENDEES install
 )
 
+# Copy android_bash template file
+configure_file("${TVM_SOURCE_DIR}/src/runtime/hexagon/rpc/android_bash.sh.template"
+  ${HEXAGON_API_BINARY_DIR} COPYONLY)

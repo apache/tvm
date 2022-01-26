@@ -26,20 +26,38 @@ Here are the steps that are taken to prepare a runtime on a Hexagon device to te
 - Build TVM library with Hexagon support for host machine.
 - Build TVMRuntime library and C++ RPC server for host machine.
 
-To build these pieces, you can use a cmake command as follow.
+Note: before moving forward make sure to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`.
+
+To build these pieces, first build Hexagon API application under `apps/hexagon_api`.
 
 ```bash
-cmake -DUSE_HEXAGON_RPC=ON \
-        -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
+cd apps/hexagon_api
+mkdir build
+cd build
+cmake -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
         -DANDROID_PLATFORM=android-28 \
         -DANDROID_ABI=arm64-v8a \
         -DUSE_HEXAGON_ARCH=v65|v66|v68 \
         -DUSE_HEXAGON_SDK=/path/to/Hexagon/SDK \
-        -DUSE_HEXAGON_TOOLCHAIN=/path/to/Hexagon/toolchain/ \
-        -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
+        -DUSE_HEXAGON_TOOLCHAIN=/path/to/Hexagon/toolchain/"Tools"/sub-directory \
+        -DUSE_OUTPUT_BINARY_DIR=/path/to/"tvm/build/hexagon_api_output" ..
+```
+
+This command generates `tvm_rpc_android` and `libtvm_runtime.so` to run on Android. Also, it generates `libtvm_runtime.a` and `libhexagon_rpc_skel.so` to run on Hexagon device. Now we have TVM artifacts which are used to run on the remote device.
+
+Next, we need to build TVM on host with RPC and Hexagon dependencies. To do that follow these commands.
+
+```bash
+cd tvm
+mkdir build
+cd build
+cmake -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
         -DUSE_CPP_RPC=ON \
-        -DCMAKE_CXX_COMPILER=/path/to/clang++ \    
-        -DCMAKE_CXX_FLAGS='-stdlib=libc++' ..
+        -DCMAKE_CXX_COMPILER=/path/to/clang++ \
+        -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
+        -DUSE_HEXAGON_SDK=/path/to/Hexagon/SDK \
+        -DUSE_HEXAGON_ARCH=v65|v66|v68 \
+        -DUSE_HEXAGON_DEVICE=target ..
 ```
 
 ## Testing Using HexagonLauncher

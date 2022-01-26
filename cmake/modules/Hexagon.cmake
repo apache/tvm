@@ -34,7 +34,7 @@ function(find_hexagon_toolchain)
     set(TRY_PATH "${USE_HEXAGON_SDK}")
   endif()
   message(STATUS "Looking for Hexagon toolchain in ${TRY_PATH}")
-  tvm_file_glob(GLOB_RECURSE HEXAGON_CLANG "${TRY_PATH}/*/hexagon-clang++")
+  file(GLOB_RECURSE HEXAGON_CLANG "${TRY_PATH}/*/hexagon-clang++")
   if(HEXAGON_CLANG)
     # The path is ${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++.
     get_filename_component(HEXAGON_TMP0 "${HEXAGON_CLANG}" DIRECTORY)
@@ -105,9 +105,6 @@ endif()
 # find_hexagon_sdk_root has been called at this point.
 
 if(USE_HEXAGON_RPC)
-  set(HEXAGON_RPC_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/hexagon_rpc")
-  file(MAKE_DIRECTORY ${HEXAGON_RPC_OUTPUT})
-
   set(TVMRT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime")
   set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
   foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
@@ -131,10 +128,6 @@ if(USE_HEXAGON_RPC)
     tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc")
     list(APPEND RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c")
 
-    # copy android_bash template file
-    configure_file("${TVMRT_SOURCE_DIR}/hexagon/rpc/android_bash.sh.template"
-      ${HEXAGON_RPC_OUTPUT} COPYONLY)
-
   elseif(BUILD_FOR_HEXAGON)
     # Hexagon part
     find_hexagon_toolchain()
@@ -154,8 +147,6 @@ if(USE_HEXAGON_RPC)
       SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/hexagon/rpc"
     )
   endif()
-
-  set_directory_properties(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES "${HEXAGON_RPC_OUTPUT}")
 endif()
 
 if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
