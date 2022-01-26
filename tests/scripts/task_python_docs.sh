@@ -51,7 +51,7 @@ sphinx_precheck() {
     pushd docs
     make clean
     TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
-    check_sphinx_warnings
+    check_sphinx_warnings "docs"
     popd
 }
 
@@ -76,6 +76,7 @@ IGNORED_WARNINGS=(
     'strategy:depthwise_conv2d NHWC layout is not optimized for x86 with autotvm.'
     'autotvm:Cannot find config for target=llvm -keys=cpu -link-params=0'
     'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
+    'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")
@@ -85,7 +86,7 @@ check_sphinx_warnings() {
     if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
         echo "Lines with 'WARNING' found in the log, please fix them:"
         grep -E "WARN" < /tmp/$$.logclean.txt
-        echo "You can reproduce locally by running 'python tests/scripts/ci.py docs'"
+        echo "You can reproduce locally by running 'python tests/scripts/ci.py $1'"
         exit 1
     fi
     echo "No WARNINGS to be fixed."
@@ -122,7 +123,7 @@ if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     exit 1
 fi
 
-check_sphinx_warnings
+check_sphinx_warnings "docs --tutorial-pattern=.*"
 
 cd ..
 
