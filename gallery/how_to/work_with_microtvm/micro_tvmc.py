@@ -172,7 +172,7 @@ and run the model all using `tvmc micro` command.
 # Run Tiny Model on Micro Target
 ############################################################
 #
-# After flashing the device, the compiled model and TVM host driven `Graph Executor` handler are programmed on the device.
+# After flashing the device, the compiled model and TVM RPC server are programmed on the device.
 # The Zephyr board is waiting for host to open a communication channel. MicroTVM devices typicall communicate
 # using a serial communication (UART). To run the flashed model on the device using TVMC, we use ``tvmc run`` subcommand
 # and we pass ``--device micro`` to specify the device type. This command will open a communication channel, set input
