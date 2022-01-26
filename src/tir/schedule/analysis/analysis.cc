@@ -1848,7 +1848,5 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 }
 
-=======
->>>>>>> cde8c476f (WIP)
 }  // namespace tir
 }  // namespace tvm
