@@ -25,6 +25,7 @@ from tvm.runtime import NDArray, Object
 from tvm.target import Target
 from tvm.tir import PrimFunc
 
+from .database import Database
 from . import _ffi_api
 
 
@@ -174,7 +175,13 @@ class TaskExtraction(MetaScheduleContext):
 
 @register_object("meta_schedule.ApplyHistoryBest")
 class ApplyHistoryBest(MetaScheduleContext):
-    pass
+    """An integration context that allows application of historically best record from database"""
+
+    database: Database
+    """ The database to be queried from"""
+
+    def __init__(self, database) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
 def extract_task(

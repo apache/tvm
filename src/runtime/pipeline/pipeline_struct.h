@@ -21,12 +21,16 @@
 #include <assert.h>
 #include <dlpack/dlpack.h>
 #include <dmlc/json.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+namespace tvm {
+namespace runtime {
 /*!
  * \brief All binding information of a output interface.
  */
@@ -292,7 +296,106 @@ struct ParamConnectionConfig {
     }
   }
 };
+/*
+ *\brief Backend Runtime.
+ */
+class BackendRuntime {
+ private:
+  /*\brief The index of runtime indicates the runtime position in the pipeline.*/
+  int runtime_idx_;
+  /*\brief The Runtime module of a backend graph executor.*/
+  Module module_;
+  /*!
+   *\brief In order to transfer data from one backend runtime to another, we need a local
+   * tensor variable as a medium. "input_tensor_local_copy_" is a map including
+   * input data and local tensor vairable.
+   */
+  std::unordered_map<DLTensor*, DLTensor*> input_tensor_local_copy_;
+  /*!\brief The packed functions.*/
+  tvm::runtime::PackedFunc set_input_;
+  tvm::runtime::PackedFunc get_input_;
+  tvm::runtime::PackedFunc get_num_output_;
+  tvm::runtime::PackedFunc get_num_inputs_;
+  tvm::runtime::PackedFunc get_input_index_;
+  /*!
+   * \brief Copying from a given tensor and using 'CPU' as the device.
+   */
+  inline DLTensor* CopyDLTensorToCPU(const DLTensor* from) {
+    DLTensor* ret = NULL;
+    TVMArrayAlloc(from->shape, from->ndim, from->dtype.code, from->dtype.bits, from->dtype.lanes,
+                  kDLCPU, 0, &ret);
+    return ret;
+  }
+  /*!\brief Creating a new NDArray with same shape and data type as the given DLTensor.*/
+  NDArray CreateNDArrayFromDLTensor(const DLTensor* from) {
+    std::vector<int64_t> shape;
+    for (int i = 0; i < from->ndim; i++) {
+      shape.push_back(from->shape[i]);
+    }
+    auto ndarray = NDArray::Empty(shape, from->dtype, from->device);
+    ndarray.CreateView(shape, from->dtype);
+    return ndarray;
+  }
+  /*
+   *\brief Copying data from one DLTensor to another.
+   */
+  void CopyFromTo(DLTensor* from, DLTensor* to) {
+    // When the 'from' device and the 'to' device are not the same, we use a temporary CPU
+    // DLTensor as the bridge.
+    if (from->device.device_type != to->device.device_type && from->device.device_type != kDLCPU &&
+        to->device.device_type != kDLCPU) {
+      DLTensor* dltensor_local = nullptr;
+      if (input_tensor_local_copy_.find(to) == input_tensor_local_copy_.end()) {
+        dltensor_local = CopyDLTensorToCPU(from);
+        input_tensor_local_copy_[to] = dltensor_local;
+      } else {
+        dltensor_local = input_tensor_local_copy_[to];
+      }
+      TVMArrayCopyFromTo(from, dltensor_local, nullptr);
+      from = dltensor_local;
+    }
 
+    TVMArrayCopyFromTo(from, to, nullptr);
+  }
+
+ public:
+  BackendRuntime(Module mod, int mod_idx) {
+    module_ = mod;
+    runtime_idx_ = mod_idx;
+    get_input_index_ = module_.GetFunction("get_input_index");
+    get_num_output_ = module_.GetFunction("get_num_outputs");
+    get_num_inputs_ = module_.GetFunction("get_num_inputs");
+    set_input_ = module_.GetFunction("set_input");
+    get_input_ = module_.GetFunction("get_input");
+  }
+  BackendRuntime(void) {}
+  ~BackendRuntime() {
+    for (auto data : input_tensor_local_copy_) {
+      TVMArrayFree(data.second);
+    }
+  }
+  /*!\brief Return the index of the current module.*/
+  int GetModuleIndex() { return runtime_idx_; }
+  /*!\brief Return the number of output*/
+  int NumOutputs() const { return get_num_output_(); }
+  /*!\brief Return the number of input*/
+  int NumInputs() const { return get_num_inputs_(); }
+  /*!\brief Setting the data to this module via input index.*/
+  void SetInput(const int index, DLTensor* data_in) {
+    NDArray input = get_input_(index);
+    DLTensor* dltensor_input = const_cast<DLTensor*>(input.operator->());
+    CopyFromTo(data_in, dltensor_input);
+  }
+  /*!\brief Setting the data to the current runtime moduel via the input name. */
+  void SetInput(const std::string name, DLTensor* data_in) {
+    int index = this->GetInputIndex(name);
+    SetInput(index, data_in);
+  }
+  /*!\brief Getting the input data via the input index.*/
+  NDArray GetInput(int index) const { return get_input_(index); }
+  /*!\bief Getting the input data via the input name.*/
+  int GetInputIndex(const std::string& name) { return get_input_index_(name); }
+};
 /*!
  * \brief The information used to initialize the graph executor module, the information
  *  come from the export library function call.
@@ -309,4 +412,6 @@ struct GraphModuleLoadInfo {
 };
 /*! The Module information of each module.The 'int' is module index. */
 using ModuleConfig = std::unordered_map<int, GraphModuleLoadInfo>;
+};      // namespace runtime
+};      // namespace tvm
 #endif  //  TVM_RUNTIME_PIPELINE_PIPELINE_STRUCT_H_

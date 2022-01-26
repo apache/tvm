@@ -1364,6 +1364,20 @@ constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
 /*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
 constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
 
+/*!
+ * \brief Mark that the loop should be further skip and bound to environment threads to enable
+ * cooperative fetching.
+ */
+constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_low_inclusive =
+    "meta_schedule.thread_extent_low_inclusive";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_high_inclusive =
+    "meta_schedule.thread_extent_high_inclusive";
+
 /*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
 constexpr const char* meta_schedule_random_compute_producer =
     "meta_schedule.random_compute_producer";
