@@ -35,6 +35,8 @@
 #include <utility>
 #include <vector>
 
+#include "./op/requantize_config.h"
+
 namespace tvm {
 namespace relay {
 namespace qnn {
@@ -98,13 +100,21 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype);
 
+std::string SelectRequntizeParameter(const std::string& arg_value, const std::string& cfg_value,
+                                     const bool is_cfg_default, const std::string& name);
+
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
                               const Expr& input_scale, const Expr& input_zero_point,
                               const Expr& output_scale, const Expr& output_zero_point,
-                              const DataType& out_dtype, const std::string& rounding = "UPWARD") {
+                              const DataType& out_dtype, const std::string& rounding = "None",
+                              const std::string& compute_dtype = "None") {
   auto attrs = make_object<RequantizeAttrs>();
-  attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
+  const RequantizeConfig& cfg = RequantizeConfig::Current();
+  attrs->rounding =
+      SelectRequntizeParameter(rounding, cfg->get_rounding(), cfg->is_default, "rounding");
+  attrs->compute_dtype = SelectRequntizeParameter(compute_dtype, cfg->get_compute_dtype(),
+                                                  cfg->is_default, "compute_dtype");
   return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
                          attrs.operator->(), input_shape, attrs->out_dtype);
 }
