@@ -18,7 +18,7 @@
 the Relay to TIR compilation process, to Vela API calls to
 generate command stream.
 """
-from typing import Dict, NamedTuple, Tuple, Union
+from typing import Dict, NamedTuple, Tuple, Union, List
 from enum import auto
 from enum import Enum
 import numpy as np  # type: ignore
@@ -102,8 +102,8 @@ def translate(tir_module, params):
     encoded_constants : str
         An hex string of the bytes that includes concat'd
         encoded weights, encoded biases and scales.
-    scratch_size : int
-        The size of the scratch buffer needed.
+    base_addresses : List[util.BaseAddress]
+        base addresses to be used by the driver
     """
 
     buffer_info = extract_buffer_info(tir_module, params)
@@ -112,10 +112,60 @@ def translate(tir_module, params):
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
     _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
+    base_addresses = extract_param_base_addresses(tir_module, buffer_info)
+    if scratch_size > 0:
+        base_addresses.append(
+            util.BaseAddress(
+                "scratch",
+                None,
+                _REGION_MAP[BufferType.scratch],
+                scratch_size,
+                True,
+            )
+        )
     target_accel_config = vela_api.get_accelerator_config()
     cmds = vapi.npu_generate_register_command_stream(_npu_ops, target_accel_config)
     payload = vapi.npu_create_driver_payload(cmds, target_accel_config)
-    return payload.hex(), constant_data, scratch_size
+    return payload.hex(), constant_data, base_addresses
+
+
+def extract_param_base_addresses(mod, buffer_info) -> List[util.BaseAddress]:
+    """This function extracts base addresses to be used by the driver
+
+    Parameters
+    ----------
+    mod : tvm.IRModule
+        The TIR Module for NPU
+    buffer_info : Dict[tvm.tir.Var, BufferInfo]
+        Information regarding buffer vars used in the PrimFunc
+
+    Returns
+    -------
+    List[util.BaseAddress]
+        base addresses to be used by the driver
+    """
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+
+    base_addresses = list()
+    idx = 0
+    for param in primfunc.params:
+        # constants are pooled together and handled specially
+        # this will change after tir.allocate_const.
+        # For now, we are skipping generating buffer addresses here
+        if buffer_info[param].btype == BufferType.constant:
+            continue
+        buffer = primfunc.buffer_map[param]
+        dtype = buffer.dtype
+        element_size_bytes = np.iinfo(dtype).bits // 8
+        size_bytes = element_size_bytes * np.prod(list(buffer.shape))
+        base_addresses.append(
+            util.BaseAddress(param.name, idx, _REGION_MAP[buffer_info[param].btype], size_bytes)
+        )
+        idx += 1
+
+    return base_addresses
 
 
 def extract_call_extern_list(mod):
@@ -171,6 +221,7 @@ def extract_buffer_info(
     # There should only be a single function
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
+
     for idx, const_data in param_dict.items():
         param = primfunc.params[idx]
         buffer_info[param] = BufferInfo(
@@ -301,6 +352,9 @@ def assign_addresses(buffer_info, npu_ops):
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
+                buffer_info[_buffer] = BufferInfo(
+                    values=None, shape=info.dtype, dtype=info.dtype, btype=buffer_type
+                )
             elif info.btype == BufferType.shram:
                 accl_config = util.get_accelerator_config()
                 arch_config = get_accelerator_arch_config(accl_config)
