@@ -72,7 +72,7 @@ using PipelineInfo = std::unordered_map<Block, PipelineStageOrder, ObjectPtrHash
 struct BufferAccessInfo {
   int def;  // the defining stage of the buffer
   int use;  // the last using stage of the buffer
-  BufferAccessInfo(int def = -1, int use = -1) : def(def), use(use){};
+  explicit BufferAccessInfo(int def = -1, int use = -1) : def(def), use(use){}
 };
 
 /*!
