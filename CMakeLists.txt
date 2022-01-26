@@ -241,12 +241,6 @@ if(NOT BUILD_FOR_HEXAGON)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 endif()
 
-if(BUILD_FOR_ANDROID)
-  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
-  # won't load on Android due to missing __emutls_XXX symbols.
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
-endif()
-
 # add source group
 tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
 tvm_file_glob(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
