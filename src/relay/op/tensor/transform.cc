@@ -1276,7 +1276,8 @@ bool TakeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (indices == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
 
