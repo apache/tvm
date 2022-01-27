@@ -201,6 +201,9 @@ def verify_meta_schedule_with_tensorrt(
                 ).evaluate()
 
 
+@tvm.testing.requires_cuda
+@has_tensorrt_codegen
+@has_tensorrt_runtime
 def test_conv2d_relu():
     data_shape = (1, 1280, 14, 14)
     out_channels = 256
