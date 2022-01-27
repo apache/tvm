@@ -44,6 +44,9 @@ class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abst
         self.type = vtype
 
     def evaluate(self):
+        if isinstance(self.type, tvm.ir.Type):
+            return self.type
+
         return tvm.ir.PrimType(self.type)
 
 
@@ -54,6 +57,8 @@ class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method
     """
 
     def __getitem__(self, vtype):
+        if not isinstance(vtype, TypeGeneric):
+            raise TypeError(f"Ptr expects a type argument, but received {type(vtype).__name__}")
         return ConcreteType(tvm.ir.PointerType(vtype.evaluate()))
 
 
@@ -65,6 +70,8 @@ class GenericTupleType(TypeGeneric):  # pylint: disable=abstract-method
     """
 
     def __getitem__(self, vtypes):
+        if isinstance(vtypes, TypeGeneric):
+            vtypes = [vtypes]
         return ConcreteType(tvm.ir.TupleType([vtype.evaluate() for vtype in vtypes]))
 
 
