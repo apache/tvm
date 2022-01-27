@@ -1321,7 +1321,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
     size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
     ICHECK_GE(indices_dim_i, 1);
   }
-  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint());
+  ICHECK(indices->dtype.is_int());
 
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < ndim_i; ++i) {
