@@ -175,6 +175,20 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
 void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                          const StmtSRef& scope_root_sref);
 
+/*!
+ * \brief Extracts the types of the block vars
+ * \param block_sref The block to be checked
+ * \return A vector of types of the block vars
+ */
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref);
+
+/*!
+ * \brief Checks if a block could be considered as a "write cache"
+ * \param block_sref The block to be checked
+ * \return A boolean flag indicating if the block is a write cache
+ */
+bool IsWriteCache(const StmtSRef& block_sref);
+
 /******** Binding ********/
 /*!
  * \brief Verifies if the block binding in a specific BlockRealize is an affine binding.

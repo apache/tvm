@@ -115,10 +115,22 @@ class PipelineModule(object):
         else:
             self.module = module
         # Get the packed functions from the pipeline executor.
+        self._get_params_group_pipeline_map = self.module["get_params_group_pipeline_map"]
+        self._run = self.module["run"]
+        self._stop = self.module["stop"]
+        self._set_param = self.module["set_param"]
+        self._set_input = self.module["set_input"]
+        self._get_input = self.module["get_input"]
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
-        self._get_params_group_pipeline_map = self.module["get_params_group_pipeline_map"]
-        self._set_param = self.module["set_param"]
+
+    def run(self, sync=False):
+        """Run the pipeline executor."""
+        self._run(sync)
+
+    def stop(self):
+        """Stop the pipeline executor."""
+        self._stop()
 
     def get_input_pipeline_map(self, name):
         """Using the "name" to get the corresponding subgraph index and also get the "input name"
@@ -145,6 +157,21 @@ class PipelineModule(object):
         """
         return self._get_params_group_pipeline_map(name)
 
+    def set_input(self, key, value):
+        """Set the input via input name.
+
+        Parameters
+        ----------
+        key : str
+            The input name
+        value : array_like.
+            The input value
+        """
+        v = self._get_input(key)
+        if v is None:
+            raise RuntimeError("Could not find '%s' in pipeline's inputs" % key)
+        v.copyfrom(value)
+
     def set_params(self, params_group_name, params_data):
         """Set the parameter group value given the parameter group name. Note that the parameter
         group name is declared in the pipeline executor config.
@@ -162,6 +189,19 @@ class PipelineModule(object):
 
         for key, val in params_data.items():
             self._set_param(params_group_name, key, val)
+
+    def get_input(self, key):
+        """Get the input via an input name.
+        Parameters
+        ----------
+        key : str
+            The input key
+        Returns
+        -------
+        data : NDArray
+            The input data.
+        """
+        return self._get_input(key)
 
     @property
     def num_outputs(self):

@@ -193,6 +193,18 @@ inline Array<Stmt> AsArray(const Stmt& stmt) {
   return {stmt};
 }
 
+/*!
+ * \brief Checks of a statement is a SeqStmt that contains multiple statements
+ * \param stmt The statement to be checked
+ * \return A boolean indicating the result
+ */
+inline bool IsSingleStmt(const Stmt& stmt) {
+  if (const auto* seq_stmt = stmt.as<SeqStmtNode>()) {
+    return seq_stmt->seq.size() == 1;
+  }
+  return true;
+}
+
 /******** IterVar ********/
 
 /*!
@@ -362,7 +374,7 @@ inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& an
  */
 inline bool HasAnn(const StmtSRef& sref, const String& ann_key, bool ann_val) {
   Optional<Bool> result = GetAnn<Bool>(sref, ann_key);
-  return result.defined() && result.value()->value == ann_val;
+  return result.defined() && result.value() == ann_val;
 }
 
 /********** Helper Functions for RuleAddRFactor and RuleCrossThreadReduction **********/

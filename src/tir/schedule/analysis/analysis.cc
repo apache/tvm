@@ -408,6 +408,33 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   }
 }
 
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  std::vector<IterVarType> results;
+  results.reserve(block->iter_vars.size());
+  for (const IterVar& iter_var : block->iter_vars) {
+    results.push_back(iter_var->iter_type);
+  }
+  return results;
+}
+
+bool IsWriteCache(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (block->writes.size() != 1) {
+    return false;
+  }
+  const BufferRegion& write_region = block->writes[0];
+  for (const BufferRegion& read_region : block->reads) {
+    bool exists, surjective, injective, ordered, no_const_read, no_shift_read;
+    std::tie(exists, surjective, injective, ordered, no_const_read, no_shift_read) =
+        AnalyzeReadWritePattern(read_region, write_region);
+    if (!(injective && ordered)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /******** Binding ********/
 
 bool IsAffineBinding(const BlockRealize& realize, const Map<Var, Range>& loop_var_ranges,

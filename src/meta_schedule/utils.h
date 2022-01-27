@@ -351,6 +351,22 @@ inline int GetTargetNumCores(const Target& target) {
   return num_cores;
 }
 
+/*!
+ * \brief Unify the function name in workload to "main".
+ * \param mod The workload.
+ * \return The new workload with unified function name.
+ * \note If the name is not unified, the workload may not be found in database.
+ */
+inline IRModule UnifyFuncName(const IRModule& mod) {
+  if (!mod->ContainGlobalVar("main") && mod->GetGlobalTypeVars().size() == 1) {
+    IRModule new_mod = IRModule(
+        Map<GlobalVar, BaseFunc>({{GlobalVar("main"), mod->functions[mod->GetGlobalVars()[0]]}}));
+    return new_mod;
+  } else {
+    return mod;
+  }
+}
+
 }  // namespace meta_schedule
 }  // namespace tvm
 

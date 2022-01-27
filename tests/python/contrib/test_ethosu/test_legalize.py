@@ -21,6 +21,7 @@ import pytest
 pytest.importorskip("ethosu.vela")
 
 import math
+
 import numpy as np
 import tensorflow as tf
 import tflite.Model
@@ -1499,6 +1500,105 @@ def test_tflite_split_v_legalize(ifm_shape, num_or_size_splits, axis):
         "tvmgen_default_ethos_u_main_0"
     ]
 
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,ifm_scale,ifm_zp,ofm_scale,ofm_zp",
+    [[(1, 8, 8, 3), 1.0, 0, 1.0, 0], [(1, 20, 30, 3), 1.345, 34, 0.32, -23]],
+)
+def test_ethosu_requantize(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp):
+    dtype = "int8"
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
+        requantize = relay.qnn.op.requantize(
+            ifm,
+            relay.const(ifm_scale, dtype="float32"),
+            relay.const(ifm_zp, dtype="int32"),
+            relay.const(ofm_scale, dtype="float32"),
+            relay.const(ofm_zp, dtype="int32"),
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm], requantize))
+
+    def verify(ext_func):
+        op = ext_func.body
+
+        # Check IFM
+        ifm = op.args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+
+        # Check OFM
+        ofm = op.checked_type
+        assert list(ofm.shape) == list(ifm_shape)
+        assert str(ofm.dtype) == dtype
+
+        # Check quantization params
+        assert math.isclose(op.attrs.ifm_scale, ifm_scale, abs_tol=1e-7)
+        assert op.attrs.ifm_zero_point == ifm_zp
+        assert math.isclose(op.attrs.ofm_scale, ofm_scale, abs_tol=1e-7)
+        assert op.attrs.ofm_zero_point == ofm_zp
+
+    rewriter = legalize.RequantizeRewriter()
+    pattern_table = [
+        (
+            ethosu.RequantizeParams.composite_name,
+            ethosu.requantize_pattern(),
+            lambda pat: ethosu.RequantizeParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_model()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+def test_multiple_requantize_offload():
+    """
+    Testing requantize offload in the case one requantize operation is part of
+    an existing pattern (in this case Mean: cast->mean->requantize) and the
+    other is a stand-alone requantize.
+    """
+
+    def create_model():
+        ifm = relay.var("input", shape=(1, 3, 3, 4), dtype="int8")
+        cast = relay.cast(ifm, dtype="int32")
+        mean = relay.mean(cast, axis=1, keepdims=True)
+        requantize = relay.qnn.op.requantize(
+            mean,
+            input_scale=relay.const(1.0, dtype="float32"),
+            input_zero_point=relay.const(0, dtype="int32"),
+            output_scale=relay.const(1.0, dtype="float32"),
+            output_zero_point=relay.const(0, dtype="int32"),
+        )
+        requantize = relay.qnn.op.requantize(
+            requantize,
+            input_scale=relay.const(1.0, dtype="float32"),
+            input_zero_point=relay.const(0, dtype="int32"),
+            output_scale=relay.const(1.0, dtype="float32"),
+            output_zero_point=relay.const(0, dtype="int32"),
+        )
+        return tvm.IRModule.from_expr(relay.Function([ifm], requantize))
+
+    def verify(ext_func):
+        # If mean operation and separate requantize were offloaded correctly,
+        # there should only be a pooling operation followed by an identity
+        # operation leagalized.
+        op = ext_func.body
+        assert op.op.name == "contrib.ethosu.identity"
+        op = op.args[0]
+        assert ext_func.body.args[0].op.name == "contrib.ethosu.pooling"
+        op = op.args[0]
+        assert isinstance(op, relay.Var)
+
+    mod = create_model()
+    mod = ethosu.partition_for_ethosu(mod)
+    mod = legalize.LegalizeEthosU()(mod)
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 

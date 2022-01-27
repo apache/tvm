@@ -42,7 +42,7 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding
 
     Returns
     -------
-    b_np : np.ndarray
+    dw_np : np.ndarray
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     """
@@ -74,3 +74,45 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding
                     dw[k, c, r, s] = acc
 
     return dw
+
+
+def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, layout="NCHW"):
+    """Gradient of the conv2d op with respect to weight, in NCHW or NHWC layout.
+
+    Parameters
+    ----------
+    dy_np : numpy.ndarray
+        4-D with shape [batch, in_channel, out_height, out_width] for NCHW layout
+
+    x_np : numpy.ndarray
+        4-D with shape [batch, in_channel, in_height, in_width] for NCHW layout
+
+    kernel_size : tuple of two ints
+        Height and width of the weight
+
+    stride : tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : tuple of two ints
+        Spatial padding, or [pad_h, pad_w]
+
+    layout: string
+        Layout of dy_np and x_np
+
+    Returns
+    -------
+    dw_np : np.ndarray
+        Tensor of shape [num_filter, in_channel, filter_height, filter_width] for NCHW layout,
+        [num_filter, filter_height, filter_width, in_channel] for NHWC layout.
+    """
+    if layout == "NCHW":
+        return conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding)
+
+    dw_np_oihw = conv2d_backward_weight_nchw_python(
+        np.transpose(dy_np, [0, 3, 1, 2]),
+        np.transpose(x_np, [0, 3, 1, 2]),
+        kernel_size,
+        stride,
+        padding,
+    )
+    return np.transpose(dw_np_oihw, [0, 2, 3, 1])
