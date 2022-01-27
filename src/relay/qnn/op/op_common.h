@@ -289,6 +289,59 @@ static inline bool QnnBroadcastRel(const Array<Type>& types, int num_inputs, con
       .set_attr<TNonComputational>("TNonComputational", true)                                      \
       .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
 
+static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_inputs,
+                                              const Attrs& attrs, const TypeReporter& reporter) {
+  // Expected Types: data, scale, zero_point, output_scale, output_zero_point
+  ICHECK_EQ(types.size(), 6);
+  const auto* x = types[0].as<TensorTypeNode>();
+  if (x == nullptr) return false;
+  ICHECK(x->dtype == DataType::Int(8) || x->dtype == DataType::UInt(8))
+      << "Expected quantized type(int8, uint8) for input but was " << x->dtype;
+
+  // Check the types of scale and zero points.
+  for (size_t i = 1; i < 5; ++i) {
+    if (types[i].as<IncompleteTypeNode>()) {
+      return false;
+    }
+  }
+  ICHECK(IsScalarType(types[1], DataType::Float(32)));  // scale
+  ICHECK(IsScalarType(types[2], DataType::Int(32)));    // zero_point
+  ICHECK(IsScalarType(types[3], DataType::Float(32)));  // output_scale
+  ICHECK(IsScalarType(types[4], DataType::Int(32)));    // output_zero_point
+
+  // Assign types for scale and zero points.
+  reporter->Assign(types[1], TensorType({}, DataType::Float(32)));  // scale
+  reporter->Assign(types[2], TensorType({}, DataType::Int(32)));    // zero_point
+  reporter->Assign(types[3], TensorType({}, DataType::Float(32)));  // output_scale
+  reporter->Assign(types[4], TensorType({}, DataType::Int(32)));    // output_zero_point
+
+  // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
+  // IdentityRel infer type function.
+  Array<Type> tensor_types = {types[0], types[5]};
+  return IdentityRel(tensor_types, 2, attrs, reporter);
+}
+
+#define QNN_CREATE_UNARY_ELEMENTWISE_OP(OpName)                                                 \
+  TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                                             \
+      .set_body_typed(                                                                          \
+          [](Expr x, Expr scale, Expr zero_point, Expr output_scale, Expr output_zero_point) {  \
+            return Call(Op::Get("qnn." OpName),                                                 \
+                        {x, scale, zero_point, output_scale, output_zero_point}, Attrs(), {});  \
+          });                                                                                   \
+                                                                                                \
+  RELAY_REGISTER_OP("qnn." OpName)                                                              \
+      .describe("Elementwise " OpName " for quantized tensors.")                                \
+      .set_num_inputs(5)                                                                        \
+      .add_argument("data", "Quantized Tensor", "The input data.")                              \
+      .add_argument("scale", "Tensor", "The quantization scale of the input tensor.")           \
+      .add_argument("zero_point", "Tensor", "The quantization zero_point of the input tensor.") \
+      .add_argument("output_scale", "Tensor", "The quantization scale of the output tensor.")   \
+      .add_argument("output_zero_point", "Tensor",                                              \
+                    "The quantization zero_point of the output tensor.")                        \
+      .set_support_level(11)                                                                    \
+      .add_type_rel("qnn." OpName, QnnElementwiseUnaryFuncRel)                                  \
+      .set_attr<TNonComputational>("TNonComputational", true)
+
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
