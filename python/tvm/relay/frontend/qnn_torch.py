@@ -440,6 +440,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::mul": 2,
         "aten::dequantize": 1,
         "aten::mean": 1,
+        "aten::sigmoid": 1,
         "aten::upsample_nearest2d": 1,
         "aten::upsample_bilinear2d": 1,
         "aten::relu_": 1,
@@ -516,6 +517,12 @@ def apply_with_upcast(data, func):
 
 def quantized_mean(data, input_scale, input_zero_point, func_fp32):
     # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+    dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
+    out = func_fp32(dequantized)
+    return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
+
+
+def quantized_sigmoid(data, input_scale, input_zero_point, func_fp32):
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func_fp32(dequantized)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)

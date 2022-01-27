@@ -1393,7 +1393,18 @@ class PyTorchOpConverter:
 
     def sigmoid(self, inputs, input_types):
         data = inputs[0]
-        return _op.tensor.sigmoid(data)
+
+        def func(x):
+            return _op.tensor.sigmoid(x)
+
+        if self.is_quantized_tensor(data):
+            assert len(inputs) == 3, "Input quant param not found in op inputs"
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            return qnn_torch.quantized_sigmoid(data, input_scale, input_zero_point, func)
+
+        return func(data)
+
 
     def softplus(self, inputs, input_types):
         data = inputs[0]
@@ -3938,7 +3949,6 @@ def from_pytorch(
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
-    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
