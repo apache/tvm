@@ -233,6 +233,23 @@ class SchedulePostProc : public StmtExprMutator {
           return this->VisitStmt(op->body);
         }
       }
+    } else if (op->attr_key == tir::attr::layout_transforms ||
+               op->attr_key == tir::attr::axis_separators) {
+      auto arr = Downcast<Array<ObjectRef>>(op->node);
+      ICHECK_EQ(arr.size(), 2);
+
+      Stmt body = op->body;
+
+      Tensor tensor = Downcast<Tensor>(arr[0]);
+      auto it = replace_op_.find(tensor->op.get());
+      if (it != replace_op_.end()) {
+        if (it->second.defined()) {
+          return AttrStmt(Array<ObjectRef>{it->second.output(tensor->value_index), arr[1]},
+                          op->attr_key, op->value, this->VisitStmt(op->body));
+        } else {
+          return this->VisitStmt(op->body);
+        }
+      }
     }
     return StmtExprMutator::VisitStmt_(op);
   }

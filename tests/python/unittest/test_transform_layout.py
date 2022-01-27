@@ -416,5 +416,64 @@ class TestTransformedSchedules:
         self.compare_tir_loop_order(func.body, expected_loop_order)
 
 
+class TestTransformCache:
+    A_size = tvm.testing.parameter(16)
+
+    transform_A = tvm.testing.parameter(by_dict={"transformA": True, "": False})
+    transform_B = tvm.testing.parameter(by_dict={"transformB": True, "": False})
+    cache_A = tvm.testing.parameter(by_dict={"cacheA": True, "": False})
+    cache_B = tvm.testing.parameter(by_dict={"cacheB": True, "": False})
+
+    @tvm.testing.fixture
+    def schedule_args(self, A_size, transform_A, transform_B, cache_A, cache_B, dtype):
+        A = te.placeholder(shape=[A_size], dtype=dtype, name="A")
+        B = te.compute(A.shape, lambda i: A[i], name="B")
+        s = te.create_schedule(B.op)
+
+        if transform_A:
+            A_axis = s[A].transform_layout(lambda i: [i // 4, i % 4])
+
+        if transform_B:
+            B_axis = s[B].transform_layout(lambda i: [i // 4, i % 4])
+
+        if cache_A:
+            AA = s.cache_read(A, "shared", [B])
+
+        if cache_B:
+            BB = s.cache_write(B, "shared")
+
+        return [s, [A, B]]
+
+    @tvm.testing.fixture
+    def ref_data(self, A_size, dtype, transform_A, transform_B):
+        a_np = (100 * np.random.uniform(size=A_size)).astype(dtype)
+        b_np = a_np
+
+        if transform_A:
+            a_np = a_np.reshape((-1, 4))
+
+        if transform_B:
+            b_np = b_np.reshape((-1, 4))
+
+        return a_np, b_np
+
+    def test_lower(self, schedule_args):
+        tvm.lower(*schedule_args)
+
+    def test_execute(self, target, dev, schedule_args, ref_data, dtype):
+        func = tvm.build(*schedule_args, target=target)
+
+        a_np, b_np = ref_data
+        a = tvm.nd.array(a_np, dev)
+        b = tvm.nd.empty(b_np.shape, dtype=dtype, device=dev)
+
+        func(a, b)
+
+        if "int" in dtype:
+            np.testing.assert_equal(b.numpy(), b_np)
+        else:
+            tvm.testing.assert_allclose(b.numpy(), b_np)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main(sys.argv))
