@@ -49,7 +49,7 @@ def register_qnn_canonicalize(op_name, legal_op=None, level=10):
     op_name : str
         The name of the operator
 
-    legal_op: function (attrs: Attrs, args: List[Expr], List[relay.Type]: arg_types) -> new_expr: Expr
+    legal_op: function (Attrs, List[Expr], List[relay.Type]) -> Expr
         The function for transforming an expr to another expr.
 
     level : int
