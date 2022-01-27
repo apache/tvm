@@ -136,7 +136,10 @@ def copy_constants():
             if tensor not in planned:
                 planned.add(tensor)
                 if isinstance(tensor.op, tvm.te.PlaceholderOp) and tensor != lut:
-                    index = list(cached_func.inputs).index(tensor)
+                    # Find index of input using 'same_as' check to prevent equality
+                    # ambiguity when encountering a scalar.
+                    is_same = [var.same_as(tensor) for var in cached_func.inputs]
+                    index = is_same.index(True)
                     if index in const_dict:
                         sch.cache_read(tensor, "global", [reader])
 

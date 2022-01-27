@@ -23,7 +23,8 @@ if(NOT "${FASTRPC_LIBS}" STREQUAL "SKEL" AND
   message(SEND_ERROR "Please set FASTRPC_LIBS to either SKEL or STUB")
 endif()
 
-include(../../../../../cmake/modules/HexagonSDK.cmake)
+include(../../../../../../cmake/utils/Utils.cmake)
+include(../../../../../../cmake/modules/HexagonSDK.cmake)
 
 find_hexagon_sdk_root("${HEXAGON_SDK_ROOT}" "${HEXAGON_ARCH}")
 

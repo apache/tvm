@@ -211,7 +211,7 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr&)> {
       field_bindings.push_back(f_ad->get<ADTensor>().forward);
     }
     // reconstruct tuple using let-bound variables to avoid duplication
-    auto orig = WithFields(GetRef<Tuple>(tuple_node), std::move(field_bindings));
+    auto orig = WithFields(GetRef<Tuple>(tuple_node), field_bindings);
     orig->checked_type_ = tt;
     auto ret = std::make_shared<ADTensor>(ll, orig, diag_ctx);
     // for orig = tuple(x1, ..., xn), tuple_grad(x1, ..., xn, G) = [pi(G, 1), ..., pi(G, n)]
@@ -307,8 +307,9 @@ Pass FirstOrderGradient() {
         });
         return Pair(res.forward, grad_tuple);
       });
-      ad_mod->Update(pr.first,
-                     Function(func->params, body, GradRetType(GetRef<Function>(func)), {}));
+      ad_mod->Update(pr.first, WithFields(GetRef<Function>(func), func->params, body,
+                                          GradRetType(GetRef<Function>(func)),
+                                          /* erase type params */ Array<TypeVar>()));
     }
 
     return ad_mod;

@@ -306,7 +306,7 @@ class Executable(object):
 
     def load_late_bound_consts(self, path):
         """Re-load constants previously saved to file at path"""
-        return self._load_late_bound_consts(path, bytes)
+        return self._load_late_bound_consts(path)
 
 
 class VirtualMachine(object):

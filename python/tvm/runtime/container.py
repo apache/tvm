@@ -161,3 +161,14 @@ class ShapeTuple(Object):
 
     def __getitem__(self, idx):
         return getitem_helper(self, _ffi_api.GetShapeTupleElem, len(self), idx)
+
+    def __eq__(self, other):
+        if self.same_as(other):
+            return True
+        if len(self) != len(other):
+            return False
+        for a, b in zip(self, other):
+            if a != b:
+                return False
+
+        return True

@@ -45,6 +45,8 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     }
 
    protected:
+    using MixedModeVisitor::VisitExpr_;
+
     void VisitLeaf(const Expr& expr) override {
       MixedModeVisitor::VisitLeaf(expr);
       auto node = std::make_shared<IndexedGraph<Expr>::Node>(expr, index_++);

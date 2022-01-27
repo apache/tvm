@@ -51,11 +51,11 @@ def get_hexagon_rpc_dir() -> pathlib.Path:
         for path in libinfo.find_lib_path():
             rpc_dir = os.path.join(os.path.dirname(path), "hexagon_rpc")
             if os.path.isdir(rpc_dir):
-                HEXAGON_RPC_DIR = pathlib.Path(rpc_dir)
+                HEXAGON_RPC_DIR = rpc_dir
                 break
         else:
             raise "hexagon_rpc was not found."
-    return HEXAGON_RPC_DIR
+    return pathlib.Path(HEXAGON_RPC_DIR)
 
 
 class HexagonLauncher:

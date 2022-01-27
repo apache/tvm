@@ -56,6 +56,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
  private:
   /*! \brief Iteration range for loop_vars */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
+  /*! \brief Extra iteration range hint for free vars */
+  std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
   /*! \brief The buffers that the current block reads */
   std::vector<Buffer> read_buffers_;
   /*! \brief The buffers that the current block writes */
@@ -95,6 +97,9 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 
   /*! \brief Helper function to update a opaque access. */
   void UpdateOpaque(const Var& buffer_var);
+
+  /*! \brief Helper function to relax the buffer indices */
+  arith::IntSet RelaxAccessIndex(const PrimExpr& index);
 
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -140,10 +145,22 @@ void BlockReadWriteDetector::VisitExpr_(const LoadNode* op) {
   ExprVisitor::VisitExpr_(op);
 }
 
+arith::IntSet BlockReadWriteDetector::RelaxAccessIndex(const PrimExpr& index) {
+  arith::IntSet relaxed = arith::EvalSet(index, dom_map_);
+  if (!hint_map_.empty()) {
+    // take non-relaxed var bound hints into considerations
+    // eg, if i * 4 + j with i >= 10 and j in [0, 4), only j in domain scope
+    // then the index region can be relaxed to [i*4, i*4+4) ^ [40, inf)
+    arith::IntSet hint_bound = arith::EvalSet(relaxed, hint_map_);
+    relaxed = arith::Intersect({relaxed, hint_bound});
+  }
+  return relaxed;
+}
+
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (const PrimExpr& index : op->indices) {
-    relaxed_region.push_back(arith::EvalSet(index, dom_map_));
+    relaxed_region.push_back(RelaxAccessIndex(index));
   }
   Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
   ExprVisitor::VisitExpr_(op);
@@ -160,12 +177,12 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   VisitExpr(op->condition);
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, true);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
     StmtExprVisitor::VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, false);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
     StmtExprVisitor::VisitStmt(op->else_case);
   }
 }
@@ -175,12 +192,12 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     VisitExpr(op->args[0]);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, true);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
       StmtExprVisitor::VisitExpr(op->args[1]);
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, false);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
       StmtExprVisitor::VisitExpr(op->args[2]);
     }
     return;
@@ -196,7 +213,7 @@ void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (const PrimExpr& index : op->indices) {
-    relaxed_region.push_back(arith::EvalSet(index, dom_map_));
+    relaxed_region.push_back(RelaxAccessIndex(index));
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
   StmtVisitor::VisitStmt_(op);

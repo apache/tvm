@@ -98,6 +98,17 @@ TVM_DLL std::vector<int64_t> SamplePerfectTile(
     support::LinearCongruentialEngine::TRandState* rand_state,  //
     const tir::StmtSRef& loop_sref, int32_t n_split, int32_t max_innermost_factor,
     Optional<Array<Integer>>* decision);
+/*!
+ * \brief Sample a compute-at location of the given block
+ * \param self The schedule state
+ * \param rand_state The random state
+ * \param block_sref The sref of the block whose compute-at location is to be sampled
+ * \param decision The sampling decision
+ * \return The sampled loop where the input block is to be computed at
+ */
+TVM_DLL tir::StmtSRef SampleComputeLocation(
+    tir::ScheduleState self, support::LinearCongruentialEngine::TRandState* rand_state,
+    const tir::StmtSRef& block_sref, Optional<Integer>* decision);
 
 /******** Schedule: Get blocks & loops ********/
 /*!
@@ -367,6 +378,24 @@ TVM_DLL void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer
                       const String& storage_scope);
 
 /******** Schedule: Blockize & Tensorize ********/
+
+/*!
+ * \brief Convert the subtree rooted at a specific loop into a block.
+ * \param self The state of the schedule
+ * \param loop_sref The root of the subtree
+ * \return The new block
+ */
+TVM_DLL StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref);
+
+/*!
+ * \brief Tensorize the computation enclosed by loop with the tensor intrinsic.
+ * \param self The state of the schedule
+ * \param block_or_loop_sref The block or loop to be tensorized.
+ * \param intrin The tensor intrinsic.
+ */
+TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
+                       const TensorIntrin& intrin);
+
 /******** Schedule: Annotation ********/
 /*!
  * \brief Annotate a block/loop with a key value pair

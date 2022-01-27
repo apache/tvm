@@ -32,7 +32,6 @@ from .. import op as _op
 from .. import qnn as _qnn
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import set_span
 from .common import to_int_list
 from .tflite_flexbuffer import FlexBufferDecoder
 
@@ -240,17 +239,12 @@ class OperatorConverter(object):
 
             if len(output_tensors) == 1:
                 tensor_idx = output_tensors[0].tensor_idx
-                curr_output = get_tensor_name(self.subgraph, tensor_idx)
-                ret = set_span(ret, "location: {}, output_name: {}".format(op_idx, curr_output))
-                self.exp_tab.set_expr(curr_output, ret)
+                self.exp_tab.set_expr(get_tensor_name(self.subgraph, tensor_idx), ret)
             else:
-                out_names = []
-                for output_tensor in output_tensors:
-                    out_names.append(get_tensor_name(self.subgraph, output_tensor.tensor_idx))
-                curr_output = ", ".join(out_names)
-                ret = set_span(ret, "location: {}, output_name: {}".format(op_idx, curr_output))
-                for idx, out_name in enumerate(out_names):
-                    self.exp_tab.set_expr(out_name, ret[idx])
+                for idx, output_tensor in enumerate(output_tensors):
+                    self.exp_tab.set_expr(
+                        get_tensor_name(self.subgraph, output_tensor.tensor_idx), ret[idx]
+                    )
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
@@ -1898,6 +1892,7 @@ class OperatorConverter(object):
         fully_connected_options = FullyConnectedOptions()
         fully_connected_options.Init(op_options.Bytes, op_options.Pos)
         fused_activation_fn = fully_connected_options.FusedActivationFunction()
+        keep_num_dims = fully_connected_options.KeepNumDims()
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
@@ -1974,6 +1969,13 @@ class OperatorConverter(object):
 
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        # Change the output shape calculation based on keep_dim option
+        if keep_num_dims:
+            input_shape = _infer_shape(self.get_tensor_expr(input_tensor))
+            output_shape = input_shape
+            output_shape[-1] = weight_tensor_shape[0]
+            out = _op.reshape(out, output_shape)
 
         return out
 

@@ -247,53 +247,6 @@ def verify_model(
     torch.cuda.empty_cache()
 
 
-def verify_span(model_name, input_data=[], custom_convert_map={}):
-    if isinstance(model_name, str):
-        baseline_model, baseline_input = load_model(model_name)
-    elif isinstance(input_data, list):
-        baseline_model = model_name
-        baseline_input = input_data
-    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
-        baseline_model = model_name
-        baseline_input = [input_data]
-    else:
-        assert False, "Unexpected input format"
-
-    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
-    if isinstance(baseline_model, torch.nn.Module):
-        trace = trace.float().eval()
-
-        if torch.cuda.is_available():
-            trace = trace.cuda()
-        else:
-            trace = trace.cpu()
-
-    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
-    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-
-    # collect fail cases for the convenience of further improvement
-    fail_cases = []
-    mod_main_start = False
-    for line in str(mod.__str__).split("\n"):
-        if "@main" in line:
-            mod_main_start = True
-            continue
-
-        if mod_main_start == True:
-            if "}" == line:
-                break
-            elif not ("/*" in line and "*/" in line):
-                fail_cases.append(line)
-
-    print(fail_cases)
-    assert len(fail_cases) == 0
-
-
-def test_span():
-    verify_span("resnet18")
-
-
 # Single operator tests
 @tvm.testing.uses_gpu
 def test_forward_pixel_shuffle():
@@ -941,6 +894,15 @@ def test_forward_avgpool2d():
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
     verify_model(
         torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
+    )
+
+    input_shape = [1, 1, 1, 9]
+    input_data = torch.rand(input_shape).float()
+    verify_model(
+        torch.nn.AvgPool2d(
+            kernel_size=[1, 2], stride=[1, 2], ceil_mode=True, count_include_pad=True
+        ).eval(),
+        input_data=input_data,
     )
 
 
@@ -4085,6 +4047,25 @@ def test_einsum():
     z = torch.ones([4, 5])
     verify_model(test_fn("ij,jk"), [x, y])
     verify_model(test_fn("ij,jk,km->im"), [x, y, z])
+
+
+@tvm.testing.uses_gpu
+def test_dot():
+    def test_fn(x):
+        return x.dot(x)
+
+    x = torch.randn([4])
+    verify_model(test_fn, [x])
+
+
+@tvm.testing.uses_gpu
+def test_mv():
+    def test_fn(m, v):
+        return m.mv(v)
+
+    verify_model(test_fn, [torch.randn(4, 4), torch.randn(4)])
+    verify_model(test_fn, [torch.randn(2, 2), torch.randn(2)])
+    verify_model(test_fn, [torch.randn(3, 8), torch.randn(8)])
 
 
 if __name__ == "__main__":

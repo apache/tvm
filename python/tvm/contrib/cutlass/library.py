@@ -28,36 +28,53 @@ class GeneratorTarget(enum.Enum):
 class DataType(enum.Enum):
     f16 = enum_auto()
     f32 = enum_auto()
+    s8 = enum_auto()
+    u8 = enum_auto()
+    s32 = enum_auto()
 
 
 ShortDataTypeNames = {
     DataType.f16: "h",
     DataType.f32: "s",
+    DataType.s32: "i",
 }
 
 
 DataTypeNames = {
     DataType.f16: "f16",
     DataType.f32: "f32",
+    DataType.s8: "s8",
+    DataType.u8: "u8",
+    DataType.s32: "s32",
 }
 
 DataTypeTag = {
     DataType.f16: "cutlass::half_t",
     DataType.f32: "float",
+    DataType.s8: "int8_t",
+    DataType.s32: "int32_t",
+    DataType.u8: "uint8_t",
 }
 
 DataTypeSize = {
     DataType.f16: 16,
     DataType.f32: 32,
+    DataType.u8: 8,
+    DataType.s8: 8,
+    DataType.s32: 32,
 }
 
 
 class MathOperation(enum.Enum):
     multiply_add = enum_auto()
+    multiply_add_saturate = enum_auto()
+    multiply_add_fast_f32 = enum_auto()
 
 
 MathOperationTag = {
     MathOperation.multiply_add: "cutlass::arch::OpMultiplyAdd",
+    MathOperation.multiply_add_saturate: "cutlass::arch::OpMultiplyAddSaturate",
+    MathOperation.multiply_add_fast_f32: "cutlass::arch::OpMultiplyAddFastF32",
 }
 
 

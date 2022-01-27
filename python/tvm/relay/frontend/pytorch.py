@@ -45,7 +45,6 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
-from .common import set_span
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -2852,6 +2851,23 @@ class PyTorchOpConverter:
         equation, data = inputs
         return _op.einsum(data, equation)
 
+    def dot(self, inputs, _):
+        lhs, rhs = inputs
+        return _op.sum(_op.multiply(lhs, rhs))
+
+    def mv(self, inputs, _):
+        lhs, rhs = inputs
+
+        # Convert the 1D matrix (vector) into a 2D matrix with the extra
+        # dimension=1
+        rhs_matrix = _op.transform.expand_dims(rhs, 0)
+
+        # Run multiplication
+        dense_result = _op.nn.dense(lhs, rhs_matrix, units=None)
+
+        # Chop off the extra result dimension
+        return _op.transform.squeeze(dense_result)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3076,6 +3092,8 @@ class PyTorchOpConverter:
             "aten::bucketize": self.bucketize,
             "aten::roll": self.roll,
             "aten::einsum": self.einsum,
+            "aten::dot": self.dot,
+            "aten::mv": self.mv,
         }
 
     def update_convert_map(self, custom_map):
@@ -3257,9 +3275,6 @@ class PyTorchOpConverter:
 
     def convert_operators(self, operators, outputs, ret_names):
         """Convert each Torch IR operators to Relay equivalent"""
-        # an op node might not belong to any of scope in trace info natively
-        # use a cunter to prevent from messing up its scope in span
-        empty_counter = 0
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -3273,7 +3288,18 @@ class PyTorchOpConverter:
                 # In this case, we keep the Python list
                 outputs[node_name] = inputs
             elif operator == "prim::TupleConstruct":
-                outputs[node_name] = _expr.Tuple(inputs)
+
+                def _handel_nested_input(inputs):
+                    inputs_list = []
+                    for i, _ in enumerate(inputs):
+                        if isinstance(inputs[i], list):
+                            inputs_list.append(_handel_nested_input(inputs[i]))
+                        else:
+                            assert isinstance(inputs[i], _expr.Expr)
+                            inputs_list.append(inputs[i])
+                    return _expr.Tuple(inputs_list)
+
+                outputs[node_name] = _handel_nested_input(inputs)
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
@@ -3309,9 +3335,6 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
-                span_str, empty_counter = self._get_torch_span(op_node, empty_counter)
-                relay_out = set_span(relay_out, span_str)
-
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
@@ -3324,18 +3347,6 @@ class PyTorchOpConverter:
                     outputs[node_name] = relay_out
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
-
-    def _get_torch_span(self, node, empty_counter):
-        # torch span looks like
-        # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
-        # the scope part might not exist
-        if node.scopeName():
-            scope_name_str = "jit._trace.TopLevelTracedModule: " + node.scopeName()
-        else:
-            scope_name_str = "warning: no trace info " + str(empty_counter)
-            empty_counter += 1
-        span_str = "C.graph: {}, {}".format(node.kind(), scope_name_str)
-        return span_str, empty_counter
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

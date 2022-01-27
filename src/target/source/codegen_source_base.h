@@ -52,6 +52,18 @@ class CodeGenSourceBase {
    * \param value The constant value.
    */
   void MarkConst(std::string value);
+  /*!
+   * Print Type representation of type type.
+   * \param t The type representation.
+   * \param os The stream to print the ctype into
+   */
+  virtual void PrintType(DataType type, std::ostream& os);  // NOLINT(*)
+  /*!
+   * Print Type representation of type type.
+   * \param type The type representation.
+   * \param os The stream to print the ctype into
+   */
+  virtual void PrintType(const Type& type, std::ostream& os);  // NOLINT(*)
 
  protected:
   /*! \brief entry in ssa assign map */

@@ -185,6 +185,11 @@ class Module(object):
         """Get type key of the module."""
         return _ffi_api.ModuleGetTypeKey(self)
 
+    @property
+    def format(self):
+        """Get the format of the module."""
+        return _ffi_api.ModuleGetFormat(self)
+
     def get_source(self, fmt=""):
         """Get source code from module, if available.
 
@@ -402,7 +407,13 @@ class Module(object):
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
                 if module.type_key == "c":
-                    object_format = "c"
+                    assert module.format in [
+                        "c",
+                        "cc",
+                        "cpp",
+                        "cu",
+                    ], "The module.format needs to be either c, cc, cpp or cu."
+                    object_format = module.format
                     has_c_module = True
                 else:
                     object_format = fcompile.object_format
@@ -411,7 +422,16 @@ class Module(object):
                     object_format = "o"
                 else:
                     assert module.type_key == "c"
-                    object_format = "c"
+                    if len(module.format) > 0:
+                        assert module.format in [
+                            "c",
+                            "cc",
+                            "cpp",
+                            "cu",
+                        ], "The module.format needs to be either c, cc, cpp, or cu."
+                        object_format = module.format
+                    else:
+                        object_format = "c"
                     if "cc" in kwargs:
                         if kwargs["cc"] == "nvcc":
                             object_format = "cu"
@@ -511,16 +531,13 @@ def load_module(path, fmt=""):
     else:
         raise ValueError("cannot find file %s" % path)
 
-    # c++ compiler/linker
-    cc = os.environ.get("CXX", "g++")
-
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
         from tvm.contrib import cc as _cc
 
-        _cc.create_shared(path + ".so", path, cc=cc)
+        _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
@@ -529,7 +546,7 @@ def load_module(path, fmt=""):
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-        _cc.create_shared(path + ".so", files, cc=cc)
+        _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)

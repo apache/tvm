@@ -189,6 +189,7 @@ def verify_with_ort_with_inputs(
             opt_level=opt_level,
             convert_config=convert_config,
         )
+
     if not isinstance(tvm_out, list):
         tvm_out = [tvm_out]
     if not isinstance(ort_out, list):
@@ -1272,6 +1273,7 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((4, 32, 16), (16, 32), (4, 32, 32))
     verify_batch_matmul((4, 32, 16, 32), (32, 16), (4, 32, 16, 16))
+    verify_batch_matmul((4, 32, 16, 32), (1, 32, 32, 16), (4, 32, 16, 16))
     # Test transb=False
     verify_batch_matmul(
         (2, 3, 4, 3),
@@ -1279,6 +1281,39 @@ def test_batch_matmul(target, dev):
         (2, 3, 4, 4),
         convert_config={"use_nt_batch_matmul": False},
     )
+
+
+@tvm.testing.parametrize_targets
+def test_use_nt_batch_matmul(target, dev):
+    a_shape = (2, 3, 4)
+    b_shape = (2, 4, 3)
+    out_shape = [2, 3, 3]
+    a_array = np.random.uniform(size=a_shape).astype("float32")
+    b_array = np.random.uniform(size=b_shape).astype("float32")
+
+    for use_nt_batch_matmul in [True, False]:
+        mul_node = helper.make_node("MatMul", ["a", "b"], ["out"])
+
+        graph = helper.make_graph(
+            [mul_node],
+            "matmul_test",
+            inputs=[
+                helper.make_tensor_value_info("a", TensorProto.FLOAT, list(a_shape)),
+                helper.make_tensor_value_info("b", TensorProto.FLOAT, list(b_shape)),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+        )
+
+        model = helper.make_model(graph, producer_name="matmul_test")
+        _, shape_dict = get_input_data_shape_dict(model, [a_array, b_array])
+
+        mod, _ = relay.frontend.from_onnx(
+            model, shape_dict, convert_config={"use_nt_batch_matmul": use_nt_batch_matmul}
+        )
+        has_transpose_op = "transpose" in str(mod)
+        # use_nt_batch_matmul implies, TVM converts qualified onnx `matmul`
+        # to `transpose(weight) + nn.batch_matmul_NT`, otherwise to `nn.batch_matmul`
+        assert has_transpose_op == use_nt_batch_matmul
 
 
 @tvm.testing.parametrize_targets
@@ -2859,6 +2894,14 @@ def test_convtranspose(target, dev):
     # Test undefined groups.
     verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2], group=None)
 
+    if "llvm" in target:
+        # GPU does not support groups != 1 for convtranspose, so only test llvm
+        # Test depthwise-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 10, 7, 3), [1, 2, 1, 2], group=10)
+
+        # Test grouped-convolution
+        verify_convtranspose((1, 10, 3, 3), (10, 1, 3, 3), (1, 5, 7, 3), [1, 2, 1, 2], group=5)
+
     def repeat(N, D):
         return tuple([N for _ in range(D)])
 
@@ -3126,6 +3169,7 @@ def test_global_pooling(target, dev):
         verify_global_pooling([4, 1, 2, 6, 4], mode)
 
 
+@pytest.mark.skip("flaky")
 @tvm.testing.parametrize_targets
 def test_qlinear_average_pool(target, dev):
     def verify_qlinear_average_pool(
@@ -4967,11 +5011,38 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
+    "test_basic_convinteger",
+    "test_batchnorm_epsilon_training_mode",
+    "test_batchnorm_example_training_mode",
+    "test_bernoulli",
+    "test_bernoulli_expanded",
+    "test_bernoulli_double",
+    "test_bernoulli_double_expanded",
+    "test_bernoulli_seed",
+    "test_bernoulli_seed_expanded",
     "test_cast_BFLOAT16_to_FLOAT",
     "test_cast_DOUBLE_to_FLOAT16",
     "test_cast_FLOAT_to_BFLOAT16",
     "test_cast_FLOAT_to_STRING",
     "test_cast_STRING_to_FLOAT",
+    "test_castlike_BFLOAT16_to_FLOAT",
+    "test_castlike_BFLOAT16_to_FLOAT_expanded",
+    "test_castlike_DOUBLE_to_FLOAT",
+    "test_castlike_DOUBLE_to_FLOAT16",
+    "test_castlike_DOUBLE_to_FLOAT16_expanded",
+    "test_castlike_FLOAT16_to_DOUBLE",
+    "test_castlike_FLOAT16_to_FLOAT",
+    "test_castlike_FLOAT_to_BFLOAT16",
+    "test_castlike_FLOAT_to_BFLOAT16_expanded",
+    "test_castlike_FLOAT_to_DOUBLE",
+    "test_castlike_FLOAT_to_FLOAT16",
+    "test_castlike_FLOAT_to_STRING",
+    "test_castlike_FLOAT_to_STRING_expanded",
+    "test_castlike_STRING_to_FLOAT",
+    "test_castlike_STRING_to_FLOAT_expanded",
+    "test_convinteger_with_padding",
+    "test_convinteger_without_padding",
+    "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_convtranspose_output_shape",
     "test_cumsum_1d",
@@ -4987,9 +5058,13 @@ unsupported_onnx_tests = [
     "test_dropout_default_mask",
     "test_dropout_default_mask_ratio",
     "test_dropout_default_ratio",
+    "test_gru_batchwise",
+    "test_hardswish",
+    "test_identity_sequence",
     "test_if_seq",
     "test_loop11",
     "test_loop13_seq",
+    "test_lstm_batchwise",
     "test_matmulinteger",
     "test_maxpool_2d_same_lower",
     "test_maxpool_2d_same_upper",
@@ -4999,6 +5074,10 @@ unsupported_onnx_tests = [
     "test_mvn",
     # This test fails llvm with a lowering error:
     "test_nllloss_NCd1d2d3_none_no_weight_negative_ii_expanded",
+    "test_optional_has_element",
+    "test_optional_get_element",
+    "test_optional_get_element_sequence",
+    "test_optional_has_element_empty",
     "test_qlinearmatmul_3D",
     "test_range_float_type_positive_delta_expanded",
     "test_range_int32_type_negative_delta_expanded",
@@ -5012,10 +5091,18 @@ unsupported_onnx_tests = [
     "test_reduce_sum_keepdims_random",
     "test_reduce_sum_negative_axes_keepdims_example",
     "test_reduce_sum_negative_axes_keepdims_random",
+    "test_reshape_allowzero_reordered",
     "test_rnn_seq_length",
     "test_round",
     "test_sequence_insert_at_back",
     "test_sequence_insert_at_front",
+    "test_shape_end_1",
+    "test_shape_end_negative_1",
+    "test_shape_start_1",
+    "test_shape_start_1_end_2",
+    "test_shape_start_1_end_negative_1",
+    "test_shape_start_negative_1",
+    "test_simple_rnn_batchwise",
     "test_simple_rnn_defaults",
     "test_simple_rnn_with_initial_bias",
     "test_split_variable_parts_1d",
@@ -5041,6 +5128,24 @@ unsupported_onnx_tests = [
     "test_training_dropout_mask",
     "test_training_dropout_zero_ratio",
     "test_training_dropout_zero_ratio_mask",
+    "test_tril",
+    "test_tril_pos",
+    "test_tril_square",
+    "test_tril_square_neg",
+    "test_tril_neg",
+    "test_tril_one_row_neg",
+    "test_tril_out_neg",
+    "test_tril_out_pos",
+    "test_tril_zero",
+    "test_triu",
+    "test_triu_one_row",
+    "test_triu_out_neg_out",
+    "test_triu_out_pos",
+    "test_triu_neg",
+    "test_triu_pos",
+    "test_triu_square",
+    "test_triu_square_neg",
+    "test_triu_zero",
     # These unsqueeze tests work, but take 2+ hrs to run
     "test_unsqueeze_three_axes",
     "test_unsqueeze_two_axes",
@@ -6227,6 +6332,7 @@ if __name__ == "__main__":
     test_random_uniform()
     test_convinteger()
     test_batch_matmul()
+    test_use_nt_batch_matmul()
     test_global_lppool()
     test_scan()
     test_random_uniform_like()

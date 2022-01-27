@@ -37,11 +37,47 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
   } else if (name == "get_input_pipeline_map") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       if (String::CanConvertFrom(args[0])) {
-        *rv = this->GetInputPipeplineMapping(args[0].operator String());
+        *rv = this->GetInputPipeplineMap(args[0].operator String());
       } else {
         LOG(FATAL) << "Function only support the input name value in the form of string";
       }
     });
+  } else if (name == "get_params_group_pipeline_map") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        *rv = this->GetParamsGroupPipelineMap(args[0].operator String());
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "set_param") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0]) && String::CanConvertFrom(args[1])) {
+        this->SetParam(args[0].operator String(), args[1].operator String(), args[2]);
+      } else {
+        LOG(FATAL) << "Function only support the parameter name and the key in the form of string";
+      }
+    });
+  } else if (name == "set_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        this->SetInput(args[0].operator String(), args[1]);
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "get_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      if (String::CanConvertFrom(args[0])) {
+        *rv = this->GetInput(args[0].operator String());
+      } else {
+        LOG(FATAL) << "Function only support the input name value in the form of string";
+      }
+    });
+  } else if (name == "run") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
+  } else if (name == "stop") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Stop(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
@@ -50,14 +86,63 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
 }
 
 /*!
+ * \brief set input to the runtime module.
+ * \param input_name The input name.
+ * \param data_in The input data.
+ */
+void PipelineExecutor::SetInput(std::string input_name, DLTensor* data_in) {
+  std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
+    this->Stop();
+    LOG(FATAL) << "input name " << input_name << " not found.";
+  }
+  runtimes_[indexs.first]->SetInput(indexs.second, data_in);
+}
+/*!
+ * \brief get input from the runtime module.
+ * \param input_name The input name.
+ * \return Return the input data for a specific input name.
+ */
+NDArray PipelineExecutor::GetInput(std::string input_name) {
+  std::pair<int, int> indexs = this->GetInputIndex(input_name);
+  if (indexs.first < 0 || indexs.first >= static_cast<int>(runtimes_.size())) {
+    this->Stop();
+    LOG(FATAL) << "input name " << input_name << " not found.";
+  }
+  return runtimes_[indexs.first]->GetInput(indexs.second);
+}
+/*!
  * \brief Using the global input name to get the index, and also get the input interface name
    of corresponding subgraph from the input connection configuration.
  * \param The global input name.
  * \return Returning the index and the input interface name of corresponding subgraph.
  */
-Array<String> PipelineExecutor::GetInputPipeplineMapping(std::string input_name) {
+Array<String> PipelineExecutor::GetInputPipeplineMap(std::string input_name) {
   std::pair<int, std::string> map = input_connection_config[input_name];
   return {std::to_string(map.first), map.second};
+}
+
+/*!
+ * \brief Return the module index for the parameters group name.
+ * \param name The parameters group name.
+ * \return int The module index.
+ */
+int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
+  return param_connection_config[name];
+}
+
+/*!
+ * \brief Run the pipeline executor.
+ * \param serialized_mode Whether run the pipeline executor in serialized mode.
+ */
+void PipelineExecutor::Run(bool serialized_mode) {
+  // TODO(huajsj): Run the pipeline executor.
+}
+/*!
+ * \brief Stop the pipeline executor.
+ */
+void PipelineExecutor::Stop() {
+  // TODO(huajsj): Stop the pipeline executor.
 }
 
 /*!
@@ -115,7 +200,28 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
   }
   return ret;
 }
-
+/*!
+ * \brief Set a parameter into a graph module.
+ * \param param_group_name The parameters group name.
+ * \param param_key_name The parameter key name.
+ * \param data_in The parameter data.
+ */
+void PipelineExecutor::SetParam(std::string param_group_name, std::string param_key_name,
+                                DLTensor* data_in) {
+  // Get the module index from the param name.
+  int module_index = this->GetParamsGroupPipelineMap(param_group_name);
+  // TODO(huajsj): set the parameters into runtime module.
+}
+/*!
+ * \brief Return the input index and module index for a given input name.
+ * \param name The input name.
+ * \return std::pair<int, int> A pair of module index and the input index.
+ */
+std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
+  std::pair<int, std::string> index = input_connection_config[name];
+  auto gruntime = runtimes_[index.first];
+  return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
+}
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.
@@ -129,9 +235,10 @@ void PipelineExecutor::Init(const std::vector<Module>& modules, const std::strin
   dmlc::JSONReader reader(&is);
   this->LoadConfig(&reader);
   ICHECK(!pipeline_config_.Empty()) << "The pipeline config information is empty.";
+  num_outputs_ = pipeline_config_.GetGlobalOutputNum();
   // Initialize the pipeline function class used for pipeline thread pool management
-  // and schedule etc. This function returns the number of output.
-  num_outputs_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config_);
+  // and schedule etc. This function returns a list of runtime.
+  runtimes_ = pipeline_scheduler_.PipelineInit(modules, pipeline_config_);
   return;
 }
 

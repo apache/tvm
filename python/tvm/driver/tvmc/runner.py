@@ -18,10 +18,9 @@
 Provides support to run compiled networks both locally and remotely.
 """
 from contextlib import ExitStack
-import json
 import logging
 import pathlib
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 from tarfile import ReadError
 import argparse
 import sys
@@ -32,7 +31,6 @@ from tvm import rpc
 from tvm.autotvm.measure import request_remote
 from tvm.contrib import graph_executor as runtime
 from tvm.contrib.debugger import debug_executor
-from tvm.relay.param_dict import load_param_dict
 from . import TVMCException
 from .arguments import TVMCSuppressedArgumentParser
 from .project import (
@@ -282,53 +280,6 @@ def drive_run(args):
         result.save(args.outputs)
 
 
-def get_input_info(graph_str: str, params: Dict[str, tvm.nd.NDArray]):
-    """Return the 'shape' and 'dtype' dictionaries for the input
-    tensors of a compiled module.
-
-    .. note::
-        We can't simply get the input tensors from a TVM graph
-        because weight tensors are treated equivalently. Therefore, to
-        find the input tensors we look at the 'arg_nodes' in the graph
-        (which are either weights or inputs) and check which ones don't
-        appear in the params (where the weights are stored). These nodes
-        are therefore inferred to be input tensors.
-
-    Parameters
-    ----------
-    graph_str : str
-        JSON graph of the module serialized as a string.
-    params : dict
-        Parameter dictionary mapping name to value.
-
-    Returns
-    -------
-    shape_dict : dict
-        Shape dictionary - {input_name: tuple}.
-    dtype_dict : dict
-        dtype dictionary - {input_name: dtype}.
-    """
-
-    shape_dict = {}
-    dtype_dict = {}
-    params_dict = load_param_dict(params)
-    param_names = [k for (k, v) in params_dict.items()]
-    graph = json.loads(graph_str)
-    for node_id in graph["arg_nodes"]:
-        node = graph["nodes"][node_id]
-        # If a node is not in the params, infer it to be an input node
-        name = node["name"]
-        if name not in param_names:
-            shape_dict[name] = graph["attrs"]["shape"][1][node_id]
-            dtype_dict[name] = graph["attrs"]["dltype"][1][node_id]
-
-    logger.debug("Collecting graph input shape and type:")
-    logger.debug("Graph input shape: %s", shape_dict)
-    logger.debug("Graph input type: %s", dtype_dict)
-
-    return shape_dict, dtype_dict
-
-
 def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
     """Generate data to produce a tensor of given shape and dtype.
 
@@ -370,8 +321,8 @@ def generate_tensor_data(shape: tuple, dtype: str, fill_mode: str):
 
 
 def make_inputs_dict(
-    shape_dict: Dict[str, List[int]],
-    dtype_dict: Dict[str, str],
+    shape_dict: tvm.container.Map,
+    dtype_dict: tvm.container.Map,
     inputs: Optional[Dict[str, np.ndarray]] = None,
     fill_mode: str = "random",
 ):
@@ -383,9 +334,9 @@ def make_inputs_dict(
 
     Parameters
     ----------
-    shape_dict : dict
+    shape_dict : Map
         Shape dictionary - {input_name: tuple}.
-    dtype_dict : dict
+    dtype_dict : Map
         dtype dictionary - {input_name: dtype}.
     inputs : dict, optional
         A dictionary that maps input names to numpy values.
@@ -420,8 +371,10 @@ def make_inputs_dict(
             logger.debug("setting input '%s' with user input data", input_name)
             inputs_dict[input_name] = inputs[input_name]
         else:
-            shape = shape_dict[input_name]
-            dtype = dtype_dict[input_name]
+            # container.ShapleTuple -> tuple
+            shape = tuple(shape_dict[input_name])
+            # container.String -> str
+            dtype = str(dtype_dict[input_name])
 
             logger.debug(
                 "generating data for input '%s' (shape: %s, dtype: %s), using fill-mode '%s'",
@@ -580,7 +533,11 @@ def run_module(
         logger.debug("Loading params into the runtime module.")
         module.load_params(tvmc_package.params)
 
-        shape_dict, dtype_dict = get_input_info(tvmc_package.graph, tvmc_package.params)
+        logger.debug("Collecting graph input shape and type:")
+        shape_dict, dtype_dict = module.get_input_info()
+        logger.debug("Graph input shape: %s", shape_dict)
+        logger.debug("Graph input type: %s", dtype_dict)
+
         inputs_dict = make_inputs_dict(shape_dict, dtype_dict, inputs, fill_mode)
 
         logger.debug("Setting inputs to the module.")

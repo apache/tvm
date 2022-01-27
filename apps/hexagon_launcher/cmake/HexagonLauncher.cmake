@@ -25,6 +25,7 @@ endif()
 set(TVM_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../")
 
 include(ExternalProject)
+include("${TVM_SOURCE_DIR}/cmake/utils/Utils.cmake")
 include("${TVM_SOURCE_DIR}/cmake/modules/HexagonSDK.cmake")
 
 find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")

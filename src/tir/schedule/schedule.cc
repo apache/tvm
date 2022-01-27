@@ -125,6 +125,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
     .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePerfectTile")
     .set_body_method<Schedule>(&ScheduleNode::SamplePerfectTile);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleComputeLocation")
+    .set_body_method<Schedule>(&ScheduleNode::SampleComputeLocation);
 /******** (FFI) Get blocks & loops ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
     .set_body_method<Schedule>(&ScheduleNode::GetBlock);
@@ -183,6 +185,20 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
     .set_body_method<Schedule>(&ScheduleNode::SetScope);
 /******** (FFI) Blockize & Tensorize ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
+    .set_body_method<Schedule>(&ScheduleNode::Blockize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
+    .set_body_typed([](Schedule self, ObjectRef rv, String intrin) {
+      if (const auto* block_rv = rv.as<BlockRVNode>()) {
+        self->Tensorize(GetRef<BlockRV>(block_rv), intrin);
+      } else if (const auto* loop_rv = rv.as<LoopRVNode>()) {
+        self->Tensorize(GetRef<LoopRV>(loop_rv), intrin);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot evaluate the random variable of type: " << rv->GetTypeKey()
+                   << ". Its value is: " << rv;
+      }
+    });
+
 /******** (FFI) Annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
     .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,

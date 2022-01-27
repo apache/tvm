@@ -222,7 +222,9 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   void TryDeallocVar(const Var& var);
   bool ContainsOptionalInfo(const Stmt& stmt);
   /*!
-   * \brief check if a buffer declaration has only 'shape' and 'dtype' arguments specified
+   * \brief Check if a buffer declaration satisfies:
+   * 1. has only 'shape' and 'dtype' arguments specified,
+   * 2. the shape and strides are not dynamic.
    * \param buffer The match buffer to be checked
    */
   bool IsSimpleBuffer(const Buffer& buffer);
@@ -481,6 +483,7 @@ Doc TVMScriptPrinter::PrintMatchBufferRegion(const MatchBufferRegionNode* op) {
 
 // check if all arguments, except the first two, are specified for T.match_buffer
 // if not, then this match buffer is printed out as T.buffer in prim_func arguments
+// and check whether there are undefined variables in the shape/strides.
 bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (memo_var_.find(buf->data) != memo_var_.end()) {
     return false;
@@ -488,7 +491,17 @@ bool TVMScriptPrinter::IsSimpleBuffer(const Buffer& buf) {
   if (!buf->strides.empty()) {
     return false;
   }
-  if (buf->elem_offset->IsInstance<VarNode>()) {
+  for (const PrimExpr& shp_i : buf->shape) {
+    if (!UndefinedVars(shp_i).empty()) {
+      return false;
+    }
+  }
+  for (const PrimExpr& stride_i : buf->strides) {
+    if (!UndefinedVars(stride_i).empty()) {
+      return false;
+    }
+  }
+  if (!UndefinedVars(buf->elem_offset).empty()) {
     return false;
   } else if (buf->elem_offset->IsInstance<IntImmNode>()) {
     IntImm elem_offset = Downcast<IntImm>(buf->elem_offset);
@@ -1302,6 +1315,7 @@ Doc TVMScriptPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     // check if this param is a T.handle
     if (it != op->buffer_map.end()) {
       // check if this match_buffer has only the first two arguments specified
+      // and whether the match_buffer is a dynamic buffer.
       const Buffer& buf = (*it).second;
       if (IsSimpleBuffer(buf)) {
         simple_buf.insert(buf);

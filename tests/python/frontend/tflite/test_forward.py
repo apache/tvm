@@ -259,59 +259,6 @@ def run_tflite_graph(tflite_model_buf, input_data):
     return tflite_output
 
 
-def run_span_verification(
-    tflite_model_buf,
-    input_data,
-    input_node,
-    num_output=1,
-    target="llvm",
-    out_names=None,
-    mode="graph_executor",
-):
-    """Generic function to compile on relay and execute on tvm"""
-    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
-    try:
-        import tflite.Model
-
-        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
-    except AttributeError:
-        import tflite
-
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
-
-    input_data = convert_to_list(input_data)
-    input_node = convert_to_list(input_node)
-
-    shape_dict = {}
-    dtype_dict = {}
-    for i, e in enumerate(input_node):
-        shape_dict[e] = input_data[i].shape
-        dtype_dict[e] = input_data[i].dtype.name
-
-    mod, _ = relay.frontend.from_tflite(tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict)
-    verify_span(mod)
-
-
-def verify_span(mod):
-    fail_cases = []
-    mod_main_start = False
-    for line in str(mod.__str__).split("\n"):
-        if "@main" in line:
-            mod_main_start = True
-            continue
-
-        if mod_main_start == True:
-            if "}" == line:
-                break
-            elif not ("/*" in line and "*/" in line):
-                fail_cases.append(line)
-
-    print(fail_cases)
-    assert len(fail_cases) == 0
-
-
 def compare_tflite_with_tvm(
     in_data,
     in_name,
@@ -3411,12 +3358,13 @@ def test_forward_tanh():
 # ----
 
 
-def _test_rsqrt(data, quantized=False):
-    """One iteration of RSQRT"""
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
+def _test_quant_rsqrt(data):
+    """Test RSQRT with quantized data"""
 
-        if quantized:
+    # tensorflow version upgrade support
+    if tf.__version__ < LooseVersion("2.6.1"):
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
             inq_data = tf.quantization.fake_quant_with_min_max_args(
                 in_data, min=1, max=6, name="inq_0"
             )
@@ -3432,7 +3380,60 @@ def _test_rsqrt(data, quantized=False):
                 input_range=input_range,
                 experimental_new_converter=True,
             )
-        else:
+    else:
+
+        def _create_model():
+            class Model(tf.Module):
+                @tf.function
+                def tf_function(self, x):
+                    op = tf.math.rsqrt(x)
+                    return op
+
+            dtype = "int8"
+            model = Model()
+
+            # Save the model
+            export_dir = tempfile.gettempdir() + "/tf_model"
+            tf.saved_model.save(
+                model,
+                export_dir,
+                signatures=model.tf_function.get_concrete_function(
+                    tf.TensorSpec(data.shape, tf.float32, name="input"),
+                ),
+            )
+
+            # Convert the model
+            def representative_dataset():
+                for _ in range(100):
+                    tmp_data = np.random.rand(*tuple(data.shape))
+                    yield [tmp_data.astype(np.float32) * 2]
+
+            converter = tf.lite.TFLiteConverter.from_saved_model(export_dir)
+            converter.optimizations = [tf.lite.Optimize.DEFAULT]
+            converter.representative_dataset = representative_dataset
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = tf.int8
+            converter.inference_output_type = tf.int8
+            tflite_model = converter.convert()
+            return tflite_model
+
+        tflite_model_quant = _create_model()
+        tflite_output = run_tflite_graph(tflite_model_quant, data)
+        in_node = ["tfl.quantize"]
+
+        tvm_output = run_tvm_graph(tflite_model_quant, data, in_node)
+        tvm.testing.assert_allclose(
+            np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]), rtol=1e-5, atol=1e-2
+        )
+
+
+def _test_rsqrt(data, quantized=False):
+    """One iteration of RSQRT"""
+    if quantized:
+        _test_quant_rsqrt(data)
+    else:
+        with tf.Graph().as_default():
+            in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_0")
             out = math_ops.rsqrt(in_data)
             compare_tflite_with_tvm(data, "in_0:0", [in_data], [out])
 
@@ -3441,8 +3442,13 @@ def test_forward_rsqrt():
     """RSQRT"""
     _test_rsqrt(np.arange(1.0, 7.0, dtype=np.float32), quantized=False)
     _test_rsqrt(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)), quantized=False)
-    _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8), quantized=True)
-    _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8).reshape((2, 1, 3)), quantized=True)
+    # tensorflow version upgrade support
+    if tf.__version__ < LooseVersion("2.6.1"):
+        _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8), quantized=True)
+        _test_rsqrt(np.arange(1, 240, 40, dtype=np.uint8).reshape((2, 1, 3)), quantized=True)
+    else:
+        _test_rsqrt(np.arange(1, 240, 40, dtype=np.int8), quantized=True)
+        _test_rsqrt(np.arange(1, 240, 40, dtype=np.int8).reshape((2, 1, 3)), quantized=True)
 
 
 #######################################################################
@@ -3978,6 +3984,7 @@ def _test_fully_connected(
             # reshape N H W C into N H*W*C
             in_data_reshape = array_ops.reshape(in_data, [tensor_in_sizes[0], -1])
             out = math_ops.mat_mul(in_data_reshape, in_filter)
+            # TODO : Need to construct a fc op with (keep_num_dims == True)
 
             # if we have bias
             if bias_in_size:
@@ -4560,7 +4567,6 @@ def test_forward_tflite2_qnn_resnet50():
         tflite_output = run_tflite_graph(tflite_model_buf, data)
         tflite_predictions = np.squeeze(tflite_output)
         tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
-        run_span_verification(tflite_model_buf, np.array(data), "input_1")
         tvm_output = run_tvm_graph(tflite_model_buf, np.array(data), "input_1")
         tvm_predictions = np.squeeze(tvm_output)
         tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]

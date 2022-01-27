@@ -242,6 +242,10 @@ legacy_redirects = [
         "tutorials/get_started/tvmc_command_line_driver.html",
         "../../tutorial/tvmc_command_line_driver.html",
     ],
+    [
+        "tutorials/get_started/tvmc_python.html",
+        "../../tutorial/tvmc_python.html",
+    ],
 ]
 
 redirect_template = """

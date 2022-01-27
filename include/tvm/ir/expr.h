@@ -180,6 +180,8 @@ class RelayExprNode : public BaseExprNode {
    * the call to the function or closure is stored (instead of where the function itself is stored).
    * The VirtualDevice's Target field describes how the body of the function should be compiled.
    *
+   * Set to VirtualDevice::FullyUnconstrained by default.
+   *
    * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
    * import.
    */
@@ -221,6 +223,7 @@ class GlobalVarNode : public RelayExprNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
+    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -369,6 +372,12 @@ inline Bool operator&&(const Bool& a, bool b) { return Bool(a.operator bool() &&
 inline Bool operator&&(bool a, const Bool& b) { return Bool(a && b.operator bool()); }
 inline Bool operator&&(const Bool& a, const Bool& b) {
   return Bool(a.operator bool() && b.operator bool());
+}
+
+inline bool operator==(const Bool& a, bool b) { return a.operator bool() == b; }
+inline bool operator==(bool a, const Bool& b) { return a == b.operator bool(); }
+inline bool operator==(const Bool& a, const Bool& b) {
+  return a.operator bool() == b.operator bool();
 }
 
 /*!

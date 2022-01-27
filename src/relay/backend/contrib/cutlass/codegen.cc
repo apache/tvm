@@ -43,7 +43,11 @@ namespace contrib {
 using namespace backend;
 using Str2StrMap = std::unordered_map<std::string, std::string>;
 
-static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"}, {"float32", "float"}};
+static Str2StrMap dtype_map = {{"float16", "cutlass::half_t"},
+                               {"float32", "float"},
+                               {"int8", "int8_t"},
+                               {"uint8", "uint8_t"},
+                               {"int32", "int32_t"}};
 
 constexpr const char* kAnyDim = "Any";
 

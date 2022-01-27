@@ -255,6 +255,7 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "tvmc_python.py",
         "autotvm_relay_x86.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",

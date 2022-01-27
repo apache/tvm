@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Conv2d kernel generator and profiler for CUTLASS."""
-import re
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
 from .gen_gemm import CutlassGemmProfiler
 from .conv2d_profiler import Conv2dProfilerEmitter
@@ -153,8 +152,13 @@ class CutlassConv2DProfiler:
         self.engine = ProfilerEngine(sm, cutlass_path, binary_path)
         self.cache = {}
 
-    def get_default(self, op_type, out_dtype):
-        gemm_profile_result = self.gemm_profiler.get_default(op_type, out_dtype)
+    def get_default(self, op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32):
+        """Return the default kernel for the requested architecture.
+        For now, the default kernel was picked arbitrary.
+        """
+        gemm_profile_result = self.gemm_profiler.get_default(
+            op_type, out_dtype, arg0_dtype, arg1_dtype, use_3xtf32
+        )
         tile_description = gemm_profile_result["tile_description"]
         alignment = gemm_profile_result["alignment"]
         data_type = gemm_profile_result["data_type"]
@@ -162,13 +166,6 @@ class CutlassConv2DProfiler:
             op_type, tile_description, data_type, alignment, SwizzlingFunctor.Identity4
         )
         return {"name": name, "opdef": opdef}
-
-    def check_align(self, op_name, C, K):
-        """Filter out kernels that cannot be supported."""
-        aligns = re.findall(r"align[1|2|4|8]", op_name)
-        assert len(aligns) == 1
-        align = int(aligns[0][-1])
-        return all([dim % align == 0 for dim in [C, K]])
 
     def select_op(
         self,
@@ -178,7 +175,11 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
-        profile_all=True,
+        data_dtype,
+        weight_dtype,
+        use_3xtf32,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """
@@ -208,11 +209,15 @@ class CutlassConv2DProfiler:
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
             out_dtype,
-            op_creator=enumerate_conv2d_operators,
+            data_dtype,
+            weight_dtype,
+            enumerate_conv2d_operators,
+            lambda align: all([dim % align == 0 for dim in [IC, OC]]),
+            use_3xtf32,
+            profile_all_alignments,
         )
-        ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
 
-        if profile_all:
+        if not find_first_valid:
             self.engine.compile_all(ops, use_multiprocessing)
 
         args = (
@@ -223,7 +228,7 @@ class CutlassConv2DProfiler:
         for op in ops:
             out = self.engine.evaluate(op, args.split(" "))
             op["runtime"] = out
-            if out < float("inf") and not profile_all:
+            if out < float("inf") and find_first_valid:
                 self.cache[workload] = op
                 return op
 
@@ -240,11 +245,15 @@ class CutlassConv2DProfiler:
         stride,
         dilation,
         out_dtype,
-        profile_all=True,
+        data_dtype,
+        weight_dtype,
+        use_3xtf32=True,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """Profile and select the best kernel from candidate kernels.
-        If profile_all is False, return immediately after the first applicable kernel is found.
+        If find_first_valid is True, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
@@ -254,8 +263,12 @@ class CutlassConv2DProfiler:
             stride,
             dilation,
             out_dtype,
-            profile_all=profile_all,
-            use_multiprocessing=use_multiprocessing,
+            data_dtype,
+            weight_dtype,
+            use_3xtf32,
+            profile_all_alignments,
+            find_first_valid,
+            use_multiprocessing,
         )
 
         name, opdef = create_conv2d_operator_with_epilogue(
