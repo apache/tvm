@@ -36,7 +36,7 @@ def test_fake_quantize_conv():
 
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
-        
+
     assert len(fake_quantized_op_freqs) == 1
     assert fake_quantized_op_freqs["nn.conv2d"] == 1
 
@@ -58,3 +58,54 @@ def test_fake_quantize_dense():
 
     assert len(fake_quantized_op_freqs) == 1
     assert fake_quantized_op_freqs["nn.dense"] == 1
+
+
+def test_fake_quantize_maxpool():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.nn.max_pool2d(x, [3, 3])
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    mod = tvm.IRModule.from_expr(op)
+    fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
+
+    assert len(fake_quantized_op_freqs) == 1
+    assert fake_quantized_op_freqs["nn.max_pool2d"] == 1
+
+
+def test_fake_quantize_transpose_reshape():
+    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
+
+    zero = relay.const(0)
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.op.transpose(x, [1, 0, 2, 3])
+    op = relay.op.reshape(op, [3, -1])
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+
+    mod = tvm.IRModule.from_expr(op)
+    fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
+
+    assert len(fake_quantized_op_freqs) == 2
+    assert fake_quantized_op_freqs["transpose"] == 1
+    assert fake_quantized_op_freqs["reshape"] == 1
+
+
+def test_fake_quantize_concat():
+    zero = relay.const(0)
+    inputs = []
+    for i in range(4):
+        inputs.append(
+            relay.qnn.op.dequantize(
+                relay.var("x%d" % i, shape=[1, 4], dtype="int8"), relay.const(i + 0.5), zero
+            )
+        )
+    concat = relay.op.concatenate(inputs, axis=1)
+    op = relay.qnn.op.quantize(concat, relay.const(3.5), zero)
+
+    mod = tvm.IRModule.from_expr(op)
+    fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
+
+    assert len(fake_quantized_op_freqs) == 1
+    assert fake_quantized_op_freqs["concatenate"] == 1

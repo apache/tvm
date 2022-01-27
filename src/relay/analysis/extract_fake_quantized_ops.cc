@@ -32,46 +32,27 @@ namespace relay {
 
 using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 
-class FQSubgraphExtractor : public ExprVisitor {
+class FakeQuantizedRegionExtractor : public ExprVisitor {
  public:
-  const ExprSet GetSubgraph(const Expr& expr) {
+  const ExprSet GetRegion(const Expr& expr) {
     VisitExpr(expr);
-    ExprSet subgraph;
-    if (is_fake_quantized_) {
-      for (auto kv : this->visit_counter_) {
-        if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
-          if (call_node->op != quantize_op_ && call_node->op != dequantize_op_) {
-            subgraph.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
-          }
+    ExprSet region;
+    for (auto kv : this->visit_counter_) {
+      if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
+        if (call_node->op != quantize_op_ && call_node->op != dequantize_op_) {
+          region.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
         }
       }
     }
-    return subgraph;
-  }
-  void VisitExpr(const Expr& expr) override {
-    // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
-    // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
-    // abort the rewrite.
-    if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr) {
-      DLOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
-                 << " a fake quantize region, aborting this rewrite";
-      is_fake_quantized_ = false;
-    } else {
-      ExprVisitor::VisitExpr(expr);
-    }
+    return region;
   }
 
  protected:
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
-      ICHECK(attrs != nullptr);
-      // Only look at arg0 for quantize
+      // only look at arg0 for quantize
       VisitExpr(call_node->args[0]);
-    } else if (call_node->op == dequantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
-      ICHECK(attrs != nullptr);
-    } else {
+    } else if (call_node->op != dequantize_op_) {
       // run normally on everything else.
       ExprVisitor::VisitExpr_(call_node);
     }
@@ -79,7 +60,6 @@ class FQSubgraphExtractor : public ExprVisitor {
 
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
-  bool is_fake_quantized_ = true;
 };
 
 class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
@@ -101,13 +81,12 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
 
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
-      FQSubgraphExtractor extractor;
-      // Get subgraph
-      ExprSet subgraph = extractor.GetSubgraph(GetRef<Expr>(call_node));
+      FakeQuantizedRegionExtractor extractor;
+      // Get region
+      ExprSet region = extractor.GetRegion(GetRef<Expr>(call_node));
 
-      for (auto expr : subgraph) {
+      for (auto expr : region) {
         const Op op = Downcast<Op>(expr.as<CallNode>()->op);
-        std::cout << "op name: " << op->name << "\n";
         auto op_name = op->name;
         if (fake_quantized_op_freqs_.find(op_name) != fake_quantized_op_freqs_.end()) {
           fake_quantized_op_freqs_.Set(op_name, 1 + fake_quantized_op_freqs_.at(op_name));
@@ -126,7 +105,8 @@ Map<String, tvm::Integer> ExtractFakeQuantizedOpsPacked(const IRModule& mod) {
   return ExtractFakeQuantizedOpsWrapper(mod).Extract();
 }
 
-TVM_REGISTER_GLOBAL("relay.analysis.ExtractFakeQuantizedOps").set_body_typed(ExtractFakeQuantizedOpsPacked);
+TVM_REGISTER_GLOBAL("relay.analysis.ExtractFakeQuantizedOps")
+    .set_body_typed(ExtractFakeQuantizedOpsPacked);
 
 }  // namespace relay
 }  // namespace tvm

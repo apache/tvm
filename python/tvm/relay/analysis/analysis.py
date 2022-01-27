@@ -351,6 +351,7 @@ def list_op_freqs(mod):
     """
     return _ffi_api.ExtractOperators(mod)
 
+
 def list_fake_quantized_op_freqs(mod):
     """Pass to extract fake quantized op names and the frequency that they appear
     in fake quantized regions of an IRModule.
@@ -365,6 +366,7 @@ def list_fake_quantized_op_freqs(mod):
         Dict of fake quantized operator names to frequency
     """
     return _ffi_api.ExtractFakeQuantizedOps(mod)
+
 
 def search_fc_transpose(expr):
     """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
