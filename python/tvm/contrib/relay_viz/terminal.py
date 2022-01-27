@@ -131,7 +131,6 @@ class TermGraph(VizGraph):
     """
 
     def __init__(self, name: str):
-        # node_id: [ connected node_id]
         self._name = name
         # A graph in adjacency list form.
         # The key is source node, and the value is a list of destination nodes.
@@ -171,10 +170,10 @@ class TermGraph(VizGraph):
             A `VizEdge` instance.
         """
         # Take CallNode as an example, instead of "arguments point to CallNode",
-        # we want "CallNode points to arguments" here.
+        # we want "CallNode points to arguments" in ast-dump form.
         #
         # The direction of edge is typically controlled by the implemented VizParser.
-        # We need reversion here simply because we leverage default parser implementation.
+        # Reverse start/end here simply because we leverage default parser implementation.
         if viz_edge.end in self._graph:
             self._graph[viz_edge.end].append(viz_edge.start)
         else:

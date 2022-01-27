@@ -61,11 +61,11 @@ class RelayVisualizer:
         graph_names = []
         # If we have main function, put it to the first.
         # Then main function can be shown on the top.
-        for gv in global_vars:
-            if gv.name_hint == "main":
-                graph_names.insert(0, gv.name_hint)
+        for gv_node in global_vars:
+            if gv_node.name_hint == "main":
+                graph_names.insert(0, gv_node.name_hint)
             else:
-                graph_names.append(gv.name_hint)
+                graph_names.append(gv_node.name_hint)
 
         node_to_id = {}
         # callback to generate an unique string-ID for nodes.

@@ -158,25 +158,23 @@ class DefaultVizParser(VizParser):
     ) -> Tuple[Union[VizNode, None], List[VizEdge]]:
         if isinstance(node, relay.Function):
             return self._function(node, node_to_id)
-        elif isinstance(node, relay.expr.Call):
+        if isinstance(node, relay.expr.Call):
             return self._call(node, node_to_id)
-        elif isinstance(node, relay.expr.Var):
+        if isinstance(node, relay.expr.Var):
             return self._var(node, relay_param, node_to_id)
-        elif isinstance(node, relay.expr.Tuple):
+        if isinstance(node, relay.expr.Tuple):
             return self._tuple(node, node_to_id)
-        elif isinstance(node, relay.expr.TupleGetItem):
+        if isinstance(node, relay.expr.TupleGetItem):
             return self._tuple_get_item(node, node_to_id)
-        elif isinstance(node, relay.expr.Constant):
+        if isinstance(node, relay.expr.Constant):
             return self._constant(node, node_to_id)
         # GlobalVar possibly mean another global relay function,
         # which is expected to in "Graph" level, not in "Node" level.
-        elif isinstance(node, (relay.expr.GlobalVar, tvm.ir.Op)):
+        if isinstance(node, (relay.expr.GlobalVar, tvm.ir.Op)):
             return None, []
-        else:
-            viz_node = VizNode(
-                node_to_id[node], UNKNOWN_TYPE, f"don't know how to parse {type(node)}"
-            )
-            viz_edges = []
+
+        viz_node = VizNode(node_to_id[node], UNKNOWN_TYPE, f"don't know how to parse {type(node)}")
+        viz_edges = []
         return viz_node, viz_edges
 
     def _var(
