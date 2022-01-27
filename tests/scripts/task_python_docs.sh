@@ -58,6 +58,10 @@ sphinx_precheck() {
 
 function join_by { local IFS="$1"; shift; echo "$*"; }
 
+# These warnings are produced during the docs build for various reasons and are
+# known to not signficantly affect the output. Don't add anything new to this
+# list without special consideration of its effects, and don't add anything with
+# a '|' character.
 IGNORED_WARNINGS=(
     '__mro__'
     'UserWarning'
