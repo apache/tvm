@@ -321,6 +321,11 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
   return IdentityRel(tensor_types, 2, attrs, reporter);
 }
 
+/*! Quick helper macro
+ * - TODO
+ *
+ * \param OpName the name of registry.
+ */
 #define QNN_CREATE_UNARY_ELEMENTWISE_OP(OpName)                                                 \
   TVM_REGISTER_GLOBAL("relay.qnn.op._make." OpName)                                             \
       .set_body_typed(                                                                          \
@@ -341,6 +346,25 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
       .set_support_level(11)                                                                    \
       .add_type_rel("qnn." OpName, QnnElementwiseUnaryFuncRel)                                  \
       .set_attr<TNonComputational>("TNonComputational", true)
+
+/*! Quick helper macro
+ * - TODO
+ *
+ * \param OpName the name of registry.
+ */
+#define QNN_UNARY_OP_DEFAULT_CANONICALIZATION(FloatingPointFunc)                                  \
+  [](const Attrs& attrs, const Array<Expr>& new_args, const Array<tvm::relay::Type>& arg_types) { \
+    QnnUnaryOpArguments args(new_args);                                                           \
+    QnnUnaryOpTensorType input_type(arg_types, 0);                                                \
+    Array<tvm::relay::Type> types;                                                                \
+    for (size_t i = 1; i < 5; ++i) {                                                              \
+      types.push_back(arg_types[i]);                                                              \
+    }                                                                                             \
+    auto dequantized_arg = Dequantize(args.x, args.scale, args.zero_point, types, -1);            \
+    auto output = FloatingPointFunc(dequantized_arg);                                             \
+    return Quantize(output, args.output_scale, args.output_zero_point, input_type.dtype, types,   \
+                    -1);                                                                          \
+  }
 
 }  // namespace qnn
 }  // namespace relay
