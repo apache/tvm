@@ -19,7 +19,7 @@
 .. _tutorial-micro-tvmc:
 
 Executing a Tiny Model with TVMC Micro
-=========================
+======================================
 **Author**: `Mehrdad Hessar <https://github.com/mehrdadh>`_
 
 This tutorial explains how to compile a tiny model for a micro device,
@@ -35,10 +35,11 @@ and run the model all using `tvmc micro` command.
 #
 #     * Use `microTVM Reference Virtual Machines <https://tvm.apache.org/docs/how_to/work_with_microtvm/micro_reference_vm.html#sphx-glr-how-to-work-with-microtvm-micro-reference-vm-py>`_.
 #     * Use QEMU docker image provided by TVM. Following these you will download and login to the docker image:
+#
 #     .. code-block:: bash
 #
-#         cd tvm
-#         ./docker/bash.sh tlcpack/ci-qemu
+#       cd tvm
+#       ./docker/bash.sh tlcpack/ci-qemu
 #
 
 
