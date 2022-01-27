@@ -25,6 +25,8 @@ from typing import Dict, Any, List
 
 from git_utils import git, GitHubRepo, parse_remote
 
+GIT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
 
 def prs_query(user: str, repo: str, cursor: str = None):
     after = ""
@@ -89,8 +91,8 @@ def find_reviewers(body: str) -> List[str]:
     return list(reviewers)
 
 
-def check_pr(pr, wait_time):
-    published_at = datetime.datetime.strptime(pr["publishedAt"], "%Y-%m-%dT%H:%M:%SZ")
+def check_pr(pr, wait_time, now):
+    published_at = datetime.datetime.strptime(pr["publishedAt"], GIT_DATE_FORMAT)
     last_action = published_at
 
     # GitHub counts comments left as part of a review separately than standalone
@@ -105,11 +107,11 @@ def check_pr(pr, wait_time):
 
     # Find the last date of any comment
     for comment in comments:
-        commented_at = datetime.datetime.strptime(comment["updatedAt"], "%Y-%m-%dT%H:%M:%SZ")
+        commented_at = datetime.datetime.strptime(comment["updatedAt"], GIT_DATE_FORMAT)
         if commented_at > last_action:
             last_action = commented_at
 
-    time_since_last_action = datetime.datetime.utcnow() - last_action
+    time_since_last_action = now - last_action
 
     # Find reviewers in the PR's body
     pr_body_reviewers = find_reviewers(pr["body"])
@@ -135,6 +137,8 @@ def check_pr(pr, wait_time):
             "since anything happened on that PR",
         )
         return reviewers
+    else:
+        print(f"Not pinging PR {pr['number']}")
 
     return None
 
@@ -159,6 +163,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="don't update GitHub")
     parser.add_argument("--allowlist", help="filter by these PR authors")
     parser.add_argument("--pr-json", help="(testing) data for testing to use instead of GitHub")
+    parser.add_argument("--now", help="(testing) custom string for current time")
     args = parser.parse_args()
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
@@ -192,6 +197,10 @@ if __name__ == "__main__":
         q = prs_query(user, repo)
         r = github.graphql(q)
 
+    now = datetime.datetime.utcnow()
+    if args.now:
+        now = datetime.datetime.strptime(args.now, GIT_DATE_FORMAT)
+
     # Loop until all PRs have been checked
     while True:
         prs = r["data"]["repository"]["pullRequests"]["nodes"]
@@ -210,7 +219,7 @@ if __name__ == "__main__":
         # Ping reviewers on each PR in the response if necessary
         for pr in prs:
             print("Checking", pr["url"])
-            reviewers = check_pr(pr, wait_time)
+            reviewers = check_pr(pr, wait_time, now)
             if reviewers is not None and not args.dry_run:
                 ping_reviewers(pr, reviewers)
 
