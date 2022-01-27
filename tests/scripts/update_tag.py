@@ -90,6 +90,7 @@ def commit_passed_ci(commit: Dict[str, Any]) -> bool:
 
     # GitHub Actions statuses are different from external GitHub statuses, so
     # unify them into 1 representation
+    # https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads
     unified_statuses = []
     for status in statuses:
         if "context" in status:
@@ -139,14 +140,16 @@ if __name__ == "__main__":
     parser.add_argument(
         "--message", default="last 'main' commit that passed CI", help="label to add"
     )
-    parser.add_argument("--json", help="(testing) data to use instead of fetching from GitHub")
+    parser.add_argument(
+        "--testonly-json", help="(testing) data to use instead of fetching from GitHub"
+    )
     args = parser.parse_args()
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
 
-    if args.json:
-        r = json.loads(args.json)
+    if args.testonly_json:
+        r = json.loads(args.testonly_json)
     else:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
         q = commits_query(user, repo)

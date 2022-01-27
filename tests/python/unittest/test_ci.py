@@ -68,10 +68,14 @@ def test_cc_reviewers(tmpdir_factory):
     )
 
 
-def test_update_tag():
+def test_update_tag(tmpdir_factory):
     update_script = REPO_ROOT / "tests" / "scripts" / "update_tag.py"
 
     def run(statuses, expected_rc, expected_output):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
         commit = {
             "statusCheckRollup": {"contexts": {"nodes": statuses}},
             "oid": "123",
@@ -85,10 +89,11 @@ def test_update_tag():
             }
         }
         proc = subprocess.run(
-            [str(update_script), "--dry-run", "--json", json.dumps(data)],
+            [str(update_script), "--dry-run", "--testonly-json", json.dumps(data)],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
+            cwd=git.cwd,
         )
 
         if proc.returncode != expected_rc:
