@@ -3818,7 +3818,7 @@ def convert_params(graph, state_dict, use_parser_friendly_name=False):
             full_attr = _getattr_full_name(getattrs, attr_name_sep)
             full_attr_node_name = _get_output_name(getattrs[-1])
 
-            if full_attr.endswith("_packed_params"):  # for quantized models
+            if full_attr.endswith("_packed_params") or "_packed_weight" in full_attr:  # for quantized models
                 packed_param_map[full_attr_node_name] = full_attr
             elif full_attr in state_dict:
                 if full_attr in vars_by_name:
@@ -3941,6 +3941,7 @@ def from_pytorch(
         weight_quant_params = qnn_torch.get_weight_quant_params(
             script_module, packed_param_map.values()
         )
+        qnn_torch.inline_qparams(graph, tensors)
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(
             outputs,
