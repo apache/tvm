@@ -26,6 +26,7 @@ from tvm.contrib.nvcc import have_fp16
 
 import tvm.testing
 
+
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
     A = te.placeholder(shape=in_shape, name="A")
     B = topi.expand_dims(A, axis, num_newaxis)
