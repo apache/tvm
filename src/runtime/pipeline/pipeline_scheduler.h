@@ -71,7 +71,7 @@ class PipelineScheduler {
   /*!\brief The list of graph executors.*/
   std::vector<Module> graph_modules_;
   /*!\brief A list of NDArray used to storage outputs.*/
-  Array<NDArray> output_array_;
+  Array<NDArray> output_arrays_;
 };
 }  // namespace runtime
 }  // namespace tvm

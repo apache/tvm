@@ -51,9 +51,7 @@ class ConfigBindings {
   bool IsGlobalOutput() const { return global_output_index_ > -1; }
   /*!\brief Getting the global output index in the current binding.*/
   int GetGlobalOutputIndex() const { return global_output_index_; }
-  /*!
-   *\brief Returning the binding configuration.
-   */
+  /*!\brief Returning the binding configuration.*/
   std::unordered_map<int, std::string>& Get() { return bindings_; }
   /*!
    * \brief Create a module interface map from JSONReader.

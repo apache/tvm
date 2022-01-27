@@ -44,7 +44,7 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     }
     ModuleOutputPair& output_pair = global_output_map[i];
     NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
-    output_array_.push_back(output);
+    output_arrays_.push_back(output);
   }
   return runtimes;
 }
@@ -87,7 +87,7 @@ void PipelineScheduler::PipelineRunSequential(
       if (out_binding.IsGlobalOutput()) {
         int global_idx = out_binding.GetGlobalOutputIndex();
         TVMArrayCopyFromTo(const_cast<DLTensor*>(output.operator->()),
-                           const_cast<DLTensor*>(output_array_[global_idx].operator->()), nullptr);
+                           const_cast<DLTensor*>(output_arrays_[global_idx].operator->()), nullptr);
       }
     }
   }
@@ -116,6 +116,6 @@ void PipelineScheduler::PipelineStop() {
 /*!
  * \brief Get a list of output.
  */
-Array<NDArray> PipelineScheduler::PipelineGetOutput() { return output_array_; }
+Array<NDArray> PipelineScheduler::PipelineGetOutput() { return output_arrays_; }
 }  // namespace runtime
 }  // namespace tvm

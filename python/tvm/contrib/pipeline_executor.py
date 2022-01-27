@@ -206,8 +206,8 @@ class PipelineModule(object):
 
     def get_output(self):
         """Get the output.
-        Returns:
-        -----------
+        Returns
+        -------
         data : Array[NDArray]
             A list of output data.
         """

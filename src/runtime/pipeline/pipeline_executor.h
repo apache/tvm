@@ -126,7 +126,8 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!
    * \brief A pipeline params with a specific name correspond with the params of a specific
    *  backend module, this function return the module index for the params name.
-   *  return Return backend runtime module index.
+   * \param name The parameters group name.
+   * \return Return backend runtime module index.
    */
   int GetParamModuleIndex(const std::string& name);
   /*!
