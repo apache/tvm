@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from telnetlib import IP
+import pytest
 import numpy as np
 import tvm
 from tvm import te
@@ -218,12 +218,4 @@ def test_gradient_if():
 
 
 if __name__ == "__main__":
-    test_explicit_bound()
-    test_order()
-    test_if()
-    test_recursion()
-    test_ref()
-    test_let()
-    test_nat_add()
-    test_function()
-    test_gradient_if()
+    pytest.main([__file__])
