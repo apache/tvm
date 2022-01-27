@@ -41,9 +41,6 @@
 
 namespace tvm {
 namespace tir {
-// Forward declarations from tvm::tir
-class PrimFunc;
-
 /*!
  * \brief Describes one parameter that should be linked into the generated module.
  *
@@ -395,7 +392,7 @@ class IRModuleNode : public Object {
   friend class IRModule;
 
  public:
-  void ExtractPrimFuncConstants(tir::PrimFunc func);
+  void ExtractPrimFuncConstants(BaseFunc func);
 };
 
 /*!

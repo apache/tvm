@@ -63,10 +63,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
       ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
           << "Duplicate global function name " << kv.first->name_hint;
       n->global_var_map_.Set(kv.first->name_hint, kv.first);
-      const auto& f = kv.second;
-      if (f->IsInstance<tir::PrimFuncNode>()) {
-        n->ExtractPrimFuncConstants(Downcast<tir::PrimFunc>(f));
-      }
+      n->ExtractPrimFuncConstants(kv.second);
     }
   }
 
@@ -209,10 +206,7 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
     WarnIfMalformed(GetRef<IRModule>(this), GetRef<relay::Function>(ptr));
   }
 
-  if (f->IsInstance<tir::PrimFuncNode>()) {
-    ExtractPrimFuncConstants(Downcast<tir::PrimFunc>(f));
-  }
-
+  ExtractPrimFuncConstants(f);
   AddUnchecked(var, checked_func);
 }
 
@@ -231,7 +225,8 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 }
 
 // Replaces constant data to index into mod's "Constants" attrs array.
-void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
+// Only processes tir::PrimFunc and ingnores everything else
+void IRModuleNode::ExtractPrimFuncConstants(BaseFunc f) {
   using ConstArrayType = Array<runtime::NDArray>;
   class Applicator : public tir::StmtExprVisitor {
    protected:
@@ -269,18 +264,21 @@ void IRModuleNode::ExtractPrimFuncConstants(tir::PrimFunc func) {
     ConstArrayType constant_array_;
   };
 
-  ConstArrayType constant_array_ =
-      (attrs.defined() && attrs->dict.count(tvm::attr::kConstantsArray))
-          ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
-          : ConstArrayType();
+  if (f->IsInstance<tir::PrimFuncNode>()) {
+    auto func = Downcast<tir::PrimFunc>(f);
+    ConstArrayType constant_array_ =
+        (attrs.defined() && attrs->dict.count(tvm::attr::kConstantsArray))
+            ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
+            : ConstArrayType();
 
-  const ConstArrayType constant_list =
-      Applicator().Apply(func.CopyOnWrite()->body, constant_array_);
-  if (constant_list.size()) {
-    if (!attrs.defined()) {
-      attrs = DictAttrs(Map<String, ObjectRef>());
+    const ConstArrayType constant_list =
+        Applicator().Apply(func.CopyOnWrite()->body, constant_array_);
+    if (constant_list.size()) {
+      if (!attrs.defined()) {
+        attrs = DictAttrs(Map<String, ObjectRef>());
+      }
+      attrs.CopyOnWrite()->dict.Set(tvm::attr::kConstantsArray, constant_list);
     }
-    attrs.CopyOnWrite()->dict.Set(tvm::attr::kConstantsArray, constant_list);
   }
 }
 
