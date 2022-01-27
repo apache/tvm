@@ -144,9 +144,14 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
                           VirtualDevice result_virtual_device) {
-  auto func = WithAttrs(
-      WithFields(std::move(function), {}, {}, {}, {}, {}, std::move(result_virtual_device)),
-      {{tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices)}});
+  ICHECK_EQ(param_virtual_devices.size(), function->params.size())
+      << "There should be one virtual device per function parameter.";
+  Array<Var> annotated_params;
+  for (size_t i = 0; i < function->params.size(); i++) {
+    annotated_params.push_back(WithFields(function->params[i], {}, {}, param_virtual_devices[i]));
+  }
+  auto func = WithFields(function, annotated_params, {}, {}, {}, {},
+                         result_virtual_device);
   VLOG(1) << "Annotated func: " << PrettyPrint(func);
   return func;
 }
