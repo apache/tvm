@@ -389,10 +389,6 @@ stage('Test') {
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
               sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh",
-                label: 'Check Sphinx warnings in docs',
-              )
-              sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
               )
@@ -566,6 +562,10 @@ stage('Test') {
           unpack_lib('gpu', tvm_multilib)
           timeout(time: max_time, unit: 'MINUTES') {
             ci_setup(ci_gpu)
+            sh (
+              script: "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh",
+              label: 'Check Sphinx warnings in docs',
+            )
             sh (
               script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh",
               label: 'Build docs',
