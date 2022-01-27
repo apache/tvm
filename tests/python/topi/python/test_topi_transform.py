@@ -1020,6 +1020,7 @@ def test_gather():
         np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint8"),
     )
 
+
 @tvm.testing.uses_gpu
 def test_gather_nd():
     for indices_dtype in ["int32", "float32", "uint8"]:
