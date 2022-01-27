@@ -296,8 +296,7 @@ def _get_quant_param_for_input(input_value):
         for arg in current_node.inputs():
             return dfs(arg.node())
 
-        # shouldn't happen
-        assert False, "No producer for %s" % (str(current_node))
+        return None, None
 
     return dfs(input_value.node())
 
@@ -477,8 +476,9 @@ def add_input_quant_params_to_op_inputs(graph):
         else:
             for i in range(num_quantized_inputs[operator]):
                 scale, zp = _get_quant_param_for_input(node.inputsAt(i))
-                input_scales.append(scale)
-                input_zero_points.append(zp)
+                if scale is not None and zp is not None:
+                    input_scales.append(scale)
+                    input_zero_points.append(zp)
 
         if operator in ["quantized::add_scalar", "quantized::mul_scalar"]:
             scalar = node.inputsAt(1).node().f("value")
@@ -492,30 +492,12 @@ def add_input_quant_params_to_op_inputs(graph):
             node.addInput(scale)
             node.addInput(zp)
 
-        if "conv" in operator or "linear" in operator:
+        if "quantized::conv" in operator or "quantized::linear" in operator:
             # This is required for quantizing the bias
             input_scales_for_bias[node.inputsAt(1).debugName()] = input_scales[0].node().f("value")
 
     return input_scales_for_bias
 
-
-def inline_qparams(graph, param_tensors):
-    import torch
-    getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
-    for node in getattr_nodes:
-        out_name = node.output().debugName()
-        if "_input_scale" in out_name:
-            out_scale_node = graph.create("prim::Constant")
-            out_scale_node.insertBefore(node)
-            out_scale_node.f_("value", param_tensors[out_name].numpy())
-            out_scale_node.output().setType(torch._C.FloatType.get())
-            node.replaceAllUsesWith(out_scale_node)
-        elif "_input_zero_point" in out_name:
-            out_zero_point_node = graph.create("prim::Constant")
-            out_zero_point_node.insertBefore(node)
-            out_zero_point_node.i_("value", param_tensors[out_name].numpy().item())
-            out_zero_point_node.output().setType(torch._C.IntType.get())
-            node.replaceAllUsesWith(out_zero_point_node)
 
 
 def add_quant_params(params, quant_params):
