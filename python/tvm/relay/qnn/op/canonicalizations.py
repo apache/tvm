@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Consist of utilities and methods for lowering QNN into mainline relay."""
 from typing import Callable
 
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.qnn.op.op import register_qnn_canonicalize
 
 
 def run_const_expr(expr: "relay.Expr") -> np.ndarray:
@@ -41,7 +41,7 @@ def create_integer_lookup_table(
     out_dtype: str = "uint8",
 ) -> np.ndarray:
     """
-    Return a table where each input indexes to the quantized output approximating the given function.
+    Return a table where each input indexes to the output quantizing the given function.
 
     Note this also supports mapping unsigned and signed integers to each other.
 

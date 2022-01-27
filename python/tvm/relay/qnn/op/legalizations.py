@@ -49,7 +49,7 @@ def legalize_qnn_dense(attrs, inputs, types):
 
 # Registering QNN dense legalization function.
 @reg.register_qnn_legalize("qnn.rsqrt")
-def legalize_qnn_dense(attrs, inputs, types):
+def legalize_qnn_rsqrt(attrs, inputs, types):
     return create_integer_lookup_op(
         input_arg=inputs[0],
         floating_point_func=lambda arr: 1 / np.sqrt(arr),
