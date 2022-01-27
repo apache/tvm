@@ -155,8 +155,6 @@ def create_integer_lookup_op(
     in_dtype_num_bits = in_dtype_info.bits
 
     lookup_table = relay.const(lookup_table)
-    index_tensor = relay.reshape(input_arg, [-1])
-    index_tensor = relay.reinterpret(index_tensor, f"uint{in_dtype_num_bits}")
-    result = relay.gather(lookup_table, -1, index_tensor)
-    result = relay.reshape_like(result, input_arg)
+    index_tensor = relay.reinterpret(input_arg, f"uint{in_dtype_num_bits}")
+    result = relay.take(lookup_table, index_tensor, axis=0, mode="fast")
     return result
