@@ -15,12 +15,92 @@
 # specific language governing permissions and limitations
 # under the License.
 """Workloads in Relay IR"""
+from enum import Enum
 from typing import Dict, Tuple
 
 import tvm.relay.testing  # pylint: disable=unused-import
 from tvm import relay
 from tvm.ir import IRModule
 from tvm.runtime import NDArray
+
+# Model types supported in Torchvision
+class MODEL_TYPE(Enum):  # pylint: disable=invalid-name
+    IMAGE_CLASSIFICATION = (1,)
+    VIDEO_CLASSIFICATION = (2,)
+    SEGMENTATION = (3,)
+    OBJECT_DETECTION = (4,)
+    TEXT_CLASSIFICATION = (5,)
+
+
+# Specify the type of each model
+MODEL_TYPES = {
+    "resnet18": MODEL_TYPE.IMAGE_CLASSIFICATION,
+    "mobilenet_v2": MODEL_TYPE.IMAGE_CLASSIFICATION,
+    "bert_base": MODEL_TYPE.TEXT_CLASSIFICATION,
+}
+
+
+def get_torch_model(
+    model_name: str,
+    input_shape: Tuple[int, ...],
+    output_shape: Tuple[int, int],  # pylint: disable=unused-argument
+    dtype: str = "float32",
+) -> Tuple[IRModule, Dict[str, NDArray]]:
+    """Load model from torch model zoo
+    Parameters
+    ----------
+    model_name : str
+        The name of the model to load
+    input_shape: Tuple[int, ...]
+        Tuple for input shape
+    output_shape: Tuple[int, int]
+        Tuple for output shape
+    dtype: str
+        Tensor data type
+    """
+
+    assert dtype == "float32"
+
+    import torch  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+    from torchvision import models  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+    import transformers  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+    import os  # type: ignore # pylint: disable=import-error,import-outside-toplevel
+
+    def do_trace(model, inp):
+        model.eval()
+        model_trace = torch.jit.trace(model, inp)
+        model_trace.eval()
+        return model_trace
+
+    # Load model from torchvision
+    if MODEL_TYPES[model_name] == MODEL_TYPE.TEXT_CLASSIFICATION:
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        model = transformers.BertModel(
+            transformers.BertConfig(
+                num_hidden_layers=12,
+                hidden_size=768,
+                intermediate_size=3072,
+                num_attention_heads=12,
+                return_dict=False,
+            )
+        )
+        model.eval()
+        input_data = torch.randint(10000, input_shape)
+        shape_list = [("input_ids", input_shape)]
+        scripted_model = torch.jit.trace(model, [input_data], strict=False)
+    elif MODEL_TYPES[model_name] == MODEL_TYPE.IMAGE_CLASSIFICATION:
+        model = getattr(models, model_name)()
+        # Setup input
+        input_data = torch.randn(input_shape).type(torch.float32)
+        shape_list = [("input0", input_shape)]
+        # Get trace. Depending on the model type, wrapper may be necessary.
+        scripted_model = do_trace(model, input_data)
+    else:
+        raise ValueError("Unsupported model in Torch model zoo.")
+
+    # Convert torch model to relay module
+    mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
+    return mod, params
 
 
 def get_network(
