@@ -150,8 +150,7 @@ Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_
   for (size_t i = 0; i < function->params.size(); i++) {
     annotated_params.push_back(WithFields(function->params[i], {}, {}, param_virtual_devices[i]));
   }
-  auto func = WithFields(function, annotated_params, {}, {}, {}, {},
-                         result_virtual_device);
+  auto func = WithFields(function, annotated_params, {}, {}, {}, {}, result_virtual_device);
   VLOG(1) << "Annotated func: " << PrettyPrint(func);
   return func;
 }
@@ -180,14 +179,7 @@ VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, s
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "
       << function_node->params.size();
-  auto opt_array = function_node->GetAttr<Array<VirtualDevice>>(tvm::attr::kParamVirtualDevice);
-  if (!opt_array) {
-    // No annotation.
-    return VirtualDevice::FullyUnconstrained();
-  }
-  ICHECK_EQ(opt_array.value().size(), function_node->params.size())
-      << "annotation parameters do not match function arity";
-  return opt_array.value()[i];
+  return function_node->params[i]->virtual_device();
 }
 
 }  // namespace relay
