@@ -543,8 +543,14 @@ def quantized_relu(data, input_zero_point):
 
 def _quantize_per_tensor():
     def _impl(inputs, _):
+        dim = len(infer_shape(inputs[0]))
+        if dim > 1:
+            axis = 1
+        else:
+            axis = 0
+
         return relay.qnn.op.quantize(
-            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=1
+            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=axis
         )
 
     return _impl
