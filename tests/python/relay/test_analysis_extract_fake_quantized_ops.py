@@ -140,7 +140,3 @@ def test_fake_quantize_concat():
 
     assert len(fake_quantized_op_freqs) == 1
     assert fake_quantized_op_freqs["concatenate"] == 1
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
