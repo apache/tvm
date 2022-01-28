@@ -322,7 +322,10 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
 }
 
 /*! Quick helper macro
- * - TODO
+ * - Expose a positional make function to construct the node.
+ * - Register op to the registry.
+ *
+ * For Unary Operators which also take in QParams.
  *
  * \param OpName the name of registry.
  */
@@ -348,7 +351,10 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
       .set_attr<TNonComputational>("TNonComputational", true)
 
 /*! Quick helper macro
- * - TODO
+ * Create a default canonicalization for a QNN operator, which dequantizes the operator
+ * runs the calculation using the provided Call func, and then requantizes.
+ *
+ * FloatingPointFunc is usually a handle from "src/relay/transforms/pattern_utils.h"
  *
  * \param OpName the name of registry.
  */
