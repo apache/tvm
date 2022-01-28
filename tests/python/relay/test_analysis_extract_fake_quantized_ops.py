@@ -56,6 +56,7 @@ def test_fake_quantize_dense():
     assert len(fake_quantized_op_freqs) == 1
     assert fake_quantized_op_freqs["nn.dense"] == 1
 
+
 def test_fake_quantize_multiple_regions():
     x = relay.var("x", shape=[128, 64], dtype="int8")
     w = relay.var("w", shape=[256, 64], dtype="int8")
@@ -77,7 +78,7 @@ def test_fake_quantize_multiple_regions():
     )
     op = relay.qnn.op.quantize(op, relay.const(1.0), zero, out_dtype="int8")
 
-    # We expect to ignore this sigmoid op since it's not within a fake
+    # We expect to ignore this sigmoid op since it's just outside a fake
     # quantized region
     op = relay.op.sigmoid(op)
 
@@ -143,4 +144,3 @@ def test_fake_quantize_concat():
 
 if __name__ == "__main__":
     pytest.main([__file__])
-    
