@@ -386,7 +386,7 @@ def test_pipeline():
                 pipeline_module_test.set_input("data_b", data)
                 input_data = pipeline_module_test.get_input("data_a")
                 tvm.testing.assert_allclose(data, input_data.numpy())
-                # Running the pipeline executor in serialized mode.
+                # Running the pipeline executor in sequential mode.
                 pipeline_module_test.run(True)
                 outputs = pipeline_module_test.get_output()
                 for i in range(len(outputs)):
