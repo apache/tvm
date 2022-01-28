@@ -39,6 +39,7 @@ from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
+STANDALONE_CRT_URL = "./runtime"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
@@ -290,7 +291,7 @@ def _make_tar(source_dir, tar_file_path, mod):
         tar_f.add(str(source_dir), arcname=".", filter=reset)
         is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
         if is_aot and str(mod.runtime) == "crt":
-            tar_f.add(get_standalone_crt_dir(), arcname="./runtime")
+            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
 _GENERATED_VERSION = 5
@@ -324,7 +325,7 @@ def _export_graph_model_library_format(
     if is_aot and (str(mod.runtime) == "crt"):
         standalone_crt = {
             "short_name": "tvm_standalone_crt",
-            "url": "./runtime",
+            "url": f"{STANDALONE_CRT_URL}",
             "url_type": "mlf_path",
             "version_spec": f"{tvm.__version__}",
         }
