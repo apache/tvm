@@ -288,7 +288,8 @@ def _make_tar(source_dir, tar_file_path, mod):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
-        if str(mod.runtime) == "crt":
+        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+        if is_aot and str(mod.runtime) == "crt":
             tar_f.add(get_standalone_crt_dir(), arcname="./runtime")
 
 
