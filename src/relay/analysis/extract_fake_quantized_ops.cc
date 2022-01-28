@@ -73,13 +73,12 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
   using MixedModeVisitor::VisitExpr_;
 
   const IRModule mod_;
-  /*! \brief List of unique fake quantized op names. */
+  /*! \brief Dict of fake quantized op names to frequency counts */
   Map<String, tvm::Integer> fake_quantized_op_freqs_;
 
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
       FakeQuantizedRegionExtractor extractor;
-      // Get region
       ExprSet region = extractor.GetRegion(GetRef<Expr>(call_node));
 
       for (auto expr : region) {
