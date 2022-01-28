@@ -3009,6 +3009,32 @@ class PyTorchOpConverter:
         return _op.image.grid_sample(
             inputs[0], grid, interpolate_str, layout, padding_mode_str, align_corners
         )
+=======
+    def embedding_bag(self, inputs, _):
+        weights, indices = inputs[0], inputs[1]
+
+        indices_shape = _infer_shape(indices)
+        print(indices_shape)
+        dim = len(indices_shape)
+        assert dim != 1, "1D input not supported in embedding_bag."
+        mode_map = {0: _op.sum, 1: _op.mean, 2: _op.max}
+        mode = mode_map[inputs[4]]
+
+        offsets = inputs[2]
+        scale_grad_by_freq = inputs[3]
+        sparse = inputs[5]
+        per_sample_weights = inputs[6]
+        include_last_offset = inputs[7]
+        padding_idx = inputs[8]
+
+        assert scale_grad_by_freq == 0, "scale_grad_by_freq not supported in embedding_bag."
+        assert sparse == 0, "sparse not supported in embedding_bag."
+        assert per_sample_weights == None, "per_sample_weights not supported in embedding_bag."
+        assert include_last_offset == 0, "include_last_offset not supported in embedding_bag."
+        assert padding_idx == None, "padding_idx not supported in embedding_bag."
+
+        assert False
+        return None
 
     # Operator mappings
     def create_convert_map(self):
@@ -3252,6 +3278,7 @@ class PyTorchOpConverter:
             "aten::__ixor__": self.make_elemwise("bitwise_xor"),
             "aten::__lshift__": self.make_elemwise("left_shift"),
             "aten::__rshift__": self.make_elemwise("right_shift"),
+            "aten::embedding_bag": self.embedding_bag,
         }
 
     def update_convert_map(self, custom_map):
@@ -4074,6 +4101,7 @@ def from_pytorch(
             enable_lower_all_tuples = False
             break
     _run_jit_passes(graph, enable_lower_all_tuples)
+    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
