@@ -507,7 +507,6 @@ def add_quant_params(params, quant_params):
 
 
 def inline_input_quant_params_for_fx(graph, params):
-    import torch
     """
     Canonicalize input scale and zero point access for FX-quantized graphs.
     We expect input qparams to aten::quantize_per_tensor to be prim::Constant, but that's
@@ -527,6 +526,7 @@ def inline_input_quant_params_for_fx(graph, params):
     %2403 : float = prim::Constant[value=1.]()
     %quantize_per_tensor_2 ...  = aten::quantize_per_tensor(..., %2403, %2402, ...)
     """
+    import torch
 
     def get_full_attr_name(current):
         current_attr = getattr_attr_name(current)
