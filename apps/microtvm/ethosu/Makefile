@@ -25,7 +25,7 @@ ETHOSU_PATH = /opt/arm/ethosu
 ETHOSU_DRIVER_PATH ?= ${ETHOSU_PATH}/core_driver
 CMSIS_PATH ?= ${ETHOSU_PATH}/cmsis
 ETHOSU_PLATFORM_PATH ?= ${ETHOSU_PATH}/core_platform
-STANDALONE_CRT_PATH := $(abspath $(BUILD_DIR))/$(shell python3 -c "import json; data=json.load(open('./build/metadata.json')); print([e for e in data['external_dependencies'] if e['short_name'] == 'tvm_standalone_crt'][0]['url'])")
+STANDALONE_CRT_PATH := $(abspath $(BUILD_DIR))/runtime
 CORSTONE_300_PATH = ${ETHOSU_PLATFORM_PATH}/targets/corstone-300
 PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
 CMAKE ?= cmake
