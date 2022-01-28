@@ -123,7 +123,7 @@ class VulkanHostVisibleBuffer {
    * an index to a compatible memory located in
    * VkPhysicalDeviceMemoryProperties.
    */
-  VulkanHostVisibleBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
+  VulkanHostVisibleBuffer(const VulkanDevice& vulkan_device, size_t nbytes, VkBufferUsageFlags usage,
                           uint32_t mem_type_index);
 
   //! \brief Unmap memory and deallocate.

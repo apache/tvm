@@ -84,10 +84,10 @@ void VulkanDeviceAPI::SetDevice(Device dev) {
       << "Attempted to set active vulkan device to device_id==" << dev.device_id << ", but only "
       << devices_.size() << " devices present";
 
-  active_device_id_per_thread.GetOrMake(0) = dev.device_id;
+  active_device_id_per_thread_.GetOrMake(0) = dev.device_id;
 }
 
-int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread.GetOrMake(0); }
+int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread_.GetOrMake(0); }
 
 VulkanDevice& VulkanDeviceAPI::GetActiveDevice() { return device(GetActiveDeviceID()); }
 
@@ -278,12 +278,12 @@ void VulkanDeviceAPI::FreeDataSpace(Device dev, void* ptr) {
 }
 
 void* VulkanDeviceAPI::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
-  auto& pool = pool_per_thread.GetOrMake(kDLVulkan, this);
+  auto& pool = pool_per_thread_.GetOrMake(kDLVulkan, this);
   return pool.AllocWorkspace(dev, size);
 }
 
 void VulkanDeviceAPI::FreeWorkspace(Device dev, void* data) {
-  auto* pool = pool_per_thread.Get();
+  auto* pool = pool_per_thread_.Get();
   ICHECK(pool) << "Attempted to free a vulkan workspace on a CPU-thread "
                << "that has never allocated a workspace";
   pool->FreeWorkspace(dev, data);

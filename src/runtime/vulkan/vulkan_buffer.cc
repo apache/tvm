@@ -37,9 +37,9 @@ VkBufferCreateInfo MakeBufferCreateInfo(size_t nbytes, VkBufferUsageFlags usage)
   return info;
 }
 
-VulkanBuffer::VulkanBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUsageFlags usage,
+VulkanBuffer::VulkanBuffer(const VulkanDevice& vulkan_device, size_t nbytes, VkBufferUsageFlags usage,
                            uint32_t mem_type_index)
-    : device_(device) {
+    : device(vulkan_device) {
   // Create a buffer
   VkBufferCreateInfo buffer_info = MakeBufferCreateInfo(nbytes, usage);
   VULKAN_CALL(vkCreateBuffer(device, &buffer_info, nullptr, &buffer));
@@ -66,22 +66,22 @@ VulkanBuffer::VulkanBuffer(const VulkanDevice& device, size_t nbytes, VkBufferUs
 
 VulkanBuffer::~VulkanBuffer() {
   if (buffer) {
-    vkDestroyBuffer(device_, buffer, nullptr);
+    vkDestroyBuffer(device, buffer, nullptr);
   }
   if (memory) {
-    vkFreeMemory(device_, memory, nullptr);
+    vkFreeMemory(device, memory, nullptr);
   }
 }
 
 VulkanBuffer::VulkanBuffer(VulkanBuffer&& other)
-    : device_(other.device_), buffer(other.buffer), memory(other.memory) {
-  other.device_ = VK_NULL_HANDLE;
+    : device(other.device), buffer(other.buffer), memory(other.memory) {
+  other.device = VK_NULL_HANDLE;
   other.buffer = VK_NULL_HANDLE;
   other.memory = VK_NULL_HANDLE;
 }
 
 VulkanBuffer& VulkanBuffer::operator=(VulkanBuffer&& other) {
-  std::swap(device_, other.device_);
+  std::swap(device, other.device);
   std::swap(buffer, other.buffer);
   std::swap(memory, other.memory);
   return *this;
@@ -122,7 +122,7 @@ VulkanHostVisibleBuffer::VulkanHostVisibleBuffer(const VulkanDevice& device, siz
 
 VulkanHostVisibleBuffer::~VulkanHostVisibleBuffer() {
   if (host_addr) {
-    vkUnmapMemory(vk_buf.device_, vk_buf.memory);
+    vkUnmapMemory(vk_buf.device, vk_buf.memory);
   }
 }
 
