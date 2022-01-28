@@ -38,12 +38,14 @@ def quantize_and_build(model, in_size):
 
     with torch.no_grad():
         script_module = torch.jit.trace(qmodel, inp)
-        mod, params = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+        mod = relay.transform.InferType()(mod)
 
         # Make sure that the model is quantized
         assert "qnn.conv2d" in mod.astext(show_meta_data=False)
 
-    relay.build(mod, params=params, target="llvm")
+        # Skip building since it is slow on CI
+        # relay.build(mod, params=params, target="llvm")
 
 
 def test_ssd_vgg():
