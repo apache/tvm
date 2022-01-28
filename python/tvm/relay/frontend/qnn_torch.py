@@ -92,9 +92,7 @@ def make_qnn_param(qweight, bias):
     return QNNParam(weight_np, bias, scale, zero_point)
 
 
-def make_conv_packed_param(packed_params):
-    import torch
-    qweight, bias = torch.ops.quantized.conv2d_unpack(packed_params)
+def make_conv_packed_param(qweight, bias, packed_params):
     weight_np, scale, zero_point = _get_quant_params(qweight)
     stride = packed_params.stride()
     padding = packed_params.padding()
@@ -127,9 +125,6 @@ def get_weight_quant_params(script_module, packed_param_names):
             ("Conv" in m.original_name) or (m.original_name == "LinearPackedParams")
         )
 
-    # packed_weight = script_module._packed_weight_0
-    # quant_params["_packed_weight_0"] = make_conv_packed_param(packed_weight)
-
     for name, m in filter(filter_func, script_module.named_modules()):
         key = name + "." + param_name
         state_dict = m.state_dict()
@@ -152,7 +147,8 @@ def get_weight_quant_params(script_module, packed_param_names):
             packed_params = list(state_dict.values())[0]
 
         if "Conv" in m.original_name and len(state_dict) == 0:
-            quant_params[key] = make_conv_packed_param(packed_params)
+            qweight, bias = torch.ops.quantized.conv2d_unpack(packed_params)
+            quant_params[key] = make_conv_packed_param(qweight, bias, packed_params)
         elif "Conv" in m.original_name:
             qweight, bias = torch.ops.quantized.conv2d_unpack(packed_params)
             quant_params[key] = make_qnn_param(qweight, bias)
@@ -296,6 +292,7 @@ def _get_quant_param_for_input(input_value):
         for arg in current_node.inputs():
             return dfs(arg.node())
 
+        # If input_value is not quantize, we reach here.
         return None, None
 
     return dfs(input_value.node())
@@ -495,6 +492,7 @@ def add_input_quant_params_to_op_inputs(graph):
 
         if "quantized::conv" in operator or "quantized::linear" in operator:
             # This is required for quantizing the bias
+            assert len(input_scales) == 1, "One quantized parameter expected for qconv or qlinear."
             input_scales_for_bias[node.inputsAt(1).debugName()] = input_scales[0].node().f("value")
 
     return input_scales_for_bias
@@ -515,23 +513,9 @@ def apply_with_upcast(data, func):
     return _op.cast(out, "uint8")
 
 
-def quantized_mean(data, input_scale, input_zero_point, func_fp32):
-    # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+def apply_with_fp32_fallback(data, input_scale, input_zero_point, func_fp32):
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func_fp32(dequantized)
-    return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
-
-
-def quantized_sigmoid(data, input_scale, input_zero_point, func_fp32):
-    dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func_fp32(dequantized)
-    return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
-
-
-def quantized_upsample(data, input_scale, input_zero_point, func_fp32):
-    # currently piggy backs to fp32, it gets identical output as torch
-    data = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func_fp32(data)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
 
 
