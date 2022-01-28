@@ -1191,7 +1191,7 @@ def test_load_late_bound_consts_with_no_late_bound_consts():
     path_consts = temp.relpath("consts")
     path_dso = temp.relpath("lib.so")
 
-    # Ensure const_data is not above the byte threshold for a late-bound const.
+    # Ensure const_data is below the byte threshold for a late-bound const.
     byte_limit = len(const_data.tobytes()) + 1
     vm_exec.move_late_bound_consts(path_consts, byte_limit=byte_limit)
     vm_exec.mod.export_library(path_dso)
