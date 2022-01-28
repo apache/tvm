@@ -309,8 +309,8 @@ def relay_to_tir_func(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     # scratch memory size.
     tir_mod, const_dict = lower_to_tir(mod["main"], copy_constants())
 
-    for idx in const_dict.keys():
-        const_dict[idx] = tvm.nd.array(const_dict[idx])
+    for param in const_dict.keys():
+        const_dict[param] = tvm.nd.array(const_dict[param])
 
     primfunc = tir_mod["main"]
     primfunc = primfunc.with_attr("global_symbol", ext_func.attrs["global_symbol"])
@@ -341,11 +341,9 @@ def primfunc_to_artifact(primfunc: tvm.tir.PrimFunc) -> util.CompilationArtifact
     tir_mod = tvm.IRModule()
     tir_mod[symbol] = primfunc
 
-    const_dict_with_int_keys = dict()
-    for idx in const_dict.keys():
-        const_dict_with_int_keys[int(idx)] = const_dict[idx].numpy()
+    const_dict_np = dict()
+    for buffer_var in const_dict.keys():
+        const_dict_np[buffer_var] = const_dict[buffer_var].numpy()
 
-    cmms, encoded_constants, base_addresses = tir_to_cs_translator.translate(
-        tir_mod, const_dict_with_int_keys
-    )
+    cmms, encoded_constants, base_addresses = tir_to_cs_translator.translate(tir_mod, const_dict_np)
     return util.CompilationArtifact(symbol, cmms, encoded_constants, base_addresses)
