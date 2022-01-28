@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-module-docstring,missing-function-docstring,missing-class-docstring
-import math
+import operator
+from functools import reduce
 from typing import List
 
 from tvm.meta_schedule import TuneContext
@@ -84,9 +85,9 @@ def test_mutate_tile_size_matmul():
         decision = trace.decisions[trace.insts[4]]
         decision = [int(x) for x in decision]
         results[str(decision)] = decision
-        assert math.prod(decision) == 512
+        assert reduce(operator.mul, decision, 1) == 512
     assert len(results) > 15
 
 
-if __name__ == """__main__""":
+if __name__ == "__main__":
     test_mutate_tile_size_matmul()
