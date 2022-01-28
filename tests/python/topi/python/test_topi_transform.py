@@ -784,7 +784,9 @@ def verify_adv_index(data_shape, index_shapes, indice_dtype="int64"):
     for i, index_shape in enumerate(index_shapes):
         limit = data_shape[i]
         np_indices.append(np.random.uniform(0, limit - 1, size=index_shape).astype(indice_dtype))
-        indices.append(te.placeholder(shape=index_shape, name="index_{}".format(i), dtype=indice_dtype))
+        indices.append(
+            te.placeholder(shape=index_shape, name="index_{}".format(i), dtype=indice_dtype)
+        )
     np_out = np_data[tuple(np_indices)]
     out = topi.adv_index(data, indices)
 

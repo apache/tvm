@@ -1945,7 +1945,7 @@ def test_scatter_nd(target, dev, executor_kind):
             *fargs
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
-        
+
     for indice_dtype in ["uint8", "uint16", "uint32"]:
         data = np.zeros((2, 2)).astype("int64")
         indices = np.array([[1, 1, 0], [0, 1, 0]]).astype(indice_dtype)
@@ -1973,7 +1973,9 @@ def test_scatter_nd(target, dev, executor_kind):
         verify_scatter_nd_with_stack(data, indices, updates, out)
 
         for mode in ["add", "update"]:
-            indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(indice_dtype)
+            indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
+                indice_dtype
+            )
             updates = np.ones((5, 3)).astype("float64")
             shape = (2, 7, 3)
             data = np.random.random(shape).astype("float64")
