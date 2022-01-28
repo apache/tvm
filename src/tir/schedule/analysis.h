@@ -92,6 +92,26 @@ StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref, bool requ
                       bool require_subtree_compact_dataflow);
 
 /*!
+ * \brief The information of a block scope, including the leaf blocks,
+ * as well as the loop types (spatial, reduction) for each loop in the scope.
+ */
+struct ScopeBlockLoopInfo {
+  /*! \brief A list of the leaf blocks, from left to right */
+  std::vector<BlockRealize> realizes;
+  /*! \brief The loop vars bound to spatial block iters */
+  std::unordered_set<const VarNode*> spatial_vars;
+  /*! \brief The loop vars bound to non-spatial block iters */
+  std::unordered_set<const VarNode*> non_spatial_vars;
+};
+
+/*!
+ * \brief Inspect the scope of the given sref
+ * \param scope_block The root block of the scope
+ * \return The information of the scope
+ */
+ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block);
+
+/*!
  * \brief Checks whether the block is a complete block under the scope
  * \param self The schedule state
  * \param block_sref The block to be checked
