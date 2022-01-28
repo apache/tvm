@@ -392,7 +392,7 @@ class IRModuleNode : public Object {
   friend class IRModule;
 
  public:
-  void ExtractPrimFuncConstants(BaseFunc func);
+  void ExtractConstants(BaseFunc func);
 };
 
 /*!

@@ -63,7 +63,7 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
       ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
           << "Duplicate global function name " << kv.first->name_hint;
       n->global_var_map_.Set(kv.first->name_hint, kv.first);
-      n->ExtractPrimFuncConstants(kv.second);
+      n->ExtractConstants(kv.second);
     }
   }
 
@@ -206,7 +206,7 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
     WarnIfMalformed(GetRef<IRModule>(this), GetRef<relay::Function>(ptr));
   }
 
-  ExtractPrimFuncConstants(f);
+  ExtractConstants(f);
   AddUnchecked(var, checked_func);
 }
 
@@ -225,8 +225,8 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
 }
 
 // Replaces constant data to index into mod's "Constants" attrs array.
-// Only processes tir::PrimFunc and ingnores everything else
-void IRModuleNode::ExtractPrimFuncConstants(BaseFunc f) {
+// Only processes tir::PrimFunc and ignores everything else
+void IRModuleNode::ExtractConstants(BaseFunc f) {
   using ConstArrayType = Array<runtime::NDArray>;
   class Applicator : public tir::StmtExprVisitor {
    protected:

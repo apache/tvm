@@ -811,26 +811,14 @@ std::vector<GraphPartitioner::Group*> GraphPartitioner::Partition(
 
 class FuseMutator : private MixedModeMutator {
  public:
-  int GetFuseOptLevel() { return fuse_opt_level_; }
-  size_t GetMaxFuseDepth() { return max_fuse_depth_; }
-  bool GetLinkParams() { return link_params_; }
-
-  FuseMutator* SetFuseOptLevel(int fuse_opt_level) {
-    fuse_opt_level_ = fuse_opt_level;
-    return this;
-  }
-  FuseMutator* SetMaxFuseDepth(size_t max_fuse_depth) {
-    max_fuse_depth_ = max_fuse_depth;
-    return this;
-  }
-  FuseMutator* SetLinkParams(bool link_params) {
-    link_params_ = link_params;
-    return this;
-  }
+  FuseMutator(int fuse_opt_level, size_t max_fuse_depth, bool link_params)
+      : fuse_opt_level_(fuse_opt_level),
+        max_fuse_depth_(max_fuse_depth),
+        link_params_(link_params) {}
 
   // Run the transform
   Expr Transform(const Expr& body) {
-    return Transform(body, GetFuseOptLevel(), GetMaxFuseDepth(), GetLinkParams());
+    return Transform(body, fuse_opt_level_, max_fuse_depth_, link_params_);
   }
 
  protected:
@@ -1023,7 +1011,7 @@ class FuseMutator : private MixedModeMutator {
       auto type = arg->checked_type();
       Expr new_arg = this->Mutate(arg);
       if (current_group != arg_group) {
-        if (!GetLinkParams() || new_arg.as<ConstantNode>() == nullptr) {
+        if (!link_params_ || new_arg.as<ConstantNode>() == nullptr) {
           Var param = ginfo_[current_group].GetOrAllocParam(new_arg, type);
           new_args.push_back(param);
         } else {
@@ -1052,11 +1040,7 @@ class FuseMutator : private MixedModeMutator {
 
 Expr FuseOps(const Expr& expr, int fuse_opt_level, size_t max_fuse_depth, bool link_params,
              const IRModule& module) {
-  return FuseMutator()
-      .SetFuseOptLevel(fuse_opt_level)
-      ->SetMaxFuseDepth(max_fuse_depth)
-      ->SetLinkParams(link_params)
-      ->Transform(expr);
+  return FuseMutator(fuse_opt_level, max_fuse_depth, link_params).Transform(expr);
 }
 
 namespace transform {

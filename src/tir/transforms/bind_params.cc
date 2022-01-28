@@ -125,7 +125,7 @@ Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
       DataType dtype = DataType(constant_map[var]->data->dtype);
       n->body = tir::AllocateConst(var, dtype, extents, constant_map[var]->data, n->body);
     }
-    m->ExtractPrimFuncConstants(f);
+    m->ExtractConstants(f);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BindParams", {});
