@@ -3050,7 +3050,7 @@ class PyTorchOpConverter:
             "aten::isnan": self.make_unary("isnan"),
             "aten::clamp": self.clamp,
             "aten::clamp_min": self.clamp_min,
-            "aten::clamp_min": self.clamp_max,
+            "aten::clamp_max": self.clamp_max,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_bicubic2d": self.make_upsample("cubic"),
