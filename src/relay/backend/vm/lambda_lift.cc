@@ -102,8 +102,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
 
     if (function_nesting() == 1) {
       // We don't need to lift global functions.
-      return Function(func_node->params, VisitExpr(func_node->body), func_node->ret_type,
-                      func_node->type_params, func_node->attrs, func_node->span);
+      return WithFields(GetRef<Function>(func_node), func_node->params, VisitExpr(func_node->body));
     }
 
     auto name = GenerateName(func);
@@ -188,8 +187,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       // construct the "closure" function with fully annotated arguments, no longer relying
       // on type inference.
       size_t before_arity = body->params.size();
-      auto rebound_body = Function(func->params, Bind(body->body, rebinding_map), func->ret_type,
-                                   func->type_params, func->attrs, func->span);
+      auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map));
       size_t after_arity = rebound_body->params.size();
       CHECK_EQ(before_arity, after_arity);
       lifted_func =

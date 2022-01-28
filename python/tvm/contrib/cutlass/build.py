@@ -104,7 +104,7 @@ def select_gemm_kernel(
     arg1_dtype,
     use_3xtf32,
     batched,
-    profile_all,
+    find_first_valid,
     use_multiprocessing,
 ):
     """Run CUTLASS profiler to select the best kernel, or return the default one for dynamic
@@ -126,10 +126,10 @@ def select_gemm_kernel(
             arg1_dtype,
             use_3xtf32,
             batched=batched,
-            profile_all=profile_all,
+            find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
         )
-        if profile_all:
+        if not find_first_valid:
             logger.info("The best kernel is %s", name)
         else:
             logger.info("Picked the first kernel found %s", name)
@@ -146,7 +146,7 @@ def handle_batch_matmul(
     arg0_dtype,
     arg1_dtype,
     use_3xtf32,
-    profile_all,
+    find_first_valid,
     use_multiprocessing,
 ):
     """Profile and select a kernel for batch_matmul op workload."""
@@ -165,7 +165,7 @@ def handle_batch_matmul(
         arg1_dtype,
         use_3xtf32,
         True,
-        profile_all,
+        find_first_valid,
         use_multiprocessing,
     )
 
@@ -191,7 +191,7 @@ def handle_dense(
     arg0_dtype,
     arg1_dtype,
     use_3xtf32,
-    profile_all,
+    find_first_valid,
     use_multiprocessing,
 ):
     """Profile and select a kernel for dense op workload."""
@@ -210,7 +210,7 @@ def handle_dense(
         arg1_dtype,
         use_3xtf32,
         False,
-        profile_all,
+        find_first_valid,
         use_multiprocessing,
     )
 
@@ -237,7 +237,8 @@ def handle_conv2d(
     data_dtype,
     weight_dtype,
     use_3xtf32,
-    profile_all,
+    profile_all_alignments,
+    find_first_valid,
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
@@ -257,10 +258,11 @@ def handle_conv2d(
             data_dtype,
             weight_dtype,
             use_3xtf32,
-            profile_all=profile_all,
+            profile_all_alignments,
+            find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
         )
-        if profile_all:
+        if not find_first_valid:
             logger.info("The best kernel is %s", name)
         else:
             logger.info("Picked the first kernel found %s", name)
@@ -272,7 +274,13 @@ def handle_conv2d(
 
 
 def tune_cutlass_kernels(
-    mod, sm, use_3xtf32=True, profile_all=True, use_multiprocessing=False, tmp_dir="./tmp"
+    mod,
+    sm,
+    use_3xtf32=True,
+    profile_all_alignments=False,
+    find_first_valid=False,
+    use_multiprocessing=False,
+    tmp_dir="./tmp",
 ):
     """Given a module partitioned for CUTLASS offloading, profile each workload to select which
     kernels to emit.
@@ -286,7 +294,14 @@ def tune_cutlass_kernels(
         An integer specifying the compute capability. For example, 75 for Turing and
         80 or 86 for Ampere.
 
-    profile_all : bool
+    use_3xtf32 : bool
+        Wheter or not use slower but very accurate (compared to tf32) 3xtf32 mode for
+        fp32 inputs on tensorcore.
+
+    profile_all_alignments : bool
+        When True, profile all kernal variants with smaller alignments than the largest possible.
+
+    find_first_valid : bool
         Whether or not profile all candidate kernels, or stop profiling after
         the first applicable kernel is found.
 
@@ -342,7 +357,8 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
-                        profile_all,
+                        profile_all_alignments,
+                        find_first_valid,
                         use_multiprocessing,
                     )
                 )
@@ -357,7 +373,7 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
-                        profile_all,
+                        find_first_valid,
                         use_multiprocessing,
                     )
                 )
@@ -372,7 +388,7 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
-                        profile_all,
+                        find_first_valid,
                         use_multiprocessing,
                     )
                 )

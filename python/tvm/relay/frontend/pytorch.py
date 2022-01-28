@@ -45,7 +45,6 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
-from .common import set_span
 from .pytorch_utils import is_version_greater_than
 
 __all__ = ["from_pytorch"]
@@ -1973,10 +1972,7 @@ class PyTorchOpConverter:
             return self.tensor_array_stack(inputs, input_types)
 
     def rsub(self, inputs, input_types):
-        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
-
-        # TODO (t-vi): should this also be part of the type promotion?
-        alpha = _expr.const(float(inputs[2]))
+        data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
 
         # note: rsub means data0 and data1 swap places
         return get_relay_op("subtract")(data1, alpha * data0)
@@ -3276,9 +3272,6 @@ class PyTorchOpConverter:
 
     def convert_operators(self, operators, outputs, ret_names):
         """Convert each Torch IR operators to Relay equivalent"""
-        # an op node might not belong to any of scope in trace info natively
-        # use a cunter to prevent from messing up its scope in span
-        empty_counter = 0
         for node_name, op_node in operators:
             operator = op_node.kind()
             inputs = _get_op_inputs(op_node, outputs)
@@ -3339,9 +3332,6 @@ class PyTorchOpConverter:
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
-                span_str, empty_counter = self._get_torch_span(op_node, empty_counter)
-                relay_out = set_span(relay_out, span_str)
-
                 self.record_output_type(relay_out)
 
                 if isinstance(relay_out, tuple):
@@ -3354,18 +3344,6 @@ class PyTorchOpConverter:
                     outputs[node_name] = relay_out
 
         return [_wrap_const(outputs[ret_name]) for ret_name in ret_names]
-
-    def _get_torch_span(self, node, empty_counter):
-        # torch span looks like
-        # %input.5 : Float(...) = aten::relu_(%input.3), scope: __module.relu # ${torch}/nn file
-        # the scope part might not exist
-        if node.scopeName():
-            scope_name_str = "jit._trace.TopLevelTracedModule: " + node.scopeName()
-        else:
-            scope_name_str = "warning: no trace info " + str(empty_counter)
-            empty_counter += 1
-        span_str = "C.graph: {}, {}".format(node.kind(), scope_name_str)
-        return span_str, empty_counter
 
 
 def _pytorch_result_type(dtypes, non_tensor_inputs):

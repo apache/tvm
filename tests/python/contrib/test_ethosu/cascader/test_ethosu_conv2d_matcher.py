@@ -24,8 +24,6 @@ from tvm.relay.backend.contrib.ethosu.te.convolution import match_ethosu_conv2d,
 
 from .infra import make_matrices
 
-import pytest
-
 
 @pytest.mark.parametrize("kernel", [(3, 3), (2, 1), (3, 5)])
 @pytest.mark.parametrize("stride", [(1, 1), (2, 1), (3, 2)])
@@ -76,13 +74,14 @@ def test_ethosu_conv2d_matcher(
         scale_bias_transform,
         scale_bias_offset,
     ) = make_matrices(
+        "ethosu_conv2d",
         kernel,
         stride,
-        dilation,
         padding,
-        ifm_channels,
         ifm_layout,
         ofm_layout,
+        dilation,
+        ifm_channels,
     )
 
     device_config = cs.EthosuDeviceConfig("ethos-u55-256")

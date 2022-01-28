@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Conv2d kernel generator and profiler for CUTLASS."""
-import re
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance
 from .gen_gemm import CutlassGemmProfiler
 from .conv2d_profiler import Conv2dProfilerEmitter
@@ -168,14 +167,6 @@ class CutlassConv2DProfiler:
         )
         return {"name": name, "opdef": opdef}
 
-    def check_align(self, op_name, C, K):
-        """Filter out kernels that cannot be supported."""
-        match = re.match(".*_align([1-9]+)", op_name)
-        assert match is not None and len(match.groups()) == 1
-        # The same alignment is used for all axes
-        align = int(match.groups()[0])
-        return all([dim % align == 0 for dim in [C, K]])
-
     def select_op(
         self,
         d_shape,
@@ -187,7 +178,8 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32,
-        profile_all=True,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """
@@ -216,12 +208,16 @@ class CutlassConv2DProfiler:
             return self.cache[workload]
 
         ops = GENERATOR_FUNC_TABLE[self.sm](
-            out_dtype, data_dtype, weight_dtype, enumerate_conv2d_operators, use_3xtf32
+            out_dtype,
+            data_dtype,
+            weight_dtype,
+            enumerate_conv2d_operators,
+            lambda align: all([dim % align == 0 for dim in [IC, OC]]),
+            use_3xtf32,
+            profile_all_alignments,
         )
 
-        ops = list(filter(lambda op: self.check_align(op["name"], IC, OC), ops))
-
-        if profile_all:
+        if not find_first_valid:
             self.engine.compile_all(ops, use_multiprocessing)
 
         args = (
@@ -232,7 +228,7 @@ class CutlassConv2DProfiler:
         for op in ops:
             out = self.engine.evaluate(op, args.split(" "))
             op["runtime"] = out
-            if out < float("inf") and not profile_all:
+            if out < float("inf") and find_first_valid:
                 self.cache[workload] = op
                 return op
 
@@ -252,11 +248,12 @@ class CutlassConv2DProfiler:
         data_dtype,
         weight_dtype,
         use_3xtf32=True,
-        profile_all=True,
+        profile_all_alignments=False,
+        find_first_valid=False,
         use_multiprocessing=False,
     ):
         """Profile and select the best kernel from candidate kernels.
-        If profile_all is False, return immediately after the first applicable kernel is found.
+        If find_first_valid is True, return immediately after the first applicable kernel is found.
         If use_multiprocessing is True, compile all profiler executables in parallel.
         """
         op = self.select_op(
@@ -269,8 +266,9 @@ class CutlassConv2DProfiler:
             data_dtype,
             weight_dtype,
             use_3xtf32,
-            profile_all=profile_all,
-            use_multiprocessing=use_multiprocessing,
+            profile_all_alignments,
+            find_first_valid,
+            use_multiprocessing,
         )
 
         name, opdef = create_conv2d_operator_with_epilogue(

@@ -316,6 +316,7 @@ within_subsection_order = {
         "micro_reference_vm.py",
         "micro_tflite.py",
         "micro_ethosu.py",
+        "micro_tvmc.py",
     ],
 }
 

@@ -37,7 +37,6 @@ from .common import get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
-from .common import set_span
 
 from .tensorflow_ops import _convert_map
 from .tensorflow_ops import _need_prelude_for_shape_inference
@@ -1029,8 +1028,22 @@ class GraphProto(object):
         else:
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
 
-        sym = set_span(sym, node_name)
+        sym = self._set_span(sym, node_name)
 
+        return sym
+
+    @staticmethod
+    def _set_span(sym, node_name):
+        span = tvm.relay.Span(tvm.relay.SourceName(node_name), 0, 0, 0, 0)
+        if isinstance(sym, _expr.Call) and sym.span is None:
+            sym = _expr.Call(sym.op, sym.args, sym.attrs, sym.type_args, span)
+        elif isinstance(sym, _expr.TupleWrapper):
+            tuple_value = sym.tuple_value
+            if isinstance(tuple_value, _expr.Call) and tuple_value.span is None:
+                tuple_value = _expr.Call(
+                    tuple_value.op, tuple_value.args, tuple_value.attrs, tuple_value.type_args, span
+                )
+                sym = _expr.TupleWrapper(tuple_value, sym.size)
         return sym
 
     def _licm_construct(self, loop_name, node_name):

@@ -36,37 +36,54 @@ namespace relay {
 namespace contrib {
 namespace ethosu {
 
-CompilationArtifact::CompilationArtifact(String command_stream, String encoded_constants,
-                                         Integer scratch_size, Integer input_size,
-                                         Integer output_size, String function_name) {
+BaseAddress::BaseAddress(String name, Integer primfunc_param_idx, Integer region, Integer size,
+                         Bool is_runtime_allocation) {
+  auto base_address_node = make_object<BaseAddressNode>();
+  base_address_node->name = name;
+  base_address_node->primfunc_param_idx = primfunc_param_idx;
+  base_address_node->region = region;
+  base_address_node->size = size;
+  base_address_node->is_runtime_allocation = is_runtime_allocation;
+  data_ = std::move(base_address_node);
+}
+
+TVM_REGISTER_NODE_TYPE(BaseAddressNode);
+TVM_REGISTER_GLOBAL("relay.ext.ethos-u.BaseAddress")
+    .set_body_typed([](String name, Integer primfunc_param_idx, Integer region, Integer size,
+                       Bool is_runtime_allocation) {
+      if (is_runtime_allocation.defined()) {
+        return BaseAddress(name, primfunc_param_idx, region, size, is_runtime_allocation);
+      } else {
+        return BaseAddress(name, primfunc_param_idx, region, size);
+      }
+    });
+
+CompilationArtifact::CompilationArtifact(String function_name, String command_stream,
+                                         String encoded_constants,
+                                         Array<BaseAddress> base_addresses) {
   auto compilation_artifact_node = make_object<CompilationArtifactNode>();
+  compilation_artifact_node->function_name = function_name;
   compilation_artifact_node->command_stream = command_stream;
   compilation_artifact_node->encoded_constants = encoded_constants;
-  compilation_artifact_node->scratch_size = scratch_size;
-  compilation_artifact_node->input_size = input_size;
-  compilation_artifact_node->output_size = output_size;
-  compilation_artifact_node->function_name = function_name;
+  compilation_artifact_node->base_addresses = base_addresses;
   data_ = std::move(compilation_artifact_node);
 }
 
 TVM_REGISTER_NODE_TYPE(CompilationArtifactNode);
 TVM_REGISTER_GLOBAL("relay.ext.ethos-u.CompilationArtifact")
-    .set_body_typed([](String command_stream, String encoded_constants, Integer scratch_size,
-                       Integer input_size, Integer output_size, String function_name) {
-      return CompilationArtifact(command_stream, encoded_constants, scratch_size, input_size,
-                                 output_size, function_name);
+    .set_body_typed([](String function_name, String command_stream, String encoded_constants,
+                       Array<BaseAddress> base_addresses) {
+      return CompilationArtifact(function_name, command_stream, encoded_constants, base_addresses);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<CompilationArtifactNode>([](const ObjectRef& ref, ReprPrinter* p) {
       auto* node = static_cast<const CompilationArtifactNode*>(ref.get());
       p->stream << "CompilationArtifactNode(\n"
-                << "command_stream=" << node->command_stream
+                << "function_name=" << node->function_name
+                << ",\n  command_stream=" << node->command_stream
                 << ",\n  encoded_constants=" << node->encoded_constants
-                << ",\n  scratch_size=" << node->scratch_size
-                << ",\n  input_size=" << node->input_size
-                << ",\n  output_size=" << node->output_size
-                << ",\n  function_name=" << node->function_name << ")";
+                << ",\n  base_addresses=" << node->base_addresses << ")";
     });
 
 }  // namespace ethosu

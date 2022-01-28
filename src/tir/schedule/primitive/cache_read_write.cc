@@ -635,7 +635,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
                                      /*require_subtree_compact_dataflow=*/false);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
-  // Step 2. Creat CacheStageInfo
+  // Step 2. Create CacheStageInfo
   CacheStageInfo info;
   info.read_buffer = read_buffer;
   // Create the corresponding buffer to be written, i.e. result of cache_read
