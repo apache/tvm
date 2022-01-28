@@ -1765,10 +1765,7 @@ class PyTorchOpConverter:
 
         return pad
 
-    def clamp_common(self, inputs, min_only=False, max_only=False):
-        assert not (min_only and max_only)
-        data = inputs[0]
-
+    def clamp_common(self, data, min=None, max=None):
         def get_v(v, default_v):
             if isinstance(v, _expr.Constant):
                 return float(v.data.numpy())
@@ -1780,26 +1777,30 @@ class PyTorchOpConverter:
                 return v
             return default_v
 
-        if min_only:
-            amin = get_v(inputs[1], np.finfo(np.float32).min)
-            amax = np.finfo(np.float32).max
-        elif max_only:
-            amin = np.finfo(np.float32).min
-            amax = get_v(inputs[1], np.finfo(np.float32).max)
+        dtype = self.infer_type(data).dtype
+
+        type_info = np.finfo(dtype) if "float" in dtype else np.iinfo(dtype)
+
+        if min is not None and max is not None:
+            amin = get_v(min, type_info.min)
+            amax = get_v(max, type_info.max)
+        elif min is not None:
+            amin = get_v(min, type_info.min)
+            amax = type_info.max
         else:
-            amin = get_v(inputs[1], np.finfo(np.float32).min)
-            amax = get_v(inputs[2], np.finfo(np.float32).max)
+            amin = type_info.min
+            amax = get_v(max, type_info.max)
 
         return _op.clip(data, amin, amax)
 
     def clamp(self, inputs, _):
-        return self.clamp_common(inputs)
+        return self.clamp_common(inputs[0], min=inputs[1], max=inputs[2])
 
     def clamp_min(self, inputs, input_types):
-        return self.clamp_common(inputs, min_only=True)
+        return self.clamp_common(inputs[0], min=inputs[1])
 
     def clamp_max(self, inputs, input_types):
-        return self.clamp_common(inputs, max_only=True)
+        return self.clamp_common(inputs[0], max=inputs[1])
 
     def to(self, inputs, input_types):
         data = inputs[0]
