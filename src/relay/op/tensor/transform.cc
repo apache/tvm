@@ -1105,7 +1105,7 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1125,7 +1125,7 @@ RELAY_REGISTER_OP("scatter")
         R"doc(Update data at positions defined by indices with values in updates)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("Scatter", ScatterRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1172,7 +1172,7 @@ RELAY_REGISTER_OP("scatter_add")
         R"doc(Update data by adding values in updates at positions defined by indices)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("ScatterAdd", ScatterAddRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -3318,7 +3318,8 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of gather must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());

@@ -199,6 +199,22 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   return Cast(tensor, DataType::Int(32));
 }
 
+std::string SelectRequntizeParameter(const std::string& arg_value, const std::string& cfg_value,
+                                     const bool is_cfg_default, const std::string& name) {
+  if (arg_value == "None") {
+    return cfg_value;
+  } else {
+    if (!is_cfg_default && arg_value != cfg_value) {
+      DLOG(INFO) << "The value of parameter \"" << name
+                 << "\" from the non-default requantize config will not be used. The value "
+                    "provided from "
+                    "requantize function argument will be used instead. The value used is \""
+                 << arg_value << "\".";
+    }
+    return arg_value;
+  }
+}
+
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm

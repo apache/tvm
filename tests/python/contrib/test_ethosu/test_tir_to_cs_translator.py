@@ -227,8 +227,16 @@ def test_buffer_info_extraction():
                     "uint8",
                     tir_to_cs_translator.BufferType.input_or_output,
                 ),
-                "ethosu_conv2d_2": ([1024], "uint8", tir_to_cs_translator.BufferType.scratch),
-                "ethosu_conv2d_3": ([2048], "uint8", tir_to_cs_translator.BufferType.scratch),
+                "ethosu_conv2d_2": (
+                    [1024],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.scratch,
+                ),
+                "ethosu_conv2d_3": (
+                    [2048],
+                    "uint8",
+                    tir_to_cs_translator.BufferType.scratch,
+                ),
             },
         },
     ]
@@ -805,12 +813,10 @@ def test_assign_addresses():
             # Every buffer is adjusted to align to 16 bytes
             size_in_bytes = util.round_up(size_in_bytes, 16)
             assert address + size_in_bytes <= scratch_size
-            # The scratch area should not be used by anyother buffer
-            assert not scratch_allocation_mask[address : address + size_in_bytes].any()
+            # The scratch area should not be used by any other buffer
+            assert not scratch_mask[address : address + size_in_bytes].any()
             # The scratch area is marked as used
-            scratch_allocation_mask[address : address + size_in_bytes] = np.ones(
-                size_in_bytes, dtype="uint8"
-            )
+            scratch_mask[address : address + size_in_bytes] = np.ones(size_in_bytes, dtype="uint8")
         elif buffer_type == tir_to_cs_translator.BufferType.input:
             assert address == 0
         else:
@@ -887,14 +893,16 @@ def test_assign_addresses():
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
-        _npu_ops, constant_hex_string, scratch_size = tir_to_cs_translator.assign_addresses(
-            buffer_info, _npu_ops
-        )
-        scratch_allocation_mask = np.zeros(scratch_size, dtype="uint8")
+        (
+            _npu_ops,
+            constant_hex_string,
+            scratch_size,
+        ) = tir_to_cs_translator.assign_addresses(buffer_info, _npu_ops)
+        scratch_mask = np.zeros(scratch_size, dtype="uint8")
         constant_tensor_read_mask = np.zeros(len(constant_hex_string) // 2, dtype="uint8")
         verify(_npu_ops)
         # This will be only 1 if all allocated scratch is used.
-        assert np.prod(scratch_allocation_mask) == 1
+        assert np.prod(scratch_mask) == 1
         # This will be only 1 if all constant tensors is read at least once.
         assert np.prod(constant_tensor_read_mask) == 1
 

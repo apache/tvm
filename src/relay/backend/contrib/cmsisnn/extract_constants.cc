@@ -67,8 +67,8 @@ class ExtractConstantsMutator : public MixedModeMutator {
     auto new_body = VisitExpr(func->body);
     functions_.pop_back();
     if (function_to_constants_[func].size()) {
-      func = Function(FreeVars(new_body), new_body, func->ret_type, FreeTypeVars(new_body, mod_),
-                      func->attrs);
+      func = WithFields(func, FreeVars(new_body), new_body, func->ret_type,
+                        FreeTypeVars(new_body, mod_), func->attrs);
     }
     return std::move(func);
   }
@@ -159,8 +159,7 @@ IRModule ExtractConstants(const IRModule& mod) {
   auto new_main_body = extract_constants.VisitExpr(main_func->body);
   if (!new_main_body.same_as(main_func->body)) {
     auto main_var = mod->GetGlobalVar("main");
-    auto new_main_func = Function(main_func->params, new_main_body, main_func->ret_type,
-                                  main_func->type_params, main_func->attrs);
+    Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
     mod->Update(main_var, new_main_func);
   }
   return mod;

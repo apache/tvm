@@ -21,3 +21,4 @@ design space.
 """
 from .mutator import Mutator, PyMutator
 from .mutate_compute_location import MutateComputeLocation
+from .mutate_unroll import MutateUnroll
