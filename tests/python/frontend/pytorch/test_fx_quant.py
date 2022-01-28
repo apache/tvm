@@ -20,19 +20,30 @@ import torchvision
 import numpy as np
 from torch.quantization import get_default_qconfig
 from torch.quantization.quantize_fx import prepare_fx, convert_fx
+from torchvision.models.efficientnet import efficientnet_b4
+from torchvision.models.resnet import resnet50
 from tvm import relay
 
 
-def do_trace(model, in_size=500):
-    model_trace = torch.jit.trace(model, torch.rand(1, 3, in_size, in_size))
-    model_trace.eval()
-    return model_trace
-
-
-def quantize(model_fp):
+def quantize(model):
     qconfig = get_default_qconfig("fbgemm")
     qconfig_dict = {"": qconfig}
-    return convert_fx(prepare_fx(model_fp, qconfig_dict))
+    return convert_fx(prepare_fx(model, qconfig_dict))
+
+
+def quantize_and_build(model, in_size):
+    inp = torch.rand(1, 3, in_size, in_size)
+    input_name = "inp"
+    qmodel = quantize(model)
+
+    with torch.no_grad():
+        script_module = torch.jit.trace(qmodel, inp)
+        mod, params = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
+
+        # Make sure that the model is quantized
+        assert "qnn.conv2d" in mod.astext(show_meta_data=False)
+
+    relay.build(mod, params=params, target="llvm")
 
 
 def test_ssd_vgg():
@@ -49,18 +60,7 @@ def test_ssd_vgg():
 
     model_func = torchvision.models.detection.ssd300_vgg16
     model = TraceWrapper(model_func(num_classes=50, pretrained_backbone=True)).eval()
-
-    model = quantize(model)
-
-    in_size = 500
-    inp = torch.rand(1, 3, in_size, in_size)
-    input_name = "inp"
-
-    with torch.no_grad():
-        script_module = do_trace(model, in_size)
-        mod, params = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
-
-    print(relay.transform.InferType()(mod))
+    quantize_and_build(model, 300)
 
 
 def test_deeplab_v3():
@@ -75,27 +75,9 @@ def test_deeplab_v3():
 
     deeplabv3 = torchvision.models.segmentation.deeplabv3_mobilenet_v3_large(pretrained=True)
     model = TraceWrapper(deeplabv3.eval()).eval()
-    inp = torch.rand(8, 3, 512, 512)
-
-    qmodel = quantize(model)
-
-    with torch.no_grad():
-        trace = torch.jit.trace(qmodel, inp)
-
-    mod, params = relay.frontend.from_pytorch(trace, [('input', inp.shape)])
-    print(relay.transform.InferType()(mod))
+    quantize_and_build(model, 300)
 
 
 def test_imagenet():
-    from torchvision.models.efficientnet import efficientnet_b4
-    from torchvision.models.resnet import resnet50
-
     for model_func in [resnet50, efficientnet_b4]:
-        model = efficientnet_b4(pretrained=True).eval()
-        model = quantize(model)
-
-        x = torch.rand((1, 3, 224, 224))
-        model_traced = torch.jit.trace(model, x).eval()
-
-        mod, _ = relay.frontend.from_pytorch(model_traced, [("x", x.shape)])
-        print(relay.transform.InferType()(mod))
+        quantize_and_build(model_func(pretrained=True).eval(), 224)
