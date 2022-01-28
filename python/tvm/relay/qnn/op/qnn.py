@@ -527,8 +527,8 @@ def conv2d_transpose(
     kernel_scale: tvm.relay.Expr
            The scale for the weight tensor. The scale for the weight tensor is
            stored for access to this during relay. This information is not
-           needed in the pass pipeline after qnn.transpose_conv2d is lowered to the
-           sequence of steps as in nn.transpose_conv2d. See also input_scale in Requantize.
+           needed in the pass pipeline after qnn.conv2d_transpose is lowered to the
+           sequence of steps as in nn.conv2d_transpose. See also input_scale in Requantize.
 
     strides : Tuple[int], optional
         The strides of convolution.
