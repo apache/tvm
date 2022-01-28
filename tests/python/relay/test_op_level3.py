@@ -462,13 +462,15 @@ class TestTake:
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
         np_mode = "raise" if mode == "fast" else mode
 
+        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
+            x_data, indices_src
+        )
+
         # Old versions of numpy has take internally cast inside take which may violate
         # safety rules. We have such version in i386 CI image.
         indices_src = indices_src.astype("int32")
         ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
-        op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
-            x_data, indices_src
-        )
+
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
