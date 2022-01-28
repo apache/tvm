@@ -2790,6 +2790,9 @@ def test_forward_clamp():
     verify_model(Clamp3().float().eval(), input_data=input_data)
     verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
 
+    verify_model(lambda inp: torch.clamp_min(inp, 0.5), input_data)
+    verify_model(lambda inp: torch.clamp_max(inp, 0.5), input_data)
+
 
 @tvm.testing.uses_gpu
 def test_forward_clamp_():

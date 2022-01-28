@@ -1875,7 +1875,6 @@ class PyTorchOpConverter:
                 assert isinstance(inputs[-1], int)
                 input_scale = _expr.const(inputs[-2])
                 input_zero_point = _expr.const(inputs[-1])
-
                 # currently piggy backs to fp32, it gets identical output as torch
                 return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
@@ -3936,7 +3935,6 @@ def from_pytorch(
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
-    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
