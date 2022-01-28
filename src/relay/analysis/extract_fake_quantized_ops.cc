@@ -21,11 +21,8 @@
  * \file extract_fake_quantized_ops.cc
  * \brief Extract fake quantized operators from an IRModule
  */
-#include <tvm/node/structural_hash.h>
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/qnn/attrs.h>
 
 namespace tvm {
 namespace relay {
