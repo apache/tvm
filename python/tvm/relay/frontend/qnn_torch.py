@@ -25,7 +25,7 @@ from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
 from .common import logger
-from .pytorch_utils import is_version_greater_than
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 
 class QNNParam:
@@ -292,7 +292,7 @@ def _get_quant_param_for_input(input_value):
         for arg in current_node.inputs():
             return dfs(arg.node())
 
-        # If input_value is not quantize, we reach here.
+        # If input_value is not quantized, we reach here.
         return None, None
 
     return dfs(input_value.node())
@@ -498,13 +498,61 @@ def add_input_quant_params_to_op_inputs(graph):
     return input_scales_for_bias
 
 
-
 def add_quant_params(params, quant_params):
     """Add quant parameters to TVM param map"""
     for qparam in quant_params.values():
         params[qparam.weight_var.name_hint] = tvm.nd.array(qparam.weight)
         if qparam.bias is not None:
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
+
+
+def inline_input_quant_params_for_fx(graph, params):
+    import torch
+    """
+    Canonicalize input scale and zero point access for FX-quantized graphs.
+    We expect input qparams to aten::quantize_per_tensor to be prim::Constant, but that's
+    not the case for FX-based quantized models as shown below.
+    We replace prim::GetAttr with prim::Constant so that FX-based quantized models can be
+    converted in the same way as eager-mode based quantized models.
+
+    Before:
+    %pan_input_zero_point_1 : Tensor = prim::GetAttr[name="pan_input_zero_point_1"](%backbone)
+    %pan_input_scale_1 : Tensor = prim::GetAttr[name="pan_input_scale_1"](%backbone)
+    ...
+    %quantize_per_tensor_2 ... = aten::quantize_per_tensor(...,
+                                       %pan_input_scale_1, %pan_input_zero_point_1, ...)
+
+    After:
+    %2402 : int = prim::Constant[value=0]()
+    %2403 : float = prim::Constant[value=1.]()
+    %quantize_per_tensor_2 ...  = aten::quantize_per_tensor(..., %2403, %2402, ...)
+    """
+
+    def get_full_attr_name(current):
+        current_attr = getattr_attr_name(current)
+        inputs = list(current.inputs())
+        if len(inputs) == 1 and inputs[0].node().kind() == "prim::GetAttr":
+            return get_full_attr_name(inputs[0].node()) + "." + current_attr
+        return current_attr
+
+    for node in graph.findAllNodes("prim::GetAttr", recurse=True):
+        out_name = node.output().debugName()
+
+        if "_input_scale" in out_name or "_input_zero_point" in out_name:
+            full_attr = get_full_attr_name(node)
+            assert full_attr in params, "%s not found in param dict." % full_attr
+            param_np = params[full_attr].numpy()
+            new_const_node = graph.create("prim::Constant")
+            new_const_node.insertBefore(node)
+
+            if "_input_scale" in out_name:
+                new_const_node.f_("value", param_np)
+                new_const_node.output().setType(torch._C.FloatType.get())
+            else:
+                new_const_node.i_("value", param_np.item())
+                new_const_node.output().setType(torch._C.IntType.get())
+
+            node.replaceAllUsesWith(new_const_node)
 
 
 def apply_with_upcast(data, func):

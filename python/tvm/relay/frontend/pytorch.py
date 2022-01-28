@@ -45,7 +45,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
-from .pytorch_utils import is_version_greater_than
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
 
@@ -1404,7 +1404,6 @@ class PyTorchOpConverter:
             return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
         return func(data)
-
 
     def softplus(self, inputs, input_types):
         dtype = input_types[0]
@@ -3564,15 +3563,8 @@ def _get_users(node):
     return [use.user for use in _get_uses(node)]
 
 
-def _getattr_attr_name(node):
-    attribute_names = node.attributeNames()
-    assert len(attribute_names) == 1
-    attr_name = node.s(attribute_names[0])
-    return attr_name
-
-
 def _getattr_full_name(getattrs, sep="."):
-    return sep.join([_getattr_attr_name(node) for node in getattrs])
+    return sep.join([getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -3878,33 +3870,6 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def inline_qparams(graph, param_tensors):
-    import torch
-    getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
-    seen = set()
-    for node in getattr_nodes:
-        out_name = node.output().debugName()
-
-        if "_input_scale" in out_name:
-            out_scale_node = graph.create("prim::Constant")
-            out_scale_node.insertBefore(node)
-            for k, v in param_tensors.items():
-                if out_name in k:
-                    out_scale_node.f_("value", v.numpy())
-                    break
-            out_scale_node.output().setType(torch._C.FloatType.get())
-            node.replaceAllUsesWith(out_scale_node)
-        elif "_input_zero_point" in out_name:
-            out_zero_point_node = graph.create("prim::Constant")
-            out_zero_point_node.insertBefore(node)
-            for k, v in param_tensors.items():
-                if out_name in k:
-                    out_zero_point_node.i_("value", v.numpy().item())
-                    break
-            out_zero_point_node.output().setType(torch._C.IntType.get())
-            node.replaceAllUsesWith(out_zero_point_node)
-
-
 def from_pytorch(
     script_module,
     input_infos,
@@ -3971,6 +3936,7 @@ def from_pytorch(
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    print(graph)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
@@ -4001,7 +3967,7 @@ def from_pytorch(
         weight_quant_params = qnn_torch.get_weight_quant_params(
             script_module, packed_param_map.values()
         )
-        inline_qparams(graph, tensors)
+        qnn_torch.inline_input_quant_params_for_fx(graph, tensors)
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(
             outputs,
