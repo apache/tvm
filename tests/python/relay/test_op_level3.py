@@ -441,6 +441,7 @@ class TestTake:
         ((3, 3, 3), [[11, 25]], None, "fast", "int32"),
         ((3, 4), [0, 2], 0, "fast", "int32"),
         ((3, 4), [0, 2], 1, "fast", "int32"),
+        ((3, 4), [1, 2], 1, "clip", "uint32"),
         ((3, 4), [1, 2], 1, "wrap", "uint16"),
         ((3, 3, 3), [1, 2], None, "fast", "uint16"),
         ((3, 4), [0, 2], 0, "fast", "uint8"),
@@ -460,6 +461,10 @@ class TestTake:
         func = relay.Function([x, indices], z)
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
         np_mode = "raise" if mode == "fast" else mode
+
+        # Old versions of numpy has take internally cast inside take which may violate
+        # safety rules. We have such version in i386 CI image.
+        indices_src = indices_src.astype("int32")
         ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
             x_data, indices_src
