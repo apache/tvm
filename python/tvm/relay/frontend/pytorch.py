@@ -17,7 +17,7 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring, redefined-builtin
 """PT: PyTorch frontend."""
 import functools
 import itertools
@@ -1781,6 +1781,7 @@ class PyTorchOpConverter:
 
         type_info = np.finfo(dtype) if "float" in dtype else np.iinfo(dtype)
 
+        # TODO(masahi): Properly handle inf in a one-way clamp case.
         if min is not None and max is not None:
             amin = get_v(min, type_info.min)
             amax = get_v(max, type_info.max)
