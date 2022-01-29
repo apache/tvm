@@ -420,7 +420,7 @@ class AliasEliminator : public MixedModeMutator {
             }
           }
         }
-      } 
+      }
 
       if (!aliased) {
         ll.Push(var, VisitExpr(val));
