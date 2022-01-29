@@ -64,8 +64,6 @@ under the License.
               <compilerArgs>
                 <arg>-h</arg>
                 <arg>${basedir}/generated</arg>
-                <arg>-d</arg>
-                <arg>${project.build.directory}/custom-javah</arg>
                 <arg>-classpath</arg>
                 <arg>${project.build.directory}/classes:${project.build.directory}/../../../core/tvm4j-core-0.0.1-SNAPSHOT.jar</arg>/
               </compilerArgs>
