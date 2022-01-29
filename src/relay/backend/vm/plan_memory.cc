@@ -383,17 +383,7 @@ class AliasEliminator : public MixedModeMutator {
   Expr VisitExpr_(const LetNode* let_node) override {
     Expr expr = GetRef<Expr>(let_node);
     LetList ll;
-    std::vector<Var> bound_vars;
-
-    auto set_alias = [&](const Var& alias, const VarNode* alias_of_n) {
-      Var alias_of = GetRef<Var>(alias_of_n);
-      if (alias_.count(alias_of)) {
-        alias_[alias] = alias_[alias_of];
-      } else {
-        alias_[alias] = alias_of;
-      }
-      bound_vars.push_back(alias);
-    };
+    std::vector<Var> aliased_vars;
 
     while (const LetNode* inner_let_node = expr.as<LetNode>()) {
       const Var& var = inner_let_node->var;
@@ -402,7 +392,7 @@ class AliasEliminator : public MixedModeMutator {
       ICHECK(!alias_.count(var));
 
       if (const VarNode* alias_of_n = AsIgnoringOnDevice<VarNode>(val)) {
-        set_alias(var, alias_of_n);
+        alias_[var] = Downcast<Var>(VisitExpr_(alias_of_n));
         aliased = true;
       } else if (AsIgnoringOnDevice<CallNode>(val)) {
         // Copying to the same device is aliasing.
@@ -415,7 +405,7 @@ class AliasEliminator : public MixedModeMutator {
                   copy_props.dst_virtual_device->virtual_device_id) {
             Expr to_copy = Downcast<Call>(unwrapped)->args[0];
             if (const VarNode* alias_of_n = to_copy.as<VarNode>()) {
-              set_alias(var, alias_of_n);
+              alias_[var] = Downcast<Var>(VisitExpr_(alias_of_n));
               aliased = true;
             }
           }
@@ -424,6 +414,8 @@ class AliasEliminator : public MixedModeMutator {
 
       if (!aliased) {
         ll.Push(var, VisitExpr(val));
+      } else {
+        aliased_vars.push_back(var);
       }
 
       expr = inner_let_node->body;
@@ -431,8 +423,8 @@ class AliasEliminator : public MixedModeMutator {
 
     Expr body = ll.Get(VisitExpr(expr));
 
-    // remove the bound vars so that alias_ only tracks things in scope
-    for (const Var& v : bound_vars) {
+    // remove the aliased vars so that alias_ only tracks things in scope
+    for (const Var& v : aliased_vars) {
       alias_.erase(v);
     }
 
@@ -460,19 +452,20 @@ class AliasEliminator : public MixedModeMutator {
   // The only register-level aliasing that occurs in Match expressions is when
   // the deconstructed expression is a Var, and the matched pattern is also a Var.
   Expr VisitExpr_(const MatchNode* match_node) override {
-    if (const VarNode* data_var = AsIgnoringOnDevice<VarNode>(match_node->data)) {
+    if (const VarNode* data_var_node = AsIgnoringOnDevice<VarNode>(match_node->data)) {
+      Var data_var = Downcast<Var>(VisitExpr_(data_var_node));
       std::vector<Clause> new_clauses;
       for (const Clause& clause : match_node->clauses) {
         const PatternVarNode* pv_node = nullptr;
         if ((pv_node = clause->lhs.as<PatternVarNode>())) {
-          alias_[pv_node->var] = GetRef<Var>(data_var);
+          alias_[pv_node->var] = data_var;
         }
         new_clauses.push_back(Clause(clause->lhs, VisitExpr(clause->rhs)));
         if (pv_node) {
           alias_.erase(pv_node->var);
         }
       }
-      return Match(match_node->data, new_clauses, match_node->complete, match_node->span);
+      return Match(data_var, new_clauses, match_node->complete, match_node->span);
     } else {
       return ExprMutator::VisitExpr_(match_node);
     }
