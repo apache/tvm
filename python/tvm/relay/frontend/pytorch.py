@@ -1972,10 +1972,7 @@ class PyTorchOpConverter:
             return self.tensor_array_stack(inputs, input_types)
 
     def rsub(self, inputs, input_types):
-        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
-
-        # TODO (t-vi): should this also be part of the type promotion?
-        alpha = _expr.const(float(inputs[2]))
+        data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
 
         # note: rsub means data0 and data1 swap places
         return get_relay_op("subtract")(data1, alpha * data0)

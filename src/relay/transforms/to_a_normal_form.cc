@@ -223,6 +223,17 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
     bool not_included = include_set_ && include_set_->find(orig) == include_set_->end();
     if (!v.defined() && not_included) {
       return annotated_expr;
+    } else if (const LetNode* let = AsIgnoringOnDevice<LetNode>(now)) {
+      // Instead of making a nested binding "let var = (let x = ...; bindings...; body)", we push
+      // the inner bindings into the outer scope and bind body to var, giving
+      // "let x = ...; bindings...; let var = body;" as the resulting bindings.
+      Expr e = GetRef<Expr>(let);
+      while (const LetNode* inner_let = AsIgnoringOnDevice<LetNode>(e)) {
+        GetScope(orig)->let_list->Push(inner_let->var, inner_let->value);
+        e = inner_let->body;
+      }
+      Expr annotated_body = MaybeOnDeviceFixed(e, GetVirtualDevice(orig));
+      return GetScope(orig)->let_list->Push(var, annotated_body);
     } else {
       return GetScope(orig)->let_list->Push(var, annotated_expr);
     }
@@ -298,8 +309,8 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
         PushBoundVar(f->params[i], GetFunctionParamVirtualDevice(f, i));
       }
       EnterFunctionBody();
-      ret = Function(f->params, GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)), f->ret_type,
-                     f->type_params, f->attrs);
+      ret = WithFields(GetRef<Function>(f), f->params,
+                       GetSubScope(e, 0)->let_list->Get(VisitExpr(f->body)));
       // We are done with this function.
       ExitFunctionBody();
       for (size_t i = 0; i < f->params.size(); ++i) {

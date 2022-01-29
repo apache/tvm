@@ -208,7 +208,7 @@ def extract_buffer_info(
     ----------
     mod : tvm.IRModule
         The NPU TIR IRModule.
-    param_dict : Dict[int, np.ndarray]
+    param_dict : Dict[tvm.tir.Var, np.ndarray]
         A dictionary containing param idx --> const numpy.NDArray
 
     Returns
@@ -222,8 +222,7 @@ def extract_buffer_info(
     assert len(mod.functions.items()) == 1
     primfunc = mod.functions.items()[0][1]
 
-    for idx, const_data in param_dict.items():
-        param = primfunc.params[idx]
+    for param, const_data in param_dict.items():
         buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
@@ -257,7 +256,6 @@ def extract_buffer_info(
             )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
-
     return buffer_info
 
 

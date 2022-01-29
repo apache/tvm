@@ -5391,7 +5391,12 @@ def _test_spop_resource_variables():
 def test_forward_spop():
     _test_spop_stateful()
     _test_spop_device_assignment()
-    _test_spop_resource_variables()
+    # tensorflow version upgrade support
+    # This test is expected to fail in TF version >= 2.6
+    # as the generated graph will be considered frozen, hence
+    # not passing the criteria for the test below.
+    if tf.__version__ < LooseVersion("2.6.1"):
+        _test_spop_resource_variables()
 
     # Placeholder test cases
     _test_spop_placeholder_without_shape_info()

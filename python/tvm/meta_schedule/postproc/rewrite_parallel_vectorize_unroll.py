@@ -14,5 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""A postprocessor that applies parallelization, vectorization and auto unrolling
+according to the annotation of each block"""
 
-""" Testing infrastructure for Hexagon Proxy RPC """
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.RewriteParallelVectorizeUnroll")
+class RewriteParallelVectorizeUnroll(Postproc):
+    """A postprocessor that applies parallelization, vectorization and auto unrolling
+    according to the annotation of each block"""
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocRewriteParallelVectorizeUnroll,  # type: ignore # pylint: disable=no-member
+        )
