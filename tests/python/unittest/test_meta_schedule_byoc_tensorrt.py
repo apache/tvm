@@ -25,13 +25,8 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.relay.op.contrib import tensorrt
 import numpy as np
-from typing import List, Tuple
-
-# from tvm import script
-# from tvm._ffi import register_func
-# from tvm.runtime import Module
+from typing import List
 from tvm._ffi import register_func
-from tvm.relay.testing.init import Initializer
 from tvm.target import Target
 from tvm.runtime import Module
 from tvm.meta_schedule.arg_info import TensorInfo
@@ -94,25 +89,11 @@ def verify_meta_schedule_with_tensorrt(
 ):
     if use_meta_sched:
         # With meta_schedule
-        dev = "nvidia/geforce-rtx-2080"
+        dev = "cuda"
 
         # Build
         if use_trt:
-
-            def relay_build_with_tensorrt(
-                mod: Module,
-                target: Target,
-                params: dict,
-            ) -> List[BuilderResult]:
-                from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
-
-                mod, config = partition_for_tensorrt(mod, params)
-                with tvm.transform.PassContext(
-                    opt_level=3, config={"relay.ext.tensorrt.options": config}
-                ):
-                    return tvm.relay.build_module._build_module_no_factory(
-                        mod, "cuda", "llvm", params
-                    )
+            from tvm.meta_schedule.testing import relay_build_with_tensorrt
 
             builder = LocalBuilder(f_build=relay_build_with_tensorrt)
         else:
@@ -122,7 +103,6 @@ def verify_meta_schedule_with_tensorrt(
                 target: Target,
                 params: dict,
             ) -> List[BuilderResult]:
-                # @Sung: Weird. Cannot pass keyword arg
                 return tvm.relay.build_module._build_module_no_factory(mod, "cuda", "llvm", params)
 
             builder = LocalBuilder(f_build=relay_build_without_tensorrt)
@@ -235,7 +215,7 @@ def test_conv2d_relu():
     "model_name",
     ["resnet-50", "mobilenet"],
 )
-@pytest.mark.parametrize("batch_size", [1, 8, 16])
+@pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("use_meta_sched", [True])
 @pytest.mark.parametrize("use_trt", [True, False])
 def test_relay_model(model_name: str, batch_size: int, use_meta_sched: bool, use_trt: bool):
@@ -246,6 +226,5 @@ def test_relay_model(model_name: str, batch_size: int, use_meta_sched: bool, use
     )
 
 
-# @sunggg: memory verification error at test_relay_model("resnet-50", 1, use_meta_sched=False, use_trt=True)
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

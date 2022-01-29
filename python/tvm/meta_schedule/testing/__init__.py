@@ -17,3 +17,4 @@
 """Testing utilities in meta schedule"""
 from .local_rpc import LocalRPC
 from .relay_workload import get_network
+from .byoc_trt import relay_build_with_tensorrt
