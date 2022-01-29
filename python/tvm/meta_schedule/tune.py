@@ -22,21 +22,19 @@ from typing import Callable, Dict, List, Optional, Union
 
 import tvm
 from tvm import relay
-from tvm._ffi.registry import register_func
+from tvm._ffi import register_func
+from tvm.ir import IRModule, structural_equal, structural_hash
 from tvm.relay import Function as RelayFunc
-from tvm.relay.backend.executor_factory import ExecutorFactoryModule
-from tvm.ir.base import structural_equal, structural_hash
-from tvm.ir.module import IRModule
-from tvm.runtime import NDArray
-from tvm.target.target import Target
+from tvm.runtime import Module, NDArray
+from tvm.target import Target
 from tvm.te import Tensor, create_prim_func
 from tvm.tir import PrimFunc, Schedule
 
-from .integration import extract_task_from_relay, ApplyHistoryBest
 from .builder import Builder, LocalBuilder
 from .cost_model import CostModel, XGBModel
 from .database import Database, JSONDatabase, TuningRecord
 from .feature_extractor import PerStoreFeature
+from .integration import ApplyHistoryBest, extract_task_from_relay
 from .measure_callback import MeasureCallback
 from .mutator import Mutator
 from .postproc import Postproc
@@ -59,11 +57,11 @@ SearchStrategyConfig = Union[
     ReplayTraceConfig,
     EvolutionarySearchConfig,
 ]
-TypeSpaceGenerator = Callable[[], SpaceGenerator]
-TypeScheduleRule = Callable[[], List[ScheduleRule]]
-TypePostproc = Callable[[], List[Postproc]]
-TypeMutatorProb = Callable[[], Dict[Mutator, float]]
-TypeTaskScheduler = Callable[
+FnSpaceGenerator = Callable[[], SpaceGenerator]
+FnScheduleRule = Callable[[], List[ScheduleRule]]
+FnPostproc = Callable[[], List[Postproc]]
+FnMutatorProb = Callable[[], Dict[Mutator, float]]
+FnTaskScheduler = Callable[
     [
         List[TuneContext],
         Builder,
@@ -89,7 +87,6 @@ class DefaultLLVM:
             M.AutoInline(
                 into_producer=False,
                 into_consumer=True,
-                # into_cache_only=False, # TODO(@automation): Update the AutoInline
                 inline_const_tensor=True,
                 disallow_if_then_else=True,
                 require_injective=True,
@@ -137,11 +134,10 @@ class DefaultLLVM:
         )
 
         return {
-            # TODO(@automation): Upstream the mutators
-            # M.MutateTileSize(): 0.9,
+            M.MutateTileSize(): 0.9,
             M.MutateComputeLocation(): 0.05,
             M.MutateUnroll(): 0.03,
-            # M.MutateParallel(max_jobs_per_core=16): 0.02,
+            M.MutateParallel(max_jobs_per_core=16): 0.02,
         }
 
 
@@ -198,8 +194,7 @@ class DefaultCUDA:
 
         return [
             M.DisallowDynamicLoop(),
-            # TODO(@automation): Upstream the RewriteCooperativeFetch postproc
-            # M.RewriteCooperativeFetch(),
+            M.RewriteCooperativeFetch(),
             M.RewriteUnboundBlock(),
             M.RewriteParallelVectorizeUnroll(),
             M.RewriteReductionBlock(),
@@ -318,7 +313,7 @@ class Parse:
         return cost_model
 
     @staticmethod
-    def _space_generator(space_generator: Optional[TypeSpaceGenerator]) -> SpaceGenerator:
+    def _space_generator(space_generator: Optional[FnSpaceGenerator]) -> SpaceGenerator:
         if space_generator is None:
             return PostOrderApply()
         if callable(space_generator):
@@ -331,7 +326,7 @@ class Parse:
         return space_generator
 
     @staticmethod
-    def _sch_rules(sch_rules: Optional[TypeScheduleRule], target: Target) -> List[ScheduleRule]:
+    def _sch_rules(sch_rules: Optional[FnScheduleRule], target: Target) -> List[ScheduleRule]:
         if callable(sch_rules):
             return sch_rules()
         if sch_rules is not None:
@@ -345,7 +340,7 @@ class Parse:
         raise ValueError(f"Unsupported target: {target}")
 
     @staticmethod
-    def _postproc(postproc: Optional[TypePostproc], target: Target) -> List[Postproc]:
+    def _postproc(postproc: Optional[FnPostproc], target: Target) -> List[Postproc]:
         if callable(postproc):
             return postproc()
         if postproc is not None:
@@ -360,7 +355,7 @@ class Parse:
 
     @staticmethod
     def _mutator_probs(
-        mutator_probs: Optional[TypeMutatorProb],
+        mutator_probs: Optional[FnMutatorProb],
         target: Target,
     ) -> Dict[Mutator, float]:
         if callable(mutator_probs):
@@ -384,10 +379,10 @@ class Parse:
         target: Target,
         config: SearchStrategyConfig,
         task_name: str,
-        space_generator: Optional[TypeSpaceGenerator],
-        sch_rules: Optional[TypeScheduleRule],
-        postprocs: Optional[TypePostproc],
-        mutator_probs: Optional[TypeMutatorProb],
+        space_generator: Optional[FnSpaceGenerator],
+        sch_rules: Optional[FnScheduleRule],
+        postprocs: Optional[FnPostproc],
+        mutator_probs: Optional[FnMutatorProb],
         num_threads: Optional[int],
     ) -> TuneContext:
         if tune_context is None:
@@ -411,7 +406,7 @@ class Parse:
 
     @staticmethod
     def _task_scheduler(
-        task_scheduler: Union[None, TaskScheduler, TypeTaskScheduler],
+        task_scheduler: Union[None, TaskScheduler, FnTaskScheduler],
         tasks: List[TuneContext],
         builder: Builder,
         runner: Runner,
@@ -457,10 +452,10 @@ def tune_tir(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Optional[Schedule]:
     """Tune a TIR IRModule with a given target.
@@ -551,10 +546,10 @@ def tune_te(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Optional[Schedule]:
     """Tune a TE compute DAG with a given target.
@@ -623,12 +618,12 @@ def tune_relay(
     cost_model: Optional[CostModel] = None,
     measure_callbacks: Optional[List[MeasureCallback]] = None,
     task_scheduler: Optional[TaskScheduler] = None,
-    space: Optional[TypeSpaceGenerator] = None,
-    sch_rules: Optional[TypeScheduleRule] = None,
-    postprocs: Optional[TypePostproc] = None,
-    mutator_probs: Optional[TypeMutatorProb] = None,
+    space: Optional[FnSpaceGenerator] = None,
+    sch_rules: Optional[FnScheduleRule] = None,
+    postprocs: Optional[FnPostproc] = None,
+    mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
-) -> ExecutorFactoryModule:
+) -> Module:
     """Tune a TIR IRModule with a given target.
 
     Parameters
@@ -660,7 +655,7 @@ def tune_relay(
 
     Returns
     -------
-    lib : ExecutorFactoryModule
+    lib : Module
         The built runtime module for the given relay workload.
     """
 
