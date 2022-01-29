@@ -430,7 +430,7 @@ class ConstIntBoundAnalyzer::Impl
     // the domain ranges.
 
     // If the range of b contains 0, then some infinity will be involved
-    if (b.min_value <= 0 && 0 <= b.max_value) {
+    if (b.min_value <= 0 && 0 <= b.max_value && dt.is_int()) {
       Entry b_neg = b.min_value < 0 ? MakeBound(b.min_value, -1) : Everything(dt);
       Entry b_pos = b.max_value > 0 ? MakeBound(1, b.max_value) : Everything(dt);
 
@@ -439,6 +439,10 @@ class ConstIntBoundAnalyzer::Impl
 
       return MakeBound(std::min(e_neg.min_value, e_pos.min_value),
                        std::max(e_neg.max_value, e_pos.max_value));
+    } else if (b.min_value == 0 && dt.is_uint()) {
+      // uints only have one sided bounds
+      Entry assumed_b = MakeBound(1, b.max_value);
+      return BinaryOpBoundary(a, assumed_b, op);
     }
     // If the range of b does not have 0, use BinaryOpBoundary.
     return BinaryOpBoundary(a, b, op);

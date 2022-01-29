@@ -2691,6 +2691,13 @@ def test_forward_rsub():
     verify_model(Rsub2().float().eval(), input_data=[d1, d2])
     verify_model(Rsub2().float().eval(), input_data=[d1, d3])
 
+    d1 = torch.rand([1, 3]).half()
+    d2 = torch.rand([1, 3]).half()
+    verify_model(Rsub1().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub1().half().eval(), input_data=[d1, d3])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d3])
+
 
 @tvm.testing.uses_gpu
 def test_forward_embedding():
