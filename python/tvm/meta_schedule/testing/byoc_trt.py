@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""TensorRT-MetaSchedule integration"""
+# pylint: disable=import-outside-toplevel
 
 import tvm
 from tvm.runtime import Module
-from tvm.target import Target
-from tvm.meta_schedule.builder import BuilderInput, LocalBuilder, BuilderResult
+from tvm.meta_schedule.builder import BuilderResult
 from typing import List
+from tvm.target import Target
 
 
 def relay_build_with_tensorrt(
@@ -27,8 +29,24 @@ def relay_build_with_tensorrt(
     target: Target,
     params: dict,
 ) -> List[BuilderResult]:
+    """Build a Relay IRModule with TensorRT BYOC
+    Parameters
+    ----------
+    mod : IRModule
+        The Relay IRModule to build.
+    target : Target
+        The target to build the module for.
+    params : Dict[str, NDArray]
+        The parameter dict to build the module with.
+    Returns
+    -------
+    mod : runtime.Module
+        The built module.
+    """
     from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 
     mod, config = partition_for_tensorrt(mod, params)
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
-        return tvm.relay.build_module._build_module_no_factory(mod, "cuda", "llvm", params)
+        result = tvm.relay.build_module._build_module_no_factory(mod, "cuda", "llvm", params)
+    assert isinstance(result, Module)
+    return result
