@@ -896,8 +896,8 @@ Doc TVMScriptPrinter::VisitStmt_(const LetStmtNode* op) {
   } else {
     if (memo_var_.find(op->var) == memo_var_.end()) var_not_in_headers_.insert(op->var.get());
     doc << Print(op->var) << ": " << Print(GetType(op->var)) << " = " << Print(op->value)
-        << Doc::NewLine() << PrintNonHeaderBufferDeclarations(op->var, op->body)
-        << PrintBody(op->body);
+        << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(op->var, op->body) << PrintBody(op->body);
   }
   return doc;
 }
@@ -1008,8 +1008,8 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
                               << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body)
                               << PrintBody(op->body));
   } else {
-    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine()
-        << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body) << PrintBody(op->body);
+    doc << Print(op->buffer_var) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
   return doc;
