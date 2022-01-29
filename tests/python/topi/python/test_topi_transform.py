@@ -1200,7 +1200,7 @@ def test_one_hot():
 @tvm.testing.uses_gpu
 def test_unravel_index():
     for dtype in ["int32", "int64"]:
-        for indice_dtype in ["int64"]:
+        for indice_dtype in ["int64", "uint8", "uint16", "uint32"]:
             verify_unravel_index([0, 1, 2, 3], [2, 2], dtype, indice_dtype)
             verify_unravel_index([144], [5, 5, 5, 2], dtype, indice_dtype)
             verify_unravel_index(144, [5, 5, 5, 2], dtype, indice_dtype)
