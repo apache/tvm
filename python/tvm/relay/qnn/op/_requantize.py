@@ -14,5 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
+"""Internal module for qnn requantization."""
+import tvm._ffi
 
-""" Testing infrastructure for Hexagon Proxy RPC """
+tvm._ffi._init_api("relay._requantize", __name__)

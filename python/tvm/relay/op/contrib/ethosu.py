@@ -1145,6 +1145,60 @@ def split_pattern():
     return split
 
 
+class RequantizeParams:
+    """
+    This class will parse a call to ethos-u.requantize composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.requantize"
+
+    def __init__(self, func_body: Call):
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        layout = "NHWC"
+        in_var = func_body.args[0]
+        requantize = func_body
+
+        self.ifm = TensorParams(
+            in_var,
+            layout=layout,
+            scale=requantize.args[RequantArgs.IFM_SCALE.value],
+            zero_point=requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            requantize,
+            layout=layout,
+            scale=requantize.args[RequantArgs.OFM_SCALE.value],
+            zero_point=requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        attrs = requantize.attrs
+        self.out_dtype = attrs.out_dtype
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether qnn.requantize has compatible attributes with HW.
+        """
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if not check_dimensions(self.ifm) or not check_dimensions(self.ofm):
+            return False
+        if self.out_dtype and self.out_dtype != "int8":
+            return False
+        return True
+
+
+def requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.requantize.
+    """
+    return is_op("qnn.requantize")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant()
+    )
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1229,6 +1283,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SplitParams.composite_name,
             split_pattern(),
             lambda pat: SplitParams(pat).is_valid(),
+        ),
+        (
+            RequantizeParams.composite_name,
+            requantize_pattern(),
+            lambda pat: RequantizeParams(pat).is_valid(),
         ),
     ]
 

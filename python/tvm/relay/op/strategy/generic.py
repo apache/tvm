@@ -482,7 +482,7 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
             name="conv2d_transpose_nchw.generic",
         )
-    else:  # group_transpose_conv2d
+    else:  # group_conv2d_transpose
         strategy.add_implementation(
             wrap_compute_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw, has_groups=True),
             wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),

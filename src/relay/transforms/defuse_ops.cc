@@ -55,17 +55,15 @@ class DefuseOpsMutator : public ExprMutator {
 
     if (const auto* call = new_n.as<CallNode>()) {
       if (const auto* func = call->op.as<FunctionNode>()) {
-        if (func->body->IsInstance<CallNode>()) {
-          std::unordered_map<std::string, Expr> name_to_args;
-          for (size_t i = 0; i < func->params.size(); ++i) {
-            const std::string& pname = func->params[i]->name_hint();
-            ICHECK(name_to_args.cend() == name_to_args.find(pname))
-                << "Found multiple parameters share the same variable name `" << pname
-                << "` which introduces uncertainty in DefuseOps pass";
-            name_to_args[pname] = call->args[i];
-          }
-          return FuncBodyMutator(std::move(name_to_args)).Mutate(func->body);
+        std::unordered_map<std::string, Expr> name_to_args;
+        for (size_t i = 0; i < func->params.size(); ++i) {
+          const std::string& pname = func->params[i]->name_hint();
+          ICHECK(name_to_args.cend() == name_to_args.find(pname))
+              << "Found multiple parameters share the same variable name `" << pname
+              << "` which introduces uncertainty in DefuseOps pass";
+          name_to_args[pname] = call->args[i];
         }
+        return FuncBodyMutator(std::move(name_to_args)).Mutate(func->body);
       }
     }
     return new_n;
