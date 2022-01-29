@@ -21,17 +21,14 @@ from typing import Callable, Optional
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
-
 from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
 from utils import ref_funcs
-
 
 executor_kind = tvm.testing.parameter("graph", "debug")
 
@@ -426,31 +423,36 @@ class TestTakeInferType:
 
 
 class TestTake:
-    src_shape, indices_src, axis, mode = tvm.testing.parameters(
-        ((4,), [1], None, "clip"),
-        ((4,), [[0, 1, 2, 3]], None, "clip"),
-        ((3, 3, 3), [[11, 25]], None, "clip"),
-        ((4,), [[0, 1], [2, 3]], None, "clip"),
-        ((4,), [1], 0, "clip"),
-        ((2, 2), [[[1, 0], [0, 1]]], 0, "clip"),
-        ((2, 2), [[[1, 0], [0, 1]]], 1, "clip"),
-        ((4, 3, 5, 6), [[2, 1, 0, 0]], -2, "clip"),
-        ((3, 4), [-5, 20], None, "clip"),
-        ((3, 4), [-5, 20], None, "wrap"),
-        ((3, 4), [-1, 2], 0, "clip"),
-        ((3, 4), [-1, 2], 0, "wrap"),
-        ((3, 4), [-1, 2], 1, "clip"),
-        ((3, 4), [-1, 2], 1, "wrap"),
-        ((3, 3, 3), [[11, 25]], None, "fast"),
-        ((3, 4), [0, 2], 0, "fast"),
-        ((3, 4), [0, 2], 1, "fast"),
+    src_shape, indices_src, axis, mode, indices_dtype = tvm.testing.parameters(
+        ((4,), [1], None, "clip", "int32"),
+        ((4,), [[0, 1, 2, 3]], None, "clip", "int32"),
+        ((3, 3, 3), [[11, 25]], None, "clip", "int32"),
+        ((4,), [[0, 1], [2, 3]], None, "clip", "int32"),
+        ((4,), [1], 0, "clip", "int32"),
+        ((2, 2), [[[1, 0], [0, 1]]], 0, "clip", "int32"),
+        ((2, 2), [[[1, 0], [0, 1]]], 1, "clip", "int32"),
+        ((4, 3, 5, 6), [[2, 1, 0, 0]], -2, "clip", "int32"),
+        ((3, 4), [-5, 20], None, "clip", "int32"),
+        ((3, 4), [-5, 20], None, "wrap", "int32"),
+        ((3, 4), [-1, 2], 0, "clip", "int32"),
+        ((3, 4), [-1, 2], 0, "wrap", "int32"),
+        ((3, 4), [-1, 2], 1, "clip", "int32"),
+        ((3, 4), [-1, 2], 1, "wrap", "int32"),
+        ((3, 3, 3), [[11, 25]], None, "fast", "int32"),
+        ((3, 4), [0, 2], 0, "fast", "int32"),
+        ((3, 4), [0, 2], 1, "fast", "int32"),
+        ((3, 4), [1, 2], 1, "clip", "uint32"),
+        ((3, 4), [1, 2], 1, "wrap", "uint16"),
+        ((3, 3, 3), [1, 2], None, "fast", "uint16"),
+        ((3, 4), [0, 2], 0, "fast", "uint8"),
     )
 
     # Incorrect numeric output in some cases on vulkan
     @tvm.testing.known_failing_targets("vulkan")
-    def test_take(self, target, dev, executor_kind, src_shape, indices_src, axis, mode):
+    def test_take(
+        self, target, dev, executor_kind, src_shape, indices_src, axis, mode, indices_dtype
+    ):
         src_dtype = "float32"
-        indices_dtype = "int32"
         indices_src = np.array(indices_src, dtype=indices_dtype)
         x = relay.var("x", relay.TensorType(src_shape, src_dtype))
         indices = relay.var("indices", relay.TensorType(indices_src.shape, indices_dtype))
@@ -459,11 +461,16 @@ class TestTake:
         func = relay.Function([x, indices], z)
         x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
         np_mode = "raise" if mode == "fast" else mode
-        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
 
         op_res = relay.create_executor(executor_kind, device=dev, target=target).evaluate(func)(
             x_data, indices_src
         )
+
+        # Old versions of numpy has take internally cast inside take which may violate
+        # safety rules. We have such version in i386 CI image.
+        indices_src = indices_src.astype("int32")
+        ref_res = np.take(x_data, indices=indices_src, axis=axis, mode=np_mode)
+
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
@@ -1267,12 +1274,12 @@ class TestScatterAdd:
     ],
 )
 def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
-    def verify_gather(data, axis, indices, ref_res):
+    def verify_gather(data, axis, indices, ref_res, indices_dtype="int32"):
         data = np.asarray(data, dtype="float32")
-        indices = np.asarray(indices, dtype="int32")
+        indices = np.asarray(indices, dtype=indices_dtype)
         ref_res = np.asarray(ref_res)
         d = relay.var("x", relay.TensorType(data.shape, "float32"))
-        i = relay.var("y", relay.TensorType(indices.shape, "int32"))
+        i = relay.var("y", relay.TensorType(indices.shape, indices_dtype))
         z = relay.gather(d, axis, i)
 
         func = relay.Function([d, i], z)
@@ -1283,12 +1290,15 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather(data, axis, indices, ref_res)
+    verify_gather(data, axis, indices, ref_res, indices_dtype="uint32")
+
+    verify_gather(data, axis, indices, ref_res)
 
 
 def test_gather_nd(target, dev, executor_kind):
-    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0):
+    def verify_gather_nd(xshape, yshape, y_data, batch_dims=0, indices_dtype="int32"):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
-        y = relay.var("y", relay.TensorType(yshape, "int32"))
+        y = relay.var("y", relay.TensorType(yshape, indices_dtype))
         z = relay.gather_nd(x, y, batch_dims)
 
         func = relay.Function([x, y], z)
@@ -1296,9 +1306,9 @@ def test_gather_nd(target, dev, executor_kind):
         x_data = np.random.uniform(size=xshape).astype("float32")
 
         if y_data:
-            y_data = np.array(y_data, dtype="int32")
+            y_data = np.array(y_data, dtype=indices_dtype)
         else:
-            y_data = np.random.randint(low=0, high=2, size=yshape, dtype="int32")
+            y_data = np.random.randint(low=0, high=2, size=yshape, dtype=indices_dtype)
 
         ref_res = ref_funcs.gather_nd(x_data, y_data, batch_dims)
 
@@ -1334,6 +1344,9 @@ def test_gather_nd(target, dev, executor_kind):
     verify_gather_nd((3, 2, 2, 3, 4), (3, 3, 2, 1), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (2, 3, 2, 2), None, 2)
     verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2)
+
+    verify_gather_nd((3, 2, 2, 3, 4), (1, 3, 2, 3), None, 2, indices_dtype="uint8")
+    verify_gather_nd((2, 2, 2), (2, 2, 1), [[[1], [0]], [[0], [1]]], 1, indices_dtype="uint32")
 
 
 def _verify_infiniteness_ops(relay_op, ref_op):

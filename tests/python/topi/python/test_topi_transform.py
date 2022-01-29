@@ -18,13 +18,10 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import topi
-from tvm import relay
-import tvm.topi.testing
-from tvm.contrib.nvcc import have_fp16
-
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te, topi
+from tvm.contrib.nvcc import have_fp16
 
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
@@ -356,9 +353,8 @@ def test_reverse_sequence():
     )
 
 
-def verify_take(src_shape, indices_src, axis=None, mode="clip"):
+def verify_take(src_shape, indices_src, axis=None, mode="clip", indices_dtype="int32"):
     src_dtype = "float32"
-    indices_dtype = "int32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
     A = te.placeholder(shape=src_shape, dtype=src_dtype, name="A")
     indices = te.placeholder(shape=indices_src.shape, dtype=indices_dtype, name="indices")
@@ -999,6 +995,9 @@ def test_take():
     verify_take((3, 3, 3), [[11, 25]], mode="fast")
     verify_take((3, 4), [0, 2], axis=0, mode="fast")
     verify_take((3, 4), [0, 2], axis=1, mode="fast")
+    verify_take((3, 4), [1, 2], axis=1, indices_dtype="uint32")
+    verify_take((3, 4), [1, 2], axis=1, mode="wrap", indices_dtype="uint16")
+    verify_take((3, 3, 3), [[11, 20]], mode="fast", indices_dtype="uint8")
 
 
 @tvm.testing.uses_gpu
@@ -1010,11 +1009,21 @@ def test_gather():
     verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
+    verify_gather(
+        np.random.randn(4, 7, 5),
+        2,
+        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint32"),
+    )
+    verify_gather(
+        np.random.randn(4, 7, 5),
+        2,
+        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint8"),
+    )
 
 
 @tvm.testing.uses_gpu
 def test_gather_nd():
-    for indices_dtype in ["int32", "float32"]:
+    for indices_dtype in ["int32", "float32", "uint8"]:
         verify_gather_nd((4,), [[1.8]], indices_dtype)
         verify_gather_nd((4,), [[1, 3, 2]], indices_dtype)
         verify_gather_nd((2, 3), [[1]], indices_dtype)
