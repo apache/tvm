@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """ Test Meta Schedule Builder """
-
-
 import sys
 import pytest
 import itertools

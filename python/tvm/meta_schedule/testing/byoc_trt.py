@@ -17,10 +17,10 @@
 """TensorRT-MetaSchedule integration"""
 # pylint: disable=import-outside-toplevel
 
+from typing import List
 import tvm
 from tvm.runtime import Module
 from tvm.meta_schedule.builder import BuilderResult
-from typing import List
 from tvm.target import Target
 
 
@@ -45,6 +45,7 @@ def relay_build_with_tensorrt(
     """
     from tvm.relay.op.contrib.tensorrt import partition_for_tensorrt
 
+    assert isinstance(target, Target)
     mod, config = partition_for_tensorrt(mod, params)
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.tensorrt.options": config}):
         result = tvm.relay.build_module._build_module_no_factory(mod, "cuda", "llvm", params)
