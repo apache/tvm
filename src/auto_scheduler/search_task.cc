@@ -122,6 +122,10 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
       device_api->GetAttr(dev, tvm::runtime::DeviceAttrKind::kWarpSize, &ret);
       int warp_size = ret;
 
+      if (warp_size == 1) {
+        LOG(WARNING) << "Th warp size is 1, tuning might crash or stuck.";
+      }
+
       int max_vthread_extent = warp_size / 4;
       return HardwareParams(-1, 16, 64, max_shared_memory_per_block, max_local_memory_per_block,
                             max_threads_per_block, max_vthread_extent, warp_size);
