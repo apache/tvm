@@ -40,11 +40,16 @@ PKG_CFLAGS = ${PKG_COMPILE_OPTS} \
 	-I${ETHOSU_PATH}/core_driver/include \
 	-I${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Include/ \
 	-I${CMSIS_PATH}/CMSIS/Core/Include \
+	-I${CMSIS_PATH}/CMSIS/NN/Include \
+	-I${CMSIS_PATH}/CMSIS/DSP/Include \
 	-I$(abspath $(BUILD_DIR))/codegen/host/include \
 	-DETHOSU_TEST_RUNNER_TOL=${ETHOSU_TEST_RUNNER_TOL}
 DRIVER_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
 	-DETHOSU_LOG_SEVERITY=debug \
 	-DCMAKE_SYSTEM_PROCESSOR=cortex-m55
+CMSIS_NN_CMAKE_FLAGS = -DCMAKE_TOOLCHAIN_FILE=$(abspath $(BUILD_DIR))/../arm-none-eabi-gcc.cmake \
+	-DTARGET_CPU=cortex-m55 \
+	-DBUILD_CMSIS_NN_FUNCTIONS=YES
 PKG_LDFLAGS = -lm -specs=nosys.specs -static -T corstone300.ld
 
 $(ifeq VERBOSE,1)
@@ -87,8 +92,14 @@ ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a:
 	$(QUIET)cd $(ETHOSU_DRIVER_PATH) && $(CMAKE) -B $(abspath $(BUILD_DIR)/ethosu_core_driver) $(DRIVER_CMAKE_FLAGS)
 	$(QUIET)cd $(abspath $(BUILD_DIR)/ethosu_core_driver) && $(MAKE)
 
+# Build CMSIS-NN Softmax
+${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a:
+	$(QUIET)mkdir -p $(@D)
+	$(QUIET)cd $(CMSIS_PATH)/CMSIS/NN && $(CMAKE) -B $(abspath $(BUILD_DIR)/cmsis_nn) $(CMSIS_NN_CMAKE_FLAGS)
+	$(QUIET)cd $(abspath $(BUILD_DIR)/cmsis_nn) && $(MAKE) CMSISNNSoftmax	
+
 # Build demo application
-$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a
+$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a
 	$(QUIET)mkdir -p $(@D)
 	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
 

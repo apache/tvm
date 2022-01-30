@@ -100,6 +100,7 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   IRModule GetLoweredFunctions() {
+    VLOG(1) << "GetLoweredFunctions";
     IRModule mod;
     // Extract lowered functions from the cache
     for (const auto& it : cache_) {
@@ -164,8 +165,15 @@ class TECompilerImpl : public TECompilerNode {
         for (const auto& kv2 : kv1.second->cached_func->funcs->functions) {
           if (const auto* function_node = kv2.second.as<FunctionNode>()) {
             // Abandon the existing function annotations.
-            Function function(function_node->params, function_node->body, function_node->ret_type,
-                              function_node->type_params, /*attrs=*/{}, function_node->span);
+
+            // Unfortuantely, Optional<DictAttrs>() is indistinguishable from
+            // NullValue<DictAttrs>(), and DictAttrs() is nullptr, so to erase the attributes, we
+            // need pass in DictAttrs<Map<String, ObjectRef>()), which is a DictAttrs containing no
+            // attributes.
+            Function function =
+                WithFields(GetRef<Function>(function_node), function_node->params,
+                           function_node->body, function_node->ret_type, function_node->type_params,
+                           /* erase attributes */ DictAttrs(Map<String, ObjectRef>()));
             // Mark function as 'extern' using the "ExternalSymbol" attribute.
             function = WithAttr(std::move(function), attr::kExternalSymbol, kv2.first->name_hint);
             module->Add(kv2.first, function);

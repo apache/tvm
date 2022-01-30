@@ -45,6 +45,7 @@ using namespace tvm::runtime;
 Constant::Constant(runtime::NDArray data, Span span) {
   ObjectPtr<ConstantNode> n = make_object<ConstantNode>();
   n->data = std::move(data);
+  n->virtual_device_ = VirtualDevice::FullyUnconstrained();
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -375,8 +376,8 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
-TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index, Span span) {
-  return TupleGetItem(tuple, index, span);
+TVM_REGISTER_GLOBAL("relay.ir.TupleGetItem").set_body_typed([](Expr tuple, int index) {
+  return TupleGetItem(tuple, index);
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

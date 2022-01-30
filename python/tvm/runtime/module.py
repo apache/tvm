@@ -411,7 +411,8 @@ class Module(object):
                         "c",
                         "cc",
                         "cpp",
-                    ], "The module.format needs to be either c, cc or cpp"
+                        "cu",
+                    ], "The module.format needs to be either c, cc, cpp or cu."
                     object_format = module.format
                     has_c_module = True
                 else:
@@ -426,7 +427,8 @@ class Module(object):
                             "c",
                             "cc",
                             "cpp",
-                        ], "The module.format needs to be either c, cc or cpp"
+                            "cu",
+                        ], "The module.format needs to be either c, cc, cpp, or cu."
                         object_format = module.format
                     else:
                         object_format = "c"
@@ -529,16 +531,13 @@ def load_module(path, fmt=""):
     else:
         raise ValueError("cannot find file %s" % path)
 
-    # c++ compiler/linker
-    cc = os.environ.get("CXX", "g++")
-
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
     if path.endswith(".o"):
         # Extra dependencies during runtime.
         from tvm.contrib import cc as _cc
 
-        _cc.create_shared(path + ".so", path, cc=cc)
+        _cc.create_shared(path + ".so", path)
         path += ".so"
     elif path.endswith(".tar"):
         # Extra dependencies during runtime.
@@ -547,7 +546,7 @@ def load_module(path, fmt=""):
         tar_temp = _utils.tempdir(custom_path=path.replace(".tar", ""))
         _tar.untar(path, tar_temp.temp_dir)
         files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
-        _cc.create_shared(path + ".so", files, cc=cc)
+        _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
     return _ffi_api.ModuleLoadFromFile(path, fmt)

@@ -35,46 +35,90 @@ namespace contrib {
 namespace ethosu {
 
 /*!
+ * \brief Base addresses are input pointers to
+ * the driver that get accessed by the command stream
+ * using offsets to read/write data.
+ */
+struct BaseAddressNode : public Object {
+  /*! \brief The identifier, usually it the param name of the PrimFunc that gets lowered */
+  String name;
+  /*! \brief The index in the params array of the PrimFunc. This is needed to keep aligned
+   * between the PrimFunc arguments ordering and argument ordering of generated code */
+  Integer primfunc_param_idx;
+  /*! \brief The region used by the command stream. This needs to match with base address
+   * index passed into the driver */
+  Integer region;
+  /*! \brief The size of the buffer accessible by this base address */
+  Integer size;
+  /*! \brief This is a runtime allocation that needs to be done in the function */
+  Bool is_runtime_allocation{Bool(false)};
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
+    v->Visit("primfunc_param_idx", &primfunc_param_idx);
+    v->Visit("region", &region);
+    v->Visit("size", &size);
+    v->Visit("is_runtime_allocation", &is_runtime_allocation);
+  }
+
+  bool SEqualReduce(const BaseAddressNode* other, SEqualReducer equal) const {
+    return equal(name, other->name) && equal(primfunc_param_idx, other->primfunc_param_idx) &&
+           equal(region, other->region) && equal(size, other->size) &&
+           equal(is_runtime_allocation, other->is_runtime_allocation);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name);
+    hash_reduce(primfunc_param_idx);
+    hash_reduce(region);
+    hash_reduce(size);
+    hash_reduce(is_runtime_allocation);
+  }
+
+  static constexpr const char* _type_key = "relay.ext.ethos-u.BaseAddress";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BaseAddressNode, Object);
+};
+
+class BaseAddress : public ObjectRef {
+ public:
+  TVM_DLL BaseAddress(String name, Integer primfunc_param_idx, Integer region, Integer size,
+                      Bool is_runtime_allocation = Bool(false));
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BaseAddress, ObjectRef, BaseAddressNode);
+};
+
+/*!
  * \brief Captures all the binary artifactes required to create
  * the C-source runtime module
  */
 struct CompilationArtifactNode : public Object {
+  /*! \brief The function name for this artifact belongs to */
+  String function_name;
   /*! \brief The binary command stream (CS) in hex format */
   String command_stream;
   /*! \brief The encoded biases and weights in hex format */
   String encoded_constants;
-  /*! \brief The intermediary scratch area required for the execution of the CS */
-  Integer scratch_size;
-  /*! \brief The size of the input tensor in bytes */
-  Integer input_size;
-  /*! \brief The size of the output tensor in bytes */
-  Integer output_size;
-  /*! \brief The name of the function */
-  String function_name;
+  /*! \brief The information regarding the base addresses */
+  Array<BaseAddress> base_addresses;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("function_name", &function_name);
     v->Visit("command_stream", &command_stream);
     v->Visit("encoded_constants", &encoded_constants);
-    v->Visit("scratch_size", &scratch_size);
-    v->Visit("input_size", &input_size);
-    v->Visit("output_size", &output_size);
-    v->Visit("function_name", &function_name);
+    v->Visit("base_addresses", &base_addresses);
   }
 
   bool SEqualReduce(const CompilationArtifactNode* other, SEqualReducer equal) const {
-    return equal(command_stream, other->command_stream) &&
+    return equal(function_name, other->function_name) &&
+           equal(command_stream, other->command_stream) &&
            equal(encoded_constants, other->encoded_constants) &&
-           equal(scratch_size, other->scratch_size) && equal(input_size, other->input_size) &&
-           equal(output_size, other->output_size) && equal(function_name, other->function_name);
+           equal(base_addresses, other->base_addresses);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(function_name);
     hash_reduce(command_stream);
     hash_reduce(encoded_constants);
-    hash_reduce(scratch_size);
-    hash_reduce(input_size);
-    hash_reduce(output_size);
-    hash_reduce(function_name);
+    hash_reduce(base_addresses);
   }
 
   static constexpr const char* _type_key = "relay.ext.ethos-u.CompilationArtifact";
@@ -83,8 +127,8 @@ struct CompilationArtifactNode : public Object {
 
 class CompilationArtifact : public ObjectRef {
  public:
-  TVM_DLL CompilationArtifact(String command_stream, String encoded_constants, Integer scratch_size,
-                              Integer input_size, Integer output_size, String function_name);
+  TVM_DLL CompilationArtifact(String function_name, String command_stream, String encoded_constants,
+                              Array<BaseAddress> base_addresses);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CompilationArtifact, ObjectRef, CompilationArtifactNode);
 };
 

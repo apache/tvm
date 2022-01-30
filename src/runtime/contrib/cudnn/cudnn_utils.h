@@ -67,12 +67,14 @@ inline void GetCudnnStride(int nbdim, const int* dims, int* strides) {
 struct ConvEntry {
   cudnnConvolutionDescriptor_t conv_desc;
   cudnnConvolutionMode_t mode{CUDNN_CROSS_CORRELATION};
-  cudnnFilterDescriptor_t filter_desc;
   cudnnDataType_t data_type;
   cudnnTensorFormat_t tensor_format;
   cudnnTensorDescriptor_t input_desc;
+  cudnnFilterDescriptor_t filter_desc;
   cudnnTensorDescriptor_t output_desc;
   cudnnConvolutionFwdAlgo_t fwd_algo;
+  cudnnConvolutionBwdDataAlgo_t bwd_data_algo;
+  cudnnConvolutionBwdFilterAlgo_t bwd_filter_algo;
   // cudnnMathType_t math_type;
   Device device;
   runtime::DeviceAPI* cuda_api;

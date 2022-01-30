@@ -126,6 +126,22 @@ def global_avgpool2d(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("rsqrt")
+def rsqrt(expr, type_map):
+    """Rewrite a rsqrt op"""
+    arg = expr.args[0]
+    x_t = type_map[arg]
+    out_t = type_map[expr]
+    out = relay.qnn.op.rsqrt(
+        arg,
+        x_t.scale,
+        x_t.zero_point,
+        out_t.scale,
+        out_t.zero_point,
+    )
+    return [out, x_t]
+
+
 @register_fake_quantization_to_integer("nn.bias_add")
 def bias_add(expr, type_map):
     """Rewrite a bias_add op"""
@@ -394,6 +410,7 @@ def register_binary_qnn(op_name, op):
             out_t.scale,
             out_t.zero_point,
         )
+
         return [out, out_t]
 
     return register_fake_quantization_to_integer(op_name, binary)

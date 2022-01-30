@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file Use external cudnn utils function
+ * \file cuDNN kernel calls for the forward algorithm.
  */
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
@@ -147,7 +147,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
                          conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.find_algo")
+TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0];
       int dims = args[1];
