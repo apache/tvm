@@ -922,7 +922,7 @@ def test_conv2d_transpose_nhwc_cudnn():
         return
 
     dshape_nhwc = (1, 18, 18, 3)
-    kshape_ihwo = (3, 3, 3, 10,)
+    kshape_ihwo = (3, 3, 3, 10)
     x = relay.var("x", shape=dshape_nhwc)
     w = relay.var("w", shape=kshape_ihwo)
 
@@ -949,9 +949,7 @@ def test_conv2d_transpose_nhwc_cudnn():
     target = "cuda -libs=cudnn"
     dev = tvm.cuda(0)
 
-    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-        data, kernel
-    )
+    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data, kernel)
     tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
@@ -1946,5 +1944,4 @@ def test_correlation():
 
 
 if __name__ == "__main__":
-    # sys.exit(pytest.main(sys.argv))
-    test_conv2d_transpose_nhwc_cudnn()
+    sys.exit(pytest.main(sys.argv))
