@@ -20,6 +20,7 @@
 /*!
  * \file opencl_device_api.cc
  */
+#include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 
@@ -122,7 +123,8 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
-      *rv = 1;
+      const int warp_size = dmlc::GetEnv("TVM_OPENCL_WARP_SIZE", 1);
+      *rv = warp_size;
       break;
     }
     case kMaxSharedMemoryPerBlock: {
