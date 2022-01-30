@@ -138,29 +138,15 @@ def access_of_padding_pattern() -> None:
     for i, j in T.grid(32, 32):
         with T.block("padding"):
             vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(
-                [
-                    X[
-                        T.max(vi - 2, 0) : T.min(vi - 2, 27) + 1,
-                        T.max(vj - 2, 0) : T.min(vj - 2, 27) + 1,
-                    ]
-                ]
-            )
+            T.reads([X[vi - 2, vj - 2]])
             T.writes([X_pad[vi, vj]])
             X_pad[vi, vj] = T.if_then_else(
                 2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
             )
         with T.block("padding_reverse"):
             vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([X_pad[T.max(vi, 2) : T.min(vi, 29) + 1, T.max(vj, 2) : T.min(vj, 29) + 1]])
-            T.writes(
-                [
-                    Y[
-                        T.max(vi - 2, 0) : T.min(vi - 2, 27) + 1,
-                        T.max(vj - 2, 0) : T.min(vj - 2, 27) + 1,
-                    ]
-                ]
-            )
+            T.reads([X_pad[vi, vj]])
+            T.writes([Y[vi - 2, vj - 2]])
             if 2 <= vi and vi < 30 and 2 <= vj and vj < 30:
                 Y[vi - 2, vj - 2] = X_pad[vi, vj]
 

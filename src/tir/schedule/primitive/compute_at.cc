@@ -237,23 +237,25 @@ class ScopeReconstructor : private StmtMutator {
     PrimExpr predicate = const_true();
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
-      const arith::IntSet& pred_bound = iter_doms[i].bound;
-      if (preserve_unit_loops || !is_one(iter_dom->extent) || !pred_bound.IsNothing()) {
+      if (preserve_unit_loops || !is_one(iter_dom->extent)) {
         Var var("ax" + std::to_string(loop_vars.size()), DataType::Int(32));
         loop_vars.push_back(var);
         loop_extents.push_back(iter_dom->extent);
         iter_values.push_back(iter_dom->min + var);
         analyzer->Bind(var, Range::FromMinExtent(0, iter_dom->extent));
+      } else {
+        iter_values.push_back(iter_dom->min);
+      }
+      const arith::IntSet& pred_bound = iter_doms[i].bound;
+      if (!pred_bound.IsNothing()) {
         if (pred_bound.HasLowerBound()) {
-          PrimExpr lower_bound = iter_dom->min + var >= pred_bound.min();
+          PrimExpr lower_bound = iter_values[i] >= pred_bound.min();
           predicate = predicate && lower_bound;
         }
         if (pred_bound.HasUpperBound()) {
-          PrimExpr upper_bound = iter_dom->min + var < pred_bound.max() + 1;
+          PrimExpr upper_bound = iter_values[i] < pred_bound.max() + 1;
           predicate = predicate && upper_bound;
         }
-      } else {
-        iter_values.push_back(iter_dom->min);
       }
     }
     this->new_block_realize_ =
