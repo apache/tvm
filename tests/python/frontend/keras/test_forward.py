@@ -422,7 +422,7 @@ class TestKeras:
         rnn_funcs = [
             keras.layers.LSTM(16),
             keras.layers.LSTM(16, return_sequences=True),
-            keras.layers.LSTM(16, return_sequences=True,use_bias=False),
+            keras.layers.LSTM(16, return_sequences=True, use_bias=False),
         ]
         for rnn_func in rnn_funcs:
             x = rnn_func(data)
@@ -436,10 +436,14 @@ class TestKeras:
                 units=16, return_state=False, recurrent_activation="sigmoid", activation="tanh"
             ),
             keras.layers.LSTM(
-                units=16, return_state=False, recurrent_activation="sigmoid", activation="tanh",use_bias=False
+                units=16,
+                return_state=False,
+                recurrent_activation="sigmoid",
+                activation="tanh",
+                use_bias=False,
             ),
             keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh"),
-            keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh",use_bias=False),
+            keras.layers.SimpleRNN(units=16, return_state=False, activation="tanh", use_bias=False),
             keras.layers.GRU(
                 units=16,
                 return_state=False,
@@ -453,8 +457,8 @@ class TestKeras:
                 recurrent_activation="sigmoid",
                 activation="tanh",
                 reset_after=False,
-                use_bias=False
-            )
+                use_bias=False,
+            ),
         ]
         for rnn_func in rnn_funcs:
             x = rnn_func(data)
