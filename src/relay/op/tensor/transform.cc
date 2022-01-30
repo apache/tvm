@@ -1105,7 +1105,8 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of scatter must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1152,7 +1153,8 @@ bool ScatterAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of scatter_add must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter_add must be tensor of integer";
   const auto param = attrs.as<ScatterAddAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1204,7 +1206,8 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "ScatterND: expect updates type to be TensorType but got " << types[2];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "ScatterND: indices must be a tensor of integers.";
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
@@ -3656,7 +3659,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[0];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of unravel_index must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of unravel_index must be tensor of integer";
 
   const auto* shape = types[1].as<TensorTypeNode>();
   if (shape == nullptr) {
@@ -3664,7 +3668,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "shape of unravel_index must be tensor of integer";
+  ICHECK(shape->dtype.is_int() || shape->dtype.is_uint())
+      << "shape of unravel_index must be tensor of integer";
 
   Array<IndexExpr> indices_shape;
   Array<IndexExpr> shape_shape;
@@ -3894,7 +3899,8 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (index_type == nullptr) {
         return false;
       }
-      ICHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
+      ICHECK(index_type->dtype.is_int() || index_type->dtype.is_uint())
+          << "indices must be tensor of integers";
 
       int64_t flatten_len = 1;
       bool has_dyn_shape = false;

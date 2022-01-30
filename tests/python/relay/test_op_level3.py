@@ -999,9 +999,9 @@ def ref_scatter(data, indices, updates, axis=0):
 
 
 def test_scatter(target, dev, executor_kind):
-    def verify_scatter(dshape, ishape, axis=0):
+    def verify_scatter(dshape, ishape, axis=0, indices_dtype="int64"):
         d = relay.var("d", relay.TensorType(dshape, "float32"))
-        i = relay.var("i", relay.TensorType(ishape, "int64"))
+        i = relay.var("i", relay.TensorType(ishape, indices_dtype))
         u = relay.var("u", relay.TensorType(ishape, "float32"))
         z = relay.op.scatter(d, i, u, axis)
 
@@ -1009,7 +1009,7 @@ def test_scatter(target, dev, executor_kind):
 
         data_np = np.random.uniform(size=dshape).astype("float32")
         updates_np = np.random.uniform(size=ishape).astype("float32")
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+        indices_np = np.random.randint(0, dshape[axis] - 1, ishape).astype(indices_dtype)
 
         ref_res = ref_scatter(data_np, indices_np, updates_np, axis)
 
@@ -1031,6 +1031,7 @@ def test_scatter(target, dev, executor_kind):
     verify_scatter((6, 3, 4, 5), (2, 3, 4, 5), 1)
     verify_scatter((2, 3, 8, 5), (2, 3, 1, 1), 2)
     verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3)
+    verify_scatter((16, 16, 4, 5), (16, 16, 4, 5), 3, indices_dtype="uint32")
 
 
 class TestDynamicScatter:
@@ -1073,27 +1074,28 @@ class TestDynamicScatter:
 
 
 class TestScatterAdd:
-    dshape, ishape, axis, dtype = tvm.testing.parameters(
-        ((10,), (10,), 0, "int32"),
-        ((1000,), (1000,), 0, "int32"),
-        ((10, 5), (10, 5), -2, "float32"),
-        ((10, 5), (10, 5), -1, "float32"),
-        ((10, 5), (3, 5), 0, "float32"),
-        ((12, 4), (7, 2), 1, "float32"),
-        ((2, 3, 4), (1, 3, 4), 0, "float32"),
-        ((2, 3, 4), (2, 1, 4), 1, "float32"),
-        ((2, 3, 4), (2, 3, 1), 2, "float32"),
-        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32"),
-        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32"),
-        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32"),
-        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32"),
+    dshape, ishape, axis, dtype, indice_dtype = tvm.testing.parameters(
+        ((10,), (10,), 0, "int32", "int64"),
+        ((1000,), (1000,), 0, "int32", "int64"),
+        ((10, 5), (10, 5), -2, "float32", "int64"),
+        ((10, 5), (10, 5), -1, "float32", "int64"),
+        ((10, 5), (3, 5), 0, "float32", "int64"),
+        ((12, 4), (7, 2), 1, "float32", "int64"),
+        ((2, 3, 4), (1, 3, 4), 0, "float32", "int64"),
+        ((2, 3, 4), (2, 1, 4), 1, "float32", "int64"),
+        ((2, 3, 4), (2, 3, 1), 2, "float32", "int64"),
+        ((2, 3, 4, 5), (1, 3, 4, 5), 0, "float32", "int64"),
+        ((6, 3, 4, 5), (2, 3, 4, 5), 1, "float32", "int64"),
+        ((2, 3, 8, 5), (2, 3, 1, 1), 2, "float32", "int64"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32", "int64"),
+        ((16, 16, 4, 5), (16, 16, 4, 5), 3, "float32", "uint32"),
     )
 
     @tvm.testing.fixture(cache_return_value=True)
-    def ref_data(self, dshape, ishape, axis, dtype):
+    def ref_data(self, dshape, ishape, axis, dtype, indice_dtype):
         data_np = np.random.uniform(size=dshape).astype(dtype)
         updates_np = np.random.uniform(size=ishape).astype(dtype)
-        indices_np = np.random.randint(-dshape[axis], dshape[axis] - 1, ishape).astype("int64")
+        indices_np = np.random.randint(0, dshape[axis] - 1, ishape).astype(indice_dtype)
 
         out_np = np.copy(data_np)
         for index in np.ndindex(*indices_np.shape):
@@ -1105,9 +1107,11 @@ class TestScatterAdd:
     # Optimization can produce tir.atomic_add, not currently supported
     # on vulkan runtime.
     @tvm.testing.known_failing_targets("vulkan")
-    def test_scatter_add(self, target, dev, ref_data, dshape, ishape, axis, dtype):
+    def test_scatter_add(self, target, dev, ref_data, dshape, ishape, axis, dtype, indice_dtype):
         d = relay.var("d", relay.TensorType(shape=[relay.Any() for _ in dshape], dtype=dtype))
-        i = relay.var("i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype="int64"))
+        i = relay.var(
+            "i", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=indice_dtype)
+        )
         u = relay.var("u", relay.TensorType(shape=[relay.Any() for _ in ishape], dtype=dtype))
         z = relay.op.scatter_add(d, i, u, axis)
 
@@ -1955,47 +1959,48 @@ def test_scatter_nd(target, dev, executor_kind):
         )
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=rtol, atol=atol)
 
-    data = np.zeros((2, 2)).astype("int64")
-    indices = np.array([[1, 1, 0], [0, 1, 0]])
-    updates = np.array([2, 3, 0])
-    out = np.array([[0, 0], [2, 3]])
-    verify_scatter_nd(data, indices, updates, out)
-    verify_scatter_nd_with_stack(data, indices, updates, out)
+    for indice_dtype in ["uint8", "uint16", "uint32"]:
+        data = np.zeros((2, 2)).astype("int64")
+        indices = np.array([[1, 1, 0], [0, 1, 0]]).astype(indice_dtype)
+        updates = np.array([2, 3, 0])
+        out = np.array([[0, 0], [2, 3]])
+        verify_scatter_nd(data, indices, updates, out)
+        verify_scatter_nd_with_stack(data, indices, updates, out)
 
-    data = np.zeros((2, 2, 2, 2)).astype("int64")
-    indices = np.array([[0, 1], [1, 1]])
-    updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
-    out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
-    verify_scatter_nd(data, indices, updates, out)
-    verify_scatter_nd_with_stack(data, indices, updates, out)
+        data = np.zeros((2, 2, 2, 2)).astype("int64")
+        indices = np.array([[0, 1], [1, 1]]).astype(indice_dtype)
+        updates = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        out = np.array([[[[0, 0], [0, 0]], [[1, 2], [3, 4]]], [[[0, 0], [0, 0]], [[5, 6], [7, 8]]]])
+        verify_scatter_nd(data, indices, updates, out)
+        verify_scatter_nd_with_stack(data, indices, updates, out)
 
-    indices = np.array([[1, 0, 0]])
-    updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
-    shape = (2, 1560)
-    data = np.zeros(shape).astype("float32")
-    out = data.copy()
-    out[1, :] += updates[0, :]
-    out[0, :] += updates[1, :]
-    out[0, :] += updates[2, :]
-    verify_scatter_nd(data, indices, updates, out, mode="add")
-    verify_scatter_nd_with_stack(data, indices, updates, out)
-
-    for mode in ["add", "update"]:
-        indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
-            "int64"
-        )
-        updates = np.ones((5, 3)).astype("float64")
-        shape = (2, 7, 3)
-        data = np.random.random(shape).astype("float64")
+        indices = np.array([[1, 0, 0]]).astype(indice_dtype)
+        updates = np.reshape(np.arange(1560 * 3), (3, 1560)).astype("float32")
+        shape = (2, 1560)
+        data = np.zeros(shape).astype("float32")
         out = data.copy()
-        for i in range(indices.shape[1]):
-            for j in range(updates.shape[1]):
-                if mode == "add":
-                    out[indices[0, i], indices[1, i], j] += updates[i, j]
-                elif mode == "update":
-                    out[indices[0, i], indices[1, i], j] = updates[i, j]
-        verify_scatter_nd(data, indices, updates, out, mode)
-        verify_scatter_nd_with_stack(data, indices, updates, out, mode)
+        out[1, :] += updates[0, :]
+        out[0, :] += updates[1, :]
+        out[0, :] += updates[2, :]
+        verify_scatter_nd(data, indices, updates, out, mode="add")
+        verify_scatter_nd_with_stack(data, indices, updates, out)
+
+        for mode in ["add", "update"]:
+            indices = np.stack((np.random.randint(2, size=5), np.random.randint(7, size=5))).astype(
+                indice_dtype
+            )
+            updates = np.ones((5, 3)).astype("float64")
+            shape = (2, 7, 3)
+            data = np.random.random(shape).astype("float64")
+            out = data.copy()
+            for i in range(indices.shape[1]):
+                for j in range(updates.shape[1]):
+                    if mode == "add":
+                        out[indices[0, i], indices[1, i], j] += updates[i, j]
+                    elif mode == "update":
+                        out[indices[0, i], indices[1, i], j] = updates[i, j]
+            verify_scatter_nd(data, indices, updates, out, mode)
+            verify_scatter_nd_with_stack(data, indices, updates, out, mode)
 
 
 def test_unique(target, dev):
