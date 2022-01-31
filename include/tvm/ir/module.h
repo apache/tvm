@@ -40,7 +40,6 @@
 #include <vector>
 
 namespace tvm {
-namespace tir {
 /*!
  * \brief Describes one parameter that should be linked into the generated module.
  *
@@ -76,10 +75,7 @@ class LinkedParam : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
 };
-}  // namespace tir
-}  // namespace tvm
 
-namespace tvm {
 class IRModule;
 
 /*!
