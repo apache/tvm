@@ -123,7 +123,8 @@ HardwareParams HardwareParamsNode::GetDefaultHardwareParams(const Target& target
       int warp_size = ret;
 
       if (warp_size == 1) {
-        LOG(WARNING) << "Warp size 1 is not recommended for OpenCL devices. Tuning might crash or stuck";
+        LOG(WARNING)
+            << "Warp size 1 is not recommended for OpenCL devices. Tuning might crash or stuck";
       }
 
       int max_vthread_extent = warp_size / 4;
