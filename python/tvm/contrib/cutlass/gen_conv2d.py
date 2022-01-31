@@ -203,7 +203,6 @@ class CutlassConv2DProfiler:
 
     def select_op(
         self,
-        op_type,
         d_shape,
         w_shape,
         padding,
@@ -303,7 +302,6 @@ class CutlassConv2DProfiler:
         )
 
         op = self.select_op(
-            op_type,
             d_shape,
             w_shape,
             padding,
