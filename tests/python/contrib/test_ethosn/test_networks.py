@@ -143,6 +143,30 @@ def test_mobilenet_v1():
     )
 
 
+@pytest.mark.skip(reason="very slow test")
+@requires_ethosn
+def test_resnet_50_int8():
+    # If this test is failing due to a hash mismatch, please notify @mbaret and
+    # @Leo-arm. The hash is there to catch any changes in the behaviour of the
+    # codegen, which could come about from either a change in Support Library
+    # version or a change in the Ethos-N codegen. To update this requires running
+    # on hardware that isn't available in CI.
+    if tei.get_ethosn_api_version() > 2011:
+        if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
+            _compile_hash = {"de6723dc69f5f3015c4ab5cb8f288221", "dc2ed339583a59f0c3d38dc5ff069ec9"}
+            _test_image_network(
+                model_url="https://raw.githubusercontent.com/dmlc/web-data/main/tensorflow/"
+                "models/Quantized/resnet_50_quantized.tflite",
+                model_sub_path="resnet_50_quantized.tflite",
+                input_dict={"input": (1, 224, 224, 3)},
+                compile_hash=_compile_hash,
+                output_count=1,
+                host_ops=11,
+                npu_partitions=2,
+                run=True,
+            )
+
+
 @requires_ethosn
 def test_inception_v3():
     # If this test is failing due to a hash mismatch, please notify @mbaret and

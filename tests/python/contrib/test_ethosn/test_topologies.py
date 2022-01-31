@@ -18,6 +18,7 @@
 """Arm(R) Ethos(TM)-N tests for complex network topologies."""
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
@@ -26,11 +27,12 @@ from . import infrastructure as tei
 
 
 @requires_ethosn
-def test_split_add_concat():
-    def get_model(input_shape, var_names):
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_split_add_concat(dtype):
+    def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
-        a = relay.var(next(var_names), shape=input_shape, dtype="uint8")
+        a = relay.var(next(var_names), shape=input_shape, dtype=dtype)
         split_scale = relay.const(0.25, "float32")
         split_zp = relay.const(100, "int32")
         add_scale = relay.const(0.75, "float32")
@@ -58,21 +60,27 @@ def test_split_add_concat():
         )
         return conc
 
+    np.random.seed(0)
     inputs = {
-        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
+        "a": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 16, 16, 4), dtype=dtype
+            )
+        ),
     }
 
     outputs = []
     for npu in [False, True]:
-        model = get_model(inputs["a"].shape, iter(inputs))
+        model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
         outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-    tei.verify(outputs, 2)
+    tei.verify(outputs, dtype, 2)
 
 
 @requires_ethosn
-def test_multiple_command_streams():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_multiple_command_streams(dtype):
     """Check that multiple Ethos-N partitions are correctly handled.
 
     If there's more than one Ethos-N graph partition, more than one command
@@ -82,7 +90,7 @@ def test_multiple_command_streams():
     against an 'all-CPU' run through TVM.
     """
 
-    def get_model():
+    def get_model(dtype):
         """
         max_pool2d
              |
@@ -90,7 +98,7 @@ def test_multiple_command_streams():
              |
         max_pool2d
         """
-        x = relay.var("x", shape=(1, 4, 4, 4), dtype="uint8")
+        x = relay.var("x", shape=(1, 4, 4, 4), dtype=dtype)
         out = relay.nn.max_pool2d(x, (2, 2), (2, 2), layout="NHWC")  # supported
         out = relay.op.abs(out)  # not supported
         out = relay.nn.max_pool2d(out, (2, 2), (2, 2), layout="NHWC")  # supported
@@ -98,8 +106,14 @@ def test_multiple_command_streams():
 
     np.random.seed(0)
     outputs = []
-    inputs = {"x": tvm.nd.array(np.random.randint(0, high=256, size=(1, 4, 4, 4), dtype="uint8"))}
-    model = get_model()
+    inputs = {
+        "x": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 4, 4, 4), dtype=dtype
+            )
+        )
+    }
+    model = get_model(dtype)
     mod = tei.make_module(model, {})
     outputs.append(
         tei.build_and_run(mod, inputs, 1, {}, npu=True, expected_host_ops=1, npu_partitions=2)
@@ -107,40 +121,49 @@ def test_multiple_command_streams():
 
 
 @requires_ethosn
-def test_output_order():
-    def get_model(input_shape, var_names):
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_output_order(dtype):
+    def get_model(input_shape, dtype, var_names):
         """Return a model"""
 
-        a = relay.var(next(var_names), shape=input_shape, dtype="uint8")
+        min = np.iinfo(dtype).min
+        max = np.iinfo(dtype).max
+        a = relay.var(next(var_names), shape=input_shape, dtype=dtype)
 
-        z = relay.op.clip(a, 0, 255)
-        b = relay.op.clip(z, 0, 15)
-        c = relay.op.clip(z, 16, 31)
-        d = relay.op.clip(z, 32, 47)
-        e = relay.op.clip(z, 48, 63)
-        f = relay.op.clip(z, 64, 79)
-        g = relay.op.clip(z, 80, 95)
-        h = relay.op.clip(z, 96, 111)
-        i = relay.op.clip(z, 112, 127)
+        z = relay.op.clip(a, min, max)
+        b = relay.op.clip(z, min, min + 15)
+        c = relay.op.clip(z, min + 16, min + 31)
+        d = relay.op.clip(z, min + 32, min + 47)
+        e = relay.op.clip(z, min + 48, min + 63)
+        f = relay.op.clip(z, min + 64, min + 79)
+        g = relay.op.clip(z, min + 80, min + 95)
+        h = relay.op.clip(z, min + 96, min + 111)
+        i = relay.op.clip(z, min + 112, max)
         return relay.Tuple((d, c, e, f, i, b, h, g))
 
+    np.random.seed(0)
     inputs = {
-        "a": tvm.nd.array(np.random.randint(0, high=255, size=(1, 16, 16, 4), dtype="uint8")),
+        "a": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 16, 16, 4), dtype=dtype
+            )
+        ),
     }
 
     outputs = []
     for npu in [False, True]:
-        model = get_model(inputs["a"].shape, iter(inputs))
+        model = get_model(inputs["a"].shape, dtype, iter(inputs))
         mod = tei.make_module(model, [])
         outputs.append(tei.build_and_run(mod, inputs, 8, {}, npu=npu))
 
-    tei.verify(outputs, 1)
+    tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
-def test_split_with_asym_concats():
-    def get_model(shape, splits, axis):
-        a = relay.var("a", shape=shape, dtype="uint8")
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_split_with_asym_concats(dtype):
+    def get_model(shape, dtype, splits, axis):
+        a = relay.var("a", shape=shape, dtype=dtype)
         split = relay.op.split(a, indices_or_sections=splits, axis=axis)
         zeroi = relay.const(1, "int32")
         zerof = relay.const(0.5, "float32")
@@ -169,42 +192,56 @@ def test_split_with_asym_concats():
     np.random.seed(0)
     for shape, splits, axis in trials:
         outputs = []
-        inputs = {"a": tvm.nd.array(np.random.randint(0, high=256, size=shape, dtype="uint8"))}
+        inputs = {
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
+                )
+            )
+        }
         for npu in [False, True]:
-            model = get_model(shape, splits, axis)
+            model = get_model(shape, dtype, splits, axis)
             mod = tei.make_module(model, {})
             outputs.append(tei.build_and_run(mod, inputs, 2, {}, npu=npu))
 
-        tei.verify(outputs, 0)
+        tei.verify(outputs, dtype, 0)
 
 
 @requires_ethosn
-def test_output_tuple_propagation():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_output_tuple_propagation(dtype):
     """This tests the case where the output tuple must be inferred
     as having dummy tensor information."""
 
-    def get_model():
-        a = relay.var("a", shape=(1, 4, 4, 16), dtype="uint8")
+    def get_model(dtype):
+        a = relay.var("a", shape=(1, 4, 4, 16), dtype=dtype)
         split = relay.op.split(a, indices_or_sections=4, axis=2)
         return relay.Tuple((split[0], split[1], split[2], split[3]))
 
     np.random.seed(0)
     outputs = []
-    inputs = {"a": tvm.nd.array(np.random.randint(0, high=256, size=(1, 4, 4, 16), dtype="uint8"))}
+    inputs = {
+        "a": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 4, 4, 16), dtype=dtype
+            )
+        )
+    }
     for npu in [False, True]:
-        model = get_model()
+        model = get_model(dtype)
         mod = tei.make_module(model, {})
         outputs.append(tei.build_and_run(mod, inputs, 4, {}, npu=npu))
 
-    tei.verify(outputs, 0)
+    tei.verify(outputs, dtype, 0)
 
 
 @requires_ethosn
-def test_input_tuples():
-    def get_model(shapes, axis):
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_input_tuples(dtype):
+    def get_model(shapes, dtype, axis):
         tup = []
         for i, shape in enumerate(shapes):
-            a = relay.var("in" + str(i), shape=shape, dtype="uint8")
+            a = relay.var("in" + str(i), shape=shape, dtype=dtype)
             tup.append(a)
 
         zeroi = relay.const(1, "int32")
@@ -222,12 +259,20 @@ def test_input_tuples():
 
     np.random.seed(0)
     inputs = {
-        "in0": tvm.nd.array(np.random.randint(0, high=256, size=(1, 4), dtype="uint8")),
-        "in1": tvm.nd.array(np.random.randint(0, high=256, size=(1, 6), dtype="uint8")),
+        "in0": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 4), dtype=dtype
+            )
+        ),
+        "in1": tvm.nd.array(
+            np.random.randint(
+                np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=(1, 6), dtype=dtype
+            )
+        ),
     }
     outputs = []
     for npu in [False, True]:
-        model = get_model([(1, 4), (1, 6)], 1)
+        model = get_model([(1, 4), (1, 6)], dtype, 1)
         if not npu:
             mod = tei.make_module(model, {})
         else:
@@ -235,4 +280,4 @@ def test_input_tuples():
         lib = tei.build(mod, {}, npu=False)
         outputs.append(tei.run(lib, inputs, 1, npu=npu))
 
-    tei.verify(outputs, 0)
+    tei.verify(outputs, dtype, 0)

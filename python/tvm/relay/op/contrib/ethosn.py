@@ -183,9 +183,6 @@ def pattern_table():
         if not ethosn_available():
             return False
 
-        if extract.attrs.out_dtype != "uint8":
-            return False
-
         return support.sigmoid(extract)
 
     return [
