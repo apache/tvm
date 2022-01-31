@@ -21,17 +21,14 @@ from typing import Callable, Optional
 
 import numpy as np
 import pytest
-
 import tvm
 import tvm.testing
-
 from tvm import relay, te
 from tvm.error import TVMError
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import check_grad, run_infer_type
 
 from utils import ref_funcs
-
 
 executor_kind = tvm.testing.parameter("graph", "debug")
 
@@ -1297,7 +1294,6 @@ def test_gather(target, dev, executor_kind, data, axis, indices, ref_res):
         tvm.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
     verify_gather(data, axis, indices, ref_res)
-
 
 
 def test_gather_nd(target, dev, executor_kind):
