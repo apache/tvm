@@ -442,7 +442,7 @@ class ObjectPtr {
    * \brief nullptr check
    * \return result of comparison of internal pointer with nullptr.
    */
-  explicit operator bool() { return get() != nullptr; }
+  explicit operator bool() const { return get() != nullptr; }
   /*! \brief reset the content of ptr to be nullptr */
   void reset() {
     if (data_ != nullptr) {
