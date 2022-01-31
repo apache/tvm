@@ -346,7 +346,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
   ICHECK_EQ(old_in2.size(), new_in.size());
 
-  Array<Layout> new_in_tmp = new_in; // for backward compatibility of InferCorrectLayouts
+  Array<Layout> new_in_tmp = new_in;  // for backward compatibility of InferCorrectLayouts
   // if new_in_tmp == 'undef':  new_in_tmp = old_in2
   for (size_t i = 0; i < new_in_tmp.size(); ++i) {
     if (!new_in_tmp[i].defined()) {
@@ -375,11 +375,11 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   ICHECK_EQ(new_in.size(), new_in2.size())
       << "The number of input nodes should keep the same during alter_op_layout";
 
-  auto transform_layout = [&memorizer](Expr arg_item, const Layout &old_in, const Layout &old_in2, 
+  auto transform_layout = [&memorizer](Expr arg_item, const Layout &old_in, const Layout &old_in2,
                               const Layout &new_in, const Layout &new_in2) {
-    if (old_in2.Equals(old_in)) // the two transforms can be fused to one
+    if (old_in2.Equals(old_in)) {  // the two transforms can be fused to one
       arg_item = memorizer.Transform(arg_item, new_in, new_in2);
-    else {
+    } else {
       if (old_in.defined()) arg_item = memorizer.Transform(arg_item, new_in, old_in);
       arg_item = memorizer.Transform(arg_item, old_in2, new_in2);
     }
@@ -395,12 +395,14 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       Array<Expr> transformed_tuple_arg;
       transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
-        transformed_tuple_arg.push_back(transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+        transformed_tuple_arg.push_back(
+          transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
         pt++;
       }
       transformed_args.push_back(WithFields(tuple_arg, transformed_tuple_arg));
     } else {
-      transformed_args.push_back(transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+      transformed_args.push_back(
+        transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
       pt++;
     }
   }
