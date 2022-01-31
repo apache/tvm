@@ -1259,7 +1259,7 @@ def test_matrix_set_diag():
 def test_adv_index():
     for indice_dtype in ["int32", "int64", "uint8", "uint16", "uint32"]:
         verify_adv_index((3, 4, 5), [(2,), (2,), (1,)], indice_dtype=indice_dtype)
-        verify_adv_index((10, 15, 5), [(1, 1), (2, 7)], indice_dtype=indice_dtype)
+        verify_adv_index((10, 15, 5), [(4, 1), (1, 7)], indice_dtype=indice_dtype)
         verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)], indice_dtype=indice_dtype)
 
 

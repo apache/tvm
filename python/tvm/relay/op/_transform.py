@@ -976,40 +976,6 @@ def split_shape_func(attrs, inputs, _):
 
 
 @script
-def _adv_index_shape_func(inputs):
-    index_rank = inputs[1].shape[0]
-    data_rank = inputs[0].shape[0]
-    out = output_tensor((data_rank + index_rank - len(inputs) + 1,), "int64")
-
-    max_flatten_len = int64(1)
-    for i in const_range(index_rank):
-        max_flatten_len *= inputs[1][i]
-        out[i] = inputs[1][i]
-    for i in const_range(len(inputs) - 2):
-        flatten_len = int64(1)
-        for j in const_range(index_rank):
-            flatten_len *= inputs[i + 2][j]
-        if flatten_len > max_flatten_len:
-            max_flatten_len = flatten_len
-            for k in const_range(index_rank):
-                out[k] = inputs[i + 2][k]
-
-    for i in const_range(data_rank - len(inputs) + 1):
-        out[i + index_rank] = inputs[0][i + len(inputs) - 1]
-
-    return out
-
-
-@_reg.register_shape_func("adv_index", False)
-def adv_index_shape_func(attrs, inputs, _):
-    """
-    Shape func for adv_index.
-    Only allow single index tensor.
-    """
-    return [_adv_index_shape_func(inputs)]
-
-
-@script
 def _repeat_shape_func(data_shape, repeats, axis):
     out = output_tensor((data_shape.shape[0],), "int64")
 
@@ -1113,6 +1079,30 @@ def where_shape_func(attrs, inputs, _):
     out_shape = _broadcast_shape_tensors(bcast_shape, cond_shape)
 
     return [out_shape]
+
+
+@script
+def _adv_index_post_process(data_shape, bcast_shape, num_indices):
+    data_rank = data_shape.shape[0]
+    bcast_rank = bcast_shape.shape[0]
+    out = output_tensor((data_rank + bcast_rank - num_indices,), "int64")
+
+    for i in const_range(bcast_rank):
+        out[i] = bcast_shape[i]
+    for i in const_range(data_rank - num_indices):
+        out[i + bcast_rank] = data_shape[i + num_indices]
+    return out
+
+
+@_reg.register_shape_func("adv_index", False)
+def adv_index_shape_func(attrs, inputs, _):
+    """
+    Shape func for adv_index.
+    """
+    bcast_shape = inputs[1]
+    for i in inputs[2:]:
+        bcast_shape = _broadcast_shape_tensors(bcast_shape, i)
+    return [_adv_index_post_process(inputs[0], bcast_shape, convert(len(inputs) - 1))]
 
 
 @script
