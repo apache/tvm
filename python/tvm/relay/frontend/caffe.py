@@ -58,6 +58,7 @@ class OperatorConverter(object):
             "LRN": self.convert_lrn,
             "Permute": self.convert_permute,
             "Pooling": self.convert_pooling,
+            "Power": self.convert_power,
             "PReLU": self.convert_prelu,
             "ReLU": self.convert_relu,
             "Reshape": self.convert_reshape,
@@ -760,6 +761,19 @@ class OperatorConverter(object):
         out_shape.append(num_output)
         out = _op.reshape(out, out_shape)
 
+        return out
+
+    def convert_power(self, op):
+        """Convert Power layer"""
+        inputs = op.bottom
+        in_expr = self.exp_tab.get_expr(inputs[0])
+        power = _expr.const(op.power_param.power)
+        scale = _expr.const(op.power_param.scale)
+        shift = _expr.const(op.power_param.shift)
+
+        out = _op.multiply(in_expr, scale)
+        out = _op.add(out, shift)
+        out = _op.power(out, power)
         return out
 
     def check_unsupported_ops(self):

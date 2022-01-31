@@ -704,6 +704,25 @@ def test_forward_Pooling():
 
 
 #######################################################################
+# Power
+# -----
+def _test_power(data, **kwargs):
+    """One iteration of Power."""
+    _test_op(data, L.Power, "Power", **kwargs)
+
+
+def test_forward_Power():
+    """Power"""
+    data = np.random.rand(1, 3, 10, 10).astype(np.float32)
+    _test_power(data, power_param={"power": 0.37, "scale": 0.83, "shift": -2.4})
+    _test_power(data, power_param={"power": 0.37, "scale": 0.83, "shift": 0.0})
+    _test_power(data, power_param={"power": 0.0, "scale": 0.83, "shift": -2.4})
+    _test_power(data, power_param={"power": 1.0, "scale": 0.83, "shift": -2.4})
+    _test_power(data, power_param={"power": 2.0, "scale": 0.34, "shift": -2.4})
+    _test_power(data, power_param={"power": 1.0, "scale": 1.0, "shift": 0.0})
+
+
+#######################################################################
 # PReLU
 # -----------
 

@@ -14,24 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Package `tvm.meta_schedule`. The meta schedule infrastructure."""
-from . import arg_info
-from . import database
-from . import builder
-from . import runner
-from . import mutator
-from . import postproc
-from . import schedule_rule
-from . import space_generator
-from . import search_strategy
-from . import integration
-from . import feature_extractor
-from . import cost_model
-from .search_strategy import (
-    EvolutionarySearchConfig,
-    MeasureCandidate,
-    ReplayFuncConfig,
-    ReplayTraceConfig,
-)
-from .tune import tune_te, tune_tir, tune_relay
-from .tune_context import TuneContext
+"""A postprocessor that rewrites the cooperative fetch annotation to actual
+vectorized cooperative fetching in loop bindings."""
+
+from tvm._ffi.registry import register_object
+from .. import _ffi_api
+from .postproc import Postproc
+
+
+@register_object("meta_schedule.RewriteCooperativeFetch")
+class RewriteCooperativeFetch(Postproc):
+    """A postprocessor that rewrites the cooperative fetch annotation to actual vectorized
+    cooperative fetching in loop bindings.
+    """
+
+    def __init__(self) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.PostprocRewriteCooperativeFetch,  # type: ignore # pylint: disable=no-member
+        )
