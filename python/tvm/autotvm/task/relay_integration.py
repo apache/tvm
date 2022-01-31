@@ -49,7 +49,9 @@ def _lower(mod, target, params, opt_level=3):
             grc.codegen(mod, mod["main"])
             return
 
-    with tvm.transform.PassContext(opt_level=opt_level):
+    # Alter op layout code has been written expecting that tuning is applied
+    # without it, so we disable AlterOpLayout to maintain that behavior.
+    with tvm.transform.PassContext(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
         compiler = relay.vm.VMCompiler()
         if params:
             compiler.set_params(params)
