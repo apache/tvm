@@ -340,6 +340,10 @@ void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t by
 }
 
 void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
+  if (late_bound_constant_names.empty()) {
+    VLOG(1) << "Found no late-bound constants to load";
+    return;
+  }
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
@@ -429,6 +433,7 @@ void Executable::LoadConstantSection(dmlc::Stream* stream) {
 
   constants.resize(size);
   late_bound_constant_names.resize(size);
+  bool any_late_bound = false;
 
   // Load each of the constants.
   for (size_t const_index = 0; const_index < size; const_index++) {
@@ -448,9 +453,14 @@ void Executable::LoadConstantSection(dmlc::Stream* stream) {
       STREAM_CHECK(stream->Read(&name), "late-bound constant name");
       constants[const_index] = NDArray(nullptr);
       late_bound_constant_names[const_index] = std::move(name);
+      any_late_bound = true;
     } else {
       STREAM_CHECK(false, "constant tag");
     }
+  }
+
+  if (!any_late_bound) {
+    late_bound_constant_names.clear();
   }
 
   // Load the const to device index mapping.

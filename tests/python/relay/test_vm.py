@@ -1177,6 +1177,7 @@ def test_large_constants():
 def test_load_late_bound_consts_with_no_late_bound_consts():
     """Check that load_late_bound_consts handles a model with no late bound consts."""
     target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
 
     const_data = np.random.rand(1).astype("float64")
     x = relay.var("x", shape=(1,), dtype="float64")
@@ -1198,6 +1199,41 @@ def test_load_late_bound_consts_with_no_late_bound_consts():
 
     mod = runtime.load_module(path_dso)
     mod["load_late_bound_consts"](path_consts)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(mod, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
+
+
+def test_vm_save_and_load_without_designating_late_bound_consts():
+    """Check that a VM can be saved and loaded without late-bound consts in play.
+
+    Specifically, this test ensures that the machinery behind late-bound const
+    loading does not assume the need to load late-bound consts (and cause an error)
+    when the user did not choose to designate any consts as such.
+    """
+    target = tvm.target.Target("llvm")
+    dev = tvm.cpu()
+
+    const_data = np.random.rand(1).astype("float64")
+    x = relay.var("x", shape=(1,), dtype="float64")
+    const = relay.const(const_data, dtype="float64")
+
+    func = relay.Function([x], relay.op.add(x, const))
+    mod = tvm.IRModule.from_expr(func)
+
+    vm_exec = vm.compile(mod, target=target)
+
+    code, lib = vm_exec.save()
+    exe = runtime.vm.Executable.load_exec(code, lib)
+
+    x_data = np.random.rand(1).astype("float64")
+    loaded_vm = runtime.vm.VirtualMachine(exe, dev)
+    actual = loaded_vm.invoke("main", x_data)
+    expected = x_data + const_data
+    tvm.testing.assert_allclose(expected, actual.numpy())
 
 
 if __name__ == "__main__":
