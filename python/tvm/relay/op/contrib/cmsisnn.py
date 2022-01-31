@@ -56,10 +56,8 @@ def partition_for_cmsisnn(mod, params=None, **opts):
             transform.MergeComposite(pattern_table()),
             transform.AnnotateTarget("cmsis-nn"),
             transform.PartitionGraph(),
-            transform.InferType(),
             GenerateCMSISNNConstants(),
             ScalarToTensorConstants(),
-            transform.InferType(),
             ExtractConstantsFromPartitionedFunction(),
             transform.InferType(),
         ]
@@ -228,8 +226,6 @@ def pattern_table():
 
     def check_qnn_binary_op(pattern):
         """Check if multiply is supported by CMSIS-NN."""
-        import numpy as np
-
         arg0 = pattern.args[0]
         arg1 = pattern.args[1]
         both_args_scalar = False

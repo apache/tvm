@@ -23,15 +23,6 @@ import pytest
 import tvm
 from tvm import relay
 
-from utils import (
-    make_module,
-    count_num_calls,
-    get_range_for_dtype_str,
-    get_same_padding,
-    get_conv2d_qnn_params,
-    make_qnn_relu,
-)
-
 tvm._ffi._init_api("relay.ext.cmsisnn.transform", __name__)
 
 

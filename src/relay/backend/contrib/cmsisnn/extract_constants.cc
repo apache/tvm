@@ -229,7 +229,7 @@ transform::Pass ExtractConstantsFromPartitionedFunction() {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule m, transform::PassContext pc) { return ExtractConstants(m); };
   return tvm::transform::CreateModulePass(pass_func, 0, "ExtractConstantsFromPartitionedFunction",
-                                          {});
+                                          {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.cmsisnn.transform.ExtractConstantsFromPartitionedFunction")

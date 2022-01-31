@@ -71,9 +71,6 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     // in the binary op. This needs to be done only when one of the arguments is a scalar.
     if (auto* opnode = call->op.as<OpNode>()) {
       String op_name = opnode->name;
-      if (op_name != "qnn.mul" && op_name != "qnn.add") {
-        return final_call;
-      }
       Array<Expr> new_args;
       for (uint32_t i = 0; i < call->args.size(); ++i) {
         Expr arg = call->args[i];
@@ -179,7 +176,7 @@ IRModule ScalarToTensorConstant(const IRModule& mod) {
 transform::Pass ScalarToTensorConstantPass() {
   runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
       [=](IRModule m, transform::PassContext pc) { return ScalarToTensorConstant(m); };
-  return tvm::transform::CreateModulePass(pass_func, 0, "ScalarToTensorConstant", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "ScalarToTensorConstant", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay.ext.cmsisnn.transform.ScalarToTensorConstants")
