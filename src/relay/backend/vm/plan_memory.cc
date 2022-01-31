@@ -62,15 +62,30 @@ class ControlFlowGraph {
     // The expr corresponding to this node.
     Expr expr;
 
+    bool IsFirst() const { return index == 0; }
+
     // Returns whether or not this node is the last one in the parent basic block.
     bool IsLast() const { return index == parent->nodes.size() - 1; }
+
+    // Returns the predecessor nodes of this node.
+    std::vector<NodePtr> GetPred() const {
+      std::vector<NodePtr> pred;
+      if (IsFirst()) {
+        for (const BasicBlockPtr& pred_block : parent->pred) {
+          pred.push_back(pred_block->nodes.back());
+        }
+      } else {
+        pred.push_back(parent->nodes[index - 1]);
+      }
+      return pred;
+    }
 
     // Returns the successor nodes of this node.
     std::vector<NodePtr> GetSucc() const {
       std::vector<NodePtr> succ;
       if (IsLast()) {
         for (const BasicBlockPtr& succ_block : parent->succ) {
-          succ.push_back(succ_block->nodes[0]);
+          succ.push_back(succ_block->nodes.front());
         }
       } else {
         succ.push_back(parent->nodes[index + 1]);
@@ -256,23 +271,15 @@ struct UseDefAnalysis {
   static UseDefAnalysis Analyze(const CFG& cfg) {
     UseDefAnalysis a;
 
-    std::vector<CFG::BasicBlockPtr> worklist = {cfg.entry};
-    while (!worklist.empty()) {
-      CFG::BasicBlockPtr block = worklist.back();
-      worklist.pop_back();
-
-      for (const CFG::NodePtr& node : block->nodes) {
-        if (const LetNode* let_node = AsIgnoringOnDevice<LetNode>(node->expr)) {
-          a.use[node] = a.use_collector.VisitExpr(let_node->value);
-          a.def[node] = let_node->var;
-        } else {
-          a.use[node] = a.use_collector.VisitExpr(node->expr);
-          a.def[node] = Var();
-        }
-      }
-
-      for (const CFG::BasicBlockPtr& s : block->succ) {
-        worklist.push_back(s);
+    // One pass is sufficient.
+    for (auto it = cfg.reverse_post_order.begin(); it != cfg.reverse_post_order.end(); ++it) {
+      const CFG::NodePtr& node = *it;
+      if (const LetNode* let_node = AsIgnoringOnDevice<LetNode>(node->expr)) {
+        a.use[node] = a.use_collector.VisitExpr(let_node->value);
+        a.def[node] = let_node->var;
+      } else {
+        a.use[node] = a.use_collector.VisitExpr(node->expr);
+        a.def[node] = Var();
       }
     }
 
@@ -300,7 +307,10 @@ struct LivenessAnalysis {
 
   static LivenessAnalysis Analyze(const ControlFlowGraph& cfg, const UseDefAnalysis& use_def) {
     LivenessAnalysis a;
-    bool did_work = true;
+    std::list<CFG::NodePtr> worklist;
+
+    // Initialize worklist to post-order traversal for quick convergence.
+    worklist.insert(worklist.end(), cfg.reverse_post_order.rbegin(), cfg.reverse_post_order.rend());
 
     auto visitor = [&](const CFG::NodePtr n) {
       VarSet old_in_n = a.live_in[n];
@@ -318,18 +328,21 @@ struct LivenessAnalysis {
         a.live_out[n].insert(a.live_in[s].begin(), a.live_in[s].end());
       }
 
-      if (!SetEqual(old_in_n, a.live_in[n])) {
-        did_work = true;
-      } else if (!SetEqual(old_out_n, a.live_out[n])) {
-        did_work = true;
+      if (SetEqual(old_in_n, a.live_in[n]) && SetEqual(old_out_n, a.live_out[n])) {
+        // No need to update the worklist.
+      } else {
+        // Add predecessor nodes back to worklist (no need to add successors, since each node's
+        // in/out sets are not dependent on its predecessors).
+        for (const CFG::NodePtr& p : n->GetPred()) {
+          worklist.push_back(p);
+        }
       }
     };
 
-    while (did_work) {
-      did_work = false;
-      for (auto it = cfg.reverse_post_order.rbegin(); it != cfg.reverse_post_order.rend(); ++it) {
-        visitor(*it);
-      }
+    while (!worklist.empty()) {
+      const CFG::NodePtr n = worklist.front();
+      worklist.pop_front();
+      visitor(n);
     }
 
     return a;
