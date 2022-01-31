@@ -754,7 +754,7 @@ def test_ethosu_right_shift_binary_elemwise(
         "ifm": lhs,
         "ifm2": rhs,
     }
-    output_data = generate_output_data(input_data)
+    output_data = {"output": generate_output_data(input_data)[0]}
     ethosu_mod = _create_ethosu_partition(cpu_mod)
 
     _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
@@ -781,7 +781,7 @@ def test_ethosu_identity_codegen(ifm_shape, ifm_scale, ifm_zp, ofm_scale, ofm_zp
 
     cpu_mod = create_model()
     input_data = {"ifm": np.random.randint(-120, high=120, size=ifm_shape, dtype="int8")}
-    output_data = generate_output_data(input_data)
+    output_data = {"output": generate_output_data(input_data)[0]}
     ethosu_mod = _create_ethosu_partition(cpu_mod)
 
     _compare_ethosu_with_reference(
@@ -910,7 +910,7 @@ def test_ethosu_clz(accel_type):
 
     cpu_mod = create_model()
     input_data = {"ifm": np.random.randint(-500000, high=500000, size=ifm_shape, dtype="int32")}
-    output_data = generate_output_data(input_data)
+    output_data = {"output": generate_output_data(input_data)[0]}
     ethosu_mod = _create_ethosu_partition(cpu_mod)
 
     _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)

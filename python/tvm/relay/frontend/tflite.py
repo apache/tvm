@@ -18,6 +18,7 @@
 """Tensorflow lite frontend."""
 import itertools
 import math
+import re
 
 import numpy as np
 import tvm
@@ -3769,6 +3770,15 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
     params = {k: _nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _function.Function(analysis.free_vars(outputs), outputs)
+    attrs = tvm.ir.make_node(
+        "DictAttrs",
+        **{
+            "output_tensor_names": [
+                re.sub(r"\W", "_", get_tensor_name(subgraph, model_output))
+                for model_output in model_outputs
+            ]
+        },
+    )
+    func = _function.Function(analysis.free_vars(outputs), outputs, attrs=attrs)
     mod = IRModule.from_expr(func)
     return mod, params
