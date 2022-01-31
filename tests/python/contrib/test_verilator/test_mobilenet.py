@@ -215,6 +215,7 @@ def is_tflite_available():
         return False
 
 
+@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def tmobilenet(lanes):
     """Mobilenet test template.
     Paramters
@@ -222,6 +223,8 @@ def tmobilenet(lanes):
     lanes : Int
         The number of vector lanes.
     """
+    if skip_test():
+        return
     if not is_tflite_available():
         return
     model = get_mobilenet_model()
@@ -236,7 +239,6 @@ def tmobilenet(lanes):
     print_test_info(lanes, values["cycle_counter"])
 
 
-@pytest.mark.skipif(skip_test(), reason="Skip because Verilator codegen is not available")
 def test_mobilenet():
     """Mobilenet tests."""
     tmobilenet(4)
