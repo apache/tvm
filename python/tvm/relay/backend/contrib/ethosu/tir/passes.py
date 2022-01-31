@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements
+# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements, too-many-nested-blocks
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 from collections import namedtuple
 import numpy as np  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
+from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
+from ethosu.vela import api as vapi
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params
@@ -28,7 +30,6 @@ from .binary_elementwise import get_binary_elementwise_params
 from .identity import get_identity_params
 from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
-from .utils import get_weights_buffer, get_scale_bias_buffer
 from .producers_consumers import ProducersConsumers
 
 from .. import _ffi_api
@@ -311,6 +312,7 @@ def EncodeConstants(const_dict):
 
     """
     new_const_dict = {}
+    buffer_to_offset = {}
 
     def collect_encoding_definitions(stmt, old_buffer_to_const):
         # Map from copy destination to copy source.
@@ -357,11 +359,44 @@ def EncodeConstants(const_dict):
                 }
             )
 
+        def _encode_weights_or_bias(buffer1, buffer2, stmt, encode_func):
+            """Encode the weights or align the bias either for one or two cores,
+            depending on the variant."""
+            #assert ptr1 in pointer_to_buffer
+            #buffer = pointer_to_buffer[ptr1]
+            constant = old_buffer_to_const[buffer1]
+
+            # If we have just one core, encode the whole constant
+            if buffer2 is None:
+                new_const = encode_func(stmt, constant)
+                return new_const, len(new_const)
+
+            # Assume OHWI
+            channels = constant.shape[0]
+            split_const = np.split(constant, channels, axis=0)
+
+            const_list = [split_const[i] for i in range(channels) if i % 2 == 0]
+            const_to_encode = np.concatenate(const_list, axis=0)
+
+            new_const = encode_func(stmt, const_to_encode)
+            new_const_length = len(new_const)
+
+            # Encode half of the constant separately for the other core if it exists
+            assert buffer1.same_as(buffer2)
+            const2_list = [split_const[i] for i in range(channels) if i % 2 == 1]
+            const2_to_encode = np.concatenate(const2_list, axis=0)
+
+            new_const2 = encode_func(stmt, const2_to_encode)
+            new_const = np.append(new_const, new_const2).astype("uint8")
+
+            return new_const, new_const_length
+
         def _visit(stmt):
             if isinstance(stmt, tvm.tir.Call):
+                op = str(stmt.args[0].value)
                 # Handle copies as a special-case by propagating the buffer information
                 # from the read to the write pointer.
-                if stmt.args[0] == "ethosu_copy":
+                if op == "ethosu_copy":
                     read_buffer = stmt.args[1].buffer
                     write_buffer = stmt.args[3].buffer
                     # Assert writing to the base of the write_var (pre-StorageRewrite)
@@ -370,24 +405,51 @@ def EncodeConstants(const_dict):
                     copied_buffers.append({"source": read_buffer, "dest": write_buffer})
                     copy_map[write_buffer] = read_buffer
 
-                else:
-                    # Encode the weights
-                    weights_buffer = get_weights_buffer(stmt)
-                    if weights_buffer is not None:
-                        if weights_buffer in copy_map:
-                            weights_buffer = copy_map[weights_buffer]
-                        unencoded_weights_value = old_buffer_to_const[weights_buffer]
-                        encoded_weights_value = _encode_weights(stmt, unencoded_weights_value)
-                        _declare_constant_buffer(weights_buffer, encoded_weights_value)
+            ops_with_weights = {
+                "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
+                "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
+            }
+            if op in ops_with_weights.keys():
+                npu_op, _ = ops_with_weights[op](stmt)
 
-                    # Align the scale_bias to 16 bytes
-                    scale_bias_buffer = get_scale_bias_buffer(stmt)
-                    if scale_bias_buffer is not None:
-                        if scale_bias_buffer in copy_map:
-                            scale_bias_buffer = copy_map[scale_bias_buffer]
-                        scale_bias_value = old_buffer_to_const[scale_bias_buffer]
-                        aligned_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
-                        _declare_constant_buffer(scale_bias_buffer, aligned_scale_bias_value)
+                # Encode the weights
+                weights_buffer = npu_op.weights[0].address.buffer
+                if weights_buffer in copy_map:
+                    weights_buffer = copy_map[weights_buffer]
+                weights2_buffer = (
+                    npu_op.weights[1].address.buffer
+                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                    else None
+                )
+                if weights2_buffer in copy_map:
+                    weights2_buffer = copy_map[weights2_buffer]
+
+                new_weights, new_weights_length = _encode_weights_or_bias(
+                    weights_buffer, weights2_buffer, stmt, _encode_weights
+                )
+                _declare_constant_buffer(weights_buffer, new_weights)
+                buffer_to_offset[weights_buffer] = new_weights_length
+
+                # Align the scale_bias to 16 bytes
+                scale_bias_buffer = npu_op.biases[0].address.buffer
+                if scale_bias_buffer in copy_map:
+                    scale_bias_buffer = copy_map[scale_bias_buffer]
+                scale_bias2_buffer = (
+                    npu_op.biases[1].address.buffer
+                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                    else None
+                )
+                if scale_bias2_buffer in copy_map:
+                    scale_bias2_buffer = copy_map[scale_bias2_buffer]
+
+                new_scale_bias, new_scale_bias_length = _encode_weights_or_bias(
+                    scale_bias_buffer, scale_bias2_buffer, stmt, _align_scale_bias
+                )
+
+                #scale_bias_buffer = pointer_to_buffer[scale_bias_pointer]
+
+                _declare_constant_buffer(scale_bias_buffer, new_scale_bias)
+                buffer_to_offset[scale_bias_buffer] = new_scale_bias_length
 
         tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
 
@@ -439,6 +501,10 @@ def EncodeConstants(const_dict):
             # rewrite the nodes which contain the Buffers.
             if isinstance(stmt, tvm.tir.BufferLoad):
                 if stmt.buffer in buf_remap:
+                    offset = stmt.index
+                    if offset != 0:
+                        offset = buffer_to_offset[stmt.buffer]
+                    # TODO: integrate the offset
                     return tvm.tir.BufferLoad(buf_remap[stmt.buffer], stmt.indices, stmt.span)
 
             if isinstance(stmt, tvm.tir.AttrStmt):
@@ -522,9 +588,9 @@ def EncodeConstants(const_dict):
                 buffer = buf_remap[buffer]
 
             if buffer in new_buffer_to_const:
-                new_const_dict[i] = new_buffer_to_const[buffer]
+                new_const_dict[i] = new_buffer_to_const[buffer].flatten()
             elif buffer in old_buffer_to_const:
-                new_const_dict[i] = old_buffer_to_const[buffer]
+                new_const_dict[i] = old_buffer_to_const[buffer].flatten()
 
             new_buffer_map[param] = buffer
 
