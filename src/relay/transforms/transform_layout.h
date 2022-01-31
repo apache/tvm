@@ -376,7 +376,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       << "The number of input nodes should keep the same during alter_op_layout";
 
   auto transform_layout = [&memorizer](Expr arg_item, const Layout &old_in, const Layout &old_in2,
-                              const Layout &new_in, const Layout &new_in2) {
+                                       const Layout &new_in, const Layout &new_in2) {
     if (old_in2.Equals(old_in)) {  // the two transforms can be fused to one
       arg_item = memorizer.Transform(arg_item, new_in, new_in2);
     } else {
@@ -396,13 +396,13 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
         transformed_tuple_arg.push_back(
-          transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+            transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
         pt++;
       }
       transformed_args.push_back(WithFields(tuple_arg, transformed_tuple_arg));
     } else {
       transformed_args.push_back(
-        transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
+          transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
       pt++;
     }
   }
