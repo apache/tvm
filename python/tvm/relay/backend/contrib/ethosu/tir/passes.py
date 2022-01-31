@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements
+# pylint: disable=invalid-name, unused-argument, no-else-return, inconsistent-return-statements, too-many-nested-blocks
 """The TIR passes to be run on Arm(R) Ethos(TM)-U NPU TIR Compiler."""
 from collections import namedtuple
 import numpy as np  # type: ignore
 
 import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
+from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
+from ethosu.vela import api as vapi
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params
@@ -28,7 +30,6 @@ from .binary_elementwise import get_binary_elementwise_params
 from .identity import get_identity_params
 from .unary_elementwise import get_unary_elementwise_params
 from .transform import get_copy_params
-from .utils import get_weights_pointer, get_scale_bias_pointer
 
 
 def RemoveZeroStores():
@@ -306,6 +307,7 @@ def EncodeConstants(const_dict):
     pointer_to_buffer = {}
     rewrite_buffer = {}
     rewrite_pointer = {}
+    pointer_to_offset = {}
     accel_config = vela_api.get_accelerator_config()
 
     def _align_scale_bias(tir_extern_call, bias):
@@ -338,11 +340,46 @@ def EncodeConstants(const_dict):
         rewrite_buffer[old_buffer] = new_buffer
         rewrite_pointer[old_buffer.data] = new_buffer.data
 
+    def _encode_weights_or_bias(ptr1, ptr2, stmt, encode_func):
+        """Encode the weights or align the bias either for one or two cores,
+        depending on the variant."""
+        assert (
+            ptr1 in pointer_to_buffer
+        ), "Weights or bias pointer is not associated with any buffer."
+        buffer = pointer_to_buffer[ptr1]
+        constant = buffer_to_const[buffer]
+
+        # If we have just one core, encode the whole constant
+        if ptr2 is None:
+            new_const = encode_func(stmt, constant)
+            return new_const, len(new_const)
+
+        # Assume OHWI
+        channels = constant.shape[0]
+        split_const = np.split(constant, channels, axis=0)
+
+        const_list = [split_const[i] for i in range(channels) if i % 2 == 0]
+        const_to_encode = np.concatenate(const_list, axis=0)
+
+        new_const = encode_func(stmt, const_to_encode)
+        new_const_length = len(new_const)
+
+        # Encode half of the constant separately for the other core if it exists
+        assert ptr1.same_as(ptr2), "The two weights or biases pointers don't match."
+        const2_list = [split_const[i] for i in range(channels) if i % 2 == 1]
+        const2_to_encode = np.concatenate(const2_list, axis=0)
+
+        new_const2 = encode_func(stmt, const2_to_encode)
+        new_const = np.append(new_const, new_const2).astype("uint8")
+
+        return new_const, new_const_length
+
     def _visit_encode_pre(stmt):
         if isinstance(stmt, tvm.tir.Call):
+            op = str(stmt.args[0].value)
             # Handle copies as a special-case by propagating the buffer information
             # from the read to the write pointer.
-            if stmt.args[0] == "ethosu_copy":
+            if op == "ethosu_copy":
                 read_pointer = stmt.args[1].buffer_var
                 if read_pointer in pointer_to_buffer:
                     write_pointer = stmt.args[3].buffer_var
@@ -350,23 +387,46 @@ def EncodeConstants(const_dict):
                     assert stmt.args[3].index == 0
                     assert stmt.args[1].index == 0
                     pointer_to_buffer[write_pointer] = pointer_to_buffer[read_pointer]
-            else:
+
+            ops_with_weights = {
+                "ethosu_conv2d": tirtocs.translate_ethosu_conv2d,
+                "ethosu_depthwise_conv2d": tirtocs.translate_ethosu_depthwise_conv2d,
+            }
+            if op in ops_with_weights.keys():
+                npu_op, _ = ops_with_weights[op](stmt)
+
                 # Encode the weights
-                weights_pointer = get_weights_pointer(stmt)
-                if weights_pointer is not None:
-                    assert weights_pointer in pointer_to_buffer
-                    weights_buffer = pointer_to_buffer[weights_pointer]
-                    weights_value = buffer_to_const[weights_buffer]
-                    new_weights_value = _encode_weights(stmt, weights_value)
-                    _new_buffer(weights_buffer, new_weights_value)
-                # Align the scale_bias to 16 bytes
-                scale_bias_pointer = get_scale_bias_pointer(stmt)
-                if scale_bias_pointer is not None:
-                    assert scale_bias_pointer in pointer_to_buffer
-                    scale_bias_buffer = pointer_to_buffer[scale_bias_pointer]
-                    scale_bias_value = buffer_to_const[scale_bias_buffer]
-                    new_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
-                    _new_buffer(scale_bias_buffer, new_scale_bias_value)
+                weights_pointer = npu_op.weights[0].address.buffer_var
+                weights2_pointer = (
+                    npu_op.weights[1].address.buffer_var
+                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                    else None
+                )
+
+                new_weights, new_weights_length = _encode_weights_or_bias(
+                    weights_pointer, weights2_pointer, stmt, _encode_weights
+                )
+
+                weights_buffer = pointer_to_buffer[weights_pointer]
+                _new_buffer(weights_buffer, new_weights)
+                pointer_to_offset[weights_pointer] = new_weights_length
+
+                # Align the bias(es) to 16 bit
+                scale_bias_pointer = npu_op.biases[0].address.buffer_var
+                scale_bias2_pointer = (
+                    npu_op.biases[1].address.buffer_var
+                    if accel_config == vapi.NpuAccelerator.Ethos_U65_512
+                    else None
+                )
+
+                new_scale_bias, new_scale_bias_length = _encode_weights_or_bias(
+                    scale_bias_pointer, scale_bias2_pointer, stmt, _align_scale_bias
+                )
+
+                scale_bias_buffer = pointer_to_buffer[scale_bias_pointer]
+
+                _new_buffer(scale_bias_buffer, new_scale_bias)
+                pointer_to_offset[scale_bias_pointer] = new_scale_bias_length
 
     def _visit_encode_post(stmt):
         # Because encoding may change the data type (e.g. bias to uint8) and type information
@@ -406,6 +466,14 @@ def EncodeConstants(const_dict):
                         # Only rewrite the arguments of buffers that have been encoded
                         if buffer in new_buffers:
                             new_arg = np.prod(list(pointer_to_buffer[pointer].shape))
+                            if isinstance(stmt.args[i + 1], tvm.tir.Load):
+                                if pointer.same_as(stmt.args[i + 1].buffer_var):
+                                    # we've got a pair of loads form the same buffer
+                                    new_arg = stmt.args[i + 1].index.value
+                            elif isinstance(stmt.args[i - 3], tvm.tir.Load):
+                                if pointer.same_as(stmt.args[i - 3].buffer_var):
+                                    new_arg = new_arg - load.index.value
+
                             new_args.append(new_arg)
                             continue
                 new_args.append(stmt.args[i])
@@ -433,10 +501,11 @@ def EncodeConstants(const_dict):
             load_pointer = stmt.buffer_var
             if load_pointer in rewrite_pointer:
                 new_pointer = rewrite_pointer[load_pointer]
+                offset = stmt.index
+                if offset != 0:
+                    offset = pointer_to_offset[load_pointer]
                 element_type = new_pointer.type_annotation.element_type.dtype
-                return tvm.tir.Load(
-                    element_type, new_pointer, stmt.index, stmt.predicate, stmt.span
-                )
+                return tvm.tir.Load(element_type, new_pointer, offset, stmt.predicate, stmt.span)
         if isinstance(stmt, tvm.tir.AttrStmt):
             node_pointer = stmt.node
             if node_pointer in rewrite_pointer:
@@ -448,7 +517,7 @@ def EncodeConstants(const_dict):
     def _ftransform(f, mod, ctx):
         for i, param in enumerate(f.params):
             if i in const_dict:
-                buffer_to_const[f.buffer_map[param]] = const_dict[i].flatten()
+                buffer_to_const[f.buffer_map[param]] = const_dict[i]
                 pointer_to_buffer[f.buffer_map[param].data] = f.buffer_map[param]
 
         # First analyse what needs to be rewritten
@@ -469,7 +538,7 @@ def EncodeConstants(const_dict):
                 new_value = buffer_to_const[new_buffer]
                 new_const_dict[i] = new_value
             elif buffer in buffer_to_const:
-                new_const_dict[i] = buffer_to_const[buffer]
+                new_const_dict[i] = buffer_to_const[buffer].flatten()
                 new_buffer_map[param] = buffer
             else:
                 new_buffer_map[param] = buffer

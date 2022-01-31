@@ -54,11 +54,11 @@ def get_shape_expr(in_expr, out_expr):
     return shape
 
 
-@pytest.mark.parametrize("ifm_shape", [(1, 299, 299, 3), (1, 55, 55, 3)])
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
+@pytest.mark.parametrize("ifm_shape", [(1, 31, 31, 3), (1, 55, 55, 4)])
 @pytest.mark.parametrize("kernel_shape", [(3, 2), (1, 3)])
 @pytest.mark.parametrize("strides, dilation", [((1, 1), (2, 1)), ((3, 2), (1, 1))])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize("activation", ["NONE", "RELU"])
 def test_ethosu_conv2d_single(
     ifm_shape,
@@ -77,10 +77,13 @@ def test_ethosu_conv2d_single(
             def tf_function(self, x):
                 # Use tf.nn API to create the model
                 tf_strides = [1, strides[0], strides[1], 1]
+                out_channels = 5
                 op = tf.nn.conv2d(
                     x,
                     filters=tf.constant(
-                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
+                        np.random.uniform(
+                            size=[kernel_shape[0], kernel_shape[1], ifm_shape[3], out_channels]
+                        ),
                         dtype=tf.float32,
                     ),
                     strides=tf_strides,
