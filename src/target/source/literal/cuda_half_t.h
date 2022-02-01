@@ -334,7 +334,7 @@ __pack_nv_bfloat162(const nv_bfloat16 x, const nv_bfloat16 y) {
   return (v1 << 16) | v0;
 }
 
-// Some bfp16 match functions are not supported in cuda_bfp16.h,
+// Some bfp16 math functions are not supported in cuda_bfp16.h,
 // so we define them here to make sure the generated CUDA code
 // is valid.
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
