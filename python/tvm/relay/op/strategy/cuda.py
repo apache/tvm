@@ -589,24 +589,37 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
-    assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 when targetting cuda/gpu"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.cuda",
-    )
+    num_strategies = 0
 
-    if target.kind.name == "cuda" and "cudnn" in target.libs and attrs.kernel_layout == "IOHW":
+    if layout == "NCHW":
         strategy.add_implementation(
-            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn),
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.cuda",
+        )
+        num_strategies += 1
+
+    if (
+        target.kind.name == "cuda"
+        and "cudnn" in target.libs
+        and (
+            (layout == "NCHW" and attrs.kernel_layout == "IOHW")
+            or (layout == "NHWC" and attrs.kernel_layout == "IHWO")
+        )
+    ):
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn, add_layout=True),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="conv2d_transpose.cudnn.cuda",
             plevel=25,
         )
-    # TODO(masahi): Support conv2d_transpose NHWC.
+        num_strategies += 1
+
+    # TODO(masahi): Support conv2d_transpose NHWC for non-cudnn path.
+    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s" % layout
     return strategy
 
 

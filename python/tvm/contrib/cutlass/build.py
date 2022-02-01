@@ -24,6 +24,7 @@ from tvm import runtime, relay
 from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
 from .gen_conv2d import CutlassConv2DProfiler
+from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
 
@@ -86,7 +87,7 @@ class OpAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
 
-        if str(op) == "nn.conv2d":
+        if str(op) in ["nn.conv2d", "nn.conv2d_transpose", "nn.conv2d_backward_weight"]:
             self.op_attrs = call.attrs
 
         for arg in call.args:
@@ -242,8 +243,17 @@ def handle_conv2d(
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
+    if "conv2d_transpose" in op_type:
+        conv_kind = ConvKind.Dgrad
+    elif "backward_weight" in op_type:
+        conv_kind = ConvKind.Wgrad
+    else:
+        conv_kind = ConvKind.Fprop
+
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32)
+        out = cutlass_profiler.get_default(
+            op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32, conv_kind, strides
+        )
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
@@ -258,6 +268,7 @@ def handle_conv2d(
             data_dtype,
             weight_dtype,
             use_3xtf32,
+            conv_kind,
             profile_all_alignments,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
@@ -329,6 +340,7 @@ def tune_cutlass_kernels(
         if "cutlass" in fun_name:
             num_cutlass_partition += 1
             annotator.visit(func)
+            out_shape = annotator.signature["ret_shape"]
             out_dtype = annotator.signature["ret_dtype"]
             op_type = annotator.signature["op_type"]
 
@@ -344,12 +356,23 @@ def tune_cutlass_kernels(
                 new_attrs["padding"] = annotator.op_attrs.padding
                 new_attrs["strides"] = annotator.op_attrs.strides
                 new_attrs["dilation"] = annotator.op_attrs.dilation
+
+                if "conv2d_transpose" in op_type:
+                    d_shape = out_shape
+                    w_shape = arg1_shape
+                elif "conv2d_backward_weight" in op_type:
+                    d_shape = arg1_shape
+                    w_shape = out_shape
+                else:
+                    d_shape = arg0_shape
+                    w_shape = arg1_shape
+
                 new_attrs.update(
                     handle_conv2d(
                         conv2d_profiler,
                         op_type,
-                        arg0_shape,
-                        arg1_shape,
+                        d_shape,
+                        w_shape,
                         annotator.op_attrs.padding,
                         annotator.op_attrs.strides,
                         annotator.op_attrs.dilation,

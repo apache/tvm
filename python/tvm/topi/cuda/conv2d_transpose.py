@@ -289,8 +289,18 @@ def schedule_conv2d_transpose_nchw(cfg, outs):
     return s
 
 
-def conv2d_transpose_cudnn(x, w, stride, padding, out_dtype, output_padding=(0, 0)):
+def conv2d_transpose_cudnn(x, w, stride, padding, out_dtype, output_padding=(0, 0), layout="NCHW"):
     """Compute conv2d_tranpose using cudnn dgrad kernel"""
+    tensor_format = 0 if layout == "NCHW" else 1
     return cudnn.conv_backward_data(
-        x, w, padding, stride, (1, 1), 1, 0, out_dtype, groups=1, output_padding=output_padding
+        x,
+        w,
+        padding,
+        stride,
+        (1, 1),
+        1,
+        tensor_format,
+        out_dtype,
+        groups=1,
+        output_padding=output_padding,
     )
