@@ -139,9 +139,23 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
     return false;
   }
 
-  // Assign ofm type
+  const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
+  if (upscale_methods.find(param->upscale) == upscale_methods.end()) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: Expected upsample method to be 'NONE', "
+                                        "'ZEROS' or 'NEAREST' but got "
+                                     << param->upscale);
+    return false;
+  }
+
+  Array<IndexExpr> ifm_shape = ifm->shape;
+  if (param->upscale != "NONE") {
+    ifm_shape = EthosuInferUpscaledInput(ifm_shape, param->ifm_layout);
+  }
+
+  // Assign ofm shape
   auto ofm_shape = EthosuInferKernelOutput(
-      ifm->shape, param->ifm_layout, param->ofm_layout, param->pool_shape, param->ofm_channels,
+      ifm_shape, param->ifm_layout, param->ofm_layout, param->pool_shape, param->ofm_channels,
       Array<IndexExpr>({1, 1}), param->strides, param->padding);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ifm->dtype));
   return true;

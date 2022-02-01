@@ -1020,5 +1020,46 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
     _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,size",
+    [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
+)
+def test_tflite_resize2d_nearest_neighbor(accel_type, ifm_shape, size):
+    align_corners = False
+
+    @tf.function
+    def resize_model(x):
+        return tf.compat.v1.image.resize_nearest_neighbor(
+            x, size, align_corners=align_corners, half_pixel_centers=False
+        )
+
+    _compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,size,align_corners",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 2, 2, 1), (3, 3), True],
+        [(1, 4, 7, 3), (7, 13), True],
+        [(1, 3, 5, 3), (3, 5), False],
+    ],
+)
+def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
+    @tf.function
+    def resize_model(x):
+        return tf.compat.v1.image.resize_bilinear(
+            x, size, align_corners=align_corners, half_pixel_centers=False
+        )
+
+    # TODO(lhutton1) For now output is not bit exact with TFLite.
+    # This is because TFLite reference kernels are not being used.
+    # For this, TFLite will need upgrading to 2.6.
+    _compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, output_tolerance=1)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

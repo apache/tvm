@@ -184,7 +184,7 @@ class ApplyHistoryBest(MetaScheduleContext):
         self.__init_handle_by_constructor__(_ffi_api.ApplyHistoryBest, database)  # type: ignore # pylint: disable=no-member
 
 
-def extract_task(
+def extract_task_from_relay(
     mod: Union[IRModule, RelayFunc],
     target: Target,
     params: Optional[Dict[str, NDArray]] = None,

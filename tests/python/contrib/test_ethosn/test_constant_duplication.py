@@ -72,6 +72,7 @@ def _get_model():
 
 @requires_ethosn
 def test_constant_duplication():
+    np.random.seed(0)
     model, params = _get_model()
     mod = tei.make_module(model, params)
     res = tei.build(mod, params, npu=True, expected_host_ops=1)

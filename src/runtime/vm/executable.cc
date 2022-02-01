@@ -86,7 +86,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "vm_load_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto vm = make_object<VirtualMachine>();
-      vm->LoadExecutable(this);
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
   } else if (name == "move_late_bound_consts") {
