@@ -485,6 +485,21 @@ TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
       return static_cast<int64_t>(llvm::Function::lookupIntrinsicID(name));
     });
 
+TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t id) -> String {
+#if TVM_LLVM_VERSION >= 130
+  return std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)));
+#elif TVM_LLVM_VERSION >= 40
+  // This is the version of Intrinsic::getName that works for overloaded
+  // intrinsics. Helpfully, if we provide no types to this function, it
+  // will give us the overloaded name without the types appended. This
+  // should be enough information for most uses.
+  return std::string(llvm::Intrinsic::getName(static_cast<llvm::Intrinsic::ID>(id), {}));
+#else
+  // Nothing to do, just return the intrinsic id number
+  return std::to_string(id);
+#endif
+});
+
 TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
   return TVM_LLVM_VERSION / 10;
 });
