@@ -489,51 +489,71 @@ class DeviceAnalyzer : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call_node) final {
     auto call = GetRef<Call>(call_node);
+    std::stack<Expr> stack;
+    std::unordered_map<const CallNode*, bool> visited;
+    stack.push(call);
 
-    // We don't care if the call is in pre- or post-lowered form.
-    auto vanilla_call = GetAnyCall(call_node);
+    while (stack.size() > 0) {
+      auto cur_expr = stack.top();
+      auto* cur_node = cur_expr.as<CallNode>();
+      if (cur_node != nullptr) {
+        bool is_visited = (visited.find(cur_node) != visited.end());
+        auto vanilla_call = GetAnyCall(cur_node);
+        if (is_visited) {
+          auto call = GetRef<Call>(cur_node);
+          auto func_domain = domains_->DomainForCallee(call);  // higher-order
+          ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size()) << PrettyPrint(call);
+          std::vector<DeviceDomainPtr> args_and_result_domains;
+          args_and_result_domains.reserve(vanilla_call->args.size() + 1);
+          for (const auto& arg : vanilla_call->args) {
+            args_and_result_domains.emplace_back(domains_->DomainFor(arg));
+          }
+          args_and_result_domains.emplace_back(domains_->DomainFor(call));
+          auto implied_domain =
+              domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));  // higher-order
 
-    // Find the higher-order domain for the callee. See DomainForCallee for the special rules
-    // for primitives.
-    VisitExpr(vanilla_call->op);
-    auto func_domain = domains_->DomainForCallee(call);  // higher-order
+          VLOG(2) << "initial call function domain:" << std::endl
+                  << domains_->ToString(func_domain) << std::endl
+                  << "and implied domain:" << std::endl
+                  << domains_->ToString(implied_domain) << std::endl
+                  << "for call:" << std::endl
+                  << PrettyPrint(call);
 
-    // Build the domain for the function implied by its arguments and call context.
-    ICHECK_EQ(func_domain->function_arity(), vanilla_call->args.size()) << PrettyPrint(call);
-    std::vector<DeviceDomainPtr> args_and_result_domains;
-    args_and_result_domains.reserve(vanilla_call->args.size() + 1);
-    for (const auto& arg : vanilla_call->args) {
-      args_and_result_domains.emplace_back(domains_->DomainFor(arg));
-      VisitExpr(arg);
+          // The above must match.
+          if (domains_->UnifyOrNull(func_domain, implied_domain) == nullptr) {  // higher-order
+            // TODO(mbs): Proper diagnostics.
+            LOG(FATAL)
+                << "Function parameters and result SEScopes do not match those of call. Call:"
+                << std::endl
+                << PrettyPrint(call) << std::endl
+                << "with function scopes:" << std::endl
+                << domains_->ToString(func_domain) << std::endl
+                << "and implied call scopes:" << std::endl
+                << domains_->ToString(implied_domain);
+          }
+
+          VLOG(2) << "final call function domain:" << std::endl
+                  << domains_->ToString(func_domain) << std::endl
+                  << "for call:" << std::endl
+                  << PrettyPrint(call);
+
+          stack.pop();
+        } else {
+          VisitExpr(vanilla_call->op);
+          visited.emplace(cur_node, true);
+
+          for (auto it = vanilla_call->args.rbegin(); it != vanilla_call->args.rend(); ++it) {
+            auto* arg_node = (*it).as<CallNode>();
+            if ((arg_node == nullptr) || (visited.find(arg_node) == visited.end())) {
+              stack.push(*it);
+            }
+          }
+        }
+      } else {
+        VisitExpr(cur_expr);
+        stack.pop();
+      }
     }
-    args_and_result_domains.emplace_back(domains_->DomainFor(call));
-    auto implied_domain =
-        domains_->MakeHigherOrderDomain(std::move(args_and_result_domains));  // higher-order
-
-    VLOG(2) << "initial call function domain:" << std::endl
-            << domains_->ToString(func_domain) << std::endl
-            << "and implied domain:" << std::endl
-            << domains_->ToString(implied_domain) << std::endl
-            << "for call:" << std::endl
-            << PrettyPrint(call);
-
-    // The above must match.
-    if (domains_->UnifyOrNull(func_domain, implied_domain) == nullptr) {  // higher-order
-      // TODO(mbs): Proper diagnostics.
-      LOG(FATAL)
-          << "Function parameters and result VirtualDevices do not match those of call. Call:"
-          << std::endl
-          << PrettyPrint(call) << std::endl
-          << "with function virtual devices:" << std::endl
-          << domains_->ToString(func_domain) << std::endl
-          << "and implied call virtual devices:" << std::endl
-          << domains_->ToString(implied_domain);
-    }
-
-    VLOG(2) << "final call function domain:" << std::endl
-            << domains_->ToString(func_domain) << std::endl
-            << "for call:" << std::endl
-            << PrettyPrint(call);
   }
 
   void VisitExpr_(const LetNode* let_node) final {
