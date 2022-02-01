@@ -294,7 +294,7 @@ __pack_half2(const half x, const half y) {
   return (v1 << 16) | v0;
 }
 
-// Some fp16 match functions are not supported in cuda_fp16.h,
+// Some fp16 math functions are not supported in cuda_fp16.h,
 // so we define them here to make sure the generated CUDA code
 // is valid.
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
