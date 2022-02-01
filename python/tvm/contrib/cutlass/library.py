@@ -266,6 +266,7 @@ class MathInstruction:
         instruction_shape,
         element_a,
         element_b,
+        element_c,
         element_accumulator,
         opcode_class,
         math_operation=MathOperation.multiply_add,
@@ -273,6 +274,7 @@ class MathInstruction:
         self.instruction_shape = instruction_shape
         self.element_a = element_a
         self.element_b = element_b
+        self.element_c = element_c
         self.element_accumulator = element_accumulator
         self.opcode_class = opcode_class
         self.math_operation = math_operation

@@ -214,6 +214,30 @@ def get_conv2d_transpose_nchw(
     )
 
 
+def get_conv2d_backward_weight(
+    d_shape,
+    w_shape,
+    o_shape,
+    padding,
+    strides,
+    out_dtype="float32",
+    data_dtype="float32",
+    weight_dtype="float32",
+):
+    grad = relay.var("grad", shape=o_shape, dtype=weight_dtype)
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    out_channel = o_shape[1]
+    return relay.nn.conv2d_backward_weight(
+        grad=grad,
+        data=data,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype=out_dtype,
+    )
+
+
 def convert_conv2d_layout(mod, desired_layouts):
     with tvm.transform.PassContext(opt_level=3):
         seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
@@ -602,6 +626,42 @@ def verify_conv2d(
     )
 
 
+def verify_conv2d_backward_weight(
+    expr_nchw,  # can be dynamic batch
+    expr_ref,  # always static batch
+    grad_shape,
+    data_shape,
+    sm=80,
+    atol=1e-5,
+    rtol=1e-5,
+    use_cudnn_ref=False,
+    use_fast_math=False,
+    grad_dtype="float16",
+    data_dtype="float16",
+    ref_target="cuda",
+    use_vm=False,
+):
+    np_grad = get_random_ndarray(grad_shape, grad_dtype)
+    np_data = get_random_ndarray(data_shape, data_dtype)
+    params = {}
+    input_names = ["grad", "data"]
+    return verify_conv2d_common(
+        expr_nchw,
+        expr_ref,
+        input_names,
+        [np_grad, np_data],
+        params,
+        sm,
+        atol,
+        rtol,
+        use_cudnn_ref,
+        False,
+        use_fast_math,
+        ref_target,
+        use_vm,
+    )
+
+
 def test_conv2d():
     padding = (1, 1)
     for IC in [3, 16]:
@@ -766,6 +826,93 @@ def test_conv2d_transpose():
             data_dtype=dtype,
             weight_dtype=dtype,
         )
+
+
+
+@pytest.mark.skip("weird")
+def test_conv2d_backward_weight():
+    OC = 8
+    IC = 16
+    d_shape = (16, IC, 32, 32)
+    w_shape = (OC, IC, 3, 3)
+    dtype = "float32"
+
+    for strides in [(1, 1), (2, 2)]:
+        o_shape = (16, OC, 32 // strides[0], 32 // strides[1])
+        padding = (1, 1)
+
+        mod_nchw = get_conv2d_backward_weight(
+            d_shape,
+            w_shape,
+            o_shape,
+            padding,
+            strides,
+            out_dtype=dtype,
+            data_dtype=dtype,
+            weight_dtype=dtype,
+        )
+
+        verify_conv2d_backward_weight(
+            mod_nchw,
+            mod_nchw,
+            o_shape,
+            d_shape,
+            sm=80,
+            atol=1e-3,
+            rtol=1e-3,
+            use_cudnn_ref=False,
+            grad_dtype=dtype,
+            data_dtype=dtype,
+        )
+
+
+@pytest.mark.skip("weird")
+def test_conv2d_bwd():
+    IC = 16
+    OC = 8
+    dshape = (16, IC, 32, 32)
+    wshape = (OC, IC, 3, 3)
+    padding = (0, 0)
+    strides = (1, 1)
+
+    conv = get_conv2d_nchw(
+        dshape,
+        wshape,
+        padding,
+        strides=strides,
+        out_dtype="float32",
+        data_dtype="float32",
+        weight_dtype="float32",
+    )
+    fwd_mod = InferType()(tvm.IRModule.from_expr(conv))
+
+    use_fp16 = False  # Note: large difference in tvm and cutlass Wgrad results if use fp16
+    verify_dgrad = False  # False to verify wgrad
+    tol = 1e-5 if verify_dgrad else 1e-4  # Wgrad slightly less accurate
+
+    if use_fp16:
+        fwd_mod = ToMixedPrecision("float16")(fwd_mod)
+
+    fwd_bwd_func = FirstOrderGradient()(fwd_mod)["main"]
+
+    bwd_func = relay.Function(
+        fwd_bwd_func.params,
+        relay.TupleGetItem(relay.TupleGetItem(fwd_bwd_func.body, 1), 0 if verify_dgrad else 1),
+    )
+
+    verify_conv2d(
+        bwd_func,
+        bwd_func,
+        dshape,
+        wshape,
+        sm=80,
+        atol=1e-2 if use_fp16 else tol,
+        rtol=1e-2 if use_fp16 else tol,
+        use_cudnn_ref=False,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_vm=True,
+    )
 
 
 if __name__ == "__main__":
