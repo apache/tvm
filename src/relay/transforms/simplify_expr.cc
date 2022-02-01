@@ -78,11 +78,11 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCast matches the pattern of cast data to the same dtype.
+ * \brief SimplifySameCast matches the pattern of cast data to the same dtype.
  */
-class SimplifyCast : public DFPatternRewrite {
+class SimplifySameCast : public DFPatternRewrite {
  public:
-  SimplifyCast() {
+  SimplifySameCast() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
     pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
@@ -102,6 +102,60 @@ class SimplifyCast : public DFPatternRewrite {
  protected:
   DFPattern data_pat_;
   DFPattern like_pat_;
+};
+
+/*!
+ * \brief SimplifyConsecutiveCast matches the pattern of consecutive cast/cast_like ops
+ */
+class SimplifyConsecutiveCast : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveCast() {
+    data_ = IsWildcard();
+    cast1_ = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
+    pattern_ = IsOp("cast_like")({cast1_, IsWildcard()}) || IsOp("cast")({cast1_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto data = node_map[data_][0];
+    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
+    auto data_type = Downcast<TensorType>(data->checked_type());
+    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
+
+    if (!IsWidenCast(data_type->dtype, cast1_dtype)) {
+      // Cannot remove the narrow cast
+      return post;
+    }
+
+    const CallNode* cast2 = post.as<CallNode>();
+    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
+    auto expr = MakeCast(data, cast2_dtype);
+
+    // We need to set the checked type as it may be needed in the next callback
+    expr->checked_type_ = TensorType(data_type->shape, cast2_dtype);
+    return expr;
+  }
+
+  bool IsWidenCast(DataType origin, DataType cast) const {
+    /* Return whether casting from origin to cast results in more or the same precision.*/
+    if (origin.code() == cast.code() && origin.bits() <= cast.bits()) {
+      return true;
+    }
+    if (origin.code() == DataType::kBFloat || cast.code() == DataType::kBFloat) {
+      // BFloat cast cannot be omitted
+      return false;
+    }
+    if (origin.code() < cast.code()) {
+      // Loosely have a hiearchy to datatypes
+      // e.g. int --> uint --> float has increasing range of numbers they can represent
+      return true;
+    }
+    return false;
+  }
+
+ protected:
+  DFPattern data_;
+  DFPattern cast1_;
 };
 
 /*!
@@ -640,7 +694,8 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
-  composer.AddRewrite<SimplifyCast>();
+  composer.AddRewrite<SimplifySameCast>();
+  composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
   composer.AddRewrite<SimplifyConsecutiveAdd>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
