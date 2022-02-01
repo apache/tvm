@@ -106,9 +106,13 @@ def _get_model(
     )
     biasc = relay.const(b, "int32")
     bias = relay.nn.bias_add(conv, biasc, axis=3)
+    if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray):
+        req_input_sc = [sc * input_sc for sc in kernel_sc.numpy()]
+    else:
+        req_input_sc = input_sc * kernel_sc
     req = relay.qnn.op.requantize(
         bias,
-        relay.const(input_sc * kernel_sc, "float32"),  # input zero scale
+        relay.const(req_input_sc, "float32"),  # input zero scale
         relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output zero scale
         relay.const(output_zp, "int32"),  # output zero point
@@ -123,22 +127,25 @@ def _get_model(
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_conv2d(dtype, depthwise):
     trials = [
-        [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1)],
-        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1)],
-        [(1, 14, 28, 11), 6, 2, 2, "op", (2, 2), (1, 1)],
-        [(1, 9, 20, 30), 7, 1, 5, "none", (1, 1), (1, 1)],
-        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1)],
-        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1)],
-        [(1, 31, 28, 15), 10, 1, 2, "attr", (2, 2), (1, 1)],
-        [(1, 21, 21, 8), 11, 3, 3, "none", (1, 1), (1, 1)],
-        [(1, 5, 11, 6), 12, 5, 2, "op", (2, 2), (1, 1)],
-        [(1, 12, 7, 18), 13, 1, 3, "op", (1, 1), (1, 1)],
-        [(1, 24, 6, 26), 14, 3, 5, "none", (2, 2), (1, 1)],
-        [(1, 19, 24, 16), 15, 2, 1, "attr", (1, 1), (1, 1)],
+        [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1), False],
+        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1), False],
+        [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1), dtype == "int8"],
+        [(1, 14, 28, 11), 6, 2, 2, "op", (2, 2), (1, 1), False],
+        [(1, 9, 20, 30), 7, 1, 5, "none", (1, 1), (1, 1), False],
+        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1), False],
+        [(1, 21, 21, 22), 8, 5, 1, "attr", (2, 2), (1, 1), dtype == "int8"],
+        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1), False],
+        [(1, 21, 25, 29), 9, 2, 5, "op", (1, 1), (1, 1), dtype == "int8"],
+        [(1, 31, 28, 15), 10, 1, 2, "attr", (2, 2), (1, 1), False],
+        [(1, 21, 21, 8), 11, 3, 3, "none", (1, 1), (1, 1), False],
+        [(1, 5, 11, 6), 12, 5, 2, "op", (2, 2), (1, 1), False],
+        [(1, 12, 7, 18), 13, 1, 3, "op", (1, 1), (1, 1), False],
+        [(1, 24, 6, 26), 14, 3, 5, "none", (2, 2), (1, 1), False],
+        [(1, 19, 24, 16), 15, 2, 1, "attr", (1, 1), (1, 1), False],
     ]
 
     np.random.seed(0)
-    for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation in trials:
+    for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation, qnn_per_channel in trials:
         if depthwise:
             out_channels = shape[3]
             groups = out_channels
@@ -162,7 +169,12 @@ def test_conv2d(dtype, depthwise):
         }
         input_zp = np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
         input_sc = np.random.random() * 2
-        kernel_sc = np.random.random() * 2
+        if qnn_per_channel:
+            kernel_sc = tvm.nd.array(
+                np.random.uniform(low=0, high=2, size=(out_channels,)).astype(np.float32)
+            )
+        else:
+            kernel_sc = np.random.random() * 2
         kernel_zp = (
             0 if dtype == "int8" else np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
         )
