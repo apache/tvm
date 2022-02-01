@@ -42,30 +42,30 @@ namespace tvm {
 namespace tir {
 
 /*!
- * \brief A table of computations is a hashtable which associates to each expression being computed
+ * \brief A computation table is a hashtable which associates to each expression being computed
           a number (which is the number of time that it is computed)
-					It is important to note that the hash used is a StructuralHash (and not an ObjectPtrHash)
-					as we need to hash similarly deeply equal terms.
-					The comparison used is ExprDeepEqual, which is stricter than StructuralEqual (as it does
-					not do variables remapping), so it is compatible with StructuralHash (intended to be used
-					with StructuralEqual).
+          It is important to note that the hash used is a StructuralHash (and not an ObjectPtrHash)
+          as we need to hash similarly deeply equal terms.
+          The comparison used is ExprDeepEqual, which is stricter than StructuralEqual (as it does
+          not do variables remapping), so it is compatible with StructuralHash (intended to be used
+          with StructuralEqual).
  */
-using TableOfComputations = std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
+using ComputationTable = std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate
-          to each statement or expression of the program its table of computations. Its purpose is
+          to each statement or expression of the program its computation table. Its purpose is
           to avoid the CSE pass from recomputing repeatedly the same tables of computations.
  */
-struct CacheOfComputations {
+struct ComputationCache {
   // Part of the cache for statements
-  // It maps each known statement to its table of computations
-  std::unordered_map<Stmt, TableOfComputations, ObjectPtrHash, ObjectPtrEqual>
+  // It maps each known statement to its computation table
+  std::unordered_map<Stmt, ComputationTable, ObjectPtrHash, ObjectPtrEqual>
       cache_stmt_table_computations_;
 
   // Part of the cache for expressions
-  // It maps each known expression to its table of computations
-  std::unordered_map<PrimExpr, TableOfComputations, ObjectPtrHash, ObjectPtrEqual>
+  // It maps each known expression to its computation table
+  std::unordered_map<PrimExpr, ComputationTable, ObjectPtrHash, ObjectPtrEqual>
       cache_expr_table_computations_;
 };
 
@@ -78,10 +78,10 @@ struct CacheOfComputations {
 class ComputationsDoneBy : public StmtExprVisitor {
  public:
   // Toplevel (static) methods
-  static TableOfComputations GetComputationsDoneBy(
+  static ComputationTable GetComputationsDoneBy(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
-  static TableOfComputations GetComputationsDoneBy(
+  static ComputationTable GetComputationsDoneBy(
       const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
@@ -98,10 +98,10 @@ class ComputationsDoneBy : public StmtExprVisitor {
   void VisitStmt_(const WhileNode* op) override;
 
  private:
-  static TableOfComputations ComputationsDoneByChildrenOf(
+  static ComputationTable ComputationsDoneByChildrenOf(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
-  static TableOfComputations ComputationsDoneByChildrenOf(
+  static ComputationTable ComputationsDoneByChildrenOf(
       const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
       std::function<bool(const PrimExpr&)> can_contain_computations);
 
@@ -110,9 +110,9 @@ class ComputationsDoneBy : public StmtExprVisitor {
   // The predicate used for knowing in which nodes we can search for eligible computations
   std::function<bool(const PrimExpr&)> can_contain_computations_;
   // The object being constructed and "returned" by the VisitExpr()/VisitStmt() methods
-  TableOfComputations table_of_computations_;
+  ComputationTable table_of_computations_;
   // Cache for preventing to compute repeatedly the computations done by the same stmt or expr
-  static CacheOfComputations cache_;
+  static ComputationCache cache_;
 };
 
 /*!
@@ -174,14 +174,14 @@ class UsesVarName : public StmtExprVisitor {
 /*!
  * \brief Various utility functions for the CSE pass
  */
-void PrintTableOfComputations(const TableOfComputations& table);
+void PrintComputationTable(const ComputationTable& table);
 
 using MaybeValue = dmlc::optional<PrimExpr>;
 
 bool EqualTerms(const PrimExpr& a, const PrimExpr& b);
 bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b);
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
-    const TableOfComputations& table);
+    const ComputationTable& table);
 bool PredicateIntroVarForComputation(const PrimExpr& computation, size_t nb_times_seen);
 
 // Polymorphic (functional) map on a vector, which builds a news vector with the same number of

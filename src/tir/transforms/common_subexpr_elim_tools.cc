@@ -46,7 +46,7 @@ namespace tir {
 
 // cache_ is a static variable of the class ComputationsDoneBy, and C++ requires to define here
 // such static attribute, otherwise it causes a linking error.
-CacheOfComputations ComputationsDoneBy::cache_;
+ComputationCache ComputationsDoneBy::cache_;
 
 /* ********************************** Class ComputationsDoneBy **********************************
 *********************************************************************************************** */
@@ -111,8 +111,8 @@ CacheOfComputations ComputationsDoneBy::cache_;
  * \note Does it directly in the first argument A for efficiency, as the union of A and B
  *       necessarily gives something which contains A, so we avoid its copy.
  */
-void UnionOf2TablesOfComputations(TableOfComputations& table_main,
-                                  const TableOfComputations& table_aux) {
+void UnionOfComputationTables(ComputationTable& table_main,
+                              const ComputationTable& table_aux) {
   // Adds each element of the second table to the first one
   for (const auto& current : table_aux) {
     table_main[current.first] += current.second;
@@ -133,11 +133,11 @@ void UnionOf2TablesOfComputations(TableOfComputations& table_main,
  *       (at least for now) for N=3, there is at the moment no need for such a generic union over
  *       N tables.
  */
-TableOfComputations UnionOf3TablesOfComputations(const TableOfComputations& table1,
-            const TableOfComputations& table2, const TableOfComputations& table3) {
-  TableOfComputations result = table1; // Copy needed as the union of 2 writes into its first arg
-  UnionOf2TablesOfComputations(result, table2);
-  UnionOf2TablesOfComputations(result, table3);
+ComputationTable UnionOfComputationTables(const ComputationTable& table1,
+                                const ComputationTable& table2, const ComputationTable& table3) {
+  ComputationTable result = table1; // Copy needed as the union of 2 writes into its first arg
+  UnionOfComputationTables(result, table2);
+  UnionOfComputationTables(result, table3);
 
   return result;
 }
@@ -147,9 +147,9 @@ TableOfComputations UnionOf3TablesOfComputations(const TableOfComputations& tabl
  * \param table1 One of the two tables, which won't change.
  * \param table2 The other table, which also won't change.
  */
-TableOfComputations IntersectionOf2TablesOfComputations(const TableOfComputations& table1,
-                                                        const TableOfComputations& table2) {
-  TableOfComputations result;
+ComputationTable IntersectComputationTables(const ComputationTable& table1,
+                                            const ComputationTable& table2) {
+  ComputationTable result;
   for (const auto& current : table1) {
     auto it = table2.find(current.first);
     if (it != table2.end()) {
@@ -174,10 +174,10 @@ TableOfComputations IntersectionOf2TablesOfComputations(const TableOfComputation
  *       (at least for now) for N=3, there is at the moment no need for such a generic intersection
  *       over N tables.
  */
-TableOfComputations IntersectionOf3TablesOfComputations(const TableOfComputations& table1,
-                  const TableOfComputations& table2, const TableOfComputations& table3) {
-  TableOfComputations result = IntersectionOf2TablesOfComputations(table1, table2);
-  result = IntersectionOf2TablesOfComputations(result, table3);
+ComputationTable IntersectComputationTables(const ComputationTable& table1,
+                                const ComputationTable& table2, const ComputationTable& table3) {
+  ComputationTable result = IntersectComputationTables(table1, table2);
+  result = IntersectComputationTables(result, table3);
   return result;
 }
 
@@ -197,9 +197,9 @@ TableOfComputations IntersectionOf3TablesOfComputations(const TableOfComputation
  *        bloc), it is therefore necessary to recompute the counters afterwards, which is what this
  *        function does.
  */
-void RecomputeNbTimesSeenInThreeBlocs(TableOfComputations& table_main,
-    const TableOfComputations& table_bloc1, const TableOfComputations& table_bloc2,
-    const TableOfComputations& table_bloc3) {
+void RecomputeNbTimesSeenInThreeBlocs(ComputationTable& table_main,
+    const ComputationTable& table_bloc1, const ComputationTable& table_bloc2,
+    const ComputationTable& table_bloc3) {
   // For each element in the main table
   for(auto current : table_main) {
     // Try to find it in the first bloc
@@ -235,20 +235,19 @@ void RecomputeNbTimesSeenInThreeBlocs(TableOfComputations& table_main,
  * \note This function will be used for obtaining the computations done by If nodes and by For
  * nodes, which both have three children.
  */
-TableOfComputations BuildTableForThreeChildrenNode(const TableOfComputations& table_child1,
-        const TableOfComputations& table_child2, const TableOfComputations& table_child3) {
-  TableOfComputations result;
+ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_child1,
+        const ComputationTable& table_child2, const ComputationTable& table_child3) {
+  ComputationTable result;
   // We look at what the children have in common
-  TableOfComputations child2_inter_child3 =
-      IntersectionOf2TablesOfComputations(table_child2, table_child3);
-  TableOfComputations child1_inter_child2 =
-      IntersectionOf2TablesOfComputations(table_child1, table_child2);
-  TableOfComputations child1_inter_child3 =
-      IntersectionOf2TablesOfComputations(table_child1, table_child3);
+  ComputationTable child2_inter_child3 =
+      IntersectComputationTables(table_child2, table_child3);
+  ComputationTable child1_inter_child2 =
+      IntersectComputationTables(table_child1, table_child2);
+  ComputationTable child1_inter_child3 =
+      IntersectComputationTables(table_child1, table_child3);
 
   // We do the union of all the things they have in common
-  result = UnionOf3TablesOfComputations(child2_inter_child3, child1_inter_child2,
-                                        child1_inter_child3);
+  result = UnionOfComputationTables(child2_inter_child3, child1_inter_child2, child1_inter_child3);
 
   // Now we need to recompute the numbers associated with each computation, because both the
   // intersections and the union might have increased the counters which can now be wrong.
@@ -265,7 +264,7 @@ TableOfComputations BuildTableForThreeChildrenNode(const TableOfComputations& ta
  * \param can_contain_computations The predicate which decides if an expression can contain an
                                     eligible computation
  */
-TableOfComputations ComputationsDoneBy::GetComputationsDoneBy(
+ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   // Chunk for avoiding the lookup (and writing) in the cache for an atom (constant or variable),
@@ -305,7 +304,7 @@ TableOfComputations ComputationsDoneBy::GetComputationsDoneBy(
  *  \param can_contain_computations The predicate which decides if an expression can contain an
                                     eligible computation
  */
-TableOfComputations ComputationsDoneBy::GetComputationsDoneBy(
+ComputationTable ComputationsDoneBy::GetComputationsDoneBy(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   // See if we have already computed the (table of) computations done by `stmt`
@@ -360,7 +359,7 @@ void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given expression.
-    UnionOf2TablesOfComputations(table_of_computations_, it_table_expr->second);
+    UnionOfComputationTables(table_of_computations_, it_table_expr->second);
     return;
   }
 
@@ -378,12 +377,12 @@ void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
   // If we reach this point, then the given expression is not an eligible computation.
   // But perhaps we have the right to dive into it to find some smaller eligible computations
   if (can_contain_computations_(expr)) {
-    TableOfComputations temp =
+    ComputationTable temp =
         ComputationsDoneByChildrenOf(expr, is_eligible_computation_, can_contain_computations_);
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given expression.
-    UnionOf2TablesOfComputations(table_of_computations_, temp);
+    UnionOfComputationTables(table_of_computations_, temp);
     return;
   }
 
@@ -402,7 +401,7 @@ void ComputationsDoneBy::VisitStmt(const Stmt& stmt) {
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given statement.
-    UnionOf2TablesOfComputations(table_of_computations_, it_table_stmt->second);
+    UnionOfComputationTables(table_of_computations_, it_table_stmt->second);
     return;
   }
 
@@ -410,12 +409,12 @@ void ComputationsDoneBy::VisitStmt(const Stmt& stmt) {
   // by `stmt` and will do so now.
 
   // The computations done by a Stmt node are just the ones done by its children
-  TableOfComputations temp =
+  ComputationTable temp =
       ComputationsDoneByChildrenOf(stmt, is_eligible_computation_, can_contain_computations_);
   // We need to do the union with `table_of_computations_` instead of just writing into it,
   // because some other childs might have added things into it too. The reason for that is
   // that `table_of_computations_` is shared between the child nodes of a given expression.
-  UnionOf2TablesOfComputations(table_of_computations_, temp);
+  UnionOfComputationTables(table_of_computations_, temp);
 }
 
 /*!
@@ -427,17 +426,17 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
 
   // Calls the VisitExpr() method on the `condition` child
   VisitExpr(op->condition);
-  TableOfComputations computations_done_by_cond = table_of_computations_;
+  ComputationTable computations_done_by_cond = table_of_computations_;
   // Clear it for not importing the computations of the condition in the computations of the then
   table_of_computations_.clear();
 
   // Then calls the VisitStmt() method on the `then_case` child
   VisitStmt(op->then_case);
-  TableOfComputations computations_done_by_then = table_of_computations_;
+  ComputationTable computations_done_by_then = table_of_computations_;
   // Clear it for not importing the computations of the then in the computations of the else
   table_of_computations_.clear();
 
-  TableOfComputations computations_done_by_else;
+  ComputationTable computations_done_by_else;
   if (op->else_case.defined()) {
     // And finally calls the VisitStmt() method on the `then_case` child
     VisitStmt(op->else_case);
@@ -464,17 +463,17 @@ void ComputationsDoneBy::VisitStmt_(const ForNode* op) {
 
   // Calls the VisitExpr() method on the `min` child
   VisitExpr(op->min);
-  TableOfComputations computations_done_by_min = table_of_computations_;
+  ComputationTable computations_done_by_min = table_of_computations_;
   // Clear it for not importing the computations of the min in the computations of the extent
   table_of_computations_.clear();
 
   // Then calls the VisitStmt() method on the `extent` child
   VisitExpr(op->extent);
-  TableOfComputations computations_done_by_extent = table_of_computations_;
+  ComputationTable computations_done_by_extent = table_of_computations_;
   // Clear it for not importing the computations of the extent in the computations of the body
   table_of_computations_.clear();
 
-  TableOfComputations computations_done_by_body;
+  ComputationTable computations_done_by_body;
   // And finally calls the VisitStmt() method on the `body` child
   VisitStmt(op->body);
   computations_done_by_body = table_of_computations_;
@@ -499,20 +498,20 @@ void ComputationsDoneBy::VisitStmt_(const WhileNode* op) {
 
   // Calls the VisitExpr() method on the `condition` child
   VisitExpr(op->condition);
-  TableOfComputations computations_done_by_condition = table_of_computations_;
+  ComputationTable computations_done_by_condition = table_of_computations_;
   // Clear it for not importing the computations of the min in the computations of the extent
   table_of_computations_.clear();
 
   // Then calls the VisitStmt() method on the `body` child
   VisitStmt(op->body);
-  TableOfComputations computations_done_by_body = table_of_computations_;
+  ComputationTable computations_done_by_body = table_of_computations_;
   // Clear it for not importing the computations of the extent in the computations of the body
   table_of_computations_.clear();
 
   // Build a table of computations for this node with two children by computing what is
   // is common between the two child, i.e. computing their intersection
-  table_of_computations_ = IntersectionOf2TablesOfComputations(computations_done_by_condition,
-                              computations_done_by_body);
+  table_of_computations_ = IntersectComputationTables(computations_done_by_condition,
+                                                      computations_done_by_body);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
@@ -529,7 +528,7 @@ void ComputationsDoneBy::VisitStmt_(const WhileNode* op) {
       eligible computation
  * \return The hashtable containing the (syntactic) computations done by children nodes of `expr`
  */
-TableOfComputations ComputationsDoneBy::ComputationsDoneByChildrenOf(
+ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   // We will be using an instance of the class ComputationsDoneBy for the child nodes
@@ -554,7 +553,7 @@ TableOfComputations ComputationsDoneBy::ComputationsDoneByChildrenOf(
                                     eligible computation
  * \return The hashtable contaning the (syntactic) computations done by children nodes of `stmt`
  */
-TableOfComputations ComputationsDoneBy::ComputationsDoneByChildrenOf(
+ComputationTable ComputationsDoneBy::ComputationsDoneByChildrenOf(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> is_eligible_computation,
     std::function<bool(const PrimExpr&)> can_contain_computations) {
   // We will be using an instance of the class ComputationsDoneBy for the child nodes
@@ -709,7 +708,7 @@ void UsesVarName::VisitStmt(const Stmt& stmt) {
 /*!
  * \brief Print a table of computation.
  */
-void PrintTableOfComputations(const TableOfComputations& table)
+void PrintComputationTable(const ComputationTable& table)
  {
   std::cout << "{" << std::endl;
   for(const auto& current : table) {
@@ -747,7 +746,7 @@ bool EquivalentTerms(const PrimExpr& a, const PrimExpr& b) {
           computations.
  */
 std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
-    const TableOfComputations& table) {
+    const ComputationTable& table) {
   std::vector<std::pair<PrimExpr, size_t>> result;
   // table.size() is an upper-bound of the number of elements in the resulting vector,
   // as we might merge semantically equivalent computations.

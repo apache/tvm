@@ -47,10 +47,10 @@ namespace tir {
                               for pursuing further replacements.
  * \return A new expression where the replacements have been done
  */
-PrimExpr ReplaceExprSelected::ReplaceExprSelectedInExpr(
+PrimExpr ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
     const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
-  ReplaceExprSelected replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
+  ReplaceSelectedExpr replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
   return replace_expr_selected.VisitExpr(expr);
 }
 
@@ -63,21 +63,21 @@ PrimExpr ReplaceExprSelected::ReplaceExprSelectedInExpr(
                               for pursuing further replacements
  * \return A new statement where the replacements have been done
  */
-Stmt ReplaceExprSelected::ReplaceExprSelectedInStmt(
+Stmt ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
     const Stmt& stmt, std::function<bool(const PrimExpr&)> predicate_selector,
     const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside) {
-  ReplaceExprSelected replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
+  ReplaceSelectedExpr replace_expr_selected(predicate_selector, new_expr, can_replace_inside);
   return replace_expr_selected.VisitStmt(stmt);
 }
 
 /*!
- * \brief Protected constructor of ReplaceExprSelected.
+ * \brief Protected constructor of ReplaceSelectedExpr.
  * \param predicate_selector The predicate which tells what to replace
  * \param new_expr The new expression that will replace everything that's selected by the predicate
  * \param can_replace_inside The predicate which tells in which nodes we are allowed to recurse
                               for pursuing further replacements
  */
-ReplaceExprSelected::ReplaceExprSelected(std::function<bool(const PrimExpr&)> predicate_selector,
+ReplaceSelectedExpr::ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> predicate_selector,
                                          const PrimExpr& new_expr,
                                          std::function<bool(const PrimExpr&)> can_replace_inside)
     : predicate_selector_(predicate_selector),
@@ -88,7 +88,7 @@ ReplaceExprSelected::ReplaceExprSelected(std::function<bool(const PrimExpr&)> pr
  * \brief The method which overrides the generic dispatcher of StmtExprMutator
  * \param expr The expression to mutate
  */
-PrimExpr ReplaceExprSelected::VisitExpr(const PrimExpr& expr) {
+PrimExpr ReplaceSelectedExpr::VisitExpr(const PrimExpr& expr) {
   // If the current expression is selected by the predicate
   if (predicate_selector_(expr)) {
     // Then simply return the new expression

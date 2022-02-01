@@ -57,7 +57,7 @@ def test_cse():
     # We will check all of that underneath and more, making also sure that nothing else has been changed
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, z3], body))
-    body = tvm.tir.transform.CommonSubexprElim()(mod)
+    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
     tvm.transform.PrintIR()(body)
 
@@ -149,7 +149,7 @@ def test_cse_ifNode_1():
                           tvm.tir.Store(buffer.data, y, i3)))
 
   mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1,i2,i3,y,z], body))
-  body = tvm.tir.transform.CommonSubexprElim()(mod)
+  body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
   tvm.transform.PrintIR()(body)
 
@@ -200,7 +200,7 @@ def test_cse_ifNode_2():
                           tvm.tir.Store(buffer.data, y+z, i3)))                 # and (y+z) is also present in the Else branch
 
   mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1,i2,i3,y,z], body))
-  body = tvm.tir.transform.CommonSubexprElim()(mod)
+  body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
 
   tvm.transform.PrintIR()(body)
 

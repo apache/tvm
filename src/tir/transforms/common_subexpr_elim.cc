@@ -48,7 +48,7 @@
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
 #include "common_subexpr_elim_tools.h"   // For the auxiliary analysis (visitors) and tools
-#include "replace_expr_selected.h"       // For the mutator ReplaceExprSelected
+#include "replace_expr_selected.h"       // For the mutator ReplaceSelectedExpr
 
 namespace tvm {
 namespace tir {
@@ -190,9 +190,9 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
   PrimExpr result = expr;
 
   // Obtain the (syntactic) eligible computations done by the input expression, and keep it as
-  // a TableOfComputations, which is a mapping from PrimExpr to size_t, where the size_t is the
+  // a ComputationTable, which is a mapping from PrimExpr to size_t, where the size_t is the
   // number of time this exact syntactic computation is being computed.
-  TableOfComputations table_syntactic_comp_done_by_expr = ComputationsDoneBy::GetComputationsDoneBy(
+  ComputationTable table_syntactic_comp_done_by_expr = ComputationsDoneBy::GetComputationsDoneBy(
       expr, IsEligibleComputation, CanContainEligibleComputations);
 
   // Transform the hashtable of *syntactic* eligible computations into a vector of pairs
@@ -242,7 +242,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
       // Replace in the current `result` everything that is selected by the selector with
       // the existing variable, without diving into expressions in which we don't have the
       // right to dive.
-      result = ReplaceExprSelected::ReplaceExprSelectedInExpr(
+      result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(
           result, predicate_selector, it_on_var->first, CanContainEligibleComputations);
     } else {
       // The current computation is not equivalent to a computation already done. We will
@@ -271,7 +271,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceExprSelected::ReplaceExprSelectedInExpr(result, predicate_selector, new_var,
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInExpr(result, predicate_selector, new_var,
                                                                 CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = Let(new_var, computation_and_nb.first, result);
@@ -360,9 +360,9 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
   Stmt result = stmt;
 
   // Obtain the (syntactic) eligible computations done by the input statement, and keep it as
-  // a TableOfComputations, which is a mapping from PrimExpr to size_t, where the size_t is the
+  // a ComputationTable, which is a mapping from PrimExpr to size_t, where the size_t is the
   // number of time this exact syntactic computation is being computed.
-  TableOfComputations table_syntactic_comp_done_by_stmt = ComputationsDoneBy::GetComputationsDoneBy(
+  ComputationTable table_syntactic_comp_done_by_stmt = ComputationsDoneBy::GetComputationsDoneBy(
       stmt, IsEligibleComputation, CanContainEligibleComputations);
 
   // Transform the hashtable of *syntactic* eligible computations into a vector of pairs
@@ -412,7 +412,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
       // Replace in the current `result` everything that is selected by the selector with
       // the existing variable, without diving into expressions in which we don't have the
       // right to dive.
-      result = ReplaceExprSelected::ReplaceExprSelectedInStmt(
+      result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
           result, predicate_selector, it_on_var->first, CanContainEligibleComputations);
     } else {
       // The current computation is not equivalent to a computation already done. We will
@@ -441,7 +441,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
-        result = ReplaceExprSelected::ReplaceExprSelectedInStmt(result, predicate_selector, new_var,
+        result = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(result, predicate_selector, new_var,
                                                                 CanContainEligibleComputations);
         // Build a let-in that introduces the new variable in the current `result`
         result = LetStmt(new_var, computation_and_nb.first, result);
@@ -569,7 +569,7 @@ namespace transform {
  * \brief The function which returns the pass for the Common Subexpression Elimination.
  * \return The pass for performing CSE.
  */
-Pass CommonSubexprElim(bool enable_cse_tir) {
+Pass CommonSubexprElimTIR(bool enable_cse_tir) {
   auto pass_func = [enable_cse_tir](PrimFunc f, IRModule m, PassContext ctx) {
     if (enable_cse_tir) {
       auto* n = f.CopyOnWrite();
@@ -590,11 +590,11 @@ Pass CommonSubexprElim(bool enable_cse_tir) {
 
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.CommonSubexprElim", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.CommonSubexprElimTIR", {});
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElim").set_body_typed(CommonSubexprElim);
+TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
 
 }  // namespace transform
 }  // namespace tir

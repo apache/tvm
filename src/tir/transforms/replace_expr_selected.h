@@ -40,20 +40,20 @@ namespace tir {
           in an expression, which only replace inside of nodes in which it is allowed to perform
           replacecements (given by a second predicate)
  */
-class ReplaceExprSelected : public StmtExprMutator {
+class ReplaceSelectedExpr : public StmtExprMutator {
  public:
   // Toplevel (static) functions
-  static PrimExpr ReplaceExprSelectedInExpr(
+  static PrimExpr ReplaceSelectedExprInExpr(
       const PrimExpr& expr, std::function<bool(const PrimExpr&)> predicate_selector,
       const PrimExpr& new_expr, std::function<bool(const PrimExpr&)> can_replace_inside);
-  static Stmt ReplaceExprSelectedInStmt(const Stmt& stmt,
+  static Stmt ReplaceSelectedExprInStmt(const Stmt& stmt,
                                         std::function<bool(const PrimExpr&)> predicate_selector,
                                         const PrimExpr& new_expr,
                                         std::function<bool(const PrimExpr&)> can_replace_inside);
 
  protected:
   // Constructor
-  ReplaceExprSelected(std::function<bool(const PrimExpr&)> predicate_selector,
+  ReplaceSelectedExpr(std::function<bool(const PrimExpr&)> predicate_selector,
                       const PrimExpr& new_expr,
                       std::function<bool(const PrimExpr&)> can_replace_inside);
 
