@@ -996,7 +996,8 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
-  pass_seqs.push_back(transform::VMPlanMemory());
+  // Insert kills to free memory.
+  pass_seqs.push_back(transform::ManifestLifetimes());
 
   // Lift constants to the top-level of the block to simplify VM code generation.
   // TODO(@icemelon9, @jroesch): Remove this pass for now because some

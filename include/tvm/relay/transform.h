@@ -471,7 +471,13 @@ TVM_DLL Pass RelayToTIRTargetHook();
  */
 TVM_DLL Pass ManifestAlloc(VirtualDevice cpu_virtual_device);
 
-TVM_DLL Pass VMPlanMemory();
+/*!
+ * \brief A pass for manifesting variable lifetimes by inserting kill operations when variables
+ * become dead. This pass should be run after ManifestAlloc, and should not be run more than once.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ManifestLifetimes();
 
 /*!
  * \brief Uses existing "on_device" and "device_copy" CallNodes to infer the \p VirtualDevice on

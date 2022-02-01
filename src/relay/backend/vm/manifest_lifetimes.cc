@@ -18,13 +18,12 @@
  */
 
 /*!
- * \file src/relay/backend/vm/plan_memory.cc
- * \brief Tensor and storage liveness analysis and memory planning.
+ * \file src/relay/backend/vm/manifest_lifetimes.cc
+ * \brief Analysis and explicit manifestation of variable lifetimes.
  */
 
 #include <tvm/relay/transform.h>
 
-#include "../../../support/arena.h"
 #include "../../op/memory/device_copy.h"
 #include "../../transforms/device_aware_visitors.h"
 #include "../../transforms/let_list.h"
@@ -35,6 +34,15 @@ namespace transform {
 
 using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
 
+// TODO(@altanh, @mbs, @mbrookhart): we should do a survey of all "*-flow graphs" in the codebase
+//                                   to see what can be deduplicated.
+
+// TODO(@altanh): support Relay Refs once/if they are supported by the VM.
+
+/*!
+ * \brief A representation of an input expression (typically a Function) as a directed graph of
+ * basic blocks, with edges between basic blocks corresponding to control flow branching.
+ */
 class ControlFlowGraph {
  public:
   struct Node;
@@ -43,6 +51,15 @@ class ControlFlowGraph {
   using NodePtr = std::shared_ptr<Node>;
   using BasicBlockPtr = std::shared_ptr<BasicBlock>;
 
+  /*!
+   * \brief A chunk of IR that does not have any control flow branching. At this stage in the IR,
+   * basic blocks correspond to:
+   *   (1) a sequence of nested Let expressions, where each node in the block corresponds to a
+   *       binding and the last node is either the (non-Let) body or a binding that branches
+   *       (e.g. "let %x = if (%c) { true_block } else { false_block }").
+   *   (2) an atomic expression representing the target expression of a control flow branch, e.g.
+   *       %v and %u in "let %x = if (%c) { %v } else { %u }".
+   */
   struct BasicBlock {
     // The nodes of the basic block.
     std::vector<NodePtr> nodes;
@@ -54,20 +71,26 @@ class ControlFlowGraph {
     static BasicBlockPtr Make() { return std::make_shared<BasicBlock>(); }
   };
 
+  /*!
+   * \brief Roughly corresponds to a "statement" in the IR, such as an individual binding in a
+   * basic block or the "return value" of a block. Each node maps to a single corresponding expr in
+   * the IR, but the converse is not true (e.g. in the case of variables).
+   */
   struct Node {
-    // The basic block this node belongs to.
+    /*! \brief The basic block this node belongs to. */
     BasicBlockPtr parent;
-    // The index into the parent basic block where this node is.
+    /*! \brief The index into the parent basic block where this node is. */
     size_t index;
-    // The expr corresponding to this node.
+    /*! \brief The expr this node corresponds to. */
     Expr expr;
 
+    /*! \brief Returns whether or not this node is the first one in the parent basic block. */
     bool IsFirst() const { return index == 0; }
 
-    // Returns whether or not this node is the last one in the parent basic block.
+    /*! \brief Returns whether or not this node is the last one in the parent basic block. */
     bool IsLast() const { return index == parent->nodes.size() - 1; }
 
-    // Returns the predecessor nodes of this node.
+    /*! \brief Returns the predecessor nodes of this node. */
     std::vector<NodePtr> GetPred() const {
       std::vector<NodePtr> pred;
       if (IsFirst()) {
@@ -80,7 +103,7 @@ class ControlFlowGraph {
       return pred;
     }
 
-    // Returns the successor nodes of this node.
+    /*! \brief Returns the successor nodes of this node. */
     std::vector<NodePtr> GetSucc() const {
       std::vector<NodePtr> succ;
       if (IsLast()) {
@@ -93,7 +116,7 @@ class ControlFlowGraph {
       return succ;
     }
 
-    // Creates a node with the given expr and pushes it to the end of the parent basic block.
+    /*! \brief Creates a node with the given expr and appends it to the parent basic block. */
     static NodePtr Make(BasicBlockPtr parent, Expr expr) {
       NodePtr n = std::make_shared<Node>();
       n->parent = parent;
@@ -104,21 +127,26 @@ class ControlFlowGraph {
     }
   };
 
+  /*! \brief The basic block where control flow begins. */
   BasicBlockPtr entry;
 
-  // Let expressions are never shared in ANF (unlike vars), so this is an injection.
+  /*!
+   * \brief Mapping from Let expressions to their corresponding nodes. Note that Let expressions
+   * are never shared in ANF (unlike vars), so this is an injection.
+   */
   std::unordered_map<Expr, NodePtr, ObjectPtrHash, ObjectPtrEqual> let_map;
 
+  /*! \brief The nodes of the CFG in reverse post order. */
   std::vector<NodePtr> reverse_post_order;
 
+  /*! \brief Creates and returns the CFG of the given expression. */
   static ControlFlowGraph Create(const Expr& body);
 
  private:
   class Creator;
 };
 
-using NodeList = std::vector<ControlFlowGraph::Node*>;
-
+/*! \brief Helper class for building CFGs. */
 class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlockPtr)> {
  public:
   Creator() {}
@@ -130,9 +158,17 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
   }
 
  private:
+  /*! \brief The CFG being built. */
   ControlFlowGraph cfg_;
+  /*!
+   * \brief Whether or not we are in a function. CFGs do not support nested functions so this is
+   * used to error out in such a case.
+   */
   bool in_func_ = false;
 
+  /*!
+   * \brief Link \p to as a successor block to \p from.
+   */
   void Succ(BasicBlockPtr from, BasicBlockPtr to) {
     from->succ.push_back(to);
     to->pred.push_back(from);
@@ -148,6 +184,7 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
     ICHECK(!in_func_) << "nested functions not supported by CFG analysis";
     in_func_ = true;
 
+    // Unwrap the nested function and proceed normally.
     if (f->HasNonzeroAttr(attr::kClosure)) {
       ICHECK(f->body.as<FunctionNode>());
       return VisitExpr(Downcast<Function>(f->body)->body, parent);
@@ -221,8 +258,11 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
 
 ControlFlowGraph ControlFlowGraph::Create(const Expr& body) { return Creator().Create(body); }
 
-// NOTE: for If exprs, only the condition is included (not the branches). Similarly, for Match
-//       exprs only the value being deconstructed is included.
+/*!
+ * \brief Helper class for collecting the variables used/read by an expression. NOTE: for If exprs,
+ * only the condition is included (not the branches). Similarly, for Match exprs only the value
+ * being deconstructed is included.
+ */
 class VarUseCollector : public ExprFunctor<VarSet(const Expr& e)> {
  public:
   VarSet VisitExpr_(const VarNode* var_node) { return {GetRef<Var>(var_node)}; }
@@ -260,10 +300,16 @@ class VarUseCollector : public ExprFunctor<VarSet(const Expr& e)> {
   VarSet VisitExpr_(const OpNode* op_node) { return {}; }
 };
 
+/*!
+ * \brief Analysis that collects the variables used and defined at each node.
+ */
 struct UseDefAnalysis {
   using CFG = ControlFlowGraph;
 
+  /*! \brief Mapping of node -> variables used/read by node. */
   std::unordered_map<CFG::NodePtr, VarSet> use;
+
+  /*! \brief Mapping of node -> variable defined/written by node. */
   std::unordered_map<CFG::NodePtr, Var> def;
 
   VarUseCollector use_collector;
@@ -287,6 +333,7 @@ struct UseDefAnalysis {
   }
 };
 
+/*! \brief Returns whether \p a and \p b are the same set of vars. */
 bool SetEqual(const VarSet& a, const VarSet& b) {
   if (a.size() != b.size()) {
     return false;
@@ -299,12 +346,25 @@ bool SetEqual(const VarSet& a, const VarSet& b) {
   return true;
 }
 
+/*!
+ * \brief Analysis that collects the live variables before and after each node.
+ */
 struct LivenessAnalysis {
   using CFG = ControlFlowGraph;
 
+  /*! \brief Mapping of node -> set of variables live before node. */
   std::unordered_map<CFG::NodePtr, VarSet> live_in;
+
+  /*! \brief Mapping of node -> set of variables live after node. */
   std::unordered_map<CFG::NodePtr, VarSet> live_out;
 
+  /*!
+   * \brief Analyze the input \p cfg (using info from \p use_def).
+   *
+   * \param cfg The input control flow graph.
+   * \param use_def Use-def analysis of \p cfg.
+   * \return LivenessAnalysis
+   */
   static LivenessAnalysis Analyze(const ControlFlowGraph& cfg, const UseDefAnalysis& use_def) {
     LivenessAnalysis a;
     std::list<CFG::NodePtr> worklist;
@@ -312,6 +372,7 @@ struct LivenessAnalysis {
     // Initialize worklist to post-order traversal for quick convergence.
     worklist.insert(worklist.end(), cfg.reverse_post_order.rbegin(), cfg.reverse_post_order.rend());
 
+    // See https://lambda.uta.edu/cse5317/notes/node40.html for an overview of the algorithm.
     auto visitor = [&](const CFG::NodePtr n) {
       VarSet old_in_n = a.live_in[n];
       VarSet old_out_n = a.live_out[n];
@@ -349,9 +410,27 @@ struct LivenessAnalysis {
   }
 };
 
+/*!
+ * \brief Helper class to insert kills using liveness information.
+ */
 class KillInserter : public ExprMutator {
  public:
   KillInserter(const ControlFlowGraph* cfg, const LivenessAnalysis* lva) : cfg_(cfg), lva_(lva) {}
+
+  // For simplicity, we only insert kills when visiting Let bindings, and always emit the kill as a
+  // single subsequent binding. This is slightly inaccurate; for example, if the condition of an If
+  // is dead after the test, we can immediately kill the condition in each branch:
+  //   let %x = if (%dead_cond) {
+  //     let %_0 = memory.kill(%dead_cond);
+  //     ...
+  //   } else {
+  //     let %_1 = memory.kill(%dead_cond);
+  //     ...
+  //   }
+  // as opposed to:
+  //   let %x = if (%dead_cond) ...
+  //   let %_0 = memory.kill(%dead_cond);
+  // This is unlikely to be a problem in practice though.
 
   Expr VisitExpr_(const LetNode* let_node) override {
     Expr expr = GetRef<Expr>(let_node);
@@ -391,6 +470,12 @@ class KillInserter : public ExprMutator {
   const LivenessAnalysis* lva_;
 };
 
+/*!
+ * \brief Helper class to eliminate variable aliasing. This pass anticipates the VM compiler's
+ * register aliasing behavior so as to avoid killing vars that point to the same register. An
+ * alternative approach would be to track aliasing within the VM compiler itself, so that kill
+ * instructions are only emitted when all aliases are killed.
+ */
 class AliasEliminator : public MixedModeMutator {
  public:
   Expr VisitExpr_(const LetNode* let_node) override {
@@ -485,10 +570,14 @@ class AliasEliminator : public MixedModeMutator {
   }
 
  private:
+  /*!
+   * \brief Mapping of var -> var it's an alias of. Note that transitive aliases
+   * (e.g. x = 0; y = x; z = y) are mapped to the non-aliased variable (in this example "x").
+   */
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> alias_;
 };
 
-Pass VMPlanMemory() {
+Pass ManifestLifetimes() {
   auto pass_func = [](Function f, IRModule m, PassContext pc) -> Function {
     f = Downcast<Function>(AliasEliminator().Mutate(f));
     ControlFlowGraph cfg = ControlFlowGraph::Create(f);
@@ -498,10 +587,10 @@ Pass VMPlanMemory() {
     Function nf = Downcast<Function>(ki.Mutate(f));
     return nf;
   };
-  return CreateFunctionPass(pass_func, 0, "VMPlanMemory", {});
+  return CreateFunctionPass(pass_func, 0, "ManifestLifetimes", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.VMPlanMemory").set_body_typed(VMPlanMemory);
+TVM_REGISTER_GLOBAL("relay._transform.ManifestLifetimes").set_body_typed(ManifestLifetimes);
 
 }  // namespace transform
 }  // namespace relay
