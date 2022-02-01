@@ -93,7 +93,7 @@ class ThreadGroup {
    *
    * \param mode The preferred CPU type (1 = big, -1 = little).
    * \param nthreads The number of threads to use (0 = use all).
-   * \param cpus A list of cpu to use for affinity setting.
+   * \param cpus A list of CPU used to set 'cpu affinity'.
    * \param exclude_worker0 Whether to use the main thread as a worker.
    *        If  `true`, worker0 will not be launched in a new thread and
    *        `worker_callback` will only be called for values >= 1. This

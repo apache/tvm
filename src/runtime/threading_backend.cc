@@ -70,8 +70,7 @@ class ThreadGroup::Impl {
       num_workers_used = big_count_;
     } else if (mode == kSpecify) {
       num_workers_used = cpus.size();
-      // Set the cpu list.
-      UpdateSortedOrder(cpus);
+      sorted_order_ = cpus;
     } else {
       // use default
       num_workers_used = threading::MaxConcurrency();
@@ -185,11 +184,6 @@ class ThreadGroup::Impl {
 
   void SetMasterThreadFullCpuAffinity(AffinityMode mode) {
     SetThreadFullCpuAffinity(CURRENT_THREAD_HANDLE, mode);
-  }
-
-  void UpdateSortedOrder(std::vector<unsigned int> cpus) {
-    sorted_order_ = cpus;
-    return;
   }
 
   void InitSortedOrder() {

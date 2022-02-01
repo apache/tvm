@@ -56,7 +56,7 @@ class AffinityCheck {
     pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
     std::lock_guard<std::mutex> lock(mutex_);
     thread_affinity_[task_id] = cpuset;
-    // Print the affinity information of current thread into log.
+    // Printing the current thread CPU affinity.
     std::ostringstream str;
     for (int i = 0; i < max_concurrency_; i++) {
       if (CPU_ISSET(i, &cpuset)) {
@@ -149,28 +149,33 @@ TEST(ThreadingBackend, TVMBackendParallelLaunchMultipleThreads) {
 TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
   int max_concurrency = tvm::runtime::threading::MaxConcurrency();
   std::vector<std::unique_ptr<std::thread>> ts;
+  // Returning as there is only one CPU available.
   if (max_concurrency <= 1) {
     return;
   }
-  const int thread_pool_num = max_concurrency > 1 ? 2 : 1;
-  const int cpus_num_per_pool = max_concurrency / thread_pool_num;
+  // Creating two threads to test the 'CPU list affinity' feature.
+  const int threads_num = 2;
+  // Getting the maximum number of CPU which is available to each thread.
+  const int cpus_num_per_thread = max_concurrency / threads_num;
+  // Testing two scenario of concurrency. The '0' means there is no concurrency limitaion,
+  // The '3' means the value of maximium concurrency is '3'.
   std::vector<int> concurrency = {0, 3};
-  for (auto value : concurrency) {
-    for (int i = 0; i < thread_pool_num; i++) {
+  for (auto concurrency_value : concurrency) {
+    for (int thread_pool_idx = 0; thread_pool_idx < threads_num; thread_pool_idx++) {
       ts.emplace_back(new std::thread(
-          [&](int j, int sys_max_concurrency, int concurrency_config) {
+          [&](int thread_pool_index, int sys_max_concurrency, int concurrency_config) {
             std::atomic<size_t> acc(0);
-            AffinityCheck ac(j, sys_max_concurrency, &acc);
+            AffinityCheck ac(thread_pool_index, sys_max_concurrency, &acc);
             std::vector<unsigned int> cpus;
-            for (int k = 0; k < cpus_num_per_pool; k++) {
-              cpus.push_back(j * cpus_num_per_pool + k);
+            for (int k = 0; k < cpus_num_per_thread; k++) {
+              cpus.push_back(thread_pool_index * cpus_num_per_thread + k);
             }
-            if (concurrency_config != 0) {
-              // Setting max concurrency number as 3 as well as setting the affinity cpu list.
+            if (concurrency_config > 0) {
+              // Testing the 'Configure' functin with the 'max_concurrency' parameter.
               tvm::runtime::threading ::Configure(tvm::runtime::threading::ThreadGroup::kSpecify, 0,
                                                   cpus, concurrency_config);
             } else {
-              // Setting max concurrency as no limitation as well as setting the affinity cpu list.
+              // Testing the 'Configure' function without the 'max_concurrency' parameter.
               tvm::runtime::threading ::Configure(tvm::runtime::threading::ThreadGroup::kSpecify, 0,
                                                   cpus);
             }
@@ -178,7 +183,7 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
             EXPECT_EQ(ac.GetComputeResult(), N * (N - 1) / 2);
             EXPECT_EQ(ac.VerifyAffinity(cpus), true);
           },
-          i, max_concurrency, value));
+          thread_pool_idx, max_concurrency, concurrency_value));
     }
   }
   for (auto& t : ts) {
