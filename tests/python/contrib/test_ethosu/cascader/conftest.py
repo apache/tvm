@@ -22,31 +22,35 @@ try:
 except ImportError:
     ethosu_enabled = False
 
+import tvm.contrib.ethosu.cascader as cs
+
+
+@pytest.fixture
+def FLASH():
+    return cs.MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
+
+
+@pytest.fixture
+def DRAM():
+    return cs.MemoryRegion(name="DRAM", size=10 ** 9, read_bandwidth=8, write_bandwidth=8)
+
+
+@pytest.fixture
+def SRAM():
+    return cs.MemoryRegion(name="SRAM", size=10 ** 6, read_bandwidth=16, write_bandwidth=16)
+
 
 if ethosu_enabled:
     import tvm
     from tvm import relay
     from tvm.relay.testing import run_opt_pass
 
-    import tvm.contrib.ethosu.cascader as cs
     from .infra import create_te_graph
     from ..infra import (
         make_ethosu_conv2d,
         make_ethosu_depthwise_conv2d,
         make_ethosu_binary_elementwise,
     )
-
-    @pytest.fixture
-    def FLASH():
-        return cs.MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
-
-    @pytest.fixture
-    def DRAM():
-        return cs.MemoryRegion(name="DRAM", size=10 ** 9, read_bandwidth=8, write_bandwidth=8)
-
-    @pytest.fixture
-    def SRAM():
-        return cs.MemoryRegion(name="SRAM", size=10 ** 6, read_bandwidth=16, write_bandwidth=16)
 
     def make_TwoConv2DTE():
         def _get_func():
@@ -134,7 +138,7 @@ if ethosu_enabled:
     @pytest.fixture
     def TwoConv2DWithSliceTE():
         return make_TwoConv2DWithSliceTE()
-    
+
     @pytest.fixture
     def TwoConv2DWithSliceGraph():
         _, te_graph, const_dict = make_TwoConv2DWithSliceTE()

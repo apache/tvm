@@ -17,7 +17,7 @@
 import pytest
 
 import tvm.contrib.ethosu.cascader as cs
-from .infra import make_simple_home_map, make_options
+from .infra import make_simple_home_map, make_options, ethosu_enabled
 
 from tvm.contrib.ethosu.cascader.plan_generator import (
     generate_output_stripe_configs,
@@ -145,34 +145,35 @@ def test_generate_graph_plans(SRAM, DRAM):
     assert len(closed_plans) == num_part_groups
 
 
-def test_plan_generator_two_conv2d(FLASH, SRAM, TwoConv2DGraph):
-    num_part_groups = 3
-    graph = TwoConv2DGraph
-    home_map = make_simple_home_map(graph, SRAM, FLASH)
-    options = make_options(
-        cascade_region=SRAM,
-        stripe_factors=4,
-        max_plan_size=10,
-    )
+if ethosu_enabled:
 
-    closed_plans = generate_graph_plans(graph, home_map, options)
+    def test_plan_generator_two_conv2d(FLASH, SRAM, TwoConv2DGraph):
+        num_part_groups = 3
+        graph = TwoConv2DGraph
+        home_map = make_simple_home_map(graph, SRAM, FLASH)
+        options = make_options(
+            cascade_region=SRAM,
+            stripe_factors=4,
+            max_plan_size=10,
+        )
 
-    assert len(closed_plans) == num_part_groups
+        closed_plans = generate_graph_plans(graph, home_map, options)
 
+        assert len(closed_plans) == num_part_groups
 
-def test_plan_generator_two_conv2d_with_slice(FLASH, SRAM, TwoConv2DWithSliceGraph):
-    num_part_groups = 4  # Note this is not 6 because 'slice' has an opaque Propagator
-    graph = TwoConv2DWithSliceGraph
-    home_map = make_simple_home_map(graph, SRAM, FLASH)
-    options = make_options(
-        cascade_region=SRAM,
-        stripe_factors=4,
-        max_plan_size=10,
-    )
+    def test_plan_generator_two_conv2d_with_slice(FLASH, SRAM, TwoConv2DWithSliceGraph):
+        num_part_groups = 4  # Note this is not 6 because 'slice' has an opaque Propagator
+        graph = TwoConv2DWithSliceGraph
+        home_map = make_simple_home_map(graph, SRAM, FLASH)
+        options = make_options(
+            cascade_region=SRAM,
+            stripe_factors=4,
+            max_plan_size=10,
+        )
 
-    closed_plans = generate_graph_plans(graph, home_map, options)
+        closed_plans = generate_graph_plans(graph, home_map, options)
 
-    assert len(closed_plans) == num_part_groups
+        assert len(closed_plans) == num_part_groups
 
 
 if __name__ == "__main__":

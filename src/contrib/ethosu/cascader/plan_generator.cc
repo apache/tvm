@@ -188,8 +188,7 @@ std::vector<TensorConfig> GetPossibleInputConfigs(const StripeConfig& stripe_con
   std::vector<TensorConfig> configs;
   for (const auto& home_region : home_regions) {
     // Boundary configs
-    if (home_region == options->cascade_region ||
-        tensor->GetSize() > options->always_copy_size) {
+    if (home_region == options->cascade_region || tensor->GetSize() > options->always_copy_size) {
       configs.push_back(TensorConfig(tensor, home_region, TensorConfigState::BOUNDARY,
                                      BufferMode::RECOMPUTE, {stripe_config}, false, home_region));
     }
