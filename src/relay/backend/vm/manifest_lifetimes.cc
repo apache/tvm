@@ -19,7 +19,8 @@
 
 /*!
  * \file src/relay/backend/vm/manifest_lifetimes.cc
- * \brief Analysis and explicit manifestation of variable lifetimes.
+ * \brief Analysis and explicit manifestation of variable lifetimes. NOTE: the input IR should be in
+ * ANF and post-memory-lowering (explicit manifestation of allocations).
  */
 
 #include <tvm/relay/transform.h>
@@ -203,6 +204,8 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
       cfg_.let_map[expr] = curr_node;
       cfg_.reverse_post_order.push_back(curr_node);
 
+      // The basic block ends upon reaching control flow, with successor blocks corresponding to the
+      // control flow branch exprs (true/false in If, and one for each clause in Match).
       if (const IfNode* ite = AsIgnoringOnDevice<IfNode>(inner_let_node->value)) {
         // Create the basic blocks for each branch and mark them as successors to the current block.
         BasicBlockPtr t_block = BasicBlock::Make();
@@ -419,9 +422,9 @@ class KillInserter : public ExprMutator {
 
   // Limitations
   // -----------
-  // 1. For simplicity, we only insert kills when visiting Let bindings, and always emit the kill as
-  // a single subsequent binding. This is slightly inaccurate; for example, if the condition of an
-  // If is dead after the test, we can immediately kill the condition in each branch:
+  // (1) For simplicity, we only insert kills when visiting Let bindings, and always emit the kill
+  // as a single subsequent binding. This is slightly inaccurate; for example, if the condition of
+  // an If is dead after the test, we can immediately kill the condition in each branch:
   //   let %x = if (%dead_cond) {
   //     let %_0 = memory.kill(%dead_cond);
   //     ...
@@ -433,16 +436,40 @@ class KillInserter : public ExprMutator {
   //   let %x = if (%dead_cond) ...
   //   let %_0 = memory.kill(%dead_cond);
   //
-  // 2. Killed variables are calculated as live in - live out, which misses variables that are
-  // actually dead but not in live in. Examples include: when the last use of a var is the result
-  // expr of an If branch; when bound vars (i.e. function inputs, pattern matched vars, dead
-  // bindings) are never used.
+  // (2) Killed variables are calculated as live in - live out, which misses variables that are
+  // actually dead but not in a live-in set. Example:
+  //   @f(%x: int, %y: int, %c: bool) {
+  //     let %w = if (%c) {
+  //       let %z = %y + %y;
+  //       %z
+  //     } else {
+  //       %y
+  //     };
+  //     %w
+  //   }
+  // After inserting kills:
+  //   @f(%x: int, %y: int, %c: bool) {
+  //     /* %x is always dead, so never in any live in or live out set */
+  //     let %w = if (%c) {
+  //       let %z = %y + %y;
+  //       let %_0 = memory.kill(%y);
+  //       %z
+  //     } else {
+  //       %y
+  //       /* %y is dead at this point */
+  //     };
+  //     let %_1 = memory.kill(%c);
+  //     /* no kill for %y since it's not in the live-in of %w AND %w isn't a let binding */
+  //     %w
+  //   }
   //
-  // 3. When the result expr of an If branch is a variable, and this expr is the last use of the
+  // (3) When the result expr of an If branch is a variable, and this expr is the last use of the
   // var, we cannot "kill" the var since it is being returned. The VM compiler also emits a Move
   // instruction to merge the branch results, which creates another ObjectRef to the Object held
   // by the var. The var is also not in the subsequent live-in (since it is indeed dead by this
-  // point), so it won't be killed.
+  // point), so it won't be killed. An example can be seen in the previous code block for (2), where
+  // %y is not killed if the else-branch is taken (and indeed it can be killed, as %w is mapped to
+  // a new register and holds a fresh reference to the object referenced by %y).
   //
   // However, these limitations are unlikely to cause large leaks in practice.
 
@@ -508,6 +535,8 @@ class AliasEliminator : public MixedModeMutator {
         aliased = true;
       } else if (AsIgnoringOnDevice<CallNode>(val)) {
         // Copying to the same device is aliasing.
+        // WARNING: this must be kept in sync with the VM compiler logic in
+        // src/relay/backend/vm/compiler.cc, line 541, in DeviceAwareVisitExpr_(const CallNode*).
         Expr unwrapped = IgnoreOnDevice(val);
         DeviceCopyProps copy_props = GetDeviceCopyProps(unwrapped);
         if (copy_props.body.defined()) {
@@ -553,12 +582,7 @@ class AliasEliminator : public MixedModeMutator {
 
   Expr VisitExpr_(const FunctionNode* func_node) override {
     Expr new_body = VisitExpr(func_node->body);
-    Function result = GetRef<Function>(func_node);
-    if (!new_body.same_as(func_node->body)) {
-      result = Function(func_node->params, new_body, func_node->ret_type, func_node->type_params,
-                        func_node->attrs, func_node->span);
-    }
-    return result;
+    return WithFields(GetRef<Function>(func_node), /*opt_params=*/NullOpt, /*opt_body=*/new_body);
   }
 
   // The only register-level aliasing that occurs in Match expressions is when
