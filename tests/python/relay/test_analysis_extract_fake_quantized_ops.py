@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test function extraction"""
-import pytest
 import tvm
 from tvm import relay
 
@@ -35,8 +34,9 @@ def test_fake_quantize_conv():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 1
-    assert fake_quantized_op_freqs["nn.conv2d"] == 1
+    print(fake_quantized_op_freqs)
+
+    assert dict(fake_quantized_op_freqs) == {"nn.conv2d": 1}
 
 
 def test_fake_quantize_dense():
@@ -53,8 +53,7 @@ def test_fake_quantize_dense():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 1
-    assert fake_quantized_op_freqs["nn.dense"] == 1
+    assert dict(fake_quantized_op_freqs) == {"nn.dense": 1}
 
 
 def test_fake_quantize_multiple_regions():
@@ -72,9 +71,10 @@ def test_fake_quantize_multiple_regions():
     op = relay.op.nn.relu(op)
     op = relay.qnn.op.quantize(op, relay.const(1.0), zero, out_dtype="int8")
 
+    w2 = relay.var("w2", shape=[64, 256], dtype="int8")
     op = relay.op.nn.dense(
         relay.qnn.op.dequantize(op, relay.const(1.0), zero),
-        relay.qnn.op.dequantize(w, relay.const(0.5), zero),
+        relay.qnn.op.dequantize(w2, relay.const(0.5), zero),
     )
     op = relay.qnn.op.quantize(op, relay.const(1.0), zero, out_dtype="int8")
 
@@ -85,10 +85,7 @@ def test_fake_quantize_multiple_regions():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 2
-    assert fake_quantized_op_freqs["nn.dense"] == 2
-    assert fake_quantized_op_freqs["nn.relu"] == 1
-    assert "sigmoid" not in fake_quantized_op_freqs
+    assert dict(fake_quantized_op_freqs) == {"nn.dense": 2, "nn.relu": 1}
 
 
 def test_fake_quantize_maxpool():
@@ -102,8 +99,7 @@ def test_fake_quantize_maxpool():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 1
-    assert fake_quantized_op_freqs["nn.max_pool2d"] == 1
+    assert dict(fake_quantized_op_freqs) == {"nn.max_pool2d": 1}
 
 
 def test_fake_quantize_transpose_reshape():
@@ -118,9 +114,7 @@ def test_fake_quantize_transpose_reshape():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 2
-    assert fake_quantized_op_freqs["transpose"] == 1
-    assert fake_quantized_op_freqs["reshape"] == 1
+    assert dict(fake_quantized_op_freqs) == {"transpose": 1, "reshape": 1}
 
 
 def test_fake_quantize_concat():
@@ -138,5 +132,4 @@ def test_fake_quantize_concat():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    assert len(fake_quantized_op_freqs) == 1
-    assert fake_quantized_op_freqs["concatenate"] == 1
+    assert dict(fake_quantized_op_freqs) == {"concatenate": 1}

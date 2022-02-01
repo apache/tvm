@@ -23,71 +23,45 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/transform.h>
+
+#include "../transforms/fake_quantization_to_integer.h"
 
 namespace tvm {
 namespace relay {
 
 using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
 
-class FakeQuantizedRegionExtractor : public ExprVisitor {
- public:
-  const ExprSet GetRegion(const Expr& expr) {
-    VisitExpr(expr);
-    ExprSet region;
-    for (auto kv : this->visit_counter_) {
-      if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
-        if (call_node->op != quantize_op_ && call_node->op != dequantize_op_) {
-          region.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
-        }
-      }
-    }
-    return region;
-  }
-
- protected:
-  void VisitExpr_(const CallNode* call_node) override {
-    if (call_node->op == quantize_op_) {
-      // only look at arg0 for quantize
-      VisitExpr(call_node->args[0]);
-    } else if (call_node->op != dequantize_op_) {
-      // run normally on everything else.
-      ExprVisitor::VisitExpr_(call_node);
-    }
-  }
-
-  const Op quantize_op_ = Op::Get("qnn.quantize");
-  const Op dequantize_op_ = Op::Get("qnn.dequantize");
-};
-
 class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
  public:
-  explicit ExtractFakeQuantizedOpsWrapper(const IRModule& mod) : mod_(mod) {}
-
-  Map<String, tvm::Integer> Extract() {
-    VisitExpr(this->mod_->Lookup("main"));
+  Map<String, tvm::Integer> Extract(const IRModule& m) {
+    IRModule mod(m);
+    mod = transform::InferType()(mod);
+    VisitExpr(mod->Lookup("main"));
 
     return fake_quantized_op_freqs_;
   }
 
  private:
   using MixedModeVisitor::VisitExpr_;
-
-  const IRModule mod_;
   /*! \brief Dict of fake quantized op names to frequency counts */
   Map<String, tvm::Integer> fake_quantized_op_freqs_;
 
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
-      FakeQuantizedRegionExtractor extractor;
-      ExprSet region = extractor.GetRegion(GetRef<Expr>(call_node));
+      SubgraphExtractor extractor;
+      ExprSet subgraph = extractor.GetSubgraph(GetRef<Expr>(call_node));
 
-      for (auto expr : region) {
+      for (auto expr : subgraph) {
         const Op op = Downcast<Op>(expr.as<CallNode>()->op);
         auto op_name = op->name;
-        if (fake_quantized_op_freqs_.find(op_name) != fake_quantized_op_freqs_.end()) {
-          fake_quantized_op_freqs_.Set(op_name, 1 + fake_quantized_op_freqs_.at(op_name));
-        } else {
-          fake_quantized_op_freqs_.Set(op_name, 1);
+        if (op != dequantize_op_) {
+          if (fake_quantized_op_freqs_.find(op_name) != fake_quantized_op_freqs_.end()) {
+            fake_quantized_op_freqs_.Set(op_name,
+                                         int64_t(fake_quantized_op_freqs_.at(op_name)) + 1);
+          } else {
+            fake_quantized_op_freqs_.Set(op_name, 1);
+          }
         }
       }
     }
@@ -98,7 +72,7 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
 };
 
 Map<String, tvm::Integer> ExtractFakeQuantizedOpsPacked(const IRModule& mod) {
-  return ExtractFakeQuantizedOpsWrapper(mod).Extract();
+  return ExtractFakeQuantizedOpsWrapper().Extract(mod);
 }
 
 TVM_REGISTER_GLOBAL("relay.analysis.ExtractFakeQuantizedOps")
