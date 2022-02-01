@@ -16,41 +16,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-#
-# Initialize Zephyr Project.
-#
-# Usage: ubuntu_init_zephyr_project.sh path branch [--commit hash]
-#   path is the installation path for the repository.
-#   branch is the zephyr branch.
-#   --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
-#
-
+set -e
+set -u
+set -o pipefail
 set -x
 
-DOWNLOAD_DIR=$1
+INSTALLATION_PATH=$1
 shift
 
-if [ "$1" == "--zephyr-branch" ]; then
-    shift
-    ZEPHYR_BRANCH=$1
-else
-    ZEPHYR_BRANCH="v2.7-branch"
-    shift
-fi
-
-COMMIT_HASH=
-if [ "$1" == "--commit" ]; then
-    shift
-    COMMIT_HASH=$1
-fi
-
-west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
-
-if [ -n "$COMMIT_HASH" ]; then
-    cd ${DOWNLOAD_DIR}/zephyr
-    git checkout ${COMMIT_HASH}
-fi
-
-cd ${DOWNLOAD_DIR}
-west update
-west zephyr-export
+ZEPHYR_SDK_VERSION=0.13.2
+ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
+wget --no-verbose -O $ZEPHYR_SDK_FILE \
+    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
+chmod +x $ZEPHYR_SDK_FILE
+"./$ZEPHYR_SDK_FILE" -- -d ${INSTALLATION_PATH}
+rm "$ZEPHYR_SDK_FILE"

@@ -85,13 +85,8 @@ echo PATH=$PATH
 
 cd ~
 echo "Downloading zephyr SDK..."
-ZEPHYR_SDK_VERSION=0.12.3
-ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
-wget --no-verbose -O $ZEPHYR_SDK_FILE \
-    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
-chmod +x $ZEPHYR_SDK_FILE
-"./$ZEPHYR_SDK_FILE" -- -d ~/zephyr-sdk -y
-rm -rf "${ZEPHYR_SDK_FILE}"
+~/ubuntu_install_zephyr_sdk.sh ~/zephyr-sdk
+rm -f ubuntu_install_zephyr_sdk.sh
 
 # GDB for Zephyr SDK depends on python3.8
 sudo add-apt-repository ppa:deadsnakes/ppa
