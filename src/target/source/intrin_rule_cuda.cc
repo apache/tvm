@@ -74,7 +74,7 @@ struct CUDAFastMathTan : public CUDAMath {
         case 32:
           return name + 'f';
         case 16:
-          LOG(FATAL) << "cuda tan unsupported for float16";
+          return 'h' + name;
         default:
           return "";
       }
