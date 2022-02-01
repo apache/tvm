@@ -382,6 +382,8 @@ class LocalRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -392,6 +394,7 @@ class LocalRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         if enable_cpu_cache_flush:
             number = 1
@@ -405,6 +408,7 @@ class LocalRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
 
@@ -453,6 +457,8 @@ class RPCRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -468,6 +474,7 @@ class RPCRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
@@ -482,6 +489,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -532,6 +540,8 @@ class LocalRPCMeasureContext:
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -544,6 +554,7 @@ class LocalRPCMeasureContext:
         min_repeat_ms=0,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.tracker import Tracker
@@ -570,6 +581,7 @@ class LocalRPCMeasureContext:
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
         # Wait for the processes to start
         time.sleep(0.5)
@@ -1172,7 +1184,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
