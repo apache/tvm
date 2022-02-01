@@ -40,7 +40,7 @@ namespace cmsisnn {
  * \brief This Mutator finds all partitioned functions meant for CMSIS-NN binary ops.
  * Then, it substitutes the scalar constants with tensor constants. It makes the shape of this
  * new constant same as that of the neighbouring constant of the other binary operand. The
- * expectation is that the ExtractConstant pass would later kick this tensor constant out of the
+ * expectation is that the ExtractConstant pass would later extract this tensor constant out of the
  * global partitioned function, thus making the entire global partitioned and its composite function
  * constant free. This makes the TIR generation for binary ops via CMSIS-NN independent of
  * constants.
@@ -67,31 +67,10 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     Expr final_call = post;
     call = post.as<CallNode>();
 
-    // Create a new variable argument that is of the same shape as the neibouring argument
+    // Create a new variable argument that is of the same shape as the neighbouring argument
     // in the binary op. This needs to be done only when one of the arguments is a scalar.
-    if (auto* opnode = call->op.as<OpNode>()) {
-      String op_name = opnode->name;
-      Array<Expr> new_args;
-      for (uint32_t i = 0; i < call->args.size(); ++i) {
-        Expr arg = call->args[i];
-        new_args.push_back(arg);
-        if (!arg->checked_type_.defined()) {
-          continue;
-        }
-        auto* arg_type = arg->type_as<TensorTypeNode>();
-        if (arg_type->shape.size() != 0 || arg.as<ConstantNode>()) {
-          continue;
-        }
-        String arg_name = arg.as<VarNode>()->name_hint();
-        int tensor_arg_id = (i + 1) % 2;
-        Expr tensor_arg = call->args[tensor_arg_id];
-        if (!tensor_arg->checked_type_.defined()) {
-          continue;
-        }
-        TensorType tensor_type = GetRef<TensorType>(tensor_arg->type_as<TensorTypeNode>());
-        new_args.Set(i, Var(arg_name, tensor_type));
-      }
-      final_call = Call(call->op, new_args, call->attrs, {});
+    if (call->op.as<OpNode>()) {
+      final_call = ReplaceScalarWithTensorVariable(GetRef<Call>(call));
     }
 
     if (auto* glob_var_node = call->op.as<GlobalVarNode>()) {
@@ -105,8 +84,8 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
       if (new_body.same_as(func->body)) {
         return final_call;
       }
-      Function new_func = Function(FreeVars(new_body), new_body, func->ret_type,
-                                   FreeTypeVars(new_body, mod_), func->attrs);
+      Function new_func = WithFields(func, FreeVars(new_body), new_body, func->ret_type,
+                                     FreeTypeVars(new_body, mod_), func->attrs);
       mod_->Update(global_var, new_func);
       final_call = Call(global_var, call->args);
     }
@@ -117,43 +96,80 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     if (auto* func_node = call->op.as<FunctionNode>()) {
       Function func = GetRef<Function>(func_node);
       auto func_name = func->GetAttr<String>(attr::kComposite);
-      if (!func_name.defined() ||
-          (func_name != "cmsis-nn.qnn_add" && func_name != "cmsis-nn.qnn_mul")) {
-        return final_call;
+      if (func_name.defined() &&
+          (func_name == "cmsis-nn.qnn_add" || func_name == "cmsis-nn.qnn_mul")) {
+        final_call = ReplaceScalarWithTensorConstant(GetRef<Call>(call), func);
       }
-      Array<Expr> new_args;
-      for (uint32_t i = 0; i < call->args.size(); ++i) {
-        Expr scalar_arg = call->args[i];
-        Array<PrimExpr> scalar_shape = scalar_arg->type_as<TensorTypeNode>()->shape;
-        if (scalar_shape.size() == 0 && scalar_arg.as<ConstantNode>()) {
-          int tensor_arg_id = (i + 1) % 2;
-          Expr tensor_arg = call->args[tensor_arg_id];
-          Constant tensor_constant = TensorConstantFromScalar(scalar_arg, tensor_arg);
-          new_args.push_back(tensor_constant);
-        } else {
-          new_args.push_back(call->args[i]);
-        }
-      }
-      auto new_body = VisitExpr(func->body);
-      Function new_func = Function(FreeVars(new_body), new_body, func->ret_type,
-                                   FreeTypeVars(new_body, mod_), func->attrs);
-      final_call = Call(new_func, new_args);
     }
 
     return final_call;
   }
 
-  // Makes tensor constant of same shape as tensor_arg with values from scalar_arg
-  Constant TensorConstantFromScalar(Expr scalar_arg, Expr tensor_arg) {
-    int8_t scalar_value = GetScalarFromConstant<int8_t>(scalar_arg);
-    TensorType tensor_type = GetRef<TensorType>(tensor_arg->type_as<TensorTypeNode>());
-    std::vector<int64_t> tensor_shape;
-    for (auto& dim : tensor_type->shape) {
-      tensor_shape.push_back(qnn::get_const_int(dim));
+  // Replaces scalar variable with a tensor variable with same shape as that of the neibouring
+  // operand tensor in a binary op
+  Call ReplaceScalarWithTensorVariable(Call call) {
+    const OpNode* opnode = call->op.as<OpNode>();
+    if (opnode == nullptr) {
+      return call;
     }
-    int tensor_num_elements = qnn::get_const_int(tensor_type->Size());
-    std::vector<int8_t> tensor_values(tensor_num_elements, scalar_value);
-    return MakeConstantTensor<int8_t>(DataType::Int(8), tensor_shape, tensor_values);
+    String op_name = opnode->name;
+    Array<Expr> new_args;
+    for (uint32_t i = 0; i < call->args.size(); ++i) {
+      Expr arg = call->args[i];
+      new_args.push_back(arg);
+      if (!arg->checked_type_.defined()) {
+        continue;
+      }
+      auto* arg_type = arg->type_as<TensorTypeNode>();
+      if (arg_type->shape.size() != 0 || arg.as<ConstantNode>()) {
+        continue;
+      }
+      String arg_name = arg.as<VarNode>()->name_hint();
+      int tensor_arg_id = (i + 1) % 2;
+      Expr tensor_arg = call->args[tensor_arg_id];
+      if (!tensor_arg->checked_type_.defined()) {
+        continue;
+      }
+      TensorType tensor_type = GetRef<TensorType>(tensor_arg->type_as<TensorTypeNode>());
+      new_args.Set(i, Var(arg_name, tensor_type));
+    }
+    return Call(call->op, new_args, call->attrs, {});
+  }
+
+  // Makes tensor constant of same shape as tensor_arg with values from scalar_arg
+  Call ReplaceScalarWithTensorConstant(Call call, Function func) {
+    Array<Expr> new_args;
+    for (uint32_t i = 0; i < call->args.size(); ++i) {
+      new_args.push_back(call->args[i]);
+      Expr scalar_arg = call->args[i];
+      if (!scalar_arg->checked_type_.defined()) {
+        continue;
+      }
+      Array<PrimExpr> scalar_shape = scalar_arg->type_as<TensorTypeNode>()->shape;
+      if (scalar_shape.size() != 0 || scalar_arg.as<ConstantNode>() == nullptr) {
+        continue;
+      }
+      int tensor_arg_id = (i + 1) % 2;
+      Expr tensor_arg = call->args[tensor_arg_id];
+      if (!tensor_arg->checked_type_.defined()) {
+        continue;
+      }
+      TensorType tensor_type = GetRef<TensorType>(tensor_arg->type_as<TensorTypeNode>());
+      std::vector<int64_t> tensor_shape;
+      for (auto& dim : tensor_type->shape) {
+        tensor_shape.push_back(qnn::get_const_int(dim));
+      }
+      int8_t scalar_value = GetScalarFromConstant<int8_t>(scalar_arg);
+      int tensor_num_elements = qnn::get_const_int(tensor_type->Size());
+      std::vector<int8_t> tensor_values(tensor_num_elements, scalar_value);
+      Constant tensor_constant =
+          MakeConstantTensor<int8_t>(DataType::Int(8), tensor_shape, tensor_values);
+      new_args.Set(i, tensor_constant);
+    }
+    auto new_body = VisitExpr(func->body);
+    Function new_func = WithFields(func, FreeVars(new_body), new_body, func->ret_type,
+                                   FreeTypeVars(new_body, mod_), func->attrs);
+    return Call(new_func, new_args);
   }
 
  private:

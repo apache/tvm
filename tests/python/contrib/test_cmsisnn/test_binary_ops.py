@@ -37,43 +37,40 @@ from tests.python.relay.aot.aot_test_utils import (
 )
 
 
-class BinaryOpInputType(Enum):
-    Variable = 0
-    TensorConstant = 1
-    ScalarConstant = 2
+def generate_tensor_constant():
+    rng = np.random.default_rng(12321)
+    dtype = "int8"
+    shape = (1, 16, 16, 3)
+    values = tvm.nd.array(
+        rng.integers(np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=shape, dtype=dtype)
+    )
+    return relay.const(values, dtype)
+
+
+def generate_scalar_constant():
+    dtype = "int8"
+    return relay.const(-30, dtype)
+
+
+def generate_variable(name, dtype="int8"):
+    return relay.var(name, shape=(1, 16, 16, 3), dtype=dtype)
 
 
 def make_model(
     op,
-    shape,
-    input_0_dtype,
-    input_1_dtype,
+    input_0,
+    input_1,
     input_0_scale,
     input_0_zero_point,
     input_1_scale,
     input_1_zero_point,
     out_scale=1.0 / 256,
     out_zero_point=-128,
-    input_0_type=BinaryOpInputType.Variable,
-    input_1_type=BinaryOpInputType.Variable,
 ):
     """Create a Relay Function / network model"""
-
-    def create_input(name, input_type, shape, dtype):
-        if input_type == BinaryOpInputType.Variable:
-            return relay.var(name, shape=shape, dtype=dtype)
-        if input_type == BinaryOpInputType.TensorConstant:
-            rng = np.random.default_rng(12321)
-            values = tvm.nd.array(
-                rng.integers(np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=shape, dtype=dtype)
-            )
-            return relay.const(values, dtype)
-        if input_type == BinaryOpInputType.ScalarConstant:
-            return relay.const(tvm.nd.array(np.array(-32).astype(dtype)), dtype)
-
     return op(
-        create_input("input_0", input_0_type, shape, input_0_dtype),
-        create_input("input_1", input_1_type, shape, input_1_dtype),
+        input_0,
+        input_1,
         relay.const(input_0_scale, "float32"),
         relay.const(input_0_zero_point, "int32"),
         relay.const(input_1_scale, "float32"),
@@ -104,9 +101,8 @@ def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_z
     shape = [1, 16, 16, 3]
     model = make_model(
         op,
-        shape,
-        dtype,
-        dtype,
+        generate_variable("input_0"),
+        generate_variable("input_1"),
         input_0_scale,
         input_0_zero_point,
         input_1_scale,
@@ -153,35 +149,29 @@ def test_op_int8(op, input_0_scale, input_0_zero_point, input_1_scale, input_1_z
     )
 
 
-# At least one of the inputs is a constant
+# At least one of the inputs is a constant, both can't be variables, both can't be scalars
 def parameterize_for_constant_inputs(test):
     op = [relay.qnn.op.mul, relay.qnn.op.add]
-    input_0_type = [
-        BinaryOpInputType.Variable,
-        BinaryOpInputType.TensorConstant,
-        BinaryOpInputType.ScalarConstant,
-    ]
-    input_1_type = [
-        BinaryOpInputType.Variable,
-        BinaryOpInputType.TensorConstant,
-        BinaryOpInputType.ScalarConstant,
-    ]
-    all_combinations = itertools.product(op, input_0_type, input_1_type)
+    input_0 = [generate_variable("input_0"), generate_tensor_constant(), generate_scalar_constant()]
+    input_1 = [generate_variable("input_1"), generate_tensor_constant(), generate_scalar_constant()]
+    all_combinations = itertools.product(op, input_0, input_1)
     all_combinations = filter(
         lambda parameters: not (
             (
-                parameters[1] == BinaryOpInputType.Variable
-                and parameters[2] == BinaryOpInputType.Variable
+                isinstance(parameters[1], tvm.relay.expr.Var)
+                and isinstance(parameters[2], tvm.relay.expr.Var)
             )
             or (
-                parameters[1] == BinaryOpInputType.ScalarConstant
-                and parameters[2] == BinaryOpInputType.ScalarConstant
+                isinstance(parameters[1], tvm.relay.expr.Constant)
+                and isinstance(parameters[2], tvm.relay.expr.Constant)
+                and parameters[1].data.numpy().ndim == 0
+                and parameters[2].data.numpy().ndim == 0
             )
         ),
         all_combinations,
     )
     return pytest.mark.parametrize(
-        ["op", "input_0_type", "input_1_type"],
+        ["op", "input_0", "input_1"],
         all_combinations,
     )(test)
 
@@ -189,7 +179,7 @@ def parameterize_for_constant_inputs(test):
 @skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 @parameterize_for_constant_inputs
-def test_constant_input_int8(op, input_0_type, input_1_type):
+def test_constant_input_int8(op, input_0, input_1):
     interface_api = "c"
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
@@ -202,15 +192,12 @@ def test_constant_input_int8(op, input_0_type, input_1_type):
     input_1_zero_point = -24
     model = make_model(
         op,
-        shape,
-        dtype,
-        dtype,
+        input_0,
+        input_1,
         input_0_scale,
         input_0_zero_point,
         input_1_scale,
         input_1_zero_point,
-        input_0_type=input_0_type,
-        input_1_type=input_1_type,
     )
     orig_mod = make_module(model)
 
@@ -236,9 +223,9 @@ def test_constant_input_int8(op, input_0_type, input_1_type):
     # validate the output
     in_min, in_max = get_range_for_dtype_str(dtype)
     inputs = {}
-    if input_0_type == BinaryOpInputType.Variable:
+    if isinstance(input_0, tvm.relay.expr.Var):
         inputs.update({"input_0": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)})
-    if input_1_type == BinaryOpInputType.Variable:
+    if isinstance(input_1, tvm.relay.expr.Var):
         inputs.update({"input_1": np.random.randint(in_min, high=in_max, size=shape, dtype=dtype)})
     output_list = generate_ref_data(orig_mod["main"], inputs)
     compile_and_run(
@@ -265,15 +252,12 @@ def test_both_scalar_inputs_int8(
     dtype = "int8"
     model = make_model(
         op,
-        [1, 16, 16, 3],
-        dtype,
-        dtype,
+        generate_scalar_constant(),
+        generate_scalar_constant(),
         input_scale,
         input_zero_point,
         input_scale,
         input_zero_point,
-        input_0_type=BinaryOpInputType.ScalarConstant,
-        input_1_type=BinaryOpInputType.ScalarConstant,
     )
 
     orig_mod = make_module(model)
@@ -299,9 +283,8 @@ def test_invalid_parameters(
     input_zero_point = 33
     model = make_model(
         op,
-        [1, 16, 16, 3],
-        input_dtype,
-        input_dtype,
+        generate_variable("input_0", input_dtype),
+        generate_variable("input_1", input_dtype),
         input_scale,
         input_zero_point,
         input_scale,

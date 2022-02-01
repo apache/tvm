@@ -78,15 +78,15 @@ class ExtractConstantsMutator : public MixedModeMutator {
   // to func
   Array<Expr> CreateNewCallArgsFromKickedoutConstants(Call call, Function func) {
     ICHECK(function_to_arguments_.find(func) != function_to_arguments_.end());
-    Array<Expr> fSignature(function_to_arguments_[func]);
+    Array<Expr> function_signature(function_to_arguments_[func]);
 
     // Is func a global_function?
-    // main() is not registered for kicking out constants
+    // main() is not registered for extracting constants
     bool is_global_function = functions_.empty() ? true : false;
 
     bool new_constants_added = false;
-    // This tracks arguments traversed inside fSignature
-    uint32_t fsignature_id = 0;
+    // This tracks arguments traversed inside function_signature
+    uint32_t function_signature_id = 0;
     // This contains arguments including constants for the caller of this function inside which
     // post_call resides.
     Array<Expr> new_caller_args;
@@ -97,19 +97,19 @@ class ExtractConstantsMutator : public MixedModeMutator {
       if (auto* constant = arg.as<ConstantNode>()) {
         new_caller_args.push_back(arg);
         new_call_args.push_back(Var(gen_var_name(), constant->tensor_type()));
-        ++fsignature_id;
+        ++function_signature_id;
         new_constants_added = true;
         continue;
       }
 
-      // Push all constants from the fSignature until a variable corresponding to current argument
-      // is hit
-      while (fsignature_id < fSignature.size()) {
-        auto* constant = fSignature[fsignature_id].as<ConstantNode>();
+      // Push all constants from the function_signature until a variable corresponding to the
+      // current argument is hit
+      while (function_signature_id < function_signature.size()) {
+        auto* constant = function_signature[function_signature_id].as<ConstantNode>();
         if (constant == nullptr) {
           break;
         }
-        new_caller_args.push_back(fSignature[fsignature_id++]);
+        new_caller_args.push_back(function_signature[function_signature_id++]);
         new_call_args.push_back(Var(gen_var_name(), constant->tensor_type()));
         new_constants_added = true;
       }
@@ -118,12 +118,12 @@ class ExtractConstantsMutator : public MixedModeMutator {
       if (is_global_function || arg.as<VarNode>()) {
         new_caller_args.push_back(arg);
       }
-      ++fsignature_id;
+      ++function_signature_id;
     }
 
     // Push remaining constants as new arguments
-    for (uint32_t i = fsignature_id; i < fSignature.size(); ++i) {
-      auto* constant = fSignature[i].as<ConstantNode>();
+    for (uint32_t i = function_signature_id; i < function_signature.size(); ++i) {
+      auto* constant = function_signature[i].as<ConstantNode>();
       ICHECK(constant)
           << "Rest of the collected arguments should be constant in the partitioned function.";
       new_caller_args.push_back(GetRef<Constant>(constant));
@@ -134,8 +134,9 @@ class ExtractConstantsMutator : public MixedModeMutator {
     // Update the arguments of caller of local function
     if (new_constants_added && !is_global_function) {
       const Function& last_func = functions_.back();
-      Array<Expr> fconstants(function_to_arguments_[last_func]);
-      function_to_arguments_.Set(last_func, tvm::runtime::Concat(fconstants, new_caller_args));
+      Array<Expr> function_constants(function_to_arguments_[last_func]);
+      function_to_arguments_.Set(last_func,
+                                 tvm::runtime::Concat(function_constants, new_caller_args));
     } else {
       new_call_args = new_caller_args;
     }
@@ -152,7 +153,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
     if (!functions_.empty() && call->op.as<OpNode>()) {
       Array<Expr> new_args;
       const Function& last_func = functions_.back();
-      Array<Expr> fSignature(function_to_arguments_[last_func]);
+      Array<Expr> function_signature(function_to_arguments_[last_func]);
       for (auto& arg : post_call->args) {
         // Push all arguments including constants to maintain correct order of
         // variables and constants
@@ -160,15 +161,15 @@ class ExtractConstantsMutator : public MixedModeMutator {
         if (const_arg && !const_arg->is_scalar()) {
           Var var_arg = Var(gen_var_name(), const_arg->tensor_type());
           new_args.push_back(var_arg);
-          fSignature.push_back(arg);
+          function_signature.push_back(arg);
         } else {
           if (arg.as<VarNode>()) {
-            fSignature.push_back(arg);
+            function_signature.push_back(arg);
           }
           new_args.push_back(arg);
         }
       }
-      function_to_arguments_.Set(last_func, fSignature);
+      function_to_arguments_.Set(last_func, function_signature);
       final_call = Call(call->op, new_args, call->attrs, {});
     }
 
