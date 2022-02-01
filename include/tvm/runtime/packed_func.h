@@ -902,6 +902,7 @@ class TVMRetValue : public TVMPODValue_ {
       ObjectRef::FFIClearAfterMove(&other);
     } else {
       SwitchToPOD(kTVMNullptr);
+      value_.v_handle = nullptr;
     }
     return *this;
   }
@@ -1041,6 +1042,7 @@ class TVMRetValue : public TVMPODValue_ {
       other.data_ = nullptr;
     } else {
       SwitchToPOD(kTVMNullptr);
+      value_.v_handle = nullptr;
     }
   }
   void Clear() {
@@ -1580,6 +1582,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     }
   } else {
     type_codes_[i] = kTVMNullptr;
+    values_[i].v_handle = nullptr;
   }
 }
 
@@ -1702,6 +1705,7 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
     SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   } else {
     SwitchToPOD(kTVMNullptr);
+    value_.v_handle = nullptr;
   }
   return *this;
 }
