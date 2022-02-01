@@ -44,8 +44,6 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
 
  private:
   using MixedModeVisitor::VisitExpr_;
-  /*! \brief Dict of fake quantized op names to frequency counts */
-  Map<String, tvm::Integer> fake_quantized_op_freqs_;
 
   void VisitExpr_(const CallNode* call_node) override {
     if (call_node->op == quantize_op_) {
@@ -54,19 +52,19 @@ class ExtractFakeQuantizedOpsWrapper : private MixedModeVisitor {
 
       for (auto expr : subgraph) {
         const Op op = Downcast<Op>(expr.as<CallNode>()->op);
-        auto op_name = op->name;
         if (op != dequantize_op_) {
-          if (fake_quantized_op_freqs_.find(op_name) != fake_quantized_op_freqs_.end()) {
-            fake_quantized_op_freqs_.Set(op_name,
-                                         int64_t(fake_quantized_op_freqs_.at(op_name)) + 1);
+          if (fake_quantized_op_freqs_.find(op->name) != fake_quantized_op_freqs_.end()) {
+            fake_quantized_op_freqs_.Set(op->name,
+                                         int64_t(fake_quantized_op_freqs_.at(op->name)) + 1);
           } else {
-            fake_quantized_op_freqs_.Set(op_name, 1);
+            fake_quantized_op_freqs_.Set(op->name, 1);
           }
         }
       }
     }
   }
 
+  Map<String, tvm::Integer> fake_quantized_op_freqs_;
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };

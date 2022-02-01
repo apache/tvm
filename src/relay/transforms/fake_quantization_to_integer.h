@@ -20,8 +20,6 @@
 /*!
  * \file src/relay/transforms/fake_quantization_to_integer.h
  * \brief Extract subgraph of a fake quantized region.
- *
- * https://llvm.org/doxygen/CallGraph_8h_source.html
  */
 #ifndef TVM_RELAY_TRANSFORMS_FAKE_QUANTIZATION_TO_INTEGER_H_
 #define TVM_RELAY_TRANSFORMS_FAKE_QUANTIZATION_TO_INTEGER_H_
