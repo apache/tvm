@@ -342,7 +342,7 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
 
   CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0->data);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (has_bias && no_bias_scaling && !has_residual_block) {
+  if ((!has_bias || no_bias_scaling) && !has_residual_block) {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   } else {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
