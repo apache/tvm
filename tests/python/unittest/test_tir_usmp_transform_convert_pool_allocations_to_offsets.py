@@ -140,20 +140,20 @@ class LinearStructure:
 @tvm.script.ir_module
 class LinearStructurePlanned:
     @T.prim_func
-    def run_model(input: T.handle, fast_memory_0_var: T.handle, slow_memory_1_var: T.handle,  output: T.handle) -> None:
+    def run_model(input: T.handle, fast_memory_0_var: T.Ptr[T.uint8], slow_memory_1_var: T.Ptr[T.uint8],  output: T.handle) -> None:
         fast_memory_0_buffer_var = T.match_buffer(fast_memory_0_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
         slow_memory_1_buffer_var = T.match_buffer(slow_memory_1_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
-        sid_9_let: T.handle = T.address_of(slow_memory_1_buffer_var[1117472], dtype="handle")
-        sid_8_let: T.handle = T.address_of(slow_memory_1_buffer_var[0], dtype="handle")
+        sid_9_let: T.Ptr[T.int8] = T.address_of(slow_memory_1_buffer_var[1117472], dtype="handle")
+        sid_8_let: T.Ptr[T.int8] = T.address_of(slow_memory_1_buffer_var[0], dtype="handle")
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract", input, T.lookup_param("p0", dtype="handle"), sid_9_let, fast_memory_0_buffer_var.data, slow_memory_1_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", sid_9_let, T.lookup_param("p1", dtype="handle"), T.lookup_param("p2", dtype="handle"), sid_8_let, fast_memory_0_buffer_var.data, slow_memory_1_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_max_pool2d_cast", sid_8_let, output, fast_memory_0_buffer_var.data, slow_memory_1_buffer_var.data, dtype="int32"))
 
     @T.prim_func
-    def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle, fast_memory_6_var: T.handle, slow_memory_7_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle, fast_memory_6_var: T.Ptr[T.uint8], slow_memory_7_var: T.Ptr[T.uint8]) -> None:
         placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8")
         T_cast_7 = T.match_buffer(T_cast_6, [1, 56, 56, 64], dtype="int16")
         fast_memory_6_buffer_var = T.match_buffer(fast_memory_6_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
@@ -170,7 +170,7 @@ class LinearStructurePlanned:
                 T_cast_7[ax0_ax1_fused_5 * 3584 + ax2_5 * 64 + ax3_3] = T.cast(tensor_2_let[ax0_ax1_fused_5 * 3584 + ax2_5 * 64 + ax3_3], "int16")
 
     @T.prim_func
-    def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle, fast_memory_2_var: T.handle, slow_memory_3_var: T.handle) -> None:
+    def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle, fast_memory_2_var: T.Ptr[T.uint8], slow_memory_3_var: T.Ptr[T.uint8]) -> None:
         placeholder_4 = T.match_buffer(placeholder_2, [1, 224, 224, 3], dtype="uint8")
         placeholder_5 = T.match_buffer(placeholder_3, [], dtype="int16")
         T_subtract_1 = T.match_buffer(T_subtract, [1, 224, 224, 3], dtype="int16")
@@ -181,7 +181,7 @@ class LinearStructurePlanned:
             T_subtract_1[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1] = T.cast(placeholder_4[ax0_ax1_fused_1 * 672 + ax2_1 * 3 + ax3_inner_1], "int16") - placeholder_5[0]
 
     @T.prim_func
-    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle, fast_memory_4_var: T.handle, slow_memory_5_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle, fast_memory_4_var: T.Ptr[T.uint8], slow_memory_5_var: T.Ptr[T.uint8]) -> None:
         placeholder_65 = T.match_buffer(placeholder_62, [1, 224, 224, 3], dtype="int16")
         placeholder_66 = T.match_buffer(placeholder_63, [7, 7, 3, 64], dtype="int16")
         placeholder_67 = T.match_buffer(placeholder_64, [1, 1, 1, 64], dtype="int32")
@@ -189,12 +189,12 @@ class LinearStructurePlanned:
         fast_memory_4_buffer_var = T.match_buffer(fast_memory_4_var, [200704], dtype="uint8", strides=[1], elem_offset=1, align=16)
         slow_memory_5_buffer_var = T.match_buffer(slow_memory_5_var, [1418528], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
-        PaddedInput_7_let = T.buffer_decl([307856], "int16")
+        PaddedInput_7_let = T.buffer_decl([157323], "int16")
         with T.let(PaddedInput_7_let.data, T.address_of(slow_memory_5_buffer_var[802816], dtype="handle")):
             for i0_i1_fused_7, i2_7, i3_7 in T.grid(229, 229, 3):
                 PaddedInput_7_let[i0_i1_fused_7 * 687 + i2_7 * 3 + i3_7] = T.if_then_else(2 <= i0_i1_fused_7 and i0_i1_fused_7 < 226 and 2 <= i2_7 and i2_7 < 226, placeholder_65[i0_i1_fused_7 * 672 + i2_7 * 3 + i3_7 - 1350], T.int16(0), dtype="int16")
             for ax0_ax1_fused_ax2_fused_7 in T.serial(0, 12544):
-                Conv2dOutput_7_let = T.buffer_decl([50176], "int32")
+                Conv2dOutput_7_let = T.buffer_decl([64], "int32")
                 with T.let(Conv2dOutput_7_let.data, T.address_of(fast_memory_4_buffer_var[0], dtype="handle")):
                     for ff_3 in T.serial(0, 64):
                         Conv2dOutput_7_let[ff_3] = 0
@@ -237,17 +237,10 @@ def test_mobilenet_subgraph():
     )(tir_mod)
 
     tir_mod_with_offsets_ref = LinearStructurePlanned
-    tir_mod_with_offsets_ref = tvm.script.from_source(
-        tir_mod_with_offsets_ref.script(show_meta=False)
-    )
-    # The TIR produced fails on roundtrip TVMScript testing.
-    # Therefore, indicates the TVMScript produced here and/or the parser
-    # is lacking functionality. Thus for these tests, uses a string
-    # version of the TVMScript for each function as a check instead.
-    for gv, func in tir_mod_with_offsets_ref.functions.items():
-        assert str(tir_mod_with_offsets_ref[gv.name_hint].script()) == str(
-            tir_mod_with_offsets[gv.name_hint].script()
-        )
+
+    for gv, ref_func in tir_mod_with_offsets_ref.functions.items():
+        actual_func = tir_mod_with_offsets[gv.name_hint]
+        tvm.ir.assert_structural_equal(actual_func, ref_func)
 
 
 # fmt: off
@@ -374,7 +367,7 @@ class ResnetStructure:
 @tvm.script.ir_module
 class ResnetStructurePlanned:
     @T.prim_func
-    def tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast(placeholder: T.handle, placeholder_1: T.handle, T_cast: T.handle, global_workspace_1_var: T.handle) -> None:
+    def tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast(placeholder: T.handle, placeholder_1: T.handle, T_cast: T.handle, global_workspace_1_var: T.Ptr[T.uint8]) -> None:
         placeholder_2 = T.match_buffer(placeholder, [1, 75, 75, 64], dtype="uint8")
         placeholder_3 = T.match_buffer(placeholder_1, [64], dtype="int32")
         T_cast_1 = T.match_buffer(T_cast, [1, 75, 75, 64], dtype="int16")
@@ -384,7 +377,7 @@ class ResnetStructurePlanned:
             T_cast_1[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(T.cast(placeholder_2[ax0_ax1_fused * 4800 + ax2 * 64 + ax3_outer * 16 + ax3_inner], "int32") - 94, 1843157232, 31, 1, dtype="int32") + placeholder_3[ax3_outer * 16 + ax3_inner], 255), 0), "uint8"), "int16")
 
     @T.prim_func
-    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_(placeholder_22: T.handle, placeholder_23: T.handle, placeholder_24: T.handle, placeholder_25: T.handle, T_cast_6: T.handle, global_workspace_5_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_4200876283395191415_(placeholder_22: T.handle, placeholder_23: T.handle, placeholder_24: T.handle, placeholder_25: T.handle, T_cast_6: T.handle, global_workspace_5_var: T.Ptr[T.uint8]) -> None:
         placeholder_29 = T.match_buffer(placeholder_22, [1, 75, 75, 64], dtype="int16")
         placeholder_27 = T.match_buffer(placeholder_23, [1, 1, 64, 256], dtype="int16")
         placeholder_26 = T.match_buffer(placeholder_24, [1, 1, 1, 256], dtype="int32")
@@ -397,7 +390,7 @@ class ResnetStructurePlanned:
             for i0_i1_fused_3, i2_3, i3_3 in T.grid(75, 75, 64):
                 PaddedInput_3_let[i0_i1_fused_3 * 4800 + i2_3 * 64 + i3_3] = placeholder_29[i0_i1_fused_3 * 4800 + i2_3 * 64 + i3_3]
             for ax0_ax1_fused_ax2_fused_3 in T.serial(0, 5625):
-                Conv2dOutput_3_let = T.buffer_decl([180064], 'int32')
+                Conv2dOutput_3_let = T.buffer_decl([64], 'int32')
                 with T.let(Conv2dOutput_3_let.data, T.address_of(global_workspace_5_buffer_var[7200000], dtype="handle")):
                     for ax3_outer_2 in T.serial(0, 4):
                         for ff_3 in T.serial(0, 64):
@@ -408,7 +401,7 @@ class ResnetStructurePlanned:
                             T_cast_7[ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4] = T.cast(T.max(T.min(T.q_multiply_shift(T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_3_let[ax3_inner_4] + placeholder_26[ax3_outer_2 * 64 + ax3_inner_4], 1343014664, 31, -8, dtype="int32") + 136, 255), 0), "uint8"), "int32") - 136, 1073903788, 31, 1, dtype="int32") + placeholder_28[ax0_ax1_fused_ax2_fused_3 * 256 + ax3_outer_2 * 64 + ax3_inner_4], 255), 0), "uint8")
 
     @T.prim_func
-    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_(placeholder_16: T.handle, placeholder_17: T.handle, placeholder_18: T.handle, T_add: T.handle, global_workspace_4_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_add_clip_cast_cast_subtract_fixed_point_15934180698220515269_(placeholder_16: T.handle, placeholder_17: T.handle, placeholder_18: T.handle, T_add: T.handle, global_workspace_4_var: T.Ptr[T.uint8]) -> None:
         placeholder_19 = T.match_buffer(placeholder_16, [1, 75, 75, 64], dtype="int16")
         placeholder_20 = T.match_buffer(placeholder_17, [1, 1, 64, 256], dtype="int16")
         placeholder_21 = T.match_buffer(placeholder_18, [1, 1, 1, 256], dtype="int32")
@@ -431,7 +424,7 @@ class ResnetStructurePlanned:
                             T_add_1[ax0_ax1_fused_ax2_fused_2 * 256 + ax3_outer_1 * 64 + ax3_inner_3] = T.q_multiply_shift(T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_2_let[ax3_inner_3] + placeholder_21[ax3_outer_1 * 64 + ax3_inner_3], 1711626602, 31, -8, dtype="int32") + 132, 255), 0), "uint8"), "int32") - 132, 2094289803, 31, -2, dtype="int32") + 136
 
     @T.prim_func
-    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast(placeholder_4: T.handle, placeholder_5: T.handle, placeholder_6: T.handle, T_cast_2: T.handle, global_workspace_2_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast(placeholder_4: T.handle, placeholder_5: T.handle, placeholder_6: T.handle, T_cast_2: T.handle, global_workspace_2_var: T.Ptr[T.uint8]) -> None:
         placeholder_7 = T.match_buffer(placeholder_4, [1, 75, 75, 64], dtype="int16")
         placeholder_8 = T.match_buffer(placeholder_5, [1, 1, 64, 64], dtype="int16")
         placeholder_9 = T.match_buffer(placeholder_6, [1, 1, 1, 64], dtype="int32")
@@ -453,19 +446,19 @@ class ResnetStructurePlanned:
                         T_cast_3[ax0_ax1_fused_ax2_fused * 64 + ax3_inner_1] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_let[ax3_inner_1] + placeholder_9[ax3_inner_1], 1843106743, 31, -6, dtype="int32"), 255), 0), "uint8"), "int16")
 
     @T.prim_func
-    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1(placeholder_10: T.handle, placeholder_11: T.handle, placeholder_12: T.handle, T_cast_4: T.handle, global_workspace_3_var: T.handle) -> None:
+    def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1(placeholder_10: T.handle, placeholder_11: T.handle, placeholder_12: T.handle, T_cast_4: T.handle, global_workspace_3_var: T.Ptr[T.uint8]) -> None:
         placeholder_13 = T.match_buffer(placeholder_10, [1, 75, 75, 64], dtype="int16")
         placeholder_14 = T.match_buffer(placeholder_11, [3, 3, 64, 64], dtype="int16")
         placeholder_15 = T.match_buffer(placeholder_12, [1, 1, 1, 64], dtype="int32")
         T_cast_5 = T.match_buffer(T_cast_4, [1, 75, 75, 64], dtype="int16")
         global_workspace_3_buffer_var = T.match_buffer(global_workspace_3_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
-        PaddedInput_1_let = T.buffer_decl([3600000], "int16")
+        PaddedInput_1_let = T.buffer_decl([379456], "int16")
         with T.let(PaddedInput_1_let.data, T.address_of(global_workspace_3_buffer_var[0], dtype="handle")):
             for i0_i1_fused_1, i2_1, i3_1 in T.grid(77, 77, 64):
                 PaddedInput_1_let[i0_i1_fused_1 * 4928 + i2_1 * 64 + i3_1] = T.if_then_else(1 <= i0_i1_fused_1 and i0_i1_fused_1 < 76 and 1 <= i2_1 and i2_1 < 76, placeholder_13[i0_i1_fused_1 * 4800 + i2_1 * 64 + i3_1 - 4864], T.int16(0), dtype="int16")
             for ax0_ax1_fused_ax2_fused_1 in T.serial(0, 5625):
-                Conv2dOutput_1_let = T.buffer_decl([180064], "int32")
+                Conv2dOutput_1_let = T.buffer_decl([64], "int32")
                 with T.let(Conv2dOutput_1_let.data, T.address_of(global_workspace_3_buffer_var[7200000], dtype="handle")):
                     for ff_1 in T.serial(0, 64):
                         Conv2dOutput_1_let[ff_1] = 0
@@ -475,15 +468,15 @@ class ResnetStructurePlanned:
                         T_cast_5[ax0_ax1_fused_ax2_fused_1 * 64 + ax3_inner_2] = T.cast(T.cast(T.max(T.min(T.q_multiply_shift(Conv2dOutput_1_let[ax3_inner_2] + placeholder_15[ax3_inner_2], 1608879842, 31, -7, dtype="int32"), 255), 0), "uint8"), "int16")
 
     @T.prim_func
-    def run_model(input: T.handle, global_workspace_0_var: T.handle, output: T.handle) -> None:
+    def run_model(input: T.handle, global_workspace_0_var: T.Ptr[T.uint8], output: T.handle) -> None:
         global_workspace_0_buffer_var = T.match_buffer(global_workspace_0_var, [7920256], dtype="uint8", strides=[1], elem_offset=1, align=16)
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
-        sid_2_let: T.handle = T.address_of(global_workspace_0_buffer_var[5760000], dtype="handle")
-        sid_6_let: T.handle = T.address_of(global_workspace_0_buffer_var[0], dtype="handle")
-        sid_7_let: T.handle = T.address_of(global_workspace_0_buffer_var[6480000], dtype="handle")
-        sid_8_let: T.handle = T.address_of(global_workspace_0_buffer_var[6480000], dtype="handle")
+        sid_2_let: T.Ptr[T.int8] = T.address_of(global_workspace_0_buffer_var[5760000], dtype="handle")
+        sid_6_let: T.Ptr[T.int8] = T.address_of(global_workspace_0_buffer_var[0], dtype="handle")
+        sid_7_let: T.Ptr[T.int8] = T.address_of(global_workspace_0_buffer_var[6480000], dtype="handle")
+        sid_8_let: T.Ptr[T.int8] = T.address_of(global_workspace_0_buffer_var[6480000], dtype="handle")
         T.evaluate(T.call_extern("tvmgen_default_fused_cast_subtract_fixed_point_multiply_add_clip_cast_cast", input, T.lookup_param("p0", dtype="handle"), sid_2_let, global_workspace_0_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast", sid_2_let, T.lookup_param("p3", dtype="handle"), T.lookup_param("p4", dtype="handle"), sid_8_let, global_workspace_0_buffer_var.data, dtype="int32"))
         T.evaluate(T.call_extern("tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1", sid_8_let, T.lookup_param("p5", dtype="handle"), T.lookup_param("p6", dtype="handle"), sid_7_let, global_workspace_0_buffer_var.data, dtype="int32"))
@@ -520,14 +513,9 @@ def test_resnet_subgraph():
 
     tir_mod_with_offsets_ref = ResnetStructurePlanned
 
-    # The TIR produced fails on roundtrip TVMScript testing.
-    # Therefore, indicates the TVMScript produced here and/or the parser
-    # is lacking functionality. Thus for these tests, uses a string
-    # version of the TVMScript for each function as a check instead.
-    for gv, func in tir_mod_with_offsets_ref.functions.items():
-        assert str(tir_mod_with_offsets_ref[gv.name_hint].script()) == str(
-            tir_mod_with_offsets[gv.name_hint].script()
-        )
+    for gv, ref_func in tir_mod_with_offsets_ref.functions.items():
+        actual_func = tir_mod_with_offsets[gv.name_hint]
+        tvm.ir.assert_structural_equal(actual_func, ref_func)
 
 
 if __name__ == "__main__":
