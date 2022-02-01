@@ -38,7 +38,7 @@ sudo apt update
 # NOTE: latest cmake cannot be installed due to
 # https://github.com/zephyrproject-rtos/zephyr/issues/30232
 sudo apt install -y --no-install-recommends git \
-     cmake=3.18.4-0kitware1 cmake-data=3.18.4-0kitware1 \
+     cmake=3.22.2-0kitware1ubuntu18.04.1 cmake-data=3.22.2-0kitware1ubuntu18.04.1 \
      ninja-build gperf ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
      make gcc gcc-multilib g++-multilib libsdl2-dev
