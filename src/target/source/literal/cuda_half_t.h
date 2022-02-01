@@ -299,7 +299,7 @@ __pack_half2(const half x, const half y) {
 // is valid.
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
-static inline __device__ __host__ half NAME(half x, half y) {             \
+static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
   float tmp_x = __half2float(x);                                          \
   float tmp_y = __half2float(y);                                          \
   float result = FP32_MATH_NAME(tmp_x, tmp_y);                            \
