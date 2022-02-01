@@ -34,8 +34,6 @@ def test_fake_quantize_conv():
     mod = tvm.IRModule.from_expr(op)
     fake_quantized_op_freqs = relay.analysis.list_fake_quantized_op_freqs(mod)
 
-    print(fake_quantized_op_freqs)
-
     assert dict(fake_quantized_op_freqs) == {"nn.conv2d": 1}
 
 
