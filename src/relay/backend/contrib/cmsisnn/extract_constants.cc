@@ -76,7 +76,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
   // Creates new arguments from current call's arguments
   // Updates constants into the caller arguments: here caller signifies caller that comprises call
   // to func
-  Array<Expr> CreateNewCallArgsFromKickedoutConstants(Call call, Function func) {
+  Array<Expr> CreateNewCallArgsFromExtractedConstants(Call call, Function func) {
     ICHECK(function_to_arguments_.find(func) != function_to_arguments_.end());
     Array<Expr> function_signature(function_to_arguments_[func]);
 
@@ -90,7 +90,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
     // This contains arguments including constants for the caller of this function inside which
     // post_call resides.
     Array<Expr> new_caller_args;
-    // New arguments to post_call that includes new variables representing constants kicked out of
+    // New arguments to post_call that includes new variables representing constants extracted from
     // the function
     Array<Expr> new_call_args;
     for (auto& arg : call->args) {
@@ -173,7 +173,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
       final_call = Call(call->op, new_args, call->attrs, {});
     }
 
-    // Since the constants are kicked out of partitioned functions
+    // Since the constants are extracted from partitioned functions
     // a new call to global function is needed
     if (auto* glob_var_node = post_call->op.as<GlobalVarNode>()) {
       auto glob_var = GetRef<GlobalVar>(glob_var_node);
@@ -181,17 +181,17 @@ class ExtractConstantsMutator : public MixedModeMutator {
       auto new_glob_func = VisitExpr(glob_func);
       if (!new_glob_func.same_as(glob_func)) {
         mod_->Update(glob_var, Downcast<Function>(new_glob_func));
-        auto new_args = CreateNewCallArgsFromKickedoutConstants(GetRef<Call>(post_call), glob_func);
+        auto new_args = CreateNewCallArgsFromExtractedConstants(GetRef<Call>(post_call), glob_func);
         final_call = Call(glob_var, new_args);
       }
     }
 
-    // Since the constants are kicked out of the local partitioned functions
+    // Since the constants are extracted from the local partitioned functions
     // a new call to local function is needed
     if (auto* func_node = call->op.as<FunctionNode>()) {
       Function func = GetRef<Function>(func_node);
       auto new_func = VisitExpr(func);
-      Array<Expr> new_args = CreateNewCallArgsFromKickedoutConstants(GetRef<Call>(post_call), func);
+      Array<Expr> new_args = CreateNewCallArgsFromExtractedConstants(GetRef<Call>(post_call), func);
       final_call = Call(new_func, new_args);
     }
 
@@ -210,7 +210,7 @@ class ExtractConstantsMutator : public MixedModeMutator {
   int var_count_ = 0;
 };
 
-/*!  * \brief Kicks out all constants out of the partitioned function into main()  */
+/*!  * \brief Extracts all constants out of the partitioned function into main()  */
 IRModule ExtractConstants(const IRModule& mod) {
   String func_name;
   Function func;
