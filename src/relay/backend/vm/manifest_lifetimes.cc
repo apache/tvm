@@ -419,9 +419,9 @@ class KillInserter : public ExprMutator {
 
   // Limitations
   // -----------
-  // 1. For simplicity, we only insert kills when visiting Let bindings, and always emit the kill as a
-  // single subsequent binding. This is slightly inaccurate; for example, if the condition of an If
-  // is dead after the test, we can immediately kill the condition in each branch:
+  // 1. For simplicity, we only insert kills when visiting Let bindings, and always emit the kill as
+  // a single subsequent binding. This is slightly inaccurate; for example, if the condition of an
+  // If is dead after the test, we can immediately kill the condition in each branch:
   //   let %x = if (%dead_cond) {
   //     let %_0 = memory.kill(%dead_cond);
   //     ...
@@ -435,7 +435,7 @@ class KillInserter : public ExprMutator {
   //
   // 2. Killed variables are calculated as live in - live out, which misses variables that are
   // actually dead but not in live in. Examples include: when the last use of a var is the result
-  // expr of an If branch; when bound vars (i.e. function inputs, pattern matched vars, dead 
+  // expr of an If branch; when bound vars (i.e. function inputs, pattern matched vars, dead
   // bindings) are never used.
   //
   // 3. When the result expr of an If branch is a variable, and this expr is the last use of the
