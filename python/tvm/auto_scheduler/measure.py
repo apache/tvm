@@ -1277,7 +1277,7 @@ def rpc_runner_run(
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
     device: int = 0
-        Which device to run on if multiople are available.
+        Which device to run on if multiple are available.
 
     Returns
     -------
