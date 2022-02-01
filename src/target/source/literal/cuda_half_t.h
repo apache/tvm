@@ -338,7 +338,7 @@ __pack_nv_bfloat162(const nv_bfloat16 x, const nv_bfloat16 y) {
 // so we define them here to make sure the generated CUDA code
 // is valid.
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
-static inline __device__ __host__ half NAME(half x, half y) {             \
+static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
   float tmp_x = __bfloat162float(x);                                      \
   float tmp_y = __bfloat162float(y);                                      \
   float result = FP32_MATH_NAME(tmp_x, tmp_y);                            \
