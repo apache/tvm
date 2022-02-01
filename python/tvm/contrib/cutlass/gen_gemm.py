@@ -270,7 +270,6 @@ class CutlassGemmProfiler:
             profile_all_alignments=profile_all_alignments,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
-
         )
 
         name, opdef = create_gemm_operator_with_epilogue(

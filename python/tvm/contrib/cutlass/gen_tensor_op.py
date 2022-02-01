@@ -63,7 +63,14 @@ def generate_tensor_op_common(
 
 
 def generate_sm75_tensor_op_1688(
-        out_dtype, arg0_dtype, arg1_dtype, op_creator, check_align, _, profile_all_alignments=False, accumlator_dtype="float32",
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    _,
+    profile_all_alignments=False,
+    accumlator_dtype="float32",
 ):
     """Generate GEMM or Conv2D kernels for Turing."""
     assert out_dtype in ["float32", "float16", "int32"]
