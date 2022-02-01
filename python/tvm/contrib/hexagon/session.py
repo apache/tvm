@@ -17,6 +17,7 @@
 
 """Defines a Session class for Hexagon devices."""
 
+import os
 from tvm import rpc as _rpc
 
 
@@ -59,6 +60,7 @@ class Session:
                     "tvm.contrib.hexagon.create_hexagon_session",
                     self._session_name,
                     self._remote_stack_size_bytes,
+                    os.environ.get("HEXAGON_SIM_ARGS", ""),
                 ],
             )
             self.device = self._rpc.hexagon(0)
