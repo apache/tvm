@@ -19,6 +19,8 @@
 import tvm
 from tvm import relay
 
+from collections import OrderedDict
+
 
 class LayerConfigGenerator(relay.ExprVisitor):
     def __init__(self, acc_spec, config):
@@ -86,26 +88,31 @@ class ConfigGenerator:
         self.acc_spec = {
             "array_dim": 8,
             "conf_reg_layers": 16,
-            "conf_reg_layer_bits": {
-                "mem_ctrl": 4,
-                "ch_in_len": 7,
-                "ch_in_blk": 4,
-                "ch_out_len": 7,
-                "ch_out_blk": 4,
-                "kernel_shape": 4,
-                "stride": 3,
-                "avg_pool_exp": 3,
-                "pad": 1,
-                "relu": 1,
-                "bias": 1,
-                "avg": 1,
-                "early_exit": 1,
-                "last": 1,
-            },
+            "conf_reg_layer_bits": OrderedDict(
+                {
+                    "mem_ctrl": 4,
+                    "ch_in_len": 7,
+                    "ch_in_blk": 4,
+                    "ch_out_len": 7,
+                    "ch_out_blk": 4,
+                    "kernel_shape": 4,
+                    "stride": 3,
+                    "avg_pool_exp": 3,
+                    "pad": 1,
+                    "relu": 1,
+                    "bias": 1,
+                    "avg": 1,
+                    "early_exit": 1,
+                    "last": 1,
+                }
+            ),
         }
 
     def _config_to_bitstring(self, config):
-        bitstring = config
+        bitstring = ""
+        for layer in config:
+            for k, v in self.acc_spec["conf_reg_layer_bits"].items():
+                bitstring += "{:0{}b}".format(layer[k], v)
         return bitstring
 
     def transform_module(

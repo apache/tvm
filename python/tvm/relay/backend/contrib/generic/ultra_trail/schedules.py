@@ -18,7 +18,6 @@
 
 from tvm.topi.utils import prod
 from tvm import tir
-from tvm.script import tir as T
 
 # create one load buffer extern_call for each buffer_var (input/weights)
 # - dont reset counter, only for first
