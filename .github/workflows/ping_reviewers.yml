@@ -18,4 +18,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eux
-          python tests/scripts/ping_reviewers.py --wait-time-minutes 1440
+          python tests/scripts/ping_reviewers.py --wait-time-minutes 10080
