@@ -124,7 +124,7 @@ void TaskSchedulerNode::Tune() {
 
   int running_tasks = tasks.size();
   for (int task_id; (task_id = NextTaskId()) != -1;) {
-    LOG(INFO) << "Scheduler picks Task #" << task_id << ": " << tasks[task_id]->task_name;
+    LOG(INFO) << "Scheduler picks Task #" << task_id + 1 << ": " << tasks[task_id]->task_name;
     TuneContext task = tasks[task_id];
     ICHECK(!task->is_stopped);
     ICHECK(!task->runner_futures.defined());
@@ -138,7 +138,7 @@ void TaskSchedulerNode::Tune() {
     } else {
       SetTaskStopped(task_id);
       --running_tasks;
-      LOG(INFO) << "Task #" << task_id << " has finished. Remaining task(s): " << running_tasks;
+      LOG(INFO) << "Task #" << task_id + 1 << " has finished. Remaining task(s): " << running_tasks;
     }
   }
   ICHECK_EQ(running_tasks, 0) << "Not all tasks are finished";

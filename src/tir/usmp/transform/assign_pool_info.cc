@@ -48,9 +48,11 @@ class PoolInfoAssigner : public StmtExprMutator {
     ICHECK(target_host) << "main function does not have a target attr";
     Array<usmp::PoolInfo> pool_infos =
         module->GetAttr<Array<usmp::PoolInfo>>(tvm::attr::kPoolInfoIRModuleAttr)
-            .value_or({usmp::PoolInfo("global_workspace",
-                                      {{target_host.value(), usmp::kTargetPoolReadWriteAccess}},
-                                      usmp::kUnrestrictedPoolSizeHint, Bool(true))});
+            .value_or({usmp::PoolInfo(
+                "global_workspace", {{target_host.value(), PoolInfo::kTargetPoolReadWriteAccess}},
+                PoolInfo::kUnrestrictedPoolSizeHint, PoolInfo::kUnknownClockFrequency,
+                PoolInfo::kUnknownReadBandwidth, PoolInfo::kUnknownWriteBandwidth, 0, 0,
+                {{target_host.value(), 1}}, Bool(true))});
     for (const usmp::PoolInfo& pool_info : pool_infos) {
       for (const auto& kv : pool_info->target_access) {
         Target tgt = kv.first;

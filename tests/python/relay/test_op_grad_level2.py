@@ -233,27 +233,28 @@ def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, paddin
     dtype = "float32"
     dy = relay.var("dy", shape=dy_shape, dtype=dtype)
     x = relay.var("x", shape=x_shape, dtype=dtype)
-    dw = relay.nn.conv2d_backward_weight(
-        dy, x, strides=stride, padding=padding, kernel_size=kernel_size
+    dw_func = relay.Function(
+        [dy, x],
+        relay.nn.conv2d_backward_weight(
+            dy, x, strides=stride, padding=padding, kernel_size=kernel_size
+        ),
     )
-    dw_func = relay.Function([dy, x], dw)
     dw_func_legalized = run_opt_pass(dw_func, relay.transform.Legalize())
 
-    target = "llvm"
-    dev = tvm.device(target, 0)
-    dy_np = np.random.randn(*dy_shape).astype(dtype)
-    x_np = np.random.randn(*x_shape).astype(dtype)
+    for dw, target in [(dw_func_legalized, "llvm"), (dw_func, "cuda -libs=cudnn")]:
+        if "cudnn" in target and not tvm.contrib.cudnn.exists():
+            continue
 
-    dw_np = (
-        relay.create_executor(device=dev, target=target)
-        .evaluate(dw_func_legalized)(dy_np, x_np)
-        .numpy()
-    )
-    ref_dw_np = tvm.topi.testing.conv2d_backward_weight_nchw_python(
-        dy_np, x_np, kernel_size, stride, padding
-    )
+        dev = tvm.device(target, 0)
+        dy_np = np.random.randn(*dy_shape).astype(dtype)
+        x_np = np.random.randn(*x_shape).astype(dtype)
 
-    np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-4, atol=1e-4)
+        dw_np = relay.create_executor(device=dev, target=target).evaluate(dw)(dy_np, x_np).numpy()
+        ref_dw_np = tvm.topi.testing.conv2d_backward_weight_python(
+            dy_np, x_np, kernel_size, stride, padding
+        )
+
+        np.testing.assert_allclose(dw_np, ref_dw_np, rtol=1e-4, atol=1e-4)
 
 
 def test_conv2d_backward_weight():

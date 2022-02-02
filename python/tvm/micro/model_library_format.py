@@ -27,6 +27,7 @@ import typing
 
 import tvm
 from tvm.ir.type import TupleType
+from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
@@ -38,6 +39,7 @@ from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
+STANDALONE_CRT_URL = "./runtime"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
@@ -277,7 +279,7 @@ def _should_generate_interface_header(mod):
     return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
-def _make_tar(source_dir, tar_file_path):
+def _make_tar(source_dir, tar_file_path, mod):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
 
@@ -287,6 +289,9 @@ def _make_tar(source_dir, tar_file_path):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
+        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+        if is_aot and str(mod.runtime) == "crt":
+            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
 _GENERATED_VERSION = 5
@@ -316,6 +321,16 @@ def _export_graph_model_library_format(
         "executors": executor,
         "style": "full-model",
     }
+
+    if is_aot and (str(mod.runtime) == "crt"):
+        standalone_crt = {
+            "short_name": "tvm_standalone_crt",
+            "url": f"{STANDALONE_CRT_URL}",
+            "url_type": "mlf_path",
+            "version_spec": f"{tvm.__version__}",
+        }
+        external_dependencies = [standalone_crt]
+        metadata["external_dependencies"] = external_dependencies
 
     with open(tempdir / "metadata.json", "w") as json_f:
         json.dump(metadata, json_f, indent=2, sort_keys=True)
@@ -488,6 +503,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    _make_tar(tempdir.path, file_name)
+    _make_tar(tempdir.path, file_name, mod)
 
     return file_name

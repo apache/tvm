@@ -29,6 +29,8 @@ class Conv2dProfilerEmitter(object):
 #include <iostream>
 #include "cutlass/cutlass.h"
 #include "cutlass/conv/kernel/default_conv2d_fprop.h"
+#include "cutlass/conv/kernel/default_conv2d_wgrad.h"
+#include "cutlass/conv/kernel/default_conv2d_dgrad.h"
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 #include "cutlass/util/command_line.h"
 #include "cutlass/util/host_tensor.h"
@@ -89,11 +91,6 @@ double profile_convolution(Options const &options) {
   using ElementOutput = typename ImplicitGemm::ElementC;
   using ElementInputA = typename ImplicitGemm::ElementA;
   using ElementInputB = typename ImplicitGemm::ElementB;
-  auto oshape = options.output_size();
-  cutlass::HostTensor<ElementInputA, typename ImplicitGemm::LayoutA> tensor_a(options.input_size);
-  cutlass::HostTensor<ElementInputB, typename ImplicitGemm::LayoutB> tensor_b(options.filter_size);
-  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_c(oshape);
-  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_ref_c(oshape);
 
   cutlass::conv::Conv2dProblemSize problem_size(
 						options.input_size,
@@ -106,7 +103,18 @@ double profile_convolution(Options const &options) {
 						1
 						);
 
+  auto conv_kind = ImplicitGemm::kConvolutionalOperator;
+  auto a_extent = implicit_gemm_tensor_a_extent(conv_kind, problem_size);
+  auto b_extent = implicit_gemm_tensor_b_extent(conv_kind, problem_size);
+  auto c_extent = implicit_gemm_tensor_c_extent(conv_kind, problem_size);
+
+  cutlass::HostTensor<ElementInputA, typename ImplicitGemm::LayoutA> tensor_a(a_extent);
+  cutlass::HostTensor<ElementInputB, typename ImplicitGemm::LayoutB> tensor_b(b_extent);
+  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_c(c_extent);
+  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_ref_c(c_extent);
+
   using ElementComputeEpilogue = typename ImplicitGemm::ElementCompute;
+
   typename ImplicitGemm::Arguments arguments{
     problem_size,
     tensor_a.device_ref(),

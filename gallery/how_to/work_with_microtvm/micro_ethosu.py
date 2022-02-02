@@ -80,7 +80,7 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #     attrs==21.2.0
 #     cloudpickle==2.0.0
 #     decorator==5.1.0
-#     ethos-u-vela==2.1.1
+#     ethos-u-vela==3.2.0
 #     flatbuffers==1.12
 #     lxml==4.6.3
 #     nose==1.3.7

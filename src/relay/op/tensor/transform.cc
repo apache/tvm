@@ -1105,7 +1105,8 @@ bool ScatterRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter must be tensor of integer";
   const auto param = attrs.as<ScatterAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1125,7 +1126,7 @@ RELAY_REGISTER_OP("scatter")
         R"doc(Update data at positions defined by indices with values in updates)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("Scatter", ScatterRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1152,7 +1153,8 @@ bool ScatterAddRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (updates == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of scatter_add must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of scatter_add must be tensor of integer";
   const auto param = attrs.as<ScatterAddAttrs>();
   ICHECK(param != nullptr);
   reporter->Assign(types[3], TensorType(data->shape, data->dtype));
@@ -1172,7 +1174,7 @@ RELAY_REGISTER_OP("scatter_add")
         R"doc(Update data by adding values in updates at positions defined by indices)doc" TVM_ADD_FILELINE)
     .set_num_inputs(3)
     .add_argument("data", "Tensor", "The input data tensor.")
-    .add_argument("indicies", "Tensor", "The indicies location tensor.")
+    .add_argument("indices", "Tensor", "The indices location tensor.")
     .add_argument("updates", "Tensor", "The values to update the input with.")
     .add_type_rel("ScatterAdd", ScatterAddRel)
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1204,7 +1206,8 @@ bool ScatterNDRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "ScatterND: expect updates type to be TensorType but got " << types[2];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "ScatterND: indices must be a tensor of integers.";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "ScatterND: indices must be a tensor of integers.";
 
   const auto out_shape = data->shape;
   const IntImmNode* mdim = indices->shape[0].as<IntImmNode>();
@@ -1276,7 +1279,8 @@ bool TakeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (indices == nullptr) {
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   ICHECK(param != nullptr);
 
@@ -3318,7 +3322,8 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of gather must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());
@@ -3654,7 +3659,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[0];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "indices of unravel_index must be tensor of integer";
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
+      << "indices of unravel_index must be tensor of integer";
 
   const auto* shape = types[1].as<TensorTypeNode>();
   if (shape == nullptr) {
@@ -3662,7 +3668,8 @@ bool UnRavelIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attr
         << "unravel_index: expect input type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int()) << "shape of unravel_index must be tensor of integer";
+  ICHECK(shape->dtype.is_int() || shape->dtype.is_uint())
+      << "shape of unravel_index must be tensor of integer";
 
   Array<IndexExpr> indices_shape;
   Array<IndexExpr> shape_shape;
@@ -3879,42 +3886,16 @@ bool AdvIndexRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   if (inputs == nullptr || data == nullptr) {
     return false;
   }
+  ICHECK_LE(inputs->fields.size() - 1, data->shape.size()) << "too many indices for data!";
 
   Array<IndexExpr> oshape;
-  Array<IndexExpr> broadcast_shape;
-  int64_t num_picked_elems = 1;
-
-  if (inputs->fields.size() == 2) {
-    broadcast_shape = inputs->fields[1].as<TensorTypeNode>()->shape;
-  } else {
-    for (size_t i = 1; i < inputs->fields.size(); ++i) {
-      auto index_type = inputs->fields[i].as<TensorTypeNode>();
-      if (index_type == nullptr) {
-        return false;
-      }
-      ICHECK(index_type->dtype.is_int()) << "indices must be tensor of integers";
-
-      int64_t flatten_len = 1;
-      bool has_dyn_shape = false;
-      for (const auto& dim : index_type->shape) {
-        const IntImmNode* axis_len = dim.as<IntImmNode>();
-        if (!axis_len) {
-          // If dynamic shape appears, just use the first shape
-          broadcast_shape = index_type->shape;
-          has_dyn_shape = true;
-          break;
-        }
-        flatten_len *= axis_len->value;
-      }
-      if (has_dyn_shape) break;
-      if (flatten_len > num_picked_elems) {
-        num_picked_elems = flatten_len;
-        broadcast_shape = index_type->shape;
-      }
-    }
+  TensorType broadcast_type = Downcast<TensorType>(inputs->fields[1]);
+  for (size_t i = 2; i < inputs->fields.size(); ++i) {
+    broadcast_type =
+        ConcreteBroadcast(broadcast_type, Downcast<TensorType>(inputs->fields[i]), data->dtype);
   }
 
-  for (const auto& dim : broadcast_shape) {
+  for (const auto& dim : broadcast_type->shape) {
     oshape.push_back(dim);
   }
   for (size_t i = inputs->fields.size() - 1; i < data->shape.size(); ++i) {

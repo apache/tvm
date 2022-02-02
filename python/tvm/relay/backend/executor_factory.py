@@ -81,6 +81,8 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         The Target used to build this module.
     executor : tvm.relay.backend.Executor
         Internal representation of the Executor
+    runtime : tvm.relay.backend.Runtime
+        Internal representation of the Runtime
     libmod : tvm.Module
         The module of the corresponding function
     libmod_name: str
@@ -99,6 +101,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         lowered_ir_mods,
         target,
         executor,
+        runtime,
         libmod,
         libmod_name,
         params,
@@ -109,6 +112,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         self.lowered_ir_mods = lowered_ir_mods
         self.target = target
         self.executor = executor
+        self.runtime = runtime
         self.lib = libmod
         self.libmod_name = libmod_name
         self.params = params

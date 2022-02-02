@@ -19,10 +19,19 @@ from . import arg_info
 from . import database
 from . import builder
 from . import runner
+from . import mutator
+from . import postproc
+from . import schedule_rule
 from . import space_generator
 from . import search_strategy
-from . import schedule_rule
 from . import integration
 from . import feature_extractor
+from . import cost_model
+from .search_strategy import (
+    EvolutionarySearchConfig,
+    MeasureCandidate,
+    ReplayFuncConfig,
+    ReplayTraceConfig,
+)
+from .tune import tune_te, tune_tir, tune_relay
 from .tune_context import TuneContext
-from .search_strategy import MeasureCandidate

@@ -267,7 +267,10 @@ def match_ethosu_conv2d(output_tensor, device_config):
     pad = conv2d.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]
@@ -297,7 +300,9 @@ def match_ethosu_conv2d(output_tensor, device_config):
         conv2d.op.name, ifm_channels, ifm_dtype, kernel_elements
     )
     subkernels = len(
-        device_config.get_kernel_steps(kernel_height, kernel_width, ifm_dtype, is_part_kernel)
+        device_config.get_kernel_steps(
+            conv2d.op.name, kernel_height, kernel_width, ifm_dtype, is_part_kernel
+        )
     )
 
     output_layout = convert_to_nhcwb16.op.attrs["layout"]

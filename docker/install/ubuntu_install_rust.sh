@@ -26,5 +26,5 @@ export PATH=$CARGO_HOME/bin:$PATH
 rustup component add rustfmt
 rustup component add clippy
 
-# make rust usable by all users
-chmod -R a+w /opt/rust
+# make rust usable by all users after install during container build
+chmod -R a+rw /opt/rust

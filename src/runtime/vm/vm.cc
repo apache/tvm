@@ -374,7 +374,7 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
   }
 }
 
-void VirtualMachine::LoadExecutable(Executable* exec) {
+void VirtualMachine::LoadExecutable(const ObjectPtr<Executable>& exec) {
   ICHECK(exec) << "The executable is not created yet.";
   ICHECK(exec->late_bound_constant_names.empty())
       << "Need to load late-bound-constants before creating VM";
@@ -382,7 +382,7 @@ void VirtualMachine::LoadExecutable(Executable* exec) {
 
   runtime::Module lib = exec_->GetLib();
 
-  ICHECK(exec->primitive_map.empty() || lib.operator->())
+  ICHECK(exec_->primitive_map.empty() || lib.operator->())
       << "If the executable has declared primitive functions, the "
       << "generated kernel library must non-be null.";
 
@@ -769,14 +769,13 @@ void VirtualMachine::RunLoop() {
 
 runtime::Module CreateVirtualMachine(Executable* exec) {
   auto vm = make_object<VirtualMachine>();
-  vm->LoadExecutable(exec);
+  vm->LoadExecutable(GetObjectPtr<Executable>(exec));
   return runtime::Module(vm);
 }
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachine").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  ICHECK(exec) << "The virtual machine executable has not been defined yet.";
   *rv = CreateVirtualMachine(exec);
 });
 

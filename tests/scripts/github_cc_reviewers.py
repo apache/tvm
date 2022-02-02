@@ -20,6 +20,7 @@ import os
 import json
 import argparse
 import re
+from urllib import error
 from typing import Dict, Any, List
 
 
@@ -70,4 +71,11 @@ if __name__ == "__main__":
 
     if not args.dry_run:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
-        github.post(f"pulls/{number}/requested_reviewers", {"reviewers": to_add})
+
+        # Add reviewers 1 by 1 since GitHub will error out if any of the
+        # requested reviewers aren't members / contributors
+        for reviewer in to_add:
+            try:
+                github.post(f"pulls/{number}/requested_reviewers", {"reviewers": [reviewer]})
+            except error.HTTPError as e:
+                print(f"Failed to add reviewer {reviewer}: {e}")

@@ -313,6 +313,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             and layout in ["NCHW", "NHWC"]
             and padding[0] == padding[2]
             and padding[1] == padding[3]
+            and not (data.dtype in ["uint8", "int8"] or kernel.dtype in ["uint8", "int8"])
         ):
             # add cudnn implementation
             if layout == "NHWC":
@@ -347,7 +348,12 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         # add cudnn implementation, if any
         cudnn_impl = False
         if target.kind.name == "cuda" and "cudnn" in target.libs:
-            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and padding[1] == padding[3]:
+            if (
+                layout in ["NCHW", "NHWC"]
+                and padding[0] == padding[2]
+                and padding[1] == padding[3]
+                and not (data.dtype in ["uint8", "int8"] or kernel.dtype in ["uint8", "int8"])
+            ):
                 strategy.add_implementation(
                     wrap_compute_conv2d(
                         topi.cuda.conv2d_cudnn, need_data_layout=True, has_groups=True
@@ -558,21 +564,62 @@ def deformable_conv2d_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
+@conv2d_backward_weight_strategy.register(["cuda"])
+def conv2d_backward_weight_strategy_cuda(attrs, inputs, out_type, target):
+    """conv2d_backward_weight cuda strategy"""
+    strategy = _op.OpStrategy()
+    if target.kind.name == "cuda" and "cudnn" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_conv2d_backward_weight(topi.cuda.conv2d_backward_weight_cudnn),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="conv2d_backward_weight_strategy.cudnn",
+            plevel=15,
+        )
+    else:
+        raise RuntimeError(
+            "conv2d_backward_weight on cuda is currently only supported with cudnn. "
+            "Please run Legalize pass to decompose this op into supported ops."
+        )
+    return strategy
+
+
 @conv2d_transpose_strategy.register(["cuda", "gpu"])
 def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
     """conv2d_transpose cuda strategy"""
     layout = attrs.data_layout
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
-    assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 when targetting cuda/gpu"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.cuda",
-    )
+    num_strategies = 0
+
+    if layout == "NCHW":
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.cuda.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.cuda",
+        )
+        num_strategies += 1
+
+    if (
+        target.kind.name == "cuda"
+        and "cudnn" in target.libs
+        and (
+            (layout == "NCHW" and attrs.kernel_layout == "IOHW")
+            or (layout == "NHWC" and attrs.kernel_layout == "IHWO")
+        )
+    ):
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.cuda.conv2d_transpose_cudnn, add_layout=True),
+            wrap_topi_schedule(topi.generic.schedule_extern),
+            name="conv2d_transpose.cudnn.cuda",
+            plevel=25,
+        )
+        num_strategies += 1
+
+    # TODO(masahi): Support conv2d_transpose NHWC for non-cudnn path.
+    assert num_strategies > 0, "Unsupported conv2d_transpose workload, layout = %s" % layout
     return strategy
 
 

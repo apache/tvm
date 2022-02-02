@@ -146,7 +146,9 @@ class EthosnError {
    * \brief Construct error from a String
    * \param msg The message
    */
-  explicit EthosnError(const String& msg) { msgs.push_back(msg); }
+  explicit EthosnError(const String& msg) {
+    if (msg.size()) msgs.push_back(msg);
+  }
   /*!
    * \brief Construct error from an ErrStrm
    * \param err The ErrStrm
@@ -210,7 +212,10 @@ class EthosnAPI {
   /*! \brief Convert TVM size array for pooling size to x and y values */
   static EthosnError Tvm2Npu(const Array<IndexExpr>& size, uint32_t* x, uint32_t* y);
   /*! \brief Convert TVM quantization info to SL quantization info */
-  static EthosnError Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo);
+  static EthosnError Tvm2Npu(const int32_t zero_point, const float scale,
+                             sl::QuantizationInfo* npu_qinfo);
+  static EthosnError Tvm2Npu(const int32_t zero_point, const std::valarray<float> scales,
+                             const unsigned int axis, sl::QuantizationInfo* npu_qinfo);
   /*! \brief Convert TVM 2D padding to SL padding */
   static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
   /*! \brief Convert a TVM Integer array to a SL tensor shape */
@@ -230,6 +235,7 @@ class EthosnAPI {
   // Get a T from a constant represented by a NDArray.
   template <typename T>
   static EthosnError AsConstant(const Expr& expr, T* out);
+  static EthosnError AsConstant(const Expr& expr, std::valarray<float>* out);
 };
 
 }  // namespace ethosn

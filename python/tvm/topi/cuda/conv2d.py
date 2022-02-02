@@ -123,3 +123,22 @@ def conv2d_cudnn(
 def schedule_conv2d_cudnn(cfg, outs):
     """Create the schedule for conv2d_cudnn"""
     return generic.schedule_extern(outs)
+
+
+def conv2d_backward_weight_cudnn(
+    dy, x, kernel_size, padding, stride, dilation, groups, layout, output_dtype
+):
+    """Compute conv2d wgrad using CuDNN library"""
+    assert layout in ["NCHW", "NHWC"]
+    return cudnn.conv_backward_filter(
+        dy,
+        x,
+        kernel_size,
+        padding,
+        stride,
+        dilation,
+        conv_mode=1,
+        tensor_format=0 if layout == "NCHW" else 1,
+        conv_dtype=output_dtype,
+        groups=groups,
+    )

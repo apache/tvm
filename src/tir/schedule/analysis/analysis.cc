@@ -150,6 +150,37 @@ Definition of a scope that is a stage pipeline:
   return scope_root_sref;
 }
 
+ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block) {
+  struct Collector : public StmtVisitor {
+    void VisitStmt_(const BlockRealizeNode* realize) final {
+      result.realizes.push_back(GetRef<BlockRealize>(realize));
+      const Array<IterVar>& iter_vars = realize->block->iter_vars;
+      const Array<PrimExpr>& iter_values = realize->iter_values;
+      ICHECK_EQ(iter_vars.size(), iter_values.size());
+      int n = realize->iter_values.size();
+      for (int i = 0; i < n; ++i) {
+        const IterVar& iter_var = iter_vars[i];
+        const PrimExpr& iter_value = iter_values[i];
+        std::unordered_set<const VarNode*>* vars = nullptr;
+        if (iter_var->iter_type == IterVarType::kDataPar) {
+          vars = &result.spatial_vars;
+        } else {
+          vars = &result.non_spatial_vars;
+        }
+        PostOrderVisit(iter_value, [vars](const ObjectRef& obj) {
+          if (const VarNode* var = obj.as<VarNode>()) {
+            vars->insert(var);
+          }
+        });
+      }
+    }
+
+    ScopeBlockLoopInfo result;
+  } visitor;
+  visitor(scope_block->body);
+  return std::move(visitor.result);
+}
+
 /*!
  * \brief Check the dominant property of a block:
  * the block is the only writer of its output, dominating the reader of its output buffers
@@ -406,6 +437,33 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
     const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
     throw OutputBlockError(self->mod, GetRef<Block>(block));
   }
+}
+
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  std::vector<IterVarType> results;
+  results.reserve(block->iter_vars.size());
+  for (const IterVar& iter_var : block->iter_vars) {
+    results.push_back(iter_var->iter_type);
+  }
+  return results;
+}
+
+bool IsWriteCache(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (block->writes.size() != 1) {
+    return false;
+  }
+  const BufferRegion& write_region = block->writes[0];
+  for (const BufferRegion& read_region : block->reads) {
+    bool exists, surjective, injective, ordered, no_const_read, no_shift_read;
+    std::tie(exists, surjective, injective, ordered, no_const_read, no_shift_read) =
+        AnalyzeReadWritePattern(read_region, write_region);
+    if (!(injective && ordered)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /******** Binding ********/
@@ -1788,8 +1846,9 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
                                             /*require_stage_pipeline=*/false,  //
                                             /*require_subtree_compact_dataflow=*/false);
-  if (!(IsReductionBlock(self, block_sref, scope_sref) &&  //
-        IsTrivialBinding(self, block_sref))) {
+  if (!IsReductionBlock(self, block_sref, scope_sref)  //
+      || !IsTrivialBinding(self, block_sref)           //
+      || HasBeenMultiLevelTiled(block_sref)) {
     return false;
   }
 

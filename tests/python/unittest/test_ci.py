@@ -26,16 +26,31 @@ import pytest
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 
 
-def test_cc_reviewers():
+class TempGit:
+    def __init__(self, cwd):
+        self.cwd = cwd
+
+    def run(self, *args):
+        proc = subprocess.run(["git"] + list(args), cwd=self.cwd)
+        if proc.returncode != 0:
+            raise RuntimeError(f"git command failed: '{args}'")
+
+
+def test_cc_reviewers(tmpdir_factory):
     reviewers_script = REPO_ROOT / "tests" / "scripts" / "github_cc_reviewers.py"
 
     def run(pr_body, expected_reviewers):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
         proc = subprocess.run(
             [str(reviewers_script), "--dry-run"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env={"PR": json.dumps({"number": 1, "body": pr_body})},
             encoding="utf-8",
+            cwd=git.cwd,
         )
         if proc.returncode != 0:
             raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
@@ -53,36 +68,26 @@ def test_cc_reviewers():
     )
 
 
-def test_skip_ci():
+def test_skip_ci(tmpdir_factory):
     skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
 
-    class TempGit:
-        def __init__(self, cwd):
-            self.cwd = cwd
-
-        def run(self, *args):
-            proc = subprocess.run(["git"] + list(args), cwd=self.cwd)
-            if proc.returncode != 0:
-                raise RuntimeError(f"git command failed: '{args}'")
-
     def test(commands, should_skip, pr_title, why):
-        with tempfile.TemporaryDirectory() as dir:
-            git = TempGit(dir)
-            # Jenkins git is too old and doesn't have 'git init --initial-branch'
-            git.run("init")
-            git.run("checkout", "-b", "main")
-            git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
-            git.run("config", "user.name", "ci")
-            git.run("config", "user.email", "email@example.com")
-            git.run("commit", "--allow-empty", "--message", "base commit")
-            for command in commands:
-                git.run(*command)
-            pr_number = "1234"
-            proc = subprocess.run(
-                [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title], cwd=dir
-            )
-            expected = 0 if should_skip else 1
-            assert proc.returncode == expected, why
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        # Jenkins git is too old and doesn't have 'git init --initial-branch'
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+        git.run("config", "user.name", "ci")
+        git.run("config", "user.email", "email@example.com")
+        git.run("commit", "--allow-empty", "--message", "base commit")
+        for command in commands:
+            git.run(*command)
+        pr_number = "1234"
+        proc = subprocess.run(
+            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title], cwd=git.cwd  # dir
+        )
+        expected = 0 if should_skip else 1
+        assert proc.returncode == expected, why
 
     test(
         commands=[],
