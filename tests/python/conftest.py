@@ -52,6 +52,12 @@ def pytest_addoption(parser):
 def pytest_collection_modifyitems(config, items):
     if not config.getoption("--enable-corstone300-tests"):
         for item in items:
+            # See https://github.com/apache/tvm/issues/10150
+            if len(item.location) == 3 and item.location[0].startswith(
+                "tests/python/frontend/tensorflow"
+            ):
+                item.add_marker(pytest.mark.forked)
+
             if "corstone300" in item.keywords:
                 item.add_marker(
                     pytest.mark.skip(
