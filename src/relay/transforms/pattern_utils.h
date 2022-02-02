@@ -525,6 +525,11 @@ inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
   return Call(op, {e}, attr);
 }
 
+inline Expr Log(Expr e) {
+  static const Op& op = Op::Get("log");
+  return Call(op, {e});
+}
+
 inline Expr Tanh(Expr e) {
   static const Op& op = Op::Get("tanh");
   return Call(op, {e});
