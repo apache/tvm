@@ -369,6 +369,10 @@ stage('Build') {
               script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
               label: 'Run microTVM tests',
             )
+            sh (
+              script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+              label: 'Run microTVM demos',
+            )
             junit 'build/pytest-results/*.xml'
           }
         }
