@@ -1010,8 +1010,8 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (is_static_shape) {
     ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
         << "Reshape inputs size should be compatible, "
-        << "but found data_shape " << data->shape
-        <<" not same as output_shape " << output_type->shape;
+        << "but found data_shape " << data->shape << " not same as output_shape "
+        << output_type->shape;
   }
   reporter->Assign(types[2], output_type);
   return true;
