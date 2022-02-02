@@ -356,7 +356,7 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
  *
  * FloatingPointFunc is usually a handle from "src/relay/transforms/pattern_utils.h"
  *
- * \param OpName the name of registry.
+ * \param FloatingPointFunc the floating point function with function signature `Expr Erf(Expr e)`
  */
 #define QNN_UNARY_OP_DEFAULT_CANONICALIZATION(FloatingPointFunc)                                  \
   [](const Attrs& attrs, const Array<Expr>& new_args, const Array<tvm::relay::Type>& arg_types) { \
