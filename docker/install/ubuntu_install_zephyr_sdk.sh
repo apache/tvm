@@ -15,11 +15,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+
+#
+# Install Zephyr SDK
+#
+# Usage: docker/install/ubuntu_install_zephyr_sdk.sh <INSTALLATION_PATH>
+# INSTALLATION_PATH is the installation path for the SDK.
+#
 
 set -e
-set -u
-set -o pipefail
 set -x
+
+function show_usage() {
+    cat <<EOF
+Usage: docker/install/ubuntu_install_zephyr_sdk.sh <INSTALLATION_PATH>
+INSTALLATION_PATH is the installation path for the SDK.
+EOF
+}
+
+if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+    show_usage
+    exit -1
+fi
 
 INSTALLATION_PATH=$1
 shift
