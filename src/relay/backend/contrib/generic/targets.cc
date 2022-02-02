@@ -32,12 +32,16 @@ namespace relay {
 namespace contrib {
 namespace generic {
     tvm::transform::Pass RelayToTIR(String target_name);
+namespace ultra_trail {
+    runtime::Module TIRToRuntime(IRModule mod, Target target);
+}  // namespace ultra_trail
 }  // namespace generic
 }  // namespace contrib
 }  // namespace relay
 
 TVM_REGISTER_TARGET_KIND("ultra_trail", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::generic::RelayToTIR("ultra_trail"));
+    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::generic::RelayToTIR("ultra_trail"))
+    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::generic::ultra_trail::TIRToRuntime);
 
 TVM_REGISTER_TARGET_KIND("rb_npu", kDLCPU)
     .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::generic::RelayToTIR("rb_npu"));

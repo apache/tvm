@@ -78,7 +78,7 @@ class RelayToTIRMutator : public MixedModeMutator {
             tvm::runtime::Registry::Get("relay.ext.generic.relay_to_tir_func_" + target_name_);
         ICHECK(relay_to_tir_func_pf);
         tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
-        prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target("c"));
+        prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target(target_name_));
         String symbol_name = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).value();
         GlobalVar gv(symbol_name);
         gv->checked_type_ = func->checked_type();
