@@ -117,29 +117,27 @@ def commit_passed_ci(commit: Dict[str, Any]) -> bool:
     return passed_ci
 
 
-def update_tag(user: str, repo: str, sha: str, tag_name: str, message: str) -> None:
-    with tempfile.TemporaryDirectory() as f:
-        # Clone only a specific commit: https://stackoverflow.com/a/3489576
-        git(["init"], cwd=f)
-        git(["remote", "add", "origin", f"git@github.com:{user}/{repo}.git"], cwd=f)
-        git(["fetch", "origin", sha], cwd=f)
-        git(["reset", "--hard", "FETCH_HEAD"], cwd=f)
+def update_branch(user: str, repo: str, sha: str, branch_name: str) -> None:
+    git(["fetch", "origin", sha])
+    git(["reset", "--hard", "FETCH_HEAD"])
+    try:
+        git(["branch", "-D", branch_name])
+    except RuntimeError:
+        # Ignore failures (i.e. the branch did not exist in the first place)
+        pass
+    git(["checkout", "-b", branch_name])
 
-        # Create a push the tag
-        git(["tag", "--annotate", tag_name, f"--message={message}"], cwd=f)
-        git(["push", "origin", "--force", tag_name], cwd=f)
-        print(f"Pushed tag {tag_name} with commit {sha}")
+    # Create and push the branch
+    git(["push", "origin", "--force", branch_name])
+    print(f"Pushed branch {branch_name} with commit {sha}")
 
 
 if __name__ == "__main__":
-    help = "Push the a tag to the last commit that passed all CI runs"
+    help = "Push the a branch to the last commit that passed all CI runs"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
     parser.add_argument("--dry-run", action="store_true", help="don't submit to GitHub")
-    parser.add_argument("--tag", default="last-successful", help="tag name")
-    parser.add_argument(
-        "--message", default="last 'main' commit that passed CI", help="label to add"
-    )
+    parser.add_argument("--branch", default="last-successful", help="branch name")
     parser.add_argument(
         "--testonly-json", help="(testing) data to use instead of fetching from GitHub"
     )
@@ -147,6 +145,8 @@ if __name__ == "__main__":
 
     remote = git(["config", "--get", f"remote.{args.remote}.url"])
     user, repo = parse_remote(remote)
+    # TODO: Remove this before landing
+    user, repo = ("apache", "tvm")
 
     if args.testonly_json:
         r = json.loads(args.testonly_json)
@@ -167,14 +167,13 @@ if __name__ == "__main__":
             if commit_passed_ci(commit):
                 print(f"Found last good commit: {commit['oid']}: {commit['messageHeadline']}")
                 if not args.dry_run:
-                    update_tag(
+                    update_branch(
                         user=user,
                         repo=repo,
                         sha=commit["oid"],
-                        tag_name=args.tag,
-                        message=args.message,
+                        branch_name=args.branch,
                     )
-                # Nothing to do after updating the tag, exit early
+                # Nothing to do after updating the branch, exit early
                 exit(0)
 
         # No good commit found, proceed to next page of results

@@ -68,8 +68,8 @@ def test_cc_reviewers(tmpdir_factory):
     )
 
 
-def test_update_tag(tmpdir_factory):
-    update_script = REPO_ROOT / "tests" / "scripts" / "update_tag.py"
+def test_update_branch(tmpdir_factory):
+    update_script = REPO_ROOT / "tests" / "scripts" / "update_branch.py"
 
     def run(statuses, expected_rc, expected_output):
         git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
