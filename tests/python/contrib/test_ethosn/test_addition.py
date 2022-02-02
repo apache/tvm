@@ -56,7 +56,7 @@ def _get_addition_qnn_params(dtype, input1_zp, input1_sc, input2_zp, input2_sc):
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize("dtype", ["uint8"])
 def test_addition(dtype):
     trials = [
         ((1, 22, 9, 9), 24, 1.057, 253, 0.452),
