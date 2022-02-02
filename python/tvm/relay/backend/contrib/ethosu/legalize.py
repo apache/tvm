@@ -178,6 +178,7 @@ class LutActivationRewriter(DFPatternCallback):
         calc_func: Callable[[float], float],
     ):
         super().__init__(require_type=True, rewrite_once=True)
+        self.params_class = params_class
         self.pattern = (wildcard().has_attr({"Composite": params_class.composite_name}))(wildcard())
         self.activation_type = activation_type
         self.calc_func = calc_func
@@ -200,18 +201,15 @@ class LutActivationRewriter(DFPatternCallback):
         return {}
 
     def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
-        id_input = post.args[0]
-        dtype = id_input.checked_type.dtype
-
-        quantize_args = post.op.body.args
-        output_scale = float(quantize_args[1].data.asnumpy())
-        output_zp = int(quantize_args[2].data.asnumpy())
-
-        dequantize_args = quantize_args[0].args[0].args
-        input_scale = float(dequantize_args[1].data.asnumpy())
-        input_zp = int(dequantize_args[2].data.asnumpy())
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
 
         calc_func_params = self.get_calc_func_params(post.op)
+
+        input_scale = float(params.ifm.q_params.scale_f32)
+        input_zp = int(params.ifm.q_params.zero_point)
+        output_scale = float(params.ofm.q_params.scale_f32)
+        output_zp = int(params.ofm.q_params.zero_point)
 
         lut_values = get_lut_from_func(
             input_scale,
@@ -221,11 +219,11 @@ class LutActivationRewriter(DFPatternCallback):
             self.calc_func,
             calc_func_params,
         )
-        lut = relay.const(lut_values, dtype=dtype)
+        lut = relay.const(lut_values, dtype=params.ifm.dtype)
 
         # We baked the requantization into the LUT, so we don't requantize the identity operator
         identity = ethosu_ops.ethosu_identity(
-            ifm=id_input,
+            ifm=params.ifm.tensor,
             lut=lut,
             ifm_scale=input_scale,
             ifm_zero_point=input_zp,
