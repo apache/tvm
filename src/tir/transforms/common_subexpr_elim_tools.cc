@@ -182,13 +182,11 @@ ComputationTable IntersectComputationTables(const ComputationTable& table1,
 }
 
 /*!
- * \brief Recompute the number of times that each computation in table_main
-          is being seen in table_bloc1, table_bloc2 and table_bloc3. It sets
-          each element to the sum of the times it is seen in each individual bloc.
+ * \brief Recompute the number of times that each computation in table_main is seen in the tables
+          contained by the vector of tables vecTables. It sets each element to the sum of the times
+          it is seen in each individual table.
  * \param table_main The main table, for which we recompute the counters.
- * \param table1 One of the three tables, which won't change.
- * \param table2 One of the three tables, which won't change.
- * \param table3 One of the three tables, which won't change.
+ * \param vecTables The vector of tables which won't change.
  * \note This function is needed because both the intersection (A Inter B) and the union
  *        (A U B U C) adds the individual counters found in A, B and C. So when we treat for
  *        instance an If (which contains a Cond, a Then branch and an Else branch),
@@ -197,30 +195,21 @@ ComputationTable IntersectComputationTables(const ComputationTable& table1,
  *        bloc), it is therefore necessary to recompute the counters afterwards, which is what this
  *        function does.
  */
-void RecomputeNbTimesSeenInThreeBlocs(ComputationTable& table_main,
-    const ComputationTable& table_bloc1, const ComputationTable& table_bloc2,
-    const ComputationTable& table_bloc3) {
+void RecomputeNbTimesSeen(ComputationTable& table_main, 
+                          const std::vector<const ComputationTable*>& vec_tables) {
   // For each element in the main table
-  for(auto current : table_main) {
-    // Try to find it in the first bloc
-    auto it1 = table_bloc1.find(current.first);
-    if (it1 != table_bloc1.end()) {
-      // If found, init the counter with the value found in the first bloc
-      current.second = it1->second;
-    }
-
-    // Try to find it in the second bloc
-    auto it2 = table_bloc2.find(current.first);
-    if (it2 != table_bloc2.end()) {
-        // If found, increase its value by the value found in the second bloc
-        current.second += it2->second;
-    }
-
-    // Try to find it in the third bloc
-    auto it3 = table_bloc3.find(current.first);
-    if (it3 != table_bloc3.end()) {
-        // If found, increase its value by the value found in the third bloc
-        current.second += it3->second;
+  for(auto& current_elem : table_main) {
+    // We will recompute its associated counter.
+    // Set its count to zero as so far it has been seen zero times
+    current_elem.second = 0;
+    // For each table in the vector of tables
+    for(auto current_table : vec_tables) {
+      // Try to find current_elem in the current table
+      auto it = current_table->find(current_elem.first);
+      if (it != current_table->end()) {
+        // If found, increase its counter by the value found in the current table
+        current_elem.second += it->second;
+      }
     }
   }
 }
@@ -250,8 +239,9 @@ ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_ch
   result = UnionOfComputationTables(child2_inter_child3, child1_inter_child2, child1_inter_child3);
 
   // Now we need to recompute the numbers associated with each computation, because both the
-  // intersections and the union might have increased the counters which can now be wrong.
-  RecomputeNbTimesSeenInThreeBlocs(result, table_child1, table_child2, table_child3);
+  // intersections and the union might have increased the counters, which can now be wrong.
+  std::vector<const ComputationTable*> vec_tables = {&table_child1, &table_child2, &table_child3};
+  RecomputeNbTimesSeen(result, vec_tables);
 
   return result;
 }
