@@ -87,13 +87,14 @@ def test_expr_constructor():
     assert x.false_value == b
     assert x.condition == a
 
-    buffer_var = te.var("x", dtype="handle")
-    x = tvm.tir.Load("float32", buffer_var, 1, a)
-    assert isinstance(x, tvm.tir.Load)
+    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
+    buffer = tvm.tir.decl_buffer([16], "float32", data=buffer_var)
+    x = tvm.tir.BufferLoad(buffer, [1])
+    assert isinstance(x, tvm.tir.BufferLoad)
     assert x.dtype == "float32"
-    assert x.buffer_var == buffer_var
-    assert x.index.value == 1
-    assert x.predicate == a
+    assert x.buffer == buffer
+    assert x.buffer.data == buffer_var
+    assert list(x.indices) == [1]
 
     x = tvm.tir.Ramp(1, 2, 10)
     assert isinstance(x, tvm.tir.Ramp)
