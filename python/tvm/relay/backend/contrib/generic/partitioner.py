@@ -117,8 +117,8 @@ class GenericPartitioner(object):
             The partitioned relay module.
 
         """
-        if params:
-            mod["main"] = bind_params_by_name(mod["main"], params)
+        # if params:
+        #     mod["main"] = bind_params_by_name(mod["main"], params)
 
         pattern = relay.op.contrib.get_pattern_table(self.target_name)
         mod = relay.transform.InferType()(mod)

@@ -101,14 +101,14 @@ class GenericCodegen(object):
             The lowered schedulable TensorIR primitive function.
 
         """
-        relay_prim_func, constants = extract_constants(relay_prim_func)
+        # relay_prim_func, constants = extract_constants(relay_prim_func)
         f = tvm._ffi.get_global_func("relay.backend.LowerToTE")
         te_cached_func = f(relay_prim_func)
         tir_prim_func = te.create_prim_func_from_outputs(te_cached_func.outputs)
         tir_prim_func = tir_prim_func.with_attr(
             "global_symbol", relay_prim_func.attrs["global_symbol"]
         )
-        tir_prim_func = tir_prim_func.with_attr("constants", constants)
+        # tir_prim_func = tir_prim_func.with_attr("constants", constants)
         tir_prim_func = tir_prim_func.with_attr("relay_attrs", relay_prim_func.attrs)
         return tir_prim_func
 

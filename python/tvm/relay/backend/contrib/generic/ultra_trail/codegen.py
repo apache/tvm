@@ -33,7 +33,6 @@ class UltraTrailCodegen(GenericCodegen):
     def _register_tir_passes(self):
         self._register_tir_pass(0, CodegenGenerateConfig())
         self._register_tir_pass(0, CodegenGenerateConstants())
-        pass
 
 
 @tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_ultra_trail")

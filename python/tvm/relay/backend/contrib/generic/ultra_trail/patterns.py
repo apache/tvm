@@ -19,7 +19,9 @@
 from tvm.relay.dataflow_pattern import is_op, wildcard
 
 
-def example_pattern():
+def conv1d_relu_pattern():
     pattern = is_op("nn.conv1d")(wildcard(), wildcard())
-    pattern = is_op("nn.relu")(pattern)
+    optional_bias = lambda x: is_op("nn.bias_add")(x, wildcard())
+    optional_relu = lambda x: is_op("nn.relu")(x)
+    pattern = pattern.optional(optional_bias).optional(optional_relu)
     return pattern

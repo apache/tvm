@@ -27,7 +27,8 @@ class UltraTrailPartitioner(GenericPartitioner):
         return "ultra_trail"
 
     def _register_patterns(self):
-        self._register_pattern("conv1d_relu", example_pattern())
+        self._register_pattern("conv1d_relu", conv1d_relu_pattern())
     
     def _register_relay_passes(self):
-        self._register_relay_pass(2, ExtractConfig())
+        self._register_relay_pass(1, ConfigGenerator())
+        self._register_relay_pass(2, BufferScopeAnnotator())

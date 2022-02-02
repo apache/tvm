@@ -16,20 +16,29 @@
 # under the License.
 """TIR schedule functions for the UltraTrail accelerator"""
 
-# TODO
+from tvm.topi.utils import prod
+from tvm import tir
+from tvm.script import tir as T
+
+# create one load buffer extern_call for each buffer_var (input/weights)
+# - dont reset counter, only for first
+# - packed buffers, correct layout, take care of missalignment at the end (software?,hardware?)
+# create one load buffer for config
 def insert_extern_calls(sch):
-    return sch
+    def extern_calls():
+        calls = []
+        buffer_scopes = list(sch.mod["main"].attrs["relay_attrs"]["ut_buffer_scopes"])
+        buffer_scopes.reverse() # for some reason TIR params are reversed to relay function
+        for i, buffer_scope in enumerate(buffer_scopes):
+            buffer = sch.mod["main"].buffer_map[sch.mod["main"].params[i]]
+            size = prod(buffer.shape)
+            var = buffer.data
+            call = tir.call_extern("int32", f"load_{buffer_scope}", var, size)
+            calls.append(tir.Evaluate(call))
+        seq = tir.stmt_seq(*calls)
+        return tir.Block([], [], [], "call_extern", seq)
 
-def schedule_supported_ops(sch):
-    block_rvs = sch.get_child_blocks(sch.get_block("root"))
-    blocks = [sch.get_sref(block_rv).stmt for block_rv in block_rvs]
+    root_sref = sch.get_sref(sch.get_block("root"))
+    sch.state.replace(root_sref, extern_calls())
 
-    sch.compute_inline(sch.get_block("pad_temp"))
-    n, k, x, c, f = sch.get_loops(sch.get_block("conv1d_ncw"))
-    sch.reorder(n, k, c, f, x)
-    # sch.reverse_compute_at(sch.get_block("T_relu"), sch.get_loops(sch.get_block("conv1d_ncw"))[1])
-    # k_o, k_i = sch.split(k, factors=[None, 8])
-    # c_o, c_i = sch.split(c, factors=[None, 8])
-
-    breakpoint()
     return sch

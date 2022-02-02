@@ -12,7 +12,7 @@ class TorchModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = torch.nn.Conv1d(
-            16, 24, 9, bias=False, padding=4, stride=1, dilation=1, groups=1
+            16, 24, 9, bias=True, padding=4, stride=1, dilation=1, groups=1
         )
         self.relu = torch.nn.ReLU()
         self.conv2 = torch.nn.Conv1d(
