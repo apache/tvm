@@ -828,7 +828,6 @@ def test_conv2d_transpose():
         )
 
 
-@pytest.mark.skip("weird")
 def test_conv2d_backward_weight():
     OC = 8
     IC = 16
@@ -865,7 +864,6 @@ def test_conv2d_backward_weight():
         )
 
 
-@pytest.mark.skip("weird")
 def test_conv2d_bwd():
     IC = 16
     OC = 8
