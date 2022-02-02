@@ -117,21 +117,17 @@ class PipelineModule(object):
         # Get the packed functions from the pipeline executor.
         self._get_params_group_pipeline_map = self.module["get_params_group_pipeline_map"]
         self._run = self.module["run"]
-        self._stop = self.module["stop"]
         self._set_param = self.module["set_param"]
         self._set_input = self.module["set_input"]
         self._get_input = self.module["get_input"]
         self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
+        self._get_pipe_execute_number = self.module["get_statistic_pipe_execute_number"]
 
     def run(self, sync=False):
         """Run the pipeline executor."""
         self._run(sync)
-
-    def stop(self):
-        """Stop the pipeline executor."""
-        self._stop()
 
     def get_input_pipeline_map(self, name):
         """Using the "name" to get the corresponding subgraph index and also get the "input name"
@@ -212,6 +208,16 @@ class PipelineModule(object):
             A list of output data.
         """
         return self._get_output()
+
+    @property
+    def number_pipe_execute(self):
+        """Getting the times of pipeline running.
+        Returns
+        -------
+        count : int
+            The times of pipeline running.
+        """
+        return self._get_pipe_execute_number()
 
     @property
     def num_outputs(self):

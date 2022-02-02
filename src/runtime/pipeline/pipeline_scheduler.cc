@@ -32,6 +32,7 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config) {
   std::vector<std::shared_ptr<BackendRuntime>> runtimes;
   graph_modules_ = modules;
+  // Creating a list of runtimes.
   for (size_t i = 0; i < graph_modules_.size(); i++) {
     auto runItem = std::make_shared<BackendRuntime>(graph_modules_[i], i);
     runtimes.push_back(runItem);
@@ -45,6 +46,10 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     ModuleOutputPair& output_pair = global_output_map[i];
     NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
     output_arrays_.push_back(output);
+  }
+  // Initializing and then running the work thread.
+  for (auto runtime : runtimes) {
+    runtime->Pipeline_Initialize(pipeline_config, &runtimes);
   }
   return runtimes;
 }
@@ -101,17 +106,10 @@ void PipelineScheduler::PipelineRunSequential(
 void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
                                     ConfigPipelineExecution pipeline_config, bool sequential_mode) {
   if (!sequential_mode) {
-    // TODO(huajsj) remove this check after all of pipeline features in.
-    LOG(FATAL) << "Currently only supports sequential mode.";
+    runtimes.front()->RunPipeLine();
   } else {
     PipelineRunSequential(runtimes, pipeline_config);
   }
-}
-/*!
- * \brief Stop the pipeline exection.
- */
-void PipelineScheduler::PipelineStop() {
-  // TODO(huajsj) Add stop logic.
 }
 /*!
  * \brief Get a list of output.

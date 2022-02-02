@@ -59,10 +59,6 @@ class PipelineScheduler {
   void PipelineRunSequential(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
                              ConfigPipelineExecution pipeline_config);
   /*!
-   * \brief Stop the pipeline exection.
-   */
-  void PipelineStop();
-  /*!
    * \brief Get a list of outputs.
    */
   Array<NDArray> PipelineGetOutput();
