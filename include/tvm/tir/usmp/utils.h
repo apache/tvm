@@ -26,6 +26,7 @@
 #define TVM_TIR_USMP_UTILS_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>
@@ -43,111 +44,6 @@ constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
 
 namespace tir {
 namespace usmp {
-
-/*!
- * \brief Describes a pool of memory accessible by one or more targets.
- */
-struct PoolInfoNode : public Object {
-  /*! \brief The name of the memory pool */
-  String pool_name;
-  /*! \brief The expected size hint to be used by the allocator.
-   * The size_hint_bytes is set to kUnrestrictedPoolSizeHint
-   * to indicate the pool is not size restricted.
-   */
-  Integer size_hint_bytes;
-  /*! \brief The accessibility from each Target */
-  Map<Target, String> target_access;  // 'rw' or 'ro'
-  /*! \brief The clock frequency of the memory in Hz */
-  Integer clock_frequency_hz;
-  /*! \brief The read bandwidth in bytes/cycle */
-  Integer read_bandwidth_bytes_per_cycle;
-  /*! \brief The write bandwidth in bytes/cycle */
-  Integer write_bandwidth_bytes_per_cycle;
-  /*! \brief The read latency in cycles */
-  Integer read_latency_cycles;
-  /*! \brief The write latency in cycles */
-  Integer write_latency_cycles;
-  /*! \brief The burst length in bytes for each Target */
-  Map<Target, Integer> target_burst_bytes;
-  /*! \brief Whether pool is internally generated.
-   * The internal pools will be generated as part of
-   * the entry point code generation of the executor
-   */
-  bool is_internal = false;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pool_name", &pool_name);
-    v->Visit("size_hint_bytes", &size_hint_bytes);
-    v->Visit("target_access", &target_access);
-    v->Visit("clock_frequency_hz", &clock_frequency_hz);
-    v->Visit("read_bandwidth_bytes_per_cycle", &read_bandwidth_bytes_per_cycle);
-    v->Visit("write_bandwidth_bytes_per_cycle", &write_bandwidth_bytes_per_cycle);
-    v->Visit("read_latency_cycles", &read_latency_cycles);
-    v->Visit("write_latency_cycles", &write_latency_cycles);
-    v->Visit("target_burst_bytes", &target_burst_bytes);
-    v->Visit("is_internal", &is_internal);
-  }
-
-  bool SEqualReduce(const PoolInfoNode* other, SEqualReducer equal) const {
-    return equal(pool_name, other->pool_name) && equal(size_hint_bytes, other->size_hint_bytes) &&
-           equal(target_access, other->target_access) &&
-           equal(target_access, other->target_access) &&
-           equal(clock_frequency_hz, other->clock_frequency_hz) &&
-           equal(read_bandwidth_bytes_per_cycle, other->read_bandwidth_bytes_per_cycle) &&
-           equal(write_bandwidth_bytes_per_cycle, other->write_bandwidth_bytes_per_cycle) &&
-           equal(read_latency_cycles, other->read_latency_cycles) &&
-           equal(write_latency_cycles, other->write_latency_cycles) &&
-           equal(target_burst_bytes, other->target_burst_bytes) &&
-           equal(is_internal, other->is_internal);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(pool_name);
-    hash_reduce(size_hint_bytes);
-    hash_reduce(target_access);
-    hash_reduce(clock_frequency_hz);
-    hash_reduce(read_bandwidth_bytes_per_cycle);
-    hash_reduce(write_bandwidth_bytes_per_cycle);
-    hash_reduce(read_latency_cycles);
-    hash_reduce(write_latency_cycles);
-    hash_reduce(target_burst_bytes);
-    hash_reduce(is_internal);
-  }
-
-  static constexpr const char* _type_key = "tir.usmp.PoolInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
-};
-
-class PoolInfo : public ObjectRef {
- public:
-  /*!
-   * \brief The string parameter to indicate read and write access to a pool
-   * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
-   * python/tvm/tir/usmp/utils.py
-   */
-  static constexpr const char* kTargetPoolReadWriteAccess = "rw";
-  /*!
-   * \brief The string parameter to indicate read only access to a pool
-   * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
-   * python/tvm/tir/usmp/utils.py
-   */
-  static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
-  /*! \brief The PoolSize is unrestricted for the memory planner */
-  static const int kUnrestrictedPoolSizeHint = -1;
-  /*! \brief The clock frequency is not known */
-  static const int kUnknownClockFrequency = -1;
-  /*! \brief The read bandwidth is not known */
-  static const int kUnknownReadBandwidth = -1;
-  /*! \brief The write bandwidth is not known */
-  static const int kUnknownWriteBandwidth = -1;
-
-  TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes,
-                   Integer clock_frequency_hz, Integer read_bandwidth_bytes_per_cycle,
-                   Integer write_bandwidth_bytes_per_cycle, Integer read_latency_cycles,
-                   Integer write_latency_cycles, Map<Target, Integer> target_burst_bytes,
-                   Bool is_internal);
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
-};
 
 /*!
  * \brief Describes an abstract memory buffer that will get allocated inside a pool.

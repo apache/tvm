@@ -178,6 +178,25 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  relay_primfuncs=" << node->relay_primfuncs << ")";
     });
 
+ExecutorCodegenMetadata::ExecutorCodegenMetadata(
+    Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices, Integer num_outputs,
+    String executor, String mod_name, String interface_api, bool unpacked_api,
+    Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
+  auto n = make_object<ExecutorCodegenMetadataNode>();
+  n->inputs = inputs;
+  n->pools = pools;
+  n->devices = devices;
+  n->num_outputs = num_outputs;
+  n->executor = executor;
+  n->interface_api = interface_api;
+  n->unpacked_api = unpacked_api;
+  n->mod_name = mod_name;
+  n->pool_inputs = pool_inputs;
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(ExecutorCodegenMetadataNode);
+
 Array<Pass> GetPassPrefix(bool is_homegeneous, bool is_vm) {
   Array<Pass> pass_seqs;
   // TODO(mbs): Would be nice to get spans on all diagnostics, but since they arg forgotton

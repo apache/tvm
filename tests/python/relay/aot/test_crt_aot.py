@@ -529,7 +529,7 @@ def test_quant_mobilenet_tfl():
     data_shape = (1, 224, 224, 3)
     in_min, in_max = (0, 255)
     data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
-    mod, params = convert_to_relay(tflite_model_buf, data, "input")
+    mod, params = convert_to_relay(tflite_model_buf)
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
