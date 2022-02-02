@@ -431,8 +431,6 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::unordered_set<std::string> param_names_;
   /*! \brief Map of input names to input indices. */
   std::unordered_map<std::string, uint32_t> input_map_;
-  /*! \brief Map of input names to flags, which indicates that tensor was set. */
-  mutable std::unordered_map<uint32_t, bool> input_set_;
   /*! \brief Map of output names to output indices. */
   std::unordered_map<std::string, uint32_t> output_map_;
   /*! \brief Used for quick node input DLTensor* lookup given an input eid. */

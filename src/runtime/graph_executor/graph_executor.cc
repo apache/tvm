@@ -57,18 +57,6 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
  * \brief Run all the operations one by one.
  */
 void GraphExecutor::Run() {
-  // Check that inputs are set
-  for (const auto& p : input_map_) {
-    int in_idx = GetInputIndex(p.first);
-    if (in_idx < 0) continue;
-    uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
-    auto it = input_set_.find(eid);
-    if (it == input_set_.end()) {
-      DLOG(WARNING) << "Some inputs have not been provided, to get "
-                       "valid results call set_input before running.";
-      break;
-    }
-  }
   // setup the array and requirements.
   for (size_t i = 0; i < op_execs_.size(); ++i) {
     if (op_execs_[i]) op_execs_[i]();
@@ -167,7 +155,6 @@ void GraphExecutor::SetInput(int index, DLTensor* data_in) {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   data_entry_[eid].CopyFrom(data_in);
-  input_set_[eid] = true;
 }
 /*!
  * \brief Check the legality of external DLTensor*.
@@ -200,7 +187,6 @@ void GraphExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
   for (DLTensor* t : input_dltensors_[eid]) {
     t->data = data_ref->data;
   }
-  input_set_[eid] = true;
 }
 /*!
  * \brief set index-th output to the graph without copying the data.
@@ -247,7 +233,6 @@ int GraphExecutor::NumInputs() const { return input_nodes_.size(); }
 NDArray GraphExecutor::GetInput(int index) const {
   ICHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
-  input_set_[eid] = true;
   return data_entry_[eid];
 }
 /*!
@@ -297,7 +282,6 @@ void GraphExecutor::LoadParams(dmlc::Stream* strm) {
     if (in_idx < 0) continue;
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     data_entry_[eid].CopyFrom(p.second);
-    input_set_[eid] = true;
   }
 }
 
