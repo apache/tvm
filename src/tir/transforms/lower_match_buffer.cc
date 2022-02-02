@@ -177,7 +177,7 @@ class MatchBufferLower : public StmtExprMutator {
     Bind(buffer->data, source_buffer->data, buffer->name + ".data");
 
     // Step.2.2. Update element offset
-    // Note we create Load via vload and try to reuse index calculate.
+    // We use the ElemOffset method to avoid duplicating the index calculation.
     {
       Array<PrimExpr> indices;
       indices.reserve(source->region.size());
@@ -185,11 +185,11 @@ class MatchBufferLower : public StmtExprMutator {
         indices.push_back(range->min);
       }
 
-      auto load = Downcast<BufferLoad>(source_buffer.vload(indices, source_buffer->dtype));
-      if (load->indices.size() == 1) {
-        Bind(buffer->elem_offset, load->indices[0], buffer->name + ".elem_offset");
+      Array<PrimExpr> buffer_start_indices = source_buffer->ElemOffset(indices);
+      if (buffer_start_indices.size() == 1) {
+        Bind(buffer->elem_offset, buffer_start_indices[0], buffer->name + ".elem_offset");
         CHECK(analyzer_.CanProve(truncmod(buffer->elem_offset, buffer->offset_factor) == 0))
-            << "The source elem_offset " << load->indices[0]
+            << "The source elem_offset " << buffer_start_indices[0]
             << " does not satisfy the offset_factor " << buffer->offset_factor << ".";
       } else {
         // Non-zero elem_offset is ill-defined for non-flat memory.
