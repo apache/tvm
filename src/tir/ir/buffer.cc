@@ -252,7 +252,9 @@ Array<PrimExpr> Buffer::OffsetOf(Array<PrimExpr> input_indices) const {
 // We also perform optimization to simplify the indexing expression.
 Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
   ICHECK_EQ(shape.size(), input_indices.size())
-      << "Dimensionality of buffer must match dimensionality of index used to access it";
+      << "Buffer " << this->name << " is " << shape.size()
+      << "-dimensional, cannot be indexed with the " << input_indices.size()
+      << "-dimensional indices provided.";
 
   if (strides.size()) {
     ICHECK_EQ(this->strides.size(), input_indices.size())
