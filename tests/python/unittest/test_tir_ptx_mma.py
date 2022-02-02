@@ -63,9 +63,7 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
         )
     )
     for mma_accum_c_id in range(2):
-        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = T.load(
-            "float64", Accum, mma_accum_c_id
-        )
+        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -146,7 +144,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
         C[
             ((tx % 32) % 4) + (4 * ((((tx % 32) // 16 + (tx % 32) % 16 // 4 * 2)) % 4)),
             mma_accum_c_id % 4 + (4 * ((tx % 32) % 16 // 8)) + mma_accum_c_id // 4 * 8,
-        ] = T.load("float16", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -233,7 +231,7 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
             + (tx % 32) % 16 // 8 * 4
             + mma_accum_c_id % 2
             + mma_accum_c_id // 4 * 8,
-        ] = T.load("float32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -305,9 +303,7 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         )
     )
     for mma_accum_c_id in range(2):
-        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = T.load(
-            "int32", Accum, mma_accum_c_id
-        )
+        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -379,9 +375,7 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         )
     )
     for mma_accum_c_id in range(2):
-        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = T.load(
-            "int32", Accum, mma_accum_c_id
-        )
+        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -453,9 +447,7 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
         )
     )
     for mma_accum_c_id in range(2):
-        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = T.load(
-            "int32", Accum, mma_accum_c_id
-        )
+        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -519,9 +511,7 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
         )
     )
     for mma_accum_c_id in range(2):
-        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = T.load(
-            "int32", Accum, mma_accum_c_id
-        )
+        C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -589,9 +579,9 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
         )
     )
     for mma_accum_c_id in range(4):
-        C[
-            (tx % 32) // 4 + mma_accum_c_id // 2 * 8, (tx % 32) % 4 * 2 + mma_accum_c_id % 2
-        ] = T.load("float32", Accum, mma_accum_c_id)
+        C[(tx % 32) // 4 + mma_accum_c_id // 2 * 8, (tx % 32) % 4 * 2 + mma_accum_c_id % 2] = Accum[
+            mma_accum_c_id
+        ]
 
 
 @tvm.testing.requires_cuda
@@ -672,7 +662,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("float16", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -754,7 +744,7 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("float32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -836,7 +826,7 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -918,7 +908,7 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -1000,7 +990,7 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -1082,7 +1072,7 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -1164,7 +1154,7 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -1238,7 +1228,7 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
@@ -1312,7 +1302,7 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
         C[
             (tx % 32) // 4 + mma_accum_c_id // 2 * 8,
             (tx % 32) % 4 * 2 + mma_accum_c_id % 2,
-        ] = T.load("int32", Accum, mma_accum_c_id)
+        ] = Accum[mma_accum_c_id]
 
 
 @tvm.testing.requires_cuda
