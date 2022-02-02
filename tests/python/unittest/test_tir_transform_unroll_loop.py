@@ -90,7 +90,7 @@ def test_unroll_fake_loop():
         }
     ):
         ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert isinstance(ret[0], tvm.tir.Store)
+        assert isinstance(ret[0], tvm.tir.BufferStore)
 
 
 def test_unroll_single_count_loops():
