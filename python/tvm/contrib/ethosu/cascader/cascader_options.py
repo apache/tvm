@@ -25,7 +25,23 @@ from .tensor_config import MemoryRegion
 
 @tvm._ffi.register_object("contrib.ethosu.cascader.CascaderOptions")
 class CascaderOptions(Object):
-    """A class to hold configuration options for the cascader."""
+    """
+    A class to hold configuration options for the cascader.
+
+    Attributes
+    ----------
+    cascade_region : MemoryRegion
+        The MemoryRegion to place cascading buffers into.
+    max_proposals : int
+        The maximum number of Proposals to generate.
+    stripe_factors : int
+        How many striping factors to try per axis.
+    max_plan_size : int
+        The maximum number of Parts in a Plan.
+    always_copy_size : int
+        The maximum size of a Tensor that will always be copied into the cascade region.
+
+    """
 
     def __init__(
         self,

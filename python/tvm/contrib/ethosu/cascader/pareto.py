@@ -23,7 +23,7 @@ from . import _ffi_api
 from .plan import Plan
 
 
-def get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
+def _get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
     for i, cost in enumerate(costs):
         for j, value in enumerate(cost):
             costs[i][j] = float(value)
@@ -31,9 +31,9 @@ def get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
     return [bool(v) for v in _ffi_api.GetParetoFrontier(costs)]
 
 
-def thin_vector(vec: List[Object], max_size: int) -> List[Object]:
+def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
     return list(_ffi_api.ThinVector(vec, max_size))
 
 
-def pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
+def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
     return list(_ffi_api.ParetoCullPlans(plans, max_plans))

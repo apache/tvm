@@ -27,7 +27,43 @@ from .tensor_config import TensorConfig, MemoryRegion
 
 @tvm._ffi.register_object("contrib.ethosu.cascader.Plan")
 class Plan(Object):
-    """Plan class"""
+    """
+    A class which describes how to schedule a subgraph of Parts together.
+
+    A Plan takes the form of a subgraph of connected Parts (recorded in part_group) with
+    TensorConfigs for all of the required Tensors (recorded in tensor_configs). This information
+    can be used to produce a Tensor Expression schedule with inter-operator scheduling. A Plan is
+    necessarily single-output such that all non-output Parts are 'computed_at'ed the scope of the
+    output Part. This is what achieves the technique referred to as 'cascading'. A Plan also has
+    an interior memory region which specifies the region of memory into which all the Plans
+    intermediate buffers should be allocated.
+
+    Additionally, a Plan contains some other information used during the Plan generation and
+    selection algorithms. Both the memory and cycles required to run the Plan are accounted for so
+    that Plans can be ranked and Pareto-culled on these metrics. Furthermore, the TensorConfigs
+    which are 'open' is recorded indicating that these are valid points to merge with another Plan.
+    A Plan can only be turned into a schedule if it has no 'open' TensorConfigs - at which point
+    the Plan is said to be 'closed'.
+
+    Attributes
+    ----------
+    tensor_configs : Dict[Tensor, TensorConfig]
+        The TensorConfigs specified by the Plan.
+    open_configs : FrozenSet[TensorConfig]
+        The TensorConfigs which are 'open' meaning they are a Plan input/output but have
+        'interior' state.
+    output_config : TensorConfig
+        The TensorConfig of the Plan's output tensor.
+    part_group : FrozenSet[Part]
+        The Parts which are covered by the Plan.
+    interior_region : MemoryRegion
+        The MemoryRegion in which to store 'interior' Plan buffers.
+    memory_usage : int
+        The interior memory used by the Plan in bytes.
+    cycles : int
+        The cycles taken to execute the Plan.
+
+    """
 
     def __init__(
         self,
@@ -51,13 +87,36 @@ class Plan(Object):
         )
 
     def merge(self, other):
-        return _ffi_api.PlanMerge(self, other)
+        """
+        Merge two Plans with share an 'open' TensorConfig.
 
-    def benchmark_merge(self, other, repeats):
-        return _ffi_api.PlanMergeBenchmark(self, other, repeats)
+        The current Plan is referred to as the 'upper Plan' and the other Plan as the 'lower
+        Plan'. The 'open' output config of the upper Plan must be an 'open' input config of the
+        lower Plan. The Tensor referenced by these configs is the Tensor on which the two Plans
+        will be merged. The merge process does the following:
+
+        The tensor config maps will be merged with TensorConfigs from the upper Plan taking
+        priority. The open configs will be merged with the TensorConfigs that are being merged
+        having been removed. The output config will be that of the lower Plan. The part groups
+        will be merged. The interior region is necessarily the same for both the upper and lower
+        Plan. The cycles and memory usage will be summed.
+
+        Parameters
+        ----------
+        other : Plan
+            The Plan to merge with.
+
+        Return
+        ------
+        Plan
+            The merged Plan.
+
+        """
+        return _ffi_api.PlanMerge(self, other)
 
     @property
     def tensor_configs(self):
+        """The TensorConfigs specified by the Plan."""
         tensor_configs = {}
         for config in self._tensor_configs:
             tensor_configs[config.tensor] = config
@@ -65,26 +124,35 @@ class Plan(Object):
 
     @property
     def open_configs(self):
+        """
+        The TensorConfigs which are 'open' meaning they are a Plan input/output but have
+        'interior' state.
+        """
         return frozenset(self._open_configs)
 
     @property
     def output_config(self):
+        """The TensorConfig of the Plan's output tensor."""
         return self._output_config
 
     @property
     def part_group(self):
+        """The Parts which are covered by the Plan."""
         return frozenset(self._part_group)
 
     @property
     def interior_region(self):
+        """The MemoryRegion in which to store 'interior' Plan buffers."""
         return self._interior_region
 
     @property
     def memory_usage(self):
+        """The interior memory used by the Plan in bytes."""
         return self._memory_usage
 
     @property
     def cycles(self):
+        """The cycles taken to execute the Plan."""
         return self._cycles
 
     def __repr__(self):

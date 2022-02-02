@@ -15,7 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 from tvm.tir import IntImm
-from tvm.contrib.ethosu.cascader.pareto import get_pareto_frontier, thin_vector, pareto_cull_plans
+from tvm.contrib.ethosu.cascader.pareto import (
+    _get_pareto_frontier,
+    _thin_vector,
+    _pareto_cull_plans,
+)
 from tvm.contrib.ethosu.cascader import (
     Plan,
     StripeConfig,
@@ -78,7 +82,7 @@ def test_get_pareto_frontier(num_costs):
     for i in range(num_costs):
         costs.append(list(np.random.randint(cost_low, cost_high, size=(dims,))))
     reference = list(_ref_get_pareto_frontier(np.array(costs)))
-    result = get_pareto_frontier(costs)
+    result = _get_pareto_frontier(costs)
     assert result == reference
 
 
@@ -95,7 +99,7 @@ def test_thin_vector(vec_length, max_size):
 
     vector = _make_vector(vec_length)
     reference = list(_ref_thin_vector(np.array(vector), max_size))
-    result = thin_vector(vector, max_size)
+    result = _thin_vector(vector, max_size)
     assert result == reference
 
 
@@ -137,7 +141,7 @@ def test_pareto_cull_plans(num_plans, max_plans, SRAM):
 
     plans = _make_plans(num_plans)
     reference = list(_ref_pareto_cull_plans(plans, max_plans))
-    result = pareto_cull_plans(plans, max_plans)
+    result = _pareto_cull_plans(plans, max_plans)
     assert result == reference
 
 

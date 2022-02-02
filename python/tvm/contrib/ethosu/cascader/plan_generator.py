@@ -26,11 +26,11 @@ from .stripe_config import StripeConfig
 from .graph import CascaderGraph, Part, Tensor
 
 
-def generate_output_stripe_configs(part: Part, stripe_factors: int) -> List[StripeConfig]:
+def _generate_output_stripe_configs(part: Part, stripe_factors: int) -> List[StripeConfig]:
     return list(_ffi_api.GenerateOutputStripeConfigs(part, stripe_factors))
 
 
-def generate_single_plans(
+def _generate_single_plans(
     part: Part,
     output_stripe_configs: List[StripeConfig],
     home_map: Dict[Tensor, List[MemoryRegion]],
@@ -39,7 +39,7 @@ def generate_single_plans(
     return list(_ffi_api.GenerateSinglePlans(part, output_stripe_configs, home_map, cascade_region))
 
 
-def generate_graph_plans(
+def _generate_graph_plans(
     graph: CascaderGraph,
     home_map: Dict[Tensor, List[MemoryRegion]],
     options: CascaderOptions,

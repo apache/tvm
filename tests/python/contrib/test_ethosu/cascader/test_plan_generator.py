@@ -20,9 +20,9 @@ import tvm.contrib.ethosu.cascader as cs
 from .infra import make_simple_home_map, make_options, ethosu_enabled
 
 from tvm.contrib.ethosu.cascader.plan_generator import (
-    generate_output_stripe_configs,
-    generate_single_plans,
-    generate_graph_plans,
+    _generate_output_stripe_configs,
+    _generate_single_plans,
+    _generate_graph_plans,
 )
 
 
@@ -47,7 +47,7 @@ def test_generate_output_stripe_configs():
     tensor_1.add_consumer(part_1)
     tensor_2.add_producer(part_1)
 
-    assert len(generate_output_stripe_configs(part_1, stripe_factors)) == expected_configs
+    assert len(_generate_output_stripe_configs(part_1, stripe_factors)) == expected_configs
 
 
 def test_generate_single_plans(SRAM, DRAM):
@@ -74,8 +74,8 @@ def test_generate_single_plans(SRAM, DRAM):
         tensor_2: [SRAM],
     }
     options = make_options(cascade_region=SRAM, stripe_factors=1)
-    output_stripe_configs = generate_output_stripe_configs(part_1, options.stripe_factors)
-    plans = generate_single_plans(part_1, output_stripe_configs, home_map, options)
+    output_stripe_configs = _generate_output_stripe_configs(part_1, options.stripe_factors)
+    plans = _generate_single_plans(part_1, output_stripe_configs, home_map, options)
     for plan in plans:
         assert plan.interior_region == SRAM
         assert plan.part_group == frozenset([part_1])
@@ -140,7 +140,7 @@ def test_generate_graph_plans(SRAM, DRAM):
         stripe_factors=stripe_factors,
         max_plan_size=max_plan_size,
     )
-    closed_plans = generate_graph_plans(graph, home_map, options)
+    closed_plans = _generate_graph_plans(graph, home_map, options)
 
     assert len(closed_plans) == num_part_groups
 
@@ -157,7 +157,7 @@ if ethosu_enabled:
             max_plan_size=10,
         )
 
-        closed_plans = generate_graph_plans(graph, home_map, options)
+        closed_plans = _generate_graph_plans(graph, home_map, options)
 
         assert len(closed_plans) == num_part_groups
 
@@ -171,7 +171,7 @@ if ethosu_enabled:
             max_plan_size=10,
         )
 
-        closed_plans = generate_graph_plans(graph, home_map, options)
+        closed_plans = _generate_graph_plans(graph, home_map, options)
 
         assert len(closed_plans) == num_part_groups
 
