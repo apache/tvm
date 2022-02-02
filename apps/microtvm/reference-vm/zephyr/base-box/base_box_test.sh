@@ -31,9 +31,4 @@ fi
 board=$1
 
 pytest tests/micro/zephyr/test_zephyr.py --zephyr-board=${board}
-
-if [ $board == "stm32f746g_disco" ] || [ $board == "nucleo_f746zg" ]; then
-    echo "NOTE: skipped test_zephyr_aot.py on $board -- known failure"
-else
-    pytest tests/micro/zephyr/test_zephyr_aot.py --zephyr-board=${board}
-fi
+pytest tests/micro/zephyr/test_zephyr_aot.py --zephyr-board=${board}
