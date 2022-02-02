@@ -56,8 +56,8 @@ def test_if():
     body = body.body
     assert isinstance(body, tvm.tir.IfThenElse)
     assert isinstance(body.condition, tvm.tir.EQ)
-    assert isinstance(body.then_case.index, tvm.tir.Var)
-    assert body.else_case.index.value == 0
+    assert isinstance(body.then_case.indices[0], tvm.tir.Var)
+    assert list(body.else_case.indices) == [0]
 
 
 def test_prefetch():
