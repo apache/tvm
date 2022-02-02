@@ -2510,6 +2510,12 @@ def test_where(target, dev):
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata, dynamic=True)
 
+    condition = np.random.uniform(size=(3, 1)) < 0.5
+    x = np.random.uniform(size=2).astype(np.float32)
+    y = np.random.uniform(size=2).astype(np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
 
 @tvm.testing.parametrize_targets
 def test_or(target, dev):
