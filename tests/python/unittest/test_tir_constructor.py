@@ -127,7 +127,6 @@ def test_expr_constructor():
 
 def test_stmt_constructor():
     v = te.var("aa")
-    buffer_var = te.var("buf", dtype="handle")
     nop = tvm.tir.Evaluate(1)
     x = tvm.tir.LetStmt(v, 1, tvm.tir.Evaluate(1))
     assert isinstance(x, tvm.tir.LetStmt)
@@ -149,10 +148,13 @@ def test_stmt_constructor():
     assert x.extent.value == 10
     assert x.body == nop
 
-    x = tvm.tir.Store(buffer_var, 1, 10, tvm.tir.const(1, "uint1"))
-    assert isinstance(x, tvm.tir.Store)
-    assert x.buffer_var == buffer_var
-    assert x.index.value == 10
+    buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("uint1")))
+    buffer = tvm.tir.decl_buffer([16], "uint1", data=buffer_var)
+    x = tvm.tir.BufferStore(buffer, 1, [10])
+    assert isinstance(x, tvm.tir.BufferStore)
+    assert x.buffer == buffer
+    assert x.buffer.data == buffer_var
+    assert list(x.indices) == [10]
     assert x.value.value == 1
 
     buffer_var = tvm.tir.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
