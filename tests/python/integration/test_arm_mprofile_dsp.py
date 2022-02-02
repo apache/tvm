@@ -28,6 +28,7 @@ from tests.python.relay.aot.aot_test_utils import (
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_nhwc, kernel_size, num_filter, strides, padding, dilation",
     [
@@ -111,6 +112,7 @@ def test_conv2d(data_shape_nhwc, kernel_size, num_filter, strides, padding, dila
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_nwc, kernel_size, num_filter, strides, padding",
     [
@@ -175,6 +177,7 @@ def test_conv1d(data_shape_nwc, kernel_size, num_filter, strides, padding, dtype
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "M, K, N",
     [
@@ -209,6 +212,7 @@ def test_dense(M, K, N):
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_nhwc, pool_size, strides, padding",
     [
@@ -241,6 +245,7 @@ def test_maxpool_2d(data_shape_nhwc, pool_size, strides, padding):
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_nwc, pool_size, strides, padding",
     [
@@ -272,6 +277,7 @@ def test_maxpool_1d(data_shape_nwc, pool_size, strides, padding):
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_nchw, pool_size, strides, padding",
     [
@@ -313,6 +319,7 @@ def test_avgpool_2d(data_shape_nchw, pool_size, strides, padding):
 
 
 @tvm.testing.requires_corstone300
+@pytest.mark.skip(reason="Test timing out in CI, see https://github.com/apache/tvm/issues/10152")
 @pytest.mark.parametrize(
     "data_shape_ncw, pool_size, strides, padding",
     [
