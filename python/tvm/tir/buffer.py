@@ -153,6 +153,23 @@ class Buffer(Object):
         """
         return _ffi_api.BufferGetFlattenedBuffer(self)  # type: ignore
 
+    def offset_of(self, indices):
+        """Determine the offset of the provided indices in the flattened buffer.
+
+        Params
+        -------
+        indices : Union[PrimExpr, List[PrimExpr]]
+
+            The indices of the element in the original buffer.
+
+        Returns
+        -------
+        flattened_indices: List[PrimExpr]
+
+            The offset indices of the element in the flattened buffer.
+        """
+        return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
+
 
 def decl_buffer(
     shape,

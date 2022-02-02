@@ -214,6 +214,14 @@ class Buffer : public ObjectRef {
    */
   Buffer GetFlattenedBuffer() const;
 
+  /*! \brief Determine the offset in the buffer of the given index.
+   *
+   * Returns the buffer offset, in number of elements of type dtype,
+   * without adjusting for number of lanes.  (e.g. The number of
+   * float16x4 elements in a buffer of type float16x4.)
+   */
+  Array<PrimExpr> OffsetOf(Array<PrimExpr> index) const;
+
   /*!
    * \brief Return the storage scope associated with this buffer.
    */
