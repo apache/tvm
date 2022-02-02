@@ -45,8 +45,7 @@ pip3 install west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
-ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")
-bash ${ZEPHYR_INIT_SCRIPT} ${ZEPHYR_PROJECT_PATH}
+bash /install/ubuntu_init_zephyr_project.sh ${ZEPHYR_PROJECT_PATH}
 cd ${ZEPHYR_PROJECT_PATH}
 
 # As part of the build process, Zephyr needs to touch some symlinks in zephyr/misc/generated/syscalls_links (this path is relative to the
@@ -65,5 +64,4 @@ chmod o+rwx zephyr/.cache
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 
-ZEPHYR_INSTALL_SDK_SCRIPT=$(find -name "ubuntu_install_zephyr_sdk.sh")
-bash ${ZEPHYR_INSTALL_SDK_SCRIPT} /opt/zephyr-sdk
+bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk
