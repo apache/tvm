@@ -51,7 +51,10 @@ ALL_PLATFORMS = (
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
     "arduino": (),
-    "zephyr": ("docker/install/ubuntu_init_zephyr_project.sh", "docker/install/ubuntu_install_zephyr_sdk.sh"),
+    "zephyr": (
+        "docker/install/ubuntu_init_zephyr_project.sh",
+        "docker/install/ubuntu_install_zephyr_sdk.sh",
+    ),
 }
 
 PACKER_FILE_NAME = "packer.json"
