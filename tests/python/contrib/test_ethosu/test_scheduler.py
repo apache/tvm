@@ -131,11 +131,11 @@ def test_copy_constants():
     sch = te.create_schedule([cached_func.outputs[0].op])
     planner = copy_constants()
     planner(cached_func, const_dict, sch)
-    assert len(sch.stages) == 21
-    assert ".global" in sch.stages[5].op.name
-    assert ".global" in sch.stages[7].op.name
-    assert ".global" in sch.stages[15].op.name
+    assert len(sch.stages) == 23
+    assert ".global" in sch.stages[6].op.name
+    assert ".global" in sch.stages[8].op.name
     assert ".global" in sch.stages[17].op.name
+    assert ".global" in sch.stages[19].op.name
 
 
 # This test makes sure that constants and LUTs have a correct storage scope
@@ -156,10 +156,10 @@ def test_copy_luts():
     sch = te.create_schedule([te_graph.outputs[0].op])
     copy_constants()(te_graph, const_dict, sch)
     copy_luts()(te_graph, const_dict, sch)
-    assert len(sch.stages) == 16
-    assert ".global" in sch.stages[5].op.name
-    assert ".global" in sch.stages[7].op.name
-    assert ".local" in sch.stages[9].op.name
+    assert len(sch.stages) == 17
+    assert ".global" in sch.stages[6].op.name
+    assert ".global" in sch.stages[8].op.name
+    assert ".local" in sch.stages[10].op.name
 
 
 def test_schedule_cache_reads():

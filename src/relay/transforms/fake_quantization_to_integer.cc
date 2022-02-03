@@ -23,11 +23,14 @@
  * to actual integer operations.
  */
 
-#include <tvm/ir/affine_type.h>
+#include "fake_quantization_to_integer.h"
+
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <tvm/relay/transform.h>
+
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
@@ -75,69 +78,61 @@ using AffineTypeMap = Map<Expr, AffineType>;
 using FTVMFakeQuantizationToInteger =
     runtime::TypedPackedFunc<Array<ObjectRef>(const Expr& expr, const AffineTypeMap& map)>;
 
-class SubgraphExtractor : public ExprVisitor {
- public:
-  const ExprSet GetSubgraph(const Expr& expr) {
-    VisitExpr(expr);
-    ExprSet subgraph;
-    if (is_fake_quantized_) {
-      for (auto kv : this->visit_counter_) {
-        if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
-          if (call_node->op != quantize_op_) {
-            subgraph.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
-          }
+const ExprSet SubgraphExtractor::GetSubgraph(const Expr& expr) {
+  VisitExpr(expr);
+  ExprSet subgraph;
+  if (is_fake_quantized_) {
+    for (auto kv : this->visit_counter_) {
+      if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
+        if (call_node->op != quantize_op_) {
+          subgraph.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
         }
       }
     }
-    return subgraph;
   }
-  const AffineTypeMap GetAffineTypes() { return affine_types_; }
-  void VisitExpr(const Expr& expr) override {
-    // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
-    // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
-    // abort the rewrite.
-    if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
-        expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
-        expr.as<ConstantNode>() == nullptr) {
-      DLOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
-                 << " a fake quantize region, aborting this rewrite";
-      is_fake_quantized_ = false;
-    } else {
-      ExprVisitor::VisitExpr(expr);
-    }
+  return subgraph;
+}
+const AffineTypeMap SubgraphExtractor::GetAffineTypes() { return affine_types_; }
+void SubgraphExtractor::VisitExpr(const Expr& expr) {
+  // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
+  // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
+  // abort the rewrite.
+  if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
+      expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
+      expr.as<ConstantNode>() == nullptr) {
+    DLOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
+               << " a fake quantize region, aborting this rewrite";
+    is_fake_quantized_ = false;
+  } else {
+    ExprVisitor::VisitExpr(expr);
   }
+}
 
- protected:
-  void VisitExpr_(const CallNode* call_node) override {
-    if (call_node->op == quantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
-      ICHECK(attrs != nullptr);
-      // Only look at arg0 for quantize
-      VisitExpr(call_node->args[0]);
-      // Collect type of quantize ops
-      affine_types_.Set(
-          GetRef<Expr>(call_node),
-          TensorAffineType(call_node->args[1], call_node->args[2], attrs->out_dtype, attrs->axis));
-    } else if (call_node->op == dequantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
-      ICHECK(attrs != nullptr);
-      // Collect type of dequantize ops
-      affine_types_.Set(
-          GetRef<Expr>(call_node),
-          TensorAffineType(call_node->args[1], call_node->args[2],
-                           call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype,
-                           attrs->axis));
-    } else {
-      // run normally on everything else.
-      ExprVisitor::VisitExpr_(call_node);
-    }
+void SubgraphExtractor::VisitExpr_(const CallNode* call_node) {
+  const Op test_op = Downcast<Op>(call_node->op);
+  if (call_node->op == quantize_op_) {
+    const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
+    ICHECK(attrs != nullptr);
+    // Only look at arg0 for quantize
+    VisitExpr(call_node->args[0]);
+    // Collect type of quantize ops
+    affine_types_.Set(
+        GetRef<Expr>(call_node),
+        TensorAffineType(call_node->args[1], call_node->args[2], attrs->out_dtype, attrs->axis));
+  } else if (call_node->op == dequantize_op_) {
+    const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
+    ICHECK(attrs != nullptr);
+    // Collect type of dequantize ops
+    affine_types_.Set(
+        GetRef<Expr>(call_node),
+        TensorAffineType(call_node->args[1], call_node->args[2],
+                         call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype,
+                         attrs->axis));
+  } else {
+    // run normally on everything else.
+    ExprVisitor::VisitExpr_(call_node);
   }
-
-  const Op quantize_op_ = Op::Get("qnn.quantize");
-  const Op dequantize_op_ = Op::Get("qnn.dequantize");
-  bool is_fake_quantized_ = true;
-  AffineTypeMap affine_types_;
-};
+}
 
 class SubgraphMutator : public ExprMutator {
  public:

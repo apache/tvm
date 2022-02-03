@@ -18,13 +18,10 @@
 import numpy as np
 import pytest
 import tvm
-from tvm import te
-from tvm import topi
-from tvm import relay
-import tvm.topi.testing
-from tvm.contrib.nvcc import have_fp16
-
 import tvm.testing
+import tvm.topi.testing
+from tvm import relay, te, topi
+from tvm.contrib.nvcc import have_fp16
 
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
@@ -356,9 +353,8 @@ def test_reverse_sequence():
     )
 
 
-def verify_take(src_shape, indices_src, axis=None, mode="clip"):
+def verify_take(src_shape, indices_src, axis=None, mode="clip", indices_dtype="int32"):
     src_dtype = "float32"
-    indices_dtype = "int32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
     A = te.placeholder(shape=src_shape, dtype=src_dtype, name="A")
     indices = te.placeholder(shape=indices_src.shape, dtype=indices_dtype, name="indices")
@@ -678,15 +674,15 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
         check_device(target, dev)
 
 
-def verify_unravel_index(indices, shape, dtype):
-    x_data = np.array(indices).astype(dtype)
+def verify_unravel_index(indices, shape, dtype, indice_dtype="int64"):
+    x_data = np.array(indices).astype(indice_dtype)
     y_data = np.array(shape).astype(dtype)
     if len(x_data.shape) == 1:
         dst_shape = [y_data.shape[0], x_data.shape[0]]
     else:
         dst_shape = [y_data.shape[0]]
 
-    X = te.placeholder(shape=x_data.shape, dtype=dtype, name="X")
+    X = te.placeholder(shape=x_data.shape, dtype=indice_dtype, name="X")
     Y = te.placeholder(shape=y_data.shape, dtype=dtype, name="Y")
     Z = topi.unravel_index(X, Y)
 
@@ -775,7 +771,7 @@ def verify_matrix_set_diag(input_shape, diagonal_shape, dtype, k=0, align="RIGHT
         check_device(target, dev)
 
 
-def verify_adv_index(data_shape, index_shapes):
+def verify_adv_index(data_shape, index_shapes, indice_dtype="int64"):
     dtype = "float32"
     data = te.placeholder(shape=data_shape, name="data", dtype=dtype)
     indices = []
@@ -783,8 +779,10 @@ def verify_adv_index(data_shape, index_shapes):
     np_indices = []
     for i, index_shape in enumerate(index_shapes):
         limit = data_shape[i]
-        np_indices.append(np.random.uniform(0, limit - 1, size=index_shape).astype("int64"))
-        indices.append(te.placeholder(shape=index_shape, name="index_{}".format(i), dtype="int64"))
+        np_indices.append(np.random.uniform(0, limit - 1, size=index_shape).astype(indice_dtype))
+        indices.append(
+            te.placeholder(shape=index_shape, name="index_{}".format(i), dtype=indice_dtype)
+        )
     np_out = np_data[tuple(np_indices)]
     out = topi.adv_index(data, indices)
 
@@ -999,6 +997,9 @@ def test_take():
     verify_take((3, 3, 3), [[11, 25]], mode="fast")
     verify_take((3, 4), [0, 2], axis=0, mode="fast")
     verify_take((3, 4), [0, 2], axis=1, mode="fast")
+    verify_take((3, 4), [1, 2], axis=1, indices_dtype="uint32")
+    verify_take((3, 4), [1, 2], axis=1, mode="wrap", indices_dtype="uint16")
+    verify_take((3, 3, 3), [[11, 20]], mode="fast", indices_dtype="uint8")
 
 
 @tvm.testing.uses_gpu
@@ -1010,11 +1011,21 @@ def test_gather():
     verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
+    verify_gather(
+        np.random.randn(4, 7, 5),
+        2,
+        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint32"),
+    )
+    verify_gather(
+        np.random.randn(4, 7, 5),
+        2,
+        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint8"),
+    )
 
 
 @tvm.testing.uses_gpu
 def test_gather_nd():
-    for indices_dtype in ["int32", "float32"]:
+    for indices_dtype in ["int32", "float32", "uint8"]:
         verify_gather_nd((4,), [[1.8]], indices_dtype)
         verify_gather_nd((4,), [[1, 3, 2]], indices_dtype)
         verify_gather_nd((2, 3), [[1]], indices_dtype)
@@ -1198,10 +1209,11 @@ def test_one_hot():
 @tvm.testing.uses_gpu
 def test_unravel_index():
     for dtype in ["int32", "int64"]:
-        verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
-        verify_unravel_index([144], [5, 5, 5, 2], dtype)
-        verify_unravel_index(144, [5, 5, 5, 2], dtype)
-        verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype)
+        for indice_dtype in ["int64", "uint8", "uint16", "uint32"]:
+            verify_unravel_index([0, 1, 2, 3], [2, 2], dtype, indice_dtype)
+            verify_unravel_index([144], [5, 5, 5, 2], dtype, indice_dtype)
+            verify_unravel_index(144, [5, 5, 5, 2], dtype, indice_dtype)
+            verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype, indice_dtype)
 
 
 @tvm.testing.uses_gpu
@@ -1245,9 +1257,10 @@ def test_matrix_set_diag():
 
 @tvm.testing.uses_gpu
 def test_adv_index():
-    verify_adv_index((3, 4, 5), [(2,), (2,), (1,)])
-    verify_adv_index((10, 15, 5), [(1, 1), (2, 7)])
-    verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)])
+    for indice_dtype in ["int32", "int64", "uint8", "uint16", "uint32"]:
+        verify_adv_index((3, 4, 5), [(2,), (2,), (1,)], indice_dtype=indice_dtype)
+        verify_adv_index((10, 15, 5), [(4, 1), (1, 7)], indice_dtype=indice_dtype)
+        verify_adv_index((10, 5, 15), [(1, 2, 1), (1, 2, 7)], indice_dtype=indice_dtype)
 
 
 if __name__ == "__main__":

@@ -291,6 +291,7 @@ EPILOGUE_MAP = {
     "cutlass.conv2d_bias_relu": (EpilogueFunctor.LinearCombinationRelu, True),
     "cutlass.conv2d_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.conv2d": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.conv2d_transpose": (EpilogueFunctor.LinearCombination, False),
 }
 
 

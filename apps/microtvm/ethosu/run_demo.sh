@@ -138,7 +138,7 @@ python3 -m tvm.driver.tvmc compile --target="ethos-u -accelerator_config=ethos-u
     --executor-aot-interface-api=c \
     --executor-aot-unpacked-api=1 \
     --pass-config tir.disable_vectorize=1 ./mobilenet_v2_1.0_224_INT8.tflite --output-format=mlf
-tar -xvf module.tar
+tar -xf module.tar
 
 # Get ImageNet labels
 curl -sS  https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/lite/java/demo/app/src/main/assets/labels_mobilenet_quant_v1_224.txt \

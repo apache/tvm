@@ -54,29 +54,42 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
       Downcast<Call>(conv->args[0])->op == Op::Get("nn.pad"))
     pad = Downcast<Call>(conv->args[0]);
   const auto& conv_attr = conv->attrs.as<Conv2DAttrs>();
+  params->is_depthwise = conv_attr->channels.defined() &&
+                         tvm::tir::ExprDeepEqual()(conv_attr->channels, conv_attr->groups) &&
+                         conv_attr->groups != 1;
 
   // Extract the quantization params from the arguments
   int input_zero_point;
   int kernel_zero_point;
   int output_zero_point;
-  float input_scale;
-  float kernel_scale;
+  std::valarray<float> input_scale;
+  std::valarray<float> kernel_scale;
   float output_scale;
-  EthosnError err = AsConstant<int>(conv->args[2], &input_zero_point);
-  err += AsConstant<int>(conv->args[3], &kernel_zero_point);
-  err += AsConstant<int>(requantize->args[4], &output_zero_point);
-  err += AsConstant<float>(conv->args[4], &input_scale);
-  err += AsConstant<float>(conv->args[5], &kernel_scale);
-  err += AsConstant<float>(requantize->args[3], &output_scale);
+  std::string s = conv_attr->kernel_layout;
+  unsigned int qaxis = s.find("O");
+  assert(conv->args[2].size() == 1);
+  assert(conv->args[3] == 1);
+  assert(requantize->args[4] == 1);
+  assert(conv->args[4] == 4);
+  assert(conv->args[1]->checked_type().shape[qaxis] == kernel_scale_axis.size());
+  assert(requantize->args[3] == 1);
+
+  EthosnError err = AsConstant(conv->args[2], &input_zero_point);
+  err += AsConstant(conv->args[3], &kernel_zero_point);
+  err += AsConstant(requantize->args[4], &output_zero_point);
+  err += AsConstant(conv->args[4], &input_scale);
+  err += AsConstant(conv->args[5], &kernel_scale);
+  err += AsConstant(requantize->args[3], &output_scale);
 
   // Convert quantization params
   sl::QuantizationInfo data_q_info;
   sl::QuantizationInfo weights_q_info;
   sl::QuantizationInfo bias_q_info;
   sl::QuantizationInfo output_q_info;
-  err += Tvm2Npu(input_zero_point, input_scale, &data_q_info);
-  err += Tvm2Npu(kernel_zero_point, kernel_scale, &weights_q_info);
-  err += Tvm2Npu(0, data_q_info.GetScale() * weights_q_info.GetScale(), &bias_q_info);
+  err += Tvm2Npu(input_zero_point, input_scale, qaxis, &data_q_info);
+  err += Tvm2Npu(kernel_zero_point, kernel_scale, qaxis, &weights_q_info);
+  std::valarray<float> bias = data_q_info.GetScales() * weights_q_info.GetScales();
+  err += Tvm2Npu(0, bias, 3, &bias_q_info);
   err += Tvm2Npu(output_zero_point, output_scale, &output_q_info);
 
   // Convert convolution attributes
@@ -119,10 +132,6 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
                                            sl::DataFormat::NHWC, data_q_info);
 
   // Create weights info
-  params->is_depthwise = conv_attr->channels.defined() &&
-                         tvm::tir::ExprDeepEqual()(conv_attr->channels, conv_attr->groups) &&
-                         conv_attr->groups != 1;
-
   const auto* weights_dtype = conv->args[1]->checked_type().as<TensorTypeNode>();
   sl::TensorShape weights_tensor_shape;
   sl::DataType weights_data_type;
@@ -156,12 +165,12 @@ EthosnError EthosnAPI::QnnFullyConnected(const Expr& expr, FullyConnectedParams*
   float input_scale;
   float kernel_scale;
   float output_scale;
-  EthosnError err = AsConstant<int>(dense->args[2], &input_zero_point);
-  err += AsConstant<int>(dense->args[3], &kernel_zero_point);
-  err += AsConstant<int>(requantize->args[4], &output_zero_point);
-  err += AsConstant<float>(dense->args[4], &input_scale);
-  err += AsConstant<float>(dense->args[5], &kernel_scale);
-  err += AsConstant<float>(requantize->args[3], &output_scale);
+  EthosnError err = AsConstant(dense->args[2], &input_zero_point);
+  err += AsConstant(dense->args[3], &kernel_zero_point);
+  err += AsConstant(requantize->args[4], &output_zero_point);
+  err += AsConstant(dense->args[4], &input_scale);
+  err += AsConstant(dense->args[5], &kernel_scale);
+  err += AsConstant(requantize->args[3], &output_scale);
 
   // Convert quantization params
   sl::QuantizationInfo data_q_info;
@@ -313,12 +322,12 @@ EthosnError EthosnAPI::Addition(const Expr& expr, AdditionParams* params) {
   int rhs_zero_point;
   float output_scale;
   int output_zero_point;
-  EthosnError err = AsConstant<float>(call->args[2], &lhs_scale);
-  err += AsConstant<int>(call->args[3], &lhs_zero_point);
-  err += AsConstant<float>(call->args[4], &rhs_scale);
-  err += AsConstant<int>(call->args[5], &rhs_zero_point);
-  err += AsConstant<float>(call->args[6], &output_scale);
-  err += AsConstant<int>(call->args[7], &output_zero_point);
+  EthosnError err = AsConstant(call->args[2], &lhs_scale);
+  err += AsConstant(call->args[3], &lhs_zero_point);
+  err += AsConstant(call->args[4], &rhs_scale);
+  err += AsConstant(call->args[5], &rhs_zero_point);
+  err += AsConstant(call->args[6], &output_scale);
+  err += AsConstant(call->args[7], &output_zero_point);
 
   sl::QuantizationInfo lhs_q_info;
   sl::QuantizationInfo rhs_q_info;
@@ -358,15 +367,16 @@ EthosnError EthosnAPI::Sigmoid(const Expr& expr, SigmoidParams* params) {
   err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
   float input_sc;
   int input_zp;
-  err += AsConstant<int>(dequantize->args[2], &input_zp);
-  err += AsConstant<float>(dequantize->args[1], &input_sc);
+  err += AsConstant(dequantize->args[2], &input_zp);
+  err += AsConstant(dequantize->args[1], &input_sc);
   float output_sc;
   int output_zp;
-  err += AsConstant<int>(quantize->args[2], &output_zp);
-  err += AsConstant<float>(quantize->args[1], &output_sc);
-  if (output_zp != 0 || output_sc != 1.0f / 256.0f) {
+  err += AsConstant(quantize->args[2], &output_zp);
+  err += AsConstant(quantize->args[1], &output_sc);
+  auto test_zp = input_dtype->dtype.is_int() ? -128 : 0;
+  if (output_zp != test_zp || output_sc != 1.0f / 256.0f) {
     err += EthosnError(ErrStrm() << "output quantization params=(" << output_zp << ", " << output_sc
-                                 << "), must = (0, 1/256)");
+                                 << "), must = (" << test_zp << ", 1/256)");
   }
   params->input_info = sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC,
                                       sl::QuantizationInfo(input_zp, input_sc));
@@ -380,8 +390,8 @@ EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) 
 
   float output_s;
   int output_zp;
-  EthosnError err = AsConstant<float>(call->args[3], &output_s);
-  err += AsConstant<int>(call->args[4], &output_zp);
+  EthosnError err = AsConstant(call->args[3], &output_s);
+  err += AsConstant(call->args[4], &output_zp);
   params->concat_info.m_OutputQuantizationInfo = sl::QuantizationInfo(output_zp, output_s);
 
   auto input_scales = call->args[1].as<TupleNode>()->fields;
@@ -394,8 +404,8 @@ EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) 
     auto input_zero_point = input_zero_points[index];
     float scale;
     int zp;
-    err += AsConstant<float>(input_scale, &scale);
-    err += AsConstant<int>(input_zero_point, &zp);
+    err += AsConstant(input_scale, &scale);
+    err += AsConstant(input_zero_point, &zp);
     sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
     sl::DataType input_data_type;
     err += Tvm2Npu(input_dtype->shape, &input_tensor_shape);
@@ -560,16 +570,35 @@ EthosnError EthosnAPI::Tvm2Npu(const tvm::DataType& dtype, sl::DataType* data_ty
     if (dtype.is_uint() && dtype.bits() == 8) {
       *data_type = sl::DataType::UINT8_QUANTIZED;
       return EthosnError();
+    } else if (dtype.is_int() && dtype.bits() == 8) {
+      *data_type = sl::DataType::INT8_QUANTIZED;
+      return EthosnError();
     } else if (dtype.is_int() && dtype.bits() == 32) {
       *data_type = sl::DataType::INT32_QUANTIZED;
       return EthosnError();
     }
   }
-  return EthosnError(ErrStrm() << "dtype=\'" << dtype << "\', dtype must be either uint8 or int32");
+  return EthosnError(ErrStrm() << "dtype=\'" << dtype
+                               << "\', dtype must be either uint8, int8 or int32");
 }
 
-EthosnError EthosnAPI::Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo) {
-  *npu_qinfo = sl::QuantizationInfo(zero_point, scale);
+EthosnError EthosnAPI::Tvm2Npu(const int32_t zero_point, const float scale,
+                               sl::QuantizationInfo* npu_qinfo) {
+  sl::QuantizationInfo q(zero_point, scale);
+  *npu_qinfo = q;
+  return EthosnError();
+}
+
+EthosnError EthosnAPI::Tvm2Npu(const int zero_point, std::valarray<float> scales, unsigned int axis,
+                               sl::QuantizationInfo* npu_qinfo) {
+  if (scales.size() == 1) {
+    sl::QuantizationInfo q(zero_point, scales[0]);
+    *npu_qinfo = q;
+  } else {
+    struct sl::QuantizationScales s(std::move(scales));
+    sl::QuantizationInfo q(zero_point, s, axis);
+    *npu_qinfo = q;
+  }
   return EthosnError();
 }
 
@@ -610,6 +639,24 @@ EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* 
                                    << std::numeric_limits<ValueT>::max());
     }
     (*v)[i] = static_cast<ValueT>(intImm->value);
+  }
+  return EthosnError();
+}
+
+// Get a std::valarray from a constant represented by a NDArray.
+EthosnError EthosnAPI::AsConstant(const Expr& expr, std::valarray<float>* out) {
+  if (!expr->IsInstance<ConstantNode>()) {
+    return EthosnError("expected constant data");
+  }
+  const auto* data = expr.as<ConstantNode>();
+  int64_t num_elems = 1;
+  auto shape = data->data.Shape();
+  for (size_t i = 0; i < shape.size(); i++) {
+    num_elems *= shape[i];
+  }
+  out->resize(num_elems);
+  for (int64_t i = 0; i < num_elems; i++) {
+    (*out)[i] = static_cast<float*>(data->data->data)[i];
   }
   return EthosnError();
 }

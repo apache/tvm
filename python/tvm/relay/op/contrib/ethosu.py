@@ -17,8 +17,8 @@
 # pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
-
 from typing import Dict, List, Tuple, Callable, Optional
+
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -83,9 +83,10 @@ class TensorParams:
             self.q_params = vapi.NpuQuantization(1.0, 0)
 
 
-def check_strides(strides: List[int]) -> bool:
+def check_strides(strides: List[int], stride_range=None) -> bool:
     """This function checks whether strides are within the limits supported by the NPU"""
-    stride_range = (1, 3)
+    if stride_range is None:
+        stride_range = (1, 3)
     smin, smax = stride_range
     if not smax >= strides[0] >= smin:
         return False
@@ -146,9 +147,10 @@ def check_batch_size(ifm: TensorParams):
     return ifm.shape[0] == 1
 
 
-def check_dilation(dilation: List[int]):
+def check_dilation(dilation: List[int], dilation_range=None):
     """This function checks whether dilation is within the limits supported by the NPU"""
-    dilation_range = (1, 2)
+    if dilation_range is None:
+        dilation_range = (1, 2)
     dmin, dmax = dilation_range
     if not dmin <= dilation[0] <= dmax:
         return False
@@ -1199,6 +1201,91 @@ def requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     )
 
 
+class Resize2dParams:
+    """
+    This class will parse a call to ethos-u.resize2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.resize2d"
+
+    def __init__(self, func_body: Call):
+        layout = "NHWC"
+
+        resize_2d = func_body
+        in_var = func_body.args[0]
+        if (
+            isinstance(resize_2d, tvm.relay.expr.Call)
+            and isinstance(resize_2d.op, tvm.ir.Op)
+            and resize_2d.op.name == "qnn.quantize"
+        ):
+            resize_2d = resize_2d.args[0]
+            in_var = in_var.args[0].args[0]
+        out_var = func_body
+
+        self.ifm = TensorParams(in_var, layout=layout)
+        self.ofm = TensorParams(out_var, layout=layout)
+
+        attrs = resize_2d.attrs
+        self.size = attrs.size
+        self.method = attrs.method
+        self.roi = attrs.roi
+        self.coordinate_transformation_mode = attrs.coordinate_transformation_mode
+        self.rounding_method = attrs.rounding_method
+        self.out_dtype = attrs.out_dtype
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether image.resize2d has compatible attributes with HW.
+        """
+
+        def check_compatible_size(mode, method, upscale_size, ifm_size):
+            """Checking the provided upscale_size is compatible with the NPU. The NPU only
+            supports upsampling when the upsampling size is 2 * input_size, or when there is
+            no upsampling to be done, so check that this is the case. In the special case of
+            resize_bilinear with align_corners=True, the NPU only supports an upsampling
+            size of 2 * input_size - 1."""
+            delta = 1 if mode == "align_corners" and method == "linear" else 0
+            upscale_size = np.array(upscale_size)
+            ifm_size = np.array(ifm_size)
+            ifm_upscaled = ifm_size * 2 - delta
+            return (ifm_upscaled == upscale_size).all() or (ifm_size == upscale_size).all()
+
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if len(self.ifm.shape) != 4 or len(self.ofm.shape) != 4:
+            return False
+        if list(float(x) for x in self.roi) != [0.0] * 4:
+            return False
+        if self.method not in ("nearest_neighbor", "linear"):
+            return False
+        if self.coordinate_transformation_mode not in ("asymmetric", "align_corners"):
+            return False
+        if not check_compatible_size(
+            self.coordinate_transformation_mode,
+            self.method,
+            self.size,
+            self.ifm.shape[1:3],
+        ):
+            return False
+        if self.rounding_method != "":
+            return False
+        if self.out_dtype and self.out_dtype != "int8":
+            return False
+        return True
+
+
+def resize2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for image.resize2d.
+    """
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    resize_2d = is_op("image.resize2d")(dequant).has_attr({"method": "linear"})
+    quant = is_op("qnn.quantize")(resize_2d, is_constant(), is_constant())
+    return quant | is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1288,6 +1375,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             RequantizeParams.composite_name,
             requantize_pattern(),
             lambda pat: RequantizeParams(pat).is_valid(),
+        ),
+        (
+            Resize2dParams.composite_name,
+            resize2d_pattern(),
+            lambda pat: Resize2dParams(pat).is_valid(),
         ),
     ]
 

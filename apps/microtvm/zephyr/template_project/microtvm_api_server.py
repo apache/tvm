@@ -63,8 +63,7 @@ BOARDS = API_SERVER_DIR / "boards.json"
 
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
-ZEPHYR_VERSION = 2.5
-
+ZEPHYR_VERSION = 2.7
 
 WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
@@ -373,7 +372,12 @@ class Handler(server.ProjectAPIHandler):
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
             if options["project_type"] == "host_driven":
-                f.write("# For RPC server C++ bindings.\n" "CONFIG_CPLUSPLUS=y\n" "\n")
+                f.write(
+                    "# For RPC server C++ bindings.\n"
+                    "CONFIG_CPLUSPLUS=y\n"
+                    "CONFIG_LIB_CPLUSPLUS=y\n"
+                    "\n"
+                )
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
 

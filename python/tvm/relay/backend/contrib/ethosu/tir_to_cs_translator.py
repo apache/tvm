@@ -495,7 +495,7 @@ def _create_npu_op_conv2d(
         _convert_clip_bounds(npu_conv2d_op)
 
     npu_conv2d_op.rounding_mode = _create_npu_rounding_mode(serial_2d_convolution.rounding_mode)
-    npu_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
+    npu_conv2d_op.ifm_upscale = _create_npu_resampling_mode(serial_2d_convolution.upscale)
     accel_config = vela_api.get_accelerator_config()
     weights_shape_ohwi = [
         npu_conv2d_op.ofm.shape.depth,
@@ -558,7 +558,7 @@ def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
     npu_depthwise_conv2d_op.rounding_mode = _create_npu_rounding_mode(
         serial_2d_depthwise.rounding_mode
     )
-    npu_depthwise_conv2d_op.upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
+    npu_depthwise_conv2d_op.ifm_upscale = _create_npu_resampling_mode(serial_2d_depthwise.upscale)
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_depthwise_conv2d_op, target_accel_config)
     npu_depthwise_conv2d_op.block_config = block_config
@@ -708,7 +708,7 @@ def _create_npu_resampling_mode(
     mode_map = {
         "NONE": vapi.NpuResamplingMode.NONE,
         "NEAREST": vapi.NpuResamplingMode.NEAREST,
-        "TRANSPOSE": vapi.NpuResamplingMode.TRANSPOSE,
+        "ZEROS": vapi.NpuResamplingMode.TRANSPOSE,
     }
     mode = str(mode.value)
     assert mode in mode_map.keys()
@@ -789,7 +789,7 @@ def _create_npu_op_pooling(serial_pooling: spec.SerialPooling):
         _convert_clip_bounds(npu_pooling_op)
 
     npu_pooling_op.rounding_mode = _create_npu_rounding_mode(serial_pooling.rounding_mode)
-    npu_pooling_op.upscale = _create_npu_resampling_mode(serial_pooling.upscale)
+    npu_pooling_op.ifm_upscale = _create_npu_resampling_mode(serial_pooling.upscale)
 
     target_accel_config = vela_api.get_accelerator_config()
     block_config = vela_api.get_optimal_block_config(npu_pooling_op, target_accel_config)

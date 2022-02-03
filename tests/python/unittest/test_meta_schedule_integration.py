@@ -116,7 +116,7 @@ def test_meta_schedule_integration_extract_from_resnet():
         layout="NHWC",
         dtype="float32",
     )
-    extracted_tasks = ms.integration.extract_task(mod, target="llvm", params=params)
+    extracted_tasks = ms.integration.extract_task_from_relay(mod, target="llvm", params=params)
     assert len(extracted_tasks) == 30
 
 

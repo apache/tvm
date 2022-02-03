@@ -18,6 +18,7 @@
 """Arm(R) Ethos(TM)-N integration fully connected tests"""
 
 import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
@@ -50,14 +51,15 @@ def _get_model(
         relay.const(input_zp * kernel_zp, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output zero scale
         relay.const(output_zp, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     params = {"w": w, "b": b}
     return req, params
 
 
 @requires_ethosn
-def test_fullyconnected():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_fullyconnected(dtype):
     trials = [
         ((1, 1024), 71, 0.580, 79, 1.498),
         ((1, 4096), 166, 1.724, 117, 0.180),
@@ -65,12 +67,28 @@ def test_fullyconnected():
     ]
     np.random.seed(0)
     for shape, input_zp, input_sc, kernel_zp, kernel_sc in trials:
+        kernel_zp = (
+            0
+            if dtype == "int8"
+            else np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max) + 1
+        )
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
+                )
+            ),
         }
         outputs = []
         output_zp, output_sc = tei.get_conv2d_qnn_params(
-            input_zp, input_sc, kernel_zp, kernel_sc, shape[0], shape[1], 1
+            dtype,
+            input_zp,
+            input_sc,
+            kernel_zp,
+            kernel_sc,
+            shape[0],
+            shape[1],
+            1,
         )
         for npu in [False, True]:
             model, params = _get_model(
@@ -82,11 +100,11 @@ def test_fullyconnected():
                 kernel_sc,  # kernel
                 output_zp,
                 output_sc,  # output
-                "uint8",
+                dtype,
             )
             mod = tei.make_module(model, params)
             outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
-        tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn

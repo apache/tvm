@@ -64,7 +64,7 @@ class Object(ObjectBase):
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
-            raise AttributeError("%s has no attribute %s" % (str(type(self)), name))
+            raise AttributeError("%s has no attribute %s" % (str(type(self)), name)) from None
 
     def __hash__(self):
         return _ffi_api.ObjectPtrHash(self)
