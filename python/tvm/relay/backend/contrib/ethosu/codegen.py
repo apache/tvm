@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Codegen for Arm(R) Ethos(TM)-U NPU"""
+from collections import defaultdict
 
 import tvm
 from tvm import relay
@@ -24,7 +25,7 @@ from tvm.relay.backend.contrib.ethosu.tir.scheduler import copy_constants
 from tvm.relay.backend.contrib.ethosu.legalize import LegalizeEthosU
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator
 from tvm.relay.backend.contrib.ethosu import util
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 # pylint: disable=unused-import
 from tvm.relay.backend.contrib.ethosu.op import op_attrs
@@ -138,38 +139,76 @@ class LUTsOptimizer:
         pass
 
 
-class LayoutOptimization(ExprMutator):
-    """A pass to optimize the layout of NPU operations. If both the
-    producer and consumer of a tensor are NPU operators, then the
-    layout is converted from NHWC to NHCWB16.
+class AnalyzeConsumers(ExprVisitor):
+    """Traverses the graph to determine consumers that are NPU operations. The
+    result is maintained in `npu_consumers`.
 
     Attributes
     ----------
-    children : Dict[tvm.relay.expr.Call, List[tvm.relay.expr.Call]]
-        A map from current call to a list of calls that rely on the current
-        call. This allows the graph to be traversed backwards, which is useful
-        for checking whether the output layouts can be rewritten.
-    optimize_op : Dict[str, Callable]
-        A map from NPU op name to function that creates NPU op.
+    npu_consumers : Dict[tvm.relay.expr.Call, List[bool]]
+        Mapping from NPU operation to list of boolean values that represent
+        whether or not each consumer is an NPU operation.
+    optimize_ops : Dict[str, Callable]
+        A map from NPU operation name to function that creates NPU operation.
     """
 
-    def __init__(self):
-        self.children = {}
-        self.optimize_op = {
-            "contrib.ethosu.conv2d": op.ethosu_conv2d,
-            "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
-            "contrib.ethosu.pooling": op.ethosu_pooling,
-            "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
-            "contrib.ethosu.unary_elementwise": op.ethosu_unary_elementwise,
-        }
+    def __init__(self, optimize_ops):
+        self.npu_consumers = defaultdict(list)
+        self.optimize_ops = optimize_ops
+        super().__init__()
 
+    def visit_call(self, call: relay.Call):
+        is_npu_consumer = call.op.name in self.optimize_ops
+        args = []
+
+        # Expand tuples
+        for arg in call.args:
+            if isinstance(arg, relay.Tuple):
+                args.extend(arg.fields)
+            else:
+                args.append(arg)
+
+        for arg in args:
+            if isinstance(arg, relay.Call) and arg.op.name in self.optimize_ops:
+                self.npu_consumers[arg].append(is_npu_consumer)
+
+        super().visit_call(call)
+
+
+class LayoutOptimization(ExprMutator):
+    """A pass to optimize the layout of NPU operations by converting to brick format (NHCWB16).
+    This pass traverses the graph and attempts to alter the input/output layouts when an NPU
+    operation is visited. Whether or not the input/output layout can be altered for a given NPU
+    operation depends on the following:
+
+    Check alter input layout: For each argument, if the producer is also an NPU operation and
+        its output is altered to brick format, then the input layout with respect to the current
+        argument is altered to brick format.
+
+    Check alter output layout: If all consumers (child nodes) are an NPU operation, then the
+        output layout is altered to brick format.
+
+    Note
+    ----
+    In order for this pass to be run, the consumers of each NPU operation must first be analyzed
+    by the `AnalyzeConsumers` pass, since Relay doesn't keep a reference to child nodes.
+
+    Attributes
+    ----------
+    npu_consumers : Dict[tvm.relay.expr.Call, bool]
+        A map from current call to a list boolean values that state whether or not each consumer
+        is an NPU operation.
+    optimize_ops : Dict[str, Callable]
+        A map from NPU operation name to function that creates NPU operation.
+    """
+
+    def __init__(self, npu_consumers, optimize_ops):
+        self.npu_consumers = npu_consumers
+        self.optimize_ops = optimize_ops
         super().__init__()
 
     def alter_ethosu_op_layout(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
-        """Alter the input and output layouts of an NPU operation if needed.
-        Input layout is only altered if the producing operation is an NPU
-        operation. Likewise, the output layout is only altered if the consuming
-        operation is an NPU operation.
+        """Alter the layouts of given NPU operation to brick format if possible.
 
         Parameters
         ----------
@@ -189,46 +228,26 @@ class LayoutOptimization(ExprMutator):
         )
 
         new_attrs = dict(call.attrs)
-        parents = []
 
         # Check if we can rewrite the input layouts
         input_count = 0
         for arg in call.args:
             input_count += 1
-            if not isinstance(arg, tvm.relay.expr.Call):
+            if arg not in self.npu_consumers:
                 continue
-            if isinstance(arg.op, tvm.ir.op.Op) and arg.op.name in self.optimize_op:
+            consumers = self.npu_consumers[arg]
+            parent_has_brick_output = consumers and all(consumers)
+            if parent_has_brick_output:
                 layout_string = "ifm_layout" if input_count <= 1 else f"ifm{input_count}_layout"
                 new_attrs[layout_string] = "NHCWB16"
-            parents.append(arg)
 
         # Check if we can rewrite the output layouts
-        if call in self.children:
-            children = self.children[call]
-            if all(
-                isinstance(child, tvm.relay.expr.Call)
-                and isinstance(child.op, tvm.ir.op.Op)
-                and child.op.name in self.optimize_op
-                and child.attrs["ifm_layout"] == "NHCWB16"
-                for child in children
-            ):
-                new_attrs["ofm_layout"] = "NHCWB16"
+        consumers = self.npu_consumers[call]
+        if consumers and all(consumers):
+            new_attrs["ofm_layout"] = "NHCWB16"
 
         name = call.op.name
-        assert name in self.optimize_op, (
-            f"Could not create operator '{name}' as the creation function "
-            "is unknown. Please provide a mapping."
-        )
-        new_call = self.optimize_op[name](*call.args, **new_attrs)
-
-        # Update map of children
-        for input_arg in parents:
-            if input_arg in self.children:
-                self.children[input_arg].append(new_call)
-            else:
-                self.children[input_arg] = [new_call]
-
-        return super().visit_call(new_call)
+        return self.optimize_ops[name](*call.args, **new_attrs)
 
     def visit_call(self, call: tvm.relay.expr.Call) -> tvm.relay.expr.Call:
         """Recursively visit call nodes in the input graph and alter the
@@ -246,14 +265,22 @@ class LayoutOptimization(ExprMutator):
             not refer to an Op. Else, a new call node with altered Op
             attributes.
         """
-        if isinstance(call.op, tvm.ir.op.Op) and call.op.name in self.optimize_op:
-            return self.alter_ethosu_op_layout(call)
+        if isinstance(call.op, tvm.ir.Op) and call.op.name in self.optimize_ops:
+            call = self.alter_ethosu_op_layout(call)
         return super().visit_call(call)
 
 
 @ir.transform.module_pass(opt_level=1, name="LayoutOptimizer")
 class LayoutOptimizer:
     """Register LayoutOptimizer as a Relay pass."""
+
+    OPTIMIZE_OPS = {
+        "contrib.ethosu.conv2d": op.ethosu_conv2d,
+        "contrib.ethosu.depthwise_conv2d": op.ethosu_depthwise_conv2d,
+        "contrib.ethosu.pooling": op.ethosu_pooling,
+        "contrib.ethosu.binary_elementwise": op.ethosu_binary_elementwise,
+        "contrib.ethosu.unary_elementwise": op.ethosu_unary_elementwise,
+    }
 
     def transform_module(self, mod: tvm.ir.IRModule, _) -> tvm.IRModule:
         """A pass to optimize the layout of NPU operations. If both the
@@ -262,7 +289,9 @@ class LayoutOptimizer:
         uses internally."""
         assert len(mod.functions.items()) == 1, "Module can only contain one function."
         global_var, func = mod.functions.items()[0]
-        optimized_func = LayoutOptimization().visit(func)
+        analyze = AnalyzeConsumers(self.OPTIMIZE_OPS)
+        analyze.visit(func)
+        optimized_func = LayoutOptimization(analyze.npu_consumers, self.OPTIMIZE_OPS).visit(func)
         mod.update_func(global_var, optimized_func)
         return mod
 
