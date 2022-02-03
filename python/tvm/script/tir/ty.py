@@ -38,16 +38,26 @@ class TypeGeneric:  # pylint: disable=too-few-public-methods
 
 
 class ConcreteType(TypeGeneric):  # pylint: disable=too-few-public-methods, abstract-method
-    """TVM script typing class for uniform Type objects"""
+    """TVM script typing class for uniform Type objects
+
+    Params
+    ------
+    vtype: Union[str, tvm.ir.Type]
+
+        The IR type represented by the type annotation.  If a string
+        (e.g. "float32"), this represents a `ir.PrimType` generated
+        from that string.  If a `ir.Type` is provided, this represents
+        the type provided.
+    """
 
     def __init__(self, vtype):
-        self.type = vtype
+        if isinstance(vtype, tvm.ir.Type):
+            self.type = vtype
+        else:
+            self.type = tvm.ir.PrimType(vtype)
 
     def evaluate(self):
-        if isinstance(self.type, tvm.ir.Type):
-            return self.type
-
-        return tvm.ir.PrimType(self.type)
+        return self.type
 
 
 class GenericPtrType(TypeGeneric):  # pylint: disable=abstract-method

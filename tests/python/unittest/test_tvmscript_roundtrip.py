@@ -3259,14 +3259,22 @@ def test_root_attr():
 def func_T_ptr_let_statement(
     args: T.handle, arg_type_ids_handle: T.Ptr[T.int32], num_args: T.int32
 ) -> None:
-    # buffer definition
+    # The T.Ptr declaration in the parameter list should parse
+    # correctly, and should be usable as the data pointer in a buffer.
     arg_type_ids = T.buffer_decl([2], dtype="int32", data=arg_type_ids_handle)
-    # body
-    assert num_args == 2, "main: num_args should be 3"
+
     arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
     arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
 
+    # Functions that return a "handle" can be assigned to a T.Ptr
+    # variable.  A variable annotated with T.Ptr still has dtype of
+    # T.handle, but has type annotation as a pointer type.
     A_data: T.Ptr[T.float32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+
+    # The buffer declaration has a data pointer defined earlier in
+    # this function.  It should only be defined after the data pointer
+    # has been defined, and should not be hoisted into the header of
+    # the function as other buffer_decl statements can be.
     A = T.buffer_decl([1024], dtype="float32", data=A_data)
     B_data: T.Ptr[T.float32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
     B = T.buffer_decl([1024], dtype="float32", data=B_data)

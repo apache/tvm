@@ -1148,8 +1148,12 @@ class TVMScriptParser(Transformer):
         """
         func = self.transform(node.func_name)
 
-        if not isinstance(func, ty.TypeGeneric):
-            self.report_error(f"Expected a type but found {type(func).__name__}", node.span)
+        if not isinstance(func, ty.TypeGeneric) or not hasattr(func, "__getitem__"):
+            self.report_error(
+                f"Use of type arguments requires a type that accepts type arguments (e.g. T.Ptr), "
+                f"but found {type(func).__name__} instead.",
+                node.span,
+            )
 
         param_types = []
         for param in node.params:
