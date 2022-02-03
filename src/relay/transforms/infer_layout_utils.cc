@@ -78,7 +78,7 @@ Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layo
     }
     new_layout += LayoutAxis::Get(axis).name();
   }
-  return Layout(new_layout);
+  return new_layout != "" ? Layout(new_layout) : Layout("H").SubLayout(0, 0);  // hack to create a scalar layout
 }
 bool Isomorphic(const Layout& lhs, const Layout& rhs) {
   DLOG(INFO) << "Isomorphic: "
@@ -134,6 +134,7 @@ Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& 
   }
 
   // `old` is compatible. Now learn the axis name mapping between `old` and `ref_old`
+  if (old.ndim() == 0) return old;  // an optmization for scalar: no-op
   int mapping[26];
   bool used[26];
   memset(mapping, -1, sizeof mapping);
