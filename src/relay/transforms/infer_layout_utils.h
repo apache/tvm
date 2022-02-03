@@ -47,9 +47,25 @@ namespace relay {
  * \param old_shape The shape of the original tensor.
  * \return The adjusted Layout.
  */
-inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layout,
-                                       const Array<tvm::PrimExpr>& old_shape);
+Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layout,
+                                const Array<tvm::PrimExpr>& old_shape);
 
+bool Isomorphic(const Layout& lhs, const Layout& rhs);
+/*!
+ * \brief Try transforming `old` in as the smae way as how`ref_old` is transformed to `ref_new`.
+ * `old` and `ref_old` are expected to describe two broadcastable tensors. Layout with fewer rank
+ * will be expanded. For example,
+ * if old = 'NW', ref_old = 'NC', ref_new = 'NC1c', then the result is 'NW1w';
+ * if old = 'W', ref_old = 'NC', ref_new = 'NC1c', then the result is 'NW1w'.
+ * When `old` and `ref_old` are isomorphic (same structure, only differ in naming), the transform
+ * is guaranteed to succeed, in which case the function is simply renaming the axes of `ref_new`
+ * to conform to `old`'s naming.
+ * \param old The layout to be transformed.
+ * \param ref_old The reference layout before transform.
+ * \param ref_new The reference layout after transform.
+ * \return The transformed layout.
+ */
+Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& ref_new);
 /*
  * \brief An output structure to hold results from FInferCorrectLayout calls.
  * \tparam input_layouts Inferred input layouts.
@@ -121,7 +137,7 @@ inline InferCorrectLayoutOutput ElemwiseArbitraryLayout(
   return InferCorrectLayoutOutput(Array<Layout>(old_in_layouts.size(), ret), {ret}, attrs);
 }
 
-inline std::pair<Array<Layout>, Array<Layout>> BinaryBroadcastLayoutHelper(
+std::pair<Array<Layout>, Array<Layout>> BinaryBroadcastLayoutHelper(
     const Attrs& attrs, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
     const Array<tvm::relay::Type>& old_in_types);
 
