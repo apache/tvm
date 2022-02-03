@@ -875,7 +875,7 @@ def test_compute_at_cuda_matmul_4():
 def test_compute_at_reduction_block():
     sch = tir.Schedule(multi_reduction, debug_mask="all")
     block = sch.get_block("B")
-    loop, = sch.get_loops(sch.get_block("C"))
+    (loop,) = sch.get_loops(sch.get_block("C"))
     sch.compute_at(block, loop, preserve_unit_loops=False)
     tvm.ir.assert_structural_equal(multi_reduction_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=multi_reduction)
