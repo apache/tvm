@@ -103,8 +103,6 @@ class DoubleBufferInjector : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AllocateNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
-    op = stmt.as<AllocateNode>();
 
     const VarNode* buf = op->buffer_var.as<VarNode>();
     auto it = dbuffer_info_.find(buf);
@@ -115,6 +113,8 @@ class DoubleBufferInjector : public StmtExprMutator {
                                        << "Has StorageFlatten (TE-based schedules) or "
                                        << "FlattenBuffer (TIR-based schedules) been run?";
       it->second.stride = op->extents[0];
+      Stmt stmt = StmtExprMutator::VisitStmt_(op);
+      op = stmt.as<AllocateNode>();
 
       Array<PrimExpr> new_extents = {op->extents[0] * make_const(op->extents[0].dtype(), 2)};
       ICHECK(it->second.loop != nullptr);
@@ -123,7 +123,7 @@ class DoubleBufferInjector : public StmtExprMutator {
           Allocate(op->buffer_var, op->dtype, new_extents, op->condition, Evaluate(0)));
       return op->body;
     } else {
-      return stmt;
+      return StmtExprMutator::VisitStmt_(op);
     }
   }
 
