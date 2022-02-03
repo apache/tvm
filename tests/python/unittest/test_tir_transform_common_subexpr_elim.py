@@ -148,7 +148,7 @@ def test_cse_ifNode_1():
     # Test prog :
     # let b=1 in
     #   if(b) {
-    #	    Mem[i1] = y+z
+    #      Mem[i1] = y+z
     #     Mem[i2] = y+z
     #   }
     #   else {
@@ -205,7 +205,7 @@ def test_cse_ifNode_2():
     # let b=1 in
     #   if(b) {
     #     Mem[i1] = y+z
-    #	    Mem[i2] = y
+    #      Mem[i2] = y
     #   }
     #   else {
     #     Mem[i3] = y+z
