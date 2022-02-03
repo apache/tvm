@@ -78,28 +78,25 @@ def test_flatten_storage_align():
 
 
 def test_flatten_double_buffer():
-    dtype = "int64"
-    n = 100
-    m = 4
-    tx = te.thread_axis("threadIdx.x")
-    ib = tvm.tir.ir_builder.create()
-    A = ib.pointer("float32", name="A")
-    C = ib.pointer("float32", name="C")
-    ib.scope_attr(tx, "thread_extent", 1)
-    with ib.for_range(0, n) as i:
-        B = ib.allocate("float32", m, name="B", scope="shared")
-        with ib.new_scope():
-            ib.scope_attr(B.asobject(), "double_buffer_scope", 1)
-            with ib.for_range(0, m) as j:
-                B[j] = A[i * 4 + j]
-        with ib.for_range(0, m) as j:
-            C[j] = B[j] + 1
+    @tvm.script.ir_module
+    class ModFromScript:
+        @T.prim_func
+        def main(A_param: T.handle, C_param: T.handle):
+            A = T.match_buffer(A_param, (400,), "float32", strides=[1])
+            C = T.match_buffer(C_param, (4,), "float32", strides=[1])
+            T.func_attr({"from_legacy_te_schedule": True})
+            threadIdx_x = T.env_thread("threadIdx.x")
+            T.launch_thread(threadIdx_x, 1)
+            for i in T.serial(0, 100):
+                B = T.allocate([4], "float32", scope="shared", strides=[1])
+                with T.attr(B.data, "double_buffer_scope", 1):
+                    for j in T.serial(0, 4):
+                        B[j] = A[4 * i + j]
 
-    stmt = ib.get()
+                for j in T.serial(0, 4):
+                    C[j] = B[j] + 1.0
 
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([A, C], stmt).with_attr("from_legacy_te_schedule", True)
-    )
+    mod = ModFromScript
 
     with tvm.transform.PassContext(config={"tir.InjectDoubleBuffer": {"split_loop": 2}}):
         mod = tvm.transform.Sequential(
@@ -112,10 +109,10 @@ def test_flatten_double_buffer():
 
     stmt = mod["main"].body
     assert isinstance(stmt.body, tvm.tir.Allocate)
-    assert stmt.body.extents[0].value == 2
+    assert list(stmt.body.extents) == [8]
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
-    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+    mod = tvm.tir.transform.ThreadSync("shared")(mod)
+    f = mod["main"]
 
     count = [0]
 
