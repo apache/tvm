@@ -94,10 +94,10 @@ def get_upscale_params(stmt):
     _, body = get_op_attrs(stmt)
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     if isinstance(inner.value, tvm.tir.Call):
-        input_pointer = inner.value.args[1].buffer_var
+        input_pointer = inner.value.args[1].buffer.data
     else:
-        input_pointer = inner.value.buffer_var
-    output_pointer = inner.buffer_var
+        input_pointer = inner.value.buffer.data
+    output_pointer = inner.buffer.data
     return (input_pointer, output_pointer)
 
 

@@ -65,7 +65,7 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
     stride_vars = [l.loop_var for l in loops]
     strides = get_strides(fm_inner.indices[0], stride_vars)
 
-    base_address = [get_base_address(index) for index in fm_inner.index]
+    base_address = [get_base_address(index) for index in fm_inner.indices]
     data_type = inner.buffer.data.type_annotation.element_type.dtype
 
     serial_feature_map = SerialFeatureMap(
@@ -76,7 +76,7 @@ def _get_feature_map(stmt: tvm.tir.AttrStmt, fm_type: str) -> Tuple[SerialFeatur
         tile_height_0=loops[0].extent,
         tile_height_1=0,
         tile_width_0=loops[1].extent if len(loops) > 1 else 1,
-        tile_address_0=tvm.tir.BufferLoad(fm_inner, base_address),
+        tile_address_0=tvm.tir.BufferLoad(fm_inner.buffer, base_address),
         tile_address_1=0,
         tile_address_2=0,
         tile_address_3=0,
