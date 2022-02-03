@@ -45,7 +45,7 @@ def test_cse():
             2,
             tvm.tir.SeqStmt(
                 [
-                    tvm.tir.Store(buffer.data, z1+z2, i1),
+                    tvm.tir.Store(buffer.data, z1 + z2, i1),
                     tvm.tir.LetStmt(
                         x,
                         1,
@@ -54,9 +54,9 @@ def test_cse():
                             1,
                             tvm.tir.LetStmt(
                                 a,
-                                (x+y) + (z1+z2),
+                                (x + y) + (z1 + z2),
                                 tvm.tir.LetStmt(
-                                    b, (x+y) + z3, tvm.tir.Store(buffer.data, a+b, i2)
+                                    b, (x + y) + z3, tvm.tir.Store(buffer.data, a + b, i2)
                                 ),
                             ),
                         ),
@@ -123,7 +123,7 @@ def test_cse():
     body.var.name == "a"
     # Check that the replacement has been done correctly!
     assert tvm.ir.structural_equal(body.value, cse_var_2 + cse_var_1)
-    
+
     body = body.body
 
     body.var.name == "b"
@@ -147,14 +147,12 @@ def test_cse_ifNode_1():
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
     # let b=1 in
-    #   if(b)
-    #	  {
+    #   if(b) {
     #	    Mem[i1] = y+z
     #     Mem[i2] = y+z
     #   }
-    #   else
-    #   {
-    #	    Mem[i3] = y
+    #   else {
+    #     Mem[i3] = y
     #   }
     body = tvm.tir.LetStmt(
         b,
@@ -205,13 +203,11 @@ def test_cse_ifNode_2():
     buffer = tvm.tir.decl_buffer((50,), dtype)
     # Test prog :
     # let b=1 in
-    #   if(b)
-    #   {
-    #	    Mem[i1] = y+z
+    #   if(b) {
+    #     Mem[i1] = y+z
     #	    Mem[i2] = y
     #   }
-    #   else
-    #   {
+    #   else {
     #     Mem[i3] = y+z
     #   }
     body = tvm.tir.LetStmt(
