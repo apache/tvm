@@ -441,8 +441,8 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
   }
 
   // Build a table of computations for this node with three children
-  table_of_computations_ = BuildTableForThreeChildrenNode(computations_done_by_cond,
-      computations_done_by_then, computations_done_by_else);
+  table_of_computations_ = BuildTableForThreeChildrenNode(
+      computations_done_by_cond, computations_done_by_then, computations_done_by_else);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
@@ -476,8 +476,8 @@ void ComputationsDoneBy::VisitStmt_(const ForNode* op) {
   table_of_computations_.clear();
 
   // Build a table of computations for this node with three children
-  table_of_computations_ = BuildTableForThreeChildrenNode(computations_done_by_min,
-      computations_done_by_extent, computations_done_by_body);
+  table_of_computations_ = BuildTableForThreeChildrenNode(
+      computations_done_by_min, computations_done_by_extent, computations_done_by_body);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
