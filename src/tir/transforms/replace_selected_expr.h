@@ -72,4 +72,4 @@ class ReplaceSelectedExpr : public StmtExprMutator {
 }  // namespace tir
 }  // namespace tvm
 
-#endif  // TVM_TIR_TRANSFORMS_REPLACE_SELECTED_H_
+#endif  // TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
