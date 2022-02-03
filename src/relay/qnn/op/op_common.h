@@ -362,14 +362,9 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
   [](const Attrs& attrs, const Array<Expr>& new_args, const Array<tvm::relay::Type>& arg_types) { \
     QnnUnaryOpArguments args(new_args);                                                           \
     QnnUnaryOpTensorType input_type(arg_types, 0);                                                \
-    Array<tvm::relay::Type> types;                                                                \
-    for (size_t i = 1; i < 5; ++i) {                                                              \
-      types.push_back(arg_types[i]);                                                              \
-    }                                                                                             \
-    auto dequantized_arg = Dequantize(args.x, args.scale, args.zero_point, types, -1);            \
+    auto dequantized_arg = MakeDequantize(args.x, args.scale, args.zero_point, -1);               \
     auto output = FloatingPointFunc(dequantized_arg);                                             \
-    return Quantize(output, args.output_scale, args.output_zero_point, input_type.dtype, types,   \
-                    -1);                                                                          \
+    return MakeQuantize(output, args.output_scale, args.output_zero_point, -1, input_type.dtype); \
   }
 
 }  // namespace qnn
