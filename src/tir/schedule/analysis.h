@@ -76,20 +76,12 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref);
  * \param self The schedule state
  * \param sref The sref whose scope is to be checked
  * \param require_stage_pipeline A boolean indicating whether to check stage pipeline
- * \param require_subtree_compact_dataflow A boolean indicating whether to check
- * subtree compact dataflow property. The scope root may have one or more subtrees rooted at
- * its direct children, and this property requires all the blocks of the subtree
- * that the specified sref is in to be complete block or reduction block.
  * \throw ScheduleError if
  * 1) the sref has been the root of the AST (so it has no scope root), or
  * 2) require_stage_pipeline = true, but its scope root is not a stage pipeline
- * 3) require_subtree_compact_dataflow = true, but the subtree that the sref is in doesn't satisfy
- * the compact dataflow condition, i.e. a block in the subtree is neither complete block nor
- * reduction block
  * \return The block sref to the scope root
  */
-StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref, bool require_stage_pipeline,
-                      bool require_subtree_compact_dataflow);
+StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref, bool require_stage_pipeline);
 
 /*!
  * \brief The information of a block scope, including the leaf blocks,
@@ -173,6 +165,19 @@ void CheckReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
 void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
                                    const StmtSRef& scope_root_sref);
 
+/*!
+ * \brief Check the subtree compact dataflow property. The scope root may have one or more subtrees
+ *        rooted at its direct children, and this property requires all the blocks of the subtree
+ *        that the specified sref is in to be complete block or reduction block.
+ * \param self The schedule state
+ * \param subtree_root The sref of the subtree root to be checked
+ * \param scope_root_sref The scope root of the block
+ * \throw ScheduleError If the subtree that the sref is in doesn't satisfy the compact
+ *        dataflow condition, i.e. a block in the subtree is neither complete block nor
+ *        reduction block
+ */
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
+                                 const StmtSRef& scope_root_sref);
 /*!
  * \brief Check if the block is an output block, i.e. the block writes to at least a buffer that is
  * not allocated under the current scope
