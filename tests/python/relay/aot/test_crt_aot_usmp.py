@@ -16,37 +16,26 @@
 # under the License.
 """ This file contains test that use USMP + AoT using C runtime APIs"""
 
-from collections import OrderedDict
-import re
-
 import random
+import re
+from collections import OrderedDict
+
 import numpy as np
 import pytest
 
 import tvm
-from tvm import relay
-from tvm.relay import testing  # pylint: disable=W0611
-from tvm.relay import transform
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.relay.backend import Executor, Runtime
-from tvm import (
-    WorkspaceMemoryPools,
-    ConstantMemoryPools,
-    WorkspacePoolInfo,
-    ConstantPoolInfo,
-    PoolInfoProperties,
-)
+from tvm import (ConstantMemoryPools, ConstantPoolInfo, PoolInfoProperties,
+                 WorkspaceMemoryPools, WorkspacePoolInfo, relay)
 from tvm.micro import model_library_format as mlf
 from tvm.micro.testing.aot_test_utils import parametrize_aot_options
-from tvm.testing.aot import (
-    AOTTestModel,
-    AOTTestRunner,
-    generate_ref_data,
-    compile_and_run,
-    compile_models,
-    run_and_check,
-    create_relay_module_and_inputs_from_tflite_file,
-)
+from tvm.relay import testing  # pylint: disable=W0611
+from tvm.relay import transform
+from tvm.relay.backend import Executor, Runtime
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.testing.aot import (AOTTestModel, AOTTestRunner, compile_and_run,
+                             compile_models,
+                             create_relay_module_and_inputs_from_tflite_file,
+                             generate_ref_data, run_and_check)
 from tvm.testing.usmp import is_tvm_backendallocworkspace_calls
 
 
