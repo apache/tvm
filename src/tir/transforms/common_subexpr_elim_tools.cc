@@ -506,7 +506,7 @@ void ComputationsDoneBy::VisitStmt_(const WhileNode* op) {
 
   // Build a table of computations for this node with two children by computing what is
   // is common between the two child, i.e. computing their intersection
-  table_of_computations_ = 
+  table_of_computations_ =
       IntersectComputationTables(computations_done_by_condition, computations_done_by_body);
 
   // Copy the `table_of_computations_` into the cache
