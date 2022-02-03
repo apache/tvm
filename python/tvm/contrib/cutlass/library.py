@@ -189,6 +189,8 @@ class SwizzlingFunctor(enum.Enum):
     Identity4 = enum_auto()
     Identity8 = enum_auto()
     Batched = enum_auto()
+    StridedDgradIdentity1 = enum_auto()
+    StridedDgradIdentity4 = enum_auto()
 
 
 SwizzlingFunctorTag = {
@@ -197,20 +199,28 @@ SwizzlingFunctorTag = {
     SwizzlingFunctor.Identity4: "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<4>",
     SwizzlingFunctor.Identity8: "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<8>",
     SwizzlingFunctor.Batched: "cutlass::gemm::threadblock::GemmBatchedIdentityThreadblockSwizzle",
+    SwizzlingFunctor.StridedDgradIdentity1: "cutlass::conv::threadblock::StridedDgradIdentityThreadblockSwizzle<1>",
+    SwizzlingFunctor.StridedDgradIdentity4: "cutlass::conv::threadblock::StridedDgradIdentityThreadblockSwizzle<4>",
 }
 
 
 class ConvKind(enum.Enum):
     Fprop = enum_auto()
+    Dgrad = enum_auto()
+    Wgrad = enum_auto()
 
 
 ConvKindTag = {
     ConvKind.Fprop: "cutlass::conv::Operator::kFprop",
+    ConvKind.Dgrad: "cutlass::conv::Operator::kDgrad",
+    ConvKind.Wgrad: "cutlass::conv::Operator::kWgrad",
 }
 
 
 ConvKindNames = {
     ConvKind.Fprop: "fprop",
+    ConvKind.Dgrad: "dgrad",
+    ConvKind.Wgrad: "wgrad",
 }
 
 

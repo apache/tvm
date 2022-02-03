@@ -193,9 +193,9 @@ class PythonAPICall {
    * \param method_name The name of the schedule API to be called
    */
   explicit PythonAPICall(String method_name) : method_name_(method_name), output_(NullOpt) {}
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int arg);
-  /*! \brief Add an intger input */
+  /*! \brief Add an integer input */
   inline void Input(String arg_name, int64_t arg);
   /*! \brief Add a double input */
   inline void Input(String arg_name, double arg);

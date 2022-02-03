@@ -57,6 +57,7 @@ def partition_for_cmsisnn(mod, params=None, **opts):
             transform.AnnotateTarget("cmsis-nn"),
             transform.PartitionGraph(),
             GenerateCMSISNNConstants(),
+            ScalarToTensorConstants(),
             ExtractConstantsFromPartitionedFunction(),
             transform.InferType(),
         ]
@@ -223,11 +224,23 @@ def pattern_table():
             is_constant(),
         )
 
-    def check_qnn_binary_op(extract):
+    def check_qnn_binary_op(pattern):
         """Check if multiply is supported by CMSIS-NN."""
+        arg0 = pattern.args[0]
+        arg1 = pattern.args[1]
+        both_args_scalar = False
+        if (
+            isinstance(arg0, tvm.relay.expr.Constant)
+            and len(arg0.checked_type.shape) == 0
+            and isinstance(arg1, tvm.relay.expr.Constant)
+            and len(arg1.checked_type.shape) == 0
+        ):
+            both_args_scalar = True
+
         return (
-            extract.args[0].checked_type.dtype == "int8"
-            and extract.args[1].checked_type.dtype == "int8"
+            arg0.checked_type.dtype == "int8"
+            and arg1.checked_type.dtype == "int8"
+            and not both_args_scalar
         )
 
     return [
