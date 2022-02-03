@@ -89,8 +89,6 @@ TARGET = tvm.target.target.micro("host")
 # --------------------------------------------------------------------------
 #  When running on physical hardware, choose a TARGET and a BOARD that describe the hardware. The
 #  STM32L4R5ZI Nucleo target and board is chosen in the example below.
-#
-
 if use_physical_hw:
     boards_file = pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")) / "boards.json"
     with open(boards_file) as f:
@@ -144,9 +142,6 @@ runner = tvm.autotvm.LocalRunner(number=1, repeat=1, timeout=100, module_loader=
 measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
 # Compiling for physical hardware
-# --------------------------------------------------------------------------
-#
-
 if use_physical_hw:
     module_loader = tvm.micro.AutoTvmModuleLoader(
         template_project_dir=pathlib.Path(tvm.micro.get_microtvm_template_projects("zephyr")),
@@ -168,16 +163,17 @@ if use_physical_hw:
 
     measure_option = tvm.autotvm.measure_option(builder=builder, runner=runner)
 
-################
+##########################
 # Run Autotuning
-################
-# Now we can run autotuning separately on each extracted task.
+##########################
+# Now we can run autotuning separately on each extracted task on microTVM device.
 #
 
 autotune_log_file = pathlib.Path("microtvm_autotune.log.txt")
-autotune_log_file.unlink()
+if os.path.exists(autotune_log_file):
+    os.remove(autotune_log_file)
 
-num_trials = 2
+num_trials = 10
 for task in tasks:
     tuner = tvm.autotvm.tuner.GATuner(task)
     tuner.tune(
@@ -210,9 +206,6 @@ project = tvm.micro.generate_project(
 )
 
 # Compiling for physical hardware
-# --------------------------------------------------------------------------
-#
-
 if use_physical_hw:
     temp_dir = tvm.contrib.utils.tempdir()
     project = tvm.micro.generate_project(
@@ -256,9 +249,6 @@ project = tvm.micro.generate_project(
 )
 
 # Compiling for physical hardware
-# --------------------------------------------------------------------------
-#
-
 if use_physical_hw:
     temp_dir = tvm.contrib.utils.tempdir()
     project = tvm.micro.generate_project(
