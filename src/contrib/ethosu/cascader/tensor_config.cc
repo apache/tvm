@@ -73,8 +73,8 @@ int TensorConfigNode::GetBufferSize() const {
 void TensorConfigNode::ComputeHash_() {
   hash_ = ObjectHash()(tensor_);
   hash_combine(&hash_, std::hash<std::string>()(home_region_->name));
-  hash_combine(&hash_, std::hash<TensorConfigState>()(state_));
-  hash_combine(&hash_, std::hash<BufferMode>()(buffer_mode_));
+  hash_combine(&hash_, std::hash<int>()(static_cast<int>(state_)));
+  hash_combine(&hash_, std::hash<int>()(static_cast<int>(buffer_mode_)));
   hash_combine(&hash_, hash_vector(stripe_configs_));
   hash_combine(&hash_, std::hash<bool>()(copy_tensor_));
   hash_combine(&hash_, std::hash<std::string>()(copy_region_->name));
