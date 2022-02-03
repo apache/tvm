@@ -14,26 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The NPU cascader.
+"""Pareto optimisation functions for the NPU cascader."""
+from typing import List
 
-This component performs inter-operator scheduling to optimize
-for both performance and memory usage on Arm(R) Ethos(TM)-U NPUs.
-"""
-from .stripe_config import StripeConfig
-from .block_config import BlockConfig
-from .propagator import Propagator
-from .graph import (
-    PerformanceInfo,
-    Tensor,
-    Part,
-    TESubgraph,
-    CascaderGraph,
-    BufferMode,
-    register_matcher,
-    create_cascader_graph,
-)
-from .parts import InlinePart, EthosuPart
-from .device_config import EthosuDeviceConfig
-from .tensor_config import TensorConfigState, MemoryRegion, TensorConfig
+from tvm import Object
+
+from . import _ffi_api
 from .plan import Plan
-from .cascader_options import CascaderOptions
+
+
+def _get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
+    for i, cost in enumerate(costs):
+        for j, value in enumerate(cost):
+            costs[i][j] = float(value)
+
+    return [bool(v) for v in _ffi_api.GetParetoFrontier(costs)]
+
+
+def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
+    return list(_ffi_api.ThinVector(vec, max_size))
+
+
+def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
+    return list(_ffi_api.ParetoCullPlans(plans, max_plans))
