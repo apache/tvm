@@ -34,8 +34,8 @@
 #include <tvm/tir/stmt_functor.h>  // For the class StmtExprVisitor
 
 #include <unordered_map>  // For the hashtable datatype
-#include <vector>
 #include <utility>        // For pairs datatype
+#include <vector>
 
 #include "../../../3rdparty/dmlc-core/include/dmlc/optional.h"
 

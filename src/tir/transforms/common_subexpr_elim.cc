@@ -42,10 +42,10 @@
 
 #include <algorithm>  // For the algorithm std::find
 #include <iostream>
+#include <string>
 #include <unordered_map>  // For the hashtable datatype
 #include <utility>        // For std::pair and std::move
 #include <vector>
-#include <string>
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
 #include "common_subexpr_elim_tools.h"   // For the auxiliary analysis (visitors) and tools

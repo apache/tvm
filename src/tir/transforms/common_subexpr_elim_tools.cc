@@ -37,8 +37,8 @@
 
 #include <algorithm>      // For std::find_if
 #include <unordered_map>  // For the hashtable datatype
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "../analysis/check_contains.h"  // For the CheckContains analysis
 
@@ -112,8 +112,7 @@ ComputationCache ComputationsDoneBy::cache_;
  * \note Does it directly in the first argument A for efficiency, as the union of A and B
  *       necessarily gives something which contains A, so we avoid its copy.
  */
-void UnionOfComputationTables(ComputationTable* table_main,
-                              const ComputationTable& table_aux) {
+void UnionOfComputationTables(ComputationTable* table_main, const ComputationTable& table_aux) {
   if (table_main == nullptr) {
     return;
   }
@@ -138,7 +137,8 @@ void UnionOfComputationTables(ComputationTable* table_main,
  *       N tables.
  */
 ComputationTable UnionOfComputationTables(const ComputationTable& table1,
-                                const ComputationTable& table2, const ComputationTable& table3) {
+                                          const ComputationTable& table2,
+                                          const ComputationTable& table3) {
   ComputationTable result = table1;  // Copy needed as the union of 2 writes into its first arg
   UnionOfComputationTables(&result, table2);
   UnionOfComputationTables(&result, table3);
@@ -179,7 +179,8 @@ ComputationTable IntersectComputationTables(const ComputationTable& table1,
  *       over N tables.
  */
 ComputationTable IntersectComputationTables(const ComputationTable& table1,
-                                const ComputationTable& table2, const ComputationTable& table3) {
+                                            const ComputationTable& table2,
+                                            const ComputationTable& table3) {
   ComputationTable result = IntersectComputationTables(table1, table2);
   result = IntersectComputationTables(result, table3);
   return result;
@@ -232,15 +233,13 @@ void RecomputeNbTimesSeen(ComputationTable* table_main,
  * nodes, which both have three children.
  */
 ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_child1,
-        const ComputationTable& table_child2, const ComputationTable& table_child3) {
+                                                const ComputationTable& table_child2,
+                                                const ComputationTable& table_child3) {
   ComputationTable result;
   // We look at what the children have in common
-  ComputationTable child2_inter_child3 =
-      IntersectComputationTables(table_child2, table_child3);
-  ComputationTable child1_inter_child2 =
-      IntersectComputationTables(table_child1, table_child2);
-  ComputationTable child1_inter_child3 =
-      IntersectComputationTables(table_child1, table_child3);
+  ComputationTable child2_inter_child3 = IntersectComputationTables(table_child2, table_child3);
+  ComputationTable child1_inter_child2 = IntersectComputationTables(table_child1, table_child2);
+  ComputationTable child1_inter_child3 = IntersectComputationTables(table_child1, table_child3);
 
   // We do the union of all the things they have in common
   result = UnionOfComputationTables(child2_inter_child3, child1_inter_child2, child1_inter_child3);
@@ -443,7 +442,7 @@ void ComputationsDoneBy::VisitStmt_(const IfThenElseNode* op) {
 
   // Build a table of computations for this node with three children
   table_of_computations_ = BuildTableForThreeChildrenNode(computations_done_by_cond,
-                              computations_done_by_then, computations_done_by_else);
+      computations_done_by_then, computations_done_by_else);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
@@ -478,7 +477,7 @@ void ComputationsDoneBy::VisitStmt_(const ForNode* op) {
 
   // Build a table of computations for this node with three children
   table_of_computations_ = BuildTableForThreeChildrenNode(computations_done_by_min,
-                              computations_done_by_extent, computations_done_by_body);
+      computations_done_by_extent, computations_done_by_body);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
@@ -507,8 +506,8 @@ void ComputationsDoneBy::VisitStmt_(const WhileNode* op) {
 
   // Build a table of computations for this node with two children by computing what is
   // is common between the two child, i.e. computing their intersection
-  table_of_computations_ = IntersectComputationTables(computations_done_by_condition,
-                                                      computations_done_by_body);
+  table_of_computations_ = 
+      IntersectComputationTables(computations_done_by_condition, computations_done_by_body);
 
   // Copy the `table_of_computations_` into the cache
   // for the future queries
