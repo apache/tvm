@@ -70,11 +70,6 @@ class PackedFuncObj : public Object {
    */
   TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, TVMRetValue* rv) const;
 
-  /*! \return Whether the packed function is nullptr */
-  bool operator==(std::nullptr_t null) const { return f_call_packed_ == nullptr; }
-  /*! \return Whether the packed function is not nullptr */
-  bool operator!=(std::nullptr_t null) const { return f_call_packed_ != nullptr; }
-
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimePackedFunc;
   static constexpr const char* _type_key = "runtime.PackedFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncObj, Object);
@@ -102,6 +97,9 @@ class PackedFuncObj : public Object {
    * \param f_call_pack The function pointer used to call the packed function.
    */
   explicit PackedFuncObj(FCallPacked* f_call_pack) : f_call_packed_(f_call_pack) {}
+
+  /*! \brief Delete the default constructor explicitly. */
+  PackedFuncObj() = delete;
 
   /*! \brief Internal callable function pointer used to call the packed function. */
   FCallPacked* f_call_packed_;
