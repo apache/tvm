@@ -28,6 +28,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
+#include <tvm/relay/qnn/transform.h>
 
 #include <vector>
 
@@ -321,6 +322,19 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
   return IdentityRel(tensor_types, 2, attrs, reporter);
 }
 
+static inline Expr LegalizeExpr(const Expr& expr) {
+  // Canonicalizations should not contain qnn ops, so use this
+  // to lower expressions automatically after using things like qnn.dequantize
+  // in the lowering process.
+  auto mod = IRModule::FromExpr(expr);
+  mod = transform::Legalize()(mod);
+  if (expr.as<FunctionNode>()) {
+    return mod->Lookup("main");
+  } else {
+    return mod->Lookup("main").as<FunctionNode>()->body;
+  }
+}
+
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
  * - Register op to the registry.
@@ -362,11 +376,12 @@ static inline bool QnnElementwiseUnaryFuncRel(const Array<Type>& types, int num_
   [](const Attrs& attrs, const Array<Expr>& new_args, const Array<tvm::relay::Type>& arg_types) { \
     QnnUnaryOpArguments args(new_args);                                                           \
     QnnUnaryOpTensorType input_type(arg_types, 0);                                                \
-    auto dequantized_arg = MakeDequantize(args.x, args.scale, args.zero_point, -1);               \
-    auto output = FloatingPointFunc(dequantized_arg);                                             \
-    return MakeQuantize(output, args.output_scale, args.output_zero_point, -1, input_type.dtype); \
+    Expr dequantized_arg = MakeDequantize(args.x, args.scale, args.zero_point, -1);               \
+    Expr output = FloatingPointFunc(dequantized_arg);                                             \
+    Expr result =                                                                                 \
+        MakeQuantize(output, args.output_scale, args.output_zero_point, -1, input_type.dtype);    \
+    return LegalizeExpr(result);                                                                  \
   }
-
 }  // namespace qnn
 }  // namespace relay
 }  // namespace tvm
