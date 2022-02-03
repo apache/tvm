@@ -35,6 +35,7 @@
 
 #include <unordered_map>  // For the hashtable datatype
 #include <vector>
+#include <utility>        // For pairs datatype
 
 #include "../../../3rdparty/dmlc-core/include/dmlc/optional.h"
 
@@ -161,7 +162,7 @@ class UsesVarName : public StmtExprVisitor {
 
  protected:
   // Constructor
-  UsesVarName(String var_name);
+  explicit UsesVarName(String var_name);
 
   void VisitExpr(const PrimExpr& expr) override;
   void VisitStmt(const Stmt& stmt) override;
@@ -205,9 +206,9 @@ std::vector<B> VectorMap(const std::vector<A>& input, std::function<B(const A&)>
 template std::vector<Var> VectorMap(const std::vector<std::pair<Var, MaybeValue>>&,
                                     std::function<Var(const std::pair<Var, MaybeValue>&)>);
 
-void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>& sorted_vec,
+void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair);
-void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>& sorted_vec,
+void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                               const std::vector<PrimExpr>& vec_to_add);
 
 }  // namespace tir

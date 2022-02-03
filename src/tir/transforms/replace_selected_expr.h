@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file replace_expr_selected.h
+ * \file replace_selected_expr.h
  * \brief Interface of the pass that replaces in a statement
            or expression all the subexpressions that are selected
            with a predicate by another expression.
  */
 
-#ifndef TVM_TIR_TRANSFORMS_REPLACE_SELECTED_H_
-#define TVM_TIR_TRANSFORMS_REPLACE_SELECTED_H_
+#ifndef TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
+#define TVM_TIR_TRANSFORMS_REPLACE_SELECTED_EXPR_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>

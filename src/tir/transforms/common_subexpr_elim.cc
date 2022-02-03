@@ -45,10 +45,11 @@
 #include <unordered_map>  // For the hashtable datatype
 #include <utility>        // For std::pair and std::move
 #include <vector>
+#include <string>
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
 #include "common_subexpr_elim_tools.h"   // For the auxiliary analysis (visitors) and tools
-#include "replace_expr_selected.h"       // For the mutator ReplaceSelectedExpr
+#include "replace_selected_expr.h"       // For the mutator ReplaceSelectedExpr
 
 namespace tvm {
 namespace tir {
@@ -117,7 +118,7 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
 
   // return ( (expr.as<LoadNode>() == nullptr) && (expr.as<BufferLoadNode>() == nullptr) )
   return true;
-};
+}
 
 /*!
  * \brief Generates a new fresh variable, whose name will be cse_var_i.
@@ -296,7 +297,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
         // The following insertion will maintain `semantic_comp_done_by_expr` sorted (by
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
-        InsertVectorToSortedSemanticComputations(semantic_comp_done_by_expr, direct_subexprs);
+        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_expr, direct_subexprs);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector
@@ -466,7 +467,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
         // The following insertion will maintain `semantic_comp_done_by_stmt` sorted (by
         // decreasing size/complexity), and it will only insert at locations > i as the
         // direct subexprs are necessarily smaller than the current computation.
-        InsertVectorToSortedSemanticComputations(semantic_comp_done_by_stmt, direct_subexprs);
+        InsertVectorToSortedSemanticComputations(&semantic_comp_done_by_stmt, direct_subexprs);
       }
     }
     // Note : we do not remove the current element, as we never look back in the local vector

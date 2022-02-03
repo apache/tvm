@@ -44,7 +44,7 @@ class CheckContains : public StmtExprVisitor {
 
  protected:
   // Constructor
-  CheckContains(std::function<bool(const PrimExpr&)> predicate);
+  explicit CheckContains(std::function<bool(const PrimExpr&)> predicate);
 
   void VisitExpr(const PrimExpr& expr) override;
   void VisitStmt(const Stmt& stmt) override;

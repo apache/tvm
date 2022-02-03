@@ -38,6 +38,7 @@
 #include <algorithm>      // For std::find_if
 #include <unordered_map>  // For the hashtable datatype
 #include <vector>
+#include <utility>
 
 #include "../analysis/check_contains.h"  // For the CheckContains analysis
 
@@ -106,16 +107,19 @@ ComputationCache ComputationsDoneBy::cache_;
 
 /*!
  * \brief Does the union of two tables of computations.
- * \param table_main One of the two tables. The union will be written into it.
+ * \param table_main Pointer to one of the two tables. The union will be written into it.
  * \param table_aux The other table, which won't change.
  * \note Does it directly in the first argument A for efficiency, as the union of A and B
  *       necessarily gives something which contains A, so we avoid its copy.
  */
-void UnionOfComputationTables(ComputationTable& table_main,
+void UnionOfComputationTables(ComputationTable* table_main,
                               const ComputationTable& table_aux) {
+  if (table_main == nullptr) {
+    return;
+  }
   // Adds each element of the second table to the first one
   for (const auto& current : table_aux) {
-    table_main[current.first] += current.second;
+    (*table_main)[current.first] += current.second;
   }
 }
 
@@ -135,9 +139,9 @@ void UnionOfComputationTables(ComputationTable& table_main,
  */
 ComputationTable UnionOfComputationTables(const ComputationTable& table1,
                                 const ComputationTable& table2, const ComputationTable& table3) {
-  ComputationTable result = table1; // Copy needed as the union of 2 writes into its first arg
-  UnionOfComputationTables(result, table2);
-  UnionOfComputationTables(result, table3);
+  ComputationTable result = table1;  // Copy needed as the union of 2 writes into its first arg
+  UnionOfComputationTables(&result, table2);
+  UnionOfComputationTables(&result, table3);
 
   return result;
 }
@@ -195,15 +199,18 @@ ComputationTable IntersectComputationTables(const ComputationTable& table1,
  *        bloc), it is therefore necessary to recompute the counters afterwards, which is what this
  *        function does.
  */
-void RecomputeNbTimesSeen(ComputationTable& table_main, 
+void RecomputeNbTimesSeen(ComputationTable* table_main,
                           const std::vector<const ComputationTable*>& vec_tables) {
+  if (table_main == nullptr) {
+    return;
+  }
   // For each element in the main table
-  for(auto& current_elem : table_main) {
+  for (auto& current_elem : *table_main) {
     // We will recompute its associated counter.
     // Set its count to zero as so far it has been seen zero times
     current_elem.second = 0;
     // For each table in the vector of tables
-    for(auto current_table : vec_tables) {
+    for (auto current_table : vec_tables) {
       // Try to find current_elem in the current table
       auto it = current_table->find(current_elem.first);
       if (it != current_table->end()) {
@@ -241,7 +248,7 @@ ComputationTable BuildTableForThreeChildrenNode(const ComputationTable& table_ch
   // Now we need to recompute the numbers associated with each computation, because both the
   // intersections and the union might have increased the counters, which can now be wrong.
   std::vector<const ComputationTable*> vec_tables = {&table_child1, &table_child2, &table_child3};
-  RecomputeNbTimesSeen(result, vec_tables);
+  RecomputeNbTimesSeen(&result, vec_tables);
 
   return result;
 }
@@ -349,7 +356,7 @@ void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given expression.
-    UnionOfComputationTables(table_of_computations_, it_table_expr->second);
+    UnionOfComputationTables(&table_of_computations_, it_table_expr->second);
     return;
   }
 
@@ -372,7 +379,7 @@ void ComputationsDoneBy::VisitExpr(const PrimExpr& expr) {
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given expression.
-    UnionOfComputationTables(table_of_computations_, temp);
+    UnionOfComputationTables(&table_of_computations_, temp);
     return;
   }
 
@@ -391,7 +398,7 @@ void ComputationsDoneBy::VisitStmt(const Stmt& stmt) {
     // We need to do the union with `table_of_computations_` instead of just writing into it,
     // because some other childs might have added things into it too. The reason for that is
     // that `table_of_computations_` is shared between the child nodes of a given statement.
-    UnionOfComputationTables(table_of_computations_, it_table_stmt->second);
+    UnionOfComputationTables(&table_of_computations_, it_table_stmt->second);
     return;
   }
 
@@ -404,7 +411,7 @@ void ComputationsDoneBy::VisitStmt(const Stmt& stmt) {
   // We need to do the union with `table_of_computations_` instead of just writing into it,
   // because some other childs might have added things into it too. The reason for that is
   // that `table_of_computations_` is shared between the child nodes of a given expression.
-  UnionOfComputationTables(table_of_computations_, temp);
+  UnionOfComputationTables(&table_of_computations_, temp);
 }
 
 /*!
@@ -698,10 +705,9 @@ void UsesVarName::VisitStmt(const Stmt& stmt) {
 /*!
  * \brief Print a table of computation.
  */
-void PrintComputationTable(const ComputationTable& table)
- {
+void PrintComputationTable(const ComputationTable& table) {
   std::cout << "{" << std::endl;
-  for(const auto& current : table) {
+  for (const auto& current : table) {
     std::cout << "(" << current.first << ", " << current.second << ")" << std::endl;
   }
   std::cout << "}" << std::endl;
@@ -780,8 +786,11 @@ bool PredicateIntroVarForComputation(const PrimExpr& computation, size_t nb_time
  * \brief Inserts a pair (expr,nb) to a sorted vector of such pairs (which is sorted by decreasing
           size of expressions) and maintain the vector sorted while doing so.
  */
-void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>& sorted_vec,
+void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                             const std::pair<PrimExpr, size_t>& pair) {
+  if (sorted_vec == nullptr) {
+    return;
+  }
   // Find the insertion point using std::lower_bound on a comparison that uses
   // CalculateExprComplexity(), which computes the "size" of an expr.
   // std::lower_boud returns an iterator pointing to the first element on which the comparison
@@ -789,29 +798,32 @@ void InsertElemToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size
   // first element that is not greater or equal than `pair`, i.e, the first element that is
   // strictly smaller than `pair`.
   auto insertion_point = std::lower_bound(
-      sorted_vec.begin(), sorted_vec.end(), pair,
+      sorted_vec->begin(), sorted_vec->end(), pair,
       [](const std::pair<PrimExpr, size_t>& left, const std::pair<PrimExpr, size_t>& right) {
         return (CalculateExprComplexity(left.first) >= CalculateExprComplexity(right.first));
       });
-  sorted_vec.insert(insertion_point, pair);
+  sorted_vec->insert(insertion_point, pair);
 }
 
 /*!
  * \brief Inserts a vector of expressions into a sorted vector of computations (which is sorted by
           decreasing size of the expression) and maintain the vector sorted while doing so.
  */
-void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>& sorted_vec,
+void InsertVectorToSortedSemanticComputations(std::vector<std::pair<PrimExpr, size_t>>* sorted_vec,
                                               const std::vector<PrimExpr>& vec_to_add) {
+  if (sorted_vec == nullptr) {
+    return;
+  }
   for (auto elem_to_add : vec_to_add) {
     // See if the current element to add (or an equivalent one) is already present
     // in the sorted vector
-    auto it_found = std::find_if(sorted_vec.begin(), sorted_vec.end(),
+    auto it_found = std::find_if(sorted_vec->begin(), sorted_vec->end(),
                                  [elem_to_add](std::pair<PrimExpr, size_t> elem) {
                                    return EquivalentTerms(elem.first, elem_to_add);
                                  });
 
     // If we found `elem_to_add` (or an equivalent expression) already in sorted_vec
-    if (it_found != sorted_vec.end()) {
+    if (it_found != sorted_vec->end()) {
       // then we just increase its associated count
       it_found->second++;
     } else {

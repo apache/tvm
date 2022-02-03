@@ -24,7 +24,7 @@
           with a predicate by another expression.
 */
 
-#include "replace_expr_selected.h"
+#include "replace_selected_expr.h"
 
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
 #include <tvm/tir/expr.h>
