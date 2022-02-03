@@ -353,6 +353,87 @@ class LegalizeConv2D:
         pass
 
 
+class Conv2DTransposeRewriter(DFPatternCallback):
+    """Convert conv2d_transpose related composite functions into
+    ethosu_conv2d_transpose operators."""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (wildcard().has_attr({"Composite": "ethos-u.qnn_conv2d_transpose"}))(
+            wildcard()
+        )
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.QnnConv2DTransposeParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        ofm_shape = params.ofm.shape
+        legalize_padding = params.legalize_padding
+
+        weight_to_ohwi_transform_map = {"IOHW": [1, 2, 3, 0]}
+        weights_values = params.weights.values
+        weights_values_ohwi = np.transpose(
+            weights_values, weight_to_ohwi_transform_map[str(params.weights.layout)]
+        )
+        weights_values_ohwi = np.flip(weights_values_ohwi, (1, 2))
+        weights = relay.const(weights_values_ohwi, dtype=params.weights.values.dtype)
+
+        bias_values = (
+            params.biases.tensor.data.asnumpy()
+            if params.biases
+            else np.zeros((params.ifm.shape[-1]))
+        )
+        scale_bias = vela_api.pack_biases(
+            biases=bias_values,
+            ifm_scale=params.ifm.q_params.scale_f32,
+            ifm_dtype=np.dtype(params.ifm.dtype),
+            weight_scales=params.weights.q_params.scale_f32,
+            ofm_scale=params.ofm.q_params.scale_f32,
+            is_activation_tanh_or_sigmoid=False,
+        )
+
+        reduced_op = ethosu_ops.ethosu_conv2d(
+            ifm=post.args[0],
+            weight=weights,
+            scale_bias=relay.const(scale_bias, "uint8"),
+            lut=relay.const([], dtype="int8"),
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            weight_zero_point=int(params.weights.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            kernel_shape=params.kernel_shape,
+            ofm_channels=int(ofm_shape[-1]),
+            strides=(1, 1),
+            padding=legalize_padding,
+            dilation=params.dilation,
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+            upscale="ZEROS",
+        )
+
+        # Remove additional padding by 'cropping' back to expected size
+        return relay.strided_slice(reduced_op, (0, 0, 0, 0), ofm_shape)
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeConv2DTranspose:
+    """This is the pass that wraps the Conv2DTransposeRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(Conv2DTransposeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 class DepthwiseConv2DRewriter(DFPatternCallback):
     """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d
     operators"""
@@ -1379,6 +1460,7 @@ class LegalizeEthosU:
         """
         mod = LegalizeSplit()(mod)
         mod = LegalizeConv2D()(mod)
+        mod = LegalizeConv2DTranspose()(mod)
         mod = LegalizeDepthwiseConv2D()(mod)
         mod = LegalizeMaxPooling()(mod)
         mod = LegalizeAvgPooling()(mod)

@@ -276,6 +276,137 @@ class QnnConv2DParams:
         return not self.is_depthwise
 
 
+class QnnConv2DTransposeParams:
+    """
+    This class will parse a Call to a ethosu.qnn_conv2d_transpose composite
+    function and extract quantization information of all the associated tensors.
+    """
+
+    composite_name = "ethos-u.qnn_conv2d_transpose"
+    # The NPU only supports padding upto the numbers as follows
+    padding_bounds = [31, 31, 32, 32]
+
+    @requires_vela
+    def __init__(self, func_body: tvm.relay.Function):
+        from tvm.relay.backend.contrib.ethosu.util import QConv2DTransposeArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        requantize = func_body
+        call = func_body.args[0]
+        if str(call.op) == "nn.bias_add":
+            bias_add = call
+            call = call.args[0]
+        else:
+            bias_add = None
+        qnn_conv2d_transpose = call
+
+        data_layout = qnn_conv2d_transpose.attrs.data_layout
+        self.kernel_layout = qnn_conv2d_transpose.attrs.kernel_layout
+
+        self.weights = TensorParams(
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS.value],
+            self.kernel_layout,
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS_SCALE.value],
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS_ZERO_POINT.value],
+        )
+        self.biases = (
+            TensorParams(
+                bias_add.args[BiasAddArgs.BIASES.value],
+                data_layout,
+                requantize.args[RequantArgs.IFM_SCALE.value],
+                requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+            )
+            if bias_add
+            else None
+        )
+        self.ifm = TensorParams(
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM.value],
+            data_layout,
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM_SCALE.value],
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            func_body,
+            data_layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        attrs = qnn_conv2d_transpose.attrs
+        self.strides = attrs.strides
+        self.dilation = attrs.dilation
+        self.padding = attrs.padding
+        self.channels = attrs.channels
+        self.groups = attrs.groups
+        self.output_padding = attrs.output_padding
+
+        kernel_size_map = {
+            "IOHW": self.weights.shape[2:4],
+        }
+        self.kernel_shape = kernel_size_map[str(self.weights.layout)]
+
+        # Different padding is used in the legalization from conv2d_transpose
+        # to conv2d, so we to calculate it here to check that the new size fits
+        # within the bounds of the NPU before offloading.
+        pad_top = int(self.kernel_shape[0]) - 1 - int(self.padding[0])
+        pad_left = int(self.kernel_shape[1]) - 1 - int(self.padding[1])
+        pad_bottom = int(self.kernel_shape[0]) - 1 - int(self.padding[2])
+        pad_right = int(self.kernel_shape[1]) - 1 - int(self.padding[3])
+        if self.strides == [2, 2]:
+            pad_bottom -= 1
+            pad_right -= 1
+        self.legalize_padding = [pad_top, pad_left, pad_bottom, pad_right]
+
+    def is_valid(self) -> bool:
+        """
+        This function checks whether QnnConv2D has compatible attributes with the NPU
+        """
+
+        def check_compatible_output_size(ifm_shape, ofm_shape, padding, strides, kernel_shape):
+            is_valid_padding = padding == [0, 0, 0, 0]
+            if is_valid_padding:
+                expected_height = ifm_shape[1] * strides[0] + (kernel_shape[0] - strides[0])
+                expected_width = ifm_shape[2] * strides[1] + (kernel_shape[1] - strides[1])
+            else:
+                expected_height = ifm_shape[1] * strides[0]
+                expected_width = ifm_shape[2] * strides[1]
+            return ofm_shape[1] == expected_height and ofm_shape[2] == expected_width
+
+        tensor_params = [self.weights, self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if not check_weights(self.weights, self.dilation):
+            return False
+        if self.biases and not check_bias(self.biases):
+            return False
+        if not check_strides(self.strides, stride_range=(2, 2)):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_dilation(self.dilation, dilation_range=(1, 1)):
+            return False
+        if not check_compatible_output_size(
+            self.ifm.shape,
+            self.ofm.shape,
+            [int(x) for x in self.padding],
+            self.strides,
+            self.kernel_shape,
+        ):
+            return False
+        if not check_padding(self.legalize_padding, self.padding_bounds):
+            return False
+        if self.kernel_shape[0] - 2 - int(self.padding[2]) < 0:
+            return False
+        if self.kernel_shape[1] - 2 - int(self.padding[3]) < 0:
+            return False
+        if self.groups != 1:
+            return False
+        if list(self.output_padding) != [0, 0]:
+            return False
+        return True
+
+
 class QnnDepthwiseConv2DParams(QnnConv2DParams):
     """
     This class will parse a call to a ethosu.depthwise_conv2d composite function
@@ -346,6 +477,22 @@ def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     )
     clip_or_req = req.optional(is_op("clip"))
     return clip_or_req
+
+
+def qnn_conv2d_transpose_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.conv2d_transpose.
+    """
+    qnn_conv2d_transpose = is_op("qnn.conv2d_transpose")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    ).has_attr({"kernel_layout": "IOHW"})
+    optional_bias_add = (
+        is_op("nn.bias_add")(qnn_conv2d_transpose, is_constant()) | qnn_conv2d_transpose
+    )
+    req = is_op("qnn.requantize")(
+        optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return req
 
 
 class MaxPool2DParams:
@@ -1298,6 +1445,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnDepthwiseConv2DParams.composite_name,
             qnn_depthwise_conv2d_pattern(),
             lambda pat: QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
+        (
+            QnnConv2DTransposeParams.composite_name,
+            qnn_conv2d_transpose_pattern(),
+            lambda pat: QnnConv2DTransposeParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,
