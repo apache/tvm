@@ -1477,8 +1477,9 @@ def test_alter_layout_nonscalar_broadcast():
     def before():
         x = relay.var("x", shape=(1, 16, 3, 3))
         weight = relay.var("weight", shape=(16, 16, 1, 1))
-        y = relay.nn.conv2d(x, weight, channels=16,
-                            kernel_size=(1, 1), padding=(0, 0), data_layout="NCHW")
+        y = relay.nn.conv2d(
+            x, weight, channels=16, kernel_size=(1, 1), padding=(0, 0), data_layout="NCHW"
+        )
         z = relay.var("z", shape=(1, 3, 3))
         y = y + z
         y = relay.Function(analysis.free_vars(y), y)
@@ -1516,7 +1517,7 @@ def test_alter_layout_nonscalar_broadcast():
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         a = run_opt_pass(before(), transform.AlterOpLayout())
         b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) +'\nExpected = \n' + str(b)
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\nExpected = \n" + str(b)
 
     inp = np.random.uniform(size=(1, 16, 3, 3)).astype(np.float32)
     weight = np.random.uniform(size=(16, 16, 1, 1)).astype(np.float32)
@@ -1525,10 +1526,12 @@ def test_alter_layout_nonscalar_broadcast():
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         with tvm.transform.PassContext(opt_level=4):
             res = relay.build_module.create_executor(
-                'graph', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight, z)
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight, z)
     with tvm.transform.PassContext(opt_level=0):
         res1 = relay.build_module.create_executor(
-            'debug', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight, z)
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight, z)
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
@@ -1582,7 +1585,7 @@ def test_broadcast_non_adaptable():
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         a = run_opt_pass(before(), transform.AlterOpLayout())
         b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) +'\nExpected = \n' + str(b)
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\nExpected = \n" + str(b)
 
     inp = np.random.uniform(size=(1, 4, 3, 3, 4)).astype(np.float32)
     weight = np.random.uniform(size=(4, 4, 1, 1, 4, 4)).astype(np.float32)
@@ -1591,10 +1594,12 @@ def test_broadcast_non_adaptable():
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         with tvm.transform.PassContext(opt_level=4):
             res = relay.build_module.create_executor(
-                'graph', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight, z)
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight, z)
     with tvm.transform.PassContext(opt_level=0):
         res1 = relay.build_module.create_executor(
-            'debug', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight, z)
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight, z)
     np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
@@ -1628,11 +1633,13 @@ def test_broadcast_respect_input_layouts():
     with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
         with tvm.transform.PassContext(opt_level=4):
             res = relay.build_module.create_executor(
-                'graph', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight)
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight)
     with tvm.transform.PassContext(opt_level=0):
         res1 = relay.build_module.create_executor(
-            'debug', mod, target='llvm', device=tvm.cpu()).evaluate()(inp, weight)
-    np.testing.assert_allclose(res.asnumpy(), res1.asnumpy())
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight)
+    np.testing.assert_allclose(res.numpy(), res1.numpy())
 
 
 def test_axis_semantic_change():
