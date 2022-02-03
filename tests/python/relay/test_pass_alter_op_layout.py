@@ -1471,5 +1471,18 @@ def test_conv2d_reduce_channels():
         relay.build(mod, params=params, target="llvm")
 
 
+def test_axis_semantic_change():
+    x = relay.var("x", shape=(1, 1, 24, 48))
+    w1 = relay.const(np.random.uniform(size=(1, 1, 1, 1)))
+    w2 = relay.const(np.random.uniform(size=(1, 1, 1, 1)))
+    y = relay.nn.conv2d(x, w1, kernel_size=(1, 1), padding=(0, 0), channels=1)
+    y = relay.transpose(y, (0, 1, 3, 2))
+    z = relay.nn.conv2d(y, w2, kernel_size=(1, 1), padding=(0, 0), channels=1)
+    func = relay.Function([x], z)
+    mod = tvm.IRModule.from_expr(func)
+    with tvm.transform.PassContext(opt_level=3):
+        relay.build(mod, target="llvm")
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
