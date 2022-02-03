@@ -51,7 +51,10 @@ ALL_PLATFORMS = (
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
     "arduino": (),
-    "zephyr": ("docker/install/ubuntu_init_zephyr_project.sh",),
+    "zephyr": (
+        "docker/install/ubuntu_init_zephyr_project.sh",
+        "docker/install/ubuntu_install_zephyr_sdk.sh",
+    ),
 }
 
 PACKER_FILE_NAME = "packer.json"
@@ -230,6 +233,12 @@ def generate_packer_config(platform, file_path, providers):
         filename = os.path.basename(script_path)
         provisioners.append({"type": "file", "source": script_path, "destination": f"~/{filename}"})
 
+    provisioners.append(
+        {
+            "type": "shell",
+            "script": "base_box_setup.sh",
+        }
+    )
     provisioners.append(
         {
             "type": "shell",

@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,19 +16,36 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# Usage: base_box_test.sh <ZEPHYR_BOARD>
-#     Execute microTVM Zephyr tests.
+
+#
+# Install Zephyr SDK
+#
+# Usage: docker/install/ubuntu_install_zephyr_sdk.sh <INSTALLATION_PATH>
+# INSTALLATION_PATH is the installation path for the SDK.
 #
 
 set -e
 set -x
 
-if [ "$#" -lt 1 ]; then
-    echo "Usage: base_box_test.sh <ZEPHYR_BOARD>"
+function show_usage() {
+    cat <<EOF
+Usage: docker/install/ubuntu_install_zephyr_sdk.sh <INSTALLATION_PATH>
+INSTALLATION_PATH is the installation path for the SDK.
+EOF
+}
+
+if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+    show_usage
     exit -1
 fi
 
-board=$1
+INSTALLATION_PATH=$1
+shift
 
-pytest tests/micro/zephyr/test_zephyr.py --zephyr-board=${board}
-pytest tests/micro/zephyr/test_zephyr_aot.py --zephyr-board=${board}
+ZEPHYR_SDK_VERSION=0.13.2
+ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
+wget --no-verbose -O $ZEPHYR_SDK_FILE \
+    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
+chmod +x $ZEPHYR_SDK_FILE
+"./$ZEPHYR_SDK_FILE" -- -d ${INSTALLATION_PATH}
+rm "$ZEPHYR_SDK_FILE"

@@ -67,6 +67,7 @@ RUN bash /install/ubuntu_install_sccache.sh
 # Zephyr SDK deps
 COPY install/ubuntu_install_zephyr.sh /install/ubuntu_install_zephyr.sh
 COPY install/ubuntu_init_zephyr_project.sh /install/ubuntu_init_zephyr_project.sh
+COPY install/ubuntu_install_zephyr_sdk.sh /install/ubuntu_install_zephyr_sdk.sh
 RUN bash /install/ubuntu_install_zephyr.sh
 ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
