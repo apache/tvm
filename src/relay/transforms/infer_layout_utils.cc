@@ -78,7 +78,8 @@ Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layo
     }
     new_layout += LayoutAxis::Get(axis).name();
   }
-  return new_layout != "" ? Layout(new_layout) : Layout("H").SubLayout(0, 0);  // hack to create a scalar layout
+  return new_layout != "" ? Layout(new_layout)
+                          : Layout("H").SubLayout(0, 0);  // hack to create a scalar layout
 }
 bool Isomorphic(const Layout& lhs, const Layout& rhs) {
   DLOG(INFO) << "Isomorphic: "
