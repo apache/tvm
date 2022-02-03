@@ -25,6 +25,7 @@
 
 #include <tvm/relay/transform.h>
 
+#include "../../../support/arena.h"
 #include "../../op/memory/device_copy.h"
 #include "../../transforms/device_aware_visitors.h"
 #include "../../transforms/let_list.h"
@@ -33,6 +34,7 @@ namespace tvm {
 namespace relay {
 namespace transform {
 
+using support::Arena;
 using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
 
 // TODO(@altanh, @mbs, @mbrookhart): we should do a survey of all "*-flow graphs" in the codebase
@@ -49,8 +51,8 @@ class ControlFlowGraph {
   struct Node;
   struct BasicBlock;
 
-  using NodePtr = std::shared_ptr<Node>;
-  using BasicBlockPtr = std::shared_ptr<BasicBlock>;
+  using NodePtr = Node*;
+  using BasicBlockPtr = BasicBlock*;
 
   /*!
    * \brief A chunk of IR that does not have any control flow branching. At this stage in the IR,
@@ -69,7 +71,7 @@ class ControlFlowGraph {
     // The successor basic blocks.
     std::vector<BasicBlockPtr> succ;
 
-    static BasicBlockPtr Make() { return std::make_shared<BasicBlock>(); }
+    static BasicBlockPtr Make(Arena* arena) { return arena->make<BasicBlock>(); }
   };
 
   /*!
@@ -118,8 +120,8 @@ class ControlFlowGraph {
     }
 
     /*! \brief Creates a node with the given expr and appends it to the parent basic block. */
-    static NodePtr Make(BasicBlockPtr parent, Expr expr) {
-      NodePtr n = std::make_shared<Node>();
+    static NodePtr Make(Arena* arena, BasicBlockPtr parent, Expr expr) {
+      NodePtr n = arena->make<Node>();
       n->parent = parent;
       n->expr = expr;
       n->index = parent->nodes.size();
@@ -141,7 +143,7 @@ class ControlFlowGraph {
   std::vector<NodePtr> reverse_post_order;
 
   /*! \brief Creates and returns the CFG of the given expression. */
-  static ControlFlowGraph Create(const Expr& body);
+  static ControlFlowGraph Create(Arena* arena, const Expr& body);
 
  private:
   class Creator;
@@ -152,13 +154,17 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
  public:
   Creator() {}
 
-  ControlFlowGraph Create(const Expr& body) {
-    cfg_.entry = BasicBlock::Make();
+  ControlFlowGraph Create(Arena* arena, const Expr& body) {
+    arena_ = arena;
+    cfg_.entry = BasicBlock::Make(arena);
     VisitExpr(body, cfg_.entry);
     return std::move(cfg_);
   }
 
  private:
+  /*! \brief The arena allocator. */
+  Arena* arena_;
+
   /*! \brief The CFG being built. */
   ControlFlowGraph cfg_;
   /*!
@@ -177,7 +183,7 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
 
 #define DEFAULT_CFG(OP)                                       \
   void VisitExpr_(const OP* op, BasicBlockPtr parent) final { \
-    NodePtr n = Node::Make(parent, GetRef<Expr>(op));         \
+    NodePtr n = Node::Make(arena_, parent, GetRef<Expr>(op)); \
     cfg_.reverse_post_order.push_back(n);                     \
   }
 
@@ -198,7 +204,7 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
     Expr expr = GetRef<Expr>(let_node);
 
     while (const LetNode* inner_let_node = expr.as<LetNode>()) {
-      NodePtr curr_node = Node::Make(parent, expr);
+      NodePtr curr_node = Node::Make(arena_, parent, expr);
 
       ICHECK(!cfg_.let_map.count(expr));
       cfg_.let_map[expr] = curr_node;
@@ -208,8 +214,8 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
       // control flow branch exprs (true/false in If, and one for each clause in Match).
       if (const IfNode* ite = AsIgnoringOnDevice<IfNode>(inner_let_node->value)) {
         // Create the basic blocks for each branch and mark them as successors to the current block.
-        BasicBlockPtr t_block = BasicBlock::Make();
-        BasicBlockPtr f_block = BasicBlock::Make();
+        BasicBlockPtr t_block = BasicBlock::Make(arena_);
+        BasicBlockPtr f_block = BasicBlock::Make(arena_);
         Succ(parent, t_block);
         Succ(parent, f_block);
 
@@ -217,16 +223,16 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
         VisitExpr(ite->false_branch, f_block);
 
         // All subsequent bindings (and/or the body expr) will be in a new basic block.
-        BasicBlockPtr next = BasicBlock::Make();
+        BasicBlockPtr next = BasicBlock::Make(arena_);
         Succ(t_block, next);
         Succ(f_block, next);
         parent = next;
       } else if (const MatchNode* match = AsIgnoringOnDevice<MatchNode>(inner_let_node->value)) {
         // Same as above but one for each pattern.
         std::vector<BasicBlockPtr> clause_blocks;
-        BasicBlockPtr next = BasicBlock::Make();
+        BasicBlockPtr next = BasicBlock::Make(arena_);
         for (const Clause& clause : match->clauses) {
-          BasicBlockPtr clause_block = BasicBlock::Make();
+          BasicBlockPtr clause_block = BasicBlock::Make(arena_);
           Succ(parent, clause_block);
           Succ(clause_block, next);
           VisitExpr(clause->rhs, clause_block);
@@ -259,7 +265,9 @@ class ControlFlowGraph::Creator : private ExprFunctor<void(const Expr&, BasicBlo
   DEFAULT_CFG(TupleGetItemNode);
 };
 
-ControlFlowGraph ControlFlowGraph::Create(const Expr& body) { return Creator().Create(body); }
+ControlFlowGraph ControlFlowGraph::Create(Arena* arena, const Expr& body) {
+  return Creator().Create(arena, body);
+}
 
 /*!
  * \brief Helper class for collecting the variables used/read by an expression. NOTE: for If exprs,
@@ -618,7 +626,8 @@ class AliasEliminator : public MixedModeMutator {
 Pass ManifestLifetimes() {
   auto pass_func = [](Function f, IRModule m, PassContext pc) -> Function {
     f = Downcast<Function>(AliasEliminator().Mutate(f));
-    ControlFlowGraph cfg = ControlFlowGraph::Create(f);
+    Arena arena;
+    ControlFlowGraph cfg = ControlFlowGraph::Create(&arena, f);
     UseDefAnalysis use_def = UseDefAnalysis::Analyze(cfg);
     LivenessAnalysis lva = LivenessAnalysis::Analyze(cfg, use_def);
     KillInserter ki(&cfg, &lva);

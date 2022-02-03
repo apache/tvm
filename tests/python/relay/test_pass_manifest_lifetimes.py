@@ -18,6 +18,7 @@ import tvm
 from tvm.relay import Function, transform
 from tvm.relay.testing import inception_v3
 import pytest
+import sys
 
 
 def optimize_and_check(before_program, after_program, passes):
@@ -140,3 +141,7 @@ def test_simple_match():
     }
     """
     optimize_and_check(before_program, after_program, transform.ManifestLifetimes())
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
