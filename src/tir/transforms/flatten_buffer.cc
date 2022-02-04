@@ -198,6 +198,7 @@ class BufferFlattener : public StmtExprMutator {
 
   template <typename Node>
   Node VisitBufferAccess(Node node) {
+    ICHECK(node->buffer.defined());
     auto flattened_indices = node->buffer->ElemOffset(node->indices);
     Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 

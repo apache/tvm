@@ -308,7 +308,7 @@ Array<PrimExpr> BufferNode::ElemOffset(Array<PrimExpr> input_indices) const {
     }
   }
 
-  return output_indices;
+  return SimplifyArray(&ana, output_indices);
 }
 
 inline Array<PrimExpr> BufferOffset(const BufferNode* n, Array<PrimExpr> index, DataType dtype) {

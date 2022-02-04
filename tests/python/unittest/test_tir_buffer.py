@@ -82,7 +82,15 @@ def test_buffer_vload():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
-    tvm.testing.assert_prim_expr_equal(load.index, n * 2 + 103)
+    tvm.ir.assert_structural_equal(load.indices, [2, 3])
+
+
+def test_buffer_offset_of():
+    m = te.size_var("m")
+    n = te.size_var("n")
+    Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
+    offset = Ab.offset_of([2, 3])
+    tvm.ir.assert_structural_equal(offset, [n * 2 + 103])
 
 
 def test_buffer_vload_nullptr():
