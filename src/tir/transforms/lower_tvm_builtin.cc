@@ -181,16 +181,16 @@ class BuiltinLower : public StmtExprMutator {
       stmt = LetStmt(scope.stack_shape->data, StackAlloca("shape", max_sizes.shape_stack), stmt);
     }
 
+    if (max_sizes.array_stack != 0) {
+      stmt = LetStmt(scope.stack_array, StackAlloca("array", max_sizes.array_stack), stmt);
+    }
+
     if (max_sizes.arg_stack != 0) {
       scope.stack_tcode = decl_buffer({IntImm(DataType::UInt(64), max_sizes.arg_stack)},
                                       DataType::Int(32), "stack_tcode");
       stmt = LetStmt(scope.stack_value, StackAlloca("arg_value", max_sizes.arg_stack), stmt);
 
       stmt = LetStmt(scope.stack_tcode->data, StackAlloca("arg_tcode", max_sizes.arg_stack), stmt);
-    }
-
-    if (max_sizes.array_stack != 0) {
-      stmt = LetStmt(scope.stack_array, StackAlloca("array", max_sizes.array_stack), stmt);
     }
 
     // Copy these values from the earlier search, for use in bounds
