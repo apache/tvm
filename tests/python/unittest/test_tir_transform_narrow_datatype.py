@@ -260,8 +260,8 @@ def test_relay_take():
 
 def test_ramp_dtype_consistency():
     """
-    for (i, (int64)0, (int64)4) {
-        A[ramp(i*(int64)2, (int64)1, 2)] = cast(int64, i);
+    for (i :int64, (int64)0, (int64)4) {
+        A[ramp(i*(int64)2, (int64)1, 2)] = cast(int64, 2 ** 31 - 1) * i;
     }
     The infer result:
         base:   int64 -> int64 (since i is involved in another int64 expr)
