@@ -3726,8 +3726,8 @@ class QLinearConv(OnnxOpConverter):
                 axis=1,
             )
         else:
-            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=0)
-            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=0, out_dtype=out_dtype)
+            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=1)
+            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=1, out_dtype=out_dtype)
         return out
 
 
