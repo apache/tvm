@@ -539,11 +539,13 @@ def test_simple_rfactor():
 
 
 @T.prim_func
-def partitioned_concat(a: T.handle, b: T.handle, c: T.handle) -> None:
+def partitioned_concat(
+    A: T.Buffer[(16,), "float32"], B: T.Buffer[(16,), "float32"], C: T.Buffer[(32,), "float32"]
+) -> None:
     T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-    A = T.match_buffer(a, [16], dtype="float32")
-    B = T.match_buffer(b, [16], dtype="float32")
-    C = T.match_buffer(c, [32], dtype="float32")
+    T.preflattened_buffer(A, [16], data=A.data)
+    T.preflattened_buffer(B, [16], data=B.data)
+    T.preflattened_buffer(C, [32], data=C.data)
     for i in T.serial(0, 16):
         C[i] = A[i]
     for i in T.serial(0, 16):
