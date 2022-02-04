@@ -42,7 +42,7 @@ function run_pytest() {
         echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
         exit 2
     fi
-    TVM_FFI=${ffi_type} python3 -m pytest \
+    TVM_FFI=${ffi_type} python3 -m pytest --forked \
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "--junit-prefix=${ffi_type}" \
