@@ -430,7 +430,7 @@ def test_block_in_opaque_block():
     assert s._get_cached_flags(_get_block(s, "B")) == CachedFlags(
         affine_binding=True,
         region_cover=True,
-        stage_pipeline=True,
+        stage_pipeline=False,
     )
     assert s._get_cached_flags(_get_block(s, "C")) == CachedFlags(
         affine_binding=True,

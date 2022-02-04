@@ -223,7 +223,8 @@ class BlockScopeNode : public Object {
    * 1) The region cover property holds for every of its child blocks
    * 2) No write-after-read dependency or opaque dependency, only read-after-write and
    * write-after-write are allowed
-   * 3) All the statements in the scope are schedulable statements, i.e. Block and For
+   * 3) All the statements in the scope are schedulable statements,
+   *    i.e. schedulable Blocks (block with block vars) and For
    */
   bool stage_pipeline{false};
 

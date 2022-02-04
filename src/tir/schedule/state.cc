@@ -225,6 +225,11 @@ class BlockInfoCollector : private StmtVisitor {
                                         const Array<StmtSRef>& child_block_srefs) {
     const StmtSRefNode* limit = scope_root->parent;
     bool stage_pipeline = true;
+    // Step 0. All blocks are not opaque
+    for (const StmtSRef& block_sref : child_block_srefs) {
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      if (block->iter_vars.empty()) stage_pipeline = false;
+    }
     // Step 1. Unbind the read/write regions of each child block
     std::unordered_map<const StmtSRefNode*, Array<BufferRegion>> block_reads_unbound;
     std::unordered_map<const StmtSRefNode*, Array<BufferRegion>> block_writes_unbound;
