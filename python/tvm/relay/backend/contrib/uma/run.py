@@ -1,6 +1,6 @@
 import tvm
-import tvm.relay.backend.contrib.generic
-from tvm.relay.backend.contrib.generic.ultra_trail.partitioner import UltraTrailPartitioner
+import tvm.relay.backend.contrib.uma
+from tvm.relay.backend.contrib.uma.ultra_trail.partitioner import UltraTrailPartitioner
 from tvm import relay
 
 import torch

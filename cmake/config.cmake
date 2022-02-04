@@ -380,3 +380,6 @@ set(SUMMARIZE OFF)
 # To enable pass the path to the root libtorch (or PyTorch) directory
 # OFF or /path/to/torch/
 set(USE_LIBTORCH OFF)
+
+# Whether to use the Universal Modular Accelerator Interface
+set(USE_UMA ON)

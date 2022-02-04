@@ -14,29 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Codegen for the RP_NPU"""
+"""UMA lowering for the UltraTrail accelerator"""
 
 import tvm
 from tvm import relay
-from tvm.relay.backend.contrib.generic.codegen import GenericCodegen
+from ..lower import UMALower
+from .strategies import *
+from .schedules import *
+from .passes import *
 
 
-class RBNPUCodegen(GenericCodegen):
+class UltraTrailLower(UMALower):
     def __init__(self):
-        super(RBNPUCodegen, self).__init__()
+        super(UltraTrailLower, self).__init__()
+
+    def _register_operator_strategies(self):
+        self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
     def _register_tir_schedules(self):
-        pass
+        self._register_tir_schedule(insert_extern_calls)
 
     def _register_tir_passes(self):
-        pass
+        self._register_tir_pass(0, CodegenGenerateConfig())
+        self._register_tir_pass(0, CodegenGenerateConstants())
 
 
-@tvm._ffi.register_func("relay.ext.generic.relay_to_tir_func_rb_npu")
-def relay_to_tir_func_rb_npu(ext_func: relay.Function) -> tvm.tir.PrimFunc:
+@tvm._ffi.register_func("relay.ext.uma.relay_to_tir_func_ultra_trail")
+def relay_to_tir_func_ultra_trail(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     """
     This is the hook for python-based lowering of relay function
-    that gets offloaded to the RB NPU.
+    that gets offloaded to the UltraTrail accelerator.
 
     Parameters
     ----------
@@ -48,6 +55,6 @@ def relay_to_tir_func_rb_npu(ext_func: relay.Function) -> tvm.tir.PrimFunc:
     prim_func : tir.PrimFunc
         This returns the scheduled PrimFunc
     """
-    codegen = RBNPUCodegen()
+    codegen = UltraTrailLower()
     prim_func = codegen.relay_to_tir_func(ext_func)
     return prim_func

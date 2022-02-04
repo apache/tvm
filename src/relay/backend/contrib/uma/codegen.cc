@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file relay/backend/contrib/generic/codegen.cc
+ * \file relay/backend/contrib/uma/codegen.cc
  *
- * \brief this file contains the target hooks for generic scale4edge codegen.
+ * \brief this file contains the target hooks for the Universal Modular Accelerator Interface (UMA).
  */
 
 #include <tvm/ir/error.h>
@@ -40,13 +40,11 @@
 namespace tvm {
 namespace relay {
 namespace contrib {
-namespace generic {
+namespace uma {
 
 /*!
  * \brief This mutator lowers each external
  * relay function to a TIR PrimFunc
- *
- * TODO: Just a slightly modified copy of Ethos-U. Needs refactoring for generic use-case.
  */
 class RelayToTIRMutator : public MixedModeMutator {
  public:
@@ -75,7 +73,7 @@ class RelayToTIRMutator : public MixedModeMutator {
       auto codegen_name = func->GetAttr<String>(attr::kCompiler);
       if (codegen_name.defined() && codegen_name == target_name_) {
         auto relay_to_tir_func_pf =
-            tvm::runtime::Registry::Get("relay.ext.generic.relay_to_tir_func_" + target_name_);
+            tvm::runtime::Registry::Get("relay.ext.uma.relay_to_tir_func_" + target_name_);
         ICHECK(relay_to_tir_func_pf);
         tir::PrimFunc prim_func = (*relay_to_tir_func_pf)(func);
         prim_func = WithAttr(prim_func, tvm::attr::kTarget, Target(target_name_));
@@ -99,10 +97,10 @@ tvm::transform::Pass RelayToTIR(String target_name) {
       [=](IRModule ir_module, transform::PassContext pass_context) {
         return RelayToTIRMutator(ir_module, target_name)();
       };
-  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.generic.RelayToTIR", {});
+  return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.uma.RelayToTIR", {});
 }
 
-}  // namespace generic
+}  // namespace uma
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm

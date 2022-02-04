@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_GENERIC)
-  file(GLOB COMPILER_GENERIC_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/generic/*
-       CONFIGURE_DEPENDS src/relay/backend/contrib/generic/ultra_trail/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_GENERIC_SRCS})
-endif(USE_GENERIC)
+if(USE_UMA)
+  file(GLOB COMPILER_UMA_SRCS
+       CONFIGURE_DEPENDS src/relay/backend/contrib/uma/*
+       CONFIGURE_DEPENDS src/relay/backend/contrib/uma/ultra_trail/*)
+  list(APPEND COMPILER_SRCS ${COMPILER_UMA_SRCS})
+endif(USE_UMA)

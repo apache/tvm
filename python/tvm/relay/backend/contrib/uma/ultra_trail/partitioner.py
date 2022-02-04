@@ -14,14 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relay partitioner for the UltraTrail accelerator"""
+"""UMA partitioner for the UltraTrail accelerator"""
 
 from .passes import *
 from .patterns import *
-from ..partitioner import GenericPartitioner
+from ..partitioner import UMAPartitioner
 
 
-class UltraTrailPartitioner(GenericPartitioner):
+class UltraTrailPartitioner(UMAPartitioner):
     @property
     def target_name(self):
         return "ultra_trail"

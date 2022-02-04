@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic relay partitioner for NPUs"""
+"""Partitioner base class of the Universal Modular Accelerator Interface (UMA)"""
 
 from tvm.relay.build_module import bind_params_by_name
 from typing import Dict, List, Tuple, Optional
@@ -25,7 +25,7 @@ from abc import abstractmethod
 from tvm.relay.op.contrib.register import register_pattern_table
 
 
-class GenericPartitioner(object):
+class UMAPartitioner(object):
     def __init__(self, variant: str = "") -> None:
         self._variant = variant
 

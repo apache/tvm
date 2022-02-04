@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Generic codegen for NPUs"""
+"""Lowering base class of the Universal Modular Accelerator Interface (UMA)"""
 
 import tvm
 from tvm import relay, te, tir
@@ -26,7 +26,7 @@ from typing import List, Tuple, Callable, Optional
 from .utils import extract_constants
 
 
-class GenericCodegen(object):
+class UMALower(object):
     def __init__(self) -> None:
         self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
         self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []

@@ -31,7 +31,7 @@ namespace tvm {
 using namespace tir;
 namespace relay {
 namespace contrib {
-namespace generic {
+namespace uma {
 namespace ultra_trail {
 
 class CodeGenUltraTrail : public codegen::CodeGenCHost {
@@ -68,7 +68,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
 }
 
 }  // namespace ultra_trail
-}  // namespace generic
+}  // namespace uma
 }  // namespace contrib
 }  // namespace relay
 }  // namespace tvm

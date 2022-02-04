@@ -18,9 +18,9 @@
  */
 
 /*!
- * \file relay/backend/contrib/generic/codegen.cc
+ * \file relay/backend/contrib/uma/targets.cc
  *
- * \brief this file contains the targets for generic scale4edge codegen.
+ * \brief this file contains the targets for the Universal Modular Accelerator Interface (UMA).
  */
 
 #include <tvm/relay/transform.h>
@@ -30,20 +30,20 @@ namespace tvm {
 
 namespace relay {
 namespace contrib {
-namespace generic {
+namespace uma {
     tvm::transform::Pass RelayToTIR(String target_name);
 namespace ultra_trail {
     runtime::Module TIRToRuntime(IRModule mod, Target target);
 }  // namespace ultra_trail
-}  // namespace generic
+}  // namespace uma
 }  // namespace contrib
 }  // namespace relay
 
 TVM_REGISTER_TARGET_KIND("ultra_trail", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::generic::RelayToTIR("ultra_trail"))
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::generic::ultra_trail::TIRToRuntime);
+    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR("ultra_trail"))
+    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::ultra_trail::TIRToRuntime);
 
 TVM_REGISTER_TARGET_KIND("rb_npu", kDLCPU)
-    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::generic::RelayToTIR("rb_npu"));
+    .set_attr<FTVMRelayToTIR>("RelayToTIR", relay::contrib::uma::RelayToTIR("rb_npu"));
 
 }  // namespace tvm
