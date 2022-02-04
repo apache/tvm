@@ -66,7 +66,7 @@ class BufferFlattener : public StmtExprMutator {
  private:
   explicit BufferFlattener(const Map<Var, Buffer>& extern_buffer_map) {
     for (const auto& kv : extern_buffer_map) {
-      updated_extern_buffer_map_.Set(kv.first, MakeFlattenedBuffer(kv.second));
+      updated_extern_buffer_map_.Set(kv.first, GetFlattenedBuffer(kv.second));
     }
   }
 
@@ -84,7 +84,7 @@ class BufferFlattener : public StmtExprMutator {
     }
     // Step 3. Handle allocations in reverse order
     for (size_t i = new_block->alloc_buffers.size(); i > 0; --i) {
-      Buffer buffer = MakeFlattenedBuffer(new_block->alloc_buffers[i - 1]);
+      Buffer buffer = GetFlattenedBuffer(new_block->alloc_buffers[i - 1]);
       body = Allocate(buffer->data, buffer->dtype, buffer->shape, const_true(), std::move(body));
     }
     return body;
@@ -143,8 +143,11 @@ class BufferFlattener : public StmtExprMutator {
     }
   }
 
-  Buffer MakeFlattenedBuffer(Buffer buf) {
-    ICHECK_EQ(buffer_remap_.count(buf), 0) << "Multiple definitions of " << buf;
+  Buffer GetFlattenedBuffer(Buffer buf) {
+    auto it = buffer_remap_.find(buf);
+    if (it != buffer_remap_.end()) {
+      return it->second;
+    }
 
     auto flattened = buf.GetFlattenedBuffer();
 
@@ -196,7 +199,7 @@ class BufferFlattener : public StmtExprMutator {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     auto flattened_indices = node->buffer->ElemOffset(node->indices);
-    Buffer flattened_buffer = buffer_remap_.at(node->buffer);
+    Buffer flattened_buffer = GetFlattenedBuffer(node->buffer);
 
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
