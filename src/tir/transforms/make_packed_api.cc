@@ -99,8 +99,8 @@ class ReturnRewriter : public StmtMutator {
     if (it != dummy_val_buffer_map_.end()) {
       info.dummy_val_buffer = it->second;
     } else {
-      info.dummy_val_buffer =
-          Buffer(ret_var_, dtype, {1}, {1}, ConstInt32(0), ret_var_->name_hint, 0, 0, kDefault);
+      info.dummy_val_buffer = Buffer(ret_var_, info.expr.dtype(), {1}, {1}, ConstInt32(0),
+                                     ret_var_->name_hint, 0, 0, kDefault);
       dummy_val_buffer_map_[info.tcode] = info.dummy_val_buffer;
     }
 
@@ -116,7 +116,7 @@ class ReturnRewriter : public StmtMutator {
 
   Stmt WriteToOut(PrimExpr val) {
     auto info = ConvertForFFI(val);
-    Stmt store_val = BufferStore(info.dummy_val_buffer, val, {0});
+    Stmt store_val = BufferStore(info.dummy_val_buffer, info.expr, {0});
     Stmt store_tcode = BufferStore(info.dummy_tcode_buffer, info.tcode, {0});
     Stmt ret_zero = Evaluate(tvm::ret(0));
     return SeqStmt({store_val, store_tcode, ret_zero});
@@ -166,8 +166,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   Buffer buf_packed_arg_type_ids = decl_buffer({IntImm(DataType::Int(32), func_ptr->params.size())},
                                                DataType::Int(32), "arg_type_ids");
   Var v_num_packed_args("num_args", DataType::Int(32));
-  Var v_out_ret_value("out_ret_value", DataType::Handle());
-  Var v_out_ret_tcode("out_ret_tcode", DataType::Handle());
+  Var v_out_ret_value("out_ret_value", PointerType(PrimType(DataType::UInt(8))));
+  Var v_out_ret_tcode("out_ret_tcode", PointerType(PrimType(DataType::Int(32))));
   Var v_resource_handle("resource_handle", DataType::Handle());
   // The arguments of the function.
   Array<Var> args;
