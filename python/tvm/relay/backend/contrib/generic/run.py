@@ -39,7 +39,8 @@ def main():
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
     # Relay target specific partitioning
-    mod = UltraTrailPartitioner()(mod, params)
+    # mod = UltraTrailPartitioner()(mod, params)
+    mod = UltraTrailPartitioner()(mod)
 
     # Relay build (AOT C target)
     TARGET = tvm.target.Target("c")

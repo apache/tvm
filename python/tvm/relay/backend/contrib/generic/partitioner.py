@@ -103,7 +103,7 @@ class GenericPartitioner(object):
             if self._variant in pattern[2] or not pattern[2]
         ]
 
-    def __call__(self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]]) -> tvm.IRModule:
+    def __call__(self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None) -> tvm.IRModule:
         """Partition the relay graph in by the NPU supported and unsupported parts.
 
         Parameters
@@ -117,8 +117,8 @@ class GenericPartitioner(object):
             The partitioned relay module.
 
         """
-        # if params:
-        #     mod["main"] = bind_params_by_name(mod["main"], params)
+        if params:
+            mod["main"] = bind_params_by_name(mod["main"], params)
 
         pattern = relay.op.contrib.get_pattern_table(self.target_name)
         mod = relay.transform.InferType()(mod)
