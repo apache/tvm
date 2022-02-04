@@ -43,7 +43,8 @@ bool HasOnlyOneFunction(const IRModule& mod) {
 
 /**************** ExtractedTask ****************/
 
-ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target, Array<IRModule> dispatched) {
+ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
+                             Array<IRModule> dispatched) {
   ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
   n->task_name = task_name;
   n->mod = mod;
@@ -94,8 +95,8 @@ TaskExtraction::TaskExtraction() {
   data_ = n;
 }
 
-Optional<ObjectRef> TaskExtractionNode::Query(runtime::String task_name, IRModule mod, Target target,
-                                              Optional<Array<IRModule>> dispatched) {
+Optional<ObjectRef> TaskExtractionNode::Query(runtime::String task_name, IRModule mod,
+                                              Target target, Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   IRModule prim_mod = dispatched.value()[0];
@@ -113,7 +114,8 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
   data_ = n;
 }
 
-Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod, Target target,
+Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
+                                                Target target,
                                                 Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);

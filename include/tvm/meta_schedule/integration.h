@@ -129,7 +129,8 @@ class MetaScheduleContext : public runtime::ObjectRef {
    *         3) relay::Function if `mod` should be dispatched to BYOC workflow
    *         4) IRModule for unified dispatch
    */
-  static Optional<ObjectRef> QueryInsideWithScope(runtime::String task_name, IRModule mod, Target target,
+  static Optional<ObjectRef> QueryInsideWithScope(runtime::String task_name, IRModule mod,
+                                                  Target target,
                                                   Optional<Array<IRModule>> dispatched);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(MetaScheduleContext, runtime::ObjectRef,
