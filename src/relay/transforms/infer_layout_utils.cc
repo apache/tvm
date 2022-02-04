@@ -27,6 +27,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "pattern_utils.h"
 #include "tvm/runtime/logging.h"
