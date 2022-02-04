@@ -414,16 +414,16 @@ class Conv2dDoubleCascade5:
     def main(placeholder: T.Buffer[(1, 8, 8, 3), "int8"], ethosu_write: T.Buffer[(1, 32, 32, 8), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_var("uint8", "")
-        buffer_1 = T.buffer_var("uint8", "")
-        buffer_2 = T.buffer_var("uint8", "")
-        buffer_3 = T.buffer_var("uint8", "")
+        buffer = T.buffer_decl([], "uint8")
+        buffer_1 = T.buffer_decl([], "uint8")
+        buffer_2 = T.buffer_decl([], "uint8")
+        buffer_3 = T.buffer_decl([], "uint8")
         # body
         ethosu_write_1 = T.allocate([4096], "int8", "global", annotations={"disable_lower_builtin":True})
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, T.load("int8", placeholder.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", buffer, 0), 160, 12, T.load("uint8", buffer_1, 0), 320, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, T.load("int8", ethosu_write.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", buffer_2, 0), 304, 12, T.load("uint8", buffer_3, 0), 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, T.load("int8", placeholder.data, 96), 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", buffer, 0), 160, 12, T.load("uint8", buffer_1, 0), 320, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, T.load("int8", ethosu_write.data, 4096), 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, T.load("uint8", buffer_2, 0), 304, 12, T.load("uint8", buffer_3, 0), 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, buffer[0], 160, 12, buffer_1[0], 320, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, buffer_2[0], 304, 12, buffer_3[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 4, 8, 3, 4, 0, 8, placeholder[96], 0, 0, 0, T.float32(0.5), 10, "NHWC", 24, 3, 1, "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 32, 1, 1, 1, 1, 1, 1, 1, buffer[0], 160, 12, buffer_1[0], 320, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 16, 32, 8, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 512, 32, 1, "int8", 16, 32, 8, 16, 0, 32, ethosu_write[4096], 0, 0, 0, T.float32(0.25), 14, "NHWC", 256, 8, 1, 1, 1, 1, 1, 1, 1, buffer_2[0], 304, 12, buffer_3[0], 80, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "ZEROS", dtype="handle"))
     __tvm_meta__ = None
 
 
@@ -433,14 +433,14 @@ class Conv2dDoubleCascade6:
     def main(placeholder: T.Buffer[(1, 8, 1, 8, 16), "int8"], ethosu_write: T.Buffer[(1, 32, 2, 32, 16), "int8"]) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        buffer = T.buffer_var("uint8", "")
-        buffer_1 = T.buffer_var("uint8", "")
-        buffer_2 = T.buffer_var("uint8", "")
-        buffer_3 = T.buffer_var("uint8", "")
+        buffer = T.buffer_decl([], "uint8")
+        buffer_1 = T.buffer_decl([], "uint8")
+        buffer_2 = T.buffer_decl([], "uint8")
+        buffer_3 = T.buffer_decl([], "uint8")
         # body
         ethosu_write_1 = T.allocate([12288], "int8", "global", annotations={"disable_lower_builtin":True})
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 3, 8, 0, 8, T.load("int8", placeholder.data, 0), 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 128, 16, 1, "int8", 16, 16, 35, 16, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 768, 16, 256, 3, 3, 1, 1, 1, 1, T.load("uint8", buffer, 0), 1456, 12, T.load("uint8", buffer_1, 0), 352, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 35, 16, 0, 16, T.load("int8", ethosu_write_1, 0), 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 768, 16, 256, "int8", 32, 32, 26, 32, 0, 32, T.load("int8", ethosu_write.data, 0), 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 1024, 16, 512, 3, 3, 1, 1, 1, 1, T.load("uint8", buffer_2, 0), 11040, 12, T.load("uint8", buffer_3, 0), 272, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 8, 3, 8, 0, 8, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 128, 16, 1, "int8", 16, 16, 35, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 768, 16, 256, 3, 3, 1, 1, 1, 1, buffer[0], 1456, 12, buffer_1[0], 352, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 16, 16, 35, 16, 0, 16, ethosu_write_1[0], 0, 0, 0, T.float32(0.5), 10, "NHCWB16", 768, 16, 256, "int8", 32, 32, 26, 32, 0, 32, ethosu_write[0], 0, 0, 0, T.float32(0.25), 14, "NHCWB16", 1024, 16, 512, 3, 3, 1, 1, 1, 1, buffer_2[0], 11040, 12, buffer_3[0], 272, 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NEAREST", dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
 
