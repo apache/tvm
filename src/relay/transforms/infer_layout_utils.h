@@ -51,6 +51,7 @@ Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layo
                                 const Array<tvm::PrimExpr>& old_shape);
 
 bool Isomorphic(const Layout& lhs, const Layout& rhs);
+
 /*!
  * \brief Try transforming `old` in as the smae way as how`ref_old` is transformed to `ref_new`.
  * `old` and `ref_old` are expected to describe two broadcastable tensors. Layout with fewer rank
@@ -66,6 +67,7 @@ bool Isomorphic(const Layout& lhs, const Layout& rhs);
  * \return The transformed layout.
  */
 Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& ref_new);
+
 /*
  * \brief An output structure to hold results from FInferCorrectLayout calls.
  * \tparam input_layouts Inferred input layouts.

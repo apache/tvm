@@ -81,6 +81,7 @@ Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& old_layo
   return new_layout != "" ? Layout(new_layout)
                           : Layout("H").SubLayout(0, 0);  // hack to create a scalar layout
 }
+
 bool Isomorphic(const Layout& lhs, const Layout& rhs) {
   DLOG(INFO) << "Isomorphic: "
              << "lhs: " << lhs << " rhs: " << rhs << std::endl;
@@ -110,6 +111,7 @@ bool Isomorphic(const Layout& lhs, const Layout& rhs) {
   }
   return true;
 }
+
 Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& ref_new) {
   DLOG(INFO) << "transform_layout: old = " << old << ", ref_new = " << ref_new
              << ", ref_old = " << ref_old << std::endl;
@@ -136,10 +138,9 @@ Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& 
 
   // `old` is compatible. Now learn the axis name mapping between `old` and `ref_old`
   if (old.ndim() == 0) return old;  // an optmization for scalar: no-op
-  int mapping[26];
-  bool used[26];
-  memset(mapping, -1, sizeof mapping);
-  memset(used, 0, sizeof used);
+  std::vector<int> mapping(26, -1);
+  std::vector<bool> used(26, false);
+
   auto find_unused = [&](char preference) -> char {
     if (!used[preference - 'A']) return preference;  // preference unused
     for (int i = 0; i < 26; ++i)
@@ -147,12 +148,14 @@ Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& 
     LOG(FATAL) << "All letters are used";
     return 0;
   };
+
   for (int j = old->axes.size() - 1, i = ref_old->axes.size() - 1; j >= 0; --i, --j) {
     char name_ref = LayoutAxis::Get(ref_old->axes[i]).ToPrimal().name()[0];
     char name = LayoutAxis::Get(old->axes[j]).ToPrimal().name()[0];
     mapping[name_ref - 'A'] = name - 'A';
     used[name - 'A'] = true;
   }
+
   for (int i = ref_old->axes.size() - 1; i >= 0; --i) {
     char name_ref = LayoutAxis::Get(ref_old->axes[i]).ToPrimal().name()[0];
     int name = mapping[name_ref - 'A'];
@@ -175,6 +178,7 @@ Layout TryTransformLike(const Layout& old, const Layout& ref_old, const Layout& 
       new_layout += c;
     }
   }
+
   DLOG(INFO) << "new_layout = " << new_layout << std::endl;
   return Layout(new_layout);
 }
