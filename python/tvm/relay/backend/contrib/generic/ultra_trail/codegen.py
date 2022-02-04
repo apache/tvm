@@ -19,6 +19,7 @@
 import tvm
 from tvm import relay
 from ..codegen import GenericCodegen
+from .strategies import *
 from .schedules import *
 from .passes import *
 
@@ -26,6 +27,9 @@ from .passes import *
 class UltraTrailCodegen(GenericCodegen):
     def __init__(self):
         super(UltraTrailCodegen, self).__init__()
+
+    def _register_operator_strategies(self):
+        self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
     def _register_tir_schedules(self):
         self._register_tir_schedule(insert_extern_calls)

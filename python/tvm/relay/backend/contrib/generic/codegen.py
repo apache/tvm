@@ -18,6 +18,7 @@
 
 import tvm
 from tvm import relay, te, tir
+from tvm.relay.op import op as _op
 
 from abc import abstractmethod
 from typing import List, Tuple, Callable
@@ -30,8 +31,32 @@ class GenericCodegen(object):
         self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
         self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
 
+        self._register_operator_strategies()
         self._register_tir_schedules()
         self._register_tir_passes()
+
+    @abstractmethod
+    def _register_operator_strategies(self) -> None:
+        """Register a set of operator strategies which are considered during lowering from relay to TE.
+
+        Example
+        -------
+        Here is an example of how two operator strategies can be registered.
+
+        .. code-block:: python
+
+            def _register_operator_strategies(self):
+                self._register_operator_strategy(operator_strategy_0)
+                self._register_operator_strategy(operator_strategy_1)
+
+        Use `pass` if no operator strategy should be registerd.
+
+        .. code-block:: python
+
+            def _register_operator_strategies(self):
+                pass
+
+        """
 
     @abstractmethod
     def _register_tir_schedules(self) -> None:
@@ -78,6 +103,16 @@ class GenericCodegen(object):
                 pass
 
         """
+
+    def _register_operator_strategy(
+        self,
+        op: str,
+        strat: Callable[
+            [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target], _op.OpStrategy
+        ],
+        plevel: int = 11,
+    ) -> None:
+        _op.register_strategy(op, strat, level=plevel)
 
     def _register_tir_schedule(
         self, sch_func: Callable[[tvm.tir.Schedule], tvm.tir.Schedule]
