@@ -267,16 +267,6 @@ def topk(expr, type_map):
     return [expr, t]
 
 
-@register_fake_quantization_to_integer("dyn.topk")
-def dynamic_topk(expr, type_map):
-    """Rewrite a dynamic topk op"""
-    arg = expr.args[0]
-    t = type_map[arg]
-    attrs = {**expr.attrs}
-    assert "ret_type" in attrs and attrs["ret_type"] == "values"
-    return [expr, t]
-
-
 @register_fake_quantization_to_integer("split")
 def split(expr, type_map):
     """Rewrite a split op"""
