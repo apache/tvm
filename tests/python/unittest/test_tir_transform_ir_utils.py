@@ -16,15 +16,18 @@
 # under the License.
 import pytest
 import tvm
-from tvm import tir
+from tvm import tir, ir
 
 
 def test_convert_ssa():
+    dtype = "int32"
     zero = tir.const(0)
     nop = tir.Evaluate(zero)
-    v = tir.Var("i1", "int32")
+    var_type = ir.PointerType(ir.PrimType(dtype))
+    v = tir.Var("i1", var_type)
+    buf = tir.decl_buffer([16], dtype=dtype, data=v)
     for_stmt = tir.For(v, zero, zero, tir.ForKind.SERIAL, nop)
-    load = tir.Evaluate(tir.Load("int32", v, zero))
+    load = tir.Evaluate(tir.BufferLoad(buf, [zero]))
     seq = tir.SeqStmt([for_stmt, for_stmt, load])
     func = tir.PrimFunc([], seq)
     mod = tvm.IRModule({"main": func})
