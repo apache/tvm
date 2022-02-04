@@ -18,6 +18,7 @@
 
 
 import argparse
+from ast import arg
 import copy
 import json
 import logging
@@ -27,6 +28,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import pathlib
 
 _LOG = logging.getLogger(__name__)
 
@@ -61,25 +63,15 @@ PACKER_FILE_NAME = "packer.json"
 
 
 # List of identifying strings for microTVM boards for testing.
-# TODO add a way to declare supported boards to ProjectAPI
+with open(pathlib.Path(THIS_DIR) / ".." / "zephyr" / "template_project" / "boards.json") as f:
+    zephyr_boards = json.load(f)
+
+with open(pathlib.Path(THIS_DIR) / ".." / "arduino" / "template_project" / "boards.json") as f:
+    arduino_boards = json.load(f)
+
 ALL_MICROTVM_BOARDS = {
-    "arduino": (
-        "due",
-        "feathers2",
-        "metrom4",
-        "nano33ble",
-        "pybadge",
-        "spresense",
-        "teensy40",
-        "teensy41",
-        "wioterminal",
-    ),
-    "zephyr": (
-        "nucleo_f746zg",
-        "stm32f746g_disco",
-        "nrf5340dk_nrf5340_cpuapp",
-        "mps2_an521",
-    ),
+    "arduino": arduino_boards.keys(),
+    "zephyr": zephyr_boards.keys(),
 }
 
 
@@ -290,7 +282,9 @@ VM_BOX_RE = re.compile(r'(.*\.vm\.box) = "(.*)"')
 SKIP_COPY_PATHS = [".vagrant", "base-box"]
 
 
-def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provider_name):
+def do_build_release_test_vm(
+    release_test_dir, user_box_dir: pathlib.Path, base_box_dir: pathlib.Path, provider_name
+):
     if os.path.exists(release_test_dir):
         try:
             subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
@@ -378,10 +372,10 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
 
 
 def test_command(args):
-    user_box_dir = os.path.join(THIS_DIR, args.platform)
-    base_box_dir = os.path.join(THIS_DIR, args.platform, "base-box")
-    test_config_file = os.path.join(base_box_dir, "test-config.json")
-    with open(test_config_file) as f:
+    user_box_dir = pathlib.Path(THIS_DIR) / args.platform
+    base_box_dir = user_box_dir / "base-box"
+    boards_file = pathlib.Path(THIS_DIR) / ".." / args.platform / "template_project" / "boards.json"
+    with open(boards_file) as f:
         test_config = json.load(f)
 
         # select microTVM test config
@@ -390,7 +384,7 @@ def test_command(args):
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
             assert key in microtvm_test_config and isinstance(
                 microtvm_test_config[key], expected_type
-            ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
+            ), f"Expected key {key} of type {expected_type} in {boards_file}: {test_config!r}"
 
         microtvm_test_config["vid_hex"] = microtvm_test_config["vid_hex"].lower()
         microtvm_test_config["pid_hex"] = microtvm_test_config["pid_hex"].lower()
@@ -443,7 +437,10 @@ def test_command(args):
 
 
 def release_command(args):
-    vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+    if args.release_full_name:
+        vm_name = args.release_full_name
+    else:
+        vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
 
     if not args.skip_creating_release_version:
         subprocess.check_call(
@@ -565,14 +562,29 @@ def parse_args():
     )
     parser_release.add_argument(
         "--platform-version",
-        required=True,
+        required=False,
         help=(
             "For Zephyr, the platform version to release, in the form 'x.y'. "
             "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
         ),
     )
+    parser_release.add_argument(
+        "--release-full-name",
+        required=False,
+        type=str,
+        default=None,
+        help=(
+            "If set, it will use this as the full release name and version for the box. "
+            "If this set, it will ignore `--platform-version` and `--release-version`."
+        ),
+    )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.action == "release" and not args.release_full_name:
+        parser.error("--platform-version is requireed.")
+
+    return args
 
 
 def main():
