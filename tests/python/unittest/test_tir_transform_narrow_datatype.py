@@ -239,7 +239,7 @@ def test_relay_take():
         func = mod["main"]
         z = engine.lower(func, "llvm")
         stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.index.dtype == target_dtype
+        assert stmt.value.indices[0].dtype == target_dtype
 
     check(
         (const(2 ** 16, "int64"), const(2 ** 15 + 1, "int64")),
