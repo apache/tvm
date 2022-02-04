@@ -30,7 +30,7 @@ def test_stmt_simplify():
     body = tvm.tir.LetStmt(n, 10, ib.get())
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    assert isinstance(body.body, tvm.tir.Store)
+    assert isinstance(body.body, tvm.tir.BufferStore)
 
 
 def test_thread_extent_simplify():
@@ -48,7 +48,7 @@ def test_thread_extent_simplify():
     body = tvm.tir.LetStmt(n, 10, ib.get())
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, C, n], body))
     body = tvm.tir.transform.Simplify()(mod)["main"].body
-    assert isinstance(body.body.body.body, tvm.tir.Store)
+    assert isinstance(body.body.body.body, tvm.tir.BufferStore)
 
 
 def test_if_likely():
