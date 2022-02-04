@@ -107,23 +107,6 @@ def test_popen_ffi():
     assert proc.recv() == initargs[0]
 
 
-def test_popen_pool_executor_async():
-    pool = PopenPoolExecutor()
-    f1 = pool.submit(slow_summation, 9999999)
-    f2 = pool.submit(fast_summation, 9999999)
-    t1 = 0
-    t2 = 0
-    while True:
-        if t1 == 0 and f1.done():
-            t1 = time.time()
-        if t2 == 0 and f2.done():
-            t2 = time.time()
-        if t1 != 0 and t2 != 0:
-            break
-    assert t2 < t1, "Expected fast async job to finish first!"
-    assert f1.result() == f2.result()
-
-
 def test_popen_pool_executor_timeout():
     timeout = 0.5
 
@@ -143,5 +126,4 @@ if __name__ == "__main__":
     test_popen_pool_executor()
     test_popen_initializer()
     test_popen_ffi()
-    test_popen_pool_executor_async()
     test_popen_pool_executor_timeout()
