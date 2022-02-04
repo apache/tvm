@@ -735,7 +735,15 @@ def CreatePrimFuncWithoutConstants(const_dict):
             if i not in const_dict.keys():
                 new_params.append(f.params[i])
                 new_buffer_map[f.params[i]] = f.buffer_map[f.params[i]]
-        return tvm.tir.PrimFunc(new_params, f.body, f.ret_type, new_buffer_map, f.preflattened_buffer_map, f.attrs, f.span)
+        return tvm.tir.PrimFunc(
+            new_params,
+            f.body,
+            f.ret_type,
+            new_buffer_map,
+            f.preflattened_buffer_map,
+            f.attrs,
+            f.span,
+        )
 
     def _create_primfunc_without_constants(mod):
         transform_func = tvm.tir.transform.prim_func_pass(
