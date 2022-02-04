@@ -434,6 +434,46 @@ def test_fake_quantize_concat():
     compare_fq_to_int(out, inputs_np)
 
 
+@pytest.mark.parametrize("k", [0, 1, 5])
+@pytest.mark.parametrize("axis", [0, -1, 1])
+@pytest.mark.parametrize("is_ascend", [True, False])
+def test_fake_quantize_topk(k, axis, is_ascend):
+    x = relay.var("x", shape=[20, 100], dtype="int8")
+    zero = relay.const(0)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.topk(x, k, axis, "values", is_ascend, "float32")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero, out_dtype="int8")
+    x_np = np.random.randint(-128, 127, size=[20, 100], dtype="int8")
+
+    compare_fq_to_int(op, [x_np])
+
+
+@pytest.mark.parametrize("k", [0, 1, 5])
+@pytest.mark.parametrize("axis", [0, -1, 1])
+@pytest.mark.parametrize("is_ascend", [True, False])
+def test_fake_quantize_dynamic_topk(k, axis, is_ascend):
+    x = relay.var("x", shape=[20, 100], dtype="int8")
+    k_var = relay.var("k", relay.TensorType((1,), "int8"))
+    zero = relay.const(0)
+
+    op = relay.topk(
+        relay.qnn.op.dequantize(x, relay.const(1.0), zero),
+        relay.qnn.op.dequantize(k_var, relay.const(1.0), zero),
+        axis,
+        "values",
+        is_ascend,
+        "float32",
+    )
+
+    op = relay.qnn.op.quantize(op, relay.const(1.0), zero, out_dtype="int8")
+
+    x_np = np.random.randint(-128, 127, size=[20, 100], dtype="int8")
+    k_np = np.array([k]).astype("int8")
+
+    compare_fq_to_int(op, [x_np, k_np])
+
+
 def test_fake_quantize_clip():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
 
