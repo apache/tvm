@@ -48,7 +48,10 @@ def print_mod_tree(m, indent=0):
 unpacked_api = tvm.testing.parameter(True, False)
 
 
-def test_conv2d(unpacked_api):
+target_kind = tvm.testing.parameter("c", "llvm")
+
+
+def test_conv2d(target_kind, unpacked_api):
     RELAY_MODEL = textwrap.dedent(
         """\
         #[version = "0.0.5"]
@@ -94,7 +97,7 @@ def test_conv2d(unpacked_api):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"unpacked-api": unpacked_api, "interface-api": "packed"}),
         )
 
