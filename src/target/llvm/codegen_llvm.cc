@@ -237,7 +237,7 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
     auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
     std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
     llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
-        *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
+        *module_, array->getType(), true, llvm::GlobalValue::ExternalLinkage, array, symbol_name);
     auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
     size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
 #if TVM_LLVM_VERSION >= 100
@@ -1265,6 +1265,9 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       auto global_symbol = Downcast<StringImm>(op->args[0]);
       return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), global_symbol->value, op->args,
                                     true);
+    } else if (op->op.same_as(builtin_lookup_param_)) {
+      std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + Downcast<StringImm>(op->args[0])->value; //operator std::string();
+      return module_->getGlobalVariable(symbol_name);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
