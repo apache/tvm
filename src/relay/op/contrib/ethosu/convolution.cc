@@ -154,6 +154,15 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
     return false;
   }
 
+  const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
+  if (upscale_methods.find(param->upscale) == upscale_methods.end()) {
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: Expected upsample method to be 'NONE', "
+                                        "'ZEROS' or 'NEAREST' but got "
+                                     << param->upscale);
+    return false;
+  }
+
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));
 
@@ -162,10 +171,16 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
                                          param->kernel_shape[1], weight->shape[3]},
                                         weight->dtype));
 
+  Array<IndexExpr> ifm_shape = ifm->shape;
+  if (param->upscale != "NONE") {
+    ifm_shape = EthosuInferUpscaledInput(ifm_shape, param->ifm_layout);
+  }
+
   // Assign ofm type
   auto ofm_shape =
-      EthosuInferKernelOutput(ifm->shape, param->ifm_layout, param->ofm_layout, param->kernel_shape,
+      EthosuInferKernelOutput(ifm_shape, param->ifm_layout, param->ofm_layout, param->kernel_shape,
                               param->ofm_channels, param->dilation, param->strides, param->padding);
+
   reporter->Assign(types[4], TensorType(ofm_shape, ifm->dtype));
   return true;
 }

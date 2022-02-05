@@ -14,5 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Pareto optimisation functions for the NPU cascader."""
+from typing import List
 
-""" Testing infrastructure for Hexagon Proxy RPC """
+from tvm import Object
+
+from . import _ffi_api
+from .plan import Plan
+
+
+def _get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
+    for i, cost in enumerate(costs):
+        for j, value in enumerate(cost):
+            costs[i][j] = float(value)
+
+    return [bool(v) for v in _ffi_api.GetParetoFrontier(costs)]
+
+
+def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
+    return list(_ffi_api.ThinVector(vec, max_size))
+
+
+def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
+    return list(_ffi_api.ParetoCullPlans(plans, max_plans))

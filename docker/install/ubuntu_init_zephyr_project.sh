@@ -19,32 +19,55 @@
 #
 # Initialize Zephyr Project.
 #
-# Usage: ubuntu_init_zephyr_project.sh path branch [--commit hash]
-#   path is the installation path for the repository.
-#   branch is the zephyr branch.
-#   --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
+# Usage: docker/install/ubuntu_init_zephyr_project.sh <INSTALLATION_PATH> [--branch BRANCH]
+#         [--commit HASH]
+# INSTALLATION_PATH is the installation path for the repository.
+# --branch is the zephyr branch. If not specified, it uses the default.
+# --commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
 #
 
 set -x
 
-DOWNLOAD_DIR=$1
-shift
-ZEPHYR_BRANCH=$1
+function show_usage() {
+    cat <<EOF
+Usage: docker/install/ubuntu_init_zephyr_project.sh <INSTALLATION_PATH> [--branch BRANCH]
+        [--commit COMMIT]
+INSTALLATION_PATH is the installation path for the repository.
+--branch is the zephyr branch. If not specified, it uses the default.
+--commit is the commit hash number of zephyrproject repository. If not specified, it uses the latest commit.
+EOF
+}
+
+if [ "$#" -lt 1 -o "$1" == "--help" -o "$1" == "-h" ]; then
+    show_usage
+    exit -1
+fi
+
+INSTALLATION_PATH=$1
 shift
 
-commit_hash=
+if [ "$1" == "--branch" ]; then
+    shift
+    BRANCH=$1
+    shift
+else
+    BRANCH="v2.7-branch"
+fi
+
+COMMIT=
 if [ "$1" == "--commit" ]; then
     shift
-    commit_hash=$1
+    COMMIT=$1
+    shift
 fi
 
-west init --mr ${ZEPHYR_BRANCH} ${DOWNLOAD_DIR}
+west init --mr ${BRANCH} ${INSTALLATION_PATH}
 
-if [ -n "$commit_hash" ]; then
-    cd ${DOWNLOAD_DIR}/zephyr
-    git checkout ${commit_hash}
+if [ -n "$COMMIT" ]; then
+    cd ${INSTALLATION_PATH}/zephyr
+    git checkout ${COMMIT}
 fi
 
-cd ${DOWNLOAD_DIR}
+cd ${INSTALLATION_PATH}
 west update
 west zephyr-export

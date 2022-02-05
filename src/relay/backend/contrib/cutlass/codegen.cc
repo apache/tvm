@@ -238,47 +238,62 @@ std::string BatchMatmulOp(std::string id, const Str2StrMap& attrs,
   return gemm_decl.str();
 }
 
-Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs) {
+Str2StrMap Conv2dArgs(const Map<String, ObjectRef>& attrs, bool is_dgrad = false,
+                      bool is_wgrad = false) {
   Str2StrMap args = ArgsCommon(attrs);
   auto arg0_shape = attrs["arg0_shape"].as<ArrayNode>();
   auto arg1_shape = attrs["arg1_shape"].as<ArrayNode>();
-  auto out_shape = attrs["ret_shape"].as<ArrayNode>();
-  args["N"] = GetDimAsStr(arg0_shape->at(0));
-  args["H"] = GetDimAsStr(arg0_shape->at(1));
-  args["W"] = GetDimAsStr(arg0_shape->at(2));
-  args["C"] = GetDimAsStr(arg0_shape->at(3));
-  args["K"] = GetDimAsStr(arg1_shape->at(0));
-  args["R"] = GetDimAsStr(arg1_shape->at(1));
-  args["S"] = GetDimAsStr(arg1_shape->at(1));
-  args["P"] = GetDimAsStr(out_shape->at(1));
-  args["Q"] = GetDimAsStr(out_shape->at(2));
+  auto ret_shape = attrs["ret_shape"].as<ArrayNode>();
+  auto activation_shape = arg0_shape;
+  auto weight_shape = arg1_shape;
+  auto output_shape = ret_shape;
+
+  if (is_dgrad) {
+    activation_shape = ret_shape;
+    output_shape = arg0_shape;
+  } else if (is_wgrad) {
+    activation_shape = arg1_shape;
+    weight_shape = ret_shape;
+    output_shape = arg0_shape;
+  }
+
+  args["N"] = GetDimAsStr(activation_shape->at(0));
+  args["H"] = GetDimAsStr(activation_shape->at(1));
+  args["W"] = GetDimAsStr(activation_shape->at(2));
+  args["C"] = GetDimAsStr(activation_shape->at(3));
+  args["P"] = GetDimAsStr(output_shape->at(1));
+  args["Q"] = GetDimAsStr(output_shape->at(2));
+  args["K"] = GetDimAsStr(output_shape->at(3));
+  args["R"] = GetDimAsStr(weight_shape->at(1));
+  args["S"] = GetDimAsStr(weight_shape->at(2));
   args["pad_h"] = GetDimAsStr(attrs["padding"].as<ArrayNode>()->at(0));
   args["pad_w"] = GetDimAsStr(attrs["padding"].as<ArrayNode>()->at(1));
   args["stride_h"] = GetDimAsStr(attrs["strides"].as<ArrayNode>()->at(0));
   args["stride_w"] = GetDimAsStr(attrs["strides"].as<ArrayNode>()->at(1));
   args["dilation_h"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(0));
   args["dilation_w"] = GetDimAsStr(attrs["dilation"].as<ArrayNode>()->at(1));
+
   return args;
 }
 
 std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
                      const std::vector<std::string>& func_args, bool has_residual_block = false) {
-  bool has_bias = attrs.at("op_type").find("bias") != std::string::npos;
-  bool no_bias_scaling = attrs.at("op_type") != "cutlass.conv2d_bias_sigmoid" &&
-                         attrs.at("op_type") != "cutlass.conv2d_bias_silu" &&
-                         attrs.at("op_type") != "cutlass.conv2d_bias_hardswish";
+  auto op_type = attrs.at("op_type");
+  bool has_bias = op_type.find("bias") != std::string::npos;
+  bool no_bias_scaling = op_type != "cutlass.conv2d_bias_sigmoid" &&
+                         op_type != "cutlass.conv2d_bias_silu" &&
+                         op_type != "cutlass.conv2d_bias_hardswish";
 
   std::ostringstream conv2d_decl;
-  CutlassPrint(conv2d_decl, "using ElementInputA = " + attrs.at("ElementInputA") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementInputB = " + attrs.at("ElementInputB") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementOutput = " + attrs.at("ElementOutput") + ";\n");
-  CutlassPrint(conv2d_decl, "using ElementComputeEpilogue = " + attrs.at("ElementOutput") + ";\n");
-
   CutlassPrint(conv2d_decl, attrs.at("op_def"));
   CutlassPrint(conv2d_decl, "using Operation_" + attrs.at("op_name") +
                                 " = cutlass::conv::device::ImplicitGemmConvolution<" +
                                 attrs.at("op_name") + ">;\n");
   CutlassPrint(conv2d_decl, "using Conv2d = Operation_" + attrs.at("op_name") + ";\n");
+  CutlassPrint(conv2d_decl, "using ElementInputA = Conv2d::ElementA;\n");
+  CutlassPrint(conv2d_decl, "using ElementInputB = Conv2d::ElementB;\n");
+  CutlassPrint(conv2d_decl, "using ElementOutput = Conv2d::ElementC;\n");
+  CutlassPrint(conv2d_decl, "using ElementComputeEpilogue = Conv2d::ElementAccumulator;\n");
 
   auto get_dim = [&attrs](const std::string& axis, const std::string& var_name, int axis_idx) {
     if (attrs.at(axis) == kAnyDim) {
@@ -309,9 +324,13 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
       "cutlass::conv::Conv2dProblemSize problem_size(N, H, W, C, K, R, S, P, Q, pad_h, pad_w, "
       "stride_h, stride_w, dilation_h, dilation_w, cutlass::conv::Mode::kCrossCorrelation, 1);\n");
 
+  bool is_wgrad = op_type.find("backward_weight") != std::string::npos;
+  bool is_dgrad = op_type.find("conv2d_transpose") != std::string::npos;
+
   ICHECK(func_args.size() >= 2);
   CutlassPrint(conv2d_decl, "void* ptr_a = (void*)(" + func_args[0] + "->data);\n");
   CutlassPrint(conv2d_decl, "void* ptr_b = (void*)(" + func_args[1] + "->data);\n");
+
   if (has_residual_block) {
     ICHECK(func_args.size() >= 4);
     CutlassPrint(conv2d_decl, "void* ptr_bias = (void*)(" + func_args[2] + "->data);\n");
@@ -323,20 +342,35 @@ std::string Conv2dOp(std::string id, const Str2StrMap& attrs,
 
   CutlassPrint(conv2d_decl, "void* ptr_out = (void*)(out0->data);\n");
   CutlassPrint(conv2d_decl, "ElementComputeEpilogue alpha = ElementComputeEpilogue(1);\n");
-  if (has_bias && no_bias_scaling && !has_residual_block) {
+  if ((!has_bias || no_bias_scaling) && !has_residual_block) {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(0);\n");
   } else {
     CutlassPrint(conv2d_decl, "ElementComputeEpilogue beta = ElementComputeEpilogue(1);\n");
   }
   CutlassPrint(conv2d_decl, "using cutlass::layout::TensorNHWC;\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(N, H, W, C)));\n");
+               "auto activation_shape = TensorNHWC::packed(cutlass::make_Coord(N, H, W, C));\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(K, R, S, C)));\n");
+               "auto weight_shape = TensorNHWC::packed(cutlass::make_Coord(K, R, S, C));\n");
   CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
-  CutlassPrint(conv2d_decl,
-               "TensorNHWC layout_D(TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K)));\n\n");
+               "auto output_oshape = TensorNHWC::packed(cutlass::make_Coord(N, P, Q, K));\n");
+
+  if (is_wgrad) {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(output_oshape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(activation_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(weight_shape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(weight_shape);\n\n");
+  } else if (is_dgrad) {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(output_oshape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(weight_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(activation_shape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(activation_shape);\n\n");
+  } else {
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_A(activation_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_B(weight_shape);\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_C(output_oshape);\n\n");
+    CutlassPrint(conv2d_decl, "TensorNHWC layout_D(output_oshape);\n\n");
+  }
 
   CutlassPrint(conv2d_decl, "typename Conv2d::Arguments arguments{\n");
   CutlassPrint(conv2d_decl, " problem_size,\n");
@@ -576,6 +610,11 @@ class CodegenCutlass : public MemoizedExprTranslator<std::vector<Output>>, publi
       ICHECK(conv2d_call);
       return GenerateBody(conv2d_call, pattern_name.value(), GetArgumentNames(caller),
                           Conv2dArgs(std::ref(attrs_)));
+    } else if (pattern_name == "cutlass.conv2d_transpose") {
+      const auto* conv2d_call =
+          GetRootCall(callee->body.as<CallNode>(), 0, {"nn.conv2d_transpose"});
+      return GenerateBody(conv2d_call, "cutlass_conv2d_transpose", GetArgumentNames(caller),
+                          Conv2dArgs(std::ref(attrs_), true, false));
     }
 
     LOG(FATAL) << "Unknown composite function: " << pattern_name;
@@ -680,6 +719,8 @@ class CutlassModuleCodegen : public CSourceModuleCodegenBase {
     code_stream_ << "#include <cutlass/gemm/device/gemm.h>\n";
     code_stream_ << "#include <cutlass/gemm/device/gemm_batched.h>\n";
     code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_fprop.h>\n";
+    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_wgrad.h>\n";
+    code_stream_ << "#include <cutlass/conv/kernel/default_conv2d_dgrad.h>\n";
     code_stream_ << "#include <cutlass/conv/device/implicit_gemm_convolution.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_bias_relu.h>\n";
     code_stream_ << "#include <cutlass/epilogue/thread/linear_combination_gelu.h>\n";

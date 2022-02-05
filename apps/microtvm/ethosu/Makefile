@@ -19,13 +19,13 @@
 
 # Setup build environment
 BUILD_DIR := build
-STANDALONE_CRT_PATH := $(shell python3 -c "import tvm.micro; print(tvm.micro.get_standalone_crt_dir())")
 
 ARM_CPU = ARMCM55
 ETHOSU_PATH = /opt/arm/ethosu
 ETHOSU_DRIVER_PATH ?= ${ETHOSU_PATH}/core_driver
 CMSIS_PATH ?= ${ETHOSU_PATH}/cmsis
 ETHOSU_PLATFORM_PATH ?= ${ETHOSU_PATH}/core_platform
+STANDALONE_CRT_PATH := $(abspath $(BUILD_DIR))/runtime
 CORSTONE_300_PATH = ${ETHOSU_PLATFORM_PATH}/targets/corstone-300
 PKG_COMPILE_OPTS = -g -Wall -O2 -Wno-incompatible-pointer-types -Wno-format -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -std=gnu99
 CMAKE ?= cmake

@@ -2691,6 +2691,13 @@ def test_forward_rsub():
     verify_model(Rsub2().float().eval(), input_data=[d1, d2])
     verify_model(Rsub2().float().eval(), input_data=[d1, d3])
 
+    d1 = torch.rand([1, 3]).half()
+    d2 = torch.rand([1, 3]).half()
+    verify_model(Rsub1().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub1().half().eval(), input_data=[d1, d3])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d3])
+
 
 @tvm.testing.uses_gpu
 def test_forward_embedding():
@@ -2789,6 +2796,10 @@ def test_forward_clamp():
     verify_model(Clamp2().float().eval(), input_data=input_data)
     verify_model(Clamp3().float().eval(), input_data=input_data)
     verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
+
+    verify_model(lambda inp: torch.clamp_min(inp, 0.5), input_data)
+    inp_uint8 = torch.randint(low=0, high=256, size=(100, 100), dtype=torch.uint8)
+    verify_model(lambda inp: torch.clamp_max(inp, 125), inp_uint8)
 
 
 @tvm.testing.uses_gpu

@@ -34,10 +34,11 @@ import tvm.relay.testing.tf as tf_testing
 
 from . import infra
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
+ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32", "ethos-u65-256"]
 
 
-def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+def test_forward_mobilenet_v1(accel_type):
     """Test the Mobilenet V1 TF Lite model."""
     np.random.seed(23)
     tflite_model_file = tf_testing.get_workload_official(

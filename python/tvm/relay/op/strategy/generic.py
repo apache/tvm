@@ -446,7 +446,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
 
 
 # conv2d_transpose
-def wrap_compute_conv2d_transpose(topi_compute, has_groups=False):
+def wrap_compute_conv2d_transpose(topi_compute, has_groups=False, add_layout=False):
     """wrap conv2d_transpose topi compute"""
 
     def compute_conv2d_transpose(attrs, inputs, out_dtype):
@@ -458,6 +458,8 @@ def wrap_compute_conv2d_transpose(topi_compute, has_groups=False):
         output_padding = get_const_tuple(attrs.output_padding)
         # out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
         args = [inputs[0], inputs[1], strides, padding, out_dtype, output_padding]
+        if add_layout:
+            args.append(attrs.data_layout)
         if has_groups:
             args.append(attrs.groups)
         out = topi_compute(*args)
@@ -482,7 +484,7 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
             wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
             name="conv2d_transpose_nchw.generic",
         )
-    else:  # group_transpose_conv2d
+    else:  # group_conv2d_transpose
         strategy.add_implementation(
             wrap_compute_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw, has_groups=True),
             wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),

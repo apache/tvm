@@ -109,9 +109,12 @@ def pooling_compute(
     padding = [int(v) for v in padding]
     stride_h, stride_w = [int(v) for v in strides]
     pool_shape_h, pool_shape_w = [int(v) for v in pool_shape]
+    upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
-    dmaed_ifm = dma_ifm_compute(ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding)
+    dmaed_ifm = dma_ifm_compute(
+        ifm, ifm_layout, ifm_zero_point, ifm_scale, ofm_channels, padding, upscale_factor
+    )
 
     # Pooling compute operation
     ofm_height = (dmaed_ifm.shape[1] - pool_shape_h) // stride_h + 1
@@ -228,7 +231,10 @@ def match_ethosu_pooling(output_tensor, device_config):
     pad = pool2d.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]

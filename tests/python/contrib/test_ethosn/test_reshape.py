@@ -21,20 +21,22 @@ import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from tvm.relay.op.contrib import get_pattern_table
-from . import infrastructure as tei
 import numpy as np
+import pytest
+from . import infrastructure as tei
 
 
 def _get_model(input_shape, output_shape, dtype):
     """Return a model and any parameters it may have"""
     a = relay.var("a", shape=input_shape, dtype=dtype)
-    conv, params = tei.get_conv2d(a, input_shape)
+    conv, params = tei.get_conv2d(a, input_shape, dtype)
     req = relay.reshape(conv, output_shape)
     return req, params
 
 
 @requires_ethosn
-def test_reshape():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_reshape(dtype):
     trials = [
         ((1, 15, 4, 1), (1, 60)),
         ((1, 15, 4, 1), (1, 30, 2)),
@@ -46,15 +48,22 @@ def test_reshape():
     np.random.seed(0)
     for input_shape, output_shape in trials:
         inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=input_shape, dtype="uint8"))
+            "a": tvm.nd.array(
+                np.random.randint(
+                    low=np.iinfo(dtype).min,
+                    high=np.iinfo(dtype).max + 1,
+                    size=input_shape,
+                    dtype=dtype,
+                )
+            )
         }
         outputs = []
         for npu in [False, True]:
-            model, params = _get_model(input_shape, output_shape, "uint8")
+            model, params = _get_model(input_shape, output_shape, dtype)
             mod = tei.make_module(model, params)
             outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
 
-        tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn

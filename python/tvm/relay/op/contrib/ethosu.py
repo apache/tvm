@@ -17,8 +17,8 @@
 # pylint: disable=ungrouped-imports, import-outside-toplevel
 """Arm(R) Ethos(TM)-U NPU supported operators."""
 import functools
-
 from typing import Dict, List, Tuple, Callable, Optional
+
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
@@ -83,9 +83,10 @@ class TensorParams:
             self.q_params = vapi.NpuQuantization(1.0, 0)
 
 
-def check_strides(strides: List[int]) -> bool:
+def check_strides(strides: List[int], stride_range=None) -> bool:
     """This function checks whether strides are within the limits supported by the NPU"""
-    stride_range = (1, 3)
+    if stride_range is None:
+        stride_range = (1, 3)
     smin, smax = stride_range
     if not smax >= strides[0] >= smin:
         return False
@@ -146,9 +147,10 @@ def check_batch_size(ifm: TensorParams):
     return ifm.shape[0] == 1
 
 
-def check_dilation(dilation: List[int]):
+def check_dilation(dilation: List[int], dilation_range=None):
     """This function checks whether dilation is within the limits supported by the NPU"""
-    dilation_range = (1, 2)
+    if dilation_range is None:
+        dilation_range = (1, 2)
     dmin, dmax = dilation_range
     if not dmin <= dilation[0] <= dmax:
         return False
@@ -274,6 +276,137 @@ class QnnConv2DParams:
         return not self.is_depthwise
 
 
+class QnnConv2DTransposeParams:
+    """
+    This class will parse a Call to a ethosu.qnn_conv2d_transpose composite
+    function and extract quantization information of all the associated tensors.
+    """
+
+    composite_name = "ethos-u.qnn_conv2d_transpose"
+    # The NPU only supports padding upto the numbers as follows
+    padding_bounds = [31, 31, 32, 32]
+
+    @requires_vela
+    def __init__(self, func_body: tvm.relay.Function):
+        from tvm.relay.backend.contrib.ethosu.util import QConv2DTransposeArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        requantize = func_body
+        call = func_body.args[0]
+        if str(call.op) == "nn.bias_add":
+            bias_add = call
+            call = call.args[0]
+        else:
+            bias_add = None
+        qnn_conv2d_transpose = call
+
+        data_layout = qnn_conv2d_transpose.attrs.data_layout
+        self.kernel_layout = qnn_conv2d_transpose.attrs.kernel_layout
+
+        self.weights = TensorParams(
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS.value],
+            self.kernel_layout,
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS_SCALE.value],
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.WEIGHTS_ZERO_POINT.value],
+        )
+        self.biases = (
+            TensorParams(
+                bias_add.args[BiasAddArgs.BIASES.value],
+                data_layout,
+                requantize.args[RequantArgs.IFM_SCALE.value],
+                requantize.args[RequantArgs.IFM_ZERO_POINT.value],
+            )
+            if bias_add
+            else None
+        )
+        self.ifm = TensorParams(
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM.value],
+            data_layout,
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM_SCALE.value],
+            qnn_conv2d_transpose.args[QConv2DTransposeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            func_body,
+            data_layout,
+            requantize.args[RequantArgs.OFM_SCALE.value],
+            requantize.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        attrs = qnn_conv2d_transpose.attrs
+        self.strides = attrs.strides
+        self.dilation = attrs.dilation
+        self.padding = attrs.padding
+        self.channels = attrs.channels
+        self.groups = attrs.groups
+        self.output_padding = attrs.output_padding
+
+        kernel_size_map = {
+            "IOHW": self.weights.shape[2:4],
+        }
+        self.kernel_shape = kernel_size_map[str(self.weights.layout)]
+
+        # Different padding is used in the legalization from conv2d_transpose
+        # to conv2d, so we to calculate it here to check that the new size fits
+        # within the bounds of the NPU before offloading.
+        pad_top = int(self.kernel_shape[0]) - 1 - int(self.padding[0])
+        pad_left = int(self.kernel_shape[1]) - 1 - int(self.padding[1])
+        pad_bottom = int(self.kernel_shape[0]) - 1 - int(self.padding[2])
+        pad_right = int(self.kernel_shape[1]) - 1 - int(self.padding[3])
+        if self.strides == [2, 2]:
+            pad_bottom -= 1
+            pad_right -= 1
+        self.legalize_padding = [pad_top, pad_left, pad_bottom, pad_right]
+
+    def is_valid(self) -> bool:
+        """
+        This function checks whether QnnConv2D has compatible attributes with the NPU
+        """
+
+        def check_compatible_output_size(ifm_shape, ofm_shape, padding, strides, kernel_shape):
+            is_valid_padding = padding == [0, 0, 0, 0]
+            if is_valid_padding:
+                expected_height = ifm_shape[1] * strides[0] + (kernel_shape[0] - strides[0])
+                expected_width = ifm_shape[2] * strides[1] + (kernel_shape[1] - strides[1])
+            else:
+                expected_height = ifm_shape[1] * strides[0]
+                expected_width = ifm_shape[2] * strides[1]
+            return ofm_shape[1] == expected_height and ofm_shape[2] == expected_width
+
+        tensor_params = [self.weights, self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if not check_weights(self.weights, self.dilation):
+            return False
+        if self.biases and not check_bias(self.biases):
+            return False
+        if not check_strides(self.strides, stride_range=(2, 2)):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        if not check_dilation(self.dilation, dilation_range=(1, 1)):
+            return False
+        if not check_compatible_output_size(
+            self.ifm.shape,
+            self.ofm.shape,
+            [int(x) for x in self.padding],
+            self.strides,
+            self.kernel_shape,
+        ):
+            return False
+        if not check_padding(self.legalize_padding, self.padding_bounds):
+            return False
+        if self.kernel_shape[0] - 2 - int(self.padding[2]) < 0:
+            return False
+        if self.kernel_shape[1] - 2 - int(self.padding[3]) < 0:
+            return False
+        if self.groups != 1:
+            return False
+        if list(self.output_padding) != [0, 0]:
+            return False
+        return True
+
+
 class QnnDepthwiseConv2DParams(QnnConv2DParams):
     """
     This class will parse a call to a ethosu.depthwise_conv2d composite function
@@ -344,6 +477,22 @@ def qnn_depthwise_conv2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     )
     clip_or_req = req.optional(is_op("clip"))
     return clip_or_req
+
+
+def qnn_conv2d_transpose_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for qnn.conv2d_transpose.
+    """
+    qnn_conv2d_transpose = is_op("qnn.conv2d_transpose")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    ).has_attr({"kernel_layout": "IOHW"})
+    optional_bias_add = (
+        is_op("nn.bias_add")(qnn_conv2d_transpose, is_constant()) | qnn_conv2d_transpose
+    )
+    req = is_op("qnn.requantize")(
+        optional_bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    return req
 
 
 class MaxPool2DParams:
@@ -1199,6 +1348,91 @@ def requantize_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
     )
 
 
+class Resize2dParams:
+    """
+    This class will parse a call to ethos-u.resize2d composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.resize2d"
+
+    def __init__(self, func_body: Call):
+        layout = "NHWC"
+
+        resize_2d = func_body
+        in_var = func_body.args[0]
+        if (
+            isinstance(resize_2d, tvm.relay.expr.Call)
+            and isinstance(resize_2d.op, tvm.ir.Op)
+            and resize_2d.op.name == "qnn.quantize"
+        ):
+            resize_2d = resize_2d.args[0]
+            in_var = in_var.args[0].args[0]
+        out_var = func_body
+
+        self.ifm = TensorParams(in_var, layout=layout)
+        self.ofm = TensorParams(out_var, layout=layout)
+
+        attrs = resize_2d.attrs
+        self.size = attrs.size
+        self.method = attrs.method
+        self.roi = attrs.roi
+        self.coordinate_transformation_mode = attrs.coordinate_transformation_mode
+        self.rounding_method = attrs.rounding_method
+        self.out_dtype = attrs.out_dtype
+
+    def is_valid(self) -> bool:
+        """
+        Checks whether image.resize2d has compatible attributes with HW.
+        """
+
+        def check_compatible_size(mode, method, upscale_size, ifm_size):
+            """Checking the provided upscale_size is compatible with the NPU. The NPU only
+            supports upsampling when the upsampling size is 2 * input_size, or when there is
+            no upsampling to be done, so check that this is the case. In the special case of
+            resize_bilinear with align_corners=True, the NPU only supports an upsampling
+            size of 2 * input_size - 1."""
+            delta = 1 if mode == "align_corners" and method == "linear" else 0
+            upscale_size = np.array(upscale_size)
+            ifm_size = np.array(ifm_size)
+            ifm_upscaled = ifm_size * 2 - delta
+            return (ifm_upscaled == upscale_size).all() or (ifm_size == upscale_size).all()
+
+        tensor_params = [self.ifm, self.ofm]
+        if not check_valid_dtypes(tensor_params, supported_dtypes=[np.int8]):
+            return False
+        if len(self.ifm.shape) != 4 or len(self.ofm.shape) != 4:
+            return False
+        if list(float(x) for x in self.roi) != [0.0] * 4:
+            return False
+        if self.method not in ("nearest_neighbor", "linear"):
+            return False
+        if self.coordinate_transformation_mode not in ("asymmetric", "align_corners"):
+            return False
+        if not check_compatible_size(
+            self.coordinate_transformation_mode,
+            self.method,
+            self.size,
+            self.ifm.shape[1:3],
+        ):
+            return False
+        if self.rounding_method != "":
+            return False
+        if self.out_dtype and self.out_dtype != "int8":
+            return False
+        return True
+
+
+def resize2d_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for image.resize2d.
+    """
+    dequant = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    resize_2d = is_op("image.resize2d")(dequant).has_attr({"method": "linear"})
+    quant = is_op("qnn.quantize")(resize_2d, is_constant(), is_constant())
+    return quant | is_op("image.resize2d")(wildcard()).has_attr({"method": "nearest_neighbor"})
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1211,6 +1445,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             QnnDepthwiseConv2DParams.composite_name,
             qnn_depthwise_conv2d_pattern(),
             lambda pat: QnnDepthwiseConv2DParams(pat).is_valid(),
+        ),
+        (
+            QnnConv2DTransposeParams.composite_name,
+            qnn_conv2d_transpose_pattern(),
+            lambda pat: QnnConv2DTransposeParams(pat).is_valid(),
         ),
         (
             MaxPool2DParams.composite_name,
@@ -1288,6 +1527,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             RequantizeParams.composite_name,
             requantize_pattern(),
             lambda pat: RequantizeParams(pat).is_valid(),
+        ),
+        (
+            Resize2dParams.composite_name,
+            resize2d_pattern(),
+            lambda pat: Resize2dParams(pat).is_valid(),
         ),
     ]
 

@@ -353,6 +353,87 @@ class LegalizeConv2D:
         pass
 
 
+class Conv2DTransposeRewriter(DFPatternCallback):
+    """Convert conv2d_transpose related composite functions into
+    ethosu_conv2d_transpose operators."""
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (wildcard().has_attr({"Composite": "ethos-u.qnn_conv2d_transpose"}))(
+            wildcard()
+        )
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.QnnConv2DTransposeParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        ofm_shape = params.ofm.shape
+        legalize_padding = params.legalize_padding
+
+        weight_to_ohwi_transform_map = {"IOHW": [1, 2, 3, 0]}
+        weights_values = params.weights.values
+        weights_values_ohwi = np.transpose(
+            weights_values, weight_to_ohwi_transform_map[str(params.weights.layout)]
+        )
+        weights_values_ohwi = np.flip(weights_values_ohwi, (1, 2))
+        weights = relay.const(weights_values_ohwi, dtype=params.weights.values.dtype)
+
+        bias_values = (
+            params.biases.tensor.data.asnumpy()
+            if params.biases
+            else np.zeros((params.ifm.shape[-1]))
+        )
+        scale_bias = vela_api.pack_biases(
+            biases=bias_values,
+            ifm_scale=params.ifm.q_params.scale_f32,
+            ifm_dtype=np.dtype(params.ifm.dtype),
+            weight_scales=params.weights.q_params.scale_f32,
+            ofm_scale=params.ofm.q_params.scale_f32,
+            is_activation_tanh_or_sigmoid=False,
+        )
+
+        reduced_op = ethosu_ops.ethosu_conv2d(
+            ifm=post.args[0],
+            weight=weights,
+            scale_bias=relay.const(scale_bias, "uint8"),
+            lut=relay.const([], dtype="int8"),
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            weight_zero_point=int(params.weights.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            kernel_shape=params.kernel_shape,
+            ofm_channels=int(ofm_shape[-1]),
+            strides=(1, 1),
+            padding=legalize_padding,
+            dilation=params.dilation,
+            ifm_layout=str(params.ifm.layout),
+            ofm_layout=str(params.ofm.layout),
+            upscale="ZEROS",
+        )
+
+        # Remove additional padding by 'cropping' back to expected size
+        return relay.strided_slice(reduced_op, (0, 0, 0, 0), ofm_shape)
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeConv2DTranspose:
+    """This is the pass that wraps the Conv2DTransposeRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(Conv2DTransposeRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 class DepthwiseConv2DRewriter(DFPatternCallback):
     """Convert ethosu.qnn_depthwise_conv2d composite functions to ethosu_depthwise_conv2d
     operators"""
@@ -1269,6 +1350,101 @@ class LegalizeRequantize:
         pass
 
 
+class Resize2dRewriter(DFPatternCallback):
+    """
+    Convert ethos-u.resize2d composite function to an equivalent operation that
+    performs the relevant upsampling operation.
+
+    Case 1: No upsampling (upscale factor of 1):
+        Identity.
+    Case 1: Nearest neighbor upsampling:
+        1x1 pooling with 2x2 nearest neighbor upsampling.
+    Case 2: Bilinear upsampling:
+        2x2 average pool with 2x2 nearest neighbor upsampling.
+    """
+
+    def __init__(self):
+        super().__init__(require_type=True)
+        self.pattern = (
+            wildcard().has_attr({"Composite": ethosu_patterns.Resize2dParams.composite_name})
+        )(wildcard())
+
+    def callback(
+        self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map
+    ) -> tvm.relay.Expr:
+        params = ethosu_patterns.Resize2dParams(post.op.body)
+        params.ifm.tensor = post.args[0]
+
+        lut = relay.const([], "int8")
+        ifm_shape = params.ifm.shape
+        in_channels = ifm_shape[-1]
+        reduced_op = params.ifm.tensor
+        current_size = np.array(ifm_shape[1:3])
+        output_size = np.array(params.size)
+
+        if (current_size == output_size).all():
+            return ethosu_ops.ethosu_identity(
+                reduced_op,
+                lut,
+                ifm_scale=float(params.ifm.q_params.scale_f32),
+                ifm_zero_point=int(params.ifm.q_params.zero_point),
+                ofm_scale=float(params.ofm.q_params.scale_f32),
+                ofm_zero_point=int(params.ofm.q_params.zero_point),
+            )
+
+        padding = [0, 0, 0, 0]
+        rounding_mode = "TFL"
+        pool_shape = [1, 1]
+        if params.method == "linear":
+            pool_shape = [2, 2]
+            rounding_mode = "NATURAL"
+            if params.coordinate_transformation_mode == "asymmetric":
+                # Use SAME padding.
+                ypad = Resize2dRewriter.get_required_padding(ifm_shape[1])
+                xpad = Resize2dRewriter.get_required_padding(ifm_shape[2])
+                padding = [ypad // 2, xpad // 2, (ypad + 1) // 2, (xpad + 1) // 2]
+
+        return ethosu_ops.ethosu_pooling(
+            ifm=reduced_op,
+            lut=lut,
+            pooling_type="AVG",
+            ifm_scale=float(params.ifm.q_params.scale_f32),
+            ifm_zero_point=int(params.ifm.q_params.zero_point),
+            ofm_scale=float(params.ofm.q_params.scale_f32),
+            ofm_zero_point=int(params.ofm.q_params.zero_point),
+            pool_shape=pool_shape,
+            ofm_channels=in_channels,
+            strides=[1, 1],
+            padding=padding,
+            upscale="NEAREST",
+            rounding_mode=rounding_mode,
+        )
+
+    @staticmethod
+    def get_required_padding(input_size: int, pool_size: int = 2) -> int:
+        """Gets the amount of padding required needed to achieve
+        'SAME' padding for a given axis."""
+        needed_input = (input_size - 1) + pool_size
+        total_padding = max(0, needed_input - input_size)
+        return total_padding
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeResize2d:
+    """This is the pass that wraps Resize2dRewriter"""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(Resize2dRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
 @ir.transform.module_pass(opt_level=1)
 class LegalizeEthosU:
     """This is the pass to call graph-rewrites to perform graph transformation
@@ -1284,6 +1460,7 @@ class LegalizeEthosU:
         """
         mod = LegalizeSplit()(mod)
         mod = LegalizeConv2D()(mod)
+        mod = LegalizeConv2DTranspose()(mod)
         mod = LegalizeDepthwiseConv2D()(mod)
         mod = LegalizeMaxPooling()(mod)
         mod = LegalizeAvgPooling()(mod)
@@ -1299,6 +1476,7 @@ class LegalizeEthosU:
         mod = LegalizeConcat()(mod)
         mod = LegalizeSigmoid()(mod)
         mod = LegalizeRequantize()(mod)
+        mod = LegalizeResize2d()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
         mod = LegalizeNoOps()(mod)

@@ -18,6 +18,7 @@
  */
 #include "pipeline_scheduler.h"
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 namespace tvm {
@@ -35,7 +36,86 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     auto runItem = std::make_shared<BackendRuntime>(graph_modules_[i], i);
     runtimes.push_back(runItem);
   }
+  // Creating a list of NDArray in order to storage the outputs data.
+  auto global_output_map = pipeline_config.GetGlobalConfigOutputBindings();
+  for (size_t i = 0; i < global_output_map.size(); i++) {
+    if (global_output_map.find(i) == global_output_map.end()) {
+      LOG(FATAL) << "Not find global output index " << i;
+    }
+    ModuleOutputPair& output_pair = global_output_map[i];
+    NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
+    output_arrays_.push_back(output);
+  }
   return runtimes;
 }
+/*!
+ * \brief Running the pipeline logic in the sequential mode.
+ * \param runtimes A list of backend runtime modules.
+ * \param pipeline_config The dependent configuration of each runtime module.
+ */
+void PipelineScheduler::PipelineRunSequential(
+    const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+    ConfigPipelineExecution pipeline_config) {
+  for (size_t i = 0; i < runtimes.size(); i++) {
+    // The "runtimes" is a list of runtime sorted by the runtime index which should be
+    // contiguous ascend.
+    if (static_cast<int>(i) != runtimes[i]->GetModuleIndex()) {
+      LOG(FATAL) << "Runtime index " << runtimes[i]->GetModuleIndex()
+                 << " is not as same as vector offset value " << i;
+    }
+
+    if (!pipeline_config.FindModuleInConfig(i)) {
+      LOG(FATAL) << "Not find the configuration for the module " << i;
+    }
+
+    runtimes[i]->Run();
+    // Getting the output then forwarding into other module once it is configured as input of
+    // another module or storaging into the "output_array" when the output is a global one.
+    int outputs_num = runtimes[i]->NumOutputs();
+    for (int j = 0; j < outputs_num; j++) {
+      ConfigBindings& out_binding = pipeline_config[i][j];
+      std::unordered_map<int, std::string>& input_connections = out_binding.Get();
+      NDArray output = runtimes[i]->GetOutput(j);
+      for (auto bind : input_connections) {
+        // "bind.first < 0" means the bind is a global bind, by pass the forwarding for
+        // a global bind.
+        if (bind.first < 0) continue;
+        // Setting the output as an input data into the runtime module.
+        runtimes[bind.first]->SetInput(bind.second, const_cast<DLTensor*>(output.operator->()));
+      }
+      // Store the output.
+      if (out_binding.IsGlobalOutput()) {
+        int global_idx = out_binding.GetGlobalOutputIndex();
+        TVMArrayCopyFromTo(const_cast<DLTensor*>(output.operator->()),
+                           const_cast<DLTensor*>(output_arrays_[global_idx].operator->()), nullptr);
+      }
+    }
+  }
+}
+/*!
+ * \brief Running pipeline logic.
+ * \param runtimes A list of backend runtime modules.
+ * \param pipeline_config The dependency configuration of each runtime module.
+ * \param sequential_mode Whether the execution is in a sequential mode.
+ */
+void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                                    ConfigPipelineExecution pipeline_config, bool sequential_mode) {
+  if (!sequential_mode) {
+    // TODO(huajsj) remove this check after all of pipeline features in.
+    LOG(FATAL) << "Currently only supports sequential mode.";
+  } else {
+    PipelineRunSequential(runtimes, pipeline_config);
+  }
+}
+/*!
+ * \brief Stop the pipeline exection.
+ */
+void PipelineScheduler::PipelineStop() {
+  // TODO(huajsj) Add stop logic.
+}
+/*!
+ * \brief Get a list of output.
+ */
+Array<NDArray> PipelineScheduler::PipelineGetOutput() { return output_arrays_; }
 }  // namespace runtime
 }  // namespace tvm

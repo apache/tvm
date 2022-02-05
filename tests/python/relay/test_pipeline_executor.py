@@ -136,7 +136,70 @@ def recreate_parameters(mod):
     for key, value in lib.params.items():
         new_value = value.numpy() + np.full(value.shape, 10).astype(value.dtype)
         mod_customized_params[key] = tvm.nd.array(new_value)
-    return mod_customized_params
+    return mod_customized_params, mod
+
+
+def run_modules(
+    mod_configs,
+    dev,
+    target,
+    global_input_name,
+    global_input_data,
+    mod_set_input,
+    input_name,
+    input_data,
+    params_mod=None,
+    params=None,
+):
+    # Running modules in serialized model. The returnning data are used to verify the pipeline
+    # executor result.
+    mod_input = {}
+    final_output = {}
+    idx = 0
+    for mod in mod_configs:
+        with tvm.transform.PassContext(opt_level=3):
+            lib = relay.build(mod, target)
+
+        m = graph_executor.GraphModule(lib["default"](dev))
+        # Getting the input data then setting the input data into the module.
+        if idx in mod_input:
+            for input in mod_input[idx]:
+                input = mod_input[idx][input]
+                m.set_input(input["index"], input["data"])
+        else:
+            m.set_input(global_input_name, global_input_data)
+
+        # Setting the "input_data" into the module.
+        if mod == mod_set_input:
+            m.set_input(input_name, input_data)
+        # If the module is "params_mod" then setting the parameters to this module.
+        if params_mod == mod:
+            m.set_input(None, None, **params)
+
+        m.run()
+        n = m.get_num_outputs()
+        # Setting current output data as  the input of next module.
+        mconfig = mod_configs[mod]
+        for output in mconfig["pipeline"]["output"]:
+            output_data = m.get_output(output["output_idx"]).numpy()
+            for dep in output["dependencies"]:
+                is_global = False
+                if "global_output_index" in dep:
+                    is_global = True
+                    name = dep["global_output_index"]
+                else:
+                    mod_idx = dep["mod_idx"]
+                    name = dep["input_name"]
+                if is_global:
+                    final_output[name] = output_data
+                else:
+                    if mod_idx in mod_input:
+                        mod_input[mod_idx][name] = {"index": name, "data": output_data}
+                    else:
+                        mod_input[mod_idx] = {name: {"index": name, "data": output_data}}
+        idx = idx + 1
+
+    return final_output
 
 
 def test_pipe_runtime_error_check():
@@ -188,7 +251,7 @@ def test_pipe_runtime_error_check():
         with tvm.transform.PassContext(opt_level=3):
             pipeline_mod_factory = pipeline_executor.build(pipe_config)
         pipeline_module = pipeline_executor.PipelineModule(pipeline_mod_factory)
-        customized_parameters = recreate_parameters(mod1)
+        customized_parameters, _ = recreate_parameters(mod1)
 
         # Checking the pipeline executor runtime errors.
         with pytest.raises(RuntimeError):
@@ -212,9 +275,10 @@ def test_pipeline():
 
             pipe_config = pipeline_executor.PipelineConfig()
 
-            customized_parameters = recreate_parameters(mod2)
+            customized_parameters, customized_parameters_mod = recreate_parameters(mod1)
+            assert customized_parameters_mod == mod1
             # The global parameters group named "param_0" will be connected to "mod1" as parameters.
-            pipe_config["param_group"]["param_0"].connect(pipe_config[mod2]["param"])
+            pipe_config["param_group"]["param_0"].connect(pipe_config[mod1]["param"])
             # The pipeline input named "data_0" will be connected to a input named "data_0"
             # of mod1.
             pipe_config["input"]["data_a"].connect(pipe_config[mod1]["input"]["data_0"])
@@ -237,7 +301,6 @@ def test_pipeline():
 
             # The mod3 output[0] will be connected to pipeline output[1].
             pipe_config[mod3]["output"][0].connect(pipe_config["output"]["1"])
-            print(pipe_config)
             # Print configueration (print(pipe_config)), the result looks like following.
             #
             # Inputs
@@ -291,18 +354,45 @@ def test_pipeline():
             input_map = pipeline_module_test.get_input_pipeline_map("data_a")
             assert input_map[0] == "0" and input_map[1] == "data_0"
             module_index = pipeline_module_test.get_params_group_pipeline_map("param_0")
-            assert module_index == 1
+            assert module_index == 0
             # Using the parameters group name to set parameters.
             pipeline_module_test.set_params("param_0", customized_parameters)
-            # Getting the result from the pipeline executor
-            data_a = np.full(dshape, 1).astype("float32")
-            data_b = np.full(dshape, 2).astype("float32")
-            pipeline_module_test.set_input("data_a", data_a)
-            pipeline_module_test.set_input("data_b", data_b)
-            input_data = pipeline_module_test.get_input("data_b")
-            tvm.testing.assert_allclose(data_b, input_data.numpy())
-            input_data = pipeline_module_test.get_input("data_a")
-            tvm.testing.assert_allclose(data_a, input_data.numpy())
+            for data in datas:
+                # Getting the result without setting customized parameters.
+                wrong_output = run_modules(
+                    mconfig["module_connection"],
+                    tvm.cpu(),
+                    "llvm",
+                    "data_0",
+                    data,
+                    mod2,
+                    "data_1",
+                    data,
+                )
+                # Getting the result with setting customized parameters.
+                normal_output = run_modules(
+                    mconfig["module_connection"],
+                    tvm.cpu(),
+                    "llvm",
+                    "data_0",
+                    data,
+                    mod2,
+                    "data_1",
+                    data,
+                    customized_parameters_mod,
+                    customized_parameters,
+                )
+                pipeline_module_test.set_input("data_a", data)
+                pipeline_module_test.set_input("data_b", data)
+                input_data = pipeline_module_test.get_input("data_a")
+                tvm.testing.assert_allclose(data, input_data.numpy())
+                # Running the pipeline executor in sequential mode.
+                pipeline_module_test.run(True)
+                outputs = pipeline_module_test.get_output()
+                for i in range(len(outputs)):
+                    tvm.testing.assert_allclose(normal_output[i], outputs[i].numpy())
+                    assert not (normal_output[i] == wrong_output[i]).all()
+            pipeline_module_test.stop()
 
 
 if __name__ == "__main__":

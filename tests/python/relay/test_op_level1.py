@@ -65,18 +65,16 @@ class TestUnaryOp:
 
     def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
         target = tvm.target.Target(target)
-        if (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not have_fp16(tvm.cuda(0).compute_version)
-        ):
-            pytest.xfail("No float16 support on local cuda device")
-        elif (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not target.attrs.get("supports_float16", False)
-        ):
-            pytest.xfail("No float16 support on vulkan target")
+        if dtype == "float16":
+            if target.kind.name == "cuda":
+                if not have_fp16(tvm.cuda(0).compute_version):
+                    pytest.xfail(
+                        "No float16 support on local cuda device (compute_version != 5.3 and < 6.0)"
+                    )
+            elif target.kind.name == "vulkan" and not target.attrs.get("supports_float16", False):
+                pytest.xfail("No float16 support on vulkan target (supports_float16=False)")
+            else:
+                pytest.xfail(f"No float16 support on {target.kind.name} target")
 
         if target.kind.name == "vulkan" and relay_op in [
             tvm.relay.erf,
@@ -87,8 +85,8 @@ class TestUnaryOp:
 
         shape = (10, 4)
         dtype = dtype
-        tp = relay.TensorType(shape)
-        x = relay.var("x", tp, dtype=dtype)
+        tp = relay.TensorType(shape, dtype=dtype)
+        x = relay.var("x", type_annotation=tp)
         y = relay_op(x)
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
@@ -98,12 +96,12 @@ class TestUnaryOp:
 
         if ref_func is not None:
             data = np.random.rand(*shape).astype(dtype)
-            ref_res = ref_func(data)
+            ref_res = ref_func(data).astype(dtype)
             func = relay.Function([x], y)
             # use graph by execuor default for testing, as we need
             # create function explicitly to avoid constant-folding.
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu

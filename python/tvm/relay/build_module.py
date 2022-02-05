@@ -464,6 +464,7 @@ def build(
                 lowered_ir_mods,
                 target,
                 executor,
+                runtime,
                 runtime_mod,
                 mod_name,
                 params,

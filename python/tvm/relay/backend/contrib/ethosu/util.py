@@ -47,6 +47,20 @@ class QConv2DArgs(Enum):
     WEIGHTS_SCALE = 5
 
 
+class QConv2DTransposeArgs(Enum):
+    """
+    This is a helper enum to obtain the correct index
+    of qnn.conv2d_transpose arguments.
+    """
+
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
+
+
 class RequantArgs(Enum):
     """
     This is a helper enum to obtain the correct index

@@ -16,36 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Precheck if sphinx docs build can fail.
-set -e
-set -u
-set -o pipefail
-
-cleanup()
-{
-    rm -rf /tmp/$$.*
-}
-trap cleanup 0
-
-# cleanup cache
-rm -rf docs/_staging
-rm -rf docs/_build
-find . -type f -path "*.pyc" | xargs rm -f
-make cython3
-
-echo "PreCheck sphinx doc generation WARNINGS.."
-cd docs
-make clean
-TVM_TUTORIAL_EXEC_PATTERN=none make html 2>&1 | tee /tmp/$$.log.txt
-
-grep -v -E "__mro__|UserWarning|FutureWarning|tensorflow|Keras|pytorch|TensorFlow|coremltools|403|git describe|scikit-learn version" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true
-echo "---------Sphinx Log----------"
-cat /tmp/$$.logclean.txt
-echo "-----------------------------"
-if grep --quiet -E "WARN" < /tmp/$$.logclean.txt; then
-    echo "WARNING found in the log, please fix them."
-    grep -E "WARN" < /tmp/$$.logclean.txt
-    echo "You can reproduce locally by running ./tests/scripts/task_sphinx_precheck.sh"
-    exit 1
-fi
-echo "No WARNINGS to be fixed."
+# Intentionally do nothing, see https://github.com/apache/tvm/pull/9971. This
+# file cannot be deleted from the Jenkinsfile and deleted from the repo in the
+# same PR (since it wouldn't be able to pass CI). Once that PR is merged, this
+# file can be safely deleted.

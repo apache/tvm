@@ -33,6 +33,7 @@ from tvm.relay import dataflow_pattern
 from tvm.relay.op.contrib import ethosu
 from tvm.relay.backend.contrib.ethosu import util
 from tvm.relay.build_module import bind_params_by_name
+from tvm.relay.frontend.tflite import get_pad_value
 
 from . import infra
 
@@ -1290,6 +1291,7 @@ def test_tflite_concat_legalize(shapes, axis):
     mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
         "tvmgen_default_ethos_u_main_0"
     ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 def test_tflite_sigmoid_legalize():
@@ -1599,6 +1601,305 @@ def test_multiple_requantize_offload():
     mod = create_model()
     mod = ethosu.partition_for_ethosu(mod)
     mod = legalize.LegalizeEthosU()(mod)
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,size",
+    [
+        [(1, 2, 2, 1), (4, 4)],
+        [(1, 4, 7, 3), (8, 14)],
+        [(1, 3, 5, 3), (3, 5)],
+    ],
+)
+def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
+    align_corners = False
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def resize_model(x):
+            return tf.compat.v1.image.resize_nearest_neighbor(
+                x, size, align_corners=align_corners, half_pixel_centers=False
+            )
+
+        concrete_func = resize_model.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, _ = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod
+
+    def verify(ext_func):
+        op = ext_func.body
+        in_var = op.args[0]
+
+        # check IFM
+        assert tuple(in_var.checked_type.shape) == ifm_shape
+        assert in_var.checked_type.dtype == dtype
+
+        # check OFM
+        attrs = dict(op.attrs)
+        out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
+
+        # Check Op attributes
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
+        else:
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
+
+    rewriter = legalize.Resize2dRewriter()
+    pattern_table = [
+        (
+            ethosu.Resize2dParams.composite_name,
+            ethosu.resize2d_pattern(),
+            lambda pat: ethosu.Resize2dParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_tflite_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,size,align_corners",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 2, 2, 1), (3, 3), True],
+        [(1, 4, 7, 3), (7, 13), True],
+        [(1, 3, 5, 3), (3, 5), False],
+    ],
+)
+def test_tflite_resize2d_bilinear(ifm_shape, size, align_corners):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def resize_model(x):
+            return tf.compat.v1.image.resize_bilinear(
+                x, size, align_corners=align_corners, half_pixel_centers=False
+            )
+
+        concrete_func = resize_model.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, _ = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod
+
+    def verify(ext_func):
+        op = ext_func.body
+        in_var = op.args[0]
+
+        # check IFM
+        assert tuple(in_var.checked_type.shape) == ifm_shape
+        assert in_var.checked_type.dtype == dtype
+
+        # check OFM
+        attrs = dict(op.attrs)
+        out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
+
+        # Check Op attributes
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
+        else:
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
+
+            # Check padding
+            if align_corners:
+                assert list(attrs["padding"]) == [0, 0, 0, 0]
+            else:
+                assert list(attrs["padding"]) == [0, 0, 1, 1]
+
+    rewriter = legalize.Resize2dRewriter()
+    pattern_table = [
+        (
+            ethosu.Resize2dParams.composite_name,
+            ethosu.resize2d_pattern(),
+            lambda pat: ethosu.Resize2dParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_tflite_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,ofm_shape,kernel_shape,padding",
+    [
+        [(1, 2, 2, 1), (1, 4, 4, 1), (3, 3), "SAME"],
+        [(1, 2, 2, 1), (1, 9, 9, 1), (7, 7), "VALID"],
+        [(1, 2, 4, 3), (1, 4, 8, 3), (3, 3), "SAME"],
+        [(1, 10, 5, 3), (1, 21, 13, 3), (3, 5), "VALID"],
+    ],
+)
+@pytest.mark.parametrize("has_bias", [False, True])
+def test_tflite_transpose_convolution(ifm_shape, ofm_shape, kernel_shape, padding, has_bias):
+    dtype = "int8"
+    dilations = (1, 1)
+    strides = (2, 2)
+
+    def create_tflite_graph():
+        @tf.function
+        def conv2d_transpose(x):
+            bias_shape = ofm_shape[3]
+            bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+            weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], ofm_shape[3]]
+            weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+            tf_strides = [1, strides[0], strides[1], 1]
+            op = tf.nn.conv2d_transpose(
+                x,
+                weight,
+                output_shape=ofm_shape,
+                strides=tf_strides,
+                padding=padding,
+                dilations=dilations,
+            )
+            if has_bias:
+                op = tf.nn.bias_add(op, bias)
+            return op
+
+        concrete_func = conv2d_transpose.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, params = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod, params
+
+    def verify(ext_func):
+        strided_slice = ext_func.body
+        conv = strided_slice.args[0]
+        ofm_channels = conv.attrs.ofm_channels
+
+        # Check IFM
+        ifm = conv.args[0].checked_type
+        assert list(ifm.shape) == list(ifm_shape)
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ofm_channels
+
+        # Check OFM
+        ofm = strided_slice.checked_type
+        assert list(ofm.shape) == list(ofm_shape)
+        assert str(ofm.dtype) == dtype
+        assert ofm.shape[3] == ofm_channels
+
+        # Check weights
+        weights_ohwi = conv.args[1].data.asnumpy()
+        assert str(weights_ohwi.dtype) == dtype
+        assert list(weights_ohwi.shape) == [
+            ofm_channels,
+            kernel_shape[0],
+            kernel_shape[1],
+            ifm_shape[3],
+        ]
+
+        # Check that scale_bias matches weight tensor
+        assert list(conv.args[2].checked_type.shape)[0] == ofm_channels
+
+        # Calculate expected padding for conv2d op
+        if padding == "VALID":
+            expected_padding = [0, 0, 0, 0]
+        elif padding == "SAME":
+            pad_top, pad_bottom = get_pad_value(ofm_shape[1], kernel_shape[0], strides[0])
+            pad_left, pad_right = get_pad_value(ofm_shape[2], kernel_shape[1], strides[1])
+            expected_padding = [pad_top, pad_left, pad_bottom, pad_right]
+        pad_top = kernel_shape[0] - 1 - expected_padding[0]
+        pad_left = kernel_shape[1] - 1 - expected_padding[1]
+        pad_bottom = kernel_shape[0] - 1 - expected_padding[2]
+        pad_right = kernel_shape[1] - 1 - expected_padding[3]
+        if strides == [2, 2]:
+            pad_bottom -= 1
+            pad_right -= 1
+        expected_padding = [pad_top, pad_left, pad_bottom, pad_right]
+        assert list(conv.attrs.padding) == list(expected_padding)
+
+        assert list(conv.attrs.strides) == [1, 1]
+
+    rewriter = legalize.Conv2DTransposeRewriter()
+    pattern_table = [
+        (
+            ethosu.QnnConv2DTransposeParams.composite_name,
+            ethosu.qnn_conv2d_transpose_pattern(),
+            lambda pat: ethosu.QnnConv2DTransposeParams(pat).is_valid(),
+        ),
+    ]
+
+    mod, params = create_tflite_graph()
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 

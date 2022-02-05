@@ -103,6 +103,7 @@ pub struct MatmulAttrsNode {
 pub struct DenseAttrsNode {
     pub base: BaseAttrsNode,
     pub units: IndexExpr,
+    pub auto_scheduler_rewritten_layout: TString,
     pub out_dtype: DataType,
 }
 
