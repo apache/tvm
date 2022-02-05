@@ -42,25 +42,13 @@ TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);
 TVM_REGISTER_OBJECT_TYPE(MetadataArrayNode);
 
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::inputs() {
-  if (inputs_refs_.get() == nullptr) {
-    inputs_refs_.reset(new ::std::vector<TensorInfo>());
-  }
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->inputs, data_->num_inputs,
-                                                         inputs_refs_);
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->inputs, data_->num_inputs);
 }
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
-  if (outputs_refs_.get() == nullptr) {
-    outputs_refs_.reset(new ::std::vector<TensorInfo>());
-  }
-  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs,
-                                                         outputs_refs_);
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs);
 }
 ArrayAccessor<const char*, ::tvm::runtime::String> MetadataNode::devices() {
-  if (devices_refs_.get() == nullptr) {
-    devices_refs_.reset(new ::std::vector<::tvm::runtime::String>());
-  }
-  return ArrayAccessor<const char*, ::tvm::runtime::String>(data_->devices, data_->num_devices,
-                                                            devices_refs_);
+  return ArrayAccessor<const char*, ::tvm::runtime::String>(data_->devices, data_->num_devices);
 }
 Metadata::Metadata(const struct ::TVMMetadata* data)
     : MetadataBase{make_object<MetadataNode>(data)} {}

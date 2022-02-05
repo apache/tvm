@@ -94,9 +94,6 @@ class MetadataNode : public MetadataBaseNode {
 
  private:
   const struct ::TVMMetadata* data_;
-  ::std::shared_ptr<::std::vector<TensorInfo>> inputs_refs_;
-  ::std::shared_ptr<::std::vector<TensorInfo>> outputs_refs_;
-  ::std::shared_ptr<::std::vector<::tvm::runtime::String>> devices_refs_;
 };
 
 class Metadata : public MetadataBase {
@@ -112,9 +109,9 @@ class TensorInfoNode : public MetadataBaseNode {
   std::string get_name() override;
   inline ::tvm::runtime::String name() const { return ::tvm::runtime::String(data_->name); }
   inline int64_t num_shape() const { return data_->num_shape; }
-  inline ::tvm::support::Span<const int64_t, const int64_t> shape() const {
-    return ::tvm::support::Span<const int64_t, const int64_t>(data_->shape,
-                                                              data_->shape + data_->num_shape);
+  inline ::tvm::support::Span<const int64_t, int64_t> shape() const {
+    return ::tvm::support::Span<const int64_t, int64_t>(data_->shape,
+                                                        data_->shape + data_->num_shape);
   }
   inline ::tvm::runtime::DataType dtype() const { return ::tvm::runtime::DataType(data_->dtype); }
   const struct ::TVMTensorInfo* data() const { return data_; }

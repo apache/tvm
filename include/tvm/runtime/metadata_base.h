@@ -55,7 +55,9 @@ class ArrayAccessor;
 template <typename C, class Ref>
 class ArrayIterator {
  public:
-  ArrayIterator(size_t index, ArrayAccessor<C, Ref>* parent) : index_{index}, parent_{parent} {}
+  using value_type = Ref;
+
+  ArrayIterator(size_t index, const ArrayAccessor<C, Ref>* parent) : index_{index}, parent_{parent} {}
 
   inline Ref operator*() { return (*parent_)[index_]; }
 
@@ -75,81 +77,68 @@ class ArrayIterator {
 
  private:
   size_t index_;
-  ArrayAccessor<C, Ref>* parent_;
+  const ArrayAccessor<C, Ref>* parent_;
 };
 
 template <typename C, class Ref>
 class ArrayAccessor {
  public:
+  using value_type = Ref;
+  using iterator = ArrayIterator<C, Ref>;
+  using const_iterator = ArrayIterator<C, Ref>;
+
   template <typename T = typename std::enable_if<std::is_base_of<ObjectRef, Ref>::value>::type>
-  ArrayAccessor(const C* data, size_t num_data, ::std::shared_ptr<::std::vector<Ref>> refs)
-      : data_{data}, num_data_{num_data}, refs_{refs} {}
+  ArrayAccessor(const C* data, size_t num_data) : data_{data}, num_data_{num_data} {}
 
-  inline size_t size() { return num_data_; }
+  inline size_t size() const { return num_data_; }
 
-  inline Ref operator[](size_t index) {
+  inline Ref operator[](size_t index) const {
     if (index >= num_data_) {
       throw std::runtime_error("Index out of range");
     }
 
-    if (refs_->size() <= index) {
-      refs_->resize(num_data_);
-    }
-
-    if (!(*refs_)[index].defined()) {
-      (*refs_)[index] = Ref(&data_[index]);
-    }
-
-    return (*refs_)[index];
+    return Ref(&data_[index]);
   }
 
-  inline ArrayIterator<C, Ref> begin() { return ArrayIterator<C, Ref>{0, this}; }
+  inline ArrayIterator<C, Ref> begin() const { return ArrayIterator<C, Ref>{0, this}; }
 
-  inline ArrayIterator<C, Ref> end() { return ArrayIterator<C, Ref>{num_data_, this}; }
+  inline ArrayIterator<C, Ref> end() const { return ArrayIterator<C, Ref>{num_data_, this}; }
 
  private:
   const C* data_;
   size_t num_data_;
-  ::std::shared_ptr<::std::vector<Ref>> refs_;
 };
 
 template <>
 class ArrayAccessor<const char*, ::tvm::runtime::String> {
  public:
-  ArrayAccessor(const char** data, size_t num_data,
-                ::std::shared_ptr<std::vector<::tvm::runtime::String>> refs)
-      : data_{data}, num_data_{num_data}, refs_{refs} {}
+  using value_type = ::tvm::runtime::String;
+  using iterator = ArrayIterator<const char*, ::tvm::runtime::String>;
+  using const_iterator = ArrayIterator<const char*, ::tvm::runtime::String>;
 
-  inline size_t size() { return num_data_; }
+  ArrayAccessor(const char** data, size_t num_data) : data_{data}, num_data_{num_data} {}
 
-  inline ::tvm::runtime::String operator[](size_t index) {
+  inline size_t size() const { return num_data_; }
+
+  inline ::tvm::runtime::String operator[](size_t index) const {
     if (index >= num_data_) {
       throw std::runtime_error("Index out of range");
     }
 
-    if (refs_->size() <= index) {
-      refs_->resize(num_data_);
-    }
-
-    if (!(*refs_)[index].defined()) {
-      (*refs_)[index] = ::tvm::runtime::String(data_[index]);
-    }
-
-    return (*refs_)[index];
+    return ::tvm::runtime::String(data_[index]);
   }
 
-  inline ArrayIterator<const char*, ::tvm::runtime::String> begin() {
+  inline ArrayIterator<const char*, ::tvm::runtime::String> begin() const {
     return ArrayIterator<const char*, ::tvm::runtime::String>{0, this};
   }
 
-  inline ArrayIterator<const char*, ::tvm::runtime::String> end() {
+  inline ArrayIterator<const char*, ::tvm::runtime::String> end() const {
     return ArrayIterator<const char*, ::tvm::runtime::String>{num_data_, this};
   }
 
  private:
   const char** data_;
   size_t num_data_;
-  ::std::shared_ptr<::std::vector<::tvm::runtime::String>> refs_;
 };
 
 enum MetadataTypeIndex : uint8_t {

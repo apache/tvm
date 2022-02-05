@@ -46,11 +46,13 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     auto inputs_accessor = inputs();
     inputs_array.reserve(num_inputs());
     for (int64_t i = 0; i < num_inputs(); ++i) {
-      inputs_array.push_back(::tvm::runtime::metadata::TensorInfo{inputs_accessor[i]});
+      auto ti = ::tvm::runtime::metadata::TensorInfo{inputs_accessor[i]};
+      inputs_array.push_back(ti);
     }
-    ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{inputs_array,
+    ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{::std::move(inputs_array),
                                                                   runtime::metadata::MetadataTypeIndex::kMetadata,
                                                                   "TVMTensorInfo"};
+    Downcast<::tvm::runtime::metadata::TensorInfo>(inputs_metadata_array->array[0]);
     v->Visit("inputs", &inputs_metadata_array);
     auto outputs_array = Array<ObjectRef>();
     auto outputs_accessor = outputs();
