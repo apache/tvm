@@ -280,6 +280,7 @@ def access_opaque_ptr_then_elemwise(a: T.handle, b: T.handle) -> None:
     BB = T.alloc_buffer([1024])
     with T.block("opaque"):
         # annotated opaque partial access
+        vi = T.axis.S(0, 0)
         T.reads(A[0:512])
         T.writes(A_cache[0:512])
         T.evaluate(
