@@ -328,6 +328,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
       case Opcode::Ret:
       case Opcode::Goto:
       case Opcode::Fatal:
+      case Opcode::KillRegister:
         break;
     }
     instructions_.push_back(instr);
@@ -647,8 +648,10 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
                    Emit(Instruction::ReshapeTensor(tensor_reg, shape_reg, NewRegister()));
                  })
           .Match("memory.kill",
-                 [](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
-                   LOG(FATAL) << "memory.kill is not yet supported";
+                 [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+                   ICHECK_EQ(args.size(), 1u);
+                   this->VisitExpr(args[0]);
+                   Emit(Instruction::KillRegister(this->last_register_));
                  });
       matcher(GetRef<Call>(call_node));
       return;
@@ -992,6 +995,9 @@ transform::Sequential VMCompiler::MemoryOpt(const VirtualDevice& host_virtual_de
 
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
+
+  // Insert kills to free memory.
+  pass_seqs.push_back(transform::ManifestLifetimes());
 
   // Lift constants to the top-level of the block to simplify VM code generation.
   // TODO(@icemelon9, @jroesch): Remove this pass for now because some

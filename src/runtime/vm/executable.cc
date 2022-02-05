@@ -670,6 +670,10 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
                      instr.device_copy.dst_device_index, instr.dst});
       break;
     }
+    case Opcode::KillRegister: {
+      fields.assign({instr.dst});
+      break;
+    }
     default:
       LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
       break;
@@ -986,6 +990,10 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       DCHECK_EQ(instr.fields.size(), 4U);
       return Instruction::DeviceCopy(instr.fields[0], instr.fields[1], instr.fields[2],
                                      instr.fields[3]);
+    }
+    case Opcode::KillRegister: {
+      DCHECK_EQ(instr.fields.size(), 1U);
+      return Instruction::KillRegister(instr.fields[0]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;

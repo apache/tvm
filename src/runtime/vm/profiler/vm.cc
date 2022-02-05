@@ -136,7 +136,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       prof_.operator*().StartCall("VM::AllocStorage", dev,
                                   {{"VM::Argument Shapes", String(shape.str())}});
     } else {
-      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+      prof_.operator*().StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
     }
   }
 }
