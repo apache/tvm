@@ -518,7 +518,7 @@ def verify_conv2d_common(
 ):
     if not has_cutlass():
         return
-    if sm < 80 and data_dtype == "float32":
+    if sm < 80 and inputs[0].dtype == "float32":
         return
 
     mod_nchw = tvm.IRModule.from_expr(expr_nchw)
