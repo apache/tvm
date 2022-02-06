@@ -130,9 +130,12 @@ def conv2d_backward_weight_cudnn(
 ):
     """Compute conv2d wgrad using CuDNN library"""
     assert layout in ["NCHW", "NHWC"]
-    # cuDNN does not seem to support other combination.
-    assert output_dtype == "float16", "Only supports fp16 output for cuDNN wgrad."
-    conv_dtype = "float32"
+
+    if dy.dtype == "float16":
+        # cuDNN does not seem to support other combination.
+        assert output_dtype == "float16", "Only supports fp16 output for cuDNN fp16 wgrad."
+
+    conv_dtype = "float32"  # Accumulation is always fp32
     return cudnn.conv_backward_filter(
         dy,
         x,
