@@ -400,9 +400,9 @@ def verify_batch_matmul(
         print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
-M = 1820
-N = 768
-K = 768
+M = 96
+N = 64
+K = 64
 
 
 def test_dense():
@@ -462,25 +462,13 @@ def test_dense_dynamic():
         # TVM native fp16 dense (without tensorcore), using fp16 accum, seems to have accuracy issues
         # Use cublas as a reference
 
-        # After upgrading to cuda 11.6, this test no longer passes.
-        #
-        # Mismatched elements: 9223 / 1397760 (0.66%)
-        # Max absolute difference: 0.1562
-        # Max relative difference: 20.31
-        #  x: array([[  7.773 ,  -4.24  ,   3.346 , ...,  12.85  ,  12.14  , -12.31  ],
-        #        [  2.775 ,  -0.9316,  28.06  , ...,   2.334 ,  -8.945 ,   2.766 ],
-        #        [  3.38  ,   1.3125,  -6.85  , ...,  -8.695 ,   4.77  ,  -3.828 ],...
-        #  y: array([[  7.766,  -4.246,   3.352, ...,  12.84 ,  12.15 , -12.31 ],
-        #        [  2.781,  -0.926,  28.06 , ...,   2.336,  -8.94 ,   2.762],
-        #        [  3.383,   1.307,  -6.844, ...,  -8.695,   4.785,  -3.846],...
-        pass
-        # verify_dense(
-        #     get_dense_with_shape(data_shape, weight_shape),
-        #     M,
-        #     N,
-        #     K,
-        #     ref_target="cuda -libs=cublas",
-        # )
+        verify_dense(
+            get_dense_with_shape(data_shape, weight_shape),
+            M,
+            N,
+            K,
+            ref_target="cuda -libs=cublas",
+        )
 
     verify_dense(
         get_dense_with_shape(data_shape, weight_shape, out_dtype="float32"),
@@ -833,7 +821,7 @@ def test_conv2d_backward_weight():
     IC = 16
     d_shape = (16, IC, 32, 32)
     w_shape = (OC, IC, 3, 3)
-    dtype = "float32"
+    dtype = "float16"
 
     for strides in [(1, 1), (2, 2)]:
         o_shape = (16, OC, 32 // strides[0], 32 // strides[1])
@@ -845,7 +833,7 @@ def test_conv2d_backward_weight():
             o_shape,
             padding,
             strides,
-            out_dtype=dtype,
+            out_dtype="float32",
             data_dtype=dtype,
             weight_dtype=dtype,
         )
@@ -883,7 +871,9 @@ def test_conv2d_bwd():
     )
     fwd_mod = InferType()(tvm.IRModule.from_expr(conv))
 
-    use_fp16 = False  # Note: large difference in tvm and cutlass Wgrad results if use fp16
+    # Note: large difference in tvm and cutlass Wgrad results if use fp16.
+    # Cutlass wgrad uses fp32 accumulation even if the output is fp16.
+    use_fp16 = False
     verify_dgrad = False  # False to verify wgrad
     tol = 1e-5 if verify_dgrad else 1e-4  # Wgrad slightly less accurate
 

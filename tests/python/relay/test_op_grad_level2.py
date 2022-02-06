@@ -229,7 +229,9 @@ def test_batch_flatten_grad():
     verify_batch_flatten_grad((1, 8))
 
 
-def verify_conv2d_backward_weight(dy_shape, x_shape, kernel_size, stride, padding, groups=1, out_channels=None):
+def verify_conv2d_backward_weight(
+    dy_shape, x_shape, kernel_size, stride, padding, groups=1, out_channels=None
+):
     dtype = "float32"
     dy = relay.var("dy", shape=dy_shape, dtype=dtype)
     x = relay.var("x", shape=x_shape, dtype=dtype)
@@ -274,5 +276,4 @@ def test_conv2d_backward_weight():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_conv2d_backward_weight()
+    pytest.main([__file__])

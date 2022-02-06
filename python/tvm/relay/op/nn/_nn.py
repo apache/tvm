@@ -1107,6 +1107,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
         padding=attrs.padding,
         dilation=attrs.strides,
         groups=in_channel * batch,
+        out_dtype=attrs.out_dtype,
     )
 
     # infer shape of backward_weight
