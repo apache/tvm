@@ -190,7 +190,7 @@ def test_sample_compute_location():
     n_candidates = 8
     expected_rate = 1.0 / n_candidates
     for _, cnt in decision_dict.items():
-        assert (expected_rate - 0.03) * n <= cnt <= (expected_rate + 0.03) * n
+        assert (expected_rate - 0.04) * n <= cnt <= (expected_rate + 0.04) * n
 
 
 if __name__ == "__main__":
