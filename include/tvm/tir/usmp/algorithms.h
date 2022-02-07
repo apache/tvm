@@ -54,6 +54,17 @@ Map<BufferInfo, PoolAllocation> GreedyBySize(const Array<BufferInfo>& buffer_inf
 Map<BufferInfo, PoolAllocation> GreedyByConflicts(const Array<BufferInfo>& buffer_info_arr,
                                                   const Integer& memory_pressure);
 
+/*!
+ * \brief The Hill-Climb algorithm to plan memory
+ *
+ * This will perform a hill climbing algorithm in deciding the offsets
+ * within provided Pools.
+ *
+ * \return A Map of BufferInfo objects and their associated PoolAllocation
+ */
+Map<BufferInfo, PoolAllocation> HillClimb(const Array<BufferInfo>& buffer_info_arr,
+                                          const Integer& memory_pressure);
+
 }  // namespace algo
 }  // namespace usmp
 }  // namespace tir

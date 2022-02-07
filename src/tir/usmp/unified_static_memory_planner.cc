@@ -46,7 +46,8 @@ static constexpr const char* kDefaultAlgo = "greedy_by_size";
 static std::unordered_map<String, std::function<Map<BufferInfo, PoolAllocation>(
                                       const Array<BufferInfo>&, const Integer&)>>
     algorithms{{"greedy_by_size", algo::GreedyBySize},
-               {"greedy_by_conflicts", algo::GreedyByConflicts}};
+               {"greedy_by_conflicts", algo::GreedyByConflicts},
+               {"hill_climb", algo::HillClimb}};
 
 IRModule PlanMemory(const IRModule& mod, String algo) {
   VLOG(1) << "workspace required = " << CalculateModuleWorkspaceSize(mod);
