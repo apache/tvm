@@ -26,7 +26,6 @@ from tvm import relay
 from tvm.script import tir as T
 import tvm.testing
 import numpy as np
-import os
 
 HOST_DEVICE = tvm.device("cpu")
 HOST_TARGET = tvm.target.Target("llvm")
@@ -1690,47 +1689,6 @@ def test_lowered():
         )
 
     exercise(input(), expected(), None, None)
-
-
-def test_stack_overflow():
-    metatable = {"VirtualDevice": [CPU, GPU]}
-
-    # Everything defaults to GPU
-    def input():
-        tmp = "test_stack_overflow_input.txt"
-        with open(tmp, "w") as f:
-            f.write(
-                """
-            #[version = "0.0.5"]
-            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
-                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
-            %0 = add(%a, %b);
-            %1 = add(%c, %d);
-            """
-            )
-            end = 1555
-            for i in range(2, end):
-                s1 = "\n\t" + "%" + str(i) + " = add(%" + str(i - 1) + ", %" + str(i - 2) + ");"
-                f.write(s1)
-            f.write("\n\t" + "add(%" + str(end - 1) + ", %" + str(end - 2) + ")")
-            f.write("\n\t}")
-
-        with open(tmp) as f:
-            mod = f.read()
-            f.close()
-
-        os.remove(tmp)
-
-        return tvm.parser.parse(
-            mod,
-            "from_string",
-            None,
-            metatable,
-        )
-        config = tvm.target.make_compilation_config(CTXT, TARGETS, HOST_TARGET)
-        actual_mod = relay.transform.InferType()(in_mod)
-        actual_mod = relay.transform.PlanDevices(config)(actual_mod)
-        relay.transform.InferType()(actual_mod)
 
 
 if __name__ == "__main__":
