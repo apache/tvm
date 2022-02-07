@@ -448,7 +448,7 @@ class IRBuilder(object):
         ptr : BufferVar
             The buffer var representing the buffer.
         """
-        buffer = _buffer.decl_buffer(shape=[], dtype=content_type, name=name, scope=scope)
+        buffer = _buffer.decl_buffer(shape=[1], dtype=content_type, name=name, scope=scope)
         return BufferVar(self, buffer, content_type)
 
     def buffer_ptr(self, buf):
