@@ -437,14 +437,15 @@ def test_fake_quantize_concat():
 @pytest.mark.parametrize("k", [0, 1, 5])
 @pytest.mark.parametrize("axis", [0, -1, 1])
 @pytest.mark.parametrize("is_ascend", [True, False])
-def test_fake_quantize_topk(k, axis, is_ascend):
-    x = relay.var("x", shape=[20, 100], dtype="int8")
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+def test_fake_quantize_topk(k, axis, is_ascend, dtype):
+    x = relay.var("x", shape=[20, 100], dtype=dtype)
     zero = relay.const(0)
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
     op = relay.topk(x, k, axis, "values", is_ascend, "float32")
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero, out_dtype="int8")
-    x_np = np.random.randint(-128, 127, size=[20, 100], dtype="int8")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero, out_dtype=dtype)
+    x_np = np.random.randint(0, 127, size=[20, 100], dtype=dtype)
 
     compare_fq_to_int(op, [x_np])
 
