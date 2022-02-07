@@ -286,7 +286,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
     pass_list.push_back(tir::transform::InstrumentBoundCheckers());
   }
 
-  pass_list.push_back(transform::PrintIR("!!! Before the CSE !!!"));
   pass_list.push_back(tir::transform::CommonSubexprElimTIR(!disable_cse_tir));
 
   return pass_list;
