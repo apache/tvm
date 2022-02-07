@@ -306,11 +306,10 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
 
   // If the CSE pass has created some variables, then we run it again as more commoning could
   // potentially happen using the new variables introduced
-  if(variables_created) {
+  if (variables_created) {
     result = VisitExpr(result);
-  }
+  } else {
   // But if no changes were performed, we recurse inside the children by calling the dispatcher
-  else {
     // Calling the dispatcher to the specific treatments, which will update the context
     // appropriately before doing the recursive calls on the children nodes
     result = StmtExprMutator::VisitExpr(result);
@@ -486,11 +485,10 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
 
   // If the CSE pass has created some variables, then we run it again as more commoning could
   // potentially happen using the new variables introduced
-  if(variables_created) {
+  if (variables_created) {
     result = VisitStmt(result);
-  }
+  } else {
   // But if no changes were performed, we recurse inside the children by calling the dispatcher
-  else {
     // Calling the dispatcher to the specific treatments, which will update the context
     // appropriately before doing the recursive calls on the children nodes
     result = StmtExprMutator::VisitStmt(result);
