@@ -675,7 +675,9 @@ class AllocateConst : public Stmt {
    * create AllocateConstNode with irmod_storage_idx or data
    */
   TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                        ObjectRef data_or_idx, Stmt body, Span span = Span());
+                        ObjectRef data_or_idx, Stmt body,
+                        Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                        Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
 };
 

@@ -48,7 +48,9 @@ class PackedCallLegalizer : public StmtExprMutator {
   Stmt Legalize(tir::Stmt body) { return StmtExprMutator::VisitStmt(body); }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
-    if (tir::is_const_int(op->value)) return StmtExprMutator::VisitStmt_(op);
+    if (tir::is_const_int(op->value)) {
+      return StmtExprMutator::VisitStmt_(op);
+    }
     const CallNode* call = op->value.as<CallNode>();
     // Given a packed call f(A,B,C), we need a set of new statements
     // let A_packed = set_struct(tvm_value1, A)

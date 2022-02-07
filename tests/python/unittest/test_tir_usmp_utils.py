@@ -142,7 +142,9 @@ def test_create_pool_allocation():
         pool_name="foo_workspace",
         target_access={Target("c"): usmp_utils.PoolInfo.READ_WRITE_ACCESS},
     )
-    pool_allocation = usmp_utils.PoolAllocation(pool_info=pool_info, byte_offset=64)
+    pool_allocation = usmp_utils.PoolAllocation(
+        pool_info=pool_info, byte_alignment=1, byte_offset=64
+    )
     assert pool_allocation.pool_info == pool_info
     assert pool_allocation.byte_offset == 64
 

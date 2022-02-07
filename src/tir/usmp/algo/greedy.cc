@@ -131,8 +131,8 @@ Map<BufferInfo, PoolAllocation> GreedyBase::PostSortAllocation(
       }
     }
     auto selected_pool = SelectPlacementPool(buf_info, pool_offset_candidates);
-    pool_allocations.Set(
-        buf_info, PoolAllocation(selected_pool, Integer(pool_offset_candidates[selected_pool])));
+    pool_allocations.Set(buf_info, PoolAllocation(selected_pool, buf_info->alignment,
+                                                  Integer(pool_offset_candidates[selected_pool])));
   }
   return pool_allocations;
 }

@@ -48,18 +48,26 @@ class PoolInfoAssigner : public StmtExprMutator {
     ICHECK(target_host) << "main function does not have a target attr";
     WorkspaceMemoryPools workspace_pools =
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
-            .value_or(WorkspaceMemoryPools({CreateDefaultMemoryPool(module)}));
+            .value_or(WorkspaceMemoryPools(
+                {CreateDefaultMemoryPool(module),
+                 PoolInfo("global_const_workspace",
+                          {{target_host.value(), kTargetPoolReadOnlyAccess}},
+                          kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
+                          kUnknownWriteBandwidth, 0, 0, {{target_host.value(), 1}}, Bool(true))}));
     Array<PoolInfo> pool_infos = workspace_pools->pools;
+    // split by access
     for (const PoolInfo& pool_info : pool_infos) {
       for (const auto& kv : pool_info->target_access) {
-        Target target = kv.first;
-        String target_str = target->str();
-        if (target_pool_infos_.find(target_str) == target_pool_infos_.end()) {
-          target_pool_infos_.Set(target_str, Array<PoolInfo>());
+        Target tgt = kv.first;
+        auto& pool_map = pool_info->target_access[tgt] == kTargetPoolReadOnlyAccess
+                             ? target_const_pool_infos_
+                             : target_pool_infos_;
+        if (pool_map.find(tgt->str()) == pool_map.end()) {
+          pool_map.Set(tgt->str(), Array<PoolInfo>());
         }
-        Array<PoolInfo> pool_info_arr = target_pool_infos_[target_str];
+        Array<PoolInfo> pool_info_arr = pool_map[tgt->str()];
         pool_info_arr.push_back(pool_info);
-        target_pool_infos_.Set(target_str, pool_info_arr);
+        pool_map.Set(tgt->str(), pool_info_arr);
       }
     }
     mod_ = module->ShallowCopy();
@@ -69,9 +77,11 @@ class PoolInfoAssigner : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AllocateNode* op) override;
+  Stmt VisitStmt_(const AllocateConstNode* op) override;
 
   IRModule mod_;
   Map<String, Array<PoolInfo>> target_pool_infos_;
+  Map<String, Array<PoolInfo>> target_const_pool_infos_;
   PrimFunc func_;
   PoolInfo CreateDefaultMemoryPool(const IRModule& module);
 };
@@ -103,6 +113,23 @@ Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   auto allocate =
       Allocate(op->buffer_var, op->dtype, op->extents, op->condition, body, annotations);
   return allocate;
+}
+
+Stmt PoolInfoAssigner::VisitStmt_(const AllocateConstNode* op) {
+  if (!target_const_pool_infos_.size()) {
+    return StmtExprMutator::VisitStmt_(op);
+  }
+  Optional<Target> tgt = func_->GetAttr<Target>(tvm::attr::kTarget).value();
+  ICHECK(tgt) << "The following PrimFunc does not have a target attr: \n" << func_;
+  Map<String, ObjectRef> annotations = Map<String, ObjectRef>(op->annotations);
+  if (op->annotations.find(kPoolCandidatesAllocateAttr) == op->annotations.end()) {
+    annotations.Set(kPoolCandidatesAllocateAttr, target_const_pool_infos_[tgt.value()->str()]);
+    annotations.Set(kTargetPoolReadOnlyAccess, Integer(1));
+  }
+  Stmt body = VisitStmt(op->body);
+  auto allocate_const =
+      AllocateConst(op->buffer_var, op->dtype, op->extents, op->data, body, annotations);
+  return allocate_const;
 }
 
 IRModule PoolInfoAssigner::operator()() {

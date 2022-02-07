@@ -48,6 +48,126 @@ constexpr const char* kUSMPUseWorkspaceIO = "tir.usmp.use_workspace_io";
 
 namespace tir {
 namespace usmp {
+/*
+ * \brief The ConstantInfoNode contains numeric literal in RO pool
+ */
+struct ConstantInfoNode : public Object {
+  String name_hint;
+  Integer byte_alignment;
+  Integer byte_offset;
+  runtime::NDArray data;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("constant_names", &name_hint);
+    v->Visit("constant_alignment", &byte_alignment);
+    v->Visit("constant_offsets", &byte_offset);
+    v->Visit("constant_data", &data);
+  }
+
+  bool SEqualReduce(const ConstantInfoNode* other, SEqualReducer equal) const {
+    return equal(name_hint, other->name_hint) && equal(byte_alignment, other->byte_alignment) &&
+           equal(byte_offset, other->byte_offset) && equal(data, other->data);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce(byte_alignment);
+    hash_reduce(byte_offset);
+    hash_reduce(data);
+  }
+
+  static constexpr const char* _type_key = "tir.usmp.ConstantInfo";
+  static constexpr bool _type_has_method_sequal_reduce = true;
+  static constexpr bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(ConstantInfoNode, Object);
+};
+
+class ConstantInfo : public ObjectRef {
+ public:
+  TVM_DLL ConstantInfo(String name, Integer byte_alignment, Integer byte_offset,
+                       runtime::NDArray data);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ConstantInfo, ObjectRef, ConstantInfoNode);
+};
+
+#if 0
+struct PoolInfoNode : public Object {
+  /*! \brief The name of the memory pool */
+  String pool_name;
+  /*! \brief The expected size hint to be used by the allocator.
+   * The size_hint_bytes is set to kUnrestrictedPoolSizeHint
+   * to indicate the pool is not size restricted.
+   */
+  Integer size_hint_bytes;
+  /*! \brief The accessibility from each Target */
+  Map<Target, String> target_access;  // 'rw' or 'ro'
+  /*! \brief The clock frequency of the memory in Hz */
+  Integer clock_frequency_hz;
+  /*! \brief The read bandwidth in bytes/cycle */
+  Integer read_bandwidth_bytes_per_cycle;
+  /*! \brief The write bandwidth in bytes/cycle */
+  Integer write_bandwidth_bytes_per_cycle;
+  /*! \brief The read latency in cycles */
+  Integer read_latency_cycles;
+  /*! \brief The write latency in cycles */
+  Integer write_latency_cycles;
+  /*! \brief The burst length in bytes for each Target */
+  Map<Target, Integer> target_burst_bytes;
+  /*! \brief Whether pool is internally generated.
+   * The internal pools will be generated as part of
+   * the entry point code generation of the executor
+   */
+  bool is_internal = false;
+
+  Array<ConstantInfo> constant_info_arr;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("pool_name", &pool_name);
+    v->Visit("size_hint_bytes", &size_hint_bytes);
+    v->Visit("target_access", &target_access);
+    v->Visit("clock_frequency_hz", &clock_frequency_hz);
+    v->Visit("read_bandwidth_bytes_per_cycle", &read_bandwidth_bytes_per_cycle);
+    v->Visit("write_bandwidth_bytes_per_cycle", &write_bandwidth_bytes_per_cycle);
+    v->Visit("read_latency_cycles", &read_latency_cycles);
+    v->Visit("write_latency_cycles", &write_latency_cycles);
+    v->Visit("target_burst_bytes", &target_burst_bytes);
+    v->Visit("is_internal", &is_internal);
+    v->Visit("constant_info_arr", &constant_info_arr);
+  }
+
+  bool SEqualReduce(const PoolInfoNode* other, SEqualReducer equal) const {
+    return equal(pool_name, other->pool_name) && equal(size_hint_bytes, other->size_hint_bytes) &&
+           equal(target_access, other->target_access) &&
+           equal(target_access, other->target_access) &&
+           equal(clock_frequency_hz, other->clock_frequency_hz) &&
+           equal(read_bandwidth_bytes_per_cycle, other->read_bandwidth_bytes_per_cycle) &&
+           equal(write_bandwidth_bytes_per_cycle, other->write_bandwidth_bytes_per_cycle) &&
+           equal(read_latency_cycles, other->read_latency_cycles) &&
+           equal(write_latency_cycles, other->write_latency_cycles) &&
+           equal(target_burst_bytes, other->target_burst_bytes) &&
+           equal(is_internal, other->is_internal) &&
+           equal(constant_info_arr, other->constant_info_arr);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(pool_name);
+    hash_reduce(size_hint_bytes);
+    hash_reduce(target_access);
+    hash_reduce(clock_frequency_hz);
+    hash_reduce(read_bandwidth_bytes_per_cycle);
+    hash_reduce(write_bandwidth_bytes_per_cycle);
+    hash_reduce(read_latency_cycles);
+    hash_reduce(write_latency_cycles);
+    hash_reduce(target_burst_bytes);
+    hash_reduce(is_internal);
+    hash_reduce(constant_info_arr);
+  }
+
+  static constexpr const char* _type_key = "tir.usmp.PoolInfo";
+  static constexpr bool _type_has_method_sequal_reduce = true;
+  static constexpr bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
+};
+#endif
 
 /*!
  * \brief A special kind to distinguish between I/O tensors to the model
@@ -165,20 +285,25 @@ class BufferInfoAnalysis : public ObjectRef {
 struct PoolAllocationNode : public Object {
   /*! \brief The assigned PoolInfo object */
   PoolInfo pool_info;
+  /*! \brief The byte alignment where the tensor is supposed to be placed within the pool*/
+  Integer byte_alignment;
   /*! \brief The byte offset where the tensor is supposed to be placed within the pool*/
   Integer byte_offset;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_info", &pool_info);
+    v->Visit("byte_alignment", &byte_alignment);
     v->Visit("byte_offset", &byte_offset);
   }
 
   bool SEqualReduce(const PoolAllocationNode* other, SEqualReducer equal) const {
-    return equal(pool_info, other->pool_info) && equal(byte_offset, other->byte_offset);
+    return equal(pool_info, other->pool_info) && equal(byte_alignment, other->byte_alignment) &&
+           equal(byte_offset, other->byte_offset);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(pool_info);
+    hash_reduce(byte_alignment);
     hash_reduce(byte_offset);
   }
 
@@ -188,7 +313,7 @@ struct PoolAllocationNode : public Object {
 
 class PoolAllocation : public ObjectRef {
  public:
-  TVM_DLL PoolAllocation(PoolInfo pool_info, Integer byte_offset);
+  TVM_DLL PoolAllocation(PoolInfo pool_info, Integer byte_alignment, Integer byte_offset);
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolAllocation, ObjectRef, PoolAllocationNode);
 };
 
@@ -202,22 +327,27 @@ struct AllocatedPoolInfoNode : public Object {
   Integer allocated_size;
   /*! \brief An optional associated pool Var index of PrimFunc params*/
   Optional<Integer> pool_var_idx;
+  /*! \brief pool initialization data */
+  Array<ConstantInfo> constant_info_arr;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_info", &pool_info);
     v->Visit("allocated_size", &allocated_size);
     v->Visit("pool_var_idx", &pool_var_idx);
+    v->Visit("constant_info_arr", &constant_info_arr);
   }
 
   bool SEqualReduce(const AllocatedPoolInfoNode* other, SEqualReducer equal) const {
     return equal(pool_info, other->pool_info) && equal(allocated_size, other->allocated_size) &&
-           equal(pool_var_idx, other->pool_var_idx);
+           equal(pool_var_idx, other->pool_var_idx) &&
+           equal(constant_info_arr, other->constant_info_arr);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(pool_info);
     hash_reduce(allocated_size);
     hash_reduce(pool_var_idx);
+    hash_reduce(constant_info_arr);
   }
 
   static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
@@ -227,7 +357,7 @@ struct AllocatedPoolInfoNode : public Object {
 class AllocatedPoolInfo : public ObjectRef {
  public:
   TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
-                            Integer pool_var_idx = Integer());
+                            Integer pool_var_idx = Integer(), Array<ConstantInfo> = {});
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AllocatedPoolInfo, ObjectRef, AllocatedPoolInfoNode);
 };
 
@@ -270,6 +400,13 @@ static constexpr const char* kOutputTensorAllocate = "output_tensor";
  * \param op the allocate node
  */
 Integer CalculateExtentsSize(const AllocateNode* op);
+
+/*!
+ * \brief Calculate the size of the extents in bytes
+ *
+ * \param op the allocate const node
+ */
+Integer CalculateExtentsSize(const AllocateConstNode* op);
 
 /*!
  * \brief Joins the Stmt nodes with PoolAllocation objects

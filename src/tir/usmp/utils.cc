@@ -74,7 +74,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "name_hint=" << node->name_hint << ",\n  size_bytes=" << node->size_bytes
                 << ",\n  pool_candidates=" << node->pool_candidates
                 << ",\n  alignment=" << node->alignment << ",\n  kind=" << toString[node->kind]
-                << ")";
+                << ",\n  conflicts=" << node->conflicts.size() << ")";
     });
 
 BufferInfoAnalysis::BufferInfoAnalysis(Map<BufferInfo, tir::Stmt> buffer_info_stmts,
@@ -99,17 +99,42 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  memory_pressure=" << node->memory_pressure << ")";
     });
 
-PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
+ConstantInfo::ConstantInfo(String name_hint, Integer byte_alignment, Integer byte_offset,
+                           runtime::NDArray data) {
+  auto constant_info_node = make_object<ConstantInfoNode>();
+  constant_info_node->name_hint = name_hint;
+  constant_info_node->byte_alignment = byte_alignment;
+  constant_info_node->byte_offset = byte_offset;
+  constant_info_node->data = data;
+  data_ = std::move(constant_info_node);
+}
+
+TVM_REGISTER_NODE_TYPE(ConstantInfoNode);
+TVM_REGISTER_GLOBAL("tir.usmp.ConstantInfo")
+    .set_body_typed([](String name_hint, Integer byte_alignment, Integer byte_offset,
+                       runtime::NDArray data) {
+      return ConstantInfo(name_hint, byte_alignment, byte_offset, data);
+    });
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ConstantInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ConstantInfoNode*>(ref.get());
+      p->stream << "ConstantInfoNode(\n"
+                << "name_hint=" << node->name_hint << ",\n byte_alignment=" << node->byte_alignment
+                << ",\n byte_offset=" << node->byte_offset << ",\n data=" << node->data << ")";
+    });
+
+PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_alignment, Integer byte_offset) {
   auto pool_allocation_node = make_object<PoolAllocationNode>();
   pool_allocation_node->pool_info = pool_info;
+  pool_allocation_node->byte_alignment = byte_alignment;
   pool_allocation_node->byte_offset = byte_offset;
   data_ = std::move(pool_allocation_node);
 }
 
 TVM_REGISTER_NODE_TYPE(PoolAllocationNode);
 TVM_REGISTER_GLOBAL("tir.usmp.PoolAllocation")
-    .set_body_typed([](PoolInfo pool_info, Integer byte_offset) {
-      return PoolAllocation(pool_info, byte_offset);
+    .set_body_typed([](PoolInfo pool_info, Integer byte_alignment, Integer byte_offset) {
+      return PoolAllocation(pool_info, byte_alignment, byte_offset);
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -121,12 +146,15 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
-                                     Integer pool_var_idx) {
+                                     Integer pool_var_idx, Array<ConstantInfo> constant_info_arr) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
   if (pool_var_idx.defined()) {
     allocated_poolinfo_node->pool_var_idx = pool_var_idx;
+  }
+  if (constant_info_arr.defined()) {
+    allocated_poolinfo_node->constant_info_arr = constant_info_arr;
   }
   data_ = std::move(allocated_poolinfo_node);
 }
@@ -180,10 +208,10 @@ Map<String, PoolAllocation> GetIOPoolAllocations(
   return io_tensor_name_to_pool_allocation;
 }
 
-Integer CalculateExtentsSize(const AllocateNode* op) {
-  size_t element_size_bytes = op->dtype.bytes();
+static Integer CalculateExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents) {
+  size_t element_size_bytes = dtype.bytes();
   size_t num_elements = 1;
-  for (const auto& ext : op->extents) {
+  for (const auto& ext : extents) {
     if (ext->IsInstance<IntImmNode>()) {
       num_elements *= Downcast<IntImm>(ext)->value;
     } else {
@@ -194,11 +222,21 @@ Integer CalculateExtentsSize(const AllocateNode* op) {
   return Integer(num_elements * element_size_bytes);
 }
 
+Integer CalculateExtentsSize(const AllocateNode* op) {
+  return CalculateExtentsSize(op->dtype, op->extents);
+}
+
+Integer CalculateExtentsSize(const AllocateConstNode* op) {
+  return CalculateExtentsSize(op->dtype, op->extents);
+}
+
 class ModuleWorkspaceSizeCalculator : public StmtExprVisitor {
  public:
   explicit ModuleWorkspaceSizeCalculator(const IRModule& module) : mod_(module) {
     for (const auto& gv_func : mod_->functions) {
-      functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      if ((gv_func.second)->IsInstance<tir::PrimFuncNode>()) {
+        functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      }
     }
     main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func_.defined()) << "main function is not in the module";

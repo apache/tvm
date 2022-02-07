@@ -26,6 +26,7 @@
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/usmp/utils.h>
 
 namespace tvm {
 namespace tir {
@@ -38,9 +39,12 @@ class WorkspaceCalculator : public StmtExprVisitor {
 
  private:
   void VisitStmt_(const AllocateNode* op) override;
-  size_t CalculateExtentsSize(const AllocateNode* op);
-  size_t GetByteAlignedSize(size_t non_aligned_size);
+  void VisitStmt_(const AllocateConstNode* op) override;
+  size_t GetByteAlignedSize(Integer non_aligned_size);
+  size_t CalculateExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents);
+  size_t current_const_size = 0;
   size_t current_size = 0;
+  size_t max_const_size = 0;
   size_t max_size = 0;
 };
 
@@ -49,32 +53,30 @@ size_t WorkspaceCalculator::operator()(const PrimFunc& func) {
   return this->max_size;
 }
 
-size_t WorkspaceCalculator::GetByteAlignedSize(size_t non_aligned_size) {
-  return ((non_aligned_size + byte_alignment - 1) / byte_alignment) * byte_alignment;
-}
-
-size_t WorkspaceCalculator::CalculateExtentsSize(const AllocateNode* op) {
-  size_t element_size_bytes = op->dtype.bytes();
-  size_t num_elements = 1;
-  for (const auto& ext : op->extents) {
-    if (ext->IsInstance<IntImmNode>()) {
-      num_elements *= Downcast<IntImm>(ext)->value;
-    } else {
-      // We cant statically calculate workspace for dynamic shapes
-      num_elements = 0;
-    }
-  }
-  return GetByteAlignedSize(num_elements * element_size_bytes);
+size_t WorkspaceCalculator::GetByteAlignedSize(Integer non_aligned_size) {
+  return non_aligned_size.defined()
+             ? ((non_aligned_size + byte_alignment - 1) / byte_alignment) * byte_alignment
+             : 0;
 }
 
 void WorkspaceCalculator::VisitStmt_(const AllocateNode* op) {
-  auto size = CalculateExtentsSize(op);
+  auto size = GetByteAlignedSize(usmp::CalculateExtentsSize(op));
   current_size += size;
   if (current_size > max_size) {
     max_size = current_size;
   }
   StmtExprVisitor::VisitStmt(op->body);
   current_size -= size;
+}
+
+void WorkspaceCalculator::VisitStmt_(const AllocateConstNode* op) {
+  auto size = GetByteAlignedSize(usmp::CalculateExtentsSize(op));
+  current_const_size += size;
+  if (current_const_size > max_const_size) {
+    max_const_size = current_const_size;
+  }
+  StmtExprVisitor::VisitStmt(op->body);
+  current_const_size -= size;
 }
 
 size_t CalculateWorkspaceBytes(const PrimFunc& func, const Integer& workspace_byte_alignment) {

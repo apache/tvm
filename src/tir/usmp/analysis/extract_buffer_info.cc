@@ -72,6 +72,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
  private:
   void VisitStmt(const Stmt& n) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const VarNode* op) override;
@@ -81,6 +82,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
 
   void UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func);
   void RecordAllocateNodeInfo(const AllocateNode* op);
+  void RecordAllocateConstNodeInfo(const AllocateConstNode* op);
   void VisitPrimFunc(const PrimFunc& func, const Call& call);
 
   /*!
@@ -148,6 +150,12 @@ class BufferInfoExtractor : public StmtExprVisitor {
      * loops structure.
      */
     std::unordered_set<Allocate, ObjectPtrHash, ObjectPtrEqual> allocate_nodes;
+    /*
+     * \brief We record the live allocate_const_nodes because once in loops
+     * the liveness range has to be extended to the whole of the nested
+     * loops structure.
+     */
+    std::unordered_set<AllocateConst, ObjectPtrHash, ObjectPtrEqual> allocate_const_nodes;
     /*!
      * \brief This is recorded to extend the liveness of all allocates within
      * nested loop structure.
@@ -292,9 +300,78 @@ void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
 }
 
+void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* op) {
+  if (!op->annotations.count(kPoolCandidatesAllocateAttr)) {
+    return;
+  }
+  Integer size_bytes = CalculateExtentsSize(op);
+  const auto& buffer_var = op->buffer_var;
+  // We only statically memory plan only allocates with known
+  // compile time sizes.
+  if (size_bytes.defined()) {
+    if (allocate_infos.find(buffer_var) == allocate_infos.end()) {
+      // By default, the core compiler is assumed to attach the a default pool to each allocate.
+      ICHECK(op->annotations.count(kPoolCandidatesAllocateAttr))
+          << "Every statically sized allocate node needs an pool candidate attribute";
+      auto pool_candidates =
+          Downcast<Array<PoolInfo>>(op->annotations[kPoolCandidatesAllocateAttr]);
+
+      // TODO(@manupa-arm): improve the error when the responsible component for attaching a single
+      // pool is added
+      ICHECK(pool_candidates.size() > 0)
+          << "The core compiler should at least attach a single PoolInfo. If there were no "
+             "user-given arguments for memory pools, the default behaviour is a single size "
+             "un-restricted pool is assigned";
+      PrimFunc func = scope_stack_.top().func;
+      Optional<tvm::relay::Executor> executor_config =
+          module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
+      Integer workspace_alignment = 16;
+      if (executor_config) {
+        workspace_alignment = executor_config.value()
+                                  ->GetAttr<Integer>("workspace-byte-alignment")
+                                  .value_or(workspace_alignment);
+      }
+      auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
+                                    pool_candidates, workspace_alignment);
+      auto allocate = GetRef<AllocateConst>(op);
+      allocate_infos[buffer_var] =
+          AllocateInfo{allocate, scope_stack_.top().func, scope_stack_.top().call};
+      buffer_info_map_.Set(buffer_info, allocate);
+    } else {
+      // Update the allocate info with the latest call
+      AllocateInfo ai = allocate_infos[buffer_var];
+      ai.call = scope_stack_.top().call;
+      allocate_infos[buffer_var] = ai;
+    }
+  }
+}
+
+void BufferInfoExtractor::VisitStmt_(const AllocateConstNode* op) {
+  ScopeInfo& current_scope_info = scope_stack_.top();
+  const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
+  const auto& storage_scope = type->storage_scope;
+
+  // If the allocate is in a for loop, USMP currently only looks at serial for loops.
+  // If its not a serial for loop, then memory planner will omit them in the current memory planning
+  // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
+  // with buffers that have global storage_scope
+
+  if (!current_scope_info.for_loop.defined()) {
+    RecordAllocateConstNodeInfo(op);
+  } else if (current_scope_info.for_loop.defined() &&
+             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
+    RecordAllocateConstNodeInfo(op);
+  }
+  StmtExprVisitor::VisitStmt(op->body);
+  current_scope_info.allocate_const_nodes.erase(GetRef<AllocateConst>(op));
+}
+
 void BufferInfoExtractor::VisitStmt_(const ForNode* op) {
-  ScopeInfo si{scope_stack_.top().call, scope_stack_.top().func, GetRef<For>(op),
+  ScopeInfo si{scope_stack_.top().call,
+               scope_stack_.top().func,
+               GetRef<For>(op),
                scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
   if (!scope_stack_.top().initial_stmt_of_the_nested_loops.defined()) {
     si.initial_stmt_of_the_nested_loops = Integer(current_stmt_idx_);
@@ -355,7 +432,13 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
     ScopeInfo& currect_scope_info = scope_stack_.top();
     if (currect_scope_info.for_loop.defined()) {
-      currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      if (allocate->IsInstance<AllocateNode>()) {
+        currect_scope_info.allocate_nodes.insert(Downcast<Allocate>(allocate));
+      } else if (allocate->IsInstance<AllocateConstNode>()) {
+        currect_scope_info.allocate_const_nodes.insert(Downcast<AllocateConst>(allocate));
+      } else {
+        LOG(FATAL) << "Handling of " << allocate->GetTypeKey() << " is not implemented";
+      }
     }
   }
   StmtExprVisitor::VisitExpr_(op);
@@ -401,7 +484,11 @@ void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimF
 }
 
 void BufferInfoExtractor::VisitPrimFunc(const PrimFunc& func, const Call& call) {
-  ScopeInfo si{call, func, scope_stack_.top().for_loop, scope_stack_.top().allocate_nodes,
+  ScopeInfo si{call,
+               func,
+               scope_stack_.top().for_loop,
+               scope_stack_.top().allocate_nodes,
+               scope_stack_.top().allocate_const_nodes,
                scope_stack_.top().initial_stmt_of_the_nested_loops};
   call_order_.insert(call);
   scope_stack_.push(si);
@@ -436,10 +523,11 @@ BufferInfoAnalysis BufferInfoExtractor::operator()(const PrimFunc& main_func) {
   // associated with each BufferNodes.
   std::vector<LivenessEvent> le_events_timeline;
   for (const auto& kv1 : buffer_info_map_) {
-    if (!kv1.second->IsInstance<AllocateNode>()) {
+    if (!kv1.second->IsInstance<AllocateNode>() && !kv1.second->IsInstance<AllocateConstNode>()) {
       continue;
     }
-    auto allocate = Downcast<Allocate>(kv1.second);
+
+    auto allocate = Downcast<Stmt>(kv1.second);
     auto buffer_info = Downcast<BufferInfo>(kv1.first);
 
     ICHECK(call_order_.size() >= buffer_info_end_stmt_idx_.size());

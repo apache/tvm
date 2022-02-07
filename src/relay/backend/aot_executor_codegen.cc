@@ -905,9 +905,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    */
   IRModule PlanMemoryWithUSMP(const IRModule& mod) {
     VLOG(1) << "Planning memory with USMP for module:" << std::endl << PrettyPrint(mod);
-    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_byte_alignment = getModuleAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     lowered_mod = tir::transform::UnifiedStaticMemoryPlanner()(lowered_mod);
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
@@ -940,9 +938,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * \brief Run StorageRewrite to plan memory for lowered IRModule.
    */
   IRModule PlanMemoryWithStorageRewrite(const IRModule& mod) {
-    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_byte_alignment = getModuleAlignment(mod);
     IRModule lowered_mod = mod->ShallowCopy();
     function_metadata_ = CalculateWorkspaceSizes(lowered_mod, function_metadata_);
     // Running StorageRewrite just on the main function
@@ -964,6 +960,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     main_func_info->workspace_sizes.Set(config_->host_target, main_workspace_size_bytes);
     function_metadata_.Set(runtime::symbol::tvm_module_main, main_func_info);
     return lowered_mod;
+  }
+
+  Integer getModuleAlignment(const IRModule& mod) {
+    Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
+    return executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
   }
 
  protected:
@@ -1026,11 +1027,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     VLOG_CONTEXT << "AOT";
 
     Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
+    Integer workspace_byte_alignment = getModuleAlignment(mod);
+
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     std::string interface_api =
         executor_config->GetAttr<String>("interface-api").value_or("packed");
-    Integer workspace_byte_alignment =
-        executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     bool unpacked_api = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
 
     // Validate choice of use_unpacked_api_ and use_call_cpacked_

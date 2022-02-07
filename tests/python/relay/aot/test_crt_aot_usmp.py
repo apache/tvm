@@ -48,12 +48,60 @@ def _check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
     ), "This is failing because USMP was unable to plan for every tir.allocate node."
 
 
+# U1 test case
+@parametrize_aot_options
+def test_synthetic(interface_api, use_unpacked_api, test_runner):
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+    # mod = tvm.parser.fromtext(RELAY_MODEL)
+    main_func = mod["main"]
+    shape_dict = {p.name_hint: p.checked_type.concrete_shape for p in main_func.params}
+    type_dict = {p.name_hint: p.checked_type.dtype for p in main_func.params}
+
+    input_data = np.ones(shape_dict["data"]).astype(type_dict["data"])
+    params = {}
+    for name, shape in shape_dict.items():
+        # if( name.endswith("weight") ):
+        if name != "data":
+            params[name] = np.ones(shape_dict[name]).astype(type_dict[name])
+            # weight_data = np.ones(shape_dict["weight"]).astype(type_dict["weight"])
+
+    # params = {"weight": weight_data}
+    inputs = {"data": input_data}
+    output_list = generate_ref_data(mod, inputs, params)
+    config = (
+        {
+            "tir.disable_vectorize": True,
+            "tir.disable_storage_rewrite": True,
+            "tir.usmp.enable": True,
+            "tir.usmp.algorithm": "greedy_by_conflicts",
+        },
+    )
+
+    pass_config = {"tir.usmp.enable": True}
+    test_runner = AOTTestRunner(
+        makefile=test_runner.makefile,
+        prologue=test_runner.prologue,
+        epilogue=test_runner.epilogue,
+        includes=test_runner.includes,
+        parameters=test_runner.parameters,
+        pass_config={**test_runner.pass_config},
+    )
+    test_runner.pass_config.update(*config)
+    print(test_runner.pass_config)
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
 @pytest.mark.parametrize(
     "workspace_byte_alignment,main_workspace_size",
     [
-        (8, 17280),
-        (16, 17280),
-        (256, 17792),
+        (8, 18228),
+        (16, 18236),
+        (256, 19596),
     ],
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size):
@@ -214,9 +262,9 @@ MOBILENET_V2_URL = (
 @pytest.mark.parametrize(
     "model_url, usmp_algo, workspace_size,",
     [
-        (MOBILENET_V1_URL, "greedy_by_size", 4845696),
-        (MOBILENET_V1_URL, "greedy_by_conflicts", 4444288),
-        (MOBILENET_V1_URL, "hill_climb", 3240064),
+        (MOBILENET_V1_URL, "greedy_by_size", 13313704),
+        (MOBILENET_V1_URL, "greedy_by_conflicts", 12912296),
+        (MOBILENET_V1_URL, "hill_climb", 11708072),
     ],
 )
 def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):

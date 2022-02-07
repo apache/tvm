@@ -83,14 +83,18 @@ class PoolAllocation(Object):
     pool_info : PoolInfo
         The PoolInfo to which this allocation corresponds to
 
+    byte_alignment : int
+        The alignment in the pool where the allocate node should be placed
+
     byte_offset : int
         The offset in the pool where the allocate node should be placed
 
     """
 
-    def __init__(self, pool_info: PoolInfo, byte_offset: int):
+    def __init__(self, pool_info: PoolInfo, byte_alignment: int, byte_offset: int):
         self.__init_handle_by_constructor__(
             _ffi_api.PoolAllocation,  # type: ignore # pylint: disable=no-member
             pool_info,
+            byte_alignment,
             byte_offset,
         )

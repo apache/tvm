@@ -33,6 +33,7 @@
 #include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
+#include <algorithm>
 #include <string>
 
 namespace tvm {
@@ -63,12 +64,56 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   BufferInfoAnalysis buffer_info_analysis = ExtractBufferInfo(main_func, module);
   Array<BufferInfo> buffer_info_arr =
       CreateArrayBufferInfo(buffer_info_analysis->buffer_info_stmts);
+
+  // All items in RO pool should have conflicts with each other in this RO pool
+  // as they will be placed in RO segment and pre-initialized
+
+  // split buffers to vars (RW) and constants (RO)
+  Array<BufferInfo> buffer_info_vars;
+  Array<BufferInfo> buffer_info_cons;
+  for (const auto& buf : buffer_info_arr) {
+    if (std::string(buf->name_hint).rfind("constant", 0) == 0) {
+      buffer_info_cons.push_back(buf);
+    } else {
+      buffer_info_vars.push_back(buf);
+    }
+  }
+  ICHECK(buffer_info_arr.size() == buffer_info_vars.size() + buffer_info_cons.size())
+      << "missing value";
+
+  // intersect with each other, as all constants should exist at the same time
+  for (const auto& buf1 : buffer_info_cons) {
+    for (const auto& buf2 : buffer_info_cons) {
+      if (buf1->conflicts.end() ==
+          std::find(buf1->conflicts.begin(), buf1->conflicts.end(), buf2)) {
+        buf1->conflicts.push_back(buf2);
+        if (buf2->conflicts.end() ==
+            std::find(buf2->conflicts.begin(), buf2->conflicts.end(), buf1)) {
+          buf2->conflicts.push_back(buf1);
+        }
+      }
+    }
+    // remove conflicts with vars part as non-relevant anymore
+    for (const auto& buf2 : buffer_info_vars) {
+      const auto& it = std::find(buf1->conflicts.begin(), buf1->conflicts.end(), buf2);
+      if (buf1->conflicts.end() != it) {
+        buf1->conflicts.erase(it);
+        const auto& it = std::find(buf2->conflicts.begin(), buf2->conflicts.end(), buf1);
+        if (buf2->conflicts.end() != it) {
+          buf2->conflicts.erase(it);
+        }
+      }
+    }
+  }
+
   CHECK(algorithms.count(algo)) << "The selected USMP algorithm : " << algo
                                 << " is not defined. Please define it in the above algorithms map.";
   Map<BufferInfo, PoolAllocation> buffer_info_pool_allocations =
       algorithms[algo](buffer_info_arr, buffer_info_analysis->memory_pressure);
+
   Map<Stmt, PoolAllocation> stmt_pool_allocations = AssignStmtPoolAllocations(
       buffer_info_analysis->buffer_info_stmts, buffer_info_pool_allocations);
+
   module = transform::ConvertPoolAllocationsToOffsets(stmt_pool_allocations)(module);
   if (use_workspace_io) {
     Map<String, PoolAllocation> io_pool_allocations =
@@ -82,6 +127,7 @@ IRModule PlanMemory(const IRModule& mod, String algo, bool use_workspace_io) {
   if (allocated_pool_infos) {
     for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
       VLOG(1) << "pool_size = " << allocated_pool_info->allocated_size;
+      LOG(INFO) << "pool_size = " << allocated_pool_info->allocated_size;
     }
   }
   return module;
