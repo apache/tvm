@@ -47,92 +47,180 @@ function(find_hexagon_toolchain)
   endif()
 endfunction()
 
+macro(file_glob_append _output_list)
+  tvm_file_glob(GLOB _tmp0 ${ARGN})
+  set(_tmp1 ${${_output_list}})
+  list(APPEND _tmp1 ${_tmp0})
+  set(${_output_list} ${_tmp1})
+endmacro()
+
+set(TVMRT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime")
+
+# First, verify that USE_HEXAGON_DEVICE has a valid value.
+if(DEFINED USE_HEXAGON_DEVICE)
+  if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
+     NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}" AND
+     NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
+    message(SEND_ERROR "USE_HEXAGON_DEVICE must be one of "
+            "[${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
+    set(USE_HEXAGON_DEVICE OFF)
+  endif()
+endif()
+
 if(BUILD_FOR_HEXAGON)
   find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
   # Add SDK and QuRT includes when building for Hexagon.
   include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
 endif()
 
-if (NOT USE_HEXAGON_SDK STREQUAL "" AND
-    NOT USE_HEXAGON_SDK STREQUAL "/path/to/sdk")
-  set(HEXAGON_SDK_PATH_DEFINED ${USE_HEXAGON_SDK})
+# This .cmake file is included when building any part of TVM for any
+# architecture. It shouldn't require any Hexagon-specific parameters
+# (like the path to the SDK), unless it's needed.
+# Two flags can enable some Hexagon-related functionality:
+# - USE_HEXAGON_DEVICE
+# - USE_HEXAGON_RPC
+#
+# USE_HEXAGON_RPC:
+# - When building for Hexagon, this will build the Hexagon endpoint of the
+#   RPC server: the FastRPC skel library (with TVM runtime built into it).
+# - When building for Android, this will build the (intermediary) RPC server,
+#   including the "stub" code for the FastRPC implementation of the RPC
+#   channel.
+
+if(NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
+  set(BUILD_FOR_HOST TRUE)
 endif()
 
-if (BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
-  include_directories(SYSTEM
-    ${HEXAGON_SDK_INCLUDES}
-    ${HEXAGON_RPCMEM_ROOT}/inc
-    ${HEXAGON_REMOTE_ROOT})
-  link_directories(${HEXAGON_REMOTE_ROOT})
-  list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
-endif()
 
-# Don't run these checks when compiling Hexagon device code,
-# e.g. when compiling the TVM runtime for Hexagon.
-if (NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
-  if(USE_HEXAGON_DEVICE STREQUAL "OFF")
+if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC)
+  # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
+  # and some stuff needed by cpptests (this part is a temporary workaround
+  # until e2e support for Hexagon is enabled).
+  if(BUILD_FOR_HOST)
     list(APPEND COMPILER_SRCS src/target/opt/build_hexagon_off.cc)
-    # append select runtime sources for unit testing
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
-    return()
-  elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
-         NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-    message(SEND_ERROR "USE_HEXAGON_DEVICE must be one of "
-            "[${PICK_NONE}|${PICK_SIM}|${PICK_HW}]")
-    return()
   endif()
-endif()
-
-# If no Hexagon support is enabled (other than some stub code), cmake
-# execution should stop before reaching this point.
-
-if(NOT USE_HEXAGON_SDK OR NOT USE_HEXAGON_ARCH)
-  message(SEND_ERROR "Please set USE_HEXAGON_SDK to the Hexagon SDK root, "
-          "and USE_HEXAGON_ARCH to the Hexagon architecture version")
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
   return()
 endif()
 
-if(USE_HEXAGON_LAUNCHER STREQUAL "ON")
-  message(SEND_ERROR "USE_HEXAGON_LAUNCHER is deprecated, please build apps separately")
-endif()
 
-# find_hexagon_sdk_root has been called at this point.
+function(add_android_paths)
+  if(NOT DEFINED HEXAGON_SDK_INCLUDES OR
+     NOT DEFINED HEXAGON_RPCMEM_ROOT OR
+     NOT DEFINED HEXAGON_REMOTE_ROOT)
+    message(FATAL_ERROR "This function must be called after find_hexagon_sdk_root")
+  endif()
+  include_directories(SYSTEM
+    ${HEXAGON_SDK_INCLUDES}
+    ${HEXAGON_RPCMEM_ROOT}/inc
+    ${HEXAGON_REMOTE_ROOT}
+  )
+  link_directories(${HEXAGON_REMOTE_ROOT})
+endfunction()
+
+
+# Common sources for TVM runtime with Hexagon support
+file_glob_append(RUNTIME_HEXAGON_COMMON_SRCS
+  "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
+  "${TVMRT_SOURCE_DIR}/hexagon/hexagon/*.cc"
+)
+
+
+if(USE_HEXAGON_DEVICE)
+  function(invalid_device_value_for BUILD_TARGET)
+    message(SEND_ERROR
+      "USE_HEXAGON_DEVICE=${USE_HEXAGON_DEVICE} is not supported when "
+      "building for ${BUILD_TARGET}"
+    )
+  endfunction()
+
+  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
+
+  if(BUILD_FOR_HOST)
+    if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
+      invalid_device_value_for("host")
+    endif()
+    find_hexagon_toolchain()
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
+    )
+    include_directories(SYSTEM "${HEXAGON_TOOLCHAIN}/include/iss")
+    link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
+    list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
+
+    ExternalProject_Add(sim_dev
+      SOURCE_DIR "${TVMRT_SOURCE_DIR}/hexagon/android/sim/driver"
+      CMAKE_ARGS
+        "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
+        "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
+        "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
+      INSTALL_COMMAND "true"
+    )
+
+  elseif(BUILD_FOR_ANDROID)
+    if(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
+      invalid_device_value_for("Android")
+    endif()
+    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+    find_hexagon_toolchain()
+    add_android_paths()
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/android/target/*.cc"
+    )
+    # Hexagon runtime uses __android_log_print, which is in liblog.
+    list(APPEND TVM_RUNTIME_LINKER_LIBS dl log cdsprpc)
+
+  elseif(BUILD_FOR_HEXAGON)
+    invalid_device_value_for("Hexagon")
+  endif()
+endif()   # USE_HEXAGON_DEVICE
+
 
 if(USE_HEXAGON_RPC)
-  set(TVMRT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime")
-  set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
-  foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
-    list(APPEND QAIC_FLAGS "-I${INCDIR}")
-  endforeach()
+  function(build_rpc_idl)
+    set(QAIC_EXE "${HEXAGON_QAIC_EXE}")
+    foreach(INCDIR IN LISTS HEXAGON_SDK_INCLUDES HEXAGON_REMOTE_ROOT)
+      list(APPEND QAIC_FLAGS "-I${INCDIR}")
+    endforeach()
 
-  add_custom_command(
-    OUTPUT
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.h"
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
-    COMMAND
-      ${QAIC_EXE} ${QAIC_FLAGS} "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
-        -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
-    MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
-  )
+    add_custom_command(
+      OUTPUT
+        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.h"
+        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
+        "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+      COMMAND
+        ${QAIC_EXE} ${QAIC_FLAGS} "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
+          -o "${TVMRT_SOURCE_DIR}/hexagon/rpc"
+      MAIN_DEPENDENCY "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc.idl"
+    )
+  endfunction()
+
+  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
 
   if(BUILD_FOR_ANDROID)
     # Android part
-    tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
-    tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc")
-    list(APPEND RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c")
+    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+    add_android_paths()
+    build_rpc_idl()
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
+    )
+    list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
 
   elseif(BUILD_FOR_HEXAGON)
     # Hexagon part
+    find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
     find_hexagon_toolchain()
-    message(STATUS "HEXAGON_TOOLCHAIN: ${HEXAGON_TOOLCHAIN}")
+    build_rpc_idl()
 
-    add_library(hexagon_rpc_skel SHARED
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
-      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon/rpc_server.cc"
+    # Include the generic RPC code into the TVM runtime.
+    list(APPEND RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/minrpc/minrpc_server.h"
       "${TVMRT_SOURCE_DIR}/minrpc/rpc_reference.h"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_module.cc"
@@ -140,60 +228,16 @@ if(USE_HEXAGON_RPC)
       "${TVMRT_SOURCE_DIR}/rpc/rpc_session.cc"
       "${TVMRT_SOURCE_DIR}/rpc/rpc_local_session.cc"
     )
+    # Add the hardware-specific RPC code into the skel library.
+    add_library(hexagon_rpc_skel SHARED
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon/rpc_server.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_skel.c"
+    )
     target_include_directories(hexagon_rpc_skel
       SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/hexagon/rpc"
     )
   endif()
-endif()
+endif()   # USE_HEXAGON_RPC
 
-if(USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}")
-  find_hexagon_toolchain()
-  message(STATUS "Hexagon toolchain: ${HEXAGON_TOOLCHAIN}")
-  tvm_file_glob(GLOB RUNTIME_HEXAGON_SIM_SRCS src/runtime/hexagon/android/sim/*.cc)
-  include_directories(SYSTEM "${HEXAGON_TOOLCHAIN}/include/iss")
-  link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
-  ExternalProject_Add(sim_dev
-    SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime/hexagon/android/sim/driver"
-    CMAKE_ARGS
-      "-DCMAKE_C_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang"
-      "-DCMAKE_CXX_COMPILER=${HEXAGON_TOOLCHAIN}/bin/hexagon-clang++"
-      "-DHEXAGON_ARCH=${USE_HEXAGON_ARCH}"
-    INSTALL_COMMAND "true"
-  )
-elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
-  find_hexagon_toolchain()
-  tvm_file_glob(GLOB RUNTIME_HEXAGON_DEVICE_SRCS src/runtime/hexagon/android/target/*.cc)
 
-  include_directories(SYSTEM
-    ${HEXAGON_SDK_INCLUDES}
-    ${HEXAGON_RPCMEM_ROOT}/inc
-    ${HEXAGON_REMOTE_ROOT}
-  )
-
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "dl")
-  if(BUILD_FOR_ANDROID)
-    # Hexagon runtime uses __android_log_print, which is in liblog.
-    list(APPEND TVM_RUNTIME_LINKER_LIBS "log")
-  endif()
-endif()
-
-set(RUNTIME_HEXAGON_COMMON_SRCS src/runtime/hexagon/hexagon_module.cc)
-if (USE_HEXAGON_DEVICE STREQUAL "${PICK_NONE}")
-  if(BUILD_FOR_HEXAGON)
-    tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/hexagon/*.cc)
-  elseif(BUILD_FOR_ANDROID AND HEXAGON_SDK_PATH_DEFINED)
-  else()
-    tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/host/*.cc)
-  endif()
-else()
-  tvm_file_glob(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/android/*.cc)
-endif()
-
-list(APPEND RUNTIME_SRCS
-  ${RUNTIME_HEXAGON_SRCS}
-  ${RUNTIME_HEXAGON_SIM_SRCS}
-  ${RUNTIME_HEXAGON_DEVICE_SRCS}
-  ${RUNTIME_HEXAGON_COMMON_SRCS}
-)
+list(APPEND RUNTIME_SRCS ${RUNTIME_HEXAGON_SRCS})
