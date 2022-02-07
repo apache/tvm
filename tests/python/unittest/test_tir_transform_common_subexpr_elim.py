@@ -258,9 +258,9 @@ def test_cse_cascade():
     # Mem[i3] = x+y
     body = tvm.tir.SeqStmt(
         [
-                tvm.tir.Store(buffer.data, (x + y) + z, i1),
-                tvm.tir.Store(buffer.data, (x + y) + z, i2),
-                tvm.tir.Store(buffer.data, (x + y), i3)
+            tvm.tir.Store(buffer.data, (x + y) + z, i1),
+            tvm.tir.Store(buffer.data, (x + y) + z, i2),
+            tvm.tir.Store(buffer.data, (x + y), i3)
         ]
     )
 
