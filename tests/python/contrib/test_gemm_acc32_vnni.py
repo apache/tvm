@@ -51,13 +51,13 @@ def test_fc_int8_acc32():
         dev = tvm.device(target, 0)
         pc = dot_16x1x16_uint8_int8_int32_cascadelake()
         ak = te.reduce_axis((0, k), name="k")
-        packedW = te.placeholder((n, (k // 4), 4), name="packedW", dtype="int8")
+        packedW = te.placeholder((n // 16, 16 * (k // 4), 4), name="packedW", dtype="int8")
 
         t_fc = te.compute(
             (m, n),
             lambda i, j: te.sum(
                 X[i, ak].astype("int32")
-                * packedW[j, tvm.tir.indexdiv(ak, 4), ak % 4].astype("int32"),
+                * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4) * 16 + j % 16, ak % 4].astype("int32"),
                 axis=ak,
             ),
             name="F",
@@ -77,18 +77,19 @@ def test_fc_int8_acc32():
 
         t_func = tvm.build(t_sch, [X, packedW, t_fc], target, name="intrinsic")
         t_evaluator = t_func.time_evaluator(t_func.entry_name, dev, number=10)
+        print(t_func.get_source("asm"))
 
         # generate the plain data
         a_ = np.random.uniform(1, 10, size=(m, k)).astype("uint8")
         b_ = np.random.uniform(1, 10, size=(n, k)).astype("int8")
 
-        packW = np.random.uniform(1, 10, size=(n, (k // 4), 4)).astype("int8")
+        packW = np.random.uniform(1, 10, size=(n // 16, 16 * (k // 4), 4)).astype("int8")
         # This occurs in pre_compute stage
-        for r_idx in range(n):
-            for s_idx in range((k // 4)):
+        for r_idx in range(n // 16):
+            for s_idx in range(16 * (k // 4)):
                 for t_idx in range(4):
-                    packW[r_idx][s_idx][t_idx] = b_[r_idx][
-                        s_idx * 4 + t_idx
+                    packW[r_idx][s_idx][t_idx] = b_[r_idx * 16 + s_idx % 16][
+                        (s_idx // 16) * 4 + t_idx
                     ]
 
         x = tvm.nd.array(a_, dev)
@@ -114,4 +115,3 @@ if __name__ == "__main__":
     # correct AVX512 VNNI instruction. So, disabling the test.
 
     test_fc_int8_acc32()
-    # pass
