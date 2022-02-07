@@ -434,26 +434,33 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     PrimExpr value = this->VisitExpr(op->value);
 
     if (!indices.same_as(op->indices) || !value.same_as(op->value)) {
-      int index_lanes = 1;
-      for (const auto& index : indices) {
-        index_lanes *= index.dtype().lanes();
+      // How many lanes of indexing are present in the index and
+      // buffer element type, excluding the last index.  T
+      int other_index_lanes = op->buffer->dtype.lanes();
+      for (size_t i = 0; i < indices.size() - 1; i++) {
+        other_index_lanes *= indices[i].dtype().lanes();
       }
 
-      int lanes = std::max(index_lanes, value.dtype().lanes());
+      // The total number of lanes of indexing, including the last index.
+      int index_lanes = other_index_lanes * indices[indices.size() - 1].dtype().lanes();
 
-      int last_index_lanes = indices[indices.size() - 1].dtype().lanes();
-      int earlier_index_lanes = index_lanes / last_index_lanes;
+      // The total number of lanes in this store operation.  Either
+      // the index or the value will be broadcast out to this number
+      // of lanes, depending on which has more lanes.
+      int total_lanes = std::max(index_lanes, value.dtype().lanes());
+
+      ICHECK_EQ(total_lanes % other_index_lanes, 0)
+          << "When storing to buffer " << op->buffer->name << ", cannot produce " << total_lanes
+          << " lanes of storage location by changing the last index.";
+      int last_index_lanes = total_lanes / other_index_lanes;
 
       // Broadcast the last index such that the total number of index
       // lanes matches the desired number.
-      ICHECK_EQ(lanes % last_index_lanes, 0)
-          << "Cannot produce location with " << value.dtype().lanes();
-      indices.Set(indices.size() - 1,
-                  BroadcastTo(indices[indices.size() - 1], lanes / earlier_index_lanes));
+      indices.Set(indices.size() - 1, BroadcastTo(indices[indices.size() - 1], last_index_lanes));
 
       auto writer = store.CopyOnWrite();
       writer->indices = indices;
-      writer->value = BroadcastTo(value, lanes);
+      writer->value = BroadcastTo(value, total_lanes);
     }
 
     return std::move(store);
