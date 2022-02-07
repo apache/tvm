@@ -75,16 +75,28 @@ DataType DataTypeFromString(const String& dtype);
 /*! \brief Check the data type for a given input matches one given in allowed_data_types. Raise a
  * type inference error if not.
  * \param reporter The infer type reporter.
- * \param data_type The data ntype to check.
- * \param allowed_data_types An unordered set of allowed data types.
+ * \param data_type The data type to check.
+ * \param allowed_data_types An initializer list of allowed data types.
  * \param operator_name The name of the operator to report.
  * \param tensor_name The name of the tensor to report e.g. "ifm", "ofm".
  * \param operator_type The type of the operator to report e.g. "ADD" for binary_elementwise.
  */
 void CheckDataType(const TypeReporter& reporter, const DataType& data_type,
-                   const std::unordered_set<DataType>& allowed_data_types,
+                   const std::initializer_list<DataType>& allowed_data_types,
                    const String& operator_name, const String& tensor_name,
                    const String& operator_type = "");
+
+/*! \brief Check the upscale method matches one given in allowed_upscale_methods. Raise a type
+ * inference error if not.
+ * \param reporter The infer type reporter.
+ * \param upscale_method The upscale method string to check.
+ * \param allowed_upscale_methods An initializer list of allowed upscale methods.
+ * \param operator_name The name of the operator to report.
+ * \param operator_type The type of the operator to report e.g. "ADD" for binary_elementwise.
+ */
+void CheckUpscaleMethod(const TypeReporter& reporter, const String& upscale_method,
+                        const std::initializer_list<String>& allowed_upscale_methods,
+                        const String& operator_name, const String& operator_type = "");
 
 /*! \brief Check the data type matches that of the second data type provided. Raise a type inference
  * error if not.

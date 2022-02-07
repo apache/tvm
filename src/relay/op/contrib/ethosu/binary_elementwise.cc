@@ -152,12 +152,12 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
   CheckDataTypeMatch(reporter, ifm_dtype, ifm2_dtype, operator_name, "ifm", "ifm2", operator_type);
 
   if (operator_type == "ADD" || operator_type == "SUB" || operator_type == "MUL") {
-    std::unordered_set<DataType> allowed_types = {DataType::Int(8), DataType::UInt(8),
-                                                  DataType::Int(16), DataType::Int(32)};
+    std::initializer_list<DataType> allowed_types = {DataType::Int(8), DataType::UInt(8),
+                                                     DataType::Int(16), DataType::Int(32)};
     CheckDataType(reporter, ifm_dtype, allowed_types, operator_name, "ifm", operator_type);
     CheckDataType(reporter, ofm_dtype, allowed_types, operator_name, "ofm", operator_type);
   } else if (operator_type == "MIN" || operator_type == "MAX") {
-    std::unordered_set<DataType> allowed_types = {DataType::Int(8), DataType::UInt(8)};
+    std::initializer_list<DataType> allowed_types = {DataType::Int(8), DataType::UInt(8)};
     CheckDataType(reporter, ifm_dtype, allowed_types, operator_name, "ifm", operator_type);
     CheckDataTypeMatch(reporter, ifm_dtype, ofm_dtype, operator_name, "ifm", "ofm", operator_type);
   } else if (operator_type == "SHR") {

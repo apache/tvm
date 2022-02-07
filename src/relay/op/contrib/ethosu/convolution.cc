@@ -138,14 +138,7 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
                 "weight");
   CheckDataType(reporter, scale_bias->dtype, {DataType::UInt(8)}, operator_name, "scale bias");
 
-  const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
-  if (upscale_methods.find(param->upscale) == upscale_methods.end()) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: Expected upsample method to be 'NONE', "
-                                        "'ZEROS' or 'NEAREST' but got "
-                                     << param->upscale);
-    return false;
-  }
+  CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));

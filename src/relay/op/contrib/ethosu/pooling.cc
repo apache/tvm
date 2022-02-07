@@ -135,14 +135,7 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
   CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm",
                 param->pooling_type);
 
-  const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
-  if (upscale_methods.find(param->upscale) == upscale_methods.end()) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: Expected upsample method to be 'NONE', "
-                                        "'ZEROS' or 'NEAREST' but got "
-                                     << param->upscale);
-    return false;
-  }
+  CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
 
   Array<IndexExpr> ifm_shape = ifm->shape;
   if (param->upscale != "NONE") {
