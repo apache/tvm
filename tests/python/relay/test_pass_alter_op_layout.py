@@ -1471,6 +1471,177 @@ def test_conv2d_reduce_channels():
         relay.build(mod, params=params, target="llvm")
 
 
+def test_alter_layout_nonscalar_broadcast():
+    """Test boradcast operators"""
+
+    def before():
+        x = relay.var("x", shape=(1, 16, 3, 3))
+        weight = relay.var("weight", shape=(16, 16, 1, 1))
+        y = relay.nn.conv2d(
+            x, weight, channels=16, kernel_size=(1, 1), padding=(0, 0), data_layout="NCHW"
+        )
+        z = relay.var("z", shape=(1, 3, 3))
+        y = y + z
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 16, 3, 3))
+        weight = relay.var("weight", shape=(16, 16, 1, 1))
+        x = relay.layout_transform(x, src_layout="NCHW", dst_layout="NCHW4c")
+        weight = relay.layout_transform(weight, src_layout="OIHW", dst_layout="OIHW4i4o")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=16,
+            kernel_size=(1, 1),
+            padding=(0, 0),
+            data_layout="NCHW4c",
+            kernel_layout="OIHW4i4o",
+        )
+        z = relay.var("z", shape=(1, 3, 3))
+        z = relay.expand_dims(z, 0)
+        z = relay.layout_transform(z, src_layout="NCHW", dst_layout="NCHW1c")
+        y = y + z
+        y = relay.layout_transform(y, src_layout="NCHW4c", dst_layout="NCHW")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW4c"
+        new_attrs["kernel_layout"] = "OIHW4i4o"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = run_opt_pass(before(), transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\nExpected = \n" + str(b)
+
+    inp = np.random.uniform(size=(1, 16, 3, 3)).astype(np.float32)
+    weight = np.random.uniform(size=(16, 16, 1, 1)).astype(np.float32)
+    z = np.random.uniform(size=(1, 3, 3)).astype(np.float32)
+    mod = tvm.IRModule.from_expr(before())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        with tvm.transform.PassContext(opt_level=4):
+            res = relay.build_module.create_executor(
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight, z)
+    with tvm.transform.PassContext(opt_level=0):
+        res1 = relay.build_module.create_executor(
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight, z)
+    np.testing.assert_allclose(res.numpy(), res1.numpy())
+
+
+def test_broadcast_non_adaptable():
+    """NCHW4c + [x, x, 4] and NCHW4c is being altered to NCHW"""
+
+    def before():
+        x = relay.var("x", shape=(1, 4, 3, 3, 4))
+        weight = relay.var("weight", shape=(4, 4, 1, 1, 4, 4))
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=16,
+            kernel_size=(1, 1),
+            padding=(0, 0),
+            data_layout="NCHW4c",
+            kernel_layout="OIHW4i4o",
+        )
+        z = relay.var("z", shape=(3, 3, 4))
+        y = y + z
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 4, 3, 3, 4))
+        weight = relay.var("weight", shape=(4, 4, 1, 1, 4, 4))
+        x = relay.layout_transform(x, src_layout="NCHW4c", dst_layout="NCHW")
+        weight = relay.layout_transform(weight, src_layout="OIHW4i4o", dst_layout="OIHW")
+        y = relay.nn.conv2d(
+            x,
+            weight,
+            channels=16,
+            kernel_size=(1, 1),
+            padding=(0, 0),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        z = relay.var("z", shape=(3, 3, 4))
+        y = relay.layout_transform(y, src_layout="NCHW", dst_layout="NCHW4c")
+        y = y + z
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW"
+        new_attrs["kernel_layout"] = "OIHW"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = run_opt_pass(before(), transform.AlterOpLayout())
+        b = run_opt_pass(expected(), transform.InferType())
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\nExpected = \n" + str(b)
+
+    inp = np.random.uniform(size=(1, 4, 3, 3, 4)).astype(np.float32)
+    weight = np.random.uniform(size=(4, 4, 1, 1, 4, 4)).astype(np.float32)
+    z = np.random.uniform(size=(3, 3, 4)).astype(np.float32)
+    mod = tvm.IRModule.from_expr(before())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        with tvm.transform.PassContext(opt_level=4):
+            res = relay.build_module.create_executor(
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight, z)
+    with tvm.transform.PassContext(opt_level=0):
+        res1 = relay.build_module.create_executor(
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight, z)
+    np.testing.assert_allclose(res.numpy(), res1.numpy())
+
+
+def test_broadcast_respect_input_layouts():
+    def before():
+        x = relay.var("x", shape=(1, 16, 1, 1))
+        w = relay.var("w", shape=(16, 16, 1, 1))
+        x = relay.nn.conv2d(
+            x,
+            w,
+            kernel_size=(1, 1),
+            padding=(0, 0),
+            channels=16,
+        )
+        y1 = relay.min(x, axis=[2])
+        y2 = relay.min(x, axis=[3])
+        z = y1 + y2
+        z = relay.Function(analysis.free_vars(z), z)
+        return z
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW4c"
+        new_attrs["kernel_layout"] = "OIHW4i4o"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    inp = np.random.uniform(size=(1, 16, 1, 1)).astype(np.float32)
+    weight = np.random.uniform(size=(16, 16, 1, 1)).astype(np.float32)
+    mod = tvm.IRModule.from_expr(before())
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        with tvm.transform.PassContext(opt_level=4):
+            res = relay.build_module.create_executor(
+                "graph", mod, target="llvm", device=tvm.cpu()
+            ).evaluate()(inp, weight)
+    with tvm.transform.PassContext(opt_level=0):
+        res1 = relay.build_module.create_executor(
+            "debug", mod, target="llvm", device=tvm.cpu()
+        ).evaluate()(inp, weight)
+    np.testing.assert_allclose(res.numpy(), res1.numpy())
+
+
 def test_axis_semantic_change():
     x = relay.var("x", shape=(1, 1, 24, 48))
     w1 = relay.const(np.random.uniform(size=(1, 1, 1, 1)))
