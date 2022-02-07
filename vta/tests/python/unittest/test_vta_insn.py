@@ -124,7 +124,9 @@ def test_padded_load():
             # build
             with vta.build_config():
                 # Build without the CSE pass that will otherwise do some commoning
-                with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                with tvm.transform.PassContext(
+                    opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]
+                ):
                     mod = vta.build(s, [x, y], tvm.target.Target("ext_dev", host=env.target_host))
 
             if not remote:
@@ -374,9 +376,13 @@ def test_alu():
             # build
             with vta.build_config():
                 # Build without the CSE pass that will otherwise do some commoning
-                with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+                with tvm.transform.PassContext(
+                    opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]
+                ):
                     if use_imm:
-                        mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
+                        mod = vta.build(
+                            s, [a, res], tvm.target.Target("ext_dev", host=env.target_host)
+                        )
                     else:
                         mod = vta.build(
                             s, [a, b, res], tvm.target.Target("ext_dev", host=env.target_host)
