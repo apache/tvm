@@ -27,8 +27,6 @@
 
 #include <tvm/relay/expr.h>
 
-#include <unordered_set>
-
 namespace tvm {
 namespace relay {
 namespace op {

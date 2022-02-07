@@ -144,8 +144,7 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
   CheckDataType(reporter, scale_bias->dtype, {DataType::UInt(8)}, operator_name, "scale bias");
 
   DataType ofm_dtype = DataTypeFromString(param->ofm_dtype);
-  std::initializer_list<DataType> ofm_dtypes = {DataType::UInt(8), DataType::Int(8),
-                                                DataType::Int(16), DataType::Int(32)};
+  auto ofm_dtypes = {DataType::UInt(8), DataType::Int(8), DataType::Int(16), DataType::Int(32)};
   CheckDataType(reporter, ofm_dtype, ofm_dtypes, operator_name, "ofm");
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
