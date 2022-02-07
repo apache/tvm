@@ -257,12 +257,12 @@ def test_cse_cascade():
     # Mem[i2] = (x+y)+z;
     # Mem[i3] = x+y
     body = tvm.tir.SeqStmt(
-              [
+        [
                 tvm.tir.Store(buffer.data, (x + y) + z, i1),
                 tvm.tir.Store(buffer.data, (x + y) + z, i2),
                 tvm.tir.Store(buffer.data, (x + y), i3)
-              ]
-            )
+        ]
+    )
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
     body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
