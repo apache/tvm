@@ -56,29 +56,23 @@ def _get_addition_qnn_params(dtype, input1_zp, input1_sc, input2_zp, input2_sc):
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8"])
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
 def test_addition(dtype):
+    zp_min = np.iinfo(dtype).min
+    zp_max = np.iinfo(dtype).max
     trials = [
-        ((1, 22, 9, 9), 24, 1.057, 253, 0.452),
-        ((1, 27, 21, 16), 79, 0.850, 24, 0.380),
-        ((1, 7, 12, 28), 125, 1.293, 239, 0.320),
-        ((1, 14, 9, 6), 14, 0.942, 227, 1.562),
-        ((1, 13, 16, 22), 15, 0.727, 180, 0.461),
+        ((1, 22, 9, 9), zp_min + 24, 1.057, zp_max - 3, 0.452),
+        ((1, 27, 21, 16), zp_min + 79, 0.850, 24, 0.380),
+        ((1, 7, 12, 28), zp_min + 125, 1.293, zp_max - 16, 0.320),
+        ((1, 14, 9, 6), zp_min + 14, 0.942, zp_max - 28, 1.562),
+        ((1, 13, 16, 22), zp_min + 15, 0.727, zp_max - 75, 0.461),
     ]
     np.random.seed(0)
     for shape, rhs_zp, rhs_sc, lhs_zp, lhs_sc in trials:
         outputs = []
         inputs = {
-            "a": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
-            ),
-            "b": tvm.nd.array(
-                np.random.randint(
-                    np.iinfo(dtype).min, np.iinfo(dtype).max + 1, size=shape, dtype=dtype
-                )
-            ),
+            "a": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
+            "b": tvm.nd.array(np.random.randint(zp_min, zp_max + 1, size=shape, dtype=dtype)),
         }
         out_zp, out_sc = _get_addition_qnn_params(dtype, lhs_zp, lhs_sc, rhs_zp, rhs_sc)
         model = _get_model(shape, lhs_zp, lhs_sc, rhs_zp, rhs_sc, out_zp, out_sc, dtype)
