@@ -23,15 +23,6 @@ import pytest
 import tvm
 from tvm import relay
 
-from utils import (
-    make_module,
-    count_num_calls,
-    get_range_for_dtype_str,
-    get_same_padding,
-    get_conv2d_qnn_params,
-    make_qnn_relu,
-)
-
 tvm._ffi._init_api("relay.ext.cmsisnn.transform", __name__)
 
 
@@ -136,7 +127,6 @@ def test_multiple_functions():
     c10 = relay.Call(f20, [x10])
     c11 = relay.Call(f21, [c10])
     ef = relay.Function([x10], c11, relay.TensorType((8, 8), "float32"))
-
     x0 = relay.var("x0", shape=(8, 8))
     ev = relay.GlobalVar("cmsis-nn")
     ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
@@ -182,56 +172,42 @@ def test_main_function():
     ), "main() should have same number of arguments as before"
 
 
-def parameterize_for_invalid_model(test):
-    local_func_1 = ["cmsis-nn.qnn_op_1", "local_function_1"]
-    local_func_2 = ["cmsis-nn.qnn_op_2", "local_function_2"]
-    compiler_name = ["cmsis-nn", "external_compiler"]
-    all_combinations = itertools.product(local_func_1, local_func_2, compiler_name)
-    all_combinations = filter(
-        lambda parameters: not (
-            parameters[2] == "cmsis-nn"
-            and parameters[0] == "cmsis-nn.qnn_op_1"
-            and parameters[1] == "cmsis-nn.qnn_op_2"
-        ),
-        all_combinations,
-    )
-    return pytest.mark.parametrize(
-        ["func_name_1", "func_name_2", "external_compiler"],
-        all_combinations,
-    )(test)
-
-
 @tvm.testing.requires_cmsisnn
-@parameterize_for_invalid_model
-def test_multiple_functions_non_cmsisnn_compiler(func_name_1, func_name_2, external_compiler):
+@pytest.mark.parametrize("external_compiler", ["cmsis-nn", "other_compiler"])
+def test_multiple_functions_non_cmsisnn_compiler(external_compiler):
     y20_data = np.random.uniform(0, 1, (8, 8)).astype("float32")
     x20 = relay.var("x20", shape=(8, 8))
     y20_const = relay.const(y20_data, "float32")
     z20 = x20 + y20_const
     f20 = relay.Function([x20], z20, relay.TensorType((8, 8), "float32"))
-    f20 = set_composite_func_attr(f20, func_name_1)
+    f20 = set_composite_func_attr(f20, "cmsis-nn.qnn_op_1")
+    x10 = relay.var("x10", shape=(8, 8))
+    c10 = relay.Call(f20, [x10])
+    ef0 = relay.Function([x10], c10, relay.TensorType((8, 8), "float32"))
 
     y21_data = np.random.uniform(0, 1, (8, 8)).astype("float32")
     x21 = relay.var("x21", shape=(8, 8))
     y21_const = relay.const(y21_data, "float32")
     z21 = x21 + y21_const
     f21 = relay.Function([x21], z21, relay.TensorType((8, 8), "float32"))
-    f21 = set_composite_func_attr(f21, func_name_2)
-
-    x10 = relay.var("x10", shape=(8, 8))
-    c10 = relay.Call(f20, [x10])
-    c11 = relay.Call(f21, [c10])
-    ef = relay.Function([x10], c11, relay.TensorType((8, 8), "float32"))
+    f21 = set_composite_func_attr(f21, "cmsis-nn.qnn_op_2")
+    x11 = relay.var("x11", shape=(8, 8))
+    c11 = relay.Call(f21, [x11])
+    ef1 = relay.Function([x11], c11, relay.TensorType((8, 8), "float32"))
 
     x0 = relay.var("x0", shape=(8, 8))
-    ev = relay.GlobalVar("external_function")
-    ef = set_external_func_attr(ef, external_compiler, ev.name_hint)
-    c = relay.Call(ev, [x0])
-    mf = relay.Function([x0], c, relay.TensorType((8, 8), "float32"))
+    ev0 = relay.GlobalVar("external_function_0")
+    ef0 = set_external_func_attr(ef0, external_compiler, ev0.name_hint)
+    c0 = relay.Call(ev0, [x0])
+    ev1 = relay.GlobalVar("external_function_1")
+    ef1 = set_external_func_attr(ef1, external_compiler, ev1.name_hint)
+    c1 = relay.Call(ev1, [c0])
+    mf = relay.Function([x0], c1, relay.TensorType((8, 8), "float32"))
     mv = relay.GlobalVar("main")
 
     mod = tvm.IRModule()
-    mod[ev] = ef
+    mod[ev0] = ef0
+    mod[ev1] = ef1
     mod[mv] = mf
 
     mod = ExtractConstantsFromPartitionedFunction()(mod)
@@ -240,10 +216,7 @@ def test_multiple_functions_non_cmsisnn_compiler(func_name_1, func_name_2, exter
 
     num_extracted_constants = 0
     if external_compiler == "cmsis-nn":
-        if "cmsis-nn" in func_name_1:
-            num_extracted_constants += 1
-        if "cmsis-nn" in func_name_2:
-            num_extracted_constants += 1
+        num_extracted_constants = 2
 
     assert (
         check_for_constants.num_constants_ == num_extracted_constants

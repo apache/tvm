@@ -79,7 +79,7 @@ def test_mutate_tile_size_matmul():
     )
     results = {}
     sch = _sch(decisions=[[4, 32, 4, 1]])
-    for _ in range(100):
+    for _ in range(1000):
         trace = mutator.apply(sch.trace)
         assert trace.insts[4].kind.name == "SamplePerfectTile"
         decision = trace.decisions[trace.insts[4]]

@@ -54,6 +54,29 @@ def count_num_calls(mod):
     return counter.count
 
 
+def assert_partitioned_function(orig_mod, cmsisnn_mod):
+    attrs = [
+        cmsisnn_mod[var.name_hint].attrs
+        for var in cmsisnn_mod.get_global_vars()
+        if cmsisnn_mod[var.name_hint].attrs
+    ]
+    assert any(attrs), "At least one function with external attributes was expected."
+
+    compilers = [
+        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
+    ]
+    assert any(compilers), "Module does not contain function for cmsisnn target."
+
+    assert count_num_calls(orig_mod) == count_num_calls(
+        cmsisnn_mod
+    ), "Number of calls changed during partitioning"
+
+
+def assert_no_external_function(mod):
+    attrs = [mod[var.name_hint].attrs for var in mod.get_global_vars() if mod[var.name_hint].attrs]
+    assert not any(attrs), "No function should have an external attribute."
+
+
 def get_range_for_dtype_str(dtype):
     """
     Produces the min,max for a give data type.

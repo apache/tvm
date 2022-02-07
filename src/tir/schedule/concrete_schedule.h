@@ -124,13 +124,13 @@ class ConcreteScheduleNode : public ScheduleNode {
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) override;
   /******** Schedule: Blockize & Tensorize ********/
   BlockRV Blockize(const LoopRV& loop_rv) override;
-  void Tensorize(const BlockRV& loop_rv, const String& intrin) override;
+  void Tensorize(const BlockRV& block_rv, const String& intrin) override;
   void Tensorize(const LoopRV& loop_rv, const String& intrin) override;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
-  void Unannotate(const BlockRV& loop_rv, const String& ann_key) override;
+  void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
 
   /******** Schedule: Misc ********/
   void EnterPostproc() override {}

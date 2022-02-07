@@ -121,9 +121,8 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     }
   }
   // Last cond: Check inline into the consumers or the spatial producer
-  tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,          //
-                                                /*require_stage_pipeline=*/false,  //
-                                                /*require_subtree_compact_dataflow=*/false);
+  tir::StmtSRef scope_block = tir::GetScopeRoot(sch->state(), block_sref,
+                                                /*require_stage_pipeline=*/false);
   if (into_consumer) {
     Array<tir::StmtSRef> consumer_srefs = GetConsumers(state, block_sref);
     if (!consumer_srefs.empty() && CanComputeInline(state, block_sref)) {

@@ -43,10 +43,12 @@ bool HasOnlyOneFunction(const IRModule& mod) {
 
 /**************** ExtractedTask ****************/
 
-ExtractedTask::ExtractedTask(String task_name, IRModule mod, Array<IRModule> dispatched) {
+ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
+                             Array<IRModule> dispatched) {
   ObjectPtr<ExtractedTaskNode> n = make_object<ExtractedTaskNode>();
   n->task_name = task_name;
   n->mod = mod;
+  n->target = target;
   n->dispatched = dispatched;
   data_ = n;
 }
@@ -78,9 +80,9 @@ void MetaScheduleContext::ExitWithScope() {
 }
 
 Optional<ObjectRef> MetaScheduleContext::QueryInsideWithScope(
-    runtime::String task_name, IRModule mod, Optional<Array<IRModule>> dispatched) {
+    runtime::String task_name, IRModule mod, Target target, Optional<Array<IRModule>> dispatched) {
   if (Optional<MetaScheduleContext> ctx = MetaScheduleContext::Current()) {
-    return ctx.value()->Query(task_name, mod, dispatched);
+    return ctx.value()->Query(task_name, mod, target, dispatched);
   }
   return NullOpt;
 }
@@ -94,13 +96,13 @@ TaskExtraction::TaskExtraction() {
 }
 
 Optional<ObjectRef> TaskExtractionNode::Query(runtime::String task_name, IRModule mod,
-                                              Optional<Array<IRModule>> dispatched) {
+                                              Target target, Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
   ICHECK(HasOnlyOneFunction<relay::Function>(mod)) << mod;
-  tasks.push_back(ExtractedTask(task_name, mod, {prim_mod}));
+  tasks.push_back(ExtractedTask(task_name, mod, target, {prim_mod}));
   return NullOpt;
 }
 
@@ -113,6 +115,7 @@ ApplyHistoryBest::ApplyHistoryBest(Database database) {
 }
 
 Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRModule mod,
+                                                Target target,
                                                 Optional<Array<IRModule>> dispatched) {
   ICHECK(dispatched.defined());
   ICHECK_EQ(dispatched.value().size(), 1);
@@ -147,9 +150,9 @@ TVM_REGISTER_NODE_TYPE(TaskExtractionNode);
 TVM_REGISTER_NODE_TYPE(ApplyHistoryBestNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
-    .set_body_typed([](String task_name, IRModule mod,
+    .set_body_typed([](String task_name, IRModule mod, Target target,
                        Array<IRModule> dispatched) -> ExtractedTask {
-      return ExtractedTask(task_name, mod, dispatched);
+      return ExtractedTask(task_name, mod, target, dispatched);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.MetaScheduleContextEnterScope")
     .set_body_typed(MetaScheduleContextInternal::EnterScope);

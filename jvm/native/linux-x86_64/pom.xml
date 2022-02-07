@@ -48,18 +48,59 @@ under the License.
   </dependencies>
 
   <build>
+    <sourceDirectory>${basedir}/../../core/src/main/java</sourceDirectory>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>header-generation</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>compile</goal>
+            </goals>
+            <configuration>
+              <compilerArgs>
+                <arg>-h</arg>
+                <arg>${basedir}/generated</arg>
+                <arg>-classpath</arg>
+                <arg>${project.build.directory}/classes:${project.build.directory}/../../../core/tvm4j-core-0.0.1-SNAPSHOT.jar</arg>/
+              </compilerArgs>
+              <includes>
+                <include>org/apache/tvm/LibInfo.java</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
+
+<!--      Rename and move generated 'org_apache_tvm_LibInfo.h' to 'org_apache_tvm_native_c_api.h'-->
+      <plugin>
+      <artifactId>maven-antrun-plugin</artifactId>
+      <version>1.7</version>
+      <executions>
+        <execution>
+          <id>copy-header</id>
+          <phase>process-sources</phase>
+          <configuration>
+            <target>
+              <copy file="${basedir}/generated/org_apache_tvm_LibInfo.h"
+                    tofile="${basedir}/../src/main/native/org_apache_tvm_native_c_api.h" />
+            </target>
+          </configuration>
+          <goals>
+            <goal>run</goal>
+          </goals>
+        </execution>
+      </executions>
+    </plugin>
 
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>native-maven-plugin</artifactId>
         <extensions>true</extensions>
         <configuration>
-          <!--  trigger javah -->
           <javahOS>linux</javahOS>
           <compilerProvider>generic-classic</compilerProvider>
           <compilerExecutable>${cxx}</compilerExecutable>
@@ -77,6 +118,8 @@ under the License.
           </compilerStartOptions>
           <compilerEndOptions>
             <compilerEndOption>-I../../../include</compilerEndOption>
+            <compilerEndOption>-I${JAVA_HOME}/include</compilerEndOption>
+            <compilerEndOption>-I${JAVA_HOME}/include/linux</compilerEndOption>
             <compilerEndOption>${cflags}</compilerEndOption>
           </compilerEndOptions>
           <linkerStartOptions>
@@ -86,26 +129,6 @@ under the License.
             <linkerEndOption>${ldflags}</linkerEndOption>
           </linkerEndOptions>
         </configuration>
-
-        <executions>
-          <execution>
-            <id>javah</id>
-            <phase>generate-sources</phase>
-            <configuration>
-              <javahOS>linux</javahOS>
-              <javahProvider>default</javahProvider>
-              <javahOutputDirectory>${project.build.directory}/custom-javah</javahOutputDirectory>
-              <workingDirectory>${basedir}</workingDirectory>
-              <javahOutputFileName>org_apache_tvm_native_c_api.h</javahOutputFileName>
-              <javahClassNames>
-                <javahClassName>org.apache.tvm.LibInfo</javahClassName>
-              </javahClassNames>
-            </configuration>
-            <goals>
-              <goal>javah</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>

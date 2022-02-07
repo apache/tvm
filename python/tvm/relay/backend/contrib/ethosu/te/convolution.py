@@ -115,10 +115,17 @@ def conv2d_compute(
     stride_h, stride_w = [int(v) for v in strides]
     dilation_h, dilation_w = [int(v) for v in dilation]
     ofm_channels, kernel_h, kernel_w, ifm_channels = [int(v) for v in weight.shape]
+    upscale_factor = 2 if upscale != "NONE" else 1
 
     # Compute operation for the IFM DMA pipeline
     dmaed_ifm = dma_ifm_compute(
-        ifm, ifm_layout, ifm_zero_point, ifm_scale, weight.shape[3], padding
+        ifm,
+        ifm_layout,
+        ifm_zero_point,
+        ifm_scale,
+        weight.shape[3],
+        padding,
+        upscale_factor,
     )
 
     # 2D Convolution compute operation
