@@ -240,7 +240,73 @@ def test_cse_ifNode_2():
     assert tvm.ir.structural_equal(body.value, y + z)
 
 
+# Test commoning in cascade : after having introduced a big exp ((x+y)+z) into a new variable,
+# it will become possible to do another commoning for (x+y) which appears both in the new variable
+# and in the rest of the program.
+def test_cse_cascade():
+    i1 = te.var("i1")
+    i2 = te.var("i2")
+    i3 = te.var("i3")
+    x = te.var("x")
+    y = te.var("y")
+    z = te.var("z")
+    dtype = "int32"
+    buffer = tvm.tir.decl_buffer((50,), dtype)
+    # Test prog :
+    # Mem[i1] = (x+y)+z;
+    # Mem[i2] = (x+y)+z;
+    # Mem[i3] = x+y
+    body = tvm.tir.SeqStmt(
+              [
+                tvm.tir.Store(buffer.data, (x + y) + z, i1),
+                tvm.tir.Store(buffer.data, (x + y) + z, i2),
+                tvm.tir.Store(buffer.data, (x + y), i3)
+              ]
+            )
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([i1, i2, i3, x, y, z], body))
+    body = tvm.tir.transform.CommonSubexprElimTIR()(mod)
+
+    tvm.transform.PrintIR()(body)
+
+    body = body["main"].body  # Gets the body of the main, i.e. the full statement
+
+    assert isinstance(body, tvm.tir.LetStmt)
+
+    # The second let-in (by order introduced) introduced by the CSE should appear first
+    cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_var_2"
+    # and it should contain the expression (x+y)
+    assert tvm.ir.structural_equal(body.value, (x + y))
+
+    body = body.body
+
+    assert isinstance(body, tvm.tir.LetStmt)
+
+    # The first let-in (by order introduced) introduced by the CSE should appear now, after the 2nd
+    cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_var_1"
+    # and it should contain the expression cse_var_2+z
+    assert tvm.ir.structural_equal(body.value, cse_var_2 + z)
+
+    body = body.body
+
+    assert isinstance(body, tvm.tir.SeqStmt)
+    assert isinstance(body[0], tvm.tir.Store)
+    assert isinstance(body[1], tvm.tir.Store)
+    assert isinstance(body[2], tvm.tir.Store)
+
+    store1 = body[0]
+    store2 = body[1]
+    store3 = body[2]
+
+    assert tvm.ir.structural_equal(store1.value, cse_var_1)
+    assert tvm.ir.structural_equal(store2.value, cse_var_1)
+    assert tvm.ir.structural_equal(store3.value, cse_var_2)
+
+
 if __name__ == "__main__":
     test_cse()
     test_cse_ifNode_1()
     test_cse_ifNode_2()
+    test_cse_cascade()

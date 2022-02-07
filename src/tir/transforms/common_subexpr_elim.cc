@@ -188,6 +188,7 @@ CommonSubexpressionEliminator::CommonSubexpressionEliminator(const Stmt& stmt,
  * \param expr The expression to mutate
  */
 PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
+  bool variables_created = false;  // Will be needed for knowing if the CSE has created new vars
   PrimExpr result = expr;
 
   // Obtain the (syntactic) eligible computations done by the input expression, and keep it as
@@ -303,9 +304,17 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
     // Note : we do not remove the current element, as we never look back in the local vector
   }  // End of for loop
 
-  // Calling the dispatcher to the specific treatments, which will update the context
-  // appropriately before doing the recursive calls on the child nodes
-  result = StmtExprMutator::VisitExpr(result);
+  // If the CSE pass has created some variables, then we run it again as more commoning could
+  // potentially happen using the new variables introduced
+  if(variables_created) {
+    result = VisitExpr(result);
+  }
+  // But if no changes were performed, we recurse inside the children by calling the dispatcher
+  else {
+    // Calling the dispatcher to the specific treatments, which will update the context
+    // appropriately before doing the recursive calls on the children nodes
+    result = StmtExprMutator::VisitExpr(result);
+  }
 
   return result;
 }
@@ -358,6 +367,7 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr_(const LetNode* op) {
  * \param stmt The statement to mutate.
  */
 Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
+  bool variables_created = false;  // Will be needed for knowing if the CSE has created new vars
   Stmt result = stmt;
 
   // Obtain the (syntactic) eligible computations done by the input statement, and keep it as
@@ -439,6 +449,7 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
           PredicateIntroVarForComputation(computation_and_nb.first, computation_and_nb.second)) {
         // Create a new variable for this computation
         Var new_var = GenerateNewVar(computation_and_nb.first.dtype());
+        variables_created = true;
         // Replace in the current `result` everything that is selected by the selector with
         // the new variable, without diving into expressions in which we don't have the
         // right to dive.
@@ -473,9 +484,17 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
     // Note : we do not remove the current element, as we never look back in the local vector
   }  // End of for loop
 
-  // Calling the dispatcher to the specific treatments, which will update the context
-  // appropriately before doing the recursive calls on the child nodes
-  result = StmtExprMutator::VisitStmt(result);
+  // If the CSE pass has created some variables, then we run it again as more commoning could
+  // potentially happen using the new variables introduced
+  if(variables_created) {
+    result = VisitStmt(result);
+  }
+  // But if no changes were performed, we recurse inside the children by calling the dispatcher
+  else {
+    // Calling the dispatcher to the specific treatments, which will update the context
+    // appropriately before doing the recursive calls on the children nodes
+    result = StmtExprMutator::VisitStmt(result);
+  }
 
   return result;
 }
