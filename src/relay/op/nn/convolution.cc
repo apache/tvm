@@ -648,13 +648,15 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
   if (in_channels_intimm->value == out_channels_intimm->value &&
       in_channels_intimm->value == param->groups) {
     // depthwise
-    ICHECK(param->channels.defined()) << "out_channels attribute not specified for depth wise conv2d.";
+    ICHECK(param->channels.defined())
+        << "out_channels attribute not specified for depth wise conv2d.";
     weight_dim_i = indexdiv(param->channels, param->groups);
   } else {
     weight_dim_i = indexdiv(in_channels, param->groups);
   }
 
-  Array<IndexExpr> wshape_oihw{out_channels, weight_dim_i, param->kernel_size[0], param->kernel_size[1]};
+  Array<IndexExpr> wshape_oihw{out_channels, weight_dim_i, param->kernel_size[0],
+                               param->kernel_size[1]};
   auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
 
   const auto dw_dtype = param->out_dtype == DataType() ? grad->dtype : param->out_dtype;
