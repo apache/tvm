@@ -18,6 +18,7 @@
 import tvm
 from tvm import te
 import numpy as np
+from tvm import relay
 from tvm.contrib import graph_executor
 from tvm.relay.testing import run_infer_type
 
@@ -165,7 +166,7 @@ def test_dynamic_quantize():
 
     for target, dev in tvm.testing.enabled_targets():
         # TODO: (electriclilies) enable AlterOpLayout when it is fixed
-        with tvm.transform.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
             lib = relay.build(mod, target=target)
 
     module = graph_executor.GraphModule(lib["default"](dev))
