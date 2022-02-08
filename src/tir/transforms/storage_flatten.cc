@@ -1348,8 +1348,8 @@ class StorageFlattener : public StmtExprMutator {
       // dedicated pass.
 
       // Boolean tensors are backed by a Int8 array.
-      if (e.buffer->dtype == DataType::Bool()) {
-        auto writer = e.buffer.CopyOnWrite();
+      if (e.flattened_buffer->dtype == DataType::Bool()) {
+        auto writer = e.flattened_buffer.CopyOnWrite();
         writer->dtype = DataType::Int(8);
       }
 
