@@ -17,12 +17,40 @@
 # pylint: disable=import-outside-toplevel, invalid-name
 """Instantiate a C++ source for profiling CUTLASS kernels."""
 
+from .library import DataTypeTag
+
 
 class Conv2dProfilerEmitter(object):
     """Emit a C++ source for profiling CUTLASS kernels."""
 
     def __init__(self):
         from jinja2 import Template
+
+        self.reduction = """
+      ReductionDevice reduction_op;
+      static cutlass::conv::Operator const kConvolutionalOperator = ImplicitGemm::kConvolutionalOperator;
+      typename ReductionDevice::Arguments reduction_args(
+        cutlass::conv::implicit_gemm_problem_size(kConvolutionalOperator, problem_size).mn(),
+        problem_size.split_k_slices,
+        cutlass::conv::implicit_gemm_tensor_c_size(kConvolutionalOperator, problem_size),
+        {
+      	 reinterpret_cast<ImplicitGemm::ElementC*> (workspace.get()),
+      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   },
+        {
+      	 tensor_d.device_data(),
+      	   ReductionStrideIndex(tensor_d.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   },
+        {
+      	 tensor_c.device_data(),
+      	   ReductionStrideIndex(tensor_c.stride()[ImplicitGemm::ImplicitGemmKernel::kTensorCStrideIdx])
+      	   },
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(0)}
+        );
+
+      reduction_op.initialize(reduction_args, nullptr);
+      reduction_op();
+"""
 
         self.template = Template(
             """
@@ -35,6 +63,8 @@ class Conv2dProfilerEmitter(object):
 #include "cutlass/util/command_line.h"
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/util/reference/host/tensor_fill.h"
+#include "cutlass/reduction/device/reduce_split_k.h"
+#include "cutlass/reduction/thread/reduction_operators.h"
 
 #define CUTLASS_CHECK(status)                                                                    \
   {                                                                                              \
@@ -88,10 +118,11 @@ struct Options {
 };
 
 double profile_convolution(Options const &options) {
-  using ElementOutput = typename ImplicitGemm::ElementC;
+  using ElementOutput = {{ElementOutput}};
   using ElementInputA = typename ImplicitGemm::ElementA;
   using ElementInputB = typename ImplicitGemm::ElementB;
 
+  int split_k_slices = {{SplitK}};
   cutlass::conv::Conv2dProblemSize problem_size(
 						options.input_size,
 						options.filter_size,
@@ -100,7 +131,7 @@ double profile_convolution(Options const &options) {
 						options.dilation,
 						options.output_size(),
 						cutlass::conv::Mode::kCrossCorrelation,
-						1
+						split_k_slices
 						);
 
   auto conv_kind = ImplicitGemm::kConvolutionalOperator;
@@ -108,20 +139,26 @@ double profile_convolution(Options const &options) {
   auto b_extent = implicit_gemm_tensor_b_extent(conv_kind, problem_size);
   auto c_extent = implicit_gemm_tensor_c_extent(conv_kind, problem_size);
 
+  using LayoutC = typename ImplicitGemm::LayoutC;
   cutlass::HostTensor<ElementInputA, typename ImplicitGemm::LayoutA> tensor_a(a_extent);
   cutlass::HostTensor<ElementInputB, typename ImplicitGemm::LayoutB> tensor_b(b_extent);
   cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_c(c_extent);
-  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_ref_c(c_extent);
+  cutlass::HostTensor<ElementOutput, LayoutC> tensor_d(c_extent);
+  cutlass::HostTensor<ImplicitGemm::ElementC, LayoutC> tensor_c_gemm(c_extent);
 
   using ElementComputeEpilogue = typename ImplicitGemm::ElementCompute;
+
+  cutlass::conv::SplitKMode const split_k_mode = split_k_slices > 1 ?
+      cutlass::conv::SplitKMode::kParallel : cutlass::conv::SplitKMode::kSerial;
 
   typename ImplicitGemm::Arguments arguments{
     problem_size,
     tensor_a.device_ref(),
     tensor_b.device_ref(),
-    tensor_c.device_ref(),
-    tensor_c.device_ref(),
+    tensor_c_gemm.device_ref(),
+    tensor_c_gemm.device_ref(),
     {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
+    split_k_mode,
   };
 
   ImplicitGemm implicit_gemm_op;
@@ -144,6 +181,7 @@ double profile_convolution(Options const &options) {
   for (int iteration = 0; iteration < 100; ++iteration) {
     auto status = implicit_gemm_op();
     CUTLASS_CHECK(status);
+    {{Reduction}}
   }
 
   cudaEventRecord(events[1]);
@@ -166,6 +204,12 @@ int main(int argc, char const **args) {
 """
         )
 
-    def emit(self, op_def, op_name):
-        src = self.template.render(OperatorDef=op_def, OperatorName=op_name)
+    def emit(self, op_def, op_name, element_output, split_k_slices=1):
+        src = self.template.render(
+            OperatorDef=op_def,
+            OperatorName=op_name,
+            ElementOutput=DataTypeTag[element_output],
+            SplitK=split_k_slices,
+            Reduction=self.reduction if split_k_slices > 1 else "",
+        )
         return src

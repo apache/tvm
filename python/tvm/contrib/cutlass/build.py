@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, dangerous-default-value
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
@@ -238,6 +238,7 @@ def handle_conv2d(
     data_dtype,
     weight_dtype,
     use_3xtf32,
+    split_k_slices,
     profile_all_alignments,
     find_first_valid,
     use_multiprocessing,
@@ -269,6 +270,7 @@ def handle_conv2d(
             weight_dtype,
             use_3xtf32,
             conv_kind,
+            split_k_slices,
             profile_all_alignments,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
@@ -288,6 +290,7 @@ def tune_cutlass_kernels(
     mod,
     sm,
     use_3xtf32=True,
+    split_k_slices=[1],
     profile_all_alignments=False,
     find_first_valid=False,
     use_multiprocessing=False,
@@ -308,6 +311,14 @@ def tune_cutlass_kernels(
     use_3xtf32 : bool
         Wheter or not use slower but very accurate (compared to tf32) 3xtf32 mode for
         fp32 inputs on tensorcore.
+
+    split_k_slices : list of int
+        Split factor candidates for split-K GEMM. If split-K > 1, the GEMM K-loop is computed in
+        parallel accross split-K blocks, and a seperate global reduction kernel is launched to
+        accumulate partial reductions. The profiler will pick the best split-k factor from the
+        given candidate list. Note that the larger split-K factor requires a larger workspace.
+        Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d
+        kinds, split_k_slices is ignored.
 
     profile_all_alignments : bool
         When True, profile all kernal variants with smaller alignments than the largest possible.
@@ -380,6 +391,7 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
+                        split_k_slices,
                         profile_all_alignments,
                         find_first_valid,
                         use_multiprocessing,
