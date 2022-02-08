@@ -534,13 +534,12 @@ class BufferStrideLegalize : public StmtExprMutator {
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     auto alloc_key = node->buffer->data.get();
-    if (allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(node->buffer) && allocate_node_var_.count(alloc_key)) {
       BufferEntry entry;
       entry.remap_to = WithStrides(node->buffer);
       entry.in_scope = true;
       entry.is_external = false;
       buf_map_[node->buffer] = entry;
-      allocate_node_var_.erase(alloc_key);
     }
 
     auto it = buf_map_.find(node->buffer);
@@ -1039,11 +1038,10 @@ class BufferBindUnwrapper : public StmtExprMutator {
 
   const BufferEntry& GetBufferEntry(Buffer buffer) {
     auto alloc_key = buffer->data.get();
-    if (allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(buffer.get()) && allocate_node_var_.count(alloc_key)) {
       BufferEntry entry;
       entry.buffer = buffer;
       buf_map_[buffer.get()] = std::move(entry);
-      allocate_node_var_.erase(alloc_key);
     }
 
     auto it = buf_map_.find(buffer.get());
@@ -1514,12 +1512,11 @@ class StorageFlattener : public StmtExprMutator {
 
   const BufferEntry& GetBufferEntry(Buffer buffer) {
     auto alloc_key = buffer->data.get();
-    if (allocate_node_var_.count(alloc_key)) {
+    if (!buf_map_.count(buffer) && allocate_node_var_.count(alloc_key)) {
       BufferEntry entry;
       entry.buffer = buffer;
       entry.flattened_buffer = buffer.GetFlattenedBuffer();
       buf_map_[buffer] = std::move(entry);
-      allocate_node_var_.erase(alloc_key);
     }
 
     auto it = buf_map_.find(buffer);
