@@ -18,6 +18,7 @@
 """Arm(R) Ethos(TM)-N integration conv2d tests"""
 
 import numpy as np
+import pytest
 import math
 import tvm
 from tvm import relay
@@ -77,7 +78,7 @@ def _get_model(
         weight_shape = (kernel_h, kernel_w, out_channels, 1)
     w = tvm.nd.array(
         np.random.randint(
-            np.iinfo(dtype).min, high=np.iinfo(dtype).max, size=weight_shape, dtype=dtype
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=weight_shape, dtype=dtype
         )
     )
     weights = relay.const(w, dtype)
@@ -98,7 +99,11 @@ def _get_model(
         padding=p if pad == "attr" or pad == "both" else (0, 0, 0, 0),
         out_dtype="int32",
     )
-    b = tvm.nd.array(np.random.randint(0, high=10, size=(out_channels,), dtype="int32"))
+    b = tvm.nd.array(
+        np.random.randint(
+            np.iinfo(dtype).min, high=np.iinfo(dtype).max + 1, size=(out_channels,), dtype="int32"
+        )
+    )
     biasc = relay.const(b, "int32")
     bias = relay.nn.bias_add(conv, biasc, axis=3)
     req = relay.qnn.op.requantize(
@@ -107,14 +112,16 @@ def _get_model(
         relay.const(0, "int32"),  # input zero point
         relay.const(output_sc, "float32"),  # output zero scale
         relay.const(output_zp, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     params = {"w": w, "b": b}
     return req, params
 
 
 @requires_ethosn
-def test_conv2d():
+@pytest.mark.parametrize("depthwise", [False, True])
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_conv2d(dtype, depthwise):
     trials = [
         [(1, 17, 20, 26), 4, 3, 1, "attr", (2, 2), (1, 1)],
         [(1, 30, 27, 30), 5, 5, 3, "none", (1, 1), (1, 1)],
@@ -131,52 +138,60 @@ def test_conv2d():
     ]
 
     np.random.seed(0)
-    for depthwise in [False, True]:
-        for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation in trials:
-            if depthwise:
-                out_channels = shape[3]
-                groups = out_channels
-                kernel_w = kernel_h
-                weight_format = "HWOI"
-                stride = (1, 1) if kernel_w == 1 else (2, 2)
-            else:
-                groups = 1
-                weight_format = "HWIO"
+    for shape, out_channels, kernel_h, kernel_w, pad, stride, dilation in trials:
+        if depthwise:
+            out_channels = shape[3]
+            groups = out_channels
+            kernel_w = kernel_h
+            weight_format = "HWOI"
+            stride = (1, 1) if kernel_w == 1 else (2, 2)
+        else:
+            groups = 1
+            weight_format = "HWIO"
 
-            outputs = []
-            inputs = {
-                "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
-            }
-            input_zp = np.random.randint(0, 255)
-            input_sc = np.random.random() * 2
-            kernel_zp = np.random.randint(0, 255)
-            kernel_sc = np.random.random() * 2
-            output_zp, output_sc = tei.get_conv2d_qnn_params(
-                input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
-            )
-            model, params = _get_model(
-                shape,
-                kernel_h,
-                kernel_w,
-                input_zp,
-                input_sc,
-                kernel_zp,
-                kernel_sc,
-                output_zp,
-                output_sc,
-                pad,
-                stride,
-                dilation,
-                groups,
-                "uint8",
-                out_channels,
-                weight_format,
-            )
-            for npu in [False, True]:
-                mod = tei.make_module(model, params)
-                outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
+        outputs = []
+        inputs = {
+            "a": tvm.nd.array(
+                np.random.randint(
+                    np.iinfo(dtype).min,
+                    np.iinfo(dtype).max + 1,
+                    size=shape,
+                    dtype=dtype,
+                )
+            ),
+        }
+        input_zp = np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+        input_sc = np.random.random() * 2
+        kernel_sc = np.random.random() * 2
+        kernel_zp = (
+            0 if dtype == "int8" else np.random.randint(np.iinfo(dtype).min, np.iinfo(dtype).max)
+        )
+        output_zp, output_sc = tei.get_conv2d_qnn_params(
+            dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, shape[3]
+        )
+        model, params = _get_model(
+            shape,
+            kernel_h,
+            kernel_w,
+            input_zp,
+            input_sc,
+            kernel_zp,
+            kernel_sc,
+            output_zp,
+            output_sc,
+            pad,
+            stride,
+            dilation,
+            groups,
+            dtype,
+            out_channels,
+            weight_format,
+        )
+        for npu in [False, True]:
+            mod = tei.make_module(model, params)
+            outputs.append(tei.build_and_run(mod, inputs, 1, params, npu=npu))
 
-            tei.verify(outputs, 1)
+        tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
@@ -201,25 +216,6 @@ def test_conv2d_failure():
             8,
             "HWIO",
             f"Overall scale (of the input * weights / output) should be in the range [{lb}, 1)",
-        ),
-        (
-            (1, 4, 4, 4),
-            1,
-            1,
-            0,
-            1,
-            0,
-            1,
-            0,
-            1,
-            "none",
-            (1, 1),
-            (1, 1),
-            1,
-            "int8",
-            8,
-            "HWIO",
-            "dtype='int8', dtype must be either uint8 or int32",
         ),
         (
             (1, 4, 4, 4),

@@ -120,7 +120,9 @@ Optional<ObjectRef> ApplyHistoryBestNode::Query(runtime::String task_name, IRMod
   IRModule prim_mod = dispatched.value()[0];
   ICHECK(HasOnlyOneFunction<tir::PrimFunc>(prim_mod)) << prim_mod;
   // Unify func name to make sure it can be found in database
-  prim_mod = UnifyFuncName(prim_mod);
+  const auto* parse_mod_func = runtime::Registry::Get("tvm.meta_schedule.tune.parse_mod");
+  ICHECK(parse_mod_func) << "Parse mod function not defined!";
+  prim_mod = (*parse_mod_func)(prim_mod);
   if (database->HasWorkload(prim_mod)) {
     Array<TuningRecord> records = database->GetTopK(database->CommitWorkload(prim_mod), 1);
     if (records.size() == 1) {

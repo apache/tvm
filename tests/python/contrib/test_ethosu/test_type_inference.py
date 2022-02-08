@@ -228,6 +228,23 @@ def test_ethosu_pooling_invalid_dtype():
         run_opt_pass(func, relay.transform.InferType())
 
 
+def test_ethosu_pooling_invalid_upscale_method():
+    invalid_upscale_method = "FOO"
+    ifm = relay.var("ifm", shape=[1, 56, 72, 55], dtype="int8")
+    pooling = make_ethosu_pooling(
+        ifm,
+        "MAX",
+        (3, 2),
+        55,
+        (1, 2),
+        (0, 1, 2, 3),
+        upscale=invalid_upscale_method,
+    )
+    func = relay.Function([ifm], pooling)
+    with pytest.raises(TVMError):
+        run_opt_pass(func, relay.transform.InferType())
+
+
 @pytest.mark.parametrize(
     "ifm_shape, ifm_layout", [((1, 4, 5, 33), "NHWC"), ((1, 4, 3, 5, 16), "NHCWB16")]
 )

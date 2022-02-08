@@ -46,7 +46,7 @@ import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
 ci_lint = "tlcpack/ci-lint:v0.67"
-ci_gpu = "tlcpack/ci-gpu:v0.80"
+ci_gpu = "tlcpack/ci-gpu:v0.81"
 ci_cpu = "tlcpack/ci-cpu:v0.80"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
@@ -388,10 +388,6 @@ stage('Test') {
             unpack_lib('gpu', tvm_multilib)
             timeout(time: max_time, unit: 'MINUTES') {
               ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh",
-                label: 'Check Sphinx warnings in docs',
-              )
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',

@@ -1290,6 +1290,7 @@ def test_tflite_concat_legalize(shapes, axis):
     mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
         "tvmgen_default_ethos_u_main_0"
     ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 def test_tflite_sigmoid_legalize():
@@ -1599,6 +1600,177 @@ def test_multiple_requantize_offload():
     mod = create_model()
     mod = ethosu.partition_for_ethosu(mod)
     mod = legalize.LegalizeEthosU()(mod)
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,size",
+    [
+        [(1, 2, 2, 1), (4, 4)],
+        [(1, 4, 7, 3), (8, 14)],
+        [(1, 3, 5, 3), (3, 5)],
+    ],
+)
+def test_tflite_resize2d_nearest_neighbor(ifm_shape, size):
+    align_corners = False
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def resize_model(x):
+            return tf.compat.v1.image.resize_nearest_neighbor(
+                x, size, align_corners=align_corners, half_pixel_centers=False
+            )
+
+        concrete_func = resize_model.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, _ = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod
+
+    def verify(ext_func):
+        op = ext_func.body
+        in_var = op.args[0]
+
+        # check IFM
+        assert tuple(in_var.checked_type.shape) == ifm_shape
+        assert in_var.checked_type.dtype == dtype
+
+        # check OFM
+        attrs = dict(op.attrs)
+        out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
+
+        # Check Op attributes
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
+        else:
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
+
+    rewriter = legalize.Resize2dRewriter()
+    pattern_table = [
+        (
+            ethosu.Resize2dParams.composite_name,
+            ethosu.resize2d_pattern(),
+            lambda pat: ethosu.Resize2dParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_tflite_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,size,align_corners",
+    [
+        [(1, 2, 2, 1), (4, 4), False],
+        [(1, 4, 7, 3), (8, 14), False],
+        [(1, 2, 2, 1), (3, 3), True],
+        [(1, 4, 7, 3), (7, 13), True],
+        [(1, 3, 5, 3), (3, 5), False],
+    ],
+)
+def test_tflite_resize2d_bilinear(ifm_shape, size, align_corners):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        @tf.function
+        def resize_model(x):
+            return tf.compat.v1.image.resize_bilinear(
+                x, size, align_corners=align_corners, half_pixel_centers=False
+            )
+
+        concrete_func = resize_model.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model, 0)
+
+        mod, _ = relay.frontend.from_tflite(
+            tflite_model,
+            shape_dict={"input": ifm_shape},
+            dtype_dict={"input": dtype},
+        )
+        return mod
+
+    def verify(ext_func):
+        op = ext_func.body
+        in_var = op.args[0]
+
+        # check IFM
+        assert tuple(in_var.checked_type.shape) == ifm_shape
+        assert in_var.checked_type.dtype == dtype
+
+        # check OFM
+        attrs = dict(op.attrs)
+        out_shape = (ifm_shape[0], size[0], size[1], ifm_shape[3])
+        assert tuple(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
+
+        # Check Op attributes
+        if size[0] == ifm_shape[1] and size[1] == ifm_shape[2]:
+            assert op.op.name == "contrib.ethosu.identity"
+        else:
+            assert attrs["pooling_type"] == "AVG"
+            assert attrs["upscale"] == "NEAREST"
+
+            # Check padding
+            if align_corners:
+                assert list(attrs["padding"]) == [0, 0, 0, 0]
+            else:
+                assert list(attrs["padding"]) == [0, 0, 1, 1]
+
+    rewriter = legalize.Resize2dRewriter()
+    pattern_table = [
+        (
+            ethosu.Resize2dParams.composite_name,
+            ethosu.resize2d_pattern(),
+            lambda pat: ethosu.Resize2dParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = create_tflite_graph()
+    mod = partition_ethosu_by_table(mod, pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        rewriter, mod["tvmgen_default_ethos_u_main_0"]
+    )
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 

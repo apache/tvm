@@ -1711,16 +1711,19 @@ def test_reshape_concat():
 def test_any_adv_index():
     data = relay.var("data", shape=(5, relay.Any(), relay.Any()), dtype="float32")
     index0 = relay.var("index0", shape=(1, relay.Any()), dtype="int64")
-    index1 = relay.var("index1", shape=(1, relay.Any()), dtype="int64")
+    index1 = relay.var("index1", shape=(relay.Any(), 1), dtype="int64")
     out = relay.adv_index([data, index0, index1])
     mod = tvm.IRModule()
     mod["main"] = relay.Function([data, index0, index1], out)
     np_data_shape = (5, 5, 10)
-    np_index_shape = (1, 4)
+    np_index0_shape = (1, 4)
+    np_index1_shape = (4, 1)
     np_data = np.random.uniform(size=np_data_shape).astype("float32")
-    np_index = np.random.uniform(0, np_data_shape[0], size=np_index_shape).astype("int64")
-    ref_res = np_data[tuple([np_index, np_index])]
-    check_result([np_data, np_index, np_index], mod, ref_res)
+    np_index0 = np.random.uniform(0, np_data_shape[0], size=np_index0_shape).astype("int64")
+    np_index1 = np.random.uniform(0, np_data_shape[0], size=np_index1_shape).astype("int64")
+    ref_res = np_data[tuple([np_index0, np_index1])]
+    print(ref_res.shape)
+    check_result([np_data, np_index0, np_index1], mod, ref_res)
 
 
 def verify_any_repeat(data_shape, np_dshape, repeats, axis):
