@@ -58,7 +58,7 @@ def _get_model(
 
 
 @requires_ethosn
-@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+@pytest.mark.parametrize("dtype", ["uint8"])
 def test_fullyconnected(dtype):
     trials = [
         ((1, 1024), 71, 0.580, 79, 1.498),

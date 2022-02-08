@@ -274,18 +274,20 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape):
+    def verify_grid_sample(data_shape, grid_shape, padding_mode="zeros"):
         dtype = "float32"
         data = te.placeholder(data_shape, dtype=dtype)
         grid = te.placeholder(grid_shape, dtype=dtype)
-        out = topi.image.grid_sample(data, grid, "bilinear")
+        out = topi.image.grid_sample(data, grid, "bilinear", padding_mode=padding_mode)
 
         @memoize("topi.tests.test_grid_sample.verify_grid_sample")
         def get_ref_data():
             data_np = np.random.uniform(size=data_shape).astype(dtype)
             # allow grid values to be out-of-bound
             grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-            out_np = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, "bilinear")
+            out_np = tvm.topi.testing.grid_sample_nchw_python(
+                data_np, grid_np, "bilinear", padding_mode
+            )
             return data_np, grid_np, out_np
 
         data_np, grid_np, out_np = get_ref_data()
@@ -306,7 +308,8 @@ def test_grid_sample():
             check_target(target, dev)
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
-    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32), "border")
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8), "border")
 
 
 if __name__ == "__main__":

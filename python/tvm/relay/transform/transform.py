@@ -1203,6 +1203,14 @@ def PlanDevices(config):
     return _ffi_api.PlanDevices(config)
 
 
+def ManifestLifetimes():
+    """
+    Manifest the lifetimes of variables after allocations have been manifested, by inserting kill
+    operations once variables become dead.
+    """
+    return _ffi_api.ManifestLifetimes()
+
+
 def FoldExplicitPadding():
     """
     FoldExplicitPadding finds explict padding before an op that can support

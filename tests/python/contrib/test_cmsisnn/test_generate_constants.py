@@ -26,7 +26,6 @@ from tvm.relay.op.contrib import cmsisnn
 
 from utils import (
     make_module,
-    count_num_calls,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,

@@ -61,7 +61,7 @@ size_t GreedyBase::round_up_to_byte_alignment(const size_t& non_aligned_byte_off
  */
 bool GreedyBase::IsValidPlacement(const PoolInfo& candidate_pool, const size_t& next_offset,
                                   const size_t& size_bytes) {
-  if (candidate_pool->size_hint_bytes == -1) {
+  if (candidate_pool->size_hint_bytes == PoolInfo::kUnrestrictedPoolSizeHint) {
     // this means pool is not bounded
     return true;
   }

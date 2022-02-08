@@ -184,7 +184,7 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
         prim_func = (*f_create_func)(tensor_outs);
         Optional<ObjectRef> opt_mod_or_base_func =
             (*f_meta_schedule)(prim_fn_var->name_hint, IRModule({{prim_fn_var, relay_func}}),
-                               Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
+                               target_, Array<IRModule>{IRModule({{prim_fn_var, prim_func}})});
         if (const auto* result = opt_mod_or_base_func.as<tir::PrimFuncNode>()) {
           prim_func = GetRef<tir::PrimFunc>(result);
         } else {

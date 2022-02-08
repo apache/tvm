@@ -220,3 +220,11 @@ To do so -- please click on changes tab in the pull request, then select approve
 or comment on the code and click request changes.
 Code owner can decide if the code can be merged in case by case if some of the reviewers
 did not respond in time(e.g. a week) and existing reviews are sufficient.
+
+Reviewers
+~~~~~~~~~
+Reviewers should strive to leave timely feedback on pull requests for which their
+review was requested. Reviewing code is an important part of the project's health
+and should be considered a regular responsibility for contributors. Automated
+tooling helps out in this regard, as PRs with no activity for a set amount of
+time will get a bot comment pinging the relevant parties.

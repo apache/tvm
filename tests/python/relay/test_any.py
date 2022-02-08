@@ -1286,45 +1286,60 @@ def test_arange_with_dynamic_shape():
     check_result([data], mod, np.array(range(10)).astype("int32") + 1)
 
 
-def verify_any_strided_slice(
-    data_shape,
+def verify_any_random_strided_slice(
     begin_shape,
     end_shape,
     strides_shape,
-    data_np_shape,
+    data_shape,
     slice_mode="end",
     const_attrs=False,
 ):
     # Generate random numpy input data
-    np_data = np.random.uniform(size=data_np_shape).astype("float32")
     np_begin = np.random.randint(2, size=begin_shape, dtype="int32")
     np_end = np.random.randint(5, 10, size=end_shape, dtype="int32")
     np_strides = np.random.randint(
         1, 2 if slice_mode == "size" else 3, size=strides_shape, dtype="int32"
     )
+
+    verify_any_strided_slice(
+        np_begin, np_end, np_strides, data_shape, slice_mode=slice_mode, const_attrs=const_attrs
+    )
+
+
+def verify_any_strided_slice(
+    np_begin,
+    np_end,
+    np_strides,
+    data_shape,
+    axes=None,
+    slice_mode="end",
+    const_attrs=False,
+):
+    np_data = np.random.uniform(size=data_shape).astype("float32")
     # target numpy result
     ref_res = tvm.topi.testing.strided_slice_python(
-        np_data, np_begin, np_end, np_strides, slice_mode
+        np_data, np_begin, np_end, np_strides, slice_mode, axes
     )
 
     # Relay Module
     mod = tvm.IRModule()
-    data = relay.var("data", shape=data_shape, dtype="float32")
+    data = relay.var("data", shape=any_dims(len(data_shape)), dtype="float32")
     if const_attrs:
-        data = relay.var("data", shape=data_shape, dtype="float32")
         begin = relay.const(np_begin)
         end = relay.const(np_end)
         strides = relay.const(np_strides)
         args = [data]
         np_inputs = [np_data]
     else:
-        begin = relay.var("begin", shape=begin_shape, dtype="int32")
-        end = relay.var("end", shape=end_shape, dtype="int32")
-        strides = relay.var("strides", shape=strides_shape, dtype="int32")
+        begin = relay.var("begin", shape=np_begin.shape, dtype="int32")
+        end = relay.var("end", shape=np_end.shape, dtype="int32")
+        strides = relay.var("strides", shape=np_strides.shape, dtype="int32")
         args = [data, begin, end, strides]
         np_inputs = [np_data, np_begin, np_end, np_strides]
 
-    y = relay.strided_slice(data, begin=begin, end=end, strides=strides, slice_mode=slice_mode)
+    y = relay.strided_slice(
+        data, begin=begin, end=end, strides=strides, axes=axes, slice_mode=slice_mode
+    )
     mod["main"] = relay.Function(args, y)
 
     check_result(np_inputs, mod, ref_res)
@@ -1332,12 +1347,19 @@ def verify_any_strided_slice(
 
 @tvm.testing.uses_gpu
 def test_any_strided_slice():
-    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21))
-    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
-    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
-    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
-    verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21), slice_mode="size")
-    verify_any_strided_slice(any_dims(2), (2,), (2,), (2,), (15, 21), const_attrs=True)
+    verify_any_random_strided_slice((2,), (2,), (2,), (15, 21))
+    verify_any_random_strided_slice((3,), (3,), (3,), (15, 17, 21))
+    verify_any_random_strided_slice((3,), (3,), (3,), (23, 29, 41))
+    verify_any_random_strided_slice((4,), (4,), (4,), (40, 50, 60, 70))
+    verify_any_random_strided_slice((3,), (3,), (3,), (15, 17, 21), slice_mode="size")
+    verify_any_random_strided_slice((2,), (2,), (2,), (15, 21), const_attrs=True)
+
+    begin = np.array([0, 1000000]).astype("int32")
+    end = np.array([1000000, -1000000]).astype("int32")
+    strides = np.array([1, -1]).astype("int32")
+    verify_any_strided_slice(begin, end, strides, (15, 21), const_attrs=False)
+    verify_any_strided_slice(begin, end, strides, (15, 21), const_attrs=True)
+    verify_any_strided_slice(begin, end, strides, (15, 17, 21), axes=[0, 2], const_attrs=True)
 
 
 @tvm.testing.uses_gpu

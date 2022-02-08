@@ -456,14 +456,15 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
   // Step 1. Bunch of checks
-  // Check condition 1) and 2): stage pipeline and subtree compact dataflow
+  // Check condition 1) : scope stage pipeline
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/true);
+                                          /*require_stage_pipeline=*/true);
   Block scope_root = GetRef<Block>(scope_root_sref->StmtAs<BlockNode>());
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   Array<StmtSRef> producer_srefs = GetProducers(block_sref, scope);
   Array<StmtSRef> consumer_srefs = GetConsumers(block_sref, scope);
+  // Check condition 2) : `block` is a complete or reduction block
+  CheckCompleteOrReductionBlock(self, block_sref, scope_root_sref);
   // Check condition 3): `block` and `loop` are under the same scope,
   // and `loop` is not the ancestor of `block`
   NotInSameScopeError::CheckAndBindLoopDomain(self, block_sref, loop_sref, scope_root_sref,

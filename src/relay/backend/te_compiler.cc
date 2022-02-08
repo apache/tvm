@@ -895,7 +895,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(virtual_devices.size(), 1) << "must be at least one device";
+      CHECK(size_bytes == 0 || virtual_devices.size() >= 1) << "must be at least one device";
       for (const auto& virtual_device : virtual_devices) {
         DLDeviceType device_type = virtual_device->device_type();
         device_io[device_type] += size_bytes;

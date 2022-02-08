@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, dangerous-default-value
 """Driver for partitioning and building a Relay module for CUTLASS offload."""
 import logging
 import os
@@ -24,6 +24,7 @@ from tvm import runtime, relay
 from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
 from .gen_conv2d import CutlassConv2DProfiler
+from .library import ConvKind
 
 logger = logging.getLogger("cutlass")
 
@@ -86,7 +87,7 @@ class OpAnnotator(tvm.relay.ExprVisitor):
             self.signature["ret_dtype"] = op.ret_type.dtype
             self.visit(op.body)
 
-        if str(op) == "nn.conv2d":
+        if str(op) in ["nn.conv2d", "nn.conv2d_transpose", "nn.conv2d_backward_weight"]:
             self.op_attrs = call.attrs
 
         for arg in call.args:
@@ -237,13 +238,23 @@ def handle_conv2d(
     data_dtype,
     weight_dtype,
     use_3xtf32,
+    split_k_slices,
     profile_all_alignments,
     find_first_valid,
     use_multiprocessing,
 ):
     """Profile and select a kernel for conv2d op workload."""
+    if "conv2d_transpose" in op_type:
+        conv_kind = ConvKind.Dgrad
+    elif "backward_weight" in op_type:
+        conv_kind = ConvKind.Wgrad
+    else:
+        conv_kind = ConvKind.Fprop
+
     if any(isinstance(s, tvm.tir.Any) for s in d_shape):
-        out = cutlass_profiler.get_default(op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32)
+        out = cutlass_profiler.get_default(
+            op_type, out_dtype, data_dtype, weight_dtype, use_3xtf32, conv_kind, strides
+        )
         name, cutlass_op_def = out["name"], out["opdef"]
         logger.info("Picked the default kernel %s", name)
     else:
@@ -258,6 +269,8 @@ def handle_conv2d(
             data_dtype,
             weight_dtype,
             use_3xtf32,
+            conv_kind,
+            split_k_slices,
             profile_all_alignments,
             find_first_valid=find_first_valid,
             use_multiprocessing=use_multiprocessing,
@@ -277,6 +290,7 @@ def tune_cutlass_kernels(
     mod,
     sm,
     use_3xtf32=True,
+    split_k_slices=[1],
     profile_all_alignments=False,
     find_first_valid=False,
     use_multiprocessing=False,
@@ -297,6 +311,14 @@ def tune_cutlass_kernels(
     use_3xtf32 : bool
         Wheter or not use slower but very accurate (compared to tf32) 3xtf32 mode for
         fp32 inputs on tensorcore.
+
+    split_k_slices : list of int
+        Split factor candidates for split-K GEMM. If split-K > 1, the GEMM K-loop is computed in
+        parallel accross split-K blocks, and a seperate global reduction kernel is launched to
+        accumulate partial reductions. The profiler will pick the best split-k factor from the
+        given candidate list. Note that the larger split-K factor requires a larger workspace.
+        Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d
+        kinds, split_k_slices is ignored.
 
     profile_all_alignments : bool
         When True, profile all kernal variants with smaller alignments than the largest possible.
@@ -329,6 +351,7 @@ def tune_cutlass_kernels(
         if "cutlass" in fun_name:
             num_cutlass_partition += 1
             annotator.visit(func)
+            out_shape = annotator.signature["ret_shape"]
             out_dtype = annotator.signature["ret_dtype"]
             op_type = annotator.signature["op_type"]
 
@@ -344,12 +367,23 @@ def tune_cutlass_kernels(
                 new_attrs["padding"] = annotator.op_attrs.padding
                 new_attrs["strides"] = annotator.op_attrs.strides
                 new_attrs["dilation"] = annotator.op_attrs.dilation
+
+                if "conv2d_transpose" in op_type:
+                    d_shape = out_shape
+                    w_shape = arg1_shape
+                elif "conv2d_backward_weight" in op_type:
+                    d_shape = arg1_shape
+                    w_shape = out_shape
+                else:
+                    d_shape = arg0_shape
+                    w_shape = arg1_shape
+
                 new_attrs.update(
                     handle_conv2d(
                         conv2d_profiler,
                         op_type,
-                        arg0_shape,
-                        arg1_shape,
+                        d_shape,
+                        w_shape,
                         annotator.op_attrs.padding,
                         annotator.op_attrs.strides,
                         annotator.op_attrs.dilation,
@@ -357,6 +391,7 @@ def tune_cutlass_kernels(
                         arg0_dtype,
                         arg1_dtype,
                         use_3xtf32,
+                        split_k_slices,
                         profile_all_alignments,
                         find_first_valid,
                         use_multiprocessing,

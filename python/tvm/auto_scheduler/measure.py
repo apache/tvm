@@ -382,6 +382,8 @@ class LocalRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -392,6 +394,7 @@ class LocalRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         if enable_cpu_cache_flush:
             number = 1
@@ -405,6 +408,7 @@ class LocalRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
 
@@ -453,6 +457,8 @@ class RPCRunner(ProgramRunner):
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -468,6 +474,7 @@ class RPCRunner(ProgramRunner):
         min_repeat_ms=100,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         self.__init_handle_by_constructor__(
             _ffi_api.RPCRunner,
@@ -482,6 +489,7 @@ class RPCRunner(ProgramRunner):
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
 
         if check_remote(key, host, port, priority, timeout):
@@ -532,6 +540,8 @@ class LocalRPCMeasureContext:
         its actual latency during end-to-end inference.
         To make this option effective, the argument `number` should also be set to 1.
         This is only has effect on CPU task.
+    device: int = 0
+        Which device to run on if multiple are available.
     """
 
     def __init__(
@@ -544,6 +554,7 @@ class LocalRPCMeasureContext:
         min_repeat_ms=0,
         cooldown_interval=0.0,
         enable_cpu_cache_flush=False,
+        device=0,
     ):
         # pylint: disable=import-outside-toplevel
         from tvm.rpc.tracker import Tracker
@@ -570,6 +581,7 @@ class LocalRPCMeasureContext:
             min_repeat_ms,
             cooldown_interval,
             enable_cpu_cache_flush,
+            device,
         )
         # Wait for the processes to start
         time.sleep(0.5)
@@ -871,6 +883,7 @@ def _timed_eval_func(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -878,7 +891,7 @@ def _timed_eval_func(
     error_msg = None
     try:
         func = module.load_module(build_res.filename)
-        dev = ndarray.device(str(inp.task.target), 0)
+        dev = ndarray.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -947,6 +960,7 @@ def local_run(
     cooldown_interval=0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """
     Run function of LocalRunner to test the performance of the input BuildResults.
@@ -986,6 +1000,8 @@ def local_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1021,6 +1037,7 @@ def local_run(
                     cooldown_interval,
                     enable_cpu_cache_flush,
                     verbose,
+                    device,
                 ),
             )
             if isinstance(res, TimeoutError):
@@ -1067,6 +1084,7 @@ def _rpc_run(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -1077,7 +1095,7 @@ def _rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        dev = remote.device(str(inp.task.target), 0)
+        dev = remote.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -1166,7 +1184,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),
@@ -1209,6 +1227,7 @@ def rpc_runner_run(
     cooldown_interval=0.0,
     enable_cpu_cache_flush=False,
     verbose=1,
+    device=0,
 ):
     """Run function of RPCRunner to test the performance of the input BuildResults.
 
@@ -1257,6 +1276,8 @@ def rpc_runner_run(
         This is only has effect on CPU task.
     verbose: int = 1
         Verbosity level. 0 for silent, 1 to output information during program measuring.
+    device: int = 0
+        Which device to run on if multiple are available.
 
     Returns
     -------
@@ -1284,6 +1305,7 @@ def rpc_runner_run(
                 cooldown_interval,
                 enable_cpu_cache_flush,
                 verbose,
+                device,
             )
             for inp, build_res in zip(inputs, build_results)
         ],

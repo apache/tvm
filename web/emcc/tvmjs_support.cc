@@ -108,9 +108,19 @@ class AsyncLocalSession : public LocalSession {
       return get_time_eval_placeholder_.get();
     } else if (auto* fp = tvm::runtime::Registry::Get(name)) {
       // return raw handle because the remote need to explicitly manage it.
-      return new PackedFunc(*fp);
+      tvm::runtime::TVMRetValue ret;
+      ret = *fp;
+      TVMValue val;
+      int type_code;
+      ret.MoveToCHost(&val, &type_code);
+      return val.v_handle;
     } else if (auto* fp = tvm::runtime::Registry::Get("__async." + name)) {
-      auto* rptr = new PackedFunc(*fp);
+      tvm::runtime::TVMRetValue ret;
+      ret = *fp;
+      TVMValue val;
+      int type_code;
+      ret.MoveToCHost(&val, &type_code);
+      auto* rptr = val.v_handle;
       async_func_set_.insert(rptr);
       return rptr;
     } else {

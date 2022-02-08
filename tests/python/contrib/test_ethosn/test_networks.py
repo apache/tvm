@@ -123,9 +123,9 @@ def test_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"0433d3c3947a067b36f0228bdb5f1838"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"393a19dfb980345cdd3bbeddbc36424d"}
+    _compile_hash = {"393a19dfb980345cdd3bbeddbc36424d"}
+    if tei.get_ethosn_api_version() == 2111:
+        _compile_hash = {"5d1c6a6bd4df8963866cc90405bf92dd"}
     if tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"46ccafc840633633aca441645e41b444"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -174,9 +174,9 @@ def test_inception_v3():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"46ccafc840633633aca441645e41b444"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"2c7ff5487e1a21e62b3b42eec624fed4"}
+    _compile_hash = {"2c7ff5487e1a21e62b3b42eec624fed4"}
+    if tei.get_ethosn_api_version() == 2111:
+        _compile_hash = {"e6abe33a7bc4a4170da53eefa6577bba"}
     if tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"43dc2097127eb224c0191b1a15f8acca"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -200,9 +200,9 @@ def test_inception_v4():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"fab6c2297502f95d33079c6ce1a737f9"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"4245dbd02e1432dc261a67fc8e632a00"}
+    _compile_hash = {"4245dbd02e1432dc261a67fc8e632a00"}
+    if tei.get_ethosn_api_version() == 2111:
+        _compile_hash = {"42e43c323ed8202f7b720ba9029bbcb7"}
     if tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"fab6c2297502f95d33079c6ce1a737f9"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
@@ -226,9 +226,9 @@ def test_ssd_mobilenet_v1():
     # codegen, which could come about from either a change in Support Library
     # version or a change in the Ethos-N codegen. To update this requires running
     # on hardware that isn't available in CI.
-    _compile_hash = {"2345cf5d6c0013bad7c76dcccee9d862", "7795b6c67178da9d1f9b98063bad75b1"}
-    if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
-        _compile_hash = {"5ee8ed6af9a7f31fc14957b51a8e7423", "e6a91ccc47ba4c6b4614fcd676bd726f"}
+    _compile_hash = {"5ee8ed6af9a7f31fc14957b51a8e7423", "e6a91ccc47ba4c6b4614fcd676bd726f"}
+    if tei.get_ethosn_api_version() == 2111:
+        _compile_hash = {"afb68ca8f452d1f4a674b457b5e30f59", "a37f900601b9493bd142e8aed16205e5"}
     if tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"7795b6c67178da9d1f9b98063bad75b1", "10826406ae724e52f360a06c35ced09d"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":

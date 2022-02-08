@@ -52,7 +52,7 @@ def test_large_graph():
     y = relay.var("y")
     one = relay.const(10e10, dtype="float32")
     z = relay.add(x, one)
-    for i in range(int(1e6)):
+    for i in range(int(9e5)):
         z = relay.add(z, one)
     f = relay.Function([x, y], z)
     show(astext(f))

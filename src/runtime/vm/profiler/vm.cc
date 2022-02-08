@@ -90,9 +90,8 @@ PackedFunc VirtualMachineDebug::GetFunction(const std::string& name,
   }
 }
 
-void VirtualMachineDebug::LoadExecutable(Executable* exec) {
+void VirtualMachineDebug::LoadExecutable(const ObjectPtr<Executable>& exec) {
   VirtualMachine::LoadExecutable(exec);
-  ICHECK(exec_);
   for (auto kv : exec_->primitive_map) {
     packed_index_map_[kv.second] = kv.first;
   }
@@ -137,7 +136,7 @@ void VirtualMachineDebug::OpStartHook(Instruction instr) {
       prof_.operator*().StartCall("VM::AllocStorage", dev,
                                   {{"VM::Argument Shapes", String(shape.str())}});
     } else {
-      prof_.operator*().StartCall("VM::UnknownOp", devices_[1], {});
+      prof_.operator*().StartCall("VM::UnknownOp", GetDevice(exec_->host_device_index), {});
     }
   }
 }
@@ -204,15 +203,13 @@ void VirtualMachineDebug::InvokePacked(Index packed_index, const PackedFunc& fun
 
 runtime::Module CreateVirtualMachineDebug(Executable* exec) {
   auto vm = make_object<VirtualMachineDebug>();
-  vm->LoadExecutable(exec);
+  vm->LoadExecutable(GetObjectPtr<Executable>(exec));
   return runtime::Module(vm);
 }
 
 TVM_REGISTER_GLOBAL("runtime._VirtualMachineDebug").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   auto* exec = dynamic_cast<Executable*>(mod.operator->());
-  ICHECK(exec) << "Virtual machine has not been defined yet."
-               << "\n";
   *rv = CreateVirtualMachineDebug(exec);
 });
 

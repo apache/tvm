@@ -25,7 +25,7 @@ from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
 from .common import logger
-from .pytorch_utils import is_version_greater_than
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 
 class QNNParam:
@@ -292,8 +292,8 @@ def _get_quant_param_for_input(input_value):
         for arg in current_node.inputs():
             return dfs(arg.node())
 
-        # shouldn't happen
-        assert False, "No producer for %s" % (str(current_node))
+        # If input_value is not quantized, we reach here.
+        return None, None
 
     return dfs(input_value.node())
 
@@ -437,6 +437,7 @@ def add_input_quant_params_to_op_inputs(graph):
         "quantized::mul": 2,
         "aten::dequantize": 1,
         "aten::mean": 1,
+        "aten::sigmoid": 1,
         "aten::upsample_nearest2d": 1,
         "aten::upsample_bilinear2d": 1,
         "aten::relu_": 1,
@@ -473,8 +474,9 @@ def add_input_quant_params_to_op_inputs(graph):
         else:
             for i in range(num_quantized_inputs[operator]):
                 scale, zp = _get_quant_param_for_input(node.inputsAt(i))
-                input_scales.append(scale)
-                input_zero_points.append(zp)
+                if scale is not None and zp is not None:
+                    input_scales.append(scale)
+                    input_zero_points.append(zp)
 
         if operator in ["quantized::add_scalar", "quantized::mul_scalar"]:
             scalar = node.inputsAt(1).node().f("value")
@@ -488,9 +490,10 @@ def add_input_quant_params_to_op_inputs(graph):
             node.addInput(scale)
             node.addInput(zp)
 
-        if "conv" in operator or "linear" in operator:
+        if "quantized::conv" in operator or "quantized::linear" in operator:
             # This is required for quantizing the bias
-            input_scales_for_bias[node.inputsAt(1).debugName()] = scale.node().f("value")
+            assert len(input_scales) == 1, "One quantized parameter expected for qconv or qlinear."
+            input_scales_for_bias[node.inputsAt(1).debugName()] = input_scales[0].node().f("value")
 
     return input_scales_for_bias
 
@@ -503,23 +506,64 @@ def add_quant_params(params, quant_params):
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
 
 
+def inline_input_quant_params_for_fx(graph, params):
+    """
+    Canonicalize input scale and zero point access for FX-quantized graphs.
+    We expect input qparams to aten::quantize_per_tensor to be prim::Constant, but that's
+    not the case for FX-based quantized models as shown below.
+    We replace prim::GetAttr with prim::Constant so that FX-based quantized models can be
+    converted in the same way as eager-mode based quantized models.
+
+    Before:
+    %pan_input_zero_point_1 : Tensor = prim::GetAttr[name="pan_input_zero_point_1"](%backbone)
+    %pan_input_scale_1 : Tensor = prim::GetAttr[name="pan_input_scale_1"](%backbone)
+    ...
+    %quantize_per_tensor_2 ... = aten::quantize_per_tensor(...,
+                                       %pan_input_scale_1, %pan_input_zero_point_1, ...)
+
+    After:
+    %2402 : int = prim::Constant[value=0]()
+    %2403 : float = prim::Constant[value=1.]()
+    %quantize_per_tensor_2 ...  = aten::quantize_per_tensor(..., %2403, %2402, ...)
+    """
+    import torch
+
+    def get_full_attr_name(current):
+        current_attr = getattr_attr_name(current)
+        inputs = list(current.inputs())
+        if len(inputs) == 1 and inputs[0].node().kind() == "prim::GetAttr":
+            return get_full_attr_name(inputs[0].node()) + "." + current_attr
+        return current_attr
+
+    for node in graph.findAllNodes("prim::GetAttr", recurse=True):
+        out_name = node.output().debugName()
+
+        if "_input_scale" in out_name or "_input_zero_point" in out_name:
+            full_attr = get_full_attr_name(node)
+            assert full_attr in params, "%s not found in param dict." % full_attr
+            param_np = params[full_attr].numpy()
+            new_const_node = graph.create("prim::Constant")
+            new_const_node.insertBefore(node)
+
+            if "_input_scale" in out_name:
+                new_const_node.f_("value", param_np)
+                new_const_node.output().setType(torch._C.FloatType.get())
+            else:
+                new_const_node.i_("value", param_np.item())
+                new_const_node.output().setType(torch._C.IntType.get())
+
+            node.replaceAllUsesWith(new_const_node)
+
+
 def apply_with_upcast(data, func):
     inp = _op.cast(data, dtype="int32")
     out = func(inp)
     return _op.cast(out, "uint8")
 
 
-def quantized_mean(data, input_scale, input_zero_point, func_fp32):
-    # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+def apply_with_fp32_fallback(data, input_scale, input_zero_point, func_fp32):
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func_fp32(dequantized)
-    return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
-
-
-def quantized_upsample(data, input_scale, input_zero_point, func_fp32):
-    # currently piggy backs to fp32, it gets identical output as torch
-    data = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func_fp32(data)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point, out_dtype="uint8", axis=1)
 
 
@@ -531,8 +575,14 @@ def quantized_relu(data, input_zero_point):
 
 def _quantize_per_tensor():
     def _impl(inputs, _):
+        dim = len(infer_shape(inputs[0]))
+        if dim > 1:
+            axis = 1
+        else:
+            axis = 0
+
         return relay.qnn.op.quantize(
-            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=1
+            inputs[0], _expr.const(inputs[1]), _expr.const(inputs[2]), out_dtype="uint8", axis=axis
         )
 
     return _impl

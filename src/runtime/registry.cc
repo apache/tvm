@@ -189,8 +189,11 @@ typedef dmlc::ThreadLocalStore<TVMFuncThreadLocalEntry> TVMFuncThreadLocalStore;
 
 int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
   API_BEGIN();
+  using tvm::runtime::GetRef;
+  using tvm::runtime::PackedFunc;
+  using tvm::runtime::PackedFuncObj;
   tvm::runtime::Registry::Register(name, override != 0)
-      .set_body(*static_cast<tvm::runtime::PackedFunc*>(f));
+      .set_body(GetRef<PackedFunc>(static_cast<PackedFuncObj*>(f)));
   API_END();
 }
 
@@ -198,7 +201,12 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
   const tvm::runtime::PackedFunc* fp = tvm::runtime::Registry::Get(name);
   if (fp != nullptr) {
-    *out = new tvm::runtime::PackedFunc(*fp);  // NOLINT(*)
+    tvm::runtime::TVMRetValue ret;
+    ret = *fp;
+    TVMValue val;
+    int type_code;
+    ret.MoveToCHost(&val, &type_code);
+    *out = val.v_handle;
   } else {
     *out = nullptr;
   }

@@ -86,7 +86,8 @@ PackedFunc Executable::GetFunction(const std::string& name, const ObjectPtr<Obje
   } else if (name == "vm_load_executable") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto vm = make_object<VirtualMachine>();
-      vm->LoadExecutable(this);
+      ICHECK(sptr_to_self.get() == this);
+      vm->LoadExecutable(GetObjectPtr<Executable>(this));
       *rv = Module(vm);
     });
   } else if (name == "move_late_bound_consts") {
@@ -340,6 +341,10 @@ void Executable::MoveLateBoundConstantsToFile(const std::string& path, size_t by
 }
 
 void Executable::LoadLateBoundConstantsFromStream(dmlc::Stream* stream) {
+  if (late_bound_constant_names.empty()) {
+    VLOG(1) << "Found no late-bound constants to load";
+    return;
+  }
   ICHECK_EQ(late_bound_constant_names.size(), constants.size());
   Map<String, NDArray> map = runtime::LoadParams(stream);
   VLOG(1) << "loaded " << map.size() << " late-bound constants";
@@ -665,6 +670,10 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
                      instr.device_copy.dst_device_index, instr.dst});
       break;
     }
+    case Opcode::KillRegister: {
+      fields.assign({instr.dst});
+      break;
+    }
     default:
       LOG(FATAL) << "Invalid opcode" << static_cast<int>(instr.op);
       break;
@@ -981,6 +990,10 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       DCHECK_EQ(instr.fields.size(), 4U);
       return Instruction::DeviceCopy(instr.fields[0], instr.fields[1], instr.fields[2],
                                      instr.fields[3]);
+    }
+    case Opcode::KillRegister: {
+      DCHECK_EQ(instr.fields.size(), 1U);
+      return Instruction::KillRegister(instr.fields[0]);
     }
     default:
       LOG(FATAL) << "Invalid opcode" << instr.opcode;
