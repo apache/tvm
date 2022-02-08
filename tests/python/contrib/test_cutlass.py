@@ -253,16 +253,24 @@ def get_random_ndarray(shape, dtype):
 
 
 def profile_and_build(
-    mod, params, sm, tmp_dir="./tmp", lib_path="compile.so", use_fast_math=False, use_3xtf32=True
+    mod,
+    params,
+    sm,
+    split_k_slices=[1],
+    tmp_dir="./tmp",
+    lib_path="compile.so",
+    use_fast_math=False,
+    use_3xtf32=True,
 ):
     mod = partition_for_cutlass(mod)
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod,
         sm,
         use_3xtf32=use_3xtf32,
+        split_k_slices=split_k_slices,
         profile_all_alignments=False,
         find_first_valid=True,
-        use_multiprocessing=False,
+        use_multiprocessing=True,
         tmp_dir=tmp_dir,
     )
     with tvm.transform.PassContext(opt_level=3):
@@ -277,6 +285,7 @@ def profile_and_build_vm(
     mod,
     params,
     sm,
+    split_k_slices=[1],
     tmp_dir="./tmp",
     lib_path="compile.so",
     vmcode_path="vmcode.ro",
@@ -287,6 +296,7 @@ def profile_and_build_vm(
     mod, num_cutlass_partition = tune_cutlass_kernels(
         mod,
         sm,
+        split_k_slices=split_k_slices,
         use_3xtf32=use_3xtf32,
         profile_all_alignments=False,
         find_first_valid=True,
@@ -508,6 +518,7 @@ def verify_conv2d_common(
     inputs,
     params,
     sm=80,
+    split_k_slices=[1],
     atol=1e-5,
     rtol=1e-5,
     use_cudnn_ref=False,
@@ -543,7 +554,7 @@ def verify_conv2d_common(
     )
 
     rt_mod, _, num_cutlass_partition = profile_and_build_func(
-        mod_weight_ohwi, params, sm, use_fast_math=use_fast_math
+        mod_weight_ohwi, params, sm, split_k_slices, use_fast_math=use_fast_math
     )
     out = get_output_func(rt_mod, input_names, inputs)
 
@@ -597,6 +608,8 @@ def verify_conv2d(
     np_bias = get_random_ndarray((w_shape[0],), typ.dtype)
     params = {"weight": np_weight, "bias": np_bias}
 
+    split_k_slices = [1]
+
     return verify_conv2d_common(
         expr_nchw,
         expr_ref,
@@ -604,6 +617,7 @@ def verify_conv2d(
         [np_data],
         params,
         sm,
+        split_k_slices,
         atol,
         rtol,
         use_cudnn_ref,
@@ -620,6 +634,7 @@ def verify_conv2d_backward_weight(
     grad_shape,
     data_shape,
     sm=80,
+    split_k_slices=[1],
     atol=1e-5,
     rtol=1e-5,
     use_cudnn_ref=False,
@@ -640,6 +655,7 @@ def verify_conv2d_backward_weight(
         [np_grad, np_data],
         params,
         sm,
+        split_k_slices,
         atol,
         rtol,
         use_cudnn_ref,
@@ -838,18 +854,20 @@ def test_conv2d_backward_weight():
             weight_dtype=dtype,
         )
 
-        verify_conv2d_backward_weight(
-            mod_nchw,
-            mod_nchw,
-            o_shape,
-            d_shape,
-            sm=80,
-            atol=1e-3,
-            rtol=1e-3,
-            use_cudnn_ref=False,
-            grad_dtype=dtype,
-            data_dtype=dtype,
-        )
+        for split_k_slices in [1, 8]:
+            verify_conv2d_backward_weight(
+                mod_nchw,
+                mod_nchw,
+                o_shape,
+                d_shape,
+                sm=80,
+                split_k_slices=[split_k_slices],
+                atol=1e-3,
+                rtol=1e-3,
+                use_cudnn_ref=False,
+                grad_dtype=dtype,
+                data_dtype=dtype,
+            )
 
 
 def test_conv2d_bwd():
