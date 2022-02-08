@@ -51,7 +51,7 @@ def generate_tensor_op_common(
         data_type = [
             math_inst.element_a,
             math_inst.element_b,
-            math_inst.element_accumulator,
+            math_inst.element_c,
             math_inst.element_accumulator,
         ]
 
@@ -63,7 +63,14 @@ def generate_tensor_op_common(
 
 
 def generate_sm75_tensor_op_1688(
-    out_dtype, arg0_dtype, arg1_dtype, op_creator, check_align, _, profile_all_alignments=False
+    out_dtype,
+    arg0_dtype,
+    arg1_dtype,
+    op_creator,
+    check_align,
+    _,
+    profile_all_alignments=False,
+    accumlator_dtype="float32",
 ):
     """Generate GEMM or Conv2D kernels for Turing."""
     assert out_dtype in ["float32", "float16", "int32"]
@@ -77,6 +84,7 @@ def generate_sm75_tensor_op_1688(
                 DataType.f16,
                 DataType.f16,
                 dtype_map[out_dtype],
+                dtype_map[accumlator_dtype],
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add,
             )
@@ -99,6 +107,7 @@ def generate_sm75_tensor_op_1688(
                 [8, 8, 16],
                 dtype_map[arg0_dtype],
                 dtype_map[arg1_dtype],
+                DataType.s32,
                 DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
@@ -141,6 +150,7 @@ def generate_sm80_tensor_op_16816(
     check_align,
     use_3xtf32=True,
     profile_all_alignments=False,
+    accumlator_dtype="float32",
 ):
     """Generate GEMM or Conv2D kernels for Ampere."""
     min_cc = 80
@@ -176,6 +186,7 @@ def generate_sm80_tensor_op_16816(
                 DataType.f16,
                 DataType.f16,
                 dtype_map[out_dtype],
+                dtype_map[accumlator_dtype],
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add,
             )
@@ -186,6 +197,7 @@ def generate_sm80_tensor_op_16816(
         math_instructions = [
             MathInstruction(
                 [16, 8, 8],
+                DataType.f32,
                 DataType.f32,
                 DataType.f32,
                 DataType.f32,
@@ -221,6 +233,7 @@ def generate_sm80_tensor_op_16816(
                 dtype_map[arg0_dtype],
                 dtype_map[arg1_dtype],
                 DataType.s32,
+                DataType.s32,
                 OpcodeClass.TensorOp,
                 MathOperation.multiply_add_saturate,
             ),
@@ -248,6 +261,7 @@ def generate_sm80_tensor_op_16816(
             check_align,
             False,
             profile_all_alignments,
+            accumlator_dtype=accumlator_dtype,
         )
     else:
         # TF32 (float32 + float32 case) is only supported on sm80
@@ -292,6 +306,7 @@ EPILOGUE_MAP = {
     "cutlass.conv2d_bias": (EpilogueFunctor.LinearCombinationBias, True),
     "cutlass.conv2d": (EpilogueFunctor.LinearCombination, False),
     "cutlass.conv2d_transpose": (EpilogueFunctor.LinearCombination, False),
+    "cutlass.conv2d_backward_weight": (EpilogueFunctor.LinearCombination, False),
 }
 
 

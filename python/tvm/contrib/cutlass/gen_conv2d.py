@@ -252,6 +252,8 @@ class CutlassConv2DProfiler:
             lambda align: all([dim % align == 0 for dim in [IC, OC]]),
             use_3xtf32,
             profile_all_alignments,
+            # Use fp32 accumulation for wgrad to align with cuDNN
+            accumlator_dtype="float32" if conv_kind == ConvKind.Wgrad else out_dtype,
         )
 
         if not find_first_valid:
