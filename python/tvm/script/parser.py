@@ -615,6 +615,12 @@ class TVMScriptParser(Transformer):
         rhs = self.transform(node.params[2])
         rhs_span = tvm_span_from_synr(node.params[2].span)
         if isinstance(symbol, tvm.tir.Buffer):
+            if len(indexes) != len(symbol.shape):
+                self.report_error(
+                    f"Buffer {symbol.name} is {len(symbol.shape)}-dimensional, "
+                    f"cannot be indexed by {len(indexes)}-dimensional indices.",
+                    node.params[1].span,
+                )
             # BufferStore
             return tvm.tir.BufferStore(
                 symbol,
