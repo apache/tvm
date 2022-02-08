@@ -257,6 +257,16 @@ def concat(expr, type_map):
     return [out, out_type]
 
 
+@register_fake_quantization_to_integer("topk")
+def topk(expr, type_map):
+    """Rewrite a topk op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    attrs = {**expr.attrs}
+    assert "ret_type" in attrs and attrs["ret_type"] == "values"
+    return [expr, t]
+
+
 @register_fake_quantization_to_integer("split")
 def split(expr, type_map):
     """Rewrite a split op"""

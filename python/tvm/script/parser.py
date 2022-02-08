@@ -1226,7 +1226,7 @@ def from_source(
     elif inspect.isfunction(input_func):
         _, start_line = inspect.getsourcelines(input_func)
         env: Dict[str, Any] = input_func.__globals__
-        namespace = [key for key in env.keys() if env[key] == tir]
+        namespace = [key for key in env.keys() if env[key] is tir]
         parser = TVMScriptParser(start_line, namespace)
         result = to_ast(input_func, TVMDiagnosticCtx(), parser)
         return result

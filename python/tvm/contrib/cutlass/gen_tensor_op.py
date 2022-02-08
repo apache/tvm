@@ -363,6 +363,9 @@ class ProfilerEngine:
         try:
             sp = subprocess.run(cmd, capture_output=True, check=True)
             rt = float(sp.stdout)
+            if rt == 0.0:
+                # This seems to happen with split-k using invalid split-k-slices
+                rt = float("inf")
             logger.info("%s, %f", op_name, rt)
         except subprocess.CalledProcessError:
             rt = float("inf")
