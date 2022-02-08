@@ -166,7 +166,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func, int num_unpacked_args) {
   Buffer buf_packed_arg_type_ids = decl_buffer({IntImm(DataType::Int(32), func_ptr->params.size())},
                                                DataType::Int(32), "arg_type_ids");
   Var v_num_packed_args("num_args", DataType::Int(32));
-  Var v_out_ret_value("out_ret_value", PointerType(PrimType(DataType::UInt(8))));
+  Var v_out_ret_value("out_ret_value", PointerType(PrimType(DataType::Void())));
   Var v_out_ret_tcode("out_ret_tcode", PointerType(PrimType(DataType::Int(32))));
   Var v_resource_handle("resource_handle", DataType::Handle());
   // The arguments of the function.

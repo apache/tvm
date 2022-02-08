@@ -171,6 +171,12 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
+
+  if (t.is_void()) {
+    os << "void";
+    return;
+  }
+
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {

@@ -174,6 +174,10 @@ void CodeGenOpenCL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     os << "void*";
     return;
   }
+  if (t.is_void()) {
+    os << "void";
+    return;
+  }
   if (t == DataType::Bool()) {
     os << "bool";
     return;
