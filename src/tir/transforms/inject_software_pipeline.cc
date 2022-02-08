@@ -52,7 +52,7 @@ Block MakeBlock(const Stmt& body, const Map<Var, Buffer>& buffer_data_to_buffer)
       return block_realize->block;
     }
   }
-  Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/body);
+  Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/ body);
   Array<Array<BufferRegion>> access = GetBlockReadWriteRegion(block, buffer_data_to_buffer);
   BlockNode* n = block.CopyOnWrite();
   n->reads = access[0];
@@ -64,15 +64,13 @@ Block MakeBlock(const Stmt& body, const Map<Var, Buffer>& buffer_data_to_buffer)
 struct PipelineStageOrder {
   int stage;
   int order;
-  explicit PipelineStageOrder(int stage, int order) : stage(stage), order(order) {}
 };
 
 using PipelineInfo = std::unordered_map<Block, PipelineStageOrder, ObjectPtrHash, ObjectPtrEqual>;
 
 struct BufferAccessInfo {
-  int def;  // the defining stage of the buffer
-  int use;  // the last using stage of the buffer
-  explicit BufferAccessInfo(int def = -1, int use = -1) : def(def), use(use) {}
+  int def = -1;  // the defining stage of the buffer
+  int use = -1;  // the last using stage of the buffer
 };
 
 /*!
@@ -128,10 +126,12 @@ class PipelineBodyRewriter : public StmtExprMutator {
     }
     Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
     BlockNode* n = block.CopyOnWrite();
-    n->reads.MutateByApply(
-        std::bind(&PipelineBodyRewriter::RewritePipelineBufferRegion, this, std::placeholders::_1));
-    n->writes.MutateByApply(
-        std::bind(&PipelineBodyRewriter::RewritePipelineBufferRegion, this, std::placeholders::_1));
+    n->reads.MutateByApply([this](const BufferRegion& buffer_region) {
+      return RewritePipelineBufferRegion(buffer_region);
+    });
+    n->writes.MutateByApply([this](const BufferRegion& buffer_region) {
+      return RewritePipelineBufferRegion(buffer_region);
+    });
     for (const Buffer& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(alloc_buffer->data);
     }
@@ -678,7 +678,8 @@ class PipelineInjector : private StmtExprMutator {
     CHECK_EQ(pipeline_stages.size(), original_order.size());
     CHECK_EQ(pipeline_orders.size(), original_order.size());
     for (size_t i = 0; i < pipeline_stages.size(); i++) {
-      PipelineStageOrder stage_order(pipeline_stages[i]->value, pipeline_orders[i]->value);
+      PipelineStageOrder stage_order{/*stage=*/static_cast<int>(pipeline_stages[i]->value),
+                                     /*order=*/static_cast<int>(pipeline_orders[i]->value)};
       pipeline_info.emplace(original_order[i], stage_order);
     }
     ValidatePipelineBody(pipeline_info, original_order);
@@ -716,7 +717,6 @@ class PipelineInjector : private StmtExprMutator {
 
   Stmt VisitStmt_(const BlockNode* op) final {
     for (const auto& buffer : op->alloc_buffers) {
-      ICHECK(buffer->IsInstance<BufferNode>());
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
 
