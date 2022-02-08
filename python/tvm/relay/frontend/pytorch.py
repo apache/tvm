@@ -3528,7 +3528,7 @@ def _wrap_const(c):
     return c
 
 
-def _run_jit_passes(graph):
+def _run_jit_passes(graph, enable_lower_all_tuples=True):
     """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
@@ -3541,7 +3541,8 @@ def _run_jit_passes(graph):
     else:
         torch._C._jit_pass_inline(graph)
 
-    torch._C._jit_pass_lower_all_tuples(graph)
+    if enable_lower_all_tuples:
+        torch._C._jit_pass_lower_all_tuples(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -3951,11 +3952,19 @@ def from_pytorch(
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
+    enable_lower_all_tuples = True
 
     converter = PyTorchOpConverter(prelude, default_dtype)
 
     graph = script_module.graph.copy()
-    _run_jit_passes(graph)
+
+    # Check if lower_all_tuples pass can be enabled
+    graph_inputs = list(graph.inputs())
+    for inp in graph_inputs:
+        if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
+            enable_lower_all_tuples = False
+            break
+    _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
