@@ -628,6 +628,7 @@ def factorized_after_reverse_compute_at(a: T.handle, b: T.handle) -> None:
                         B[vi] = 0.0
                     B[vi] = B[vi] + B_rf_local[vk, vi]
 
+
 @T.prim_func
 def not_all_compact_data_flow(a: T.handle, c: T.handle):
     A = T.match_buffer(a, (128, 128), "float32")
@@ -644,6 +645,7 @@ def not_all_compact_data_flow(a: T.handle, c: T.handle):
         with T.block("C_2"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
+
 
 @T.prim_func
 def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
@@ -662,6 +664,7 @@ def not_all_compact_data_flow_after_compute_at(a: T.handle, c: T.handle):
         with T.block("C_2"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj * 2 + 1] = B[vi, vj * 2 + 1] * 2.0
+
 
 @T.prim_func
 def fail_subtree_compact_dataflow(a: T.handle, c: T.handle) -> None:
@@ -757,6 +760,42 @@ def read_out_of_bound_after_compute_at(a: T.handle, c: T.handle) -> None:
             C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v], dtype="float32")
 
 
+@T.prim_func
+def multi_reduction(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(), "float32"]):
+    B = T.alloc_buffer((16, ), dtype="float32")
+    for i, k in T.grid(16, 16):
+        with T.block("B"):
+            vi, vk = T.axis.remap("SR", [i, k])
+            with T.init():
+                B[vi] = 0.0
+            B[vi] += A[vi, vk]
+    for k in T.grid(16):
+        with T.block("C"):
+            vk = T.axis.remap("R", [k])
+            with T.init():
+                C[()] = 0.0
+            C[()] += B[vk]
+
+
+@T.prim_func
+def multi_reduction_after_compute_at(
+    A: T.Buffer[(16, 16), "float32"],
+    C:T.Buffer[(), "float32"],
+):
+    B = T.alloc_buffer((16, ), dtype="float32")
+    for k in T.grid(16):
+        for kk in T.grid(16):
+            with T.block("B"):
+                vi, vk = T.axis.remap("SR", [k, kk])
+                with T.init():
+                    B[vi] = 0.0
+                B[vi] += A[vi, vk]
+        with T.block("C"):
+            vk = T.axis.remap("R", [k])
+            with T.init():
+                C[()] = 0.0
+            C[()] += B[vk]
+
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
 
@@ -833,6 +872,15 @@ def test_compute_at_cuda_matmul_4():
     verify_trace_roundtrip(sch=sch, mod=cuda_matmul_4)
 
 
+def test_compute_at_reduction_block():
+    sch = tir.Schedule(multi_reduction, debug_mask="all")
+    block = sch.get_block("B")
+    (loop,) = sch.get_loops(sch.get_block("C"))
+    sch.compute_at(block, loop, preserve_unit_loops=False)
+    tvm.ir.assert_structural_equal(multi_reduction_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=multi_reduction)
+
+
 def test_reverse_compute_at_tiled():
     sch = tir.Schedule(tiled, debug_mask="all")
     block = sch.get_block("C")
@@ -878,11 +926,11 @@ def test_compact_dataflow():
     verify_trace_roundtrip(sch=sch, mod=not_all_compact_data_flow)
 
 
-def test_fail_subtree_compact_dataflow():
+def test_fail_subtree_complete_block():
     sch = tir.Schedule(fail_subtree_compact_dataflow, debug_mask="all")
     block = sch.get_block("B_0")
     loop, _ = sch.get_loops(sch.get_block("C"))
-    with pytest.raises(tvm.tir.ScheduleError, match="compact dataflow"):
+    with pytest.raises(tvm.tir.ScheduleError, match="complete block"):
         sch.compute_at(block, loop)
 
 

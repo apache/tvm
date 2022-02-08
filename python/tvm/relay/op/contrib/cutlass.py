@@ -94,6 +94,10 @@ def make_conv2d_transpose_pattern():
     return is_op("nn.conv2d_transpose")(wildcard(), wildcard())
 
 
+def make_conv2d_backward_weight_pattern():
+    return is_op("nn.conv2d_backward_weight")(wildcard(), wildcard())
+
+
 def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu"):
     """Add pattern for residual blocks."""
     residual_input = wildcard()
@@ -173,6 +177,10 @@ def check_conv2d_transpose(call):
     return check_conv2d_common("nn.conv2d_transpose", "IHWO", call)
 
 
+def check_conv2d_backward_weight(call):
+    return check_conv2d_common("nn.conv2d_backward_weight", "NHWC", call)
+
+
 def check_conv2d_residual(call, binary_op):
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
     conv2d = get_root_call(call, "nn.conv2d")
@@ -245,6 +253,11 @@ def partition_for_cutlass(mod, params=None):
     # For now, no fusion for grad kernels
     conv2d_grad_patterns = [
         ("cutlass.conv2d_transpose", make_conv2d_transpose_pattern(), check_conv2d_transpose),
+        (
+            "cutlass.conv2d_backward_weight",
+            make_conv2d_backward_weight_pattern(),
+            check_conv2d_backward_weight,
+        ),
     ]
 
     residual_block_patterns = []

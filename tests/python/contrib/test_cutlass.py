@@ -214,6 +214,30 @@ def get_conv2d_transpose_nchw(
     )
 
 
+def get_conv2d_backward_weight(
+    d_shape,
+    w_shape,
+    o_shape,
+    padding,
+    strides,
+    out_dtype="float32",
+    data_dtype="float32",
+    weight_dtype="float32",
+):
+    grad = relay.var("grad", shape=o_shape, dtype=weight_dtype)
+    data = relay.var("data", shape=d_shape, dtype=data_dtype)
+    out_channel = o_shape[1]
+    return relay.nn.conv2d_backward_weight(
+        grad=grad,
+        data=data,
+        kernel_size=w_shape[2:],
+        channels=out_channel,
+        padding=padding,
+        strides=strides,
+        out_dtype=out_dtype,
+    )
+
+
 def convert_conv2d_layout(mod, desired_layouts):
     with tvm.transform.PassContext(opt_level=3):
         seq = tvm.transform.Sequential([relay.transform.ConvertLayout(desired_layouts)])
@@ -376,9 +400,9 @@ def verify_batch_matmul(
         print("TVM Tensorcore (no tuning):", rt_mod_ref.benchmark(dev, number=1, repeat=600))
 
 
-M = 1820
-N = 768
-K = 768
+M = 96
+N = 64
+K = 64
 
 
 def test_dense():
@@ -438,25 +462,13 @@ def test_dense_dynamic():
         # TVM native fp16 dense (without tensorcore), using fp16 accum, seems to have accuracy issues
         # Use cublas as a reference
 
-        # After upgrading to cuda 11.6, this test no longer passes.
-        #
-        # Mismatched elements: 9223 / 1397760 (0.66%)
-        # Max absolute difference: 0.1562
-        # Max relative difference: 20.31
-        #  x: array([[  7.773 ,  -4.24  ,   3.346 , ...,  12.85  ,  12.14  , -12.31  ],
-        #        [  2.775 ,  -0.9316,  28.06  , ...,   2.334 ,  -8.945 ,   2.766 ],
-        #        [  3.38  ,   1.3125,  -6.85  , ...,  -8.695 ,   4.77  ,  -3.828 ],...
-        #  y: array([[  7.766,  -4.246,   3.352, ...,  12.84 ,  12.15 , -12.31 ],
-        #        [  2.781,  -0.926,  28.06 , ...,   2.336,  -8.94 ,   2.762],
-        #        [  3.383,   1.307,  -6.844, ...,  -8.695,   4.785,  -3.846],...
-        pass
-        # verify_dense(
-        #     get_dense_with_shape(data_shape, weight_shape),
-        #     M,
-        #     N,
-        #     K,
-        #     ref_target="cuda -libs=cublas",
-        # )
+        verify_dense(
+            get_dense_with_shape(data_shape, weight_shape),
+            M,
+            N,
+            K,
+            ref_target="cuda -libs=cublas",
+        )
 
     verify_dense(
         get_dense_with_shape(data_shape, weight_shape, out_dtype="float32"),
@@ -506,7 +518,7 @@ def verify_conv2d_common(
 ):
     if not has_cutlass():
         return
-    if sm < 80 and data_dtype == "float32":
+    if sm < 80 and inputs[0].dtype == "float32":
         return
 
     mod_nchw = tvm.IRModule.from_expr(expr_nchw)
@@ -596,6 +608,42 @@ def verify_conv2d(
         rtol,
         use_cudnn_ref,
         run_benchmark,
+        use_fast_math,
+        ref_target,
+        use_vm,
+    )
+
+
+def verify_conv2d_backward_weight(
+    expr_nchw,  # can be dynamic batch
+    expr_ref,  # always static batch
+    grad_shape,
+    data_shape,
+    sm=80,
+    atol=1e-5,
+    rtol=1e-5,
+    use_cudnn_ref=False,
+    use_fast_math=False,
+    grad_dtype="float16",
+    data_dtype="float16",
+    ref_target="cuda",
+    use_vm=False,
+):
+    np_grad = get_random_ndarray(grad_shape, grad_dtype)
+    np_data = get_random_ndarray(data_shape, data_dtype)
+    params = {}
+    input_names = ["grad", "data"]
+    return verify_conv2d_common(
+        expr_nchw,
+        expr_ref,
+        input_names,
+        [np_grad, np_data],
+        params,
+        sm,
+        atol,
+        rtol,
+        use_cudnn_ref,
+        False,
         use_fast_math,
         ref_target,
         use_vm,
@@ -766,6 +814,92 @@ def test_conv2d_transpose():
             data_dtype=dtype,
             weight_dtype=dtype,
         )
+
+
+def test_conv2d_backward_weight():
+    OC = 8
+    IC = 16
+    d_shape = (16, IC, 32, 32)
+    w_shape = (OC, IC, 3, 3)
+    dtype = "float16"
+
+    for strides in [(1, 1), (2, 2)]:
+        o_shape = (16, OC, 32 // strides[0], 32 // strides[1])
+        padding = (1, 1)
+
+        mod_nchw = get_conv2d_backward_weight(
+            d_shape,
+            w_shape,
+            o_shape,
+            padding,
+            strides,
+            out_dtype="float32",
+            data_dtype=dtype,
+            weight_dtype=dtype,
+        )
+
+        verify_conv2d_backward_weight(
+            mod_nchw,
+            mod_nchw,
+            o_shape,
+            d_shape,
+            sm=80,
+            atol=1e-3,
+            rtol=1e-3,
+            use_cudnn_ref=False,
+            grad_dtype=dtype,
+            data_dtype=dtype,
+        )
+
+
+def test_conv2d_bwd():
+    IC = 16
+    OC = 8
+    dshape = (16, IC, 32, 32)
+    wshape = (OC, IC, 3, 3)
+    padding = (0, 0)
+    strides = (1, 1)
+
+    conv = get_conv2d_nchw(
+        dshape,
+        wshape,
+        padding,
+        strides=strides,
+        out_dtype="float32",
+        data_dtype="float32",
+        weight_dtype="float32",
+    )
+    fwd_mod = InferType()(tvm.IRModule.from_expr(conv))
+
+    # Note: large difference in tvm and cutlass Wgrad results if use fp16.
+    # Cutlass wgrad uses fp32 accumulation even if the output is fp16.
+    use_fp16 = False
+    verify_dgrad = False  # False to verify wgrad
+    tol = 1e-5 if verify_dgrad else 1e-4  # Wgrad slightly less accurate
+
+    if use_fp16:
+        fwd_mod = ToMixedPrecision("float16")(fwd_mod)
+
+    fwd_bwd_func = FirstOrderGradient()(fwd_mod)["main"]
+
+    bwd_func = relay.Function(
+        fwd_bwd_func.params,
+        relay.TupleGetItem(relay.TupleGetItem(fwd_bwd_func.body, 1), 0 if verify_dgrad else 1),
+    )
+
+    verify_conv2d(
+        bwd_func,
+        bwd_func,
+        dshape,
+        wshape,
+        sm=80,
+        atol=1e-2 if use_fp16 else tol,
+        rtol=1e-2 if use_fp16 else tol,
+        use_cudnn_ref=False,
+        data_dtype="float32",
+        weight_dtype="float32",
+        use_vm=True,
+    )
 
 
 if __name__ == "__main__":

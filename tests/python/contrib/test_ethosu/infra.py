@@ -423,6 +423,7 @@ def make_ethosu_conv2d(
     weight_dtype="int8",
     scale_bias_dtype="uint8",
     rounding_mode="TFL",
+    upscale="NONE",
 ):
     # conv params
     weight_shape = (ofm_channels, kernel_shape[0], kernel_shape[1], ifm_channels)
@@ -451,7 +452,7 @@ def make_ethosu_conv2d(
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
         rounding_mode=rounding_mode,
-        upscale="NONE",
+        upscale=upscale,
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )

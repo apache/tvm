@@ -47,6 +47,7 @@ from .tir.intrin import Intrin
 from .tir.node import Slice, BufferSlice
 from .tir.scope_handler import ScopeHandler, WithScopeHandler, ForScopeHandler
 from .tir.special_stmt import SpecialStmt
+from .tir import ty
 
 
 class CallArgumentReader(object):
@@ -447,7 +448,9 @@ class TVMScriptParser(Transformer):
         # add parameters of function
         for arg in node.params:
             # Note that this case is for T.match_buffer syntax sugar
-            if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)):
+            if isinstance(arg.ty, (ast.TypeCall, ast.TypeApply)) and isinstance(
+                self.transform(arg.ty.func_name), ty.GenericBufferType
+            ):
                 result = self.handle_match_buffer_type(arg.ty, arg.name)
                 if not isinstance(result, buffer.Buffer):
                     self.report_error(
@@ -1137,6 +1140,33 @@ class TVMScriptParser(Transformer):
         Mostly used in `transform_TypeCall` and `transform_TypeApply`.
         """
         return [self.transform(value) for value in node.values]
+
+    def transform_TypeApply(self, node):
+        """Visitor for Type[Type] expressions.
+
+        Mostly used for ``T.Ptr`` expressions.
+        """
+        func = self.transform(node.func_name)
+
+        if not isinstance(func, ty.TypeGeneric) or not hasattr(func, "__getitem__"):
+            self.report_error(
+                f"Use of type arguments requires a type that accepts type arguments (e.g. T.Ptr), "
+                f"but found {type(func).__name__} instead.",
+                node.span,
+            )
+
+        param_types = []
+        for param in node.params:
+            param_type = self.transform(param)
+            if not isinstance(param_type, ty.TypeGeneric):
+                self.report_error(f"Expected a type but found {type(param).__name__}", param.span)
+
+            param_types.append(param_type)
+
+        if len(param_types) == 1:
+            return func[param_types[0]]
+        else:
+            return func[param_types]
 
     def handle_match_buffer_type(self, node, buffer_name):
         """special function to handle syntax sugar for match buffer.

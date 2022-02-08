@@ -320,7 +320,10 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
 
   // old_in, new_in = state[inputs]
-  Array<Layout> old_in, old_out, new_in, new_out, new_in2;
+  // naming rule:
+  // old_in, new_in: the input layouts given by downstream node.
+  // old_in2, new_in2: the input layouts inferred by the current node.
+  Array<Layout> old_in, old_in2, old_out, new_in, new_out, new_in2;
   for (auto inp : inputs) {
     old_in.push_back(inp->old_layout);
     new_in.push_back(inp->new_layout);
@@ -336,17 +339,18 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   InferCorrectLayoutOutput infer_out;
   std::tie(infer_out, success) =
       InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
-  old_in = infer_out->input_layouts;
+  old_in2 = infer_out->input_layouts;
   old_out = infer_out->output_layouts;
   if (!success) {
     return Expr(nullptr);
   }
-  ICHECK_EQ(old_in.size(), new_in.size());
+  ICHECK_EQ(old_in2.size(), new_in.size());
 
-  // if new_in == 'undef':  new_in = old_in
-  for (size_t i = 0; i < new_in.size(); ++i) {
-    if (!new_in[i].defined()) {
-      new_in.Set(i, old_in[i]);
+  Array<Layout> new_in_tmp = new_in;  // for backward compatibility of InferCorrectLayouts
+  // if new_in_tmp == 'undef':  new_in_tmp = old_in2
+  for (size_t i = 0; i < new_in_tmp.size(); ++i) {
+    if (!new_in_tmp[i].defined()) {
+      new_in_tmp.Set(i, old_in2[i]);
     }
   }
 
@@ -356,7 +360,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
-    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in, old_in, types);
+    std::tie(infer_out, success) = InferCorrectLayouts(new_call, new_in_tmp, old_in2, types);
     new_in2 = infer_out->input_layouts;
     new_out = infer_out->output_layouts;
     if (!success) {
@@ -371,6 +375,17 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   ICHECK_EQ(new_in.size(), new_in2.size())
       << "The number of input nodes should keep the same during alter_op_layout";
 
+  auto transform_layout = [&memorizer](Expr arg_item, const Layout& old_in, const Layout& old_in2,
+                                       const Layout& new_in, const Layout& new_in2) {
+    if (old_in2.Equals(old_in)) {  // the two transforms can be fused to one
+      arg_item = memorizer.Transform(arg_item, new_in, new_in2);
+    } else {
+      if (old_in.defined()) arg_item = memorizer.Transform(arg_item, new_in, old_in);
+      arg_item = memorizer.Transform(arg_item, old_in2, new_in2);
+    }
+    return arg_item;
+  };
+
   // if (new_in != new_in2): insert transform (new_in -> new_in2)
   Array<Expr> transformed_args;
   size_t pt = 0;
@@ -380,12 +395,14 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
       Array<Expr> transformed_tuple_arg;
       transformed_tuple_arg.reserve(tuple_arg->fields.size());
       for (auto arg_item : tuple_arg->fields) {
-        transformed_tuple_arg.push_back(memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
+        transformed_tuple_arg.push_back(
+            transform_layout(arg_item, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
         pt++;
       }
       transformed_args.push_back(WithFields(tuple_arg, transformed_tuple_arg));
     } else {
-      transformed_args.push_back(memorizer.Transform(arg, new_in[pt], new_in2[pt]));
+      transformed_args.push_back(
+          transform_layout(arg, old_in[pt], old_in2[pt], new_in[pt], new_in2[pt]));
       pt++;
     }
   }

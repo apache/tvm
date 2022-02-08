@@ -49,7 +49,8 @@ class PoolInfoAssigner : public StmtExprMutator {
     Array<usmp::PoolInfo> pool_infos =
         module->GetAttr<Array<usmp::PoolInfo>>(tvm::attr::kPoolInfoIRModuleAttr)
             .value_or({usmp::PoolInfo(
-                "global_workspace", {{target_host.value(), PoolInfo::kTargetPoolReadWriteAccess}},
+                "global_workspace",
+                {{target_host.value(), String(PoolInfo::kTargetPoolReadWriteAccess)}},
                 PoolInfo::kUnrestrictedPoolSizeHint, PoolInfo::kUnknownClockFrequency,
                 PoolInfo::kUnknownReadBandwidth, PoolInfo::kUnknownWriteBandwidth, 0, 0,
                 {{target_host.value(), 1}}, Bool(true))});

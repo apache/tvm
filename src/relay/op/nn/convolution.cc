@@ -639,11 +639,28 @@ bool Conv2DBackwardWeightRel(const Array<Type>& types, int num_inputs, const Att
   auto in_channels = dshape_nchw[1];
   auto out_channels = grad_shape_nchw[1];
 
-  Array<IndexExpr> wshape_oihw(
-      {out_channels, in_channels, param->kernel_size[0], param->kernel_size[1]});
+  auto in_channels_intimm = in_channels.as<IntImmNode>();
+  auto out_channels_intimm = out_channels.as<IntImmNode>();
+  ICHECK(in_channels_intimm);
+  ICHECK(out_channels_intimm);
 
+  IndexExpr weight_dim_i;
+  if (in_channels_intimm->value == out_channels_intimm->value &&
+      in_channels_intimm->value == param->groups) {
+    // depthwise
+    ICHECK(param->channels.defined())
+        << "out_channels attribute not specified for depth wise conv2d.";
+    weight_dim_i = indexdiv(param->channels, param->groups);
+  } else {
+    weight_dim_i = indexdiv(in_channels, param->groups);
+  }
+
+  Array<IndexExpr> wshape_oihw{out_channels, weight_dim_i, param->kernel_size[0],
+                               param->kernel_size[1]};
   auto wshape = trans_kernel_layout.BackwardShape(wshape_oihw);
-  reporter->Assign(types[2], TensorType(wshape, data->dtype));
+
+  const auto dw_dtype = param->out_dtype == DataType() ? grad->dtype : param->out_dtype;
+  reporter->Assign(types[2], TensorType(wshape, dw_dtype));
   return true;
 }
 
