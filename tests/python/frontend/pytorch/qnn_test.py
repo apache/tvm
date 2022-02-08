@@ -23,8 +23,14 @@ import numpy as np
 
 import torch
 from torch import nn
-from torch.quantization import QuantStub, DeQuantStub
-from torch.quantization import fuse_modules, QuantWrapper
+from torch.quantization import (
+    QuantStub,
+    DeQuantStub,
+    fuse_modules,
+    QuantWrapper,
+    prepare_qat,
+    get_default_qat_qconfig,
+)
 
 import tvm
 import tvm.testing
@@ -675,3 +681,100 @@ def test_keep_quantized_weight():
         tvm_result_int8_weight = runtime_int8_weight.get_output(0).numpy()
 
         tvm.testing.assert_allclose(tvm_result, tvm_result_int8_weight)
+
+
+def test_tuple_lowered():
+    # See the following discuss thread for details
+    # https://discuss.tvm.apache.org/t/bug-frontend-pytorch-relay-ir-is-inconsistent-with-that-of-the-original-model/12010
+
+    class ConvBnRelu(nn.Module):
+        def __init__(self, inp, oup, kernel_size=3, stride=1, padding=1, bias=True, groups=1):
+            super(ConvBnRelu, self).__init__()
+            if groups > 1:
+                self.conv = nn.Conv2d(
+                    inp, inp, kernel_size, stride, padding, bias=bias, groups=groups
+                )
+                self.bn = nn.BatchNorm2d(inp)
+            else:
+                self.conv = nn.Conv2d(
+                    inp, oup, kernel_size, stride, padding, bias=bias, groups=groups
+                )
+                self.bn = nn.BatchNorm2d(oup)
+            self.relu = nn.ReLU(inplace=True)
+
+        def forward(self, inputs):
+            x = self.conv(inputs)
+            x = self.bn(x)
+            x = self.relu(x)
+            return x
+
+    def conv_bn(inp, oup, stride=1, width_multiplier=1):
+        return ConvBnRelu(inp, oup, kernel_size=3, stride=stride, padding=1, bias=False)
+
+    def conv_dw(inp, oup, stride, width_multiplier=1, padding=1):
+        dw_block = nn.Sequential()
+        depth_wise = ConvBnRelu(
+            inp, oup, kernel_size=3, stride=stride, padding=padding, bias=False, groups=inp
+        )
+        point_wise = ConvBnRelu(inp, oup, kernel_size=1, stride=1, padding=0, bias=False)
+
+        dw_block.add_module("depth_wise", depth_wise)
+        dw_block.add_module("point_wise", point_wise)
+
+        return dw_block
+
+    class Backbone(nn.Module):
+        def __init__(self, width_multiplier=1):
+            super(Backbone, self).__init__()
+            self.width_multiplier = width_multiplier
+            self.conv1 = conv_bn(3, 16, 2, self.width_multiplier)
+            self.conv2 = conv_dw(16, 32, 1, self.width_multiplier)
+
+        def forward(self, inputs):
+            x1 = self.conv1(inputs)
+            x2 = self.conv2(x1)
+            return [x1, x2]
+
+    class QuantizableBackbone(nn.Module):
+        def __init__(self, inputsize=(128, 128)):
+            super(QuantizableBackbone, self).__init__()
+            self.quant = QuantStub()
+            self.dequant = DeQuantStub()
+            self.backbone = Backbone()
+
+        def fuse_model(self):
+            for idx, m in enumerate(self.modules()):
+                if type(m) == ConvBnRelu:
+                    torch.quantization.fuse_modules(m, ["conv", "bn", "relu"], inplace=True)
+
+        def forward(self, input):
+            input = self.quant(input)
+            y0, y1 = self.backbone(input)
+            y0 = self.dequant(y0)
+            y1 = self.dequant(y1)
+            return y0, y1
+
+    fp32_input = torch.randn(1, 3, 128, 128)
+    model = QuantizableBackbone()
+    model.train()
+    model.fuse_model()
+    model.qconfig = get_default_qat_qconfig("qnnpack")
+
+    prepare_qat(model, inplace=True)
+
+    model.eval()
+    model(fp32_input)
+
+    model_int8 = torch.quantization.convert(model, inplace=True)
+    script_module = torch.jit.trace(model_int8, fp32_input).eval()
+
+    input_infos = [("input", (fp32_input.shape, "float32"))]
+    mod, _ = relay.frontend.from_pytorch(script_module, input_infos)
+    output = mod["main"].body
+
+    assert isinstance(output, relay.Tuple) and len(output) == 2
+    dq1, dq2 = output
+    assert str(dq1.op) == "qnn.dequantize" and str(dq2.op) == "qnn.dequantize"
+    scale1 = dq1.args[1].data.numpy().item()
+    scale2 = dq2.args[1].data.numpy().item()
+    assert scale1 != scale2

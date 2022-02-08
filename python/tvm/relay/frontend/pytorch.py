@@ -3541,6 +3541,8 @@ def _run_jit_passes(graph):
     else:
         torch._C._jit_pass_inline(graph)
 
+    torch._C._jit_pass_lower_all_tuples(graph)
+
 
 def _get_tensor_and_var(torch_tensor, name):
     tensor = tvm.nd.array(torch_tensor.cpu().numpy())
@@ -3996,10 +3998,15 @@ def from_pytorch(
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
-    if isinstance(ret, list):
-        # ListConstruct kept original python list. Convert to tuple.
-        ret = _expr.Tuple(ret)
+    outputs = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+
+    # ListConstruct kept original python list. Convert to tuple.
+    outputs = [_expr.Tuple(output) if isinstance(output, list) else output for output in outputs]
+
+    if len(outputs) > 1:
+        ret = _expr.Tuple(outputs)
+    else:
+        ret = outputs[0]
 
     # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []
