@@ -131,7 +131,9 @@ curl --retry 64 -sSL ${mobilenet_url} -o ./mobilenet_v2_1.0_224_INT8.tflite
 # Compile model for Arm(R) Cortex(R)-M55 CPU and Ethos(TM)-U55 NPU
 # An alternative to using "python3 -m tvm.driver.tvmc" is to call
 # "tvmc" directly once TVM has been pip installed.
-python3 -m tvm.driver.tvmc compile --target="ethos-u -accelerator_config=ethos-u55-256, cmsis-nn, c" \
+python3 -m tvm.driver.tvmc compile --target=ethos-u,cmsis-nn,c \
+    --target-ethos-u-accelerator_config=ethos-u55-256 \
+    --target-cmsis-nn-mcpu=cortex-m55 \
     --target-c-mcpu=cortex-m55 \
     --runtime=crt \
     --executor=aot \
