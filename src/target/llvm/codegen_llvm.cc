@@ -793,6 +793,7 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(DataType t, llvm::Value* 
   llvm::PointerType* btype = llvm::dyn_cast<llvm::PointerType>(buffer->getType());
   ICHECK(btype != nullptr);
   llvm::Type* llvm_type = DTypeToLLVMType(t);
+  ICHECK(llvm_type) << "Could not make LLVM type to represent TVM type " << t;
   llvm::PointerType* ttype = llvm_type->getPointerTo(btype->getAddressSpace());
   if (btype != ttype) {
     buffer = builder_->CreatePointerCast(buffer, ttype);

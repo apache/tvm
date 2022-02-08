@@ -115,7 +115,17 @@ class CustomDatatypesLowerer : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
-    return VisitBufferAccess(std::move(node));
+    auto modified = VisitBufferAccess(node);
+
+    // Not needed for BufferStoreNode, so we can't just call
+    // LegalizeDtype() in VisitBufferAccess.
+    if (node.same_as(modified)) {
+      return std::move(node);
+    } else {
+      auto writer = modified.CopyOnWrite();
+      writer->LegalizeDtype();
+      return std::move(modified);
+    }
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
