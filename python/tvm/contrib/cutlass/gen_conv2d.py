@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, dangerous-default-value
 """Conv2d kernel generator and profiler for CUTLASS."""
 from functools import partial
 from .conv2d_operation import Conv2dOperation, EmitConv2dInstance

@@ -139,11 +139,12 @@ double profile_convolution(Options const &options) {
   auto b_extent = implicit_gemm_tensor_b_extent(conv_kind, problem_size);
   auto c_extent = implicit_gemm_tensor_c_extent(conv_kind, problem_size);
 
+  using LayoutC = typename ImplicitGemm::LayoutC;
   cutlass::HostTensor<ElementInputA, typename ImplicitGemm::LayoutA> tensor_a(a_extent);
   cutlass::HostTensor<ElementInputB, typename ImplicitGemm::LayoutB> tensor_b(b_extent);
   cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_c(c_extent);
-  cutlass::HostTensor<ElementOutput, typename ImplicitGemm::LayoutC> tensor_d(c_extent);
-  cutlass::HostTensor<ImplicitGemm::ElementC, typename ImplicitGemm::LayoutC> tensor_c_gemm(c_extent);
+  cutlass::HostTensor<ElementOutput, LayoutC> tensor_d(c_extent);
+  cutlass::HostTensor<ImplicitGemm::ElementC, LayoutC> tensor_c_gemm(c_extent);
 
   using ElementComputeEpilogue = typename ImplicitGemm::ElementCompute;
 
