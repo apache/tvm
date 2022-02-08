@@ -56,7 +56,7 @@ def pytest_collection_modifyitems(config, items):
             if len(item.location) == 3 and item.location[0].startswith(
                 "tests/python/frontend/tensorflow"
             ):
-                item.add_marker(pytest.mark.forked)
+                item.add_marker(pytest.mark.subprocessed)
 
             if "corstone300" in item.keywords:
                 item.add_marker(
