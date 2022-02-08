@@ -52,9 +52,9 @@ Block MakeBlock(const Stmt& body, const Map<Var, Buffer>& buffer_data_to_buffer)
       return block_realize->block;
     }
   }
-  Block block = Block({}, {}, {}, "", body);
-  auto access = GetBlockReadWriteRegion(block, buffer_data_to_buffer);
-  auto* n = block.CopyOnWrite();
+  Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"", /*body*/body);
+  Array<Array<BufferRegion>> access = GetBlockReadWriteRegion(block, buffer_data_to_buffer);
+  BlockNode* n = block.CopyOnWrite();
   n->reads = access[0];
   n->writes = access[1];
   return block;
@@ -85,7 +85,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
    * \brief Constructor of PipelineBodyRewriter.
    * \param buffer_data_to_buffer The map from buffer data to buffer.
    * \param buffer_remap The map from original buffer to the buffer with updated shape for
-   *        multi-versioning in the sofeware pipeline.
+   *        multi-versioning in the software pipeline.
    * \param pipeline_loop The original loop to be software pipelined.
    * \param access_all_versions Whether all versions the the buffers in the software pipeline are
    *        accessed. This will be used to update block access region. In the prologue and epilogue
@@ -291,7 +291,14 @@ class PipelineRewriter : public StmtExprMutator {
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
     // need to maintain for each buffer.
-    RemapPipelineBuffers(pipeline_allocs_);
+    std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos =
+        GetBufferAccessInfo();
+    for (const Buffer& buffer : pipeline_allocs_) {
+      int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
+      if (num_versions > 1) {
+        buffer_remap_.Set(buffer, RewriteAllocBuffer(buffer, num_versions));
+      }
+    }
 
     ordered_stmts_.resize(pipeline_info_.size());
     for (const auto& pair : pipeline_info_) {
@@ -312,17 +319,11 @@ class PipelineRewriter : public StmtExprMutator {
     // Step 3: Make a new block that contains new buffer allocations after pipeline rewriting.
     Array<Buffer> alloc_buffers;
     for (const auto& alloc : pipeline_allocs_) {
-      auto it = buffer_remap_.find(alloc);
-      if (it != buffer_remap_.end()) {
-        alloc_buffers.push_back((*it).second);
-      } else {
-        alloc_buffers.push_back(alloc);
-      }
+      alloc_buffers.push_back(buffer_remap_.Get(alloc).value_or(alloc));
       buffer_data_to_buffer_.erase(alloc->data);
     }
     Block block = MakeBlock(stmt, buffer_data_to_buffer_);
-    auto* n = block.CopyOnWrite();
-    n->alloc_buffers = std::move(alloc_buffers);
+    block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
     return BlockRealize({}, Bool(true), block);
   }
 
@@ -392,7 +393,7 @@ class PipelineRewriter : public StmtExprMutator {
    * need to maintain during the software pipeline.
    * Annotation `attr::double_buffer_scope` is handled here which provides a way to override the
    * result of the analysis. Additional double buffering in the software pipeline can be useful
-   * to eliminate synchonizations in GPU devices.
+   * to eliminate synchronizations in GPU devices.
    *
    * \param buffer The target buffer
    * \param buffer_info The access information of the target buffer.
@@ -462,7 +463,7 @@ class PipelineRewriter : public StmtExprMutator {
     std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos =
         GetBufferAccessInfo();
     for (const Buffer& buffer : pipeline_allocs) {
-      const BufferAccessInfo access_info = infos.at(buffer);
+      const BufferAccessInfo& access_info = infos.at(buffer);
       int num_versions = ComputeBufferVersions(buffer, access_info);
       if (num_versions > 1) {
         Buffer new_buffer = RewriteAllocBuffer(buffer, num_versions);
@@ -480,7 +481,7 @@ class PipelineRewriter : public StmtExprMutator {
    */
   Buffer RewriteAllocBuffer(const Buffer& buffer, int num_versions) {
     ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*(buffer.get()));
-    new_buffer->shape.insert(new_buffer->shape.begin(), num_versions);
+    new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
       ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
       PrimExpr stride_0 = new_buffer->strides[0] * new_buffer->shape[1];
@@ -514,12 +515,11 @@ class PipelineRewriter : public StmtExprMutator {
       analyzer_.Bind(Downcast<Var>(new_loop_var), Range(start, end));
     }
 
-    for (const Block block : ordered_stmts_) {
+    for (const Block& block : ordered_stmts_) {
       int stage = pipeline_info_.at(block).stage;
       PrimExpr skewed_loop_var = new_loop_var - stage;
-      PrimExpr inbound = (skewed_loop_var >= pipeline_loop_->min) &&
+      PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
-      inbound = analyzer_.Simplify(inbound);
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }
@@ -608,8 +608,7 @@ class PipelineInjector : private StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1: Recursively rewrite the children first.
     For for_node = Downcast<For>(StmtExprMutator::VisitStmt_(op));
-    bool is_pipeline = HasPipelineAnnotation(op);
-    if (!is_pipeline) {
+    if (!HasPipelineAnnotation(op)) {
       return std::move(for_node);
     }
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of

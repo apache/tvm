@@ -493,43 +493,38 @@ TVM_DLL Pass ConvertForLoopsToSerial();
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
 /*!
- * \brief Transform annotated loops into pipelined one that ovarlaps producers and consumers.
+ * \brief This pass transforms annotated loops into pipelined ones where producers and consumers
+ * are overlapped with the information provided in loop annotations, which enables optimization
+ * techniques like prefetching and pipeline parallelism.
  *
- * This pass detects loops with the software pipeline annotations and rewrite them to pipelined
- * ones. The behavior of such rewriting depending on two annotations on the loop,
- * attr::software_pipeline_stage, and attr::software_pipeline_order, which defines the stage and the
- * order, respectively, of the components of the software pipeline. The components of the software
- * pipeline is the direct children (ignoring BlockRealize / Block / SeqStmt) of the annotated loop.
- * The value of the both annotations should be array of integers, with its size the same as the
- * number of the components.
+ * The pipeline scope consists of the direct children of the annotated loop (ignoring BlockRealize,
+ * Block, SeqStmt), and the number of children is denoted by `n` in the documentation.
  *
- * The result of the rewriting is a block that has three blocks as its direct children which
- * represents the prologue, the body, and the epilogue of the software pipeline. In the prologue,
- * only components whose stage is less than max_stage will be executed. In the epilogue, only
- * components whose stage is greater than 0 will be executed. In the body, all the components will
- * be executed. Such rewriting enables behavior like prefetching, the components are not necessarily
- * executed in the original order. attr::software_pipeline_order defines the order of the each
- * component. Components belong to different stages can be reordered.
+ * The following annotations are used to guide the loop transformation:
  *
- * Nested software pipelines are allowed. In this case, the inner software pipeline will be
- * generated first. As a result, this may affect the number of components, i.e. the number of the
- * direct children of the outer loop. In this case, the annotations for the outer software
- * pipeline should include the result of the inner software pipeline, which is three blocks as
- * discussed above.
+ * 1) Loop annotation `software_pipeline_stage` defines the pipeline stage.
+ * An array of `n` integers, and each element should be in range [0, max_stage],
+ * where max_stage is the maximum (inclusive) stage.
+ * 2) Loop annotation `software_pipeline_order` defines the pipeline order.
+ * An array of `n` integers, a permutation of [0, 1, ..., num_components - 1];
+ * 3) Block annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
+ * read/write dependency. It's an integer index of the write regions of the block.
  *
- * Buffer allocated inside the software pipeline may be resized to accommodate multiple versions
- * of the original buffer. Block annotation attr::double_buffer_scope can be used to indicate that
- * the block need to write in the double-buffering style.
+ * Every annotated loop is transformed into a loop with three blocks as its direct children:
  *
- * The following annotations are used to specify the behavior of this pass:
- *     attr::software_pipeline_stage: Array of non-negative integers, each element should be in
- *                                    range [0, max_stage], where max_stage is the maximum
- *                                    (inclusive) stage.
- *     attr::software_pipeline_order: Array of non-negative integers, should be a permutation of
- *                                    [0, 1, ..., num_components - 1].
- *     attr::double_buffer_scope: Integer index of the write regions of the block. Mark a buffer
- *                                should be double-buffered during the software pipelining.
+ * 1) Prologue block, where components whose stage is less than `max_stage` is executed;
  *
+ * 2) Body block, where all the components are executed;
+ *
+ * 3) Epilogue block, where only components whose stage is greater than 0 will be executed.
+ * The execution order is controlled by the annotation `software_pipeline_order`,
+ * and thus could be different than the original order.
+ *
+ * Note: For nested software pipelines, the inner software pipeline will be generated first,
+ * which may affect the number of the direct children of the outer loop.
+ * In this case, the annotations for the outer software
+ * pipeline should include the result of the inner software pipeline,
+ * which is the three blocks as discussed above.
  * Example:
  *
  * Before this pass, the TIR is:
@@ -556,8 +551,8 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  *                     C[tx, i] = B[tx, 0] + T.float32(1)
  * \endcode
  *
- * The TIR above annotate the loop as a two-stage pipeline, the components are not reordered.
- * After this pass, the TIR is:
+ * The TIR above annotates the loop as a two-stage pipeline with no reordering.
+ * After applying this pass, the TIR is transformed into:
  *
  * \code{.py}
  * @T.prim_func
