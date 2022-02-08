@@ -59,7 +59,7 @@ def affine_grid(data, target_shape):
     return te.compute(oshape, _compute, tag="affine_grid")
 
 
-def grid_sample(data, grid, method="bilinear", layout="NCHW"):
+def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode="zeros"):
     """Applies bilinear sampling to input feature map.
 
     Given :math:`data` and :math:`grid`, assuming NCHW layout, then the output is computed by
@@ -72,7 +72,8 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW"):
 
     :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
     :math:`G()` denotes the interpolation method.
-    The out-boundary points will be padded with zeros. The shape of the output will be
+    The out-boundary points will be padded with zeros if the padding_mode is "zeros".
+    The shape of the output will be
     (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
 
     The operator assumes that :math:`grid` has been normalized to [-1, 1].
@@ -96,7 +97,7 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW"):
     Returns
     -------
     Output : tvm.Tensor
-        4-D with shape [batch, 2, out_height, out_width]
+        4-D with shape [batch, in_channel, out_height, out_width]
     """
     batch, in_channel, in_height, in_width = data.shape
     out_height, out_width = grid.shape[2:]
@@ -104,11 +105,18 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW"):
     assert layout == "NCHW", "Only NCHW is supported"
 
     def _get_pixel_value(n, c, h, w):
-        return te.if_then_else(
-            te.all(h >= 0, w >= 0, h < in_height, w < in_width),
-            data[n, c, h, w],
-            tir.const(0.0, dtype=data.dtype),
-        )
+        if padding_mode == "zeros":
+            return te.if_then_else(
+                te.all(h >= 0, w >= 0, h < in_height, w < in_width),
+                data[n, c, h, w],
+                tir.const(0.0, dtype=data.dtype),
+            )
+        if padding_mode == "border":
+            h_b = te.max(te.min(h, in_height - 1), 0)
+            w_b = te.max(te.min(w, in_width - 1), 0)
+            return data[n, c, h_b, w_b]
+
+        raise AssertionError("unsupported padding_mode")
 
     def _bilinear_sample(n, c, h, w):
         x = grid[n, 0, h, w]

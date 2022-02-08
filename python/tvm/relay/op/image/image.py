@@ -455,7 +455,7 @@ def affine_grid(data, target_shape=None):
     return _make.affine_grid(data, target_shape)
 
 
-def grid_sample(data, grid, method="bilinear", layout="NCHW"):
+def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode="zeros"):
     """Applies bilinear sampling to input feature map.
 
     Given :math:`data` and :math:`grid`, then the output is computed by
@@ -468,7 +468,8 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW"):
 
     :math:`x_{dst}`, :math:`y_{dst}` enumerate all spatial locations in :math:`output`, and
     :math:`G()` denotes the interpolation function.
-    The out-boundary points will be padded with zeros. The shape of the output will be
+    The out-boundary points will be padded with zeros if padding_mode is "zeros".
+    The shape of the output will be
     (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3]).
 
     The operator assumes that :math:`grid` has been normalized to [-1, 1].
@@ -489,9 +490,12 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW"):
     layout : str
         The layout of input data and the output.
 
+    padding_mode : str
+        The padding mode for outside grid values.
+
     Returns
     -------
     Output : tvm.Tensor
         4-D with shape [batch, 2, out_height, out_width]
     """
-    return _make.grid_sample(data, grid, method, layout)
+    return _make.grid_sample(data, grid, method, layout, padding_mode)
