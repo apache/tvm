@@ -611,6 +611,7 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir) {
   return CreatePrimFuncPass(pass_func, 0, "tir.CommonSubexprElimTIR", {});
 }
 
+
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
 TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
 
