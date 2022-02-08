@@ -52,7 +52,9 @@ def test_relu(target, dev, m, n, dtype):
 
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-    foo = tvm.build(s, [A, B], target, name="relu")
+    # Building with the CSE pass disabled
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        foo = tvm.build(s, [A, B], target, name="relu")
     foo(a, b)
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
@@ -70,7 +72,9 @@ def test_leaky_relu(size, alpha):
     dev = tvm.cpu(0)
     a = tvm.nd.array(a_np, dev)
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-    foo = tvm.build(s, [A, B], "llvm", name="leaky_relu")
+    # Building with the CSE pass disabled
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        foo = tvm.build(s, [A, B], "llvm", name="leaky_relu")
     foo(a, b)
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
@@ -99,7 +103,9 @@ def test_prelu(x, w, axis, weight_reshape):
     w_tvm = tvm.nd.array(w_np, dev)
 
     b = tvm.nd.array(np.zeros(get_const_tuple(X.shape), dtype=B.dtype), dev)
-    foo = tvm.build(s, [X, W, B], "llvm", name="prelu")
+    # Building with the CSE pass disabled
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        foo = tvm.build(s, [X, W, B], "llvm", name="prelu")
     foo(x_tvm, w_tvm, b)
     out_np = _prelu_numpy(x_np, w_np)
     tvm.testing.assert_allclose(b.numpy(), out_np, rtol=1e-5)
