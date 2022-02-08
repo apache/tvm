@@ -632,12 +632,6 @@ class PipelineInjector : private StmtExprMutator {
     CHECK(pipeline_body_seq)
         << "ValueError: The body of the software pipeline should be SeqStmt, got "
         << pipeline_body->GetTypeKey();
-    // The SeqStmt before recursive rewriting, which is used for validating the software pipeline.
-    const SeqStmtNode* original_seq =
-        op->body->IsInstance<BlockRealizeNode>()
-            ? op->body.as<BlockRealizeNode>()->block->body.as<SeqStmtNode>()
-            : op->body.as<SeqStmtNode>();
-    ICHECK(original_seq);
 
     // Step 3: Blockize the components of the pipeline. Each child of the pipelined loop will be
     // converted into a block.
@@ -645,11 +639,7 @@ class PipelineInjector : private StmtExprMutator {
     Array<Block> original_order;  // pipeline body blocks in the original order
 
     auto f_add_child = [&](const Stmt& child) {
-      const auto* block_realize = child.as<BlockRealizeNode>();
-      Block block = (block_realize && is_one(block_realize->predicate))
-                        ? block_realize->block
-                        : MakeBlock(child, buffer_data_to_buffer_);
-      original_order.push_back(block);
+      original_order.push_back(MakeBlock(child, buffer_data_to_buffer_));
     };
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
       const auto* nested_block_realize = pipeline_body_seq->seq[i].as<BlockRealizeNode>();
