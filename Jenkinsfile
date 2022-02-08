@@ -93,10 +93,8 @@ def per_exec_ws(folder) {
 def init_git() {
   // Add more info about job node
   sh (
-    script: """
-     echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
-     """,
-     label: 'Show executor node info',
+    script: './task/scripts/task_show_node_info.sh',
+    label: 'Show executor node info',
   )
   checkout scm
   retry(5) {
