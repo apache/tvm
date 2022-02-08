@@ -84,16 +84,16 @@ class PoolInfo(Object):
     READ_ONLY_ACCESS = "ro"
 
     def __init__(
-            self,
-            pool_name: str,
-            target_access,  # Dict[Target, str]
-            size_hint_bytes: Optional[int] = -1,
-            clock_frequency_hz: Optional[int] = -1,
-            read_bandwidth_bytes_per_cycle: Optional[int] = -1,
-            write_bandwidth_bytes_per_cycle: Optional[int] = -1,
-            read_latency_cycles: Optional[int] = 0,
-            write_latency_cycles: Optional[int] = 0,
-            target_burst_bytes=None,  # Optional[Union[Dict[target.Target, int], None]]
+        self,
+        pool_name: str,
+        target_access,  # Dict[Target, str]
+        size_hint_bytes: Optional[int] = -1,
+        clock_frequency_hz: Optional[int] = -1,
+        read_bandwidth_bytes_per_cycle: Optional[int] = -1,
+        write_bandwidth_bytes_per_cycle: Optional[int] = -1,
+        read_latency_cycles: Optional[int] = 0,
+        write_latency_cycles: Optional[int] = 0,
+        target_burst_bytes=None,  # Optional[Union[Dict[target.Target, int], None]]
     ):
         if not target_burst_bytes:
             target_burst_bytes = dict()
@@ -124,10 +124,9 @@ class WorkspaceMemoryPools(Object):
     """
 
     def __init__(
-            self,
-            pools: List[PoolInfo],
+        self,
+        pools: List[PoolInfo],
     ):
         self.__init_handle_by_constructor__(
-            _ffi_api.WorkspaceMemoryPools,  # type: ignore # pylint: disable=no-member
-            pools
+            _ffi_api.WorkspaceMemoryPools, pools  # type: ignore # pylint: disable=no-member
         )
