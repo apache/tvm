@@ -317,6 +317,8 @@ def tune_cutlass_kernels(
         parallel accross split-K blocks, and a seperate global reduction kernel is launched to
         accumulate partial reductions. The profiler will pick the best split-k factor from the
         given candidate list. Note that the larger split-K factor requires a larger workspace.
+        Currently, parallel split-k has been tested only for wgrad. For GEMM, split_k_slices
+        is ignored.
 
     profile_all_alignments : bool
         When True, profile all kernal variants with smaller alignments than the largest possible.
