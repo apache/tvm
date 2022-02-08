@@ -275,6 +275,7 @@ struct AffineGridAttrs : public tvm::AttrsNode<AffineGridAttrs> {
 struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
   String method;
   String layout;
+  String padding_mode;
 
   TVM_DECLARE_ATTRS(GridSampleAttrs, "relay.attrs.GridSampleAttrs") {
     TVM_ATTR_FIELD(method)
@@ -287,6 +288,11 @@ struct GridSampleAttrs : public tvm::AttrsNode<GridSampleAttrs> {
         "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
         "dimensions respectively. Resize is applied on the 'H' and"
         "'W' dimensions.");
+    TVM_ATTR_FIELD(padding_mode)
+        .set_default("zeros")
+        .describe(
+            "Specify the padding mode to use."
+            "zeros, border etc.");
   }
 };
 

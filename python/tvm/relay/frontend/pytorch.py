@@ -2896,6 +2896,25 @@ class PyTorchOpConverter:
         # Chop off the extra result dimension
         return _op.transform.squeeze(dense_result)
 
+    def grid_sampler(self, inputs, input_types):
+        if inputs[2] == 0:
+            mode = "bilinear"
+        else:
+            msg = "Only bilinear mode is supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        if inputs[3] == 0:
+            padding_mode = "zeros"
+        elif inputs[3] == 1:
+            padding_mode = "border"
+        else:
+            msg = "Only zeros and border padding mode are supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(inputs[1], axes)
+        return _op.image.grid_sample(inputs[0], grid, mode, "NCHW", padding_mode)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3124,6 +3143,7 @@ class PyTorchOpConverter:
             "aten::einsum": self.einsum,
             "aten::dot": self.dot,
             "aten::mv": self.mv,
+            "aten::grid_sampler": self.grid_sampler,
         }
 
     def update_convert_map(self, custom_map):
