@@ -1604,6 +1604,147 @@ def test_multiple_requantize_offload():
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("ifm_shape,axis", [((2,), 0), ((1, 3, 3), 2)])
+def test_tflite_expand_dims(ifm_shape, axis):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                return tf.expand_dims(x, axis=axis)
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body
+        expected_shape = list(ifm_shape)
+        expected_shape.insert(axis, 1)
+
+        # Check IFM
+        assert list(op.args[0].checked_type.shape) == list(ifm_shape)
+        assert op.args[0].checked_type.dtype == dtype
+
+        # Check OFM
+        assert list(op.checked_type.shape) == expected_shape
+        assert op.checked_type.dtype == dtype
+
+        # Check op
+        assert op.op.name == "reshape"
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = ethosu.partition_for_ethosu(mod)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.ExpandDimsRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.ReshapeRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
+        "tvmgen_default_ethos_u_main_0"
+    ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,axis", [((1, 1, 2, 1), 0), ((1, 3, 3, 1), 3), ((1, 1, 2, 1), None)]
+)
+def test_tflite_squeeze(ifm_shape, axis):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                return tf.squeeze(x, axis=axis)
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, tf.float32)
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body
+        expected_shape = list(ifm_shape)
+        if isinstance(axis, int):
+            expected_shape = ifm_shape[:axis] + ifm_shape[axis + 1 :]
+        else:
+            expected_shape = list(filter(lambda a: a != 1, expected_shape))
+
+        # Check IFM
+        assert list(op.args[0].checked_type.shape) == list(ifm_shape)
+        assert op.args[0].checked_type.dtype == dtype
+
+        # Check OFM
+        assert list(op.checked_type.shape) == list(expected_shape)
+        assert op.checked_type.dtype == dtype
+
+        # Check op
+        assert op.op.name == "reshape"
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = ethosu.partition_for_ethosu(mod)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.SqueezeRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.ReshapeRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
+        "tvmgen_default_ethos_u_main_0"
+    ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
 @pytest.mark.parametrize(
     "ifm_shape,size",
     [
@@ -1900,6 +2041,222 @@ def test_tflite_transpose_convolution(ifm_shape, ofm_shape, kernel_shape, paddin
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         rewriter, mod["tvmgen_default_ethos_u_main_0"]
     )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shapes,axis",
+    [
+        ([(1, 2, 2), (1, 2, 2), (1, 2, 2)], 2),
+        ([(5, 4), (5, 4)], 1),
+        ([(1,), (1,)], 0),
+        ([(3, 1), (3, 1), (3, 1), (3, 1)], 0),
+    ],
+)
+def test_tflite_pack(ifm_shapes, axis):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, inputs, axis):
+                return tf.stack(inputs, axis=axis)
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            [tf.TensorSpec(shape, tf.float32) for shape in ifm_shapes], axis
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                datas = [np.random.rand(*shape) for shape in ifm_shapes]
+                yield [data.astype(np.float32) for data in datas]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+
+        return tflite_model
+
+    def verify(ext_func):
+        new_pack_axis = len(ifm_shapes)
+        ifm_shape = list(ifm_shapes[0])
+        op = ext_func.body
+
+        after_reshape = ifm_shape[:axis] + [1] + ifm_shape[axis:]
+        out_shape = ifm_shape[:axis] + [new_pack_axis] + ifm_shape[axis:]
+
+        assert op.op.name == "concatenate"
+
+        # Check shapes after expand_dims (legalized as reshape)
+        for i in range(len(ifm_shapes)):
+            assert list(op.args[0][i].checked_type.shape) == after_reshape
+            assert op.args[0][i].checked_type.dtype == dtype
+
+        # Check output
+        assert list(op.checked_type.shape) == out_shape
+        assert op.checked_type.dtype == dtype
+
+    pack_pattern_table = [
+        (
+            ethosu.ConcatParams.composite_name,
+            ethosu.concat_pattern(),
+            lambda pat: ethosu.ConcatParams(pat).is_valid(),
+        ),
+        (
+            ethosu.ExpandDimsParams.composite_name,
+            ethosu.expand_dims_pattern(),
+            lambda pat: ethosu.ExpandDimsParams(pat).is_valid(),
+        ),
+        (
+            ethosu.ReshapeParams.composite_name,
+            ethosu.reshape_pattern(),
+            lambda pat: ethosu.ReshapeParams(pat).is_valid(),
+        ),
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    relay_module, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={("ifm" + str(i)): shape for i, shape in enumerate(ifm_shapes)},
+        dtype_dict={("ifm" + str(i)): dtype for i, _ in enumerate(ifm_shapes)},
+    )
+    mod = partition_ethosu_by_table(relay_module, pack_pattern_table)
+
+    seq = [
+        legalize.ConcatRewriter(),
+        legalize.ExpandDimsRewriter(),
+        legalize.ReshapeRewriter(),
+        legalize.NoOpRewriter(),
+    ]
+    for legalizer in seq:
+        mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+            legalizer, mod["tvmgen_default_ethos_u_main_0"]
+        )
+    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
+        "tvmgen_default_ethos_u_main_0"
+    ]
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
+
+@pytest.mark.parametrize(
+    "ifm_shape,axis",
+    [[(1, 2, 3, 4), 1], [(2, 3), 1], [(5, 6, 7), 2]],
+)
+def test_tflite_unpack(ifm_shape, axis):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x, axis):
+                return tf.unstack(x, axis=axis)
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, tf.float32), axis
+        )
+
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+
+        return tflite_model
+
+    def verify(ext_func):
+        outputs = ext_func.body.args[0].fields
+        shape = list(ifm_shape)
+        unpacked_shape = shape[:axis] + shape[axis + 1 :]
+        split_shape = shape[:axis] + [1] + shape[axis + 1 :]
+
+        assert len(outputs) == shape[axis]
+
+        for i, output in enumerate(outputs):
+            expr = output.args[0].args[0]
+            expr = expr.tuple_value[expr.index]
+            expr = expr.args[0]
+
+            # Checking expected unpacked output shape.
+            # Squeeze is legalized to a reshape.
+            assert expr.op.name == "reshape"
+            assert list(expr.checked_type.shape) == unpacked_shape
+            assert output.checked_type.dtype == dtype
+
+            expr = expr.args[0]
+            expr = expr.tuple_value[expr.index]
+            expr = expr.args[0]
+
+            # Check input is split correctly
+            assert list(expr.args[0].checked_type.shape) == shape
+            assert list(expr.checked_type.shape) == split_shape
+            assert expr.checked_type.dtype == dtype
+
+            # Check split attrs
+            begin_shape = [0] * len(ifm_shape)
+            begin_shape[axis] = i
+            assert list(expr.attrs.begin) == begin_shape
+            end_shape = shape[:axis] + [i + 1] + shape[axis + 1 :]
+            assert list(expr.attrs.end) == end_shape
+            assert list(expr.attrs.strides) == [1]
+
+    pack_pattern_table = [
+        (
+            ethosu.SplitParams.composite_name,
+            ethosu.split_pattern(),
+            lambda pat: ethosu.SplitParams(pat).is_valid(),
+        ),
+        (
+            ethosu.SqueezeParams.composite_name,
+            ethosu.squeeze_pattern(),
+            lambda pat: ethosu.SqueezeParams(pat).is_valid(),
+        ),
+        (
+            ethosu.ReshapeParams.composite_name,
+            ethosu.reshape_pattern(),
+            lambda pat: ethosu.ReshapeParams(pat).is_valid(),
+        ),
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
+    mod = partition_ethosu_by_table(mod, pack_pattern_table)
+
+    seq = [
+        legalize.PartitionedSplitRewriter(),
+        legalize.SplitRewriter(),
+        legalize.SqueezeRewriter(),
+        legalize.ReshapeRewriter(),
+        legalize.NoOpRewriter(),
+    ]
+    for legalizer in seq:
+
+        mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+            legalizer, mod["tvmgen_default_ethos_u_main_0"]
+        )
+    mod["tvmgen_default_ethos_u_main_0"] = relay.transform.InferType()(mod)[
+        "tvmgen_default_ethos_u_main_0"
+    ]
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
