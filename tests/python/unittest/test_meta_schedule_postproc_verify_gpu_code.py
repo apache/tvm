@@ -114,6 +114,10 @@ class Conv2dCuda1:
         T.launch_thread(threadIdx_x, 8)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
+            # Access of the last element of B_local prevents buffer
+            # compacting from reducing the amount of shared memory
+            # used.
+            B_local[6400000-1 + ff_c_init*8] = 0.0
         for rc_outer, ry, rx in T.grid(32, 3, 3):
             for ax3_inner_outer in T.serial(0, 2):
                 Apad_shared[T.ramp(threadIdx_y * 64 + threadIdx_x * 8 + ax3_inner_outer * 4, 1, 4)] = T.if_then_else(
@@ -164,6 +168,10 @@ class Conv2dCuda2:
                     T.broadcast(T.float32(0), 4),
                     dtype="float32x4",
                 )
+                # Access of the last element of Apad_shared prevents
+                # buffer compacting from reducing the amount of shared
+                # memory used.
+                Apad_shared[512000-1] = 0.0
             for rc_inner in T.serial(0, 8):
                 for ax3 in T.serial(0, 8):
                     Apad_shared_local[ax3] = Apad_shared[rc_inner * 64 + threadIdx_x * 8 + ax3]
@@ -230,6 +238,8 @@ def test_postproc_verify_gpu_1():
     mod = Conv2dCuda1
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
+    # Should fail due to too much local memory per block (large
+    # B_local allocation).
     assert not ctx.postprocs[0].apply(sch)
 
 
@@ -237,6 +247,8 @@ def test_postproc_verify_gpu_2():
     mod = Conv2dCuda2
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
+    # Should fail due to too much local memory per block (large
+    # Apad_shared allocation).
     assert not ctx.postprocs[0].apply(sch)
 
 
@@ -244,6 +256,8 @@ def test_postproc_verify_gpu_3():
     mod = Conv2dCuda3
     ctx = _create_context(mod, target=_target())
     sch = tir.Schedule(mod, debug_mask="all")
+    # Should fail due to too many threads per block (large
+    # threadIdx.x extent).
     assert not ctx.postprocs[0].apply(sch)
 
 
