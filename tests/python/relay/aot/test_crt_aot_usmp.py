@@ -299,7 +299,7 @@ def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> st
     ],
 )
 def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
-    """This checks for ML models and the memory used by them when using USMP with different algorithms"""
+    """This checks for inference with USMP using external pool placed in the application"""
     pytest.importorskip("tflite")
 
     import tvm.relay.testing.tf as tf_testing
@@ -353,7 +353,7 @@ def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
     ],
 )
 def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
-    """This checks for ML models and the memory used by them when using USMP with different algorithms"""
+    """This checks for inference using two external pools placed in the application"""
     pytest.importorskip("tflite")
 
     import tvm.relay.testing.tf as tf_testing
@@ -413,7 +413,7 @@ def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
     ],
 )
 def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_urls, usmp_algo):
-    """This checks for ML models and the memory used by them when using USMP with different algorithms"""
+    """This checks for inference using a single large enough common pool"""
     pytest.importorskip("tflite")
 
     import tvm.relay.testing.tf as tf_testing
