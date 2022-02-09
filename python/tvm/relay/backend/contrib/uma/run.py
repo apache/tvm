@@ -1,7 +1,6 @@
 import tvm
-import tvm.relay.backend.contrib.uma
-from tvm.relay.backend.contrib.uma.ultra_trail.partitioner import UltraTrailPartitioner
 from tvm import relay
+from tvm.relay.backend.contrib.uma.ultra_trail.backend import UltraTrailBackend
 
 import torch
 import tarfile
@@ -39,8 +38,8 @@ def main():
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
     # Relay target specific partitioning
-    # mod = UltraTrailPartitioner()(mod, params)
-    mod = UltraTrailPartitioner()(mod)
+    UltraTrailBackend().register()
+    mod = UltraTrailBackend().partition(mod)
 
     # Relay build (AOT C target)
     TARGET = tvm.target.Target("c")

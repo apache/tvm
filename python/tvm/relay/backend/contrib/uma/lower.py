@@ -18,109 +18,28 @@
 
 import tvm
 from tvm import relay, te, tir
-from tvm.relay.op import op as _op
 
-from abc import abstractmethod
 from typing import List, Tuple, Callable, Optional
 
 from .utils import extract_constants
 
 
 class UMALower(object):
-    def __init__(self) -> None:
+    def __init__(self, target_name: str) -> None:
+        self.target_name = target_name
+
+        self._operator_strategies: List[
+            Tuple[
+                str,
+                Callable[
+                    [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target],
+                    tvm.relay.op.op.OpStrategy,
+                ],
+                Optional[int],
+            ]
+        ] = []
         self._tir_schedules: List[Callable[[tvm.tir.Schedule], tvm.tir.Schedule]] = []
         self._tir_passes: List[Tuple[int, tvm.tir.transform.PrimFuncPass]] = []
-
-        self._register_operator_strategies()
-        self._register_tir_schedules()
-        self._register_tir_passes()
-
-    @abstractmethod
-    def _register_operator_strategies(self) -> None:
-        """Register a set of operator strategies which are considered during lowering from relay to TE.
-
-        Example
-        -------
-        Here is an example of how two operator strategies can be registered.
-
-        .. code-block:: python
-
-            def _register_operator_strategies(self):
-                self._register_operator_strategy(operator_strategy_0)
-                self._register_operator_strategy(operator_strategy_1)
-
-        Use `pass` if no operator strategy should be registerd.
-
-        .. code-block:: python
-
-            def _register_operator_strategies(self):
-                pass
-
-        """
-
-    @abstractmethod
-    def _register_tir_schedules(self) -> None:
-        """Register a set of TIR scheduling functions which are applied to the schedule.
-
-        Example
-        -------
-        Here is an example of how two scheduling functions can be registered.
-
-        .. code-block:: python
-
-            def _register_tir_schedules(self):
-                self._register_tir_schedule(schedule_func_0)
-                self._register_tir_schedule(schedule_func_1)
-
-        Use `pass` if no scheduling function should be registerd.
-
-        .. code-block:: python
-
-            def _register_tir_schedules(self):
-                pass
-
-        """
-
-    @abstractmethod
-    def _register_tir_passes(self) -> None:
-        """Register a set of TIR passes which are applied during lowering.
-
-        Example
-        -------
-        Here is an example of how two passes can be registered.
-
-        .. code-block:: python
-
-            def _register_tir_passes(self):
-                self._register_tir_pass(pass_0)
-                self._register_tir_pass(pass_1)
-
-        Use `pass` if no TIR pass should be registerd.
-
-        .. code-block:: python
-
-            def _register_tir_passes(self):
-                pass
-
-        """
-
-    def _register_operator_strategy(
-        self,
-        op: str,
-        strat: Callable[
-            [tvm.ir.Attrs, tvm.ir.Array, tvm.ir.TensorType, tvm.target.Target], _op.OpStrategy
-        ],
-        plevel: Optional[int] = 11,
-    ) -> None:
-        _op.register_strategy(op, strat, level=plevel)
-
-    def _register_tir_schedule(
-        self, sch_func: Callable[[tvm.tir.Schedule], tvm.tir.Schedule]
-    ) -> None:
-        self._tir_schedules.append(sch_func)
-
-    def _register_tir_pass(self, stage: int, tir_pass: tvm.tir.transform.PrimFuncPass) -> None:
-        self._tir_passes.append((stage, tir_pass))
 
     def _lower_relay_to_tir(self, relay_prim_func: relay.Function) -> tvm.tir.PrimFunc:
         """Lower a Relay primitive function to a S-TIR primitive function.
@@ -190,3 +109,8 @@ class UMALower(object):
             schedule = sch_func(schedule)
         prim_func = self._lower_stir_to_nstir(schedule)
         return prim_func
+
+    def register(self) -> None:
+        tvm._ffi.register_func(
+            "relay.ext.uma.relay_to_tir_func_{}".format(self.target_name), self.relay_to_tir_func
+        )

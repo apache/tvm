@@ -14,47 +14,36 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""UMA lowering for the UltraTrail accelerator"""
+"""UMA backend for the UltraTrail accelerator"""
 
-import tvm
-from tvm import relay
-from ..lower import UMALower
+from ..backend import UMABackend
 from .strategies import *
 from .schedules import *
 from .passes import *
+from .patterns import *
 
-
-class UltraTrailLower(UMALower):
+class UltraTrailBackend(UMABackend):
     def __init__(self):
-        super(UltraTrailLower, self).__init__()
+        super(UltraTrailBackend, self).__init__()
 
-    def _register_operator_strategies(self):
+        #######################################################################
+        # Relay to Relay function registration
+        #######################################################################
+        self._register_pattern("conv1d_relu", conv1d_relu_pattern())
+
+        self._register_relay_pass(1, ConfigGenerator())
+        self._register_relay_pass(2, BufferScopeAnnotator())
+
+        #######################################################################
+        # Relay to TIR function registration
+        #######################################################################
         self._register_operator_strategy("nn.conv1d", custom_conv1d_strategy, plevel=9)
 
-    def _register_tir_schedules(self):
         self._register_tir_schedule(insert_extern_calls)
 
-    def _register_tir_passes(self):
         self._register_tir_pass(0, CodegenGenerateConfig())
         self._register_tir_pass(0, CodegenGenerateConstants())
 
-
-@tvm._ffi.register_func("relay.ext.uma.relay_to_tir_func_ultra_trail")
-def relay_to_tir_func_ultra_trail(ext_func: relay.Function) -> tvm.tir.PrimFunc:
-    """
-    This is the hook for python-based lowering of relay function
-    that gets offloaded to the UltraTrail accelerator.
-
-    Parameters
-    ----------
-    ext_func : relay.Function
-        This is the partitioned relay function
-
-    Returns
-    -------
-    prim_func : tir.PrimFunc
-        This returns the scheduled PrimFunc
-    """
-    codegen = UltraTrailLower()
-    prim_func = codegen.relay_to_tir_func(ext_func)
-    return prim_func
+    @property
+    def target_name(self):
+        return "ultra_trail"
