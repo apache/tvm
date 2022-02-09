@@ -212,6 +212,7 @@ MOBILENET_V1_URL = (
     [
         (MOBILENET_V1_URL, "greedy_by_size", 4845696),
         (MOBILENET_V1_URL, "greedy_by_conflicts", 4444288),
+        (MOBILENET_V1_URL, "hill_climb", 3240064),
     ],
 )
 def test_tflite_model(model_url, usmp_algo, workspace_size):
