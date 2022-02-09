@@ -44,7 +44,7 @@ static void prvDataCollectionTask(void* pvParameters);
 /* The queue used to pass data to run through our model */
 static QueueHandle_t xQueue = NULL;
 
-void main(void) {
+int main(void) {
   // Platform UART
   uart_init();
   // NPU
@@ -61,7 +61,7 @@ void main(void) {
                 mainQUEUE_INFERENCE_TASK_PRIORITY, NULL);
 
     // Data collector task
-    xTaskCreate(prvDataCollectionTask, "Data", mainQUEUE_INFERENCE_TASK_STACK_SIZE, NULL,
+    xTaskCreate(prvDataCollectionTask, "Data", mainQUEUE_DATA_TASK_STACK_SIZE, NULL,
                 mainQUEUE_DATA_TASK_PRIORITY, NULL);
 
     // Start the task scheduling
@@ -103,7 +103,7 @@ static void prvInferenceTask(void* pvParameters) {
   // Print output of inference and exit task
   printf("Running inference\n");
   struct tvmgen_default_inputs xInputs = {
-      .input = pucReceivedData,
+      .tfl_quantize = pucReceivedData,
   };
   struct tvmgen_default_outputs xOutputs = {
       .output = output,
@@ -116,7 +116,7 @@ static void prvInferenceTask(void* pvParameters) {
   ethosu_release_driver(xDriver);
 
   // Calculate index of max value
-  uint8_t ucMaxValue = 0;
+  int8_t ucMaxValue = -128;
   int32_t lMaxIndex = -1;
   for (unsigned int i = 0; i < output_len; ++i) {
     if (output[i] > ucMaxValue) {

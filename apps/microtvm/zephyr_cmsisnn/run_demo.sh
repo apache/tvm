@@ -45,7 +45,6 @@ export ARMFVP_BIN_PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/
 west zephyr-export
 west build
 west build -t run &> ${LOGDIR}/west.log &
-WEST_PID=$! 
 
 # Wait for "exit" keyword 
 until grep -m 1 "exit" ${LOGDIR}/west.log; do sleep 1 ; done
