@@ -126,11 +126,13 @@ class PoolInfo : public ObjectRef {
   /*! \brief The write bandwidth is not known */
   static const int kUnknownWriteBandwidth = -1;
 
-  TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes,
-                   Integer clock_frequency_hz, Integer read_bandwidth_bytes_per_cycle,
-                   Integer write_bandwidth_bytes_per_cycle, Integer read_latency_cycles,
-                   Integer write_latency_cycles, Map<Target, Integer> target_burst_bytes,
-                   Bool is_internal);
+  TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
+                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
+                   Integer clock_frequency_hz = kUnknownClockFrequency,
+                   Integer read_bandwidth_bytes_per_cycle = kUnknownReadBandwidth,
+                   Integer write_bandwidth_bytes_per_cycle = kUnknownWriteBandwidth,
+                   Integer read_latency_cycles = 0, Integer write_latency_cycles = 0,
+                   Map<Target, Integer> target_burst_bytes = {}, Bool is_internal = Bool(false));
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
 };
 

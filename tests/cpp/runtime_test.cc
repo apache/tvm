@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <tvm/driver/driver_api.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/executor.h>
@@ -114,7 +115,8 @@ TEST(Runtime, ZeroCopy) {
   targets.Set(0, llvm_tgt);
   auto relay_mod = tvm::IRModule::FromExpr(func);
   ICHECK(relay_mod.defined()) << "Module must be defined";
-  build_f(relay_mod, targets, llvm_tgt, Executor::Create("graph"), Runtime::Create("cpp"), "");
+  build_f(relay_mod, targets, llvm_tgt, Executor::Create("graph"), Runtime::Create("cpp"),
+          WorkspaceMemoryPools(), "");
   // create graph executor
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();

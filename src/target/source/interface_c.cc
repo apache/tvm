@@ -66,7 +66,7 @@ class InterfaceCNode : public runtime::ModuleNode {
       EmitStruct(code, "devices", devices_);
     }
     if (!pools_.empty()) {
-      EmitBrief(code, "Device context pointers");
+      EmitBrief(code, "Workspace pool pointers");
       Array<String> pool_names;
       for (const tir::usmp::AllocatedPoolInfo pool : pools_) {
         pool_names.push_back(pool->pool_info->pool_name);
@@ -81,8 +81,8 @@ class InterfaceCNode : public runtime::ModuleNode {
     for (const tir::usmp::AllocatedPoolInfo pool : pools_) {
       String pool_name = pool->pool_info->pool_name;
       Integer pool_size = pool->allocated_size;
-      EmitIntegerValueMacro(code, pool_name + " size", pool_name + "_WORKSPACE_POOL_SIZE",
-                            pool_size->value);
+      EmitIntegerValueMacro(code, SanitizeName(pool_name) + " size",
+                            SanitizeName(pool_name) + "_WORKSPACE_POOL_SIZE", pool_size->value);
     }
     EmitLowerHeaderGuard(code);
 
@@ -178,7 +178,7 @@ class InterfaceCNode : public runtime::ModuleNode {
     std::string call_args_str = call_args_ss.str();
     call_args_str.pop_back();
     call_args_str.pop_back();
-    code_stream << call_args_str << ");\n";
+    code_stream << call_args_str << "\n);\n";
   }
 
   Array<tir::usmp::AllocatedPoolInfo> FilterExternalPools(
