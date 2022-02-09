@@ -26,14 +26,18 @@ echo "$BUILD_NUMBER"
 echo "$WORKSPACE"
 
 echo "===== EC2 INFO ====="
-# See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-curl -w '\n' -fsSL http://169.254.169.254/latest/meta-data/ami-id || echo failed
-curl -w '\n' -fsSL http://169.254.169.254/latest/meta-data/instance-id || echo failed
-curl -w '\n' -fsSL http://169.254.169.254/latest/meta-data/instance-type || echo failed
-curl -w '\n' -fsSL http://169.254.169.254/latest/meta-data/hostname || echo failed
-curl -w '\n' -fsSL http://169.254.169.254/latest/meta-data/public-hostname || echo failed
+function ec2_metadata() {
+    # See https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+    curl -w '\n' -fsSL "http://169.254.169.254/latest/meta-data/$1" || echo failed
+}
+
+ec2_metadata ami-id
+ec2_metadata instance-id
+ec2_metadata instance-type
+ec2_metadata hostname
+ec2_metadata public-hostname
 
 echo "===== RUNNER INFO ====="
 df --human-readable
 lscpu
-
+free
