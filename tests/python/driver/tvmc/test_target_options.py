@@ -19,6 +19,7 @@ import argparse
 
 import pytest
 
+import tvm
 from tvm.driver.tvmc import TVMCException
 from tvm.driver.tvmc.target import generate_target_args, reconstruct_target_args, target_from_cli
 
@@ -34,6 +35,7 @@ def test_target_to_argparse():
     assert parsed.target_llvm_mattr == "+fp,+mve"
 
 
+@tvm.testing.requires_cmsisnn
 def test_target_to_argparse_known_codegen():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)
@@ -58,6 +60,7 @@ def test_mapping_target_args():
     assert reconstruct_target_args(parsed) == {"llvm": {"mcpu": "cortex-m3"}}
 
 
+@tvm.testing.requires_cmsisnn
 def test_include_known_codegen():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)
