@@ -104,8 +104,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
         num_remaining_args = out_ndim - len(argspec.args)
         if varargs_names is not None:
             if len(varargs_names) != num_remaining_args:
-                raise RuntimeError(f"Number of varargs ({num_remaining_args}) does not match number"
-                                   f"of varargs_names ({len(varargs_names)})")
+                raise RuntimeError(
+                    f"Number of varargs ({num_remaining_args}) does not match number"
+                    f"of varargs_names ({len(varargs_names)})"
+                )
             arg_names = argspec.args + varargs_names
         else:
             arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
