@@ -822,7 +822,7 @@ def compile_and_run(
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
-        target=tvm.target.Target(target, host=target),
+        target=tvm.target.Target(target),
     )
 
     run_and_check(

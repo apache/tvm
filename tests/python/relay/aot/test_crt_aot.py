@@ -709,12 +709,12 @@ def test_constants_alignment(constants_byte_alignment):
     data = np.random.uniform(size=data_shape).astype("float32")
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
-    target_opts = {"-constants-byte-alignment": constants_byte_alignment}
+    target = f"c -constants-byte-alignment={constants_byte_alignment}"
     compiled_test_mods = compile_models(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
-        target_opts=target_opts,
+        target=tvm.target.Target(target, host=target),
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
