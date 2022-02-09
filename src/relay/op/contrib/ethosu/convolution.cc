@@ -131,37 +131,14 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   if (ifm == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<EthosuConv2DAttrs>();
   CHECK(param != nullptr) << "EthosuConv2DAttrs cannot be nullptr.";
+  const String operator_name = "ethosu_conv2d";
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_conv2d input data type "
-                                     << "of type(uint8) or type(int8) but was " << ifm->dtype);
-    return false;
-  }
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm");
+  CheckDataType(reporter, weight->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name,
+                "weight");
+  CheckDataType(reporter, scale_bias->dtype, {DataType::UInt(8)}, operator_name, "scale bias");
 
-  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_conv2d weight data type "
-                                     << "of type(uint8) or type(int8) but was " << weight->dtype);
-    return false;
-  }
-
-  if (scale_bias->dtype != DataType::UInt(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_conv2d scale bias data type "
-        << "of type(uint8) but was " << scale_bias->dtype);
-    return false;
-  }
-
-  const std::unordered_set<std::string> upscale_methods = {"NONE", "ZEROS", "NEAREST"};
-  if (upscale_methods.find(param->upscale) == upscale_methods.end()) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: Expected upsample method to be 'NONE', "
-                                        "'ZEROS' or 'NEAREST' but got "
-                                     << param->upscale);
-    return false;
-  }
+  CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));

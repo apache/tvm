@@ -143,98 +143,34 @@ bool EthosuBinaryElementwiseRel(const Array<Type>& types, int num_inputs, const 
   const auto* param = attrs.as<EthosuBinaryElementwiseAttrs>();
   ICHECK(param != nullptr) << "EthosuBinaryElementwiseAttrs cannot be nullptr.";
 
-  String operator_type = param->operator_type;
-  auto ifm_dtype = ifm->dtype;
-  auto ifm2_dtype = ifm2->dtype;
-  DataType ofm_dtype;
+  const String operator_name = "ethosu_binary_elementwise";
+  const String operator_type = param->operator_type;
+  const DataType ifm_dtype = ifm->dtype;
+  const DataType ifm2_dtype = ifm2->dtype;
+  const DataType ofm_dtype = DataTypeFromString(param->ofm_dtype);
 
-  if (param->ofm_dtype == "int8") {
-    ofm_dtype = DataType::Int(8);
-  } else if (param->ofm_dtype == "uint8") {
-    ofm_dtype = DataType::UInt(8);
-  } else if (param->ofm_dtype == "int16") {
-    ofm_dtype = DataType::Int(16);
-  } else if (param->ofm_dtype == "int32") {
-    ofm_dtype = DataType::Int(32);
-  }
-
-  if (ifm_dtype != ifm2_dtype) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_binary_elementwise "
-                                     << "type for ifm2 be the same of ifm but was " << ifm2_dtype
-                                     << " instead of " << ifm_dtype);
-    return false;
-  }
+  CheckDataTypeMatch(reporter, ifm_dtype, ifm2_dtype, operator_name, "ifm", "ifm2", operator_type);
 
   if (operator_type == "ADD" || operator_type == "SUB" || operator_type == "MUL") {
-    if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8) &&
-        ifm_dtype != DataType::Int(16) && ifm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(
-          Diagnostic::Error(reporter->GetSpan())
-          << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8), type(int8), type(int16) or type(int32) for ifm but was " << ifm_dtype);
-      return false;
-    }
-    if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-        ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(
-          Diagnostic::Error(reporter->GetSpan())
-          << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
-      return false;
-    }
+    auto allowed_types = {DataType::Int(8), DataType::UInt(8), DataType::Int(16),
+                          DataType::Int(32)};
+    CheckDataType(reporter, ifm_dtype, allowed_types, operator_name, "ifm", operator_type);
+    CheckDataType(reporter, ofm_dtype, allowed_types, operator_name, "ofm", operator_type);
   } else if (operator_type == "MIN" || operator_type == "MAX") {
-    if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8)) {
-      reporter->GetDiagCtx().EmitFatal(
-          Diagnostic::Error(reporter->GetSpan())
-          << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) for ifm but was " << ifm_dtype);
-      return false;
-    }
-    if (ifm_dtype != ofm_dtype) {
-      reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                       << "Invalid operator: expected ethosu_binary_elementwise "
-                                       << operator_type
-                                       << " type for ofm be the same of ifm but was " << ofm_dtype
-                                       << " instead of " << ifm_dtype);
-      return false;
-    }
+    auto allowed_types = {DataType::Int(8), DataType::UInt(8)};
+    CheckDataType(reporter, ifm_dtype, allowed_types, operator_name, "ifm", operator_type);
+    CheckDataTypeMatch(reporter, ifm_dtype, ofm_dtype, operator_name, "ifm", "ofm", operator_type);
   } else if (operator_type == "SHR") {
-    if (ifm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                       << "Invalid operator: expected ethosu_binary_elementwise "
-                                       << operator_type << " type(int32) for ifm but was "
-                                       << ifm_dtype);
-      return false;
-    }
-    if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-        ofm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(
-          Diagnostic::Error(reporter->GetSpan())
-          << "Invalid operator: expected ethosu_binary_elementwise " << operator_type
-          << " type(uint8) or type(int8) or type(int32) for ofm but was " << ofm_dtype);
-      return false;
-    }
+    CheckDataType(reporter, ifm_dtype, {DataType::Int(32)}, operator_name, "ifm", operator_type);
+    CheckDataType(reporter, ofm_dtype, {DataType::UInt(8), DataType::Int(8), DataType::Int(32)},
+                  operator_name, "ofm", operator_type);
   } else if (operator_type == "SHL") {
-    if (ifm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                       << "Invalid operator: expected ethosu_binary_elementwise "
-                                       << operator_type << " type(int32) for ifm but was "
-                                       << ifm_dtype);
-
-      return false;
-    }
-    if (ofm_dtype != DataType::Int(32)) {
-      reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                       << "Invalid operator: expected ethosu_binary_elementwise "
-                                       << operator_type << " type(int32) for ofm but was "
-                                       << ofm_dtype);
-      return false;
-    }
+    CheckDataType(reporter, ifm_dtype, {DataType::Int(32)}, operator_name, "ifm", operator_type);
+    CheckDataType(reporter, ofm_dtype, {DataType::Int(32)}, operator_name, "ofm", operator_type);
   } else {
     reporter->GetDiagCtx().EmitFatal(
         Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_binary_elementwise 'ADD' or 'SUB' or 'MUL' or "
+        << "Invalid operator: expected " << operator_name << " 'ADD' or 'SUB' or 'MUL' or "
         << "'MIN' or 'MAX' or 'SHR' or 'SHL' for operator_type but was " << param->operator_type);
     return false;
   }
