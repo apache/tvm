@@ -50,9 +50,7 @@ def test_save_load_out():
 
         # verification
         with vta.build_config():
-            # Build without the CSE pass that will otherwise do some commoning
-            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
-                m = vta.build(s, [x, y], tvm.target.Target("ext_dev", host=env.target_host))
+            m = vta.build(s, [x, y], tvm.target.Target("ext_dev", host=env.target_host))
 
         if not remote:
             return
@@ -123,11 +121,7 @@ def test_padded_load():
             s[y].pragma(y.op.axis[0], env.dma_copy)
             # build
             with vta.build_config():
-                # Build without the CSE pass that will otherwise do some commoning
-                with tvm.transform.PassContext(
-                    opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]
-                ):
-                    mod = vta.build(s, [x, y], tvm.target.Target("ext_dev", host=env.target_host))
+                mod = vta.build(s, [x, y], tvm.target.Target("ext_dev", host=env.target_host))
 
             if not remote:
                 return
@@ -214,9 +208,7 @@ def test_gemm():
             return
 
         def verify(s, name=None):
-            # Build without the CSE pass that will otherwise do some commoning
-            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
-                mod = vta.build(s, [x, w, y], tvm.target.Target("ext_dev", host=env.target_host))
+            mod = vta.build(s, [x, w, y], tvm.target.Target("ext_dev", host=env.target_host))
             temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
             remote.upload(temp.relpath("gemm.o"))
@@ -325,8 +317,7 @@ def test_gemm():
         test_schedule1()
         test_smt()
 
-    # Disabling this test because it leads to an error impossible to decypher
-    # vta.testing.run(_run)
+    vta.testing.run(_run)
 
 
 def test_alu():
@@ -376,18 +367,12 @@ def test_alu():
 
             # build
             with vta.build_config():
-                # Build without the CSE pass that will otherwise do some commoning
-                with tvm.transform.PassContext(
-                    opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]
-                ):
-                    if use_imm:
-                        mod = vta.build(
-                            s, [a, res], tvm.target.Target("ext_dev", host=env.target_host)
-                        )
-                    else:
-                        mod = vta.build(
-                            s, [a, b, res], tvm.target.Target("ext_dev", host=env.target_host)
-                        )
+                if use_imm:
+                    mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
+                else:
+                    mod = vta.build(
+                        s, [a, b, res], tvm.target.Target("ext_dev", host=env.target_host)
+                    )
             temp = utils.tempdir()
             mod.save(temp.relpath("load_act.o"))
             remote.upload(temp.relpath("load_act.o"))
@@ -468,9 +453,7 @@ def test_relu():
         s[res].pragma(res.op.axis[0], env.dma_copy)  # SRAM->DRAM
         # build
         with vta.build_config():
-            # Build without the CSE pass that will otherwise do some commoning
-            with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
-                mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
+            mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
         if not remote:
             return
         temp = utils.tempdir()
@@ -531,9 +514,8 @@ def test_shift_and_scale():
         s[res_shift].pragma(res_shift.op.axis[0], env.alu)  # compute
         s[res_scale].pragma(res_scale.op.axis[0], env.alu)  # compute
         s[res].pragma(res.op.axis[0], env.dma_copy)  # SRAM->DRAM
-        # Build without the CSE pass that will otherwise do some commoning
-        with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
-            mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
+        # build
+        mod = vta.build(s, [a, res], tvm.target.Target("ext_dev", host=env.target_host))
         if not remote:
             return
         temp = utils.tempdir()
@@ -579,8 +561,7 @@ if __name__ == "__main__":
     test_runtime_array()
     test_save_load_out()
     test_padded_load()
-    # Disabling this test because it leads to an error impossible to decypher
-    # test_gemm()
+    test_gemm()
     test_alu()
     test_relu()
     test_shift_and_scale()

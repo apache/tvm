@@ -88,7 +88,10 @@ def build_config(debug_flag=0, **kwargs):
         config.update(kwargs[config])
         del kwargs["config"]
 
-    return tvm.transform.PassContext(config=config, **kwargs)
+    # To do : use the already existing disabled_pass
+    return tvm.transform.PassContext(
+        config=config, disabled_pass=["tir.CommonSubexprElimTIR"], **kwargs
+    )
 
 
 def lower(*args, **kwargs):
