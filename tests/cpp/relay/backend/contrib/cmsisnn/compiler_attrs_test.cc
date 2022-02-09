@@ -33,8 +33,8 @@ namespace contrib {
 namespace cmsisnn {
 
 static const char* mveCPUs[] = {"cortex-m55"};
-static const char* dspCPUs[] = {"cortex-m7", "cortex-m33", "cortex-m35p"};
-static const char* noExtensions[] = {"cortex-m0", "cortex-m3", "cortex-m4"};
+static const char* dspCPUs[] = {"cortex-m4", "cortex-m7", "cortex-m33", "cortex-m35p"};
+static const char* noExtensions[] = {"cortex-m0", "cortex-m3"};
 
 class CMSISNNFlagsMVECPUs : public testing::TestWithParam<const char*> {};
 class CMSISNNFlagsDSPCPUs : public testing::TestWithParam<const char*> {};
