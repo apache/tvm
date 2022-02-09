@@ -9,7 +9,7 @@ namespace runtime {
 namespace hexagon {
 
 int hexagon_user_dma_wrapper(void *dst, void *src, uint32_t length) {
-
+#if defined(__hexagon__)
     HEXAGON_PRINT(ALWAYS, "STRAW: In hexagon_user_dma_wrapper");
     HEXAGON_PRINT(ALWAYS, "STRAW:   dst = %p", dst);
     HEXAGON_PRINT(ALWAYS, "STRAW:   src = %p", src);
@@ -90,6 +90,10 @@ int hexagon_user_dma_wrapper(void *dst, void *src, uint32_t length) {
         return DMA_SUCCESS;
     }
     return DMA_FAILURE;
+#else
+    memcpy(static_cast<char*>(dst), static_cast<char*>(src), length);
+    return 0; // TODO: does memcpy throw errors?
+#endif
 }
 
 }  // namespace hexagon

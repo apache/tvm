@@ -201,11 +201,8 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
     if (bytes_to_copy == 0) break;
 
     void *data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    hexagon_user_dma_wrapper(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
-
-    // works
-    // memcpy(static_cast<char*>(data) + copied,
-    //        static_cast<const char*>(managed_allocations_[i]->data_), bytes_to_copy);
+    int status = hexagon_user_dma_wrapper(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -222,11 +219,8 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
     if (bytes_to_copy == 0) break;
 
     void *data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
-    hexagon_user_dma_wrapper(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
-
-    // works
-    // memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-    //        static_cast<const char*>(data) + copied, bytes_to_copy);
+    int status = hexagon_user_dma_wrapper(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -249,11 +243,8 @@ void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
       CHECK_LE(other.managed_allocations_[i]->allocation_nbytes_,
                managed_allocations_[i]->allocation_nbytes_);
 
-      hexagon_user_dma_wrapper(managed_allocations_[i]->data_, other.managed_allocations_[i]->data_, bytes_to_copy);
-
-      // works
-      // memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-      //        static_cast<const char*>(other.managed_allocations_[i]->data_), bytes_to_copy);
+      int status = hexagon_user_dma_wrapper(managed_allocations_[i]->data_, other.managed_allocations_[i]->data_, bytes_to_copy);
+      CHECK_EQ(status, 0);
 
       copied += bytes_to_copy;
     }
