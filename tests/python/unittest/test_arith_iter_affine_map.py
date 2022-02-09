@@ -263,6 +263,14 @@ def test_predicate():
     )
     assert len(res) == 0
 
+    # irrelavant predicate
+    res = tvm.arith.detect_iter_map(
+        [i + j],
+        var_dom([(i, 1)]),
+        j <= 24,
+    )
+    assert_iter_sum_pattern(res[0], 1, j)
+
     # constraint on nested fused iters
     res = tvm.arith.detect_iter_map(
         [i * 8 + j * 2 + k],
