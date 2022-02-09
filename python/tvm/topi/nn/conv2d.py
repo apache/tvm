@@ -314,16 +314,16 @@ def conv2d_nhwc(
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     return conv(
-        Input,
-        Filter,
-        stride,
-        padding,
-        dilation,
-        1,
-        "NHWC",
-        out_dtype,
-        auto_scheduler_rewritten_layout,
-    )
+         Input,
+         Filter,
+         stride,
+         padding,
+         dilation,
+         1,
+         "NHWC",
+         out_dtype,
+         auto_scheduler_rewritten_layout,
+     )
 
 
 def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype="float32"):
@@ -801,10 +801,10 @@ def conv(
 
     # Autoscheduler may have messed with the input layout, so we extract the
     # dimensions that it gives us
-    if auto_scheduler_rewritten_layout is not None:
+    if auto_scheduler_rewritten_layout:
         num_filter, _, *kernel_dimensions = auto_scheduler.get_shape_from_rewritten_layout(
             auto_scheduler_rewritten_layout,
-            ["ff", "rc"] + [f"r{i}" for i in range(len(kernel_dimensions))],
+            ["ff", "rc"] + [f"r{i}" for i in ["y", "x", "z"][:len(kernel_dimensions)]],
         )
         auto_scheduler.remove_index_check(filt)
 
@@ -826,7 +826,7 @@ def conv(
     pad_after = list(np.array([0, 0] + pad_end)[permutation_from])
     temp = pad(inp, pad_before, pad_after, name="pad_temp")
     rc = te.reduce_axis((0, in_channel // groups), name="rc")
-    rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in enumerate(kernel_dimensions)]
+    rs = [te.reduce_axis((0, k), name=f"r{i}") for i, k in zip(["y", "x", "z"], kernel_dimensions)]
 
     def compute(*args):
         nn, ff, *dim_indices = list(np.array(args)[permutation_to])
@@ -865,10 +865,11 @@ def conv(
         tag=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
         name=f"{'group_' if groups > 1 else ''}conv{dim}d_{order.lower()}",
         attrs={"layout_free_placeholders": [filt]},
+        varargs_names=list(np.array(["nn", "ff", "yy", "xx", "zz"])[permutation_from])
     )
     # if we used autoscheduler's changed layout we need to rewrite the ordering
     # of the output dimensions
-    if auto_scheduler_rewritten_layout is not None:
+    if auto_scheduler_rewritten_layout:
         out = auto_scheduler.rewrite_compute_body(out, auto_scheduler_rewritten_layout)
     return out
 
