@@ -60,10 +60,12 @@ def _get_model(
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8"])
 def test_fullyconnected(dtype):
+    zp_min = np.iinfo(dtype).min
+    zp_max = np.iinfo(dtype).max
     trials = [
-        ((1, 1024), 71, 0.580, 79, 1.498),
-        ((1, 4096), 166, 1.724, 117, 0.180),
-        ((1, 16384), 101, 1.372, 21, 1.346),
+        ((1, 1024), zp_min + 71, 0.580, zp_max - 176, 1.498),
+        ((1, 4096), zp_min + 166, 1.724, zp_max - 138, 0.180),
+        ((1, 16384), zp_min + 101, 1.372, zp_max - 234, 1.346),
     ]
     np.random.seed(0)
     for shape, input_zp, input_sc, kernel_zp, kernel_sc in trials:
