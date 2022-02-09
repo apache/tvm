@@ -689,7 +689,12 @@ BufferRegion BufferRegion::FullRegion(Buffer buffer) {
 BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
   Array<Range> region;
   for (const PrimExpr& index : indices) {
-    region.push_back(Range::FromMinExtent(index, 1));
+    if (const RampNode* ramp_index = index.as<RampNode>()) {
+      region.push_back(
+          Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
+    } else {
+      region.push_back(Range::FromMinExtent(index, 1));
+    }
   }
   return BufferRegion(buffer, region);
 }

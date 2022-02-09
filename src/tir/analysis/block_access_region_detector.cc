@@ -147,7 +147,7 @@ void BlockReadWriteDetector::VisitExpr_(const LoadNode* op) {
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (const PrimExpr& index : op->indices) {
-    relaxed_region.push_back(arith::EvalSet(index, dom_map_));
+    relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(index), dom_map_));
   }
   Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
   ExprVisitor::VisitExpr_(op);
@@ -199,7 +199,7 @@ void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   std::vector<arith::IntSet> relaxed_region;
   for (const PrimExpr& index : op->indices) {
-    relaxed_region.push_back(arith::EvalSet(index, dom_map_));
+    relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(index), dom_map_));
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
   StmtVisitor::VisitStmt_(op);
