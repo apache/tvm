@@ -1,3 +1,4 @@
+#include "hexagon_common.h"
 #include "hexagon_user_dma_descriptors.h"
 #include "hexagon_user_dma_instructions.h"
 #include "hexagon_user_dma_regs.h"
@@ -7,7 +8,13 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_wrapper(void *src, void *dst, uint32_t length) {
+int hexagon_user_dma_wrapper(void *dst, void *src, uint32_t length) {
+
+    HEXAGON_PRINT(ALWAYS, "STRAW: In hexagon_user_dma_wrapper");
+    HEXAGON_PRINT(ALWAYS, "STRAW:   dst = %p", dst);
+    HEXAGON_PRINT(ALWAYS, "STRAW:   src = %p", src);
+    HEXAGON_PRINT(ALWAYS, "STRAW:   len = %d", length);
+
     //TODO: Configure DMA Regs at global level and make it thread safe 
     static int config_dma = 0;
     if (!config_dma) {
