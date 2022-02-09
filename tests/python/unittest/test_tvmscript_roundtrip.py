@@ -36,7 +36,7 @@ def opt_gemm_normalize():
             packedB = T.buffer_decl([32, 1024, 32], elem_offset=0, align=128, offset_factor=1)
             A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
             B_1 = T.match_buffer(B, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
+            C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
             # body
             T.realize(packedB[0:32, 0:1024, 0:32], "")
             for x in T.parallel(0, 32):
@@ -90,7 +90,7 @@ def opt_gemm_lower():
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
             A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
-            C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
+            C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
             # body
             packedB = T.allocate([32768], "float32", "global")
             for x in T.parallel(0, 32):
@@ -224,7 +224,7 @@ def opt_gemm_mod_host():
 
             C_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
             T.attr(C_data, "storage_alignment", 128)
-            C: T.Buffer = T.buffer_decl([1024, 1024], dtype="int32", data=C_data)
+            C: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=C_data)
             buf2_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 2, dtype="handle")
             buf2_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf2_shape_data)
             buf2_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg2, 0, 3, dtype="handle")
@@ -2472,7 +2472,7 @@ def vthread_func():
     @T.prim_func
     def vthread_func(a: T.handle, c: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
-        C = T.match_buffer(c, (16, 16), "float32")
+        C = T.match_buffer(c, [256], "float32")
 
         i0 = T.env_thread("blockIdx.x")
         i1 = T.env_thread("threadIdx.x")
@@ -2776,7 +2776,7 @@ def rank0_block():
     def rank0_block(a: T.handle) -> None:
         A = T.match_buffer(a, (), "float32")
         B = T.alloc_buffer((), "float32")
-        B[0] = A[0]
+        B[()] = A[()]
 
         with T.block("update") as []:
             T.reads([A[()]])
@@ -2897,7 +2897,7 @@ def primfunc_with_allocate_annotations():
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
         placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
         for ax0_ax1_fused_4 in T.serial(0, 56):

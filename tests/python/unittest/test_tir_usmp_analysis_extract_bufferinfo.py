@@ -99,9 +99,9 @@ class LinearStructure:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [1, 224, 224, 3], dTpe="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [1, 224, 224, 3], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dTpe="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -111,10 +111,10 @@ class LinearStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "tir.noalias": True})
-        placeholder_65 = T.match_buffer(placeholder_62, [1, 224, 224, 3], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_66 = T.match_buffer(placeholder_63, [7, 7, 3, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_67 = T.match_buffer(placeholder_64, [1, 1, 1, 64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_21 = T.match_buffer(T_cast_20, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_7 = T.allocate([157323], "int16", "global")
         for i0_i1_fused_7 in T.serial(0, 229):
@@ -133,8 +133,8 @@ class LinearStructure:
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global")
         for ax0_ax1_fused_4 in T.serial(0, 56):
@@ -207,10 +207,10 @@ class ParallelSerialMixedForLoops:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1(placeholder_68: T.handle, placeholder_69: T.handle, placeholder_70: T.handle, T_cast_22: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1", "tir.noalias": True})
-        placeholder_71 = T.match_buffer(placeholder_68, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_72 = T.match_buffer(placeholder_69, [3, 3, 64, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_73 = T.match_buffer(placeholder_70, [1, 1, 1, 192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_23 = T.match_buffer(T_cast_22, [1, 56, 56, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_71 = T.match_buffer(placeholder_68, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_72 = T.match_buffer(placeholder_69, [110592], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_73 = T.match_buffer(placeholder_70, [192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_23 = T.match_buffer(T_cast_22, [305], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_8 = T.allocate([215296], "int16", "global")
         for i0_i1_fused_8 in T.serial(0, 58):
@@ -248,10 +248,10 @@ class AllSerialForLoops:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1(placeholder_68: T.handle, placeholder_69: T.handle, placeholder_70: T.handle, T_cast_22: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1", "tir.noalias": True})
-        placeholder_71 = T.match_buffer(placeholder_68, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_72 = T.match_buffer(placeholder_69, [3, 3, 64, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_73 = T.match_buffer(placeholder_70, [1, 1, 1, 192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_23 = T.match_buffer(T_cast_22, [1, 56, 56, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_71 = T.match_buffer(placeholder_68, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_72 = T.match_buffer(placeholder_69, [110592], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_73 = T.match_buffer(placeholder_70, [192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_23 = T.match_buffer(T_cast_22, [305], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_8 = T.allocate([215296], "int16", "global")
         for i0_i1_fused_8 in T.serial(0, 58):
@@ -330,8 +330,8 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_max_pool2d(placeholder: T.handle, tensor: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d", "tir.noalias": True})
-        placeholder_1 = T.match_buffer(placeholder, [1, 56, 56, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        tensor_1 = T.match_buffer(tensor, [1, 28, 28, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_1 = T.match_buffer(placeholder, [602112], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        tensor_1 = T.match_buffer(tensor, [249], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         for ax0_ax1_fused in T.serial(0, 28):
             for ax2 in T.serial(0, 28):
@@ -344,9 +344,9 @@ class InceptionStructure:
     def tvmgen_default_fused_cast_subtract(placeholder_2: T.handle, placeholder_3: T.handle, T_subtract: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast_subtract", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [1, 224, 224, 3], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_5 = T.match_buffer(placeholder_3, [], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        T_subtract_1 = T.match_buffer(T_subtract, [1, 224, 224, 3], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_4 = T.match_buffer(placeholder_2, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_5 = T.match_buffer(placeholder_3, [1], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        T_subtract_1 = T.match_buffer(T_subtract, [452], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         for ax0_ax1_fused_1 in T.serial(0, 224):
             for ax2_1, ax3_inner_1 in T.grid(224, 3):
@@ -356,8 +356,8 @@ class InceptionStructure:
     def tvmgen_default_fused_cast(placeholder_6: T.handle, T_cast: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_cast", "tir.noalias": True})
-        placeholder_7 = T.match_buffer(placeholder_6, [1, 28, 28, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_1 = T.match_buffer(T_cast, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_7 = T.match_buffer(placeholder_6, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T_cast_1 = T.match_buffer(T_cast, [249], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         for ax0_ax1_fused_2 in T.serial(0, 28):
             for ax2_2, ax3_outer_1, ax3_inner_2 in T.grid(28, 12, 16):
@@ -367,11 +367,11 @@ class InceptionStructure:
     def tvmgen_default_fused_concatenate(placeholder_8: T.handle, placeholder_9: T.handle, placeholder_10: T.handle, placeholder_11: T.handle, T_concat: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_concatenate", "tir.noalias": True})
-        placeholder_12 = T.match_buffer(placeholder_8, [1, 28, 28, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_concat_1 = T.match_buffer(T_concat, [1, 28, 28, 256], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_13 = T.match_buffer(placeholder_9, [1, 28, 28, 128], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_14 = T.match_buffer(placeholder_11, [1, 28, 28, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        placeholder_15 = T.match_buffer(placeholder_10, [1, 28, 28, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_12 = T.match_buffer(placeholder_8, [50176], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T_concat_1 = T.match_buffer(T_concat, [313], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_13 = T.match_buffer(placeholder_9, [100352], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_14 = T.match_buffer(placeholder_11, [25088], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_15 = T.match_buffer(placeholder_10, [25088], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         for ax0_ax1_fused_3 in T.serial(0, 28):
             for ax2_3, ax3 in T.grid(28, 256):
@@ -381,10 +381,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast(placeholder_16: T.handle, placeholder_17: T.handle, placeholder_18: T.handle, T_cast_2: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast", "tir.noalias": True})
-        placeholder_19 = T.match_buffer(placeholder_16, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_20 = T.match_buffer(placeholder_17, [1, 1, 64, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_21 = T.match_buffer(placeholder_18, [1, 1, 1, 64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_3 = T.match_buffer(T_cast_2, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_19 = T.match_buffer(placeholder_16, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_20 = T.match_buffer(placeholder_17, [4096], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_21 = T.match_buffer(placeholder_18, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_3 = T.match_buffer(T_cast_2, [177], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput = T.allocate([200704], "int16", "global")
         for i0_i1_fused in T.serial(0, 56):
@@ -403,10 +403,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1(placeholder_22: T.handle, placeholder_23: T.handle, placeholder_24: T.handle, T_cast_4: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_1", "tir.noalias": True})
-        placeholder_25 = T.match_buffer(placeholder_22, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_26 = T.match_buffer(placeholder_23, [1, 1, 192, 96], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_27 = T.match_buffer(placeholder_24, [1, 1, 1, 96], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_5 = T.match_buffer(T_cast_4, [1, 28, 28, 96], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_25 = T.match_buffer(placeholder_22, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_26 = T.match_buffer(placeholder_23, [18432], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_27 = T.match_buffer(placeholder_24, [96], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_5 = T.match_buffer(T_cast_4, [153], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_1 = T.allocate([150528], "int16", "global")
         for i0_i1_fused_1 in T.serial(0, 28):
@@ -424,8 +424,8 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_max_pool2d_cast(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_7 = T.match_buffer(T_cast_6, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T_cast_7 = T.match_buffer(T_cast_6, [177], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global")
         for ax0_ax1_fused_4 in T.serial(0, 56):
@@ -442,10 +442,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_2(placeholder_30: T.handle, placeholder_31: T.handle, placeholder_32: T.handle, T_cast_8: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_2", "tir.noalias": True})
-        placeholder_33 = T.match_buffer(placeholder_30, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_34 = T.match_buffer(placeholder_31, [1, 1, 192, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_35 = T.match_buffer(placeholder_32, [1, 1, 1, 64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_9 = T.match_buffer(T_cast_8, [1, 28, 28, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_33 = T.match_buffer(placeholder_30, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_34 = T.match_buffer(placeholder_31, [12288], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_35 = T.match_buffer(placeholder_32, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_9 = T.match_buffer(T_cast_8, [121], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_2 = T.allocate([150528], "int16", "global")
         for i0_i1_fused_2 in T.serial(0, 28):
@@ -464,8 +464,8 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_max_pool2d_cast_1(placeholder_36: T.handle, T_cast_10: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast_1", "tir.noalias": True})
-        placeholder_37 = T.match_buffer(placeholder_36, [1, 28, 28, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
-        T_cast_11 = T.match_buffer(T_cast_10, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_37 = T.match_buffer(placeholder_36, [150528], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        T_cast_11 = T.match_buffer(T_cast_10, [249], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         tensor_3 = T.allocate([150528], "uint8", "global")
         for ax0_ax1_fused_6 in T.serial(0, 28):
@@ -482,10 +482,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320__2(placeholder_38: T.handle, placeholder_39: T.handle, placeholder_40: T.handle, T_cast_12: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320__2", "tir.noalias": True})
-        placeholder_41 = T.match_buffer(placeholder_38, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_42 = T.match_buffer(placeholder_39, [1, 1, 192, 32], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_43 = T.match_buffer(placeholder_40, [1, 1, 1, 32], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_13 = T.match_buffer(T_cast_12, [1, 28, 28, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_41 = T.match_buffer(placeholder_38, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_42 = T.match_buffer(placeholder_39, [6144], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_43 = T.match_buffer(placeholder_40, [32], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_13 = T.match_buffer(T_cast_12, [89], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_3 = T.allocate([150528], "int16", "global")
         for i0_i1_fused_3 in T.serial(0, 28):
@@ -503,10 +503,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2(placeholder_44: T.handle, placeholder_45: T.handle, placeholder_46: T.handle, T_cast_14: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_2", "tir.noalias": True})
-        placeholder_47 = T.match_buffer(placeholder_44, [1, 28, 28, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_48 = T.match_buffer(placeholder_45, [1, 1, 192, 16], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_49 = T.match_buffer(placeholder_46, [1, 1, 1, 16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_15 = T.match_buffer(T_cast_14, [1, 28, 28, 16], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_47 = T.match_buffer(placeholder_44, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_48 = T.match_buffer(placeholder_45, [3072], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_49 = T.match_buffer(placeholder_46, [16], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_15 = T.match_buffer(T_cast_14, [73], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_4 = T.allocate([150528], "int16", "global")
         for i0_i1_fused_4 in T.serial(0, 28):
@@ -524,10 +524,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320__1(placeholder_50: T.handle, placeholder_51: T.handle, placeholder_52: T.handle, T_cast_16: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320__1", "tir.noalias": True})
-        placeholder_53 = T.match_buffer(placeholder_50, [1, 28, 28, 16], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_54 = T.match_buffer(placeholder_51, [3, 3, 16, 32], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_55 = T.match_buffer(placeholder_52, [1, 1, 1, 32], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_17 = T.match_buffer(T_cast_16, [1, 28, 28, 32], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_53 = T.match_buffer(placeholder_50, [12544], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_54 = T.match_buffer(placeholder_51, [4608], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_55 = T.match_buffer(placeholder_52, [32], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_17 = T.match_buffer(T_cast_16, [89], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_5 = T.allocate([14400], "int16", "global")
         for i0_i1_fused_5 in T.serial(0, 30):
@@ -545,10 +545,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320_(placeholder_56: T.handle, placeholder_57: T.handle, placeholder_58: T.handle, T_cast_18: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_cast_fixed_point_multiply_cli_4464294615199028320_", "tir.noalias": True})
-        placeholder_59 = T.match_buffer(placeholder_56, [1, 28, 28, 96], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_60 = T.match_buffer(placeholder_57, [3, 3, 96, 128], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_61 = T.match_buffer(placeholder_58, [1, 1, 1, 128], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_19 = T.match_buffer(T_cast_18, [1, 28, 28, 128], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_59 = T.match_buffer(placeholder_56, [75264], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_60 = T.match_buffer(placeholder_57, [110592], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_61 = T.match_buffer(placeholder_58, [128], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_19 = T.match_buffer(T_cast_18, [185], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_6 = T.allocate([86400], "int16", "global")
         for i0_i1_fused_6 in T.serial(0, 30):
@@ -568,10 +568,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast(placeholder_62: T.handle, placeholder_63: T.handle, placeholder_64: T.handle, T_cast_20: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast", "T.noalias": True})
-        placeholder_65 = T.match_buffer(placeholder_62, [1, 224, 224, 3], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_66 = T.match_buffer(placeholder_63, [7, 7, 3, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_67 = T.match_buffer(placeholder_64, [1, 1, 1, 64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_21 = T.match_buffer(T_cast_20, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_65 = T.match_buffer(placeholder_62, [150528], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_66 = T.match_buffer(placeholder_63, [9408], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_67 = T.match_buffer(placeholder_64, [64], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_21 = T.match_buffer(T_cast_20, [289], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_7 = T.allocate([157323], "int16", "global")
         for i0_i1_fused_7 in T.serial(0, 229):
@@ -590,10 +590,10 @@ class InceptionStructure:
     def tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1(placeholder_68: T.handle, placeholder_69: T.handle, placeholder_70: T.handle, T_cast_22: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_conv2d_add_fixed_point_multiply_clip_cast_1", "tir.noalias": True})
-        placeholder_71 = T.match_buffer(placeholder_68, [1, 56, 56, 64], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_72 = T.match_buffer(placeholder_69, [3, 3, 64, 192], dtype="int16", elem_offset=0, align=128, offset_factor=1)
-        placeholder_73 = T.match_buffer(placeholder_70, [1, 1, 1, 192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
-        T_cast_23 = T.match_buffer(T_cast_22, [1, 56, 56, 192], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_71 = T.match_buffer(placeholder_68, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_72 = T.match_buffer(placeholder_69, [110592], dtype="int16", elem_offset=0, align=128, offset_factor=1)
+        placeholder_73 = T.match_buffer(placeholder_70, [192], dtype="int32", elem_offset=0, align=128, offset_factor=1)
+        T_cast_23 = T.match_buffer(T_cast_22, [305], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         # body
         PaddedInput_8 = T.allocate([215296], "int16", "global")
         for i0_i1_fused_8 in T.serial(0, 58):
@@ -1107,8 +1107,8 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_layout_transform_1(placeholder: T.handle, T_layout_trans: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_layout_transform_1", "tir.noalias": True})
-        placeholder_1 = T.match_buffer(placeholder, [1, 3, 24, 12], dtype="float32")
-        T_layout_trans_1 = T.match_buffer(T_layout_trans, [1, 1, 24, 12, 3], dtype="float32")
+        placeholder_1 = T.match_buffer(placeholder, [864], dtype="float32")
+        T_layout_trans_1 = T.match_buffer(T_layout_trans, [41], dtype="float32")
         # body
         for ax0_ax1_fused_ax2_fused, ax3, ax4_inner in T.grid(24, 12, 3):
             T_layout_trans_1[ax0_ax1_fused_ax2_fused * 36 + ax3 * 3 + ax4_inner] = placeholder_1[ax4_inner * 288 + ax0_ax1_fused_ax2_fused * 12 + ax3]
@@ -1117,15 +1117,15 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_nn_contrib_conv2d_NCHWc(placeholder_2: T.handle, placeholder_3: T.handle, conv2d_NCHWc: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_contrib_conv2d_NCHWc", "tir.noalias": True})
-        placeholder_4 = T.match_buffer(placeholder_2, [1, 1, 24, 12, 3], dtype="float32")
-        placeholder_5 = T.match_buffer(placeholder_3, [1, 1, 3, 3, 3, 3], dtype="float32")
-        conv2d_NCHWc_1 = T.match_buffer(conv2d_NCHWc, [1, 1, 24, 12, 3], dtype="float32")
+        placeholder_4 = T.match_buffer(placeholder_2, [864], dtype="float32")
+        placeholder_5 = T.match_buffer(placeholder_3, [81], dtype="float32")
+        conv2d_NCHWc_1 = T.match_buffer(conv2d_NCHWc, [41], dtype="float32")
         # body
-        data_pad = T.allocate([1, 1, 26, 14, 3], "float32", "global")
+        data_pad = T.allocate([1092], "float32", "global")
         for i0_i1_fused_i2_fused, i3, i4 in T.grid(26, 14, 3):
             data_pad[i0_i1_fused_i2_fused * 42 + i3 * 3 + i4] = T.if_then_else(1 <= i0_i1_fused_i2_fused and i0_i1_fused_i2_fused < 25 and 1 <= i3 and i3 < 13, placeholder_4[i0_i1_fused_i2_fused * 36 + i3 * 3 + i4 - 39], T.float32(0), dtype="float32")
         for n_oc_chunk_fused_oh_fused in T.serial(0, 24):
-            conv2d_NCHWc_global = T.allocate([1, 1, 1, 12, 3], "float32", "global")
+            conv2d_NCHWc_global = T.allocate([36], "float32", "global")
             for oc_block_c_init in T.serial(0, 3):
                 conv2d_NCHWc_global[oc_block_c_init] = T.float32(0)
             for oc_block_c_init in T.serial(0, 3):
@@ -1182,23 +1182,23 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_nn_softmax_add_add_multiply_add(placeholder_6: T.handle, placeholder_7: T.handle, placeholder_8: T.handle, placeholder_9: T.handle, placeholder_10: T.handle, T_add: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_softmax_add_add_multiply_add", "tir.noalias": True})
-        placeholder_11 = T.match_buffer(placeholder_6, [1, 3, 24, 12], dtype="float32")
-        placeholder_12 = T.match_buffer(placeholder_7, [1, 3, 24, 12], dtype="float32")
-        placeholder_13 = T.match_buffer(placeholder_8, [3, 1, 1], dtype="float32")
-        placeholder_14 = T.match_buffer(placeholder_9, [3, 1, 1], dtype="float32")
-        placeholder_15 = T.match_buffer(placeholder_10, [3, 1, 1], dtype="float32")
-        T_add_1 = T.match_buffer(T_add, [1, 3, 24, 12], dtype="float32")
+        placeholder_11 = T.match_buffer(placeholder_6, [864], dtype="float32")
+        placeholder_12 = T.match_buffer(placeholder_7, [864], dtype="float32")
+        placeholder_13 = T.match_buffer(placeholder_8, [3], dtype="float32")
+        placeholder_14 = T.match_buffer(placeholder_9, [3], dtype="float32")
+        placeholder_15 = T.match_buffer(placeholder_10, [3], dtype="float32")
+        T_add_1 = T.match_buffer(T_add, [864], dtype="float32")
         # body
         for ax0_ax1_fused_ax2_fused in T.serial(0, 72):
-            T_softmax_norm = T.allocate([1, 1, 1, 12], "float32", "global")
-            with T.allocate([1, 1, 1], "float32", "global") as T_softmax_maxelem:
+            T_softmax_norm = T.allocate([12], "float32", "global")
+            with T.allocate([1], "float32", "global") as T_softmax_maxelem:
                 T_softmax_maxelem[0] = T.float32(-3.4028234663852886e+38)
                 for k in T.serial(0, 12):
                     T_softmax_maxelem[0] = T.max(T_softmax_maxelem[0], placeholder_11[ax0_ax1_fused_ax2_fused * 12 + k])
-                T_softmax_exp = T.allocate([1, 1, 1, 12], "float32", "global")
+                T_softmax_exp = T.allocate([12], "float32", "global")
                 for i3 in T.serial(0, 12):
                     T_softmax_exp[i3] = T.exp(placeholder_11[ax0_ax1_fused_ax2_fused * 12 + i3] - T_softmax_maxelem[0], dtype="float32")
-                T_softmax_expsum = T.allocate([1, 1, 1], "float32", "global")
+                T_softmax_expsum = T.allocate([1], "float32", "global")
                 T_softmax_expsum[0] = T.float32(0)
                 for k in T.serial(0, 12):
                     T_softmax_expsum[0] = T_softmax_expsum[0] + T_softmax_exp[k]
@@ -1211,13 +1211,13 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_nn_contrib_dense_pack_nn_relu(placeholder_16: T.handle, placeholder_17: T.handle, T_relu: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_contrib_dense_pack_nn_relu", "tir.noalias": True})
-        placeholder_18 = T.match_buffer(placeholder_16, [72, 12], dtype="float32")
-        placeholder_19 = T.match_buffer(placeholder_17, [2, 12, 6], dtype="float32")
-        T_relu_1 = T.match_buffer(T_relu, [72, 12], dtype="float32")
+        placeholder_18 = T.match_buffer(placeholder_16, [864], dtype="float32")
+        placeholder_19 = T.match_buffer(placeholder_17, [144], dtype="float32")
+        T_relu_1 = T.match_buffer(T_relu, [864], dtype="float32")
         # body
         for ax1_outer_ax0_outer_fused in T.serial(0, 18):
-            compute = T.allocate([8, 6], "float32", "global")
-            with T.allocate([8, 6], "float32", "global") as compute_global:
+            compute = T.allocate([48], "float32", "global")
+            with T.allocate([48], "float32", "global") as compute_global:
                 for x_c_init in T.serial(0, 6):
                     compute_global[x_c_init] = T.float32(0)
                 for x_c_init in T.serial(0, 6):
@@ -1274,8 +1274,8 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_reshape_1(placeholder_20: T.handle, T_reshape: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_reshape_1", "tir.noalias": True})
-        placeholder_21 = T.match_buffer(placeholder_20, [1, 3, 24, 12], dtype="float32")
-        T_reshape_1 = T.match_buffer(T_reshape, [72, 12], dtype="float32")
+        placeholder_21 = T.match_buffer(placeholder_20, [864], dtype="float32")
+        T_reshape_1 = T.match_buffer(T_reshape, [864], dtype="float32")
         # body
         for ax0, ax1_inner in T.grid(72, 12):
             T_reshape_1[ax0 * 12 + ax1_inner] = placeholder_21[ax0 * 12 + ax1_inner]
@@ -1284,8 +1284,8 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_layout_transform(placeholder_22: T.handle, T_layout_trans_2: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_layout_transform", "tir.noalias": True})
-        placeholder_23 = T.match_buffer(placeholder_22, [1, 1, 24, 12, 3], dtype="float32")
-        T_layout_trans_3 = T.match_buffer(T_layout_trans_2, [1, 3, 24, 12], dtype="float32")
+        placeholder_23 = T.match_buffer(placeholder_22, [864], dtype="float32")
+        T_layout_trans_3 = T.match_buffer(T_layout_trans_2, [864], dtype="float32")
         # body
         for ax0_ax1_fused, ax2, ax3_inner in T.grid(3, 24, 12):
             T_layout_trans_3[ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner] = placeholder_23[ax2 * 36 + ax3_inner * 3 + ax0_ax1_fused]
@@ -1294,8 +1294,8 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_reshape(placeholder_24: T.handle, T_reshape_2: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_reshape", "tir.noalias": True})
-        placeholder_25 = T.match_buffer(placeholder_24, [72, 12], dtype="float32")
-        T_reshape_3 = T.match_buffer(T_reshape_2, [1, 3, 24, 12], dtype="float32")
+        placeholder_25 = T.match_buffer(placeholder_24, [864], dtype="float32")
+        T_reshape_3 = T.match_buffer(T_reshape_2, [864], dtype="float32")
         # body
         for ax0_ax1_fused, ax2, ax3_inner in T.grid(3, 24, 12):
             T_reshape_3[ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner] = placeholder_25[ax0_ax1_fused * 288 + ax2 * 12 + ax3_inner]
@@ -1304,20 +1304,20 @@ class MultipleCallsToSamePrimFuncModule:
     def tvmgen_default_fused_nn_softmax_add(placeholder_26: T.handle, placeholder_27: T.handle, T_add_2: T.handle) -> None:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "tvmgen_default_fused_nn_softmax_add", "tir.noalias": True})
-        placeholder_28 = T.match_buffer(placeholder_26, [1, 3, 24, 12], dtype="float32")
-        placeholder_29 = T.match_buffer(placeholder_27, [1, 3, 24, 12], dtype="float32")
-        T_add_3 = T.match_buffer(T_add_2, [1, 3, 24, 12], dtype="float32")
+        placeholder_28 = T.match_buffer(placeholder_26, [864], dtype="float32")
+        placeholder_29 = T.match_buffer(placeholder_27, [864], dtype="float32")
+        T_add_3 = T.match_buffer(T_add_2, [864], dtype="float32")
         # body
         for ax0_ax1_fused_ax2_fused in T.serial(0, 72):
-            T_softmax_norm = T.allocate([1, 1, 1, 12], "float32", "global")
-            with T.allocate([1, 1, 1], "float32", "global") as T_softmax_maxelem:
+            T_softmax_norm = T.allocate([12], "float32", "global")
+            with T.allocate([1], "float32", "global") as T_softmax_maxelem:
                 T_softmax_maxelem[0] = T.float32(-3.4028234663852886e+38)
                 for k in T.serial(0, 12):
                     T_softmax_maxelem[0] = T.max(T_softmax_maxelem[0], placeholder_28[ax0_ax1_fused_ax2_fused * 12 + k])
-                T_softmax_exp = T.allocate([1, 1, 1, 12], "float32", "global")
+                T_softmax_exp = T.allocate([12], "float32", "global")
                 for i3 in T.serial(0, 12):
                     T_softmax_exp[i3] = T.exp(placeholder_28[ax0_ax1_fused_ax2_fused * 12 + i3] - T_softmax_maxelem[0], dtype="float32")
-                T_softmax_expsum = T.allocate([1, 1, 1], "float32", "global")
+                T_softmax_expsum = T.allocate([1], "float32", "global")
                 T_softmax_expsum[0] = T.float32(0)
                 for k in T.serial(0, 12):
                     T_softmax_expsum[0] = T_softmax_expsum[0] + T_softmax_exp[k]
@@ -1330,8 +1330,8 @@ class MultipleCallsToSamePrimFuncModule:
     def run_model(data: T.handle, output: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
-        data_buffer = T.match_buffer(data, [1, 3, 24, 12], dtype="float32", align=16)
-        output_buffer = T.match_buffer(output, [1, 3, 24, 12], dtype="float32", align=16)
+        data_buffer = T.match_buffer(data, [864], dtype="float32", align=16)
+        output_buffer = T.match_buffer(output, [864], dtype="float32", align=16)
         # body
         sid_11 = T.allocate([3456], "int8", "global.workspace")
         sid_5 = T.allocate([3456], "int8", "global.workspace")

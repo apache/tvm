@@ -70,7 +70,7 @@ def buffer_opaque_access(b: T.handle, c: T.handle) -> None:
 @T.prim_func
 def lca_is_func_root(a: T.handle) -> None:
     A = T.match_buffer(a, [0, 0], "float32")
-    A[0] = 1.0
+    A[0, 0] = 1.0
 
 
 @T.prim_func
