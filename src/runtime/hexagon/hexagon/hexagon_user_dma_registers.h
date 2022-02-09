@@ -1,4 +1,21 @@
-// TODO: Figure out the copyright 
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_REGS_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_REGS_H_
@@ -129,111 +146,111 @@ namespace hexagon {
 /* inlines                              								    */
 /****************************************************************************/
 
-static inline uint32_t dm2_get_guest_mode(uint32_t cfg)
+static inline unsigned int dm2_get_guest_mode(unsigned int cfg)
 {
     return (cfg & DM2_GUEST_MODE_STALL_MASK) >> DM2_GUEST_MODE_STALL_SHIFT;
 }
 
-static inline void dm2_set_guest_mode(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_guest_mode(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_GUEST_MODE_STALL_MASK;
     *cfg |= ((v << DM2_GUEST_MODE_STALL_SHIFT) & DM2_GUEST_MODE_STALL_MASK);
 }
 
-static inline uint32_t dm2_get_monitor_mode(uint32_t cfg)
+static inline unsigned int dm2_get_monitor_mode(unsigned int cfg)
 {
     return (cfg & DM2_MONITOR_MODE_STALL_MASK) >> DM2_MONITOR_MODE_STALL_SHIFT;
 }
 
-static inline void dm2_set_monitor_mode(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_monitor_mode(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_MONITOR_MODE_STALL_MASK;
     *cfg |= ((v << DM2_MONITOR_MODE_STALL_SHIFT) & DM2_MONITOR_MODE_STALL_MASK);
 }
 
-static inline uint32_t dm2_get_exception_mode(uint32_t cfg)
+static inline unsigned int dm2_get_exception_mode(unsigned int cfg)
 {
     return (cfg & DM2_EXCEPTION_MODE_CONTINUE_MASK) >> DM2_EXCEPTION_MODE_CONTINUE_SHIFT;
 }
 
-static inline void dm2_set_exception_mode(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_exception_mode(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_EXCEPTION_MODE_CONTINUE_MASK;
     *cfg |= ((v << DM2_EXCEPTION_MODE_CONTINUE_SHIFT) & DM2_EXCEPTION_MODE_CONTINUE_MASK);
 }
 
-static inline uint32_t dm2_get_debug_mode(uint32_t cfg)
+static inline unsigned int dm2_get_debug_mode(unsigned int cfg)
 {
     return (cfg & DM2_DEBUG_MODE_CONTINUE_MASK) >> DM2_DEBUG_MODE_CONTINUE_SHIFT;
 }
 
-static inline void dm2_set_debug_mode(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_debug_mode(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_DEBUG_MODE_CONTINUE_MASK;
     *cfg |= ((v << DM2_DEBUG_MODE_CONTINUE_SHIFT) & DM2_DEBUG_MODE_CONTINUE_MASK);
 }
 
-static inline uint32_t dm2_get_priority(uint32_t cfg)
+static inline unsigned int dm2_get_priority(unsigned int cfg)
 {
     return (cfg & DM2_TRAFFIC_PRIORITY_MASK) >> DM2_TRAFFIC_PRIORITY_SHIFT;
 }
 
-static inline void dm2_set_priority(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_priority(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_TRAFFIC_PRIORITY_MASK;
     *cfg |= ((v << DM2_TRAFFIC_PRIORITY_SHIFT) & DM2_TRAFFIC_PRIORITY_MASK);
 }
 
-static inline uint32_t dm2_get_dlbc_enable(uint32_t cfg)
+static inline unsigned int dm2_get_dlbc_enable(unsigned int cfg)
 {
     return (cfg & DM2_DLBC_ENABLE_MASK) >> DM2_DLBC_ENABLE_SHIFT;
 }
 
-static inline void dm2_set_dlbc_enable(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_dlbc_enable(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_DLBC_ENABLE_MASK;
     *cfg |= ((v << DM2_DLBC_ENABLE_SHIFT) & DM2_DLBC_ENABLE_MASK);
 }
 
-static inline uint32_t dm2_get_ooo_write_ctrl(uint32_t cfg)
+static inline unsigned int dm2_get_ooo_write_ctrl(unsigned int cfg)
 {
     return (cfg & DM2_OOO_WRITE_MASK) >> DM2_OOO_WRITE_SHIFT;
 }
 
-static inline void dm2_set_ooo_write_ctrl(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_ooo_write_ctrl(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_OOO_WRITE_MASK;
     *cfg |= ((v << DM2_OOO_WRITE_SHIFT) & DM2_OOO_WRITE_MASK);
 }
 
-static inline uint32_t dm2_get_error_exception_ctrl(uint32_t cfg)
+static inline unsigned int dm2_get_error_exception_ctrl(unsigned int cfg)
 {
     return (cfg & DM2_ERROR_EXCEPTION_MASK) >> DM2_ERROR_EXCEPTION_SHIFT;
 }
 
-static inline void dm2_set_error_exception_ctrl(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_error_exception_ctrl(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_ERROR_EXCEPTION_MASK;
     *cfg |= ((v << DM2_ERROR_EXCEPTION_SHIFT) & DM2_ERROR_EXCEPTION_MASK);
 }
 
-static inline uint32_t dm2_get_outstanding_transactions_read(uint32_t cfg)
+static inline unsigned int dm2_get_outstanding_transactions_read(unsigned int cfg)
 {
     return (cfg & DM2_OUTSTANDING_READ_MASK) >> DM2_OUTSTANDING_READ_SHIFT;
 }
 
-static inline void dm2_set_outstanding_transactions_read(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_outstanding_transactions_read(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_OUTSTANDING_READ_MASK;
     *cfg |= ((v << DM2_OUTSTANDING_READ_SHIFT) & DM2_OUTSTANDING_READ_MASK);
 }
 
-static inline uint32_t dm2_get_outstanding_transactions_write(uint32_t cfg)
+static inline unsigned int dm2_get_outstanding_transactions_write(unsigned int cfg)
 {
     return (cfg & DM2_OUTSTANDING_WRITE_MASK) >> DM2_OUTSTANDING_WRITE_SHIFT;
 }
 
-static inline void dm2_set_outstanding_transactions_write(uint32_t *cfg, uint32_t v)
+static inline void dm2_set_outstanding_transactions_write(unsigned int *cfg, unsigned int v)
 {
     *cfg &= ~DM2_OUTSTANDING_WRITE_MASK;
     *cfg |= ((v << DM2_OUTSTANDING_WRITE_SHIFT) & DM2_OUTSTANDING_WRITE_MASK);
@@ -241,24 +258,24 @@ static inline void dm2_set_outstanding_transactions_write(uint32_t *cfg, uint32_
 
 /*--------------------------------------------------------------------------*/
 
-static inline uint32_t dm4_get_error(uint32_t cfg)
+static inline unsigned int dm4_get_error(unsigned int cfg)
 {
     return (cfg & DM4_ERROR_MASK) >> DM4_ERROR_SHIFT;
 }
 
-static inline uint32_t dm4_get_engine_id(uint32_t cfg)
+static inline unsigned int dm4_get_engine_id(unsigned int cfg)
 {
     return (cfg & DM4_THREAD_ID_MASK) >> DM4_THREAD_ID_SHIFT;
 }
 
-static inline uint32_t dm4_get_syndrone_code(uint32_t cfg)
+static inline unsigned int dm4_get_syndrone_code(unsigned int cfg)
 {
     return (cfg & DM4_SYNDRONE_CODE_MASK) >> DM4_SYNDRONE_CODE_SHIFT;
 }
 
 /*--------------------------------------------------------------------------*/
 
-static inline uint32_t dm5_get_syndrone_addr(uint32_t cfg)
+static inline unsigned int dm5_get_syndrone_addr(unsigned int cfg)
 {
     return (cfg & DM5_SYNDRONE_ADDR_MASK) >> DM5_SYNDRONE_ADDR_SHIFT;
 }

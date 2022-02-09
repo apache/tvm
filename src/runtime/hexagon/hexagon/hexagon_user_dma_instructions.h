@@ -1,60 +1,75 @@
-// TODO: Figure out the copyright 
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_HEXAGON_USER_DMA_INSTRUCTIONS_H_
-
-#include <stdint.h>
 
 namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-inline uint32_t dmpause() {
-    uint32_t status = 0;
-    asm volatile (" %0 = dmpause" : "=r"(status));
-    return status;
+inline unsigned int dmpause() {
+    unsigned int dm0 = 0;
+    asm volatile (" %0 = dmpause" : "=r"(dm0));
+    return dm0;
 }
 
 inline void dmstart(void *next) {
     asm volatile (" dmstart(%0)" : : "r"(next));
 }
 
-inline uint32_t dmpoll() {
-    uint32_t status = 0;
-    asm volatile (" %0 = dmpoll" : "=r"(status));
-    return status;
+inline unsigned int dmpoll() {
+    unsigned int dm0 = 0;
+    asm volatile (" %0 = dmpoll" : "=r"(dm0));
+    return dm0;
 }
 
-inline uint32_t dmwait() {
-    uint32_t status = 0;
-    asm volatile (" %0 = dmwait" : "=r"(status));
-    return status;
+inline unsigned int dmwait() {
+    unsigned int dm0 = 0;
+    asm volatile (" %0 = dmwait" : "=r"(dm0));
+    return dm0;
 }
 
-// TODO: strange that this is a void*
+// TODO: should this take an unsigned int?
 inline void dmresume(void *dm0) {
     asm volatile (" dmresume(%0)" : : "r"(dm0));
 }
 
-static inline uint32_t dmsyncht() {
-    uint32_t status = 0;
-    asm volatile (" %0 = dmsyncht" : "=r"(status));
-    return status;
+static inline unsigned int dmsyncht() {
+    unsigned int dm0 = 0;
+    asm volatile (" %0 = dmsyncht" : "=r"(dm0));
+    return dm0;
 }
 
-static inline uint32_t dmtlbsynch() {
-    uint32_t status = 0;
-    asm volatile (" %0 = dmtlbsynch" : "=r"(status));
-    return status;
+static inline unsigned int dmtlbsynch() {
+    unsigned int dm0 = 0;
+    asm volatile (" %0 = dmtlbsynch" : "=r"(dm0));
+    return dm0;
 }
 
-static inline uint32_t dmcfgrd(uint32_t dmindex) {
-    uint32_t data = 0;
+static inline unsigned int dmcfgrd(unsigned int dmindex) {
+    unsigned int data = 0;
     asm volatile (" %0 = dmcfgrd(%1)" : "=r"(data) : "r"(dmindex));
     return data;
 }
 
-static inline void dmcfgwr(uint32_t dmindex, uint32_t data) {
+static inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
     asm volatile (" dmcfgwr(%0, %1)" : : "r"(dmindex), "r"(data));
 }
 
