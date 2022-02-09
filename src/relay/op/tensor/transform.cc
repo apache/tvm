@@ -3324,8 +3324,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
-      << "indices of gather must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());

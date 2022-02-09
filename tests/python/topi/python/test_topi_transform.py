@@ -18,10 +18,13 @@
 import numpy as np
 import pytest
 import tvm
-import tvm.testing
+from tvm import te
+from tvm import topi
+from tvm import relay
 import tvm.topi.testing
-from tvm import relay, te, topi
 from tvm.contrib.nvcc import have_fp16
+
+import tvm.testing
 
 
 def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
@@ -1011,16 +1014,6 @@ def test_gather():
     verify_gather(np.random.randn(4, 7, 5), 1, np.random.randint(low=0, high=7, size=(4, 10, 5)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 2)))
     verify_gather(np.random.randn(4, 7, 5), 2, np.random.randint(low=0, high=5, size=(4, 7, 10)))
-    verify_gather(
-        np.random.randn(4, 7, 5),
-        2,
-        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint32"),
-    )
-    verify_gather(
-        np.random.randn(4, 7, 5),
-        2,
-        np.random.randint(low=0, high=5, size=(4, 7, 10)).astype("uint8"),
-    )
 
 
 @tvm.testing.uses_gpu

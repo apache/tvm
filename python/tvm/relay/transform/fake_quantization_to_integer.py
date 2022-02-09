@@ -19,6 +19,10 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+
+# import to register canonicalization funcs for fq2i
+# pylint: disable=unused-import
+from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
