@@ -156,8 +156,8 @@ class Buffer(Object):
     def offset_of(self, indices):
         """Determine the offset of the provided indices in the flattened buffer.
 
-        Params
-        -------
+        Parameters
+        ----------
         indices : Union[PrimExpr, List[PrimExpr]]
 
             The indices of the element in the original buffer.
