@@ -29,6 +29,7 @@ from tvm.contrib import mkldnn
 from .utils import get_simd_32bit_lanes
 from .. import generic, tag
 from ..utils import traverse_inline, get_const_tuple
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
 
 
 def _schedule_dense_pack_template(cfg, s, C, O):
@@ -206,6 +207,38 @@ def schedule_dense_nopack(cfg, outs):
     return s
 
 
+def dense_vnni_compute(X, packedW):
+    m, k = X.shape
+    n_o, _, n_i, _ = packedW.shape
+    ak = te.reduce_axis((0, k), name="k")
+
+    return te.compute(
+        (m, n_o * n_i),
+        lambda i, j: te.sum(
+            X[i, ak].astype("int32")
+            * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4),  j % 16, ak % 4].astype("int32"),
+            axis=ak,
+        ),
+        tag="dense_vnni",
+    )
+
+
+def dense_vnni_schedule(t_fc, t_sch):
+    a_x, a_y = t_fc.op.axis
+    (a_k,) = t_fc.op.reduce_axis
+
+    a_yo, a_yi = t_sch[t_fc].split(a_y, factor=16)
+    a_ko, a_ki = t_sch[t_fc].split(a_k, factor=4)
+    a_xo, a_xi = t_sch[t_fc].split(a_x, factor=32)
+
+    t_sch[t_fc].reorder(a_yo, a_xo, a_xi, a_ko, a_yi, a_ki)
+
+    pc = dot_16x1x16_uint8_int8_int32_cascadelake()
+    t_sch[t_fc].tensorize(a_yi, pc)
+
+    return t_sch
+
+
 @autotvm.register_topi_compute("dense_pack.x86")
 def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     """Compute dense with transformed weight."""
@@ -215,6 +248,10 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     if len(weight.shape) == 3:
         N, _, packw_bn = get_const_tuple(weight.shape)  # out_dim
         N = N * packw_bn
+    elif len(weight.shape) == 4:
+        N, K, n_inner, k_inner = get_const_tuple(weight.shape)  # out_dim
+        assert n_inner == 16 and k_inner == 4
+        return dense_vnni_compute(data, weight)
     else:
         N, _ = get_const_tuple(weight.shape)  # out_dim
     # create tuning space
@@ -270,8 +307,9 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 def schedule_dense_pack(cfg, outs):
     """Create the schedule for dense_pack"""
     s = te.create_schedule([x.op for x in outs])
-
     def _callback(op):
+        if "dense_vnni" in op.tag:
+            dense_vnni_schedule(op.output(0), s)
         if "dense_pack" in op.tag:
             _schedule_dense_pack_template(cfg, s, op.output(0), outs[0])
 
