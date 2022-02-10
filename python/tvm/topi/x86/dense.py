@@ -235,6 +235,7 @@ def dense_vnni_schedule(t_fc, t_sch):
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
     t_sch[t_fc].tensorize(a_yi, pc)
+    t_sch[t_fc].parallel(a_yo)
 
     return t_sch
 
