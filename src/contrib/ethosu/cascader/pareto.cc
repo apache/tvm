@@ -161,12 +161,6 @@ TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.ParetoCullPlans")
       return Array<Plan>(ParetoCullPlans(vplans, max_size));
     });
 
-TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.ParetoCullProposals")
-    .set_body_typed([](Array<Proposal> proposals, int max_size) {
-      std::vector<Proposal> vproposals(proposals.begin(), proposals.end());
-      return Array<Proposal>(ParetoCullProposals(vproposals, max_size));
-    });
-
 }  // namespace cascader
 }  // namespace ethosu
 }  // namespace contrib

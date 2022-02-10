@@ -51,13 +51,12 @@ std::unordered_set<TensorConfig> GetPlanBoundaryConfigs(const Plan& plan) {
   return boundary_configs;
 }
 
-bool IsPlanCompatible(const Proposal& proposal,
-                      const std::vector<Part>& plan_part_group,
+bool IsPlanCompatible(const Proposal& proposal, const std::vector<Part>& plan_part_group,
                       const std::unordered_set<TensorConfig>& plan_boundary_configs) {
   // Check the Plan Part group is disjoint with the Proposal Part group
-  for(const auto& plan_part : plan_part_group) {
-    for(const auto& proposal_part : proposal->GetPartGroup()) {
-      if(plan_part == proposal_part) {
+  for (const auto& plan_part : plan_part_group) {
+    for (const auto& proposal_part : proposal->GetPartGroup()) {
+      if (plan_part == proposal_part) {
         return false;
       }
     }
@@ -126,24 +125,25 @@ Proposal AddPlanToProposal(const Proposal& proposal, const Plan& plan,
   new_memory_usage = std::max(new_memory_usage, proposal->GetMemoryUsage());
   int new_cycles = proposal->GetCycles() + plan->GetCycles();
   std::vector<Part> new_part_group = proposal->GetPartGroup();
-  new_part_group.insert(new_part_group.end(), plan->GetPartGroup().begin(), plan->GetPartGroup().end());
+  new_part_group.insert(new_part_group.end(), plan->GetPartGroup().begin(),
+                        plan->GetPartGroup().end());
   std::sort(new_part_group.begin(), new_part_group.end());
   return Proposal(proposal->GetGraph(), new_part_group, new_plans, new_configs,
                   proposal->GetCascadeRegion(), new_memory_usage, new_cycles);
 }
 
-std::vector<Proposal> GeneratePartialProposals(const CascaderGraph& graph, const HomeMap& home_map,
-                                        const CascaderOptions options,
-                                        const std::unordered_map<Part, std::vector<Plan>, ObjectPtrHash, ObjectPtrEqual>& plans_by_part,
-                                        const std::vector<Part>& partial_proposal_group,
-                                        std::unordered_map<std::vector<Part>, std::vector<Proposal>>* proposals_by_group) {
+std::vector<Proposal> GeneratePartialProposals(
+    const CascaderGraph& graph, const HomeMap& home_map, const CascaderOptions options,
+    const std::unordered_map<Part, std::vector<Plan>, ObjectPtrHash, ObjectPtrEqual>& plans_by_part,
+    const std::vector<Part>& partial_proposal_group,
+    std::unordered_map<std::vector<Part>, std::vector<Proposal>>* proposals_by_group) {
   if (proposals_by_group->find(partial_proposal_group) != proposals_by_group->end()) {
     return proposals_by_group->at(partial_proposal_group);
   }
   if (partial_proposal_group.size() == 0) {
     (*proposals_by_group)[partial_proposal_group] =
-      std::vector<Proposal>{Proposal(graph, std::vector<Part>(), std::vector<Plan>(),
-                                     TensorConfigMap(), options->cascade_region, 0, 0)};
+        std::vector<Proposal>{Proposal(graph, std::vector<Part>(), std::vector<Plan>(),
+                                       TensorConfigMap(), options->cascade_region, 0, 0)};
   } else {
     Part part = partial_proposal_group.back();
     const auto& plans = plans_by_part.at(part);
@@ -158,26 +158,26 @@ std::vector<Proposal> GeneratePartialProposals(const CascaderGraph& graph, const
         // pick the current Plan.
         std::vector<Part> residual_proposal_group;
         std::copy_if(partial_proposal_group.begin(), partial_proposal_group.end(),
-                      std::back_inserter(residual_proposal_group), [&plan](Part value) {
-                        return std::find(plan->GetPartGroup().begin(),
-                                        plan->GetPartGroup().end(),
+                     std::back_inserter(residual_proposal_group), [&plan](Part value) {
+                       return std::find(plan->GetPartGroup().begin(), plan->GetPartGroup().end(),
                                         value) == plan->GetPartGroup().end();
-                      });
+                     });
         // std::sort(residual_proposal_group.begin(), residual_proposal_group.end());
-        const auto& residual_proposals = GeneratePartialProposals(graph, home_map, options, plans_by_part, residual_proposal_group, proposals_by_group);
+        const auto& residual_proposals = GeneratePartialProposals(
+            graph, home_map, options, plans_by_part, residual_proposal_group, proposals_by_group);
         auto plan_output_tensor = plan->GetOutputConfig()->GetTensor();
         ICHECK_LE(plan_output_tensor->GetProducers().size(), 1)
             << "All tensors must have at most one producer.";
         for (const auto& residual_proposal : residual_proposals) {
           if (IsPlanCompatible(residual_proposal, plan->GetPartGroup(), plan_boundary_configs)) {
-            (*proposals_by_group)[partial_proposal_group].push_back(AddPlanToProposal(
-                residual_proposal, plan, plan_boundary_configs));
+            (*proposals_by_group)[partial_proposal_group].push_back(
+                AddPlanToProposal(residual_proposal, plan, plan_boundary_configs));
           }
         }
       }
     }
-    (*proposals_by_group)[partial_proposal_group] = ParetoCullProposals(
-          proposals_by_group->at(partial_proposal_group), options->max_proposals);
+    (*proposals_by_group)[partial_proposal_group] =
+        ParetoCullProposals(proposals_by_group->at(partial_proposal_group), options->max_proposals);
   }
   return proposals_by_group->at(partial_proposal_group);
 }
@@ -194,7 +194,8 @@ std::vector<Proposal> GenerateProposals(const CascaderGraph& graph, const HomeMa
   std::vector<Part> partial_proposal_group = graph->GetPartOrder();
   // A map of Proposals indexed by the Part group they cover
   std::unordered_map<std::vector<Part>, std::vector<Proposal>> proposals_by_group;
-  return GeneratePartialProposals(graph, home_map, options, plans_by_part, partial_proposal_group, &proposals_by_group);
+  return GeneratePartialProposals(graph, home_map, options, plans_by_part, partial_proposal_group,
+                                  &proposals_by_group);
 }
 
 TVM_REGISTER_GLOBAL("contrib.ethosu.cascader.GenerateProposals")

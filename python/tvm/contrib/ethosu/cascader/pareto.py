@@ -21,8 +21,6 @@ from tvm import Object
 
 from . import _ffi_api
 from .plan import Plan
-from .proposal import Proposal
-from .tensor_config import MemoryRegion
 
 
 def _get_pareto_frontier(costs: List[List[float]]) -> List[bool]:
@@ -39,9 +37,3 @@ def _thin_vector(vec: List[Object], max_size: int) -> List[Object]:
 
 def _pareto_cull_plans(plans: List[Plan], max_plans: int) -> List[Plan]:
     return list(_ffi_api.ParetoCullPlans(plans, max_plans))
-
-
-def pareto_cull_proposals(
-    proposals: List[Proposal], cascade_region: MemoryRegion, max_proposals: int
-) -> List[Proposal]:
-    return list(_ffi_api.ParetoCullProposals(proposals, cascade_region, max_proposals))

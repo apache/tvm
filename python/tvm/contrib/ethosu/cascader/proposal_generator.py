@@ -29,6 +29,26 @@ def generate_proposals(
     home_map: Dict[FrozenSet[Part], List[Plan]],
     options: CascaderOptions,
 ) -> List[Proposal]:
+    """Generate Pareto optimal Proposals for a CascaderGraph.
+
+    This algorithm takes a top-down dynamic programming approach to determining how
+    to optimally combine Plans into Proposals.
+
+    Parameters
+    ----------
+    graph : CascaderGraph
+        The CascaderGraph to generate Proposals for.
+    home_map : Dict[FrozenSet[Part], List[Plan]]
+        The Tensor homing map defining valid memory homes for Tensors.
+    options : CascaderOptions
+        The configuration options with which to run the generator.
+
+    Returns
+    ------
+    List[Proposal]
+        A list of Pareto optimal Proposals.
+
+    """
     return list(
         _ffi_api.GenerateProposals(
             graph,

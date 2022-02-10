@@ -23,6 +23,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
