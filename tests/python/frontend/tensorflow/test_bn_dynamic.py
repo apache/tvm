@@ -26,6 +26,8 @@ import numpy as np
 
 try:
     import tensorflow.compat.v1 as tf
+
+    tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
 from tvm import relay
