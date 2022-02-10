@@ -126,14 +126,12 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
     tvmbaw_region = None
     if len(candidate_regions_for_scratch) > 0:
         tvmbaw_region = candidate_regions_for_scratch.pop()
-
-        # Need a mutable data structure to be updated by the following function
-        # Therefore, using a list instead of int
-        tvmbaw_size = [0]
+        tvmbaw_size = 0
 
         # If there are tir.Allocate remaining by now, they need to be serviced via
         # TVMBAW calls.
         def analyze_remaining_allocates(stmt):
+            nonlocal tvmbaw_size
             if isinstance(stmt, tvm.tir.stmt.Allocate):
                 allocate = stmt
                 pointer_type = allocate.buffer_var.type_annotation
@@ -143,8 +141,8 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
                     size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
                     # Every memory address the NPU access have to be 16 byte aligned
                     size_in_bytes = util.round_up(size_in_bytes, 16)
-                    address = tvmbaw_size[0]
-                    tvmbaw_size[0] += size_in_bytes
+                    address = tvmbaw_size
+                    tvmbaw_size += size_in_bytes
                     scratch_region_map[allocate.buffer_var] = RegionOffset(
                         region=tvmbaw_region, offset=address
                     )
@@ -153,7 +151,7 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
 
     return (
         scratch_region_map,
-        tvmbaw_size[0],
+        tvmbaw_size,
         tvmbaw_region,
     )
 
