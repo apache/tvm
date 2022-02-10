@@ -46,8 +46,7 @@ inline unsigned int dmwait() {
     return dm0;
 }
 
-// TODO: should this take an unsigned int?
-inline void dmresume(void *dm0) {
+inline void dmresume(unsigned int dm0) {
     asm volatile (" dmresume(%0)" : : "r"(dm0));
 }
 

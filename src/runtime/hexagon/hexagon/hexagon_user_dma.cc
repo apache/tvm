@@ -8,13 +8,14 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_wrapper(void *dst, void *src, uint32_t length) {
+int hexagon_user_dma_1d_sync(void *dst, void *src, uint32_t length) {
 #if defined(__hexagon__)
     // not thread safe
     static int config_dma = 0;
     if (!config_dma) {
-        // any register configuraiton to go here
-        auto status = dmpause() & DM0_STATUS_MASK;
+        // register configuraiton to go here
+        // reset DMA engine
+        unsigned int status = dmpause() & DM0_STATUS_MASK;
         if (status != DM0_STATUS_IDLE) {
             return DMA_FAILURE;
         }
@@ -57,20 +58,20 @@ int hexagon_user_dma_wrapper(void *dst, void *src, uint32_t length) {
     uint32_t dst32 = dst64 & DESC_DST_MASK;
 
     dma_desc_set_next(dma_desc, DMA_NULL_PTR);
-    dma_desc_set_dstate(dma_desc, DESC_DSTATE_INCOMPLETE);
-    dma_desc_set_order(dma_desc, DESC_ORDER_ORDER);
-    dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
-    dma_desc_set_bypassdst(dma_desc, DESC_BYPASS_OFF);
-    dma_desc_set_srccomp(dma_desc, DESC_COMP_NONE);
-    dma_desc_set_dstcomp(dma_desc, DESC_COMP_NONE);
-    dma_desc_set_desctype(dma_desc, DESC_DESCTYPE_1D);
     dma_desc_set_length(dma_desc, length);
+    dma_desc_set_desctype(dma_desc, DESC_DESCTYPE_1D);
+    dma_desc_set_dstcomp(dma_desc, DESC_COMP_NONE);
+    dma_desc_set_srccomp(dma_desc, DESC_COMP_NONE);
+    dma_desc_set_bypassdst(dma_desc, DESC_BYPASS_OFF);
+    dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
+    dma_desc_set_order(dma_desc, DESC_ORDER_ORDER);
+    dma_desc_set_dstate(dma_desc, DESC_DSTATE_INCOMPLETE);
     dma_desc_set_src(dma_desc, src32);
     dma_desc_set_dst(dma_desc, dst32);
 
     dmstart(dma_desc);
-    auto status = dmwait() & DM0_STATUS_MASK;
-    auto done = dma_desc_get_dstate(dma_desc);
+    unsigned int status = dmwait() & DM0_STATUS_MASK;
+    unsigned int done = dma_desc_get_dstate(dma_desc);
 
 #ifdef _WIN32
     _aligned_free(dma_desc);
