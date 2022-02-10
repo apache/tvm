@@ -145,7 +145,7 @@ def pytorch_mobilenetv2_quantized(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def onnx_resnet50():
-    base_url = "https://github.com/onnx/models/raw/master/vision/classification/resnet/model"
+    base_url = "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/vision/classification/resnet/model"
     file_to_download = "resnet50-v2-7.onnx"
     model_file = download_testdata(
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
@@ -168,7 +168,7 @@ def paddle_resnet50(tmpdir_factory):
 
 @pytest.fixture(scope="session")
 def onnx_mnist():
-    base_url = "https://github.com/onnx/models/raw/master/vision/classification/mnist/model"
+    base_url = "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/vision/classification/mnist/model"
     file_to_download = "mnist-1.onnx"
     model_file = download_testdata(
         "{}/{}".format(base_url, file_to_download), file_to_download, module=["tvmc"]
