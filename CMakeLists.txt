@@ -645,7 +645,7 @@ string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
 string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
 string(APPEND PROJECT_CONFIG_CONTENT
        "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/PROJECT_CONFIG_FILE" ${PROJECT_CONFIG_CONTENT})
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
 
 install(EXPORT ${PROJECT_NAME}Targets
   NAMESPACE ${PROJECT_NAME}::
@@ -653,7 +653,7 @@ install(EXPORT ${PROJECT_NAME}Targets
 
 # Create config for find_package()
 configure_package_config_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/PROJECT_CONFIG_FILE" ${PROJECT_NAME}Config.cmake
+  "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_NAME}Config.cmake
   INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 install(
