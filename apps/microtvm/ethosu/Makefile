@@ -58,6 +58,23 @@ $(else)
 QUIET ?= @
 $(endif)
 
+ifdef FREERTOS_PATH
+DEMO_MAIN = src/demo_freertos.c
+FREERTOS_KERNEL = $(FREERTOS_PATH)/FreeRTOS/Source
+FREERTOS_FLAGS = -I$(FREERTOS_KERNEL)/include/ \
+	-I$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/
+FREERTOS_SOURCES = $(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/port.c \
+	$(FREERTOS_KERNEL)/portable/GCC/ARM_CM33_NTZ/non_secure/portasm.c \
+	$(FREERTOS_KERNEL)/tasks.c \
+	$(FREERTOS_KERNEL)/list.c \
+	$(FREERTOS_KERNEL)/queue.c \
+	$(FREERTOS_KERNEL)/timers.c \
+	$(FREERTOS_KERNEL)/event_groups.c \
+	$(FREERTOS_KERNEL)/portable/MemMang/heap_3.c
+else
+DEMO_MAIN = src/demo_bare_metal.c
+endif
+
 CODEGEN_SRCS = $(wildcard $(abspath $(BUILD_DIR))/codegen/host/src/*.c)
 CODEGEN_OBJS = $(subst .c,.o,$(CODEGEN_SRCS))
 CMSIS_STARTUP_SRCS = $(wildcard ${CMSIS_PATH}/Device/ARM/${ARM_CPU}/Source/*.c)
@@ -99,9 +116,9 @@ ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a:
 	$(QUIET)cd $(abspath $(BUILD_DIR)/cmsis_nn) && $(MAKE) CMSISNNSoftmax	
 
 # Build demo application
-$(BUILD_DIR)/demo: src/demo.c src/tvm_ethosu_runtime.c $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a
+$(BUILD_DIR)/demo: $(DEMO_MAIN) src/tvm_ethosu_runtime.c $(FREERTOS_SOURCES) $(UART_SRCS) $(BUILD_DIR)/stack_allocator.o $(BUILD_DIR)/crt_backend_api.o ${BUILD_DIR}/libcodegen.a ${BUILD_DIR}/libcmsis_startup.a ${BUILD_DIR}/ethosu_core_driver/libethosu_core_driver.a ${BUILD_DIR}/cmsis_nn/Source/SoftmaxFunctions/libCMSISNNSoftmax.a
 	$(QUIET)mkdir -p $(@D)
-	$(QUIET)$(CC) $(PKG_CFLAGS) -o $@ $^ $(PKG_LDFLAGS)
+	$(QUIET)$(CC) $(PKG_CFLAGS) $(FREERTOS_FLAGS) -o $@ $^ $(PKG_LDFLAGS)
 
 clean:
 	$(QUIET)rm -rf $(BUILD_DIR)/codegen
