@@ -260,21 +260,22 @@ void CodeGenOpenCL::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*
   }
 }
 
-void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecAddr(const BufferNode* buffer, DataType t, PrimExpr base,
                                  std::ostream& os) {  // NOLINT(*)
-  if (!HandleTypeMatch(buffer, t.element_of())) {
+  const VarNode* buffer_var = buffer->data.get();
+  if (!HandleTypeMatch(buffer_var, t.element_of())) {
     os << '(';
-    auto it = alloc_storage_scope_.find(buffer);
+    auto it = alloc_storage_scope_.find(buffer_var);
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     PrintType(t.element_of(), os);
     os << "*)";
   }
-  os << GetVarID(buffer) << " + ";
+  os << GetVarID(buffer_var) << " + ";
   PrintExpr(base, os);
 }
-std::string CodeGenOpenCL::GetVecLoad(DataType t, const VarNode* buffer, PrimExpr base) {
+std::string CodeGenOpenCL::GetVecLoad(DataType t, const BufferNode* buffer, PrimExpr base) {
   std::ostringstream os;
   os << "vload" << t.lanes() << "(0, ";
   PrintVecAddr(buffer, t, base, os);
@@ -282,7 +283,7 @@ std::string CodeGenOpenCL::GetVecLoad(DataType t, const VarNode* buffer, PrimExp
   return os.str();
 }
 
-void CodeGenOpenCL::PrintVecStore(const VarNode* buffer, DataType t, PrimExpr base,
+void CodeGenOpenCL::PrintVecStore(const BufferNode* buffer, DataType t, PrimExpr base,
                                   const std::string& value) {
   this->PrintIndent();
   stream << "vstore" << t.lanes() << "(" << value << ", 0, ";

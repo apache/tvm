@@ -275,20 +275,14 @@ def test_cuda_shuffle():
     def MyVectorize():
         def vectorizer(op):
             if op.kind == tvm.tir.ForKind.VECTORIZED:
-                four = tvm.tir.const(4, "int32")
-                idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, "int32"), 4)
-                all_ones = tvm.tir.const(1, "int32x4")
+                idx = tvm.tir.Ramp(4 * thrx.var, 1, 4)
                 store = op.body
                 value = store.value
                 new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(
-                        tvm.tir.BufferLoad(
-                            value.b.buffer, [thrx.var * four + tvm.tir.const(i, "int32")]
-                        )
-                    )
-                    ids.append(tvm.tir.const(3 - i, "int32"))
+                    bs.append(tvm.tir.BufferLoad(value.b.buffer, [4 * thrx.var + i]))
+                    ids.append(3 - i)
                 new_b = tvm.tir.Shuffle(bs, ids)
                 return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
             return None
@@ -808,21 +802,21 @@ def vcf_check_common(s, args):
     inside_broadcast = [False]
 
     # Possible patterns:
-    # Reduce init:          Store[Ramp] = Broadcast(0)
-    # Shared memory copy:   Store[Ramp] = Load[Ramp]
-    # Compute:              Store[Ramp] = Load[Ramp] ... Broadcast[Load]
+    # Reduce init:          BufferStore[Ramp] = Broadcast(0)
+    # Shared memory copy:   BufferStore[Ramp] = BufferLoad[Ramp]
+    # Compute:              BufferStore[Ramp] = BufferLoad[Ramp] ... Broadcast[Load]
 
     def pre_visit(stmt):
         if isinstance(stmt, tvm.tir.Broadcast):
             inside_broadcast[0] = True
             # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
-            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.Load))
+            assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.BufferLoad))
         if isinstance(stmt, tvm.tir.Store):
             # Check Store[Ramp] pattern
             assert isinstance(stmt.index, tvm.tir.Ramp)
-        if isinstance(stmt, tvm.tir.Load):
-            # Check Broadcast[Load] or Load[Ramp] patterns
-            assert inside_broadcast[0] or isinstance(stmt.index, tvm.tir.Ramp)
+        if isinstance(stmt, tvm.tir.BufferLoad):
+            # Check Broadcast[BufferLoad] or BufferLoad[Ramp] patterns
+            assert inside_broadcast[0] or isinstance(stmt.indices[-1], tvm.tir.Ramp)
             # Skip the rest
             return stmt
         return None
