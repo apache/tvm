@@ -238,7 +238,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // broadcast results from lane 0 to all other lanes and store
     // the final reduction result to the proper location.
     //
-    if (is_warp_reduction(types)) {
+    if (is_warp_reduction(types, group_extent)) {
       ICHECK_LE(reduce_extent, warp_size_) << "not a warp reduction";
       //
       // This is the index to the reduction variable, one reduction
@@ -268,6 +268,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       {
         PrimExpr pred = const_true(1);
         PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
+        if (group_extent > 1) {
+          mask = mask & (((1 << reduce_extent) - 1) << (reduce_extent * group_index));
+        }
         seq.emplace_back(Store(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
@@ -326,13 +329,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Broadcast the reduction result from lane 0 to all other lanes.
       // This avoids to emit predicated stores, as all threads are
-      // uniformmly writting the same result.
+      // uniformly writting the same result.
       //
       for (size_t i = 0; i < size; ++i) {
         Var var = shared_bufs[i];
         PrimExpr pred = const_true(types[i].lanes());
         PrimExpr val = Load(types[i], var, index, pred);
-        PrimExpr splat = WarpShuffle(builtin::tvm_warp_shuffle(), mask_var, val, 0);
+        PrimExpr splat =
+            WarpShuffle(builtin::tvm_warp_shuffle(), mask_var, val, reduce_extent * group_index);
         seq.push_back(Store(var, splat, index, pred));
       }
 
@@ -375,7 +379,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
       seq.emplace_back(SyncThread("shared"));
       seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
-                                        reduce_extent, threadx_extent));
+                                        reduce_extent, group_extent, threadx_extent));
       for (size_t idx = 0; idx < size; ++idx) {
         ICHECK(!load_remap_.count(buffers[idx]));
         PrimExpr pred = const_true(types[idx].lanes());
@@ -405,7 +409,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode* combiner, const std::vector<DataType>& types,
                         const Array<Var>& shared_bufs, PrimExpr reduce_index, PrimExpr group_index,
-                        int reduce_extent, int threadx_extent) {
+                        int reduce_extent, int group_extent, int threadx_extent) {
     // Get next power of two
     int reduce_align = 1;
     while (reduce_extent > reduce_align) {
@@ -449,7 +453,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     ICHECK(threadx_extent >= 1 && warp_size_ >= 1);
     // normal synchronization
-    while (reduce_align > threadx_extent || reduce_align > warp_size_) {
+    bool warp_align = group_extent == 1 || (threadx_extent % warp_size_ == 0);
+    while (reduce_align > threadx_extent || reduce_align > warp_size_ || !warp_align) {
+      if (reduce_align == 1) {
+        break;
+      }
       reduce_align = reduce_align >> 1;
       PrimExpr cond = reduce_index < reduce_align;
       seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
@@ -537,22 +545,21 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   }
 
   // Emit warp shuffle  calls.
-  PrimExpr WarpShuffle(const Op& op, Var mask_var, PrimExpr val, int delta_or_lane) {
+  PrimExpr WarpShuffle(const Op& op, Var mask_var, PrimExpr val, PrimExpr delta_or_lane) {
     PrimExpr pred = const_true(1);
     PrimExpr index(0);
     PrimExpr mask = Load(DataType::UInt(32), mask_var, index, pred);
     PrimExpr width = IntImm(DataType::Int(32), warp_size_);
-    Array<PrimExpr> args{mask, val, IntImm(DataType::Int(32), delta_or_lane), width, width};
+    Array<PrimExpr> args{mask, val, delta_or_lane, width, width};
     return Call(val.dtype(), op, args);
   }
 
   // Check if this is a reduction on threadIdx.x and its extent matches
   // the warp size.
   //
-  // TODO(tvm-team) reduction with a sub-warp of 8 or 16 threads.
   // Note: The ROCm backend will only have warp reductions for now.
   // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
-  bool is_warp_reduction(const std::vector<DataType>& types) const {
+  bool is_warp_reduction(const std::vector<DataType>& types, int group_extent) const {
     // Only cuda target supports warp reductions.
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm")) return false;
 
@@ -589,7 +596,19 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       e.extent = static_cast<int>(ptr->value);
     }
 
-    return e.extent > 1 && e.extent <= warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
+    if (target_->kind->name == "rocm") {
+      return e.extent == warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
+    } else {  // target_->kind->name == "cuda"
+      if (e.extent == 1) {
+        return false;  // no need to warp reduce
+      } else {
+        if (warp_size_ % e.extent == 0) {
+          return true;  // warp size is multiple of blockDim.x
+        } else {
+          return group_extent == 1 && e.extent <= warp_size_;
+        }
+      }
+    }
   }
 
   // The target.
