@@ -239,8 +239,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // the final reduction result to the proper location.
     //
     if (is_warp_reduction(types)) {
-      // TODO(tvm-team) sub-warp reduction support.
-      ICHECK_EQ(reduce_extent, warp_size_) << "not a warp reduction";
+      ICHECK_LE(reduce_extent, warp_size_) << "not a warp reduction";
       //
       // This is the index to the reduction variable, one reduction
       // variable per warp. Local scope seems easier to reason without
@@ -268,7 +267,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Var mask_var("mask", PointerType(PrimType(mask_dtype)));
       {
         PrimExpr pred = const_true(1);
-        PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
+        PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {}) &
+                        (((unsigned)1 << reduce_extent) - 1);
         seq.emplace_back(Store(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
@@ -277,7 +277,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
 
       // Emit reductions within a warp.
-      for (int offset = warp_size_ / 2; offset > 0; offset /= 2) {
+      int start_offset = 1;
+      while (start_offset * 2 < reduce_extent) {
+        start_offset *= 2;
+      }
+      for (int offset = start_offset; offset > 0; offset /= 2) {
         // Load reduction values, no synchronization needed.
         Array<PrimExpr> a, b;
         for (size_t i = 0; i < size; ++i) {
@@ -586,7 +590,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       e.extent = static_cast<int>(ptr->value);
     }
 
-    return e.extent == warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
+    return e.extent > 1 && e.extent <= warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
   }
 
   // The target.
