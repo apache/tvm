@@ -762,6 +762,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
                                             a_ref, a_bias, b_ref, b_bias, c_ref, c_bias, saturate);
 
     this->stream << asm_code;
+  } else if (op->op.same_as(builtin::ptx_mma_sp())) {
+    // arg 0: shape: mXnXkX
+    // arg 1: 
+    std::string asm_code = PrintMMASparseAssembly();
+    this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

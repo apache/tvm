@@ -599,9 +599,9 @@ TVM_DLL const Op& ptx_mma();
 /*!
  * \brief tvm intrinsic for sparse tensor core ptx instructions.
  *
- * void tvm_ptx_mma_sp(TODO)
+ * void ptx_mma_sp(TODO)
  */
-TVM_DLL const Op& tvm_ptx_mma_sp();
+TVM_DLL const Op& ptx_mma_sp();
 
 
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.

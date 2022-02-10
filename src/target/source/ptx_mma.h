@@ -39,6 +39,8 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
                              const std::string& b_ref, const std::string& b_bias,
                              const std::string& c_ref, const std::string& c_bias, bool saturate);
 
+std::string PrintMMASparseAssembly();
+
 }  // namespace codegen
 }  // namespace tvm
 
