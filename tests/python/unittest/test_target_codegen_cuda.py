@@ -280,17 +280,17 @@ def test_cuda_shuffle():
                 all_ones = tvm.tir.const(1, "int32x4")
                 store = op.body
                 value = store.value
-                new_a = tvm.tir.Load("int32x4", value.a.buffer_var, idx, all_ones)
+                new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
                 bs, ids = [], []
                 for i in range(4):
                     bs.append(
-                        tvm.tir.Load(
-                            "int32", value.b.buffer_var, thrx.var * four + tvm.tir.const(i, "int32")
+                        tvm.tir.BufferLoad(
+                            value.b.buffer, [thrx.var * four + tvm.tir.const(i, "int32")]
                         )
                     )
                     ids.append(tvm.tir.const(3 - i, "int32"))
                 new_b = tvm.tir.Shuffle(bs, ids)
-                return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
+                return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
             return None
 
         def _transform(f, *_):
