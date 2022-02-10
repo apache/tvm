@@ -267,8 +267,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Var mask_var("mask", PointerType(PrimType(mask_dtype)));
       {
         PrimExpr pred = const_true(1);
-        PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {}) &
-                        (((unsigned)1 << reduce_extent) - 1);
+        PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
         seq.emplace_back(Store(mask_var, mask, index, pred));
         // Push allocation with an empty body. Later this will be fixed
         // when the entire body is ready.
