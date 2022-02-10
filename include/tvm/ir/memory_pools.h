@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/relay/executor.h
+ * \file tvm/ir/memory_pools.h
  * \brief The object definition for relay.build argument type of memory pools
  */
 #ifndef TVM_IR_MEMORY_POOLS_H_
@@ -108,13 +108,13 @@ class PoolInfo : public ObjectRef {
   /*!
    * \brief The string parameter to indicate read and write access to a pool
    * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
-   * python/tvm/tir/usmp/utils.py
+   * python/tvm/ir/memory_pools.py
    */
   static constexpr const char* kTargetPoolReadWriteAccess = "rw";
   /*!
    * \brief The string parameter to indicate read only access to a pool
    * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
-   * python/tvm/tir/usmp/utils.py
+   * python/tvm/ir/memory_pools.py
    */
   static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
   /*! \brief The PoolSize is unrestricted for the memory planner */

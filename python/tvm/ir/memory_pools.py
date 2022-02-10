@@ -76,11 +76,11 @@ class PoolInfo(Object):
 
     # The string parameter to indicate read and write access to a pool
     # This needs to be kept in sync with kTargetPoolReadWriteAccess in
-    # include/tvm/tir/usmp/utils.h
+    # include/tvm/ir/memory_pools.h
     READ_WRITE_ACCESS = "rw"
     # The string parameter to indicate read only access to a pool
     # This needs to be kept in sync with kTargetPoolReadOnlyAccess in
-    # include/tvm/tir/usmp/utils.h
+    # include/tvm/ir/memory_pools.h
     READ_ONLY_ACCESS = "ro"
 
     def __init__(

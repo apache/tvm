@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/relay/backend/memory_pools.cc
+ * \file src/ir/memory_pools.cc
  * \brief The object definition for relay.build argument type of memory pools
  */
 
