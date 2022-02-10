@@ -29,7 +29,7 @@ def reduce(a: T.handle, b: T.handle, d1: T.int32, d2: T.int32, d3: T.int32) -> N
         with T.block("reduce"):
             vi, vj, vk, vl = T.axis.remap("SSSR", [i, j, k, l])
             with T.init():
-                B[vi, vj, vk] = 0.
+                B[vi, vj, vk] = 0.0
             B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
@@ -38,9 +38,7 @@ def test_cuda_subwarp_reduction():
         for d2 in range(1, 5):
             for d3 in range(2, 33):
                 _, _, _d1, _d2, _d3 = reduce.params
-                mod = reduce.specialize(
-                    {_d1: d1, _d2: d2, _d3: d3}
-                )
+                mod = reduce.specialize({_d1: d1, _d2: d2, _d3: d3})
                 sch = tvm.tir.Schedule(mod)
                 blk = sch.get_block("reduce")
                 i, j, k, l = sch.get_loops(blk)
