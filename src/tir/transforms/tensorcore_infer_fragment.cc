@@ -72,9 +72,9 @@ class FragmentGetter : public StmtExprVisitor {
         // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          info = FragmentInfo(m->value, n->value, k->value, layout->value);
+          info = FragmentInfo(m->value, n->value, k->value, layout->value, scope);
         } else if (scope == "wmma.accumulator") {
-          info = FragmentInfo(m->value, n->value, k->value, "");
+          info = FragmentInfo(m->value, n->value, k->value, "", scope);
         }
         fragments[buffer_var] = info;
       }
@@ -100,7 +100,7 @@ class FragmentGetter : public StmtExprVisitor {
         ICHECK_EQ(n->value, info.n);
         ICHECK_EQ(k->value, info.k);
       } else {
-        FragmentInfo info(m->value, n->value, k->value, "");
+        FragmentInfo info(m->value, n->value, k->value, "", scope);
         fragments[buffer_var] = info;
       }
     }

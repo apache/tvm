@@ -172,17 +172,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     auto it = fragment_info_.find(buffer->data.get());
     ICHECK(it != fragment_info_.end());
     const FragmentInfo& info = (*it).second;
-    String scope = buffer.scope();
-    if (scope == "wmma.matrix_a") {
-      return info.m * info.k;
-    } else if (scope == "wmma.matrix_b") {
-      return info.n * info.k;
-    } else if (scope == "wmma.accumulator") {
-      return info.m * info.n;
-    } else {
-      ICHECK(0);
-      throw;
-    }
+    return info.GetSize();
   }
 
   PrimExpr RewriteWmmaFragmentIndex(const Buffer& old_buffer, const Buffer& new_buffer,
