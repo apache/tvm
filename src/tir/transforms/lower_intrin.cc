@@ -269,7 +269,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     PrimExpr lhs = SwapBroadcastCast(a);
     PrimExpr rhs = SwapBroadcastCast(b);
 
-    if (fma_ != nullptr && (op->dtype.is_float())) {
+    if (fma_ != nullptr && op->dtype.is_float()) {
       PrimExpr r = fma_(Call(op->dtype, builtin::fma(), {lhs, rhs, c}));
       if (r.defined()) return this->VisitExpr(r);
     } else {
