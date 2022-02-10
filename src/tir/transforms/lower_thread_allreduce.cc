@@ -238,7 +238,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // broadcast results from lane 0 to all other lanes and store
     // the final reduction result to the proper location.
     //
-    if (is_warp_reduction(types, group_extent)) {
+    if (is_warp_reduction(types, group_extent, reduce_extent)) {
       ICHECK_LE(reduce_extent, warp_size_) << "not a warp reduction";
       //
       // This is the index to the reduction variable, one reduction
@@ -559,7 +559,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   //
   // Note: The ROCm backend will only have warp reductions for now.
   // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
-  bool is_warp_reduction(const std::vector<DataType>& types, int group_extent) const {
+  bool is_warp_reduction(const std::vector<DataType>& types, int group_extent,
+                         int reduce_extent) const {
     // Only cuda target supports warp reductions.
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm")) return false;
 
@@ -585,27 +586,27 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return false;
     }
 
-    const AttrStmtNode* op = thread_extents_.back();
-    DCHECK_EQ(op->attr_key, attr::thread_extent);
-
-    IterVar iv = Downcast<IterVar>(op->node);
-    ThreadEntry e;
-    e.scope = runtime::ThreadScope::Create(iv->thread_tag);
-    e.extent = 0;
-    if (auto ptr = op->value.as<IntImmNode>()) {
-      e.extent = static_cast<int>(ptr->value);
-    }
-
     if (target_->kind->name == "rocm") {
+      const AttrStmtNode* op = thread_extents_.back();
+      DCHECK_EQ(op->attr_key, attr::thread_extent);
+
+      IterVar iv = Downcast<IterVar>(op->node);
+      ThreadEntry e;
+      e.scope = runtime::ThreadScope::Create(iv->thread_tag);
+      e.extent = 0;
+      if (auto ptr = op->value.as<IntImmNode>()) {
+        e.extent = static_cast<int>(ptr->value);
+      }
+
       return e.extent == warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
     } else {  // target_->kind->name == "cuda"
-      if (e.extent == 1) {
+      if (reduce_extent == 1) {
         return false;  // no need to warp reduce
       } else {
-        if (warp_size_ % e.extent == 0) {
+        if (warp_size_ % reduce_extent == 0) {
           return true;  // warp size is multiple of blockDim.x
         } else {
-          return group_extent == 1 && e.extent <= warp_size_;
+          return group_extent == 1 && reduce_extent <= warp_size_;
         }
       }
     }
