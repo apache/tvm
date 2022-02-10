@@ -459,6 +459,14 @@ TVM_DLL Pass FlattenBuffer();
 TVM_DLL Pass TextureFlatten();
 
 /*!
+ * \brief Implements a Common Subexpression Elimination (CSE) for TIR
+ *        which introduces let-in bindings for duplicated sub-expressions.
+ * \param enable_cse_tir Whether common subexpression elimination is enabled.
+ * \return The pass.
+ */
+TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true);
+
+/*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
  *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
  *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
