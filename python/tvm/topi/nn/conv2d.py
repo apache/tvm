@@ -831,12 +831,10 @@ def conv(
     def compute(*args):
         nn, ff, *dim_indices = list(np.array(args)[permutation_to])
 
-        # we need to simplify this index in case the schedule can't see through this indexing
-        aa = tvm.arith.Analyzer()
-        with aa.constraint_scope(ff < num_filter):
-            simplified_channel_index = aa.simplify(
-                ff // (num_filter // groups) * (in_channel // groups) + rc
-            )
+        if groups == 1:
+            simplified_channel_index = rc
+        else:
+            simplified_channel_index = ff // (num_filter // groups) * (in_channel // groups) + rc
 
         return te.sum(
             temp.__getitem__(
