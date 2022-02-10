@@ -604,7 +604,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         return false;  // no need to warp reduce
       } else {
         if (warp_size_ % reduce_extent == 0) {
-          return true;  // warp size is multiple of blockDim.x
+          return true;  // warp size is multiple of reduce extent
         } else {
           return group_extent == 1 && reduce_extent <= warp_size_;
         }
