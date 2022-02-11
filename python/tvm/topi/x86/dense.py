@@ -231,12 +231,15 @@ def dense_vnni_compute(X, packedW, bias=None):
 
 
 def dense_vnni_schedule(s, C, O):
+    # C: The output of GEMM
+    # O: The output of the fused op
     if C != O:
         a_y, a_x = O.op.axis
-        a_xo, a_xi = s[O].split(a_x, factor=16)
         a_yo, a_yi = s[O].split(a_y, factor=32)
-        s[O].reorder(a_xo, a_yo, a_yi, a_xi)
-        fused = s[O].fuse(a_xo, a_yo)
+        a_xo, a_xi = s[O].split(a_x, factor=16)
+
+        s[O].reorder(a_yo, a_xo, a_yi, a_xi)
+        fused = s[O].fuse(a_yo, a_xo)
         s[O].vectorize(a_xi)
         s[O].parallel(fused)
 
@@ -246,16 +249,16 @@ def dense_vnni_schedule(s, C, O):
     (a_k,) = C.op.reduce_axis
 
     a_ko, a_ki = s[C].split(a_k, factor=4)
-    a_xo, a_xi = s[C].split(a_x, factor=16)
     a_yo, a_yi = s[C].split(a_y, factor=32)
+    a_xo, a_xi = s[C].split(a_x, factor=16)
 
-    s[C].reorder(a_xo, a_yo, a_yi, a_ko, a_xi, a_ki)
+    s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
     s[C].tensorize(a_xi, pc)
 
     if C == O:
-        fused = s[O].fuse(a_xo, a_yo)
+        fused = s[O].fuse(a_yo, a_xo)
         s[O].parallel(fused)
 
     return s
