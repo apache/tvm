@@ -76,6 +76,7 @@ if (NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
     # append select runtime sources for unit testing
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_buffer.cc)
     list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_common.cc)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon/hexagon_user_dma.cc)
     return()
   elseif(NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_SIM}" AND
          NOT USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
