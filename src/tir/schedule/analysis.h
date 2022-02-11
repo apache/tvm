@@ -597,6 +597,35 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
                                         int64_t max_parallel_extent,      //
                                         int64_t max_parallel_basic);
 
+/*!
+ * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * Relaxation of the region may be used in upper-bound analysis, i.e. some extra region may be added
+ * to the result.
+ * \param region The buffer region to be analyzed
+ * \param dom_low_inclusive The lowest node in the sref tree path
+ * \param dom_high_exclusive The highest node in the sref tree path
+ * \return An n-dimensional integer set
+ */
+Array<arith::IntSet> AnalyzeRegionUpperBound(const BufferRegion& region, const PrimExpr& predicate,
+                                             const StmtSRef& dom_low_inclusive,
+                                             const StmtSRef& dom_high_exclusive,
+                                             arith::Analyzer* analyzer);
+
+/*!
+ * \brief Analyze the buffer region under the sref tree path [dom_low_inclusive, dom_high_exclusive)
+ * Some subregion may be discarded during the lower-bound analysis.
+ * \param realize The block realize that touches the buffer region
+ * \param region The buffer region to be analyzed
+ * \param dom_low_inclusive The lowest node in the sref tree path
+ * \param dom_high_exclusive The highest node in the sref tree path
+ * \param analyzer The analyzer
+ * \return An n-dimensional integer set
+ */
+Array<arith::IntSet> AnalyzeRegionLowerBound(const BufferRegion& region, const PrimExpr& predicate,
+                                             const StmtSRef& dom_low_inclusive,
+                                             const StmtSRef& dom_high_exclusive,
+                                             arith::Analyzer* analyzer);
+
 }  // namespace tir
 }  // namespace tvm
 

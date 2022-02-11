@@ -235,12 +235,14 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   BlockRealize realize = GetBlockRealize(self, block_sref);
   Map<Var, PrimExpr> binding = GetBindings(realize);
   const Buffer& buffer = buffer_region->buffer;
-  Array<arith::IntSet> int_sets =
-      arith::EvalSet(Substitute(buffer_region->region, binding),
-                     AsIntSet(LoopDomainOfSRefTreePath(
-                         /*low_inclusive=*/dom_low_inclusive,
-                         /*high_exclusive=*/dom_high_exclusive,
-                         /*extra_relax_scope=*/runtime::StorageScope::Create(buffer.scope()))));
+  arith::Analyzer analyzer;
+  BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
+  Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
+      /*region=*/subst_region,
+      /*predicate=*/realize->predicate,
+      /*dom_low_inclusive=*/dom_low_inclusive,
+      /*dom_high_exclusive=*/dom_high_exclusive,
+      /*analyzer=*/&analyzer);
   ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
   Region region;
