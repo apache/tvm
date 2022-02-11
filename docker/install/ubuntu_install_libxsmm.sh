@@ -24,7 +24,7 @@ pushd /usr/local/
 wget -q https://github.com/libxsmm/libxsmm/archive/refs/tags/1.17.tar.gz
 tar -xzf 1.17.tar.gz
 pushd ./libxsmm-1.17/
-make STATIC=0 -j10
+make STATIC=0 -j$(($(nproc) - 1))
 mv libxsmm-1.17/include/* /usr/local/include/
 mv libxsmm-1.17/lib/*so /usr/local/lib/
 rm -rf 1.17.tar.gz libxsmm-1.17
