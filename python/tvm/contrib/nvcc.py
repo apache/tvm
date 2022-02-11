@@ -140,27 +140,33 @@ def find_cuda_path():
     raise RuntimeError("Cannot find cuda path")
 
 
-def get_cuda_version(cuda_path):
+def get_cuda_version(cuda_path=None):
     """Utility function to get cuda version
 
     Parameters
     ----------
-    cuda_path : str
-        Path to cuda root.
+    cuda_path : Optional[str]
+
+        Path to cuda root.  If None is passed, will use
+        `find_cuda_path()` as default.
 
     Returns
     -------
     version : float
         The cuda version
+
     """
+    if cuda_path is None:
+        cuda_path = find_cuda_path()
+
     version_file_path = os.path.join(cuda_path, "version.txt")
     if not os.path.exists(version_file_path):
         # Debian/Ubuntu repackaged CUDA path
         version_file_path = os.path.join(cuda_path, "lib", "cuda", "version.txt")
     try:
         with open(version_file_path) as f:
-            version_str = f.readline().replace("\n", "").replace("\r", "")
-            return float(version_str.split(" ")[2][:2])
+            version_str = f.read().strip().split()[-1]
+            return tuple(int(field) for field in version_str.split("."))
     except FileNotFoundError:
         pass
 
@@ -171,9 +177,8 @@ def get_cuda_version(cuda_path):
     if proc.returncode == 0:
         release_line = [l for l in out.split("\n") if "release" in l][0]
         release_fields = [s.strip() for s in release_line.split(",")]
-        release_version = [f[1:] for f in release_fields if f.startswith("V")][0]
-        major_minor = ".".join(release_version.split(".")[:2])
-        return float(major_minor)
+        version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
+        return tuple(int(field) for field in version_str.split("."))
     raise RuntimeError("Cannot read cuda version file")
 
 

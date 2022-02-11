@@ -61,9 +61,8 @@ def _get_cutlass_compile_options(sm, threads, use_fast_math=False):
     ]
     if use_fast_math:
         kwargs["options"].append("-DCUTLASS_USE_TANH_FOR_SIGMOID")
-    cuda_path = find_cuda_path()
-    cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver >= 11.2:
+    cuda_ver = get_cuda_version()
+    if cuda_ver >= (11, 2):
         ncpu = multiprocessing.cpu_count() if threads < 0 else threads
         kwargs["options"].append("-t %d" % ncpu)
     return kwargs
