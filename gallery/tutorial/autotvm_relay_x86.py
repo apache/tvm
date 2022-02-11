@@ -85,12 +85,10 @@ from tvm.contrib import graph_executor
 #   :ref:`Compile Deep Learning Models <tutorial-frontend>` section of the TVM
 #   Documentation.
 
-model_url = "".join(
-    [
-        "https://github.com/onnx/models/raw/",
-        "master/vision/classification/resnet/model/",
-        "resnet50-v2-7.onnx",
-    ]
+model_url = (
+    "https://github.com/onnx/models/raw/main/"
+    "vision/classification/resnet/model/"
+    "resnet50-v2-7.onnx"
 )
 
 model_path = download_testdata(model_url, "resnet50-v2-7.onnx", module="onnx")
