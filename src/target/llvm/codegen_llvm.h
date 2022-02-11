@@ -141,7 +141,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const PrimExpr& e) { auto a = VisitExpr(e); LOG(INFO) << "MakeValue (" << e << "): " << a; return a;  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -291,6 +291,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    */
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
+  /*!
+   * \brief Lookup or create a GlobalVariable whose content is the data field of a DLTensor for a
+   * given linked_param() CallNode.
+   * \param param_name Parameter name (e.g. unmangled, from lookup_param node).
+   * \return the GlobalVariable indicated in the brief.
+   */
+  llvm::GlobalVariable* GetLinkedParamSymbol(const ::std::string& param_name, llvm::ConstantArray* array);
   /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
