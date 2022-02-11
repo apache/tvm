@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 import tvm
 from tvm import relay
+from tvm.relay.transform import fake_quantization_to_integer
 
 
 def compare_fq_to_int(expr, args, allow_rounding_error=False):
@@ -304,14 +305,14 @@ def test_fake_quantize_global_avg_pool():
 
 
 def test_fake_quantize_rsqrt():
-    x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
-    zero = relay.const(0)
+    x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
+    mid_point = relay.const(-128)
 
-    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    x = relay.qnn.op.dequantize(x, relay.const(0.125), mid_point)
     op = relay.rsqrt(x)
-    op = relay.qnn.op.quantize(op, relay.const(2.0), zero)
+    op = relay.qnn.op.quantize(op, relay.const(0.125), mid_point)
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 224, 224], dtype="int8")
+    x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
 
     compare_fq_to_int(op, [x_np], True)
 
@@ -432,6 +433,22 @@ def test_fake_quantize_concat():
         inputs_np.append(np.random.randint(-128, 127, size=[1, 4], dtype="int8"))
 
     compare_fq_to_int(out, inputs_np)
+
+
+@pytest.mark.parametrize("k", [0, 1, 5])
+@pytest.mark.parametrize("axis", [0, -1, 1])
+@pytest.mark.parametrize("is_ascend", [True, False])
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+def test_fake_quantize_topk(k, axis, is_ascend, dtype):
+    x = relay.var("x", shape=[20, 100], dtype=dtype)
+    zero = relay.const(0)
+
+    x = relay.qnn.op.dequantize(x, relay.const(2.0), zero)
+    op = relay.topk(x, k, axis, "values", is_ascend, "float32")
+    op = relay.qnn.op.quantize(op, relay.const(2.0), zero, out_dtype=dtype)
+    x_np = np.random.randint(0, 127, size=[20, 100], dtype=dtype)
+
+    compare_fq_to_int(op, [x_np])
 
 
 def test_fake_quantize_clip():

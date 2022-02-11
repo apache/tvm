@@ -590,7 +590,14 @@ def _set_nonblock(fd):
 class ZephyrSerialTransport:
     @classmethod
     def _lookup_baud_rate(cls, options):
-        sys.path.insert(0, os.path.join(get_zephyr_base(options), "scripts", "dts"))
+        # TODO(mehrdadh): remove this hack once dtlib.py is a standalone project
+        # https://github.com/zephyrproject-rtos/zephyr/blob/v2.7-branch/scripts/dts/README.txt
+        sys.path.insert(
+            0,
+            os.path.join(
+                get_zephyr_base(options), "scripts", "dts", "python-devicetree", "src", "devicetree"
+            ),
+        )
         try:
             import dtlib  # pylint: disable=import-outside-toplevel
         finally:

@@ -16,8 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 # to avoid openblas threading error
@@ -41,7 +40,12 @@ echo "Running relay CoreML frontend test..."
 run_pytest cython python-frontend-coreml tests/python/frontend/coreml
 
 echo "Running relay Tensorflow frontend test..."
-run_pytest cython python-frontend-tensorflow tests/python/frontend/tensorflow
+# Note: Tensorflow tests often have memory issues, so invoke each one separately
+TENSORFLOW_TESTS=$(./tests/scripts/pytest_ids.py --folder tests/python/frontend/tensorflow)
+for node_id in $TENSORFLOW_TESTS; do
+    echo "$node_id"
+    run_pytest cython python-frontend-tensorflow "$node_id"
+done
 
 echo "Running relay caffe2 frontend test..."
 run_pytest cython python-frontend-caffe2 tests/python/frontend/caffe2

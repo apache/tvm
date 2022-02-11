@@ -33,12 +33,10 @@ import numpy as np
 import tvm.relay as relay
 
 # This example uses resnet50-v2-7 model
-model_url = "".join(
-    [
-        "https://github.com/onnx/models/raw/",
-        "master/vision/classification/resnet/model/",
-        "resnet50-v2-7.onnx",
-    ]
+model_url = (
+    "https://github.com/onnx/models/raw/main/"
+    "vision/classification/resnet/model/"
+    "resnet50-v2-7.onnx"
 )
 
 

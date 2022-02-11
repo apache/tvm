@@ -412,6 +412,12 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 # `include files <https://github.com/apache/tvm/tree/main/apps/microtvm/ethosu/include>`_
 
 ################################################################################
+# .. note::
+#
+#   If you'd like to use FreeRTOS for task scheduling and queues, a sample application can be found here
+#   `demo_freertos.c <https://github.com/apache/tvm/blob/main/apps/microtvm/ethosu/src/demo_freertos.c>`
+
+################################################################################
 # Creating the linker script
 # --------------------------
 #
@@ -452,6 +458,13 @@ TVM to offload operators to the Ethos(TM)-U55 where possible.
 #
 # An example Makefile can be found here:
 # `Makefile <https://github.com/apache/tvm/blob/main/apps/microtvm/ethosu/Makefile>`_
+
+################################################################################
+# .. note::
+#
+#    If you're using FreeRTOS, the Makefile builds it from the specified FREERTOS_PATH:
+#     ``make FREERTOS_PATH=<FreeRTOS directory>``
+#
 
 ################################################################################
 # Running the demo application

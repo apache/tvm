@@ -136,50 +136,16 @@ bool EthosuDepthwiseConv2DRel(const Array<Type>& types, int num_inputs, const At
   const auto* param = attrs.as<EthosuDepthwiseConv2DAttrs>();
   ICHECK(param != nullptr) << "EthosuDepthwiseConv2DAttrs cannot be nullptr.";
 
-  DataType ofm_dtype;
+  const String operator_name = "ethosu_depthwise_conv2d";
 
-  if (param->ofm_dtype == "int8") {
-    ofm_dtype = DataType::Int(8);
-  } else if (param->ofm_dtype == "uint8") {
-    ofm_dtype = DataType::UInt(8);
-  } else if (param->ofm_dtype == "int16") {
-    ofm_dtype = DataType::Int(16);
-  } else if (param->ofm_dtype == "int32") {
-    ofm_dtype = DataType::Int(32);
-  }
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm");
+  CheckDataType(reporter, weight->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name,
+                "weight");
+  CheckDataType(reporter, scale_bias->dtype, {DataType::UInt(8)}, operator_name, "scale bias");
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_depthwise_conv2d input data type "
-        << "of type(uint8) or type(int8) but was " << ifm->dtype);
-    return false;
-  }
-
-  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_depthwise_conv2d weight data type "
-        << "of type(uint8) or type(int8) but was " << weight->dtype);
-    return false;
-  }
-
-  if (scale_bias->dtype != DataType::UInt(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_depthwise_conv2d scale bias data type "
-        << "of type(uint8) but was " << scale_bias->dtype);
-    return false;
-  }
-
-  if (ofm_dtype != DataType::UInt(8) && ofm_dtype != DataType::Int(8) &&
-      ofm_dtype != DataType::Int(16) && ofm_dtype != DataType::Int(32)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_depthwise_conv2d output data type "
-        << " type(uint8), type(int8), type(int16) or type(int32) for ofm but was " << ofm_dtype);
-    return false;
-  }
+  DataType ofm_dtype = DataTypeFromString(param->ofm_dtype);
+  auto ofm_dtypes = {DataType::UInt(8), DataType::Int(8), DataType::Int(16), DataType::Int(32)};
+  CheckDataType(reporter, ofm_dtype, ofm_dtypes, operator_name, "ofm");
 
   // Collect the ifm, weight and ofm tensors for using in the inference function
   Array<Type> tensor_types = {types[0], types[1], types[4]};

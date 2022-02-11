@@ -269,7 +269,7 @@ class SearchStrategy : public runtime::ObjectRef {
    * \param num_trials_total The total number of trials for evolutionary search.
    * \param population_size The initial sample population.
    * \param init_measured_ratio The ratio of measures samples in initial population.
-   * \param init_max_fail_count The maximum number to fail trace replaying.
+   * \param init_min_unmeasured The minimal size of unmeasured population in the initial sampling.
    * \param genetic_num_iters The iterations to run the genetic algorithm.
    * \param genetic_mutate_prob The probability of mutation.
    * \param genetic_max_fail_count The maximum number to try evolving the given trace.
@@ -279,7 +279,7 @@ class SearchStrategy : public runtime::ObjectRef {
                                                    int num_trials_total,        //
                                                    int population_size,         //
                                                    double init_measured_ratio,  //
-                                                   int init_max_fail_count,     //
+                                                   int init_min_unmeasured,     //
                                                    int genetic_num_iters,       //
                                                    double genetic_mutate_prob,  //
                                                    int genetic_max_fail_count,  //

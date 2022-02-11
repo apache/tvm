@@ -39,6 +39,12 @@ def is_version_greater_than(ver):
     )
 
 
+def getattr_attr_name(node):
+    attribute_names = node.attributeNames()
+    assert len(attribute_names) == 1
+    return node.s(attribute_names[0])
+
+
 def dyn_strided_slice_pattern(inp, end):
     """A pattern to detect dynamic strided slice op."""
     zero = is_constant()

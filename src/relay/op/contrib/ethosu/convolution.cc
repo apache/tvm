@@ -131,28 +131,14 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   if (ifm == nullptr || weight == nullptr) return false;
   const auto* param = attrs.as<EthosuConv2DAttrs>();
   CHECK(param != nullptr) << "EthosuConv2DAttrs cannot be nullptr.";
+  const String operator_name = "ethosu_conv2d";
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_conv2d input data type "
-                                     << "of type(uint8) or type(int8) but was " << ifm->dtype);
-    return false;
-  }
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm");
+  CheckDataType(reporter, weight->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name,
+                "weight");
+  CheckDataType(reporter, scale_bias->dtype, {DataType::UInt(8)}, operator_name, "scale bias");
 
-  if (weight->dtype != DataType::UInt(8) && weight->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_conv2d weight data type "
-                                     << "of type(uint8) or type(int8) but was " << weight->dtype);
-    return false;
-  }
-
-  if (scale_bias->dtype != DataType::UInt(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_conv2d scale bias data type "
-        << "of type(uint8) but was " << scale_bias->dtype);
-    return false;
-  }
+  CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
 
   // The scale_bias should be provided as a tensor of size {ofm_channels, 10}
   reporter->Assign(types[2], TensorType({weight->shape[0], 10}, DataType::UInt(8)));
@@ -162,10 +148,16 @@ bool EthosuConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
                                          param->kernel_shape[1], weight->shape[3]},
                                         weight->dtype));
 
+  Array<IndexExpr> ifm_shape = ifm->shape;
+  if (param->upscale != "NONE") {
+    ifm_shape = EthosuInferUpscaledInput(ifm_shape, param->ifm_layout);
+  }
+
   // Assign ofm type
   auto ofm_shape =
-      EthosuInferKernelOutput(ifm->shape, param->ifm_layout, param->ofm_layout, param->kernel_shape,
+      EthosuInferKernelOutput(ifm_shape, param->ifm_layout, param->ofm_layout, param->kernel_shape,
                               param->ofm_channels, param->dilation, param->strides, param->padding);
+
   reporter->Assign(types[4], TensorType(ofm_shape, ifm->dtype));
   return true;
 }

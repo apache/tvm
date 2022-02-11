@@ -818,26 +818,20 @@ def test_relay_reshape_codegen(ifm_shape, new_shape, accel_type):
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
-    "ifm_shape, begin, end",
+    "ifm_shape, begin, size",
     [
-        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 10, 22, 3]),
-        ([15, 17, 3], [3, 0, 1], [11, 17, 3]),
-        ([7, 6043], [0, 704], [1, 3564]),
-        ([5000], [123], [2274]),
+        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 5, 11, 1]),
+        ([15, 17, 3], [3, 0, 1], [8, 17, 2]),
+        ([7, 6043], [0, 704], [1, 2860]),
+        ([5000], [123], [2151]),
     ],
 )
-def test_relay_strided_slice_codegen(ifm_shape, begin, end, accel_type):
-    def create_model():
-        ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-        strided_slice = relay.op.strided_slice(ifm, begin, end)
-        return tvm.IRModule.from_expr(relay.Function([ifm], strided_slice))
+def test_tflite_slice(accel_type, ifm_shape, begin, size):
+    @tf.function
+    def slice_func(x):
+        return tf.slice(x, begin, size)
 
-    cpu_mod = create_model()
-    input_data = {"ifm": np.random.randint(-128, high=127, size=ifm_shape, dtype="int8")}
-    output_data = generate_ref_data(cpu_mod, input_data)
-    ethosu_mod = _create_ethosu_partition(cpu_mod)
-
-    _compare_ethosu_with_reference(ethosu_mod, input_data, output_data, accel_type)
+    _compare_tvm_with_tflite(slice_func, [ifm_shape], accel_type)
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
@@ -1021,6 +1015,28 @@ def test_ethosu_requantize(accel_type, ifm_shape, ifm_scale, ifm_zp, ofm_scale, 
 
 
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape,axis", [((2,), 0), ((1, 3, 3), 2)])
+def test_tflite_expand_dims(accel_type, ifm_shape, axis):
+    @tf.function
+    def expand_dims_func(x):
+        return tf.expand_dims(x, axis=axis)
+
+    _compare_tvm_with_tflite(expand_dims_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,axis", [((1, 1, 2, 1), 0), ((1, 3, 3, 1), 3), ((1, 1, 2, 1), None)]
+)
+def test_tflite_squeeze(accel_type, ifm_shape, axis):
+    @tf.function
+    def squeeze_func(x):
+        return tf.squeeze(x, axis=axis)
+
+    _compare_tvm_with_tflite(squeeze_func, [ifm_shape], accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 @pytest.mark.parametrize(
     "ifm_shape,size",
     [[(1, 2, 2, 1), (4, 4)], [(1, 4, 7, 3), (8, 14)], [(1, 3, 5, 3), (3, 5)]],
@@ -1059,6 +1075,79 @@ def test_tflite_resize2d_bilinear(accel_type, ifm_shape, size, align_corners):
     # This is because TFLite reference kernels are not being used.
     # For this, TFLite will need upgrading to 2.6.
     _compare_tvm_with_tflite(resize_model, [ifm_shape], accel_type, output_tolerance=1)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,ofm_shape,kernel_shape,padding",
+    [
+        [(1, 2, 2, 1), (1, 4, 4, 1), (3, 3), "SAME"],
+        [(1, 2, 2, 1), (1, 9, 9, 1), (7, 7), "VALID"],
+        [(1, 2, 4, 3), (1, 4, 8, 3), (5, 3), "SAME"],
+        [(1, 10, 5, 3), (1, 21, 13, 3), (3, 5), "VALID"],
+    ],
+)
+@pytest.mark.parametrize("has_bias", [False, True])
+def test_tflite_transpose_convolution(
+    accel_type, ifm_shape, ofm_shape, kernel_shape, padding, has_bias
+):
+    dilations = (1, 1)
+    strides = (2, 2)
+
+    @tf.function
+    def conv2d_transpose(x):
+        weight_shape = [kernel_shape[0], kernel_shape[1], ifm_shape[3], ofm_shape[3]]
+        weight = tf.constant(np.random.uniform(size=weight_shape), dtype=tf.float32)
+        bias_shape = ofm_shape[3]
+        bias = tf.constant(np.random.uniform(size=bias_shape), dtype=tf.float32)
+        tf_strides = [1, strides[0], strides[1], 1]
+        op = tf.nn.conv2d_transpose(
+            x,
+            weight,
+            output_shape=ofm_shape,
+            strides=tf_strides,
+            padding=padding,
+            dilations=dilations,
+        )
+        if has_bias:
+            op = tf.nn.bias_add(op, bias)
+        return op
+
+    _compare_tvm_with_tflite(conv2d_transpose, [ifm_shape], accel_type=accel_type)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shapes,axis",
+    [
+        ([(1, 2, 2), (1, 2, 2), (1, 2, 2)], 2),
+        ([(5, 4), (5, 4)], 1),
+        ([(1,), (1,)], 0),
+        ([(3, 1), (3, 1), (3, 1), (3, 1)], 0),
+    ],
+)
+def test_tflite_pack(accel_type, ifm_shapes, axis):
+    @tf.function
+    def pack_func(*inputs):
+        return tf.stack(inputs, axis=axis)
+
+    # TODO(lhutton1) For now output is not bit exact with TFLite.
+    # This is because TFLite reference kernels are not being used.
+    # For this, TFLite will need upgrading to 2.6.
+    _compare_tvm_with_tflite(pack_func, ifm_shapes, accel_type, output_tolerance=1)
+
+
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize(
+    "ifm_shape,axis",
+    [[(1, 2, 3, 4), 1], [(2, 3), 1], [(5, 6, 7), 2]],
+)
+def test_tflite_unpack(accel_type, ifm_shape, axis):
+    @tf.function
+    def unpack_func(x):
+        return tf.unstack(x, axis=axis)
+
+    _compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type)
 
 
 if __name__ == "__main__":

@@ -45,13 +45,13 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.67"
+ci_lint = "tlcpack/ci-lint:v0.68"
 ci_gpu = "tlcpack/ci-gpu:v0.81"
 ci_cpu = "tlcpack/ci-cpu:v0.80"
 ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
 ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.06"
+ci_arm = "tlcpack/ci-arm:v0.07"
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -91,14 +91,12 @@ def per_exec_ws(folder) {
 
 // initialize source codes
 def init_git() {
+  checkout scm
   // Add more info about job node
   sh (
-    script: """
-     echo "INFO: NODE_NAME=${NODE_NAME} EXECUTOR_NUMBER=${EXECUTOR_NUMBER}"
-     """,
-     label: 'Show executor node info',
+    script: './tests/scripts/task_show_node_info.sh',
+    label: 'Show executor node info',
   )
-  checkout scm
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
@@ -368,6 +366,10 @@ stage('Build') {
             sh (
               script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_microtvm.sh",
               label: 'Run microTVM tests',
+            )
+            sh (
+              script: "${docker_run} ${ci_qemu} ./tests/scripts/task_demo_microtvm.sh",
+              label: 'Run microTVM demos',
             )
             junit 'build/pytest-results/*.xml'
           }

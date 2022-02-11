@@ -22,6 +22,7 @@
  */
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 
 #include "opencl_common.h"
@@ -425,9 +426,15 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   ICHECK_EQ(this->queues.size(), 0U);
   for (size_t i = 0; i < this->devices.size(); ++i) {
     cl_device_id did = this->devices[i];
+#ifdef USE_PROFILER
+    this->queues.push_back(
+        clCreateCommandQueue(this->context, did, CL_QUEUE_PROFILING_ENABLE, &err_code));
+#else
     this->queues.push_back(clCreateCommandQueue(this->context, did, 0, &err_code));
+#endif
     OPENCL_CHECK_ERROR(err_code);
   }
+  this->events.resize(this->devices.size());
   initialized_ = true;
 }
 
@@ -468,6 +475,14 @@ TVM_REGISTER_GLOBAL("device_api.opencl").set_body([](TVMArgs args, TVMRetValue* 
   DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
+
+#ifdef USE_PROFILER
+TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
+  return Timer(make_object<OpenCLTimerNode>(dev));
+});
+#endif
 
 }  // namespace cl
 }  // namespace runtime

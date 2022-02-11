@@ -206,7 +206,9 @@ with autotvm.tophub.context(target):
         if env.TARGET == "intelfocl":
             # multiple targets to run both on cpu and vta
             target = {"cpu": env.target_vta_cpu, "ext_dev": target}
-        with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        with vta.build_config(
+            opt_level=3, disabled_pass={"AlterOpLayout", "tir.CommonSubexprElimTIR"}
+        ):
             graph, lib, params = relay.build(
                 relay_prog, target=tvm.target.Target(target, host=env.target_host), params=params
             )

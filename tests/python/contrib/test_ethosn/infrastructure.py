@@ -316,12 +316,18 @@ def get_conv2d(var, shape, dtype):
 def get_conv2d_qnn_params(
     dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels
 ):
+    kernel_sc = (
+        kernel_sc.numpy() if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray) else [kernel_sc]
+    )
     dtype_min = np.iinfo(dtype).min
     dtype_max = np.iinfo(dtype).max
+
     input_max = input_sc * (dtype_max - input_zp)
     input_min = input_sc * (dtype_min - input_zp)
-    kernel_max = kernel_sc * (dtype_max - kernel_zp)
-    kernel_min = kernel_sc * (dtype_min - kernel_zp)
+
+    kernel_max = max(kernel_sc) * (dtype_max - kernel_zp)
+    kernel_min = min(kernel_sc) * (dtype_min - kernel_zp)
+
     output_limits = [
         kernel_max * kernel_h * kernel_w * channels * input_max,
         kernel_min * kernel_h * kernel_w * channels * input_max,
@@ -330,6 +336,7 @@ def get_conv2d_qnn_params(
     ]
     output_max = max(output_limits)
     output_min = min(output_limits)
+
     output_sc = (output_max - output_min) / (dtype_max - dtype_min)
     output_zp = int(dtype_min - (output_min / output_sc))
     return output_zp, output_sc

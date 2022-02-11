@@ -67,9 +67,8 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
       return false;
     }
     // Cond 2. The block should be the direct child block of the root block.
-    if (GetScopeRoot(sch->state(), block_sref,          //
-                     /*require_stage_pipeline=*/false,  //
-                     /*require_subtree_compact_dataflow=*/false)
+    if (GetScopeRoot(sch->state(), block_sref,
+                     /*require_stage_pipeline=*/false)
             ->parent != nullptr) {
       return false;
     }

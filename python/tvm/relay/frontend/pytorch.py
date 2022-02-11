@@ -17,7 +17,7 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring, redefined-builtin
 """PT: PyTorch frontend."""
 import functools
 import itertools
@@ -45,7 +45,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
 from .common import lstm_cell, try_infer_value, unbind
-from .pytorch_utils import is_version_greater_than
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
 
@@ -1393,10 +1393,19 @@ class PyTorchOpConverter:
 
     def sigmoid(self, inputs, input_types):
         data = inputs[0]
-        return _op.tensor.sigmoid(data)
+
+        def func(x):
+            return _op.tensor.sigmoid(x)
+
+        if self.is_quantized_tensor(data):
+            assert len(inputs) == 3, "Input quant param not found in op inputs"
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
+
+        return func(data)
 
     def softplus(self, inputs, input_types):
-        data = inputs[0]
         dtype = input_types[0]
         beta = _expr.const(float(inputs[1]), dtype=dtype)
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
@@ -1583,7 +1592,8 @@ class PyTorchOpConverter:
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
-            return qnn_torch.quantized_mean(data, input_scale, input_zero_point, func)
+            # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+            return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
         return func(data)
 
@@ -1755,9 +1765,7 @@ class PyTorchOpConverter:
 
         return pad
 
-    def clamp(self, inputs, input_types):
-        data = inputs[0]
-
+    def clamp_common(self, data, min=None, max=None):
         def get_v(v, default_v):
             if isinstance(v, _expr.Constant):
                 return float(v.data.numpy())
@@ -1769,9 +1777,31 @@ class PyTorchOpConverter:
                 return v
             return default_v
 
-        amin = get_v(inputs[1], np.finfo(np.float32).min)
-        amax = get_v(inputs[2], np.finfo(np.float32).max)
+        dtype = self.infer_type(data).dtype
+
+        type_info = np.finfo(dtype) if "float" in dtype else np.iinfo(dtype)
+
+        # TODO(masahi): Properly handle inf in a one-way clamp case.
+        if min is not None and max is not None:
+            amin = get_v(min, type_info.min)
+            amax = get_v(max, type_info.max)
+        elif min is not None:
+            amin = get_v(min, type_info.min)
+            amax = type_info.max
+        else:
+            amin = type_info.min
+            amax = get_v(max, type_info.max)
+
         return _op.clip(data, amin, amax)
+
+    def clamp(self, inputs, _):
+        return self.clamp_common(inputs[0], min=inputs[1], max=inputs[2])
+
+    def clamp_min(self, inputs, input_types):
+        return self.clamp_common(inputs[0], min=inputs[1])
+
+    def clamp_max(self, inputs, input_types):
+        return self.clamp_common(inputs[0], max=inputs[1])
 
     def to(self, inputs, input_types):
         data = inputs[0]
@@ -1847,7 +1877,8 @@ class PyTorchOpConverter:
                 assert isinstance(inputs[-1], int)
                 input_scale = _expr.const(inputs[-2])
                 input_zero_point = _expr.const(inputs[-1])
-                return qnn_torch.quantized_upsample(data, input_scale, input_zero_point, func)
+                # currently piggy backs to fp32, it gets identical output as torch
+                return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
             return func(data)
 
@@ -2865,6 +2896,25 @@ class PyTorchOpConverter:
         # Chop off the extra result dimension
         return _op.transform.squeeze(dense_result)
 
+    def grid_sampler(self, inputs, input_types):
+        if inputs[2] == 0:
+            mode = "bilinear"
+        else:
+            msg = "Only bilinear mode is supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        if inputs[3] == 0:
+            padding_mode = "zeros"
+        elif inputs[3] == 1:
+            padding_mode = "border"
+        else:
+            msg = "Only zeros and border padding mode are supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(inputs[1], axes)
+        return _op.image.grid_sample(inputs[0], grid, mode, "NCHW", padding_mode)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -3017,6 +3067,8 @@ class PyTorchOpConverter:
             "aten::isinf": self.make_unary("isinf"),
             "aten::isnan": self.make_unary("isnan"),
             "aten::clamp": self.clamp,
+            "aten::clamp_min": self.clamp_min,
+            "aten::clamp_max": self.clamp_max,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_bicubic2d": self.make_upsample("cubic"),
@@ -3091,6 +3143,7 @@ class PyTorchOpConverter:
             "aten::einsum": self.einsum,
             "aten::dot": self.dot,
             "aten::mv": self.mv,
+            "aten::grid_sampler": self.grid_sampler,
         }
 
     def update_convert_map(self, custom_map):
@@ -3475,7 +3528,7 @@ def _wrap_const(c):
     return c
 
 
-def _run_jit_passes(graph):
+def _run_jit_passes(graph, enable_lower_all_tuples=True):
     """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
@@ -3487,6 +3540,9 @@ def _run_jit_passes(graph):
         torch._C._jit_pass_onnx_function_substitution(graph)
     else:
         torch._C._jit_pass_inline(graph)
+
+    if enable_lower_all_tuples:
+        torch._C._jit_pass_lower_all_tuples(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -3528,15 +3584,8 @@ def _get_users(node):
     return [use.user for use in _get_uses(node)]
 
 
-def _getattr_attr_name(node):
-    attribute_names = node.attributeNames()
-    assert len(attribute_names) == 1
-    attr_name = node.s(attribute_names[0])
-    return attr_name
-
-
 def _getattr_full_name(getattrs, sep="."):
-    return sep.join([_getattr_attr_name(node) for node in getattrs])
+    return sep.join([getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -3903,11 +3952,19 @@ def from_pytorch(
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
+    enable_lower_all_tuples = True
 
     converter = PyTorchOpConverter(prelude, default_dtype)
 
     graph = script_module.graph.copy()
-    _run_jit_passes(graph)
+
+    # Check if lower_all_tuples pass can be enabled
+    graph_inputs = list(graph.inputs())
+    for inp in graph_inputs:
+        if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
+            enable_lower_all_tuples = False
+            break
+    _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
@@ -3938,6 +3995,7 @@ def from_pytorch(
         weight_quant_params = qnn_torch.get_weight_quant_params(
             script_module, packed_param_map.values()
         )
+        qnn_torch.inline_input_quant_params_for_fx(graph, tensors)
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(
             outputs,
@@ -3949,10 +4007,15 @@ def from_pytorch(
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
-    if isinstance(ret, list):
-        # ListConstruct kept original python list. Convert to tuple.
-        ret = _expr.Tuple(ret)
+    outputs = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+
+    # ListConstruct kept original python list. Convert to tuple.
+    outputs = [_expr.Tuple(output) if isinstance(output, list) else output for output in outputs]
+
+    if len(outputs) > 1:
+        ret = _expr.Tuple(outputs)
+    else:
+        ret = outputs[0]
 
     # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []

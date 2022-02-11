@@ -1392,20 +1392,24 @@ def test_affine_grid():
 
 @tvm.testing.uses_gpu
 def test_grid_sample():
-    def verify_grid_sample(data_shape, grid_shape):
+    def verify_grid_sample(data_shape, grid_shape, padding_mode="zeros"):
         dtype = "float32"
         batch, channel, _, _ = data_shape
         _, _, out_height, out_width = grid_shape
         data = relay.var("data", relay.ty.TensorType(data_shape, dtype))
         grid = relay.var("grid", relay.ty.TensorType(grid_shape, dtype))
-        y = relay.image.grid_sample(data, grid, method="bilinear", layout="NCHW")
+        y = relay.image.grid_sample(
+            data, grid, method="bilinear", layout="NCHW", padding_mode=padding_mode
+        )
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType((batch, channel, out_height, out_width), dtype)
         func = relay.Function([data, grid], y)
 
         data_np = np.random.uniform(size=data_shape).astype(dtype)
         grid_np = np.random.uniform(size=grid_shape, low=-1.5, high=1.5).astype(dtype)
-        ref_res = tvm.topi.testing.grid_sample_nchw_python(data_np, grid_np, method="bilinear")
+        ref_res = tvm.topi.testing.grid_sample_nchw_python(
+            data_np, grid_np, method="bilinear", padding_mode=padding_mode
+        )
 
         for target, dev in tvm.testing.enabled_targets():
             for kind in ["graph", "debug"]:
@@ -1416,6 +1420,8 @@ def test_grid_sample():
 
     verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8))
     verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32))
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 8, 8), "border")
+    verify_grid_sample((4, 4, 16, 32), (4, 2, 32, 32), "border")
 
 
 @tvm.testing.uses_gpu

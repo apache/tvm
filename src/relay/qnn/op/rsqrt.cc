@@ -69,42 +69,9 @@ Expr MakeQuantizedRsqrt(Expr x, Expr scale, Expr zero_point, Expr output_scale,
   return Call(op, {x, scale, zero_point, output_scale, output_zero_point}, Attrs(), {});
 }
 
-/*
- * \brief Canonicalizes the QNN rsqrt op.
- * \param attrs The empty attribute.
- * \param new_args The new mutated args to the call node.
- * \param arg_types The types of input and output.
- * \return The sequence of Relay ops for add op.
- */
-Expr QnnRsqrtCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
-                          const Array<tvm::relay::Type>& arg_types) {
-  // At this time, due to the complexity of implementing this op in int8 or uint8,
-  // we dequantize the input, run the op in float, and then quantize the output (as below).
-  // This acts as a placeholder for future hardware enablement, where more hardware specific
-  // canonicalization can be provided.
-
-  // Get the args.
-  QnnUnaryOpArguments args(new_args);
-
-  // Get the input dtype and shape.
-  QnnUnaryOpTensorType input_type(arg_types, 0);
-
-  // Get the types for dequantize/quantize.
-  Array<tvm::relay::Type> types;
-  for (size_t i = 1; i < 5; ++i) {
-    types.push_back(arg_types[i]);
-  }
-
-  // Dequantize input.
-  auto dequantized_arg = Dequantize(args.x, args.scale, args.zero_point, types, -1);
-
-  // Compute Rsqrt(Q_x')
-  auto output = Rsqrt(dequantized_arg);
-
-  // Quantize output.
-  return Quantize(output, args.output_scale, args.output_zero_point, input_type.dtype, types, -1);
-}
-
+// Translation to relay is done via canonicalization/legalization functions in python
+// e.g. python/tvm/relay/qnn/op/canonicalizations.py or
+//      python/tvm/relay/qnn/op/legalizations.py
 RELAY_REGISTER_OP("qnn.rsqrt")
     .describe("Elementwise rsqrt for quantized tensors.")
     .set_num_inputs(5)
@@ -116,8 +83,7 @@ RELAY_REGISTER_OP("qnn.rsqrt")
                   "The quantization zero_point of the output tensor.")
     .set_support_level(11)
     .add_type_rel("QRsqrt", QnnRsqrtRel)
-    .set_attr<TNonComputational>("TNonComputational", true)
-    .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnRsqrtCanonicalize);
+    .set_attr<TNonComputational>("TNonComputational", true);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.rsqrt").set_body_typed(MakeQuantizedRsqrt);
 

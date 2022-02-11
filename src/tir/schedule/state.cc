@@ -101,13 +101,16 @@ bool ProducerCoversConsumer(const Array<PrimExpr>& buffer_shape,
     if (produced_region[i].IsNothing()) {
       return false;
     }
-    arith::IntSet produced = arith::Intersect({produced_region[i], buffer_size});
-    arith::IntSet consumed = arith::Intersect({consumed_region[i], buffer_size});
-    PrimExpr produced_min = analyzer->Simplify(produced.min());
-    PrimExpr produced_max = analyzer->Simplify(produced.max());
-    PrimExpr consumed_min = analyzer->Simplify(consumed.min());
-    PrimExpr consumed_max = analyzer->Simplify(consumed.max());
-    if (!analyzer->CanProve((produced_min <= consumed_min) && (consumed_max <= produced_max))) {
+    arith::IntSet produced =
+        arith::IntSet::Interval(analyzer->canonical_simplify(produced_region[i].min()),
+                                analyzer->canonical_simplify(produced_region[i].max()));
+    arith::IntSet consumed =
+        arith::IntSet::Interval(analyzer->canonical_simplify(consumed_region[i].min()),
+                                analyzer->canonical_simplify(consumed_region[i].max()));
+    produced = arith::Intersect({produced, buffer_size});
+    consumed = arith::Intersect({consumed, buffer_size});
+    if (!analyzer->CanProve((analyzer->canonical_simplify(produced.min() - consumed.min()) <= 0) &&
+                            (analyzer->canonical_simplify(consumed.max() - produced.max()) <= 0))) {
       return false;
     }
   }

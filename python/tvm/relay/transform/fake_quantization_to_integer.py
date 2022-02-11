@@ -19,6 +19,10 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+
+# import to register canonicalization funcs for fq2i
+# pylint: disable=unused-import
+from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
@@ -255,6 +259,16 @@ def concat(expr, type_map):
         **expr.attrs,
     )
     return [out, out_type]
+
+
+@register_fake_quantization_to_integer("topk")
+def topk(expr, type_map):
+    """Rewrite a topk op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    attrs = {**expr.attrs}
+    assert "ret_type" in attrs and attrs["ret_type"] == "values"
+    return [expr, t]
 
 
 @register_fake_quantization_to_integer("split")
