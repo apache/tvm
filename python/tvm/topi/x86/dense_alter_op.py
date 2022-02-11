@@ -39,8 +39,8 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
 
     if (
         target_has_vnni(mcpu)
-        and "uint8" == data_tensor.dtype
-        and "int8" == weight_tensor.dtype
+        and data_tensor.dtype == "uint8"
+        and weight_tensor.dtype == "int8"
         and weight_tensor.shape[0] % 16 == 0
         and weight_tensor.shape[1] % 4 == 0
     ):

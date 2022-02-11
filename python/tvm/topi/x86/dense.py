@@ -208,6 +208,7 @@ def schedule_dense_nopack(cfg, outs):
 
 
 def dense_vnni_compute(X, packedW, bias=None):
+    """Compute for uint8 x int8 -> int32 dense"""
     m, k = X.shape
     n_o, _, n_i, _ = packedW.shape
     ak = te.reduce_axis((0, k), name="k")
@@ -231,6 +232,7 @@ def dense_vnni_compute(X, packedW, bias=None):
 
 
 def dense_vnni_schedule(s, C, O):
+    """Schedule dense compute using VNNI vpdpbusd instruction"""
     # C: The output of GEMM
     # O: The output of the fused op
     if C != O:
