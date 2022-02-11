@@ -160,7 +160,10 @@ class Allocate(WithScopeHandler):
 
 @register
 class AllocateConst(WithScopeHandler):
-    """With scope handler tir.allocate_const(data, extents, dtype, condition)"""
+    """With scope handler T.allocate_const(data, extents, dtype, condition)
+
+    TIR constant node to represent non-scalar constant
+    """
 
     def __init__(self):
         def allocate_const(raw_data, dtype, shape, span=None):

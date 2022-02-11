@@ -508,6 +508,7 @@ TVM_DLL Pass ConvertForLoopsToSerial();
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
+<<<<<<< HEAD
 /*!
  * \brief This pass transforms annotated loops into pipelined ones where producers and consumers
  * are overlapped with the information provided in loop annotations, which enables optimization
@@ -609,7 +610,7 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  */
 TVM_DLL Pass InjectSoftwarePipeline();
 
-TVM_DLL Pass BindParams(const std::vector<const relay::ConstantNode*>& constants);
+TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
 
 }  // namespace transform
 }  // namespace tir

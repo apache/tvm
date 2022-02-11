@@ -2968,7 +2968,7 @@ class Module4:
 def test_module_const():
     func = Module4
     rt_func = tvm.script.from_source(func.script(show_meta=True))
-    assert len(func.attrs["Constants"]) == 2
+    assert len(func.attrs["Constants"]) == 1
     tvm.ir.assert_structural_equal(func, rt_func)
 
 

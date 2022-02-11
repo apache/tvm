@@ -559,14 +559,14 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  size_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static size_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -645,14 +645,14 @@ class AllocateConstNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  size_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static size_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.AllocateConst";
   static constexpr const bool _type_has_method_sequal_reduce = true;

@@ -549,7 +549,6 @@ constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
  */
 constexpr const char* kConstantsArray = "Constants";
 
-
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

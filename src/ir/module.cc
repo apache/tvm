@@ -231,10 +231,13 @@ void IRModuleNode::ExtractConstants(BaseFunc f) {
   class Applicator : public tir::StmtExprVisitor {
    protected:
     // returns index of the a in constant_array_, if not found - appends
-    // TODO(@d-smirnov): make real content comparision with already existing NDArrays
-    // instead of reference comparision
     size_t deDup(const runtime::NDArray& a) {
-      auto it = std::find(constant_array_.begin(), constant_array_.end(), a);
+      tvm::SEqualReducer eql;
+      auto it = std::find_if(
+          constant_array_.begin(), constant_array_.end(), [&eql, a](const runtime::NDArray& v) {
+            return NDArrayContainerTrait::SEqualReduce(a.as<runtime::NDArray::Container>(),
+                                                       v.as<runtime::NDArray::Container>(), eql);
+          });
       if (it != constant_array_.end()) {
         return it - constant_array_.begin();
       }

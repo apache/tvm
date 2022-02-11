@@ -44,12 +44,10 @@
 namespace tvm {
 namespace tir {
 
-using ConstantMap = std::unordered_map<tir::Var, const relay::ConstantNode*, runtime::ObjectPtrHash,
-                                       runtime::ObjectPtrEqual>;
-
 class ParamsCollector : public StmtExprVisitor {
  public:
-  explicit ParamsCollector(const ConstantMap& constant_map) : constant_map_(constant_map) {}
+  explicit ParamsCollector(const Map<tir::Var, runtime::NDArray>& constant_map)
+      : constant_map_(constant_map) {}
   std::vector<const tir::VarNode*> CollectParams(tir::Stmt body) {
     this->VisitStmt(body);
     return constant_list_;
@@ -84,15 +82,15 @@ class ParamsCollector : public StmtExprVisitor {
 
  private:
   std::vector<const tir::VarNode*> constant_list_;
-  ConstantMap constant_map_;
+  Map<tir::Var, runtime::NDArray> constant_map_;
   bool first_for_ = true;
 };
 
 namespace transform {
 
-Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
+Pass BindParams(const Array<runtime::NDArray>& constants) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    ConstantMap constant_map;
+    Map<tir::Var, runtime::NDArray> constant_map;
 
     // Remove constants from the primfunc signature
     size_t num_constants = constants.size();
@@ -107,7 +105,7 @@ Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
       tir::Var p = n->params[i];
       tir::Var b = n->buffer_map[p]->data;
       n->buffer_map.erase(p);
-      constant_map[b] = constants[i - start];
+      constant_map.Set(b, constants[i - start]);
     }
     n->params = params;
     auto constant_list = ParamsCollector(constant_map).CollectParams(n->body);
@@ -115,15 +113,15 @@ Pass BindParams(const std::vector<const relay::ConstantNode*>& constants) {
     // Allocate constants within the primfunc
     for (auto i : constant_list) {
       auto var = GetRef<Var>(i);
-      int ndim = constant_map[var]->data->ndim;
+      int ndim = constant_map[var]->ndim;
       Array<PrimExpr> extents;
 
       for (int i = 0; i < ndim; i++) {
-        int shape = constant_map[var]->data->shape[i];
+        int shape = constant_map[var]->shape[i];
         extents.push_back(make_const(DataType::Int(32), shape));
       }
-      DataType dtype = DataType(constant_map[var]->data->dtype);
-      n->body = tir::AllocateConst(var, dtype, extents, constant_map[var]->data, n->body);
+      DataType dtype = DataType(constant_map[var]->dtype);
+      n->body = tir::AllocateConst(var, dtype, extents, constant_map[var], n->body);
     }
     m->ExtractConstants(f);
     return f;

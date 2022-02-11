@@ -331,10 +331,10 @@ class TECompilerImpl : public TECompilerNode {
       for (te::Tensor arg : value->cached_func->outputs) {
         all_args.push_back(arg);
       }
-      std::vector<const ConstantNode*> all_consts;
+      Array<runtime::NDArray> all_consts;
       for (auto kv : value->cached_func->constant_tensors) {
         all_args.push_back(kv.second);
-        all_consts.push_back(kv.first);
+        all_consts.push_back(kv.first->data);
       }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;

@@ -426,7 +426,7 @@ void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
   T* data_ptr = reinterpret_cast<T*>(arr->data);
   os << "[";
   for (int i = 0; i < tot_dim; i++) {
-    os << data_ptr[i] << ", ";
+    os << (i != 0 ? ", " : "") << data_ptr[i];
   }
   os << "]";
 }

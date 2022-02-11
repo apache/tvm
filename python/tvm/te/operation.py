@@ -375,7 +375,8 @@ def var(name="tindex", dtype="int32", span=None):
     return tvm.tir.Var(name, dtype, span)
 
 
-def const(name="tindex", dtype="int32", span=None):
+# def const(name="tindex", dtype="int32", span=None):
+def const(dtype="int32", span=None):
     """Create a new constant with specified name and dtype
 
     Parameters
@@ -394,7 +395,7 @@ def const(name="tindex", dtype="int32", span=None):
     var : Var
         The result symbolic variable.
     """
-    return tvm.tir.Const(name, dtype, span)
+    return tvm.tir.const(dtype, span)
 
 
 def size_var(name="size", dtype="int32", span=None):
