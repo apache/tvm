@@ -228,7 +228,7 @@ class CodeGenCMSISNN : public codegen::CodeGenCHost {
   /*!  * \brief extracts CMSIS-NN context buffer information */
   CMSISNNContextBuffer extract_context_buffer_info(const CallNode* op, int base_pos) {
     CMSISNNContextBuffer context_buffer;
-    context_buffer.name = op->args[base_pos].as<StringImmNode>()->value;
+    context_buffer.name = op->args[base_pos].as<VarNode>()->name_hint;
     context_buffer.size = ValueFromArg(op, base_pos + 1);
     return context_buffer;
   }
