@@ -40,6 +40,8 @@ from . import infra
     [
         ("ethos-u55-256", True),
         ("ethos-u55-256", False),
+        ("ethos-u65-256", True),
+        ("ethos-u65-256", False),
         ("ethos-u55-128", True),
         ("ethos-u55-64", True),
         ("ethos-u55-32", True),
