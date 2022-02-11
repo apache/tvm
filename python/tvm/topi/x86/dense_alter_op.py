@@ -35,7 +35,11 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
 
-    if "int8" in data_tensor.dtype:
+    if (
+        "int8" in data_tensor.dtype
+        and weight_tensor.shape[0] % 16 == 0
+        and weight_tensor.shape[1] % 4 == 0
+    ):
         weight_layout = "NC16n4c"
         return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
 
