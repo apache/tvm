@@ -34,7 +34,7 @@ bnns_is_absent = tvm.get_global_func("relay.ext.bnns", True) is None
 TARGET = "llvm"
 INPUT_SHAPE = [1, 3, 224, 224]
 
-BASE_MODEL_URL = "https://github.com/onnx/models/raw/master/"
+BASE_MODEL_URL = "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/"
 MODEL_URL_COLLECTION = {
     "BERT": "text/machine_comprehension/bert-squad/model/bertsquad-10.onnx",
     "MobileNet-v2": "vision/classification/mobilenet/model/mobilenetv2-7.onnx",

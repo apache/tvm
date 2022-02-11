@@ -1763,7 +1763,7 @@ class LRN(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         """LRN support only NCHW format
-        https://github.com/onnx/onnx/blob/master/docs/Operators.md#LRN
+        https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN
         """
         axis = 1
         alpha = attr.get("alpha", 0.0001)
@@ -2231,7 +2231,7 @@ class Expand(OnnxOpConverter):
         # However, ONNX Expand supports multi-directional broadcasting, which allows
         # above pattern and also some extent of 'shape' can be smaller than the corresponding
         # extent of 'input'. In this case, the extent of 'shape' must be 1.
-        # https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
+        # https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md
         # In above cases, we cannot directorly apply 'op.broadcast_to' instead of 'expand'
         # so, here we solved this problem by expanding the given 'shape' itself.
         def expand_shape(in_shape, shape):
@@ -4748,7 +4748,7 @@ def _get_convert_map(opset):
 
 class GraphProto:
     """A helper class for handling Relay expression copying from pb2.GraphProto.
-    Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
+    Definition: https://github.com/onnx/onnx/blob/main/onnx/onnx.proto
 
         Parameters
     ----------
