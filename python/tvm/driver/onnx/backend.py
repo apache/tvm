@@ -22,7 +22,7 @@ class TVMBackendRep(BackendRep):
 #        print("**params**")
 #        print(self._params)
         self._tvmc_model = TVMCModel(self._model, self._params)
-        self._package = tvmc.compile(self._tvmc_model, target="llvm")
+        self._package = tvmc.compile(self._tvmc_model, target="llvm", executor=relay.backend.Executor("VM"))
         self._inputs = []
         for i in model.graph.input:
             self._inputs.append(i.name)
