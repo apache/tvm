@@ -43,6 +43,13 @@ class LCADetector : public StmtExprVisitor {
       detector.buffer_var_map_.emplace(buffer->data.get(), buffer.get());
     }
 
+    // The root node must be explicitly present in the list of
+    // ancestor_scopes_.  We cannot use nullptr to represent the root
+    // node, as that is also used to represent a scope that hasn't
+    // been observed before.
+    ScopeInfo root(nullptr, nullptr, 0);
+    detector.ancestor_scopes_.push_back(&root);
+
     detector(func->body);
     // Prepare the return
     Map<Buffer, Optional<Stmt>> buffer_lca;
@@ -135,6 +142,7 @@ class LCADetector : public StmtExprVisitor {
   }
 
   void UpdateBufferLCA(const BufferNode* buffer) {
+    buffer_var_map_.emplace(buffer->data.get(), buffer);
     if (match_buffers_.find(buffer) == match_buffers_.end()) {
       // Ingore buffer created by block match_buffer
       const ScopeInfo*& lca = buffer_lca_[buffer];
@@ -167,8 +175,11 @@ class LCADetector : public StmtExprVisitor {
     return lhs;
   }
 
-  /*! \brief The ancestor scope stacks info (Block and For), initialized with Null. */
-  std::vector<const ScopeInfo*> ancestor_scopes_ = {nullptr};
+  /*! \brief The ancestor scope stacks info (Block and For).  The
+   *  first element is initialized in LCADetector::Detect to represent
+   *  the root scope.
+   */
+  std::vector<const ScopeInfo*> ancestor_scopes_ = {};
   /*! \brief The map from Buffer to its LCA ForNode/BlockNode. */
   std::unordered_map<const BufferNode*, const ScopeInfo*> buffer_lca_ = {};
   /*! \brief The map from Buffer data to the Buffer. */

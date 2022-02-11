@@ -215,7 +215,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
           continue;
         }
         auto dom_it = dom_map_.find(v);
-        ICHECK(dom_it != dom_map_.end());
+        ICHECK(dom_it != dom_map_.end())
+            << "Could not find domain for loop variable " << v->name_hint;
         non_relaxed[i] = dom_it->second;
         dom_map_.erase(dom_it);
       }
