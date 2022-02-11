@@ -28,32 +28,19 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
-#if defined(__hexagon__)
-  // not thread safe
-  static int config_dma = 0;
-  if (!config_dma) {
-    // register configuraiton to go here
-    // reset DMA engine
-    unsigned int status = dmpause() & DM0_STATUS_MASK;
-    if (status != DM0_STATUS_IDLE) {
-      return DMA_FAILURE;
-    }
-    config_dma = 1;
-  }
-
-  void* dma_desc = nullptr;
-
-#ifdef _WIN32
-  dma_desc = _aligned_malloc(DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
-#else
-  int ret = posix_memalign(&dma_desc, DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
-  if (ret) {
+int init_hexagon_user_dma() {
+  // reset DMA engine
+  unsigned int status = dmpause() & DM0_STATUS_MASK;
+  if (status != DM0_STATUS_IDLE) {
     return DMA_FAILURE;
   }
-#endif
+  return DMA_SUCCESS;
+}
 
-  if (!dma_desc) {
+int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
+#if defined(__hexagon__)
+  static int config_dma = init_hexagon_user_dma();
+  if (config_dma != DMA_SUCCESS) {
     return DMA_FAILURE;
   }
 
@@ -76,6 +63,21 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
 
   uint32_t src32 = src64 & DESC_SRC_MASK;
   uint32_t dst32 = dst64 & DESC_DST_MASK;
+
+  void* dma_desc = nullptr;
+
+#ifdef _WIN32
+  dma_desc = _aligned_malloc(DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
+#else
+  int ret = posix_memalign(&dma_desc, DMA_DESC_2D_SIZE, DMA_DESC_2D_SIZE);
+  if (ret) {
+    return DMA_FAILURE;
+  }
+#endif
+
+  if (!dma_desc) {
+    return DMA_FAILURE;
+  }
 
   dma_desc_set_next(dma_desc, DMA_NULL_PTR);
   dma_desc_set_length(dma_desc, length);

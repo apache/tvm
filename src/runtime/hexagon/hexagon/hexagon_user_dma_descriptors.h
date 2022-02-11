@@ -129,17 +129,17 @@ namespace hexagon {
 /**************************/
 /* 1D (linear) descriptor */
 /**************************/
-typedef struct _dma_desc_1d_t {
+struct dma_desc_1d_t {
   unsigned int next;
   unsigned int dstate_order_bypass_comp_desctype_length;
   unsigned int src;
   unsigned int dst;
-} dma_desc_1d_t;
+};
 
 /***********************/
 /* 2D (box) descriptor */
 /***********************/
-typedef struct _dma_desc_2d_t {
+struct dma_desc_2d_t {
   unsigned int next;
   unsigned int dstate_order_bypass_comp_desctype_length;
   unsigned int src;
@@ -148,7 +148,7 @@ typedef struct _dma_desc_2d_t {
   unsigned int roiheight_roiwidth;
   unsigned int dststride_srcstride;
   unsigned int dstwidthoffset_srcwidthoffset;
-} dma_desc_2d_t;
+};
 
 // desc[0][31:4]
 inline void dma_desc_set_next(void* dma_desc_ptr, unsigned int v) {

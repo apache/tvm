@@ -46,25 +46,25 @@ inline unsigned int dmwait() {
 
 inline void dmresume(unsigned int dm0) { asm volatile(" dmresume(%0)" : : "r"(dm0)); }
 
-static inline unsigned int dmsyncht() {
+inline unsigned int dmsyncht() {
   unsigned int dm0 = 0;
   asm volatile(" %0 = dmsyncht" : "=r"(dm0));
   return dm0;
 }
 
-static inline unsigned int dmtlbsynch() {
+inline unsigned int dmtlbsynch() {
   unsigned int dm0 = 0;
   asm volatile(" %0 = dmtlbsynch" : "=r"(dm0));
   return dm0;
 }
 
-static inline unsigned int dmcfgrd(unsigned int dmindex) {
+inline unsigned int dmcfgrd(unsigned int dmindex) {
   unsigned int data = 0;
   asm volatile(" %0 = dmcfgrd(%1)" : "=r"(data) : "r"(dmindex));
   return data;
 }
 
-static inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
+inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
   asm volatile(" dmcfgwr(%0, %1)" : : "r"(dmindex), "r"(data));
 }
 
