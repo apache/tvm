@@ -99,6 +99,13 @@ class PrimFuncNode : public BaseFuncNode {
    * in `preflattened_buffer_map` is assumed to be the same before
    * and after flattening (e.g. a 1-d tensor that is backed by 1-d
    * flat memory).
+   *
+   * TODO(Lunderberg): Remove preflattened_buffer_map, and instead
+   * declare each flattened buffer as aliasing the original tensor
+   * shape.  This should include improving the StmtExprMutator to
+   * provide easier interactions with Buffer objects, so that the
+   * bookkeeping of relationships between buffers doesn't need to be
+   * repeated across several transforms.
    */
   Map<tir::Var, Buffer> preflattened_buffer_map;
 
