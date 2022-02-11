@@ -39,14 +39,16 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
 
     if (
         target_has_vnni(mcpu)
-        and "int8" in data_tensor.dtype
+        and "uint8" == data_tensor.dtype
+        and "int8" == weight_tensor.dtype
         and weight_tensor.shape[0] % 16 == 0
         and weight_tensor.shape[1] % 4 == 0
     ):
+        # TODO(masahi): Support int8 x int8 case
         weight_layout = "NC16n4c"
         return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
 
-    impl, outs = relay.backend.te_compiler.select_implementation(
+    _, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.dense"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)
