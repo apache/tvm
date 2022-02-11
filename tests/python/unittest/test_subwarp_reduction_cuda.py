@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tabnanny import check
 import tvm
 import tvm.testing
 import numpy as np
@@ -48,7 +47,6 @@ def test_cuda_subwarp_reduction():
         sch.bind(k, "threadIdx.y")
         sch.bind(l, "threadIdx.x")
         f = tvm.build(sch.mod["main"], target="cuda")
-        print(f.imported_modules[0].get_source())
 
         # prepare input and output array
         a_np = np.random.rand(1, d1, d2, d3).astype("float32")

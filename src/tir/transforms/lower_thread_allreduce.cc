@@ -218,6 +218,33 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     int reduce_extent, group_extent;
     PrimExpr reduce_index = FlattenThread(vred, &reduce_extent);
     PrimExpr group_index = FlattenThread(vpar, &group_extent);
+
+    // the longest contiguous reduce extent after flattening
+    int contiguous_reduce_extent = 1;
+    std::vector<std::tuple<int, int, bool>> block_threads;  // tuple(dim_index, extent, is_reduce)
+    for (const ThreadEntry& thr : vred) {
+      if (thr.scope.rank == 1) {  // threadIdx
+        block_threads.emplace_back(thr.scope.dim_index, thr.extent, true);
+      }
+    }
+    for (const ThreadEntry& thr : vpar) {
+      if (thr.scope.rank == 1) {  // threadIdx
+        block_threads.emplace_back(thr.scope.dim_index, thr.extent, false);
+      }
+    }
+    // sort according to dim_index
+    std::sort(block_threads.begin(), block_threads.end());
+    for (auto&& thr_attr : block_threads) {
+      int dim_index, extent;
+      bool is_reduce;
+      std::tie(dim_index, extent, is_reduce) = thr_attr;
+      if (is_reduce) {
+        contiguous_reduce_extent *= extent;
+      } else {
+        break;
+      }
+    }
+
     std::vector<Stmt> seq;
     std::vector<Var> shared_bufs(size);
     std::vector<Stmt> local_vars;
@@ -238,7 +265,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // broadcast results from lane 0 to all other lanes and store
     // the final reduction result to the proper location.
     //
-    if (is_warp_reduction(types, group_extent, reduce_extent)) {
+    if (is_warp_reduction(types, group_extent, reduce_extent, contiguous_reduce_extent)) {
       ICHECK_LE(reduce_extent, warp_size_) << "not a warp reduction";
       //
       // This is the index to the reduction variable, one reduction
@@ -353,7 +380,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         warp_allocs_.insert(node.get());
       }
     } else {
-      int threadx_extent = 1;
       if (reduce_extent == 1) {
         // special case, no reduction is needed.
         std::vector<Stmt> stores(size);
@@ -363,10 +389,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           stores[i] = Store(buffer_var, values[i], 0, pred);
         }
         return SeqStmt::Flatten(stores);
-      }
-      // Whether the threadIdx.x is involved in reduction.
-      if (vred[0].scope.dim_index == 0) {
-        threadx_extent = vred[0].extent;
       }
       // This sync is necessary because there might be incomplete read of
       // previous iteration on the same buffer.
@@ -379,7 +401,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
       seq.emplace_back(SyncThread("shared"));
       seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
-                                        reduce_extent, group_extent, threadx_extent));
+                                        reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
         ICHECK(!load_remap_.count(buffers[idx]));
         PrimExpr pred = const_true(types[idx].lanes());
@@ -409,7 +431,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   // make allreduce.
   Stmt MakeBufAllreduce(const CommReducerNode* combiner, const std::vector<DataType>& types,
                         const Array<Var>& shared_bufs, PrimExpr reduce_index, PrimExpr group_index,
-                        int reduce_extent, int group_extent, int threadx_extent) {
+                        int reduce_extent, int group_extent, int contiguous_reduce_extent) {
     // Get next power of two
     int reduce_align = 1;
     while (reduce_extent > reduce_align) {
@@ -451,10 +473,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
       seq.emplace_back(SyncThread("shared"));
     }
-    ICHECK(threadx_extent >= 1 && warp_size_ >= 1);
+
     // normal synchronization
-    bool warp_align = group_extent == 1 || (threadx_extent % warp_size_ == 0);
-    while (reduce_align > threadx_extent || reduce_align > warp_size_ || !warp_align) {
+    bool warp_align = group_extent == 1 || contiguous_reduce_extent % warp_size_ == 0;
+    while (reduce_align > contiguous_reduce_extent || reduce_align > warp_size_ || !warp_align) {
       if (reduce_align == 1) {
         break;
       }
@@ -554,13 +576,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     return Call(val.dtype(), op, args);
   }
 
-  // Check if this is a reduction on threadIdx.x and its extent matches
-  // the warp size.
+  // Check if we can use warp level reduction.
   //
   // Note: The ROCm backend will only have warp reductions for now.
   // Also, the warp/wavefront size differs (64 on rocm, 32 on cuda).
-  bool is_warp_reduction(const std::vector<DataType>& types, int group_extent,
-                         int reduce_extent) const {
+  bool is_warp_reduction(const std::vector<DataType>& types, int group_extent, int reduce_extent,
+                         int contiguous_reduce_extent) const {
     // Only cuda target supports warp reductions.
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm")) return false;
 
@@ -586,19 +607,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return false;
     }
 
+    // reduce region must be contiguous.
+    if (contiguous_reduce_extent != reduce_extent) {
+      return false;
+    }
+
+    // whether reduce_extent and group_extent are vaild for warp reduction.
     if (target_->kind->name == "rocm") {
-      const AttrStmtNode* op = thread_extents_.back();
-      DCHECK_EQ(op->attr_key, attr::thread_extent);
-
-      IterVar iv = Downcast<IterVar>(op->node);
-      ThreadEntry e;
-      e.scope = runtime::ThreadScope::Create(iv->thread_tag);
-      e.extent = 0;
-      if (auto ptr = op->value.as<IntImmNode>()) {
-        e.extent = static_cast<int>(ptr->value);
-      }
-
-      return e.extent == warp_size_ && e.scope.dim_index == 0 && e.scope.rank == 1;
+      return reduce_extent == warp_size_;
     } else {  // target_->kind->name == "cuda"
       if (reduce_extent == 1) {
         return false;  // no need to warp reduce
