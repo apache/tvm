@@ -562,7 +562,7 @@ def run_module(
             # always measure from the CPU device to account for
             # CPU to device memory transfer overheads (e.g. PCIE
             # overheads if the device is a discrete GPU).
-            times = module.benchmark(tvm.cpu(), number=number, repeat=repeat, end_to_end=True)
+            times = module.benchmark(session.cpu(), number=number, repeat=repeat, end_to_end=True)
 
         logger.debug("Collecting the output tensors.")
         num_outputs = module.get_num_outputs()
