@@ -29,11 +29,13 @@ namespace runtime {
 namespace hexagon {
 
 int init_hexagon_user_dma() {
+#if defined(__hexagon__)
   // reset DMA engine
   unsigned int status = dmpause() & DM0_STATUS_MASK;
   if (status != DM0_STATUS_IDLE) {
     return DMA_FAILURE;
   }
+#endif
   return DMA_SUCCESS;
 }
 

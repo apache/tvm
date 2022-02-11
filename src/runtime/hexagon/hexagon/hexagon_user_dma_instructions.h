@@ -24,6 +24,8 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
+#if defined(__hexagon__)
+
 inline unsigned int dmpause() {
   unsigned int dm0 = 0;
   asm volatile(" %0 = dmpause" : "=r"(dm0));
@@ -67,6 +69,8 @@ inline unsigned int dmcfgrd(unsigned int dmindex) {
 inline void dmcfgwr(unsigned int dmindex, unsigned int data) {
   asm volatile(" dmcfgwr(%0, %1)" : : "r"(dmindex), "r"(data));
 }
+
+#endif
 
 }  // namespace hexagon
 }  // namespace runtime
