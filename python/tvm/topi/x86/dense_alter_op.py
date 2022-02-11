@@ -24,6 +24,7 @@ from tvm import autotvm
 from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
+from .utils import target_has_vnni
 
 
 @dense_alter_layout.register(["cpu", "arm_cpu"])
@@ -34,9 +35,11 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     out_dtype = out_type.dtype
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
+    mcpu = tvm.target.Target.current().mcpu
 
     if (
-        "int8" in data_tensor.dtype
+        target_has_vnni(mcpu)
+        and "int8" in data_tensor.dtype
         and weight_tensor.shape[0] % 16 == 0
         and weight_tensor.shape[1] % 4 == 0
     ):
