@@ -259,14 +259,10 @@ bool DensePackRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK(param != nullptr);
 
   ICHECK_EQ(data->shape.size(), 2) << "Only 2D data is supported";
+  ICHECK(weight->shape.size() == 3 || weight->shape.size() == 4) << "Expect weight to be 3D or 4D";
 
   Array<tvm::PrimExpr> oshape = data->shape;;
-  if (false) {
-    ICHECK_EQ(weight->shape.size(), 3) << "Weight is not packed";
-    oshape.Set(1, weight->shape[0] * weight->shape[2]);
-  } else {
-    oshape.Set(1, weight->shape[0] * weight->shape[2]);
-  }
+  oshape.Set(1, weight->shape[0] * weight->shape[2]);
 
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {

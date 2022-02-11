@@ -207,37 +207,58 @@ def schedule_dense_nopack(cfg, outs):
     return s
 
 
-def dense_vnni_compute(X, packedW):
+def dense_vnni_compute(X, packedW, bias=None):
     m, k = X.shape
     n_o, _, n_i, _ = packedW.shape
     ak = te.reduce_axis((0, k), name="k")
 
-    return te.compute(
+    C = te.compute(
         (m, n_o * n_i),
         lambda i, j: te.sum(
             X[i, ak].astype("int32")
-            * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4),  j % 16, ak % 4].astype("int32"),
+            * packedW[tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
+                "int32"
+            ),
             axis=ak,
         ),
         tag="dense_vnni",
     )
 
+    if bias is not None:
+        C = te.compute(C.shape, lambda i, j: C[i, j] + bias[j], tag=tag.BROADCAST)
 
-def dense_vnni_schedule(t_fc, t_sch):
-    a_x, a_y = t_fc.op.axis
-    (a_k,) = t_fc.op.reduce_axis
+    return C
 
-    a_yo, a_yi = t_sch[t_fc].split(a_y, factor=16)
-    a_ko, a_ki = t_sch[t_fc].split(a_k, factor=4)
-    a_xo, a_xi = t_sch[t_fc].split(a_x, factor=32)
 
-    t_sch[t_fc].reorder(a_yo, a_xo, a_xi, a_ko, a_yi, a_ki)
+def dense_vnni_schedule(s, C, O):
+    if C != O:
+        a_y, a_x = O.op.axis
+        a_xo, a_xi = s[O].split(a_x, factor=16)
+        a_yo, a_yi = s[O].split(a_y, factor=32)
+        s[O].reorder(a_xo, a_yo, a_yi, a_xi)
+        fused = s[O].fuse(a_xo, a_yo)
+        s[O].vectorize(a_xi)
+        s[O].parallel(fused)
+
+        s[C].compute_at(s[O], a_yi)
+
+    a_y, a_x = C.op.axis
+    (a_k,) = C.op.reduce_axis
+
+    a_ko, a_ki = s[C].split(a_k, factor=4)
+    a_xo, a_xi = s[C].split(a_x, factor=16)
+    a_yo, a_yi = s[C].split(a_y, factor=32)
+
+    s[C].reorder(a_xo, a_yo, a_yi, a_ko, a_xi, a_ki)
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
-    t_sch[t_fc].tensorize(a_yi, pc)
-    t_sch[t_fc].parallel(a_yo)
+    s[C].tensorize(a_xi, pc)
 
-    return t_sch
+    if C == O:
+        fused = s[O].fuse(a_xo, a_yo)
+        s[O].parallel(fused)
+
+    return s
 
 
 @autotvm.register_topi_compute("dense_pack.x86")
@@ -252,7 +273,7 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
     elif len(weight.shape) == 4:
         N, K, n_inner, k_inner = get_const_tuple(weight.shape)  # out_dim
         assert n_inner == 16 and k_inner == 4
-        return dense_vnni_compute(data, weight)
+        return dense_vnni_compute(data, weight, bias)
     else:
         N, _ = get_const_tuple(weight.shape)  # out_dim
     # create tuning space
@@ -308,9 +329,10 @@ def dense_pack(cfg, data, weight, bias=None, out_dtype=None):
 def schedule_dense_pack(cfg, outs):
     """Create the schedule for dense_pack"""
     s = te.create_schedule([x.op for x in outs])
+
     def _callback(op):
         if "dense_vnni" in op.tag:
-            dense_vnni_schedule(op.output(0), s)
+            dense_vnni_schedule(s, op.output(0), outs[0])
         if "dense_pack" in op.tag:
             _schedule_dense_pack_template(cfg, s, op.output(0), outs[0])
 
