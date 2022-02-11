@@ -621,6 +621,7 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
 
 @autotvm.register_topi_compute("conv3d_ncdhw_winograd.cuda")
 def conv3d_ncdhw_winograd(cfg, data, kernel, strides, padding, dilation, groups, out_dtype):
+    """Conv3d NCDHW using winograd optimization"""
     assert groups == 1, "conv3d_ncdhw_winograd only supports a single group"
     CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
     # Check if we can transform depth.
