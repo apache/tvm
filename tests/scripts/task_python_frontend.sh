@@ -42,9 +42,11 @@ run_pytest cython python-frontend-coreml tests/python/frontend/coreml
 echo "Running relay Tensorflow frontend test..."
 # Note: Tensorflow tests often have memory issues, so invoke each one separately
 TENSORFLOW_TESTS=$(./tests/scripts/pytest_ids.py --folder tests/python/frontend/tensorflow)
+i=0
 for node_id in $TENSORFLOW_TESTS; do
     echo "$node_id"
-    run_pytest cython python-frontend-tensorflow "$node_id"
+    run_pytest cython "python-frontend-tensorflow-$i" "$node_id"
+    i=$((i+1))
 done
 
 echo "Running relay caffe2 frontend test..."
