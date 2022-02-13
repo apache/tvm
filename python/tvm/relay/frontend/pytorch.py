@@ -972,19 +972,21 @@ class PyTorchOpConverter:
             msg = "Data type %s could not be parsed in conv op" % (type(weight))
             raise AssertionError(msg)
 
-        # Transposed convolutions have IOHW layout.
-        if use_transpose:
-            weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
-
-        channels = weight_shape[0]
         groups = int(inputs[8])
+
+        if use_transpose:
+            channels = weight_shape[1] * groups
+            in_channels = weight_shape[0]
+        else:
+            channels = weight_shape[0]
+            in_channels = weight_shape[1]
 
         # Check if this is depth wise convolution
         # We need to reshape weight so that Relay could recognize this is depth wise
         # weight_shape[1] is always in_channels // groups
         # For depthwise, in_channels == groups, so weight_shape[1] == 1
         # If groups > 1 but weight_shape[1] != 1, this is group convolution
-        if groups > 1 and weight_shape[1] == 1:
+        if groups > 1 and in_channels == 1:
             channel_multiplier = channels // groups
             new_weight_shape = (groups, channel_multiplier) + tuple(weight_shape[2:])
             weight = _op.transform.reshape(weight, new_weight_shape)
