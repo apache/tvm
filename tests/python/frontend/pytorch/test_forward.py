@@ -1067,7 +1067,6 @@ def test_forward_conv_transpose(
     verify_model(conv1d_transpose, conv1d_input_data)
 
 
-@tvm.testing.uses_gpu
 def test_forward_conv2d_transpose_group():
     # https://github.com/apache/tvm/issues/10223
 
@@ -1090,7 +1089,8 @@ def test_forward_conv2d_transpose_group():
     weights = torch.rand(c, c // 2, k, k)
     styles = torch.rand(b)
 
-    verify_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles])
+    # cuda not supported for group > 1 conv2d_transpose
+    verify_trace_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles], ["llvm"])
 
 
 def test_forward_deform_conv():
@@ -4141,7 +4141,7 @@ def test_list_tuple():
 
     x = torch.rand([4, 4, 16, 32]).float()
     script_module = torch.jit.trace(List_tuple(), x, strict=False).eval()
-    mod, params = relay.frontend.from_pytorch(script_module, [("x", x.shape)])
+    relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
 if __name__ == "__main__":
