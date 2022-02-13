@@ -1069,7 +1069,7 @@ def test_forward_conv_transpose(
 
 @tvm.testing.uses_gpu
 def test_forward_conv2d_transpose_group():
-    # https://github.com/apache/tvm/pull/9465
+    # https://github.com/apache/tvm/issues/10223
 
     class ModulatedConvTranspose2D(torch.nn.Module):
         def forward(self, x, w, s):
