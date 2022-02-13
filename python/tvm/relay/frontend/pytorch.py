@@ -1597,6 +1597,21 @@ class PyTorchOpConverter:
 
         return func(data)
 
+    def var_mean(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
+
+        return _op.reduce.variance(data, axis=axis, keepdims=keepdims, unbiased=unbiased), _op.mean(
+            data, axis, keepdims
+        )
+
     def chunk(self, inputs, input_types):
         data = inputs[0]
 
@@ -3039,6 +3054,7 @@ class PyTorchOpConverter:
             "aten::frobenius_norm": self.frobenius_norm,
             "aten::std": self.std,
             "aten::var": self.variance,
+            "aten::var_mean": self.var_mean,
             "aten::abs": self.make_unary("abs"),
             "aten::neg": self.make_unary("negative"),
             "aten::cos": self.make_unary("cos"),
