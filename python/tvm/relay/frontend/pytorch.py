@@ -1608,9 +1608,8 @@ class PyTorchOpConverter:
             keepdims = bool(inputs[3])
             unbiased = bool(inputs[2])
 
-        return _op.reduce.variance(data, axis=axis, keepdims=keepdims, unbiased=unbiased), _op.mean(
-            data, axis, keepdims
-        )
+        m, v = _op.reduce.mean_variance(data, axis, keepdims, False, unbiased)
+        return v, m
 
     def chunk(self, inputs, input_types):
         data = inputs[0]
