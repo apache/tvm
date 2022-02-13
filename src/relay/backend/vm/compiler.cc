@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../../target/metadata.h"
 #include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 #include "../../op/annotation/annotation.h"

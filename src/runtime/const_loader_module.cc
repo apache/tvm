@@ -43,17 +43,18 @@ namespace runtime {
 
 /*!
  * \brief The metadata module is designed to manage initialization of the
- * imported submodules.
+ * imported submodules for the C++ runtime.
  */
-class MetadataModuleNode : public ModuleNode {
+class ConstLoaderModuleNode : public ModuleNode {
  public:
-  MetadataModuleNode(const std::unordered_map<std::string, NDArray>& metadata,
-                     const std::unordered_map<std::string, std::vector<std::string>>& sym_vars)
-      : metadata_(metadata), sym_vars_(sym_vars) {
+  ConstLoaderModuleNode(
+      const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+      const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
+      : const_var_ndarray_(const_var_ndarray), const_vars_by_symbol_(const_vars_by_symbol) {
     // Only the related submodules are cached to reduce the number of runtime
     // symbol lookup for initialization. Otherwise, symbols/primitives in the
     // DSO module will also be cached but they never need to be initialized.
-    for (const auto& it : sym_vars_) {
+    for (const auto& it : const_vars_by_symbol_) {
       initialized_[it.first] = false;
     }
   }
@@ -78,7 +79,7 @@ class MetadataModuleNode : public ModuleNode {
     return PackedFunc(nullptr);
   }
 
-  const char* type_key() const { return "metadata"; }
+  const char* type_key() const { return "const_loader"; }
 
   /*!
    * \brief Get the list of metadata that is required by the given module.
@@ -87,11 +88,11 @@ class MetadataModuleNode : public ModuleNode {
    */
   Array<NDArray> GetRequiredMetadata(const std::string& symbol) {
     Array<NDArray> ret;
-    ICHECK_GT(sym_vars_.count(symbol), 0U) << "No symbol is recorded for " << symbol;
-    std::vector<std::string> vars = sym_vars_[symbol];
+    ICHECK_GT(const_vars_by_symbol_.count(symbol), 0U) << "No symbol is recorded for " << symbol;
+    std::vector<std::string> vars = const_vars_by_symbol_[symbol];
     for (const auto& it : vars) {
-      ICHECK_GT(metadata_.count(it), 0U) << "Found not recorded constant variable: " << it;
-      ret.push_back(metadata_[it]);
+      ICHECK_GT(const_var_ndarray_.count(it), 0U) << "Found not recorded constant variable: " << it;
+      ret.push_back(const_var_ndarray_[it]);
     }
     return ret;
   }
@@ -102,7 +103,7 @@ class MetadataModuleNode : public ModuleNode {
    * for runtime lookup.
    *
    * \note  A module could be like the following:
-   *  MetadataModuleNode (contains all the metadata)
+   *  ConstLoaderModuleNode (contains all the metadata)
    *    - CSourceModule
    *    - JSON runtime module
    *
@@ -128,32 +129,32 @@ class MetadataModuleNode : public ModuleNode {
 
   void SaveToBinary(dmlc::Stream* stream) final {
     std::vector<std::string> variables;
-    std::vector<NDArray> metadata;
-    for (const auto& it : metadata_) {
+    std::vector<NDArray> const_var_ndarray;
+    for (const auto& it : const_var_ndarray_) {
       String var_name = it.first;
       variables.push_back(var_name);
-      metadata.push_back(it.second);
+      const_var_ndarray.push_back(it.second);
     }
 
     // Save all variables in the function.
     stream->Write(variables);
     // Save all constant data.
-    uint64_t sz = static_cast<uint64_t>(metadata.size());
+    uint64_t sz = static_cast<uint64_t>(const_var_ndarray.size());
     stream->Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
-      metadata[i].Save(stream);
+      const_var_ndarray[i].Save(stream);
     }
 
     // Save the symbol to list of required constant variables mapping
     std::vector<std::string> symbols;
     std::vector<std::vector<std::string>> const_vars;
-    for (const auto& it : sym_vars_) {
+    for (const auto& it : const_vars_by_symbol_) {
       symbols.push_back(it.first);
       const_vars.push_back(it.second);
     }
 
     stream->Write(symbols);
-    sz = static_cast<uint64_t>(sym_vars_.size());
+    sz = static_cast<uint64_t>(const_vars_by_symbol_.size());
     stream->Write(sz);
     for (uint64_t i = 0; i < sz; i++) {
       stream->Write(const_vars[i]);
@@ -165,9 +166,9 @@ class MetadataModuleNode : public ModuleNode {
 
     // Load the variables.
     std::vector<std::string> variables;
-    ICHECK(stream->Read(&variables)) << "Loading variables failed";
+    ICHECK(stream->Read(&variables)) << "Loading variable names failed";
     uint64_t sz;
-    ICHECK(stream->Read(&sz, sizeof(sz))) << "Loading metadata size failed";
+    ICHECK(stream->Read(&sz, sizeof(sz))) << "Loading number of vars failed";
     ICHECK_EQ(static_cast<size_t>(sz), variables.size())
         << "The number of variables and ndarray counts must match";
     // Load the list of ndarray.
@@ -178,10 +179,10 @@ class MetadataModuleNode : public ModuleNode {
       arrays.push_back(temp);
     }
 
-    std::unordered_map<std::string, NDArray> metadata;
+    std::unordered_map<std::string, NDArray> const_var_ndarray;
     for (uint64_t i = 0; i < sz; i++) {
-      ICHECK_EQ(metadata.count(variables[i]), 0U);
-      metadata[variables[i]] = arrays[i];
+      ICHECK_EQ(const_var_ndarray.count(variables[i]), 0U);
+      const_var_ndarray[variables[i]] = arrays[i];
     }
 
     // Load the symbol to list of required constant variables mapping
@@ -196,12 +197,12 @@ class MetadataModuleNode : public ModuleNode {
       const_vars.push_back(vars);
     }
 
-    std::unordered_map<std::string, std::vector<std::string>> sym_vars;
+    std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
     for (uint64_t i = 0; i < sz; i++) {
-      sym_vars[symbols[i]] = const_vars[i];
+      const_vars_by_symbol[symbols[i]] = const_vars[i];
     }
 
-    auto n = make_object<MetadataModuleNode>(metadata, sym_vars);
+    auto n = make_object<ConstLoaderModuleNode>(const_var_ndarray, const_vars_by_symbol);
     return Module(n);
   }
 
@@ -212,19 +213,21 @@ class MetadataModuleNode : public ModuleNode {
    */
   std::unordered_map<std::string, bool> initialized_;
   /*! \brief Variable name to NDArray mapping. */
-  std::unordered_map<std::string, NDArray> metadata_;
+  std::unordered_map<std::string, NDArray> const_var_ndarray_;
   /*! \brief Symbol name to required constant variables mapping. */
-  std::unordered_map<std::string, std::vector<std::string>> sym_vars_;
+  std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
-Module MetadataModuleCreate(
-    const std::unordered_map<std::string, NDArray>& metadata,
-    const std::unordered_map<std::string, std::vector<std::string>>& sym_vars) {
-  auto n = make_object<MetadataModuleNode>(metadata, sym_vars);
+Module ConstLoaderModuleCreate(
+    const std::unordered_map<std::string, NDArray>& const_var_ndarray,
+    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
+  auto n = make_object<ConstLoaderModuleNode>(const_var_ndarray, const_vars_by_symbol);
   return Module(n);
 }
 
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata")
-    .set_body_typed(MetadataModuleNode::LoadFromBinary);
+    .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
+    .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 }  // namespace runtime
 }  // namespace tvm

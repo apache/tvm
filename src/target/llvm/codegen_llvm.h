@@ -141,7 +141,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const PrimExpr& e) { auto a = VisitExpr(e); LOG(INFO) << "MakeValue (" << e << "): " << a; return a;  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -186,6 +186,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
+
+  // Get constant string
+  llvm::Constant* GetConstString(const std::string& str);
 
  protected:
   /*!
@@ -309,6 +312,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   /*!
+   * \brief Lookup or create a GlobalVariable whose content is the data field of a DLTensor for a
+   * given linked_param() CallNode.
+   * \param param_name Parameter name (e.g. unmangled, from lookup_param node).
+   * \return the GlobalVariable indicated in the brief.
+   */
+  llvm::GlobalVariable* GetLinkedParamSymbol(const ::std::string& param_name, llvm::ConstantArray* array);
+  /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
    */
@@ -318,8 +328,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // Get alignment given index.
   void GetAlignment(DataType t, const VarNode* buf_var, const PrimExpr& index, int* p_alignment,
                     int* p_native_bits);
-  // Get constant string
-  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
@@ -411,6 +419,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
   const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
   const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+  const Op& builtin_lookup_param_ = builtin::lookup_param();
+  const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {

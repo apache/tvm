@@ -190,6 +190,18 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   }
 }
 
+llvm::GlobalVariable* CodeGenLLVM::GetLinkedParamSymbol(const std::string& param_name, llvm::ConstantArray* array) {
+  std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + param_name;
+  llvm::GlobalVariable* var = module_->getGlobalVariable(symbol_name);
+  if (var == nullptr) {
+    var = new llvm::GlobalVariable(
+      *module_, t_void_p_, true, llvm::GlobalValue::CommonLinkage, nullptr, symbol_name);
+  }
+  //(array != nullptr ? static_cast<llvm::Type*>(array->getType()) : static_cast<llvm::Type*>(t_void_p_)),
+  return var;
+}
+
+
 void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   // It would be nice to de-dupe these declarations frm src/tir/transforms/make_packed_api.cc,
   // but they are at a different layer in the compiler...
@@ -235,9 +247,7 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
   // Add data to the global section.
   for (auto kv : params) {
     auto array = NDArrayToLLVMArray(ctx_, kv.second->param);
-    std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + kv.first;
-    llvm::GlobalVariable* param_symbol = new llvm::GlobalVariable(
-        *module_, array->getType(), true, llvm::GlobalValue::InternalLinkage, array, symbol_name);
+    llvm::GlobalVariable* param_symbol = GetLinkedParamSymbol(kv.first, array);
     auto dtype = tvm::runtime::DataType(kv.second->param->dtype);
     size_t align = std::max(tvm::runtime::GetVectorBytes(dtype), tvm::runtime::kAllocAlignment);
 #if TVM_LLVM_VERSION >= 100
@@ -245,8 +255,9 @@ void CodeGenLLVM::LinkParameters(const Map<String, LinkedParam> params) {
 #else
     param_symbol->setAlignment(align);
 #endif
+    param_symbol->setInitializer(array);
 
-    llvm::BasicBlock* case_block = llvm::BasicBlock::Create(*ctx_, "case_" + symbol_name, function);
+    llvm::BasicBlock* case_block = llvm::BasicBlock::Create(*ctx_, "case_" + param_symbol->getName(), function);
     switch_inst->addCase(
         llvm::cast<llvm::ConstantInt>(llvm::ConstantInt::get(t_int64_, kv.second->id)), case_block);
     builder_->SetInsertPoint(case_block);
@@ -387,6 +398,10 @@ void CodeGenLLVM::Optimize() {
     fpass.run(*it);
   }
   fpass.doFinalization();
+  std::string tmp;
+  llvm::raw_string_ostream stream(tmp);
+  module_->print(stream, nullptr);
+  LOG(INFO) << "LLVM IR: " << stream.str();
   mpass.run(*module_);
 }
 
@@ -1308,7 +1323,14 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
+    if (op->op.same_as(builtin_tvm_call_cpacked_lowered_)) {
+      auto global_symbol = Downcast<StringImm>(op->args[0]);
+      return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), global_symbol->value, op->args,
+                                    true);
+    } else if (op->op.same_as(builtin_lookup_param_)) {
+//      return llvm::ConstantInt::get(t_void_p_, 0);
+      return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
+    } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       // call extern intrinsic
       ICHECK_GE(op->args.size(), 1U);
       auto global_symbol = Downcast<StringImm>(op->args[0]);
@@ -1319,7 +1341,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
       return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), op_attr_global_symbol_[call_op],
                                     op->args, false);
     } else {
-      return CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic: " << GetRef<Call>(op);
+      auto x = CreateIntrinsic(op);
+      VLOG(2) << "CreateIntrinsic done";
+      return x;
     }
   } else {
     ICHECK(op->op.as<GlobalVarNode>());

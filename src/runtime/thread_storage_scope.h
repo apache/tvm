@@ -24,6 +24,7 @@
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 
+#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
@@ -205,7 +206,7 @@ class LaunchParamConfig {
     std::vector<bool> filled(6, false);
     for (size_t i = 0; i < launch_param_tags.size(); ++i) {
       const std::string& tag = launch_param_tags[i];
-      if (tag == kUseDynamicSharedMemoryTag) {
+      if (tag == launch_param::kUseDynamicSharedMemoryTag) {
         ICHECK_EQ(i, launch_param_tags.size() - 1)
             << "kUseDynamicSharedMemoryTag should be the last tag in launch_param_tags.";
         use_dyn_shared_memory_ = true;

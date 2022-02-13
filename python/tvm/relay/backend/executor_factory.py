@@ -108,6 +108,13 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         function_metadata,
         devices,
     ):
+        fcreate = get_global_func("tvm.aot_executor_factory.create")
+        args = []
+        for k, v in params.items():
+            args.append(k)
+            args.append(ndarray.array(v))
+
+        self.module = fcreate(libmod, libmod_name, *args)
         self.ir_mod = ir_mod
         self.lowered_ir_mods = lowered_ir_mods
         self.target = target
@@ -131,6 +138,9 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
 
     def get_lib(self):
         return self.lib
+
+    def export_library(self, file_name, fcompile=None, addons=None, **kwargs):
+        return self.module.export_library(file_name, fcompile, addons, **kwargs)
 
 
 class GraphExecutorFactoryModule(ExecutorFactoryModule):

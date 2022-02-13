@@ -18,30 +18,30 @@
  */
 
 /*!
- * \file llvm_module.h
- * \brief Declares top-level shared functions related to the LLVM codegen.
+ * \file metadata.cc
+ * \brief Implementations of the compiler extensions for Metadata.
  */
 
-#ifndef TVM_TARGET_LLVM_LLVM_MODULE_H_
-#define TVM_TARGET_LLVM_LLVM_MODULE_H_
+#include "metadata.h"
 
-#include <tvm/runtime/module.h>
-#include <tvm/target/target.h>
-
-#ifdef TVM_LLVM_VERSION
+#include <tvm/node/reflection.h>
 
 namespace tvm {
-namespace codegen {
+namespace target {
+namespace metadata {
 
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
-                                            tvm::relay::Runtime runtime);
+TVM_REGISTER_REFLECTION_VTABLE(VisitableMetadataNode,
+                               ::tvm::detail::ReflectionTrait<VisitableMetadataNode>)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> {
+      return ::tvm::runtime::make_object<VisitableMetadataNode>();
+    });
 
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                            tvm::relay::Runtime runtime);
+TVM_REGISTER_REFLECTION_VTABLE(VisitableTensorInfoNode,
+                               ::tvm::detail::ReflectionTrait<VisitableTensorInfoNode>)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> {
+      return ::tvm::runtime::make_object<VisitableTensorInfoNode>();
+    });
 
-}  // namespace codegen
+}  // namespace metadata
+}  // namespace target
 }  // namespace tvm
-
-#endif  // TVM_LLVM_VERSION
-
-#endif  // TVM_TARGET_LLVM_LLVM_MODULE_H_
