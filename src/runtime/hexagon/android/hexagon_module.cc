@@ -510,9 +510,12 @@ std::shared_ptr<Device> Device::Global() {
 
 }  // namespace hexagon
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = HexagonModuleLoadFile(args[0], args[1]);
-});
+// Disable this: it conflicts with loadfile_hexagon from hexagon_common.cc
+// This was only used with offload on Android, which is being deprecated.
+// TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv)
+// {
+//   *rv = HexagonModuleLoadFile(args[0], args[1]);
+// });
 
 }  // namespace runtime
 }  // namespace tvm
