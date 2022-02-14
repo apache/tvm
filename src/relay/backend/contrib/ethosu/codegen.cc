@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../op/contrib/ethosu/op_attrs.h"
 #include "../../../op/make_op.h"
 #include "utils.h"
 
@@ -99,6 +100,126 @@ tvm::transform::Pass RelayToTIR() {
       };
   return tvm::transform::CreateModulePass(pass_func, 0, "relay.contrib.ethos-u.RelayToTIR", {});
 }
+
+/*!
+ * \brief This visitor counts the number of outputs each identity operation has, since Relay doesn't
+ * keep references to child nodes.
+ */
+class CountIdentityOutputs : public MixedModeVisitor {
+ public:
+  CountIdentityOutputs(){};
+
+  void VisitExpr_(const CallNode* call) {
+    for (auto arg : call->args) {
+      if (const auto* parent_callnode = arg.as<CallNode>()) {
+        if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
+          if (parent_op->name != "contrib.ethosu.identity") {
+            continue;
+          }
+
+          Call parent_call = GetRef<Call>(parent_callnode);
+          Optional<Integer> current_count = output_count_.Get(parent_call);
+          if (current_count) {
+            output_count_.Set(parent_call, Integer(current_count.as<IntImmNode>()->value + 1));
+          } else {
+            output_count_.Set(parent_call, 1);
+          }
+        }
+      }
+    }
+  }
+
+  Map<Call, Integer> GetOutputCountMap() { return output_count_; }
+
+ private:
+  Map<Call, Integer> output_count_;
+};
+
+/*!
+ * \brief This mutator removes identity operations that are not necessary. Specifically, an identity
+ * operation can be removed when it is immediately followed by an NPU compute operation.
+ */
+class RemoveRedundantIdentities : public MixedModeMutator {
+ public:
+  explicit RemoveRedundantIdentities(Map<Call, Integer> identity_output_count)
+      : identity_output_count_(identity_output_count) {}
+
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    Call call = Downcast<Call>(post);
+
+    // only consider rewrite if current op is an NPU compute op.
+    if (!call->op->IsInstance<OpNode>()) {
+      return post;
+    }
+    const auto* op = call->op.as<OpNode>();
+    std::string op_name = op->name;
+    if (op_name.substr(0, 15) != "contrib.ethosu." || op_name == "contrib.ethosu.identity") {
+      return post;
+    }
+
+    // check if we can rewrite parent identity operations to current call.
+    bool needs_rewrite = false;
+    Array<Expr> new_args;
+    for (const auto& arg : call->args) {
+      if (const auto* parent_callnode = arg.as<CallNode>()) {
+        if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
+          Call parent_call = GetRef<Call>(parent_callnode);
+          // TODO(lhutton1) support removal of identities with multiple outputs.
+          bool has_single_output = identity_output_count_.Get(parent_call) == 1;
+
+          if (parent_op->name == "contrib.ethosu.identity" && IdentityDoesNothing(parent_call) &&
+              has_single_output) {
+            needs_rewrite = true;
+            new_args.push_back(parent_call->args[0]);
+            continue;
+          }
+        }
+      }
+      new_args.push_back(arg);
+    }
+
+    if (needs_rewrite) {
+      return Call(call->op, new_args, call->attrs, call->type_args);
+    }
+    return post;
+  }
+
+ private:
+  bool IdentityDoesNothing(const Call& call) {
+    const auto* attrs = call->attrs.as<tvm::relay::op::contrib::ethosu::EthosuIdentityAttrs>();
+    bool does_not_requantize = attrs->ifm_scale == 1.0 && attrs->ifm_zero_point == 0 &&
+                               attrs->ofm_scale == 1.0 && attrs->ofm_zero_point == 0;
+    bool has_no_activation = attrs->activation == "NONE";
+    return does_not_requantize && has_no_activation;
+  }
+
+  Map<Call, Integer> identity_output_count_;
+};
+
+/*!
+ * \brief A pass to remove redundant identity operations.
+ */
+tvm::transform::Pass IdentityOptimizer() {
+  runtime::TypedPackedFunc<IRModule(IRModule, transform::PassContext)> pass_func =
+      [=](IRModule mod, transform::PassContext ctx) {
+        for (auto gv : mod->GetGlobalVars()) {
+          Function main_func = Downcast<Function>(mod->Lookup(gv));
+          CountIdentityOutputs counter = CountIdentityOutputs();
+          counter.VisitExpr(main_func->body);
+          auto new_main_body =
+              RemoveRedundantIdentities(counter.GetOutputCountMap()).VisitExpr(main_func->body);
+          if (!new_main_body.same_as(main_func->body)) {
+            Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
+            mod->Update(gv, new_main_func);
+          }
+        }
+        return mod;
+      };
+  return tvm::transform::CreateModulePass(pass_func, 0,
+                                          "relay.backend.contrib.ethos-u.IdentityOptimizer", {});
+}
+
+TVM_REGISTER_GLOBAL("relay.ext.ethos-u.IdentityOptimizer").set_body_typed(IdentityOptimizer);
 
 /*!
  * \brief This function lowers the IRModule with PrimFunc
