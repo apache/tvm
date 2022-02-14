@@ -47,7 +47,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_tune_parser(subparsers, _):
+def add_tune_parser(subparsers, _, json_params):
     """Include parser for 'tune' subcommand"""
 
     parser = subparsers.add_parser("tune", help="auto-tune a model")
@@ -223,6 +223,9 @@ def add_tune_parser(subparsers, _):
         '"input_name:[dim1,dim2,...,dimn] input_name2:[dim1,dim2]"',
         type=parse_shape_string,
     )
+
+    for one_entry in json_params:
+        parser.set_defaults(**one_entry)
 
 
 def drive_tune(args):
