@@ -411,6 +411,34 @@ EthosnError EthosnAPI::Mean(const Expr& expr, MeanParams* params) {
   return err;
 }
 
+EthosnError EthosnAPI::Tanh(const Expr& expr, TanhParams* params) {
+  Call quantize = Downcast<Call>(expr);
+  Call tanh = Downcast<Call>(quantize->args[0]);
+  Call dequantize = Downcast<Call>(tanh->args[0]);
+  // Create input info
+  const auto* input_dtype = quantize->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  sl::DataType input_tensor_dtype;
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(dequantize->args[2], &input_zp);
+  err += AsConstant(dequantize->args[1], &input_sc);
+  float output_sc;
+  int output_zp;
+  err += AsConstant(quantize->args[2], &output_zp);
+  err += AsConstant(quantize->args[1], &output_sc);
+  auto test_zp = input_dtype->dtype.is_uint() ? 128 : 0;
+  if (output_zp != test_zp || output_sc != 0.0078125f) {
+    err += EthosnError(ErrStrm() << "output quantization params=(" << output_zp << ", " << output_sc
+                                 << "), must = (" << test_zp << ", 1/256)");
+  }
+  params->input_info = sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC,
+                                      sl::QuantizationInfo(input_zp, input_sc));
+  return err;
+}
+
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);
   const auto& attrs = call->attrs.as<ConcatenateAttrs>();
