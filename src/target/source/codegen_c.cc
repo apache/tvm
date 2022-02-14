@@ -720,7 +720,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
       std::string vid = GetVarID(buffer_var.get());
       for (int i = 0; i < value_dtype.lanes(); ++i) {
         this->PrintIndent();
-        DataType elem_type = value_dtype;
+        DataType elem_type = value_dtype.element_of();
         if (!HandleTypeMatch(buffer_var.get(), elem_type)) {
           stream << "((";
           if (buffer_var.get()->dtype.is_handle()) {
