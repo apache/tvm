@@ -462,6 +462,10 @@ def test_floordiv_index_simplify():
 
     ck.verify(fld(x * 2, 4), fld(x, 2))
     ck.verify(fld(x * 4, 2), x * 2)
+    ck.verify(fld(x * 8 + 7, 16), fld(x, 2))
+    ck.verify(fld(x * 8 + 39, 16), fld(x, 2) + 2)
+    ck.verify(fld(x * 8 - 1, 16), fld(x * 8 + -1, 16))
+    ck.verify(fld(x * 8 - 9, 16), fld(x, 2) + -1)
 
     ck.verify(fld(x * 4 + y, 2), x * 2 + fld(y, 2))
     ck.verify(fld(tvm.te.min(x * 6, y), 2), tvm.te.min(x * 3, fld(y, 2)))
