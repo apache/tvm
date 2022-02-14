@@ -29,6 +29,7 @@ from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
+from tvm import WorkspaceMemoryPools, PoolInfo
 from aot_test_utils import (
     AOTTestModel,
     AOTTestRunner,
@@ -201,9 +202,30 @@ def test_byoc_microtvm(merge_compiler_regions):
     )
 
 
+def _get_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    mod, params = convert_to_relay(tflite_model_buf)
+
+    inputs = dict()
+    for param in mod["main"].params:
+        name = str(param.name_hint)
+        data_shape = [int(i) for i in param.type_annotation.shape]
+        dtype = str(param.type_annotation.dtype)
+        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        inputs[name] = data
+
+    return mod, inputs, params
+
+
 MOBILENET_V1_URL = (
     "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
     "mobilenet_v1_1.0_224_quant.tflite",
+)
+MOBILENET_V2_URL = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+    "mobilenet_v2_1.0_224_quant.tflite",
 )
 
 
@@ -215,7 +237,7 @@ MOBILENET_V1_URL = (
         (MOBILENET_V1_URL, "hill_climb", 3240064),
     ],
 )
-def test_tflite_model(model_url, usmp_algo, workspace_size):
+def test_tflite_model_u1_usecase(model_url, usmp_algo, workspace_size):
     """This checks for ML models and the memory used by them when using USMP with different algorithms"""
     pytest.importorskip("tflite")
 
@@ -231,13 +253,7 @@ def test_tflite_model(model_url, usmp_algo, workspace_size):
         model_url[0],
         model_url[1],
     )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    data_shape = (1, 224, 224, 3)
-    in_min, in_max = (0, 255)
-    data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
-    mod, params = convert_to_relay(tflite_model_buf, data, "input")
-    inputs = {"input": data}
+    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
 
     compiled_test_mods = compile_models(
@@ -259,6 +275,197 @@ def test_tflite_model(model_url, usmp_algo, workspace_size):
         )
         == workspace_size
     )
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+def _get_workspace_size_define_macro(pool_name: str, model_name="default") -> str:
+    """This function converts pool names to compiler generated
+    workspace pool size macros"""
+
+    prefix = "TVMGEN_" + model_name.upper() + "_"
+    postfix = "_WORKSPACE_POOL_SIZE"
+    return prefix + pool_name.upper() + postfix
+
+
+@pytest.mark.parametrize(
+    "model_url, usmp_algo",
+    [
+        (MOBILENET_V1_URL, "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u3_usecase_single_external_pool(model_url, usmp_algo):
+    """This checks for inference with USMP using external pool placed in the application"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    pool_name = "my_memory_pool"
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [PoolInfo(pool_name, {target: PoolInfo.READ_WRITE_ACCESS})]
+    )
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=f"""
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t {pool_name}[{_get_workspace_size_define_macro(pool_name)}];
+        """,
+    )
+
+    tflite_model_file = tf_testing.get_workload_official(
+        model_url[0],
+        model_url[1],
+    )
+    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    output_list = generate_ref_data(mod, inputs, params)
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_url, usmp_algo",
+    [
+        (MOBILENET_V1_URL, "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u3_usecase_two_external_pools(model_url, usmp_algo):
+    """This checks for inference using two external pools placed in the application"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [
+            PoolInfo(
+                "my_memory_pool_1", {target: PoolInfo.READ_WRITE_ACCESS}, size_hint_bytes=2500000
+            ),
+            PoolInfo("my_memory_pool_2", {target: PoolInfo.READ_WRITE_ACCESS}),
+        ]
+    )
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=f"""
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t my_memory_pool_1[{_get_workspace_size_define_macro("my_memory_pool_1")}];
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t my_memory_pool_2[{_get_workspace_size_define_macro("my_memory_pool_2")}];
+        """,
+    )
+
+    tflite_model_file = tf_testing.get_workload_official(
+        model_url[0],
+        model_url[1],
+    )
+    mod, inputs, params = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
+    output_list = generate_ref_data(mod, inputs, params)
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
+
+    run_and_check(
+        models=compiled_test_mods,
+        runner=test_runner,
+        interface_api=interface_api,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_urls, usmp_algo",
+    [
+        ((MOBILENET_V1_URL, MOBILENET_V2_URL), "greedy_by_size"),
+    ],
+)
+def test_tflite_model_u2_usecase_two_models_with_a_single_external_pool(model_urls, usmp_algo):
+    """This checks for inference using a single large enough common pool"""
+    pytest.importorskip("tflite")
+
+    import tvm.relay.testing.tf as tf_testing
+
+    use_unpacked_api = True
+    interface_api = "c"
+
+    target = tvm.target.Target("c")
+    workspace_memory_pools = WorkspaceMemoryPools(
+        [PoolInfo("my_memory_pool", {target: PoolInfo.READ_WRITE_ACCESS})]
+    )
+    test_runner = AOTTestRunner(
+        pass_config={"tir.usmp.enable": True, "tir.usmp.algorithm": usmp_algo},
+        prologue=f"""
+        #define MAX(A, B) ((A > B) ? A : B)
+        __attribute__((section(".data.tvm"), aligned(16)))
+        static uint8_t my_memory_pool[MAX({_get_workspace_size_define_macro("my_memory_pool", "mod1")},{_get_workspace_size_define_macro("my_memory_pool", "mod2")})];
+        """,
+    )
+
+    tflite_model_file1 = tf_testing.get_workload_official(
+        model_urls[0][0],
+        model_urls[0][1],
+    )
+    mod1, inputs1, params1 = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file1)
+    output_list1 = generate_ref_data(mod1, inputs1, params1)
+
+    tflite_model_file2 = tf_testing.get_workload_official(
+        model_urls[1][0],
+        model_urls[1][1],
+    )
+    mod2, inputs2, params2 = _get_relay_module_and_inputs_from_tflite_file(tflite_model_file2)
+    output_list2 = generate_ref_data(mod2, inputs2, params2)
+
+    compiled_test_mods = compile_models(
+        [
+            AOTTestModel(
+                name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
+            ),
+            AOTTestModel(
+                name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
+            ),
+        ],
+        interface_api=interface_api,
+        use_unpacked_api=use_unpacked_api,
+        pass_config=test_runner.pass_config,
+        workspace_memory_pools=workspace_memory_pools,
+        target=target,
+    )
+
+    for compiled_model in compiled_test_mods:
+        check_for_no_tvm_backendallocworkspace_calls(compiled_model.executor_factory.lib)
 
     run_and_check(
         models=compiled_test_mods,

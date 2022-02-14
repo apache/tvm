@@ -54,7 +54,7 @@ def test_forward_mobilenet_v1(accel_type):
     in_min, in_max = util.get_range_for_dtype_str(input_dtype)
     input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
 
-    relay_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
+    relay_mod, params = convert_to_relay(tflite_model_buf)
     input_data = {input_tensor: input_data}
     output_data = generate_ref_data(relay_mod, input_data)
 

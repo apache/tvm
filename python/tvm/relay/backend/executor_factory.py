@@ -106,6 +106,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         libmod_name,
         params,
         function_metadata,
+        executor_codegen_metadata,
         devices,
     ):
         fcreate = get_global_func("tvm.aot_executor_factory.create")
@@ -125,6 +126,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.executor_codegen_metadata = executor_codegen_metadata
         self.devices = devices
 
     def get_devices(self):
