@@ -495,6 +495,15 @@ constexpr const char* kExecutor = "executor";
  */
 constexpr const char* kRuntime = "runtime";
 
+/*!
+ * \brief workspace memory pools of the module
+ *
+ * Type: WorkspaceMemoryPools
+ *
+ * \sa tvm::WorkspaceMemoryPools
+ */
+constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
+
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

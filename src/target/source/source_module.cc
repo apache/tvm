@@ -273,7 +273,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         }
         call_args_ss << " " << input_var->name_hint << ",";
       }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+      for (int i = 0; i < metadata_->num_outputs->value; ++i) {
         call_args_ss << "void* output" << i << ",";
       }
       for (const tir::Var& pool_var : metadata_->pools) {
@@ -300,7 +300,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       for (unsigned int i = 0; i < metadata_->inputs.size(); ++i) {
         call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
       }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+      for (int i = 0; i < metadata_->num_outputs->value; ++i) {
         int j = metadata_->inputs.size() + i;
         call_args_ss << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data,";
       }
@@ -328,7 +328,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       entrypoint_arg_count++;
       run_func_arg_count++;
     }
-    for (unsigned int i = 0; i < metadata_->num_outputs; i++) {
+    for (int i = 0; i < metadata_->num_outputs->value; i++) {
       run_func_to_entry_point_args[run_func_arg_count] = Integer(entrypoint_arg_count);
       entrypoint_arg_count++;
       run_func_arg_count++;
@@ -356,7 +356,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     // We are creating a copy of the set of pointers
     size_t number_of_io_tensors =
-        metadata_->inputs.size() + metadata_->num_outputs + metadata_->pools.size();
+        metadata_->inputs.size() + metadata_->num_outputs->value + metadata_->pools.size();
     code_ << "TVMValue tensors[" << number_of_io_tensors << "];\n";
 
     std::unordered_map<int, ObjectRef> run_func_to_entry_point_args =
@@ -395,7 +395,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         }
         call_args_ss << " " << relay::backend::SanitizeName(input_var->name_hint) << ",";
       }
-      for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+      for (int i = 0; i < metadata_->num_outputs->value; ++i) {
         call_args_ss << "void* output" << i << ",";
       }
       for (const tir::Var& pool_var : metadata_->pools) {
@@ -416,12 +416,29 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
 
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
-    code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-    if (!metadata_->devices.empty()) {
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
-    } else {
-      code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs";
+    {
+      std::stringstream call_args_ss;
+      call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
+      call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
+      if (!metadata_->pools.empty()) {
+        bool is_external_pools_present = false;
+        for (tir::Var pool_var : metadata_->pools) {
+          if (!IsInternalWorkspaceBuffer(pool_var)) {
+            is_external_pools_present = true;
+            break;
+          }
+        }
+        if (is_external_pools_present) {
+          call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "workspace_pools")
+                       << "* workspace_pools,";
+        }
+      }
+      if (!metadata_->devices.empty()) {
+        call_args_ss << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices,";
+      }
+      std::string call_args_str = call_args_ss.str();
+      call_args_str.pop_back();
+      code_ << call_args_str;
     }
 
     code_ << ") {"
@@ -432,17 +449,19 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       for (const auto& input : metadata_->inputs) {
         call_args_ss << "inputs->" << relay::backend::SanitizeName(input->name_hint) << ",";
       }
-      if (metadata_->num_outputs == 1) {
+      if (metadata_->num_outputs->value == 1) {
         call_args_ss << "outputs->output,";
       } else {
-        for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
+        for (int i = 0; i < metadata_->num_outputs->value; ++i) {
           call_args_ss << "outputs->output" << i << ",";
         }
       }
       for (const tir::Var& pool_var : metadata_->pools) {
+        String pool_name = metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name;
         if (IsInternalWorkspaceBuffer(pool_var)) {
-          call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
-                       << ",";
+          call_args_ss << "&" << pool_name << ",";
+        } else {
+          call_args_ss << "workspace_pools->" << relay::backend::SanitizeName(pool_name) << ",";
         }
       }
       for (const String& device : metadata_->devices) {
