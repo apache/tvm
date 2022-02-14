@@ -189,14 +189,13 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return new_buffer_offset;
   }
 
-  PrimExpr VisitExpr_(const CallNode* op) final {
+  PrimExpr RewriteOpaqueAccesses(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
     static const auto& load_matrix_sync = builtin::tvm_load_matrix_sync();
     static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
     static const auto& mma_sync = builtin::tvm_mma_sync();
     static const auto& access_ptr = builtin::tvm_access_ptr();
-    Call call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
       auto it = buffer_remap_.find(buffer);
@@ -238,7 +237,12 @@ class PipelineBodyRewriter : public StmtExprMutator {
         return Call(call->dtype, call->op, new_args, call->span);
       }
     }
-    return std::move(call);
+    return call;
+  }
+
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    Call call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+    return RewriteOpaqueAccesses(call);
   }
 
   Map<Var, Buffer> buffer_data_to_buffer_;
