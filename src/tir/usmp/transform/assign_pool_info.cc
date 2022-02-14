@@ -73,10 +73,10 @@ class PoolInfoAssigner : public StmtExprMutator {
   IRModule mod_;
   Map<String, Array<PoolInfo>> target_pool_infos_;
   PrimFunc func_;
-  usmp::PoolInfo CreateDefaultMemoryPool(const IRModule& module);
+  PoolInfo CreateDefaultMemoryPool(const IRModule& module);
 };
 
-usmp::PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
   Map<Target, String> target_access;
   tir::PrimFunc tir_main_func =
       Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
@@ -86,9 +86,9 @@ usmp::PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& mo
     Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
     target_access.Set(target.value_or(target_host), PoolInfo::kTargetPoolReadWriteAccess);
   }
-  return usmp::PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
-                        kUnknownClockFrequency, kUnknownReadBandwidth,
-                        kUnknownWriteBandwidth, 0, 0, {}, Bool(true));
+  return PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
+                  kUnknownClockFrequency, kUnknownReadBandwidth,
+                  kUnknownWriteBandwidth, 0, 0, {}, Bool(true));
 }
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
