@@ -1094,8 +1094,12 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                         tir_main_func->params.begin() + tir_main_func->params.size() -
                             return_sid_.size() - pool_vars.size() - devices.size());
 
+    Array<TensorType> input_tensor_types;
+    for (auto input : lowered_main_func->params) {
+      input_tensor_types.push_back(Downcast<TensorType>(input->type_annotation));
+    }
     Array<TensorType> output_tensor_types(final_aot_allocator.GetReturnTtypes());
-    ret.metadata = ExecutorCodegenMetadata(inputs, output_tensor_types, pool_vars, devices,
+    ret.metadata = ExecutorCodegenMetadata(inputs, input_tensor_types, output_tensor_types, pool_vars, devices,
                                            return_sid_.size(), runtime::kTvmExecutorAot, mod_name,
                                            interface_api, use_unpacked_api_, pool_var_info);
     return ret;
@@ -1160,6 +1164,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
         *rv = this->codegen_->ListDevices();
       });
     } else if (name == "get_executor_codegen_metadata") {
+      LOG(INFO) << "get_executor_codegen_metadata from AOT";
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = output_.metadata; });
     } else {

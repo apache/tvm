@@ -60,12 +60,13 @@ using Pass = tvm::transform::Pass;
  */
 class ExecutorCodegenMetadataNode : public Object {
  public:
+  // TODO(masahi): Remove inputs
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
   /*! \brief output tensor type information */
+  Array<TensorType> input_tensor_types;
+  /*! \brief output tensor type information */
   Array<TensorType> output_tensor_types;
-  /*! \brief pool information for the main function */
-  Array<tir::Var> pools;
   /*! \brief number of outputs of the main function */
   Integer num_outputs = 1;
   /*! \brief device contexts information for the main function */
@@ -76,6 +77,9 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
+
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
 
@@ -100,9 +104,10 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> output_tensor_types,
-                                  Array<tir::Var> pools, Array<String> devices, Integer num_outputs,
-                                  String executor, String mod_name, String interface_api = "packed",
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+                                  Array<TensorType> output_tensor_types, Array<tir::Var> pools,
+                                  Array<String> devices, Integer num_outputs, String executor,
+                                  String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
                                       Map<tir::Var, tir::usmp::AllocatedPoolInfo>());

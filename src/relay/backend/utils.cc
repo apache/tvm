@@ -179,12 +179,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ExecutorCodegenMetadata::ExecutorCodegenMetadata(
-    Array<tir::Var> inputs, Array<TensorType> output_tensor_types, Array<tir::Var> pools,
-    Array<String> devices, Integer num_outputs, String executor, String mod_name,
-    String interface_api, bool unpacked_api,
+    Array<tir::Var> inputs, Array<TensorType> input_tensor_types,
+    Array<TensorType> output_tensor_types, Array<tir::Var> pools, Array<String> devices,
+    Integer num_outputs, String executor, String mod_name, String interface_api, bool unpacked_api,
     Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
   n->inputs = inputs;
+  n->input_tensor_types = input_tensor_types;
   n->output_tensor_types = output_tensor_types;
   n->pools = pools;
   n->devices = devices;

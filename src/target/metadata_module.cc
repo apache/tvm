@@ -80,8 +80,15 @@ static runtime::Module CreateCrtMetadataModule(
 static runtime::metadata::Metadata ConvertMetaData(
     relay::backend::ExecutorCodegenMetadata metadata) {
   std::vector<runtime::metadata::TensorInfo> inputs;
-  for (auto v : metadata->inputs) {
-    auto ttype = Downcast<TensorType>(v->type_annotation);
+  CHECK(metadata.defined());
+  CHECK(metadata->inputs.defined());
+  CHECK(metadata->inputs.size() == metadata->input_tensor_types.size());
+  for (size_t i = 0; i < metadata->inputs.size(); ++i) {
+    LOG(INFO) << i;
+    auto ttype = metadata->input_tensor_types[i];
+    auto v = metadata->inputs[i];
+    CHECK(v.defined());
+    CHECK(ttype.defined());
     inputs.push_back(
         runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
             v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
@@ -91,7 +98,7 @@ static runtime::metadata::Metadata ConvertMetaData(
   std::vector<runtime::metadata::TensorInfo> outputs;
   auto output_ttypes = metadata->output_tensor_types;
   for (unsigned int i = 0; i < output_ttypes.size(); i++) {
-    auto ttype = Downcast<TensorType>(output_ttypes[i]);
+    auto ttype = output_ttypes[i];
     std::stringstream name;
     name << "output" << i;
     outputs.push_back(
