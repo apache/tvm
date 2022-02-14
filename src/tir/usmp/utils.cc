@@ -93,7 +93,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  memory_pressure=" << node->memory_pressure << ")";
     });
 
-
 PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
   auto pool_allocation_node = make_object<PoolAllocationNode>();
   pool_allocation_node->pool_info = pool_info;
