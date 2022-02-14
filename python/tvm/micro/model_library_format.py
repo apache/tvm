@@ -47,14 +47,16 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, devices, workspace_size, include_path
+    module_name, inputs, outputs, pools, devices, workspace_size, include_path
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
-    interface_c_module = interface_c_create(module_name, inputs, outputs, devices, workspace_size)
+    interface_c_module = interface_c_create(
+        module_name, inputs, outputs, pools, devices, workspace_size
+    )
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
@@ -275,6 +277,10 @@ def _get_inputs_and_outputs_from_module(mod):
     return inputs, outputs
 
 
+def _get_pools_from_module(mod):
+    return list(dict(mod.executor_codegen_metadata.pool_inputs).values())
+
+
 def _should_generate_interface_header(mod):
     return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
@@ -344,9 +350,10 @@ def _export_graph_model_library_format(
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
         devices = mod.get_devices()
+        pools = _get_pools_from_module(mod)
         workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
         generate_c_interface_header(
-            mod.libmod_name, inputs, outputs, devices, workspace_size, include_path
+            mod.libmod_name, inputs, outputs, pools, devices, workspace_size, include_path
         )
 
     parameters_dir = tempdir / "parameters"

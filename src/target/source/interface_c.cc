@@ -27,6 +27,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/usmp/utils.h>
 
 #include <string>
 
@@ -41,11 +42,13 @@ using namespace tvm::relay::backend;
 class InterfaceCNode : public runtime::ModuleNode {
  public:
   InterfaceCNode(std::string module_name, Array<String> inputs, Array<String> outputs,
-                 Array<String> devices, int workspace_size)
+                 Array<tir::usmp::AllocatedPoolInfo> pools, Array<String> devices,
+                 int workspace_size)
       : module_name_(module_name),
         inputs_(inputs),
         outputs_(outputs),
         devices_(devices),
+        pools_(FilterExternalPools(pools)),
         workspace_size_(workspace_size) {}
   const char* type_key() const { return "h"; }
 
@@ -62,9 +65,25 @@ class InterfaceCNode : public runtime::ModuleNode {
       EmitBrief(code, "Device context pointers");
       EmitStruct(code, "devices", devices_);
     }
+    if (!pools_.empty()) {
+      EmitBrief(code, "Workspace pool pointers");
+      Array<String> pool_names;
+      for (const tir::usmp::AllocatedPoolInfo pool : pools_) {
+        pool_names.push_back(pool->pool_info->pool_name);
+      }
+      EmitStruct(code, "workspace_pools", pool_names);
+    }
 
     EmitRunFunction(code);
-    EmitWorkspaceSize(code);
+    // Emit workspace
+    EmitIntegerValueMacro(code, "Workspace size", "WORKSPACE_SIZE", workspace_size_);
+    // Emit memory pool sizes
+    for (const tir::usmp::AllocatedPoolInfo pool : pools_) {
+      String pool_name = pool->pool_info->pool_name;
+      Integer pool_size = pool->allocated_size;
+      EmitIntegerValueMacro(code, SanitizeName(pool_name) + " size",
+                            SanitizeName(pool_name) + "_WORKSPACE_POOL_SIZE", pool_size->value);
+    }
     EmitLowerHeaderGuard(code);
 
     return code.str();
@@ -116,11 +135,21 @@ class InterfaceCNode : public runtime::ModuleNode {
     code_stream << "};\n\n";
   }
 
+  void EmitIntegerValueMacro(std::stringstream& code_stream, const std::string& brief_description,
+                             const std::string& macro_name, int macro_value) {
+    EmitBrief(code_stream, brief_description);
+    std::string macro_name_prefixed =
+        ToCConstantStyle(PrefixGeneratedName({module_name_, macro_name}));
+    code_stream << "#define " << macro_name_prefixed << " " << macro_value << "\n";
+  }
+
   void EmitRunFunction(std::stringstream& code_stream) {
     std::string run_function = ToCVariableStyle(PrefixGeneratedName({module_name_, "run"}));
     std::string inputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "inputs"}));
     std::string outputs_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "outputs"}));
     std::string devices_struct = ToCVariableStyle(PrefixGeneratedName({module_name_, "devices"}));
+    std::string pools_struct =
+        ToCVariableStyle(PrefixGeneratedName({module_name_, "workspace_pools"}));
 
     code_stream << "/*!\n"
                 << " * \\brief entrypoint function for TVM module \"" << module_name_ << "\"\n"
@@ -130,40 +159,52 @@ class InterfaceCNode : public runtime::ModuleNode {
     if (!devices_.empty()) {
       code_stream << " * \\param devices Device context pointers for the module \n";
     }
-
-    code_stream << " */\n"
-                << "int32_t " << run_function << "(\n"
-                << "  struct " << inputs_struct << "* inputs,\n";
-
-    if (!devices_.empty()) {
-      code_stream << "  struct " << outputs_struct << "* outputs,\n";
-      code_stream << "  struct " << devices_struct << "* devices\n";
-    } else {
-      code_stream << "  struct " << outputs_struct << "* outputs\n";
+    if (!pools_.empty()) {
+      code_stream << " * \\param workspace_pools Workspace memory pool pointers for the module \n";
     }
 
-    code_stream << ");\n";
+    code_stream << " */\n"
+                << "int32_t " << run_function << "(\n";
+
+    std::stringstream call_args_ss;
+    call_args_ss << "  struct " << inputs_struct << "* inputs,\n";
+    call_args_ss << "  struct " << outputs_struct << "* outputs,\n";
+    if (!devices_.empty()) {
+      call_args_ss << "  struct " << devices_struct << "* devices,\n";
+    }
+    if (!pools_.empty()) {
+      call_args_ss << "  struct " << pools_struct << "* workspace_pools,\n";
+    }
+    std::string call_args_str = call_args_ss.str();
+    call_args_str.pop_back();
+    call_args_str.pop_back();
+    code_stream << call_args_str << "\n);\n";
   }
 
-  void EmitWorkspaceSize(std::stringstream& code_stream) {
-    std::string workspace_size_name =
-        ToCConstantStyle(PrefixGeneratedName({module_name_, "WORKSPACE_SIZE"}));
-    code_stream << "/*!\n"
-                << " * \\brief Workspace size for TVM module \"" << module_name_ << "\"\n"
-                << " */\n"
-                << "#define " << workspace_size_name << " " << workspace_size_ << "\n";
+  Array<tir::usmp::AllocatedPoolInfo> FilterExternalPools(
+      const Array<tir::usmp::AllocatedPoolInfo>& pools) {
+    Array<tir::usmp::AllocatedPoolInfo> external_pools;
+    for (tir::usmp::AllocatedPoolInfo pool : pools) {
+      if (!pool->pool_info->is_internal) {
+        external_pools.push_back(pool);
+      }
+    }
+    return external_pools;
   }
 
   std::string module_name_;
   Array<String> inputs_;
   Array<String> outputs_;
   Array<String> devices_;
+  Array<tir::usmp::AllocatedPoolInfo> pools_;
   int workspace_size_;
 };
 
 runtime::Module InterfaceCCreate(std::string module_name, Array<String> inputs,
-                                 Array<String> outputs, Array<String> devices, int workspace_size) {
-  auto n = make_object<InterfaceCNode>(module_name, inputs, outputs, devices, workspace_size);
+                                 Array<String> outputs, Array<tir::usmp::AllocatedPoolInfo> pools,
+                                 Array<String> devices, int workspace_size) {
+  auto n =
+      make_object<InterfaceCNode>(module_name, inputs, outputs, pools, devices, workspace_size);
   return runtime::Module(n);
 }
 

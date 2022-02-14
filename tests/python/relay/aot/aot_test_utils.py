@@ -161,16 +161,8 @@ def mangle_name(mod_name, name):
 
 def convert_to_relay(
     tflite_model_buf,
-    input_data,
-    input_node,
 ):
     """Convert a tflite model buffer in a Relay module"""
-
-    def convert_to_list(x):
-        if not isinstance(x, list):
-            x = [x]
-        return x
-
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
         import tflite.Model
@@ -183,18 +175,7 @@ def convert_to_relay(
     except ImportError:
         raise ImportError("The tflite package must be installed")
 
-    input_data = convert_to_list(input_data)
-    input_node = convert_to_list(input_node)
-
-    shape_dict = {}
-    dtype_dict = {}
-    for i, e in enumerate(input_node):
-        shape_dict[e] = input_data[i].shape
-        dtype_dict[e] = input_data[i].dtype.name
-
-    mod, params = relay.frontend.from_tflite(
-        tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict
-    )
+    mod, params = relay.frontend.from_tflite(tflite_model)
     mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     return mod, params
 
@@ -345,6 +326,16 @@ def emit_main_device_structs(main_file, devices, mod_name):
         main_file.write("};\n")
 
 
+def emit_main_workspace_pool_structs(main_file, workspace_pool_names, mod_name):
+    if workspace_pool_names and len(workspace_pool_names) > 0:
+        main_file.write(
+            f"struct {mangle_name(mod_name, 'workspace_pools')} {mangle_name(mod_name, 'workspace_pools')} = {{"
+        )
+        for workspace_pool_name in workspace_pool_names:
+            main_file.write(f"\t.{workspace_pool_name} = {workspace_pool_name},\n")
+        main_file.write("};\n")
+
+
 def emit_main_data_structs(main_file, input_map, output_list, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
@@ -384,20 +375,25 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
     main_file.write("};\n")
 
 
-def emit_main_c_interface_call(main_file, devices, mod_name):
+def emit_main_c_interface_call(main_file, devices, workspace_pool_names, mod_name):
+    sub_strings = list()
+    sub_strings.append(f'{mangle_name(mod_name,"run")}(')
+    sub_strings.append(f'&{mangle_name(mod_name,"inputs")}, ')
+    sub_strings.append(f'&{mangle_name(mod_name,"outputs")}, ')
+    if workspace_pool_names:
+        sub_strings.append(f'&{mangle_name(mod_name,"workspace_pools")}, ')
     if devices:
-        main_file.write(
-            f'{mangle_name(mod_name,"run")}('
-            f'&{mangle_name(mod_name,"inputs")}, '
-            f'&{mangle_name(mod_name,"outputs")}, '
-            f'&{mangle_name(mod_name,"devices")});\n'
-        )
-    else:
-        main_file.write(
-            f'{mangle_name(mod_name,"run")}('
-            f'&{mangle_name(mod_name,"inputs")}, '
-            f'&{mangle_name(mod_name,"outputs")});\n'
-        )
+        sub_strings.append(f'&{mangle_name(mod_name,"devices")}, ')
+    # Removing the last two characters that is a comma and a space
+    sub_strings[-1] = sub_strings[-1][:-2]
+    # Adding brackets and newline instead
+    sub_strings[-1] = sub_strings[-1] + ");\n"
+
+    main_file_string = ""
+    for sub_string in sub_strings:
+        main_file_string += sub_string
+
+    main_file.write(main_file_string)
 
 
 def emit_main_fake_packed_values(main_file):
@@ -541,10 +537,21 @@ def create_main(
         if interface_api == "c":
             for compiled_model in compiled_models:
                 model = compiled_model.model
+                executor_codegen_metadata = (
+                    compiled_model.executor_factory.executor_codegen_metadata
+                )
                 devices = compiled_model.executor_factory.get_devices()
+                workspace_pool_names = None
+                if executor_codegen_metadata.pool_inputs:
+                    workspace_pool_names = [
+                        allocated_pool.pool_info.pool_name
+                        for allocated_pool in dict(executor_codegen_metadata.pool_inputs).values()
+                        if not allocated_pool.pool_info.is_internal
+                    ]
                 emit_main_device_structs(main_file, devices, model.name)
+                emit_main_workspace_pool_structs(main_file, workspace_pool_names, model.name)
                 emit_main_data_structs(main_file, model.inputs, model.outputs, model.name)
-                emit_main_c_interface_call(main_file, devices, model.name)
+                emit_main_c_interface_call(main_file, devices, workspace_pool_names, model.name)
         else:
             emit_main_fake_packed_values(main_file)
             for compiled_model in compiled_models:
@@ -599,8 +606,8 @@ def compile_models(
     enable_op_fusion: bool = True,
     pass_config: Dict[str, Any] = None,
     use_runtime_executor: bool = True,
-    target: str = "c",
-    target_opts: Dict = None,
+    target: tvm.target.Target = tvm.target.Target("c"),
+    workspace_memory_pools=None,
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -617,9 +624,6 @@ def compile_models(
             "unpacked-api": use_unpacked_api,
         },
     )
-    if target_opts:
-        for key, val in target_opts.items():
-            target += f" {key}={val}"
 
     config = {"tir.disable_vectorize": True}
     if pass_config:
@@ -634,9 +638,10 @@ def compile_models(
             if use_runtime_executor:
                 executor_factory = tvm.relay.build(
                     model.module,
-                    tvm.target.Target(target, host=target),
+                    target,
                     executor=executor,
                     runtime=runtime,
+                    workspace_memory_pools=workspace_memory_pools,
                     params=model.params,
                     mod_name=model.name,
                 )
@@ -776,7 +781,6 @@ def run_and_check(
         print("Run command:\n", run_command)
     ret = subprocess_log_output(run_command, build_path, run_log_path)
     assert ret == 0
-
     with open(run_log_path) as run_log:
         assert AOT_SUCCESS_TOKEN in run_log.read()
 
@@ -805,6 +809,11 @@ def compile_and_run(
     verbose: bool
         Prints commands to build and run AOT test runner
     """
+
+    if target_opts:
+        for key, val in target_opts.items():
+            target += f" {key}={val}"
+
     compiled_test_mods = compile_models(
         models=models,
         interface_api=interface_api,
@@ -813,8 +822,7 @@ def compile_and_run(
         enable_op_fusion=enable_op_fusion,
         pass_config=runner.pass_config,
         use_runtime_executor=use_runtime_executor,
-        target=target,
-        target_opts=target_opts,
+        target=tvm.target.Target(target),
     )
 
     run_and_check(
