@@ -425,22 +425,36 @@ class TestTransformCache:
     cache_B = tvm.testing.parameter(by_dict={"cacheB": True, "": False})
 
     @tvm.testing.fixture
-    def schedule_args(self, A_size, transform_A, transform_B, cache_A, cache_B, dtype):
+    def schedule_args(self, target, A_size, transform_A, transform_B, cache_A, cache_B, dtype):
         A = te.placeholder(shape=[A_size], dtype=dtype, name="A")
         B = te.compute(A.shape, lambda i: A[i], name="B")
         s = te.create_schedule(B.op)
+
+        requires_thread_bind = "gpu" in tvm.target.Target(target).keys
+        thread_x = te.thread_axis("threadIdx.x")
+        thread_y = te.thread_axis("threadIdx.y")
+        thread_z = te.thread_axis("threadIdx.z")
+
+        if cache_A:
+            AA = s.cache_read(A, "shared", [B])
+            if requires_thread_bind:
+                s[AA].bind(AA.op.axis[0], thread_x)
+
+        if cache_B:
+            BB = s.cache_write(B, "shared")
+            if requires_thread_bind:
+                s[BB].bind(BB.op.axis[0], thread_y)
 
         if transform_A:
             A_axis = s[A].transform_layout(lambda i: [i // 4, i % 4])
 
         if transform_B:
             B_axis = s[B].transform_layout(lambda i: [i // 4, i % 4])
+        else:
+            B_axis = B.op.axis
 
-        if cache_A:
-            AA = s.cache_read(A, "shared", [B])
-
-        if cache_B:
-            BB = s.cache_write(B, "shared")
+        if requires_thread_bind:
+            s[B].bind(B_axis[0], thread_z)
 
         return [s, [A, B]]
 
