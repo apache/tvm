@@ -77,23 +77,8 @@ static runtime::Module CreateCrtMetadataModule(
   return target_module;
 }
 
-static runtime::Module CreateCppMetadataModule(
-    runtime::Module target_module, Target target, relay::Runtime runtime,
-    relay::backend::ExecutorCodegenMetadata metadata,
-    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol,
-    Array<runtime::Module> non_crt_exportable_modules,
-    Array<runtime::Module> crt_exportable_modules,
-    const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
-  if (!non_crt_exportable_modules.empty()) {
-    runtime::Module const_loader_mod =
-        runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
-    const_loader_mod.Import(target_module);
-    for (const auto& it : non_crt_exportable_modules) {
-      const_loader_mod.Import(it);
-    }
-    target_module = const_loader_mod;
-  }
-
+static runtime::metadata::Metadata ConvertMetaData(
+    relay::backend::ExecutorCodegenMetadata metadata) {
   std::vector<runtime::metadata::TensorInfo> inputs;
   for (auto v : metadata->inputs) {
     auto ttype = Downcast<TensorType>(v->type_annotation);
@@ -121,8 +106,28 @@ static runtime::Module CreateCppMetadataModule(
       kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot,
       metadata->mod_name, metadata->interface_api, metadata->unpacked_api);
 
-  runtime::metadata::Metadata metadata_tmp = runtime::metadata::Metadata(std::move(n));
-  ;
+  return runtime::metadata::Metadata(std::move(n));
+}
+
+static runtime::Module CreateCppMetadataModule(
+    runtime::Module target_module, Target target, relay::Runtime runtime,
+    relay::backend::ExecutorCodegenMetadata metadata,
+    const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol,
+    Array<runtime::Module> non_crt_exportable_modules,
+    Array<runtime::Module> crt_exportable_modules,
+    const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
+  if (!non_crt_exportable_modules.empty()) {
+    runtime::Module const_loader_mod =
+        runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+    const_loader_mod.Import(target_module);
+    for (const auto& it : non_crt_exportable_modules) {
+      const_loader_mod.Import(it);
+    }
+    target_module = const_loader_mod;
+  }
+
+  runtime::metadata::Metadata metadata_tmp = ConvertMetaData(metadata);
+
   LOG(INFO) << "MAKE METADATA: " << metadata_tmp;
 
   if (metadata->executor == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
