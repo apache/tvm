@@ -16,17 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+set -euxo pipefail
 
-# install python and pip, don't modify this, modify install_python_package.sh
-apt-get update
-apt-get install -y software-properties-common
-apt-get install -y python3.7 python3.7-dev python3-pip
+curl -LO https://boostorg.jfrog.io/artifactory/main/release/1.67.0/source/boost_1_67_0.tar.gz
+tar -xf boost_1_67_0.tar.gz
 
-# Install pip
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
+pushd boost_1_67_0
+./bootstrap.sh --with-python="$(which python3.7)"
+./b2 install --with-python --with-system --with-filesystem --with-thread --with-regex
+popd
 
-# Pin pip and setuptools versions
-pip3 install pip==19.3.1 setuptools==58.4.0
+ln -s /usr/local/lib/libboost_python37.so.1.67.0 /usr/local/lib/libboost_python.so
+ln -s /usr/local/lib/libboost_python37.a /usr/local/lib/libboost_python.a
