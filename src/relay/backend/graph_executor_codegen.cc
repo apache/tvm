@@ -290,15 +290,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     // This is the point where we separate the functions in the module by target
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
-
-    // TODO(masahi): Do we need this?
-    // std::vector<runtime::metadata::TensorInfo> inputs;
-    // std::vector<runtime::metadata::TensorInfo> outputs;
-    // std::vector<std::string> devices_vector;
-    // auto n = make_object<target::metadata::InMemoryMetadataNode>(
-    //     kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorGraph, mod_name_,
-    //     "packed", Bool(false));
-    // ret.metadata = runtime::metadata::Metadata(std::move(n));
+    ret.metadata = ExecutorCodegenMetadata({}, {}, {}, {}, {}, 1, runtime::kTvmExecutorGraph,
+                                           mod_name_, "packed", Bool(false));
     return ret;
   }
 
@@ -690,7 +683,6 @@ class GraphExecutorCodegenModule : public runtime::ModuleNode {
     } else if (name == "get_devices") {
       return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>(); });
     } else if (name == "get_executor_codegen_metadata") {
-      LOG(FATAL) << "get_executor_codegen_metadata from Graph";
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->output_.metadata; });
     } else if (name == "get_function_metadata") {

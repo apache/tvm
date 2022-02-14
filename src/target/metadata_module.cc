@@ -81,14 +81,9 @@ static runtime::metadata::Metadata ConvertMetaData(
     relay::backend::ExecutorCodegenMetadata metadata) {
   std::vector<runtime::metadata::TensorInfo> inputs;
   CHECK(metadata.defined());
-  CHECK(metadata->inputs.defined());
-  CHECK(metadata->inputs.size() == metadata->input_tensor_types.size());
   for (size_t i = 0; i < metadata->inputs.size(); ++i) {
-    LOG(INFO) << i;
     auto ttype = metadata->input_tensor_types[i];
     auto v = metadata->inputs[i];
-    CHECK(v.defined());
-    CHECK(ttype.defined());
     inputs.push_back(
         runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
             v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
