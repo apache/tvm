@@ -3,46 +3,53 @@ from onnx.backend.base import Backend
 from onnx.backend.base import BackendRep
 
 from tvm import relay
-from tvm.driver.tvmc import TVMCModel
-from tvm.driver import tvmc
+import tvm
 
 class TVMBackendRep(BackendRep):
+
+    @staticmethod
+    def get_input_data_shape_dict(model, input_data):
+        if isinstance(input_data, list):
+            input_names = {}
+            shape_dict = {}
+            for i, _ in enumerate(input_data):
+                input_names[i] = model.graph.input[i].name
+                shape_dict[input_names[i]] = input_data[i].shape
+        else:
+            input_names = model.graph.input[0].name
+            shape_dict = {input_names: input_data.shape}
+
+        return input_names, shape_dict
 
     def __init__(self, model, device, **kwargs):
         super(TVMBackendRep, self).__init__()
 
-#        print("************** MODEL INITIALIZATION ******************")
-#        print(model)
+        # because models might be dynamic, there's not much we
+        # can do to prepare a backend rep
 
-#        print(model.graph.input)
-
-        self._model, self._params = relay.frontend.from_onnx(model)
-#        print("**model**")
-#        print(self._model)
-#        print("**params**")
-#        print(self._params)
-        self._tvmc_model = TVMCModel(self._model, self._params)
-        self._package = tvmc.compile(self._tvmc_model, target="llvm", executor=relay.backend.Executor("VM"))
-        self._inputs = []
-        for i in model.graph.input:
-            self._inputs.append(i.name)
-#        print( self._inputs)
-#        print("************** MODEL INITIALIZATION COMPLETE ******************")
+        self._model = model
+        if device == "CPU":
+            self._device = tvm.cpu(0)
+            self._target = "llvm"
 
     def run(self, inputs, **kwargs):
-#        print("************** MODEL INPUTS ******************")
-#        print(inputs)
-#        print(**kwargs)
-        i = dict(zip(self._inputs, inputs))
-        result = tvmc.run(tvmc_package=self._package,
-                device="cpu",
-                inputs=i)
-        results = []
-        for output in result.outputs:
-            results.append(result.get_output(output))
-#        print("************** MODEL OUTPUTS ******************")
-#        print(results)
-        return results
+        if not isinstance(inputs, list):
+            input_data = [inputs]
+
+        _, shape_dict = self.get_input_data_shape_dict(self._model, inputs)
+
+        model, params = relay.frontend.from_onnx(
+                self._model,
+                shape_dict)
+
+        model = relay.transform.DynamicToStatic()(model)
+
+
+        result = relay.create_executor("vm", mod=model, device=self._device, target=self._target).evaluate()(*inputs, *params)
+
+        if isinstance(result, tvm.runtime.NDArray):
+            return [result.numpy()]
+        return [r.numpy for r in result]
 
 class TVMBackend(Backend):
 
@@ -70,7 +77,6 @@ class TVMBackend(Backend):
             the second element is the shape. More use case can be found in
             https://github.com/onnx/onnx/blob/main/onnx/backend/test/runner/__init__.py
         '''
-#        print("RUNNING NODE")
         return super(TVMBackend, cls).run_node(node, inputs, device, outputs_info, **kwargs)
 
     @classmethod
@@ -79,4 +85,5 @@ class TVMBackend(Backend):
         Checks whether the backend is compiled with particular device support.
         In particular it's used in the testing suite.
         """
-        return True
+        print(device)
+        return device == "CPU"
