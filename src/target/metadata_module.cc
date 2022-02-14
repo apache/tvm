@@ -29,6 +29,7 @@
 
 #include "../runtime/const_loader_module.h"
 #include "../runtime/meta_data.h"
+#include "../relay/backend/utils.h"
 #include "llvm/llvm_module.h"
 #include "source/source_module.h"
 
@@ -93,8 +94,36 @@ static runtime::Module CreateCppMetadataModule(
     target_module = const_loader_mod;
   }
 
-  // TODO(masahi)
-  runtime::metadata::Metadata metadata_tmp;
+  std::vector<runtime::metadata::TensorInfo> inputs;
+  for (auto v : metadata->inputs) {
+    auto ttype = Downcast<TensorType>(v->type_annotation);
+    inputs.push_back(
+        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+            v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
+  }
+
+  LOG(INFO) << "MAKE METADATA? ";
+  std::vector<runtime::metadata::TensorInfo> outputs;
+  auto output_ttypes = metadata->output_tensor_types;
+  for (unsigned int i = 0; i < output_ttypes.size(); i++) {
+    auto ttype = Downcast<TensorType>(output_ttypes[i]);
+    std::stringstream name;
+    name << "output" << i;
+    outputs.push_back(
+        runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
+            name.str(), relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
+  }
+  std::vector<std::string> devices_vector;
+  for (auto d : metadata->devices) {
+    devices_vector.push_back(d.operator std::string());
+  }
+  auto n = make_object<target::metadata::InMemoryMetadataNode>(
+      kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot,
+      metadata->mod_name(), metadata->interface_api(), metadata->unpacked_api);
+
+  runtime::metadata::Metadata metadata_tmp = runtime::metadata::Metadata(std::move(n));;
+  LOG(INFO) << "MAKE METADATA: " << metadata_tmp;
+
   if (metadata->executor() == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
     if (target->kind->name == "c") {
       auto metadata_module = CreateCSourceCppMetadataModule(metadata_tmp);

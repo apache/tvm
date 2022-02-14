@@ -291,13 +291,13 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     ret.lowered_funcs = tec::GetPerTargetModules(lowered_mod);
     ret.external_mods = external_modules.value();
 
-    std::vector<runtime::metadata::TensorInfo> inputs;
-    std::vector<runtime::metadata::TensorInfo> outputs;
-    std::vector<std::string> devices_vector;
-    auto n = make_object<target::metadata::InMemoryMetadataNode>(
-        kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorGraph, mod_name_,
-        "packed", Bool(false));
-    // TODO(masahi)
+    // TODO(masahi): Do we need this?
+    // std::vector<runtime::metadata::TensorInfo> inputs;
+    // std::vector<runtime::metadata::TensorInfo> outputs;
+    // std::vector<std::string> devices_vector;
+    // auto n = make_object<target::metadata::InMemoryMetadataNode>(
+    //     kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorGraph, mod_name_,
+    //     "packed", Bool(false));
     // ret.metadata = runtime::metadata::Metadata(std::move(n));
     return ret;
   }

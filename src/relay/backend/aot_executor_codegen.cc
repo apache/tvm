@@ -1094,41 +1094,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                         tir_main_func->params.begin() + tir_main_func->params.size() -
                             return_sid_.size() - pool_vars.size() - devices.size());
 
-    ret.metadata = ExecutorCodegenMetadata(inputs, pool_vars, devices, return_sid_.size(),
-                                           runtime::kTvmExecutorAot, mod_name, interface_api,
-                                           use_unpacked_api_, pool_var_info);
-// =======
-
-//     std::vector<runtime::metadata::TensorInfo> inputs;
-//     for (auto v : input_vars_) {
-//       auto ttype = Downcast<TensorType>(v->type_annotation);
-//       inputs.push_back(
-//           runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-//               v->name_hint(), ShapeToJSON(ttype->shape), ttype->dtype)));
-//     }
-
-//     LOG(INFO) << "MAKE METADATA? ";
-//     std::vector<runtime::metadata::TensorInfo> outputs;
-//     auto output_ttypes = final_aot_allocator.GetReturnTtypes();
-//     for (unsigned int i = 0; i < output_ttypes.size(); i++) {
-//       auto ttype = Downcast<TensorType>(output_ttypes[i]);
-//       std::stringstream name;
-//       name << "output" << i;
-//       outputs.push_back(
-//           runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
-//               name.str(), ShapeToJSON(ttype->shape), ttype->dtype)));
-//     }
-//     auto devices = ListDevices();
-//     std::vector<std::string> devices_vector;
-//     for (auto d : devices) {
-//       devices_vector.push_back(d.operator std::string());
-//     }
-//     auto n = make_object<target::metadata::InMemoryMetadataNode>(
-//         kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot, mod_name,
-//         interface_api, use_unpacked_api_);
-//     ret.metadata = runtime::metadata::Metadata(std::move(n));
-//     LOG(INFO) << "MAKE METADATA: " << ret.metadata;
-// >>>>>>> areusch/aot-executor-no-codegen
+    Array<TensorType> output_tensor_types(final_aot_allocator.GetReturnTtypes());
+    ret.metadata = ExecutorCodegenMetadata(inputs, output_tensor_types, pool_vars, devices,
+                                           return_sid_.size(), runtime::kTvmExecutorAot, mod_name,
+                                           interface_api, use_unpacked_api_, pool_var_info);
     return ret;
   }
 

@@ -68,6 +68,8 @@ class ExecutorCodegenMetadataNode : public Object {
 
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief output tensor type information */
+  Array<TensorType> output_tensor_types;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
   /*! \brief number of outputs of the main function */
@@ -95,7 +97,8 @@ class ExecutorCodegenMetadataNode : public Object {
  */
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
-  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> output_tensor_types,
+				  Array<tir::Var> pools,
                                   Array<String> devices, int num_outputs, String executor,
                                   String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
@@ -103,6 +106,7 @@ class ExecutorCodegenMetadata : public ObjectRef {
                                       Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
     auto n = make_object<ExecutorCodegenMetadataNode>();
     n->inputs = inputs;
+    n->output_tensor_types = output_tensor_types;
     n->pools = pools;
     n->devices = devices;
     n->num_outputs = num_outputs;
