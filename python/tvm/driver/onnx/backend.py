@@ -31,6 +31,9 @@ class TVMBackendRep(BackendRep):
         if device == "CPU":
             self._device = tvm.cpu(0)
             self._target = "llvm"
+        elif device == "CUDA":
+            self._device = dev = tvm.cuda(0)
+            self._target = "cuda"
 
     def run(self, inputs, **kwargs):
         if not isinstance(inputs, list):
@@ -86,4 +89,4 @@ class TVMBackend(Backend):
         In particular it's used in the testing suite.
         """
         print(device)
-        return device == "CPU"
+        return device == "CPU" or device == "CUDA"
