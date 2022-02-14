@@ -279,13 +279,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       }
       for (unsigned int i = 0; i < metadata_->num_outputs; ++i) {
         call_args_ss << "void* output" << i << ",";
-// =======
-//     unsigned int total_args = (metadata_->num_inputs() + metadata_->num_outputs());
-//     for (unsigned int i = 0; i < total_args; ++i) {
-//       code_ << "void* arg" << i;
-//       if (i + 1 != total_args) {
-//         code_ << ",";
-// >>>>>>> areusch/aot-executor-no-codegen
       }
       for (const tir::Var& pool_var : metadata_->pools) {
         if (pool_var->type_annotation.defined()) {
@@ -350,16 +343,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         run_func_to_entry_point_args[run_func_arg_count] =
             allocated_pool_info->pool_info->pool_name;
         run_func_arg_count++;
-// =======
-//     for (unsigned int i = 0; i < metadata_->num_inputs(); ++i) {
-//       code_ << "((DLTensor*)(((TVMValue*)args)[" << i << "].v_handle))[0].data,";
-//     }
-//     for (int i = 0; i < metadata_->num_outputs(); ++i) {
-//       int j = metadata_->num_inputs() + i;
-//       code_ << "((DLTensor*)(((TVMValue*)args)[" << j << "].v_handle))[0].data";
-//       if (i + 1 != metadata_->num_outputs()) {
-//         code_ << ",";
-// >>>>>>> areusch/aot-executor-no-codegen
       }
     }
     return run_func_to_entry_point_args;
@@ -426,14 +409,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
           codegen_c_base_.PrintType(pool_var.dtype(), call_args_ss);
         }
         call_args_ss << " " << pool_var->name_hint << ",";
-// =======
-//     unsigned int total_args =
-//         (metadata_->num_inputs() + metadata_->num_devices() + metadata_->num_outputs());
-//     for (unsigned int i = 0; i < total_args; ++i) {
-//       code_ << "void* arg" << i;
-//       if (i + 1 != total_args) {
-//         code_ << ",";
-// >>>>>>> areusch/aot-executor-no-codegen
       }
       for (const String& device : metadata_->devices) {
         call_args_ss << "void* " << device << ",";
@@ -471,30 +446,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         if (IsInternalWorkspaceBuffer(pool_var)) {
           call_args_ss << "&" << metadata_->pool_inputs.value()[pool_var]->pool_info->pool_name
                        << ",";
-//     for (const auto& input : metadata_->inputs()) {
-//       std::string sanitised_input = input->name();
-//       std::replace_if(sanitised_input.begin(), sanitised_input.end(), isNotAlnum, '_');
-//       code_ << "inputs->" << sanitised_input << ",";
-//     }
-//     if (metadata_->num_outputs() == 1) {
-//       code_ << "outputs->output";
-//     } else {
-//       for (int i = 0; i < metadata_->num_outputs(); ++i) {
-//         code_ << "outputs->output" << i;
-//         if (i + 1 != metadata_->num_outputs()) {
-//           code_ << ",";
-//         }
-//       }
-//     }
-
-//     if (metadata_->num_devices() > 0) {
-//       code_ << ",";
-//       auto devices = metadata_->devices();
-//       for (const String& device : devices) {
-//         code_ << "devices->" << device;
-//         if (device != devices[devices.size() - 1]) {
-//           code_ << ",";
-// >>>>>>> areusch/aot-executor-no-codegen
         }
       }
       for (const String& device : metadata_->devices) {
@@ -525,14 +476,9 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     GenerateInternalWorkspaceBuffers();
 
     if (metadata_->unpacked_api) {
+      LOG(INFO) << "Generate AOT Descriptor: " << metadata_->interface_api;
       if (metadata_->interface_api == "c") {
         GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
-// =======
-//     if (metadata_->use_unpacked_api()) {
-//       LOG(INFO) << "Generate AOT Descriptor: " << metadata_->interface_api();
-//       if (metadata_->interface_api() == "c") {
-//         GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name());
-// >>>>>>> areusch/aot-executor-no-codegen
       } else {
         GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
       }
