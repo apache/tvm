@@ -78,11 +78,11 @@ class SimplifyReshape : public DFPatternRewrite {
 };
 
 /*!
- * \brief SimplifyCast matches the pattern of cast data to the same dtype.
+ * \brief SimplifySameCast matches the pattern of cast data to the same dtype.
  */
-class SimplifyCast : public DFPatternRewrite {
+class SimplifySameCast : public DFPatternRewrite {
  public:
-  SimplifyCast() {
+  SimplifySameCast() {
     data_pat_ = IsWildcard();
     like_pat_ = IsWildcard();
     pattern_ = IsOp("cast_like")({data_pat_, like_pat_}) || IsOp("cast")({data_pat_});
@@ -102,6 +102,60 @@ class SimplifyCast : public DFPatternRewrite {
  protected:
   DFPattern data_pat_;
   DFPattern like_pat_;
+};
+
+/*!
+ * \brief SimplifyConsecutiveCast matches the pattern of consecutive cast/cast_like ops
+ */
+class SimplifyConsecutiveCast : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveCast() {
+    data_ = IsWildcard();
+    cast1_ = IsOp("cast_like")({data_, IsWildcard()}) || IsOp("cast")({data_});
+    pattern_ = IsOp("cast_like")({cast1_, IsWildcard()}) || IsOp("cast")({cast1_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto data = node_map[data_][0];
+    auto cast1 = Downcast<Call>(node_map[cast1_][0]);
+    auto data_type = Downcast<TensorType>(data->checked_type());
+    DataType cast1_dtype = Downcast<TensorType>(cast1->checked_type())->dtype;
+
+    if (!IsWidenCast(data_type->dtype, cast1_dtype)) {
+      // Cannot remove the narrow cast
+      return post;
+    }
+
+    const CallNode* cast2 = post.as<CallNode>();
+    DataType cast2_dtype = Downcast<TensorType>(cast2->checked_type())->dtype;
+    auto expr = MakeCast(data, cast2_dtype);
+
+    // We need to set the checked type as it may be needed in the next callback
+    expr->checked_type_ = TensorType(data_type->shape, cast2_dtype);
+    return expr;
+  }
+
+  bool IsWidenCast(DataType origin, DataType cast) const {
+    /* Return whether casting from origin to cast results in more or the same precision.*/
+    if (origin.code() == cast.code() && origin.bits() <= cast.bits()) {
+      return true;
+    }
+    if (origin.code() == DataType::kBFloat || cast.code() == DataType::kBFloat) {
+      // BFloat cast cannot be omitted
+      return false;
+    }
+    if (origin.code() < cast.code()) {
+      // Loosely have a hiearchy to datatypes
+      // e.g. int --> uint --> float has increasing range of numbers they can represent
+      return true;
+    }
+    return false;
+  }
+
+ protected:
+  DFPattern data_;
+  DFPattern cast1_;
 };
 
 /*!
@@ -585,6 +639,49 @@ class EliminateIdentityRewrite : public DFPatternRewrite {
   DFPattern const_;
 };
 
+/*! \brief Make two consecutive add able to be constant_folded.
+ * This pattern matching supports commutative property for addition.
+ */
+class SimplifyConsecutiveAdd : public DFPatternRewrite {
+ public:
+  SimplifyConsecutiveAdd() {
+    x_ = IsWildcard();
+    const1_ = IsConstant();
+    const2_ = IsConstant();
+    DFPattern add_op = IsOp("add");
+    pattern_ = add_op({add_op({x_, const1_}), const2_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    const CallNode* call = pre.as<CallNode>();
+    auto x = node_map[x_][0];
+    auto c1 = node_map[const1_][0];
+    auto c2 = node_map[const2_][0];
+
+    auto pre_call = call;
+    // Find the next add call.
+    if (pre_call->args[1].as<ConstantNode>()) {
+      pre_call = pre_call->args[0].as<CallNode>();
+    } else {
+      pre_call = pre_call->args[1].as<CallNode>();
+    }
+    // Do nothing if both inputs are not constants as they will be constant folded already.
+    if (pre_call->args[0].as<ConstantNode>() && pre_call->args[1].as<ConstantNode>()) {
+      return post;
+    } else {
+      auto add_res = Call(call->op, {c1, c2});
+      return Call(call->op, {x, add_res});
+    }
+    return post;
+  }
+
+ private:
+  DFPattern x_;
+  DFPattern const1_;
+  DFPattern const2_;
+};
+
 Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   // the rewrites will be applied in the given order, and repeated until fixed point
   DFPatternRewriteComposer composer;
@@ -597,8 +694,10 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<EliminateIdentityRewrite>();
   composer.AddRewrite<SimplifyReshape>();
   composer.AddRewrite<SimplifyTranspose>();
-  composer.AddRewrite<SimplifyCast>();
+  composer.AddRewrite<SimplifySameCast>();
+  composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<FullElementwise>();
+  composer.AddRewrite<SimplifyConsecutiveAdd>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 

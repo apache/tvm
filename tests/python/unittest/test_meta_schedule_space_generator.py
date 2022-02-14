@@ -24,9 +24,8 @@ import pytest
 
 import tvm
 from tvm.script import tir as T
-
 from tvm.tir.schedule import Schedule
-from tvm.meta_schedule.space_generator import ScheduleFn, SpaceGeneratorUnion
+from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -40,10 +39,12 @@ class Matmul:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -82,6 +83,11 @@ def test_meta_schedule_design_space_generator_union():
     assert len(design_spaces) == 2
     for design_space in design_spaces:
         _check_correct(design_space)
+
+
+def test_meta_schedule_design_space_generator_NIE():
+    with pytest.raises(NotImplementedError):
+        PySpaceGenerator()
 
 
 if __name__ == "__main__":

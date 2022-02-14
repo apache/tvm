@@ -205,13 +205,14 @@ def run_conv2d_transpose(
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(
-            s,
-            [data, kernel, res],
-            target=target,
-            target_host=env.target_host,
-            name="conv2d_transpose",
-        )
+        with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
+            mod = vta.build(
+                s,
+                [data, kernel, res],
+                target=target,
+                target_host=env.target_host,
+                name="conv2d_transpose",
+            )
     else:
         mod = tvm.build(
             s,

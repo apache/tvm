@@ -24,7 +24,9 @@
 #ifndef TVM_TIR_TRANSFORMS_IR_UTILS_H_
 #define TVM_TIR_TRANSFORMS_IR_UTILS_H_
 
+#include <tvm/arith/int_set.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
@@ -32,6 +34,7 @@
 
 #include <limits>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
@@ -223,6 +226,46 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
  * \return Whether or not the PrimFunc was created from a te schedule
  */
 Bool IsFromLegacyTESchedule(PrimFunc f);
+
+/*!
+ *\brief Context helper to update domain map within conditional scope.
+ *
+ * Assume the condition is `0 <= i && i < 9` and global domain of i is [0, 20], thus `bounds[i]` is
+ * [0, 8]. Then `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, true)` step
+ *into scope where dom_map[i] is [0, 8] and `With<ConditionalBoundsContext> ctx(condition,
+ *&relax_map, &hint_map, false)` step into scope where dom_map[i] is [9, 20]
+ */
+class ConditionalBoundsContext {
+ private:
+  friend class With<ConditionalBoundsContext>;
+  /*!
+   * \brief Construct a condition bounds context.
+   * \param condition The condition holds on true branch.
+   * \param relax_map The domain map for relaxed vars to update.
+   * \param hint_map The domain map for free vars to update.
+   * \param is_true_branch Whether step into the branch where condition bounds holds.
+   */
+  ConditionalBoundsContext(const PrimExpr& condition,
+                           std::unordered_map<const VarNode*, arith::IntSet>* relax_map,
+                           std::unordered_map<const VarNode*, arith::IntSet>* hint_map,
+                           bool is_true_branch);
+  void EnterWithScope();
+  void ExitWithScope();
+
+  /*! \brief Helper to solve related variable's bound within conditional scope.*/
+  Map<Var, Range> GetVarBoundsFromCondition();
+
+  /*! \brief the condition holds on true branch. */
+  const PrimExpr& condition_;
+  /*! \brief domain map for relaxed vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* relax_map_;
+  /*! \brief domain map for free vars to update */
+  std::unordered_map<const VarNode*, arith::IntSet>* hint_map_;
+  /*! \brief whether is on true branch */
+  bool is_true_branch_;
+  /*! \brief used to record and restore original var bounds */
+  std::unordered_map<const VarNode*, arith::IntSet> origin_map_;
+};
 
 }  // namespace tir
 }  // namespace tvm

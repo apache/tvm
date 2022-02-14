@@ -15,47 +15,62 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N integration relu tests"""
+"""Arm(R) Ethos(TM)-N integration relu tests"""
 
+import numpy as np
+import pytest
 import tvm
 from tvm import relay
 from tvm.testing import requires_ethosn
 from . import infrastructure as tei
-import numpy as np
 
 
 def _get_model(shape, dtype, a_min, a_max):
+    assert a_min >= np.iinfo(dtype).min and a_max <= np.iinfo(dtype).max
     a = relay.var("a", shape=shape, dtype=dtype)
     relu = relay.clip(a, a_min=a_min, a_max=a_max)
     return relu
 
 
 @requires_ethosn
-def test_relu():
+@pytest.mark.parametrize("dtype", ["uint8", "int8"])
+def test_relu(dtype):
     trials = [
-        ((1, 4, 4, 4), 65, 178),
-        ((1, 8, 4, 2), 1, 254),
-        ((1, 16), 12, 76),
+        ((1, 4, 4, 4), 65, 178, "uint8"),
+        ((1, 8, 4, 2), 1, 254, "uint8"),
+        ((1, 16), 12, 76, "uint8"),
+        ((1, 4, 4, 4), 65, 125, "int8"),
+        ((1, 8, 4, 2), -100, 100, "int8"),
+        ((1, 16), -120, -20, "int8"),
     ]
 
-    for shape, a_min, a_max in trials:
-        inputs = {
-            "a": tvm.nd.array(np.random.randint(0, high=255, size=shape, dtype="uint8")),
-        }
-        outputs = []
-        for npu in [False, True]:
-            model = _get_model(inputs["a"].shape, "uint8", a_min, a_max)
-            mod = tei.make_module(model, {})
-            outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
+    np.random.seed(0)
+    for shape, a_min, a_max, trial_dtype in trials:
+        if trial_dtype == dtype:
+            inputs = {
+                "a": tvm.nd.array(
+                    np.random.randint(
+                        low=np.iinfo(dtype).min,
+                        high=np.iinfo(dtype).max + 1,
+                        size=shape,
+                        dtype=dtype,
+                    )
+                ),
+            }
+            outputs = []
+            for npu in [False, True]:
+                model = _get_model(inputs["a"].shape, dtype, a_min, a_max)
+                mod = tei.make_module(model, {})
+                outputs.append(tei.build_and_run(mod, inputs, 1, {}, npu=npu))
 
-        tei.verify(outputs, 1)
+            tei.verify(outputs, dtype, 1)
 
 
 @requires_ethosn
 def test_relu_failure():
     trials = [
         ((1, 4, 4, 4, 4), "uint8", 65, 78, "dimensions=5, dimensions must be <= 4"),
-        ((1, 8, 4, 2), "int8", 1, 254, "dtype='int8', dtype must be either uint8 or int32"),
+        ((1, 8, 4, 2), "int16", 1, 254, "dtype='int16', dtype must be either uint8, int8 or int32"),
         ((1, 8, 4, 2), "uint8", 254, 1, "Relu has lower bound > upper bound"),
         ((2, 2, 2, 2), "uint8", 1, 63, "batch size=2, batch size must = 1; "),
     ]

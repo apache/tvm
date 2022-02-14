@@ -23,11 +23,14 @@
  * to actual integer operations.
  */
 
-#include <tvm/ir/affine_type.h>
+#include "fake_quantization_to_integer.h"
+
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <tvm/relay/transform.h>
+
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
@@ -75,74 +78,66 @@ using AffineTypeMap = Map<Expr, AffineType>;
 using FTVMFakeQuantizationToInteger =
     runtime::TypedPackedFunc<Array<ObjectRef>(const Expr& expr, const AffineTypeMap& map)>;
 
-class SubgraphExtractor : public ExprVisitor {
- public:
-  const ExprSet GetSubgraph(const Expr& expr) {
-    VisitExpr(expr);
-    ExprSet subgraph;
-    if (is_fake_quantized_) {
-      for (auto kv : this->visit_counter_) {
-        if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
-          if (call_node->op != quantize_op_) {
-            subgraph.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
-          }
+const ExprSet SubgraphExtractor::GetSubgraph(const Expr& expr) {
+  VisitExpr(expr);
+  ExprSet subgraph;
+  if (is_fake_quantized_) {
+    for (auto kv : this->visit_counter_) {
+      if (auto call_node = GetRef<ObjectRef>(kv.first).as<CallNode>()) {
+        if (call_node->op != quantize_op_) {
+          subgraph.insert(Downcast<Expr>(GetRef<ObjectRef>(kv.first)));
         }
       }
     }
-    return subgraph;
   }
-  const AffineTypeMap GetAffineTypes() { return affine_types_; }
-  void VisitExpr(const Expr& expr) override {
-    // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
-    // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
-    // abort the rewrite.
-    if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
-        expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
-        expr.as<ConstantNode>() == nullptr) {
-      LOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
-                << " a fake quantize region, aborting this rewrite";
-      is_fake_quantized_ = false;
-    } else {
-      ExprVisitor::VisitExpr(expr);
-    }
+  return subgraph;
+}
+const AffineTypeMap SubgraphExtractor::GetAffineTypes() { return affine_types_; }
+void SubgraphExtractor::VisitExpr(const Expr& expr) {
+  // When looking for fake quantized subgraphs, we only support data-flow regions of the graph,
+  // i.e. call nodes/tuples/constants/etc. If we see anything else (like control flow) we
+  // abort the rewrite.
+  if (expr.as<CallNode>() == nullptr && expr.as<OpNode>() == nullptr &&
+      expr.as<TupleNode>() == nullptr && expr.as<TupleGetItemNode>() == nullptr &&
+      expr.as<ConstantNode>() == nullptr) {
+    DLOG(INFO) << "FakeQuantizationToInteger found a non-dataflow op inside"
+               << " a fake quantize region, aborting this rewrite";
+    is_fake_quantized_ = false;
+  } else {
+    ExprVisitor::VisitExpr(expr);
   }
+}
 
- protected:
-  void VisitExpr_(const CallNode* call_node) override {
-    if (call_node->op == quantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
-      ICHECK(attrs != nullptr);
-      // Only look at arg0 for quantize
-      VisitExpr(call_node->args[0]);
-      // Collect type of quantize ops
-      affine_types_.Set(
-          GetRef<Expr>(call_node),
-          TensorAffineType(call_node->args[1], call_node->args[2], attrs->out_dtype, attrs->axis));
-    } else if (call_node->op == dequantize_op_) {
-      const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
-      ICHECK(attrs != nullptr);
-      // Collect type of dequantize ops
-      affine_types_.Set(
-          GetRef<Expr>(call_node),
-          TensorAffineType(call_node->args[1], call_node->args[2],
-                           call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype,
-                           attrs->axis));
-    } else {
-      // run normally on everything else.
-      ExprVisitor::VisitExpr_(call_node);
-    }
+void SubgraphExtractor::VisitExpr_(const CallNode* call_node) {
+  const Op test_op = Downcast<Op>(call_node->op);
+  if (call_node->op == quantize_op_) {
+    const auto* attrs = call_node->attrs.as<qnn::QuantizeAttrs>();
+    ICHECK(attrs != nullptr);
+    // Only look at arg0 for quantize
+    VisitExpr(call_node->args[0]);
+    // Collect type of quantize ops
+    affine_types_.Set(
+        GetRef<Expr>(call_node),
+        TensorAffineType(call_node->args[1], call_node->args[2], attrs->out_dtype, attrs->axis));
+  } else if (call_node->op == dequantize_op_) {
+    const auto* attrs = call_node->attrs.as<qnn::DequantizeAttrs>();
+    ICHECK(attrs != nullptr);
+    // Collect type of dequantize ops
+    affine_types_.Set(
+        GetRef<Expr>(call_node),
+        TensorAffineType(call_node->args[1], call_node->args[2],
+                         call_node->args[0]->checked_type().as<TensorTypeNode>()->dtype,
+                         attrs->axis));
+  } else {
+    // run normally on everything else.
+    ExprVisitor::VisitExpr_(call_node);
   }
-
-  const Op quantize_op_ = Op::Get("qnn.quantize");
-  const Op dequantize_op_ = Op::Get("qnn.dequantize");
-  bool is_fake_quantized_ = true;
-  AffineTypeMap affine_types_;
-};
+}
 
 class SubgraphMutator : public ExprMutator {
  public:
-  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types)
-      : subgraph_(subgraph), affine_types_(affine_types) {}
+  SubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
+      : subgraph_(subgraph), affine_types_(affine_types), hard_fail_(hard_fail) {}
 
   Expr MutateSubgraph(const Expr& expr) {
     if (subgraph_.size() == 0) {
@@ -155,13 +150,28 @@ class SubgraphMutator : public ExprMutator {
     static auto fqfq =
         Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
     for (auto node : subgraph_) {
-      if (!fqfq.count(Downcast<Op>(node.as<CallNode>()->op))) {
+      const Op op = Downcast<Op>(node.as<CallNode>()->op);
+      if (!fqfq.count(Downcast<Op>(op))) {
         // Only modify the subgraph if we have translation
         // rules for every op
+        if (hard_fail_) {
+          LOG(FATAL) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+        } else {
+          DLOG(INFO) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+          return expr;
+        }
+      }
+    }
+    try {
+      return Mutate(expr);
+    } catch (std::exception& e) {
+      if (hard_fail_) {
+        throw e;
+      } else {
+        DLOG(INFO) << "Ran into an error rewriting a subgraph, skipping" << expr << std::endl;
         return expr;
       }
     }
-    return Mutate(expr);
   }
 
  protected:
@@ -218,11 +228,15 @@ class SubgraphMutator : public ExprMutator {
   ExprSet subgraph_;
   AffineTypeMap affine_types_;
   AffineType out_type_;
+  const bool hard_fail_;
   const Op quantize_op_ = Op::Get("qnn.quantize");
   const Op dequantize_op_ = Op::Get("qnn.dequantize");
 };
 
 class FakeQuantizationRewriter : public MixedModeMutator {
+ public:
+  explicit FakeQuantizationRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
+
  protected:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (const CallNode* call_node = post.as<CallNode>()) {
@@ -245,25 +259,27 @@ class FakeQuantizationRewriter : public MixedModeMutator {
         for (auto expr : subgraph) {
           post_subgraph.insert(memo_[expr]);
         }
-        Expr out = SubgraphMutator(post_subgraph, post_affine_types).MutateSubgraph(post);
+        Expr out =
+            SubgraphMutator(post_subgraph, post_affine_types, hard_fail_).MutateSubgraph(post);
         return out;
       }
     }
     return post;
   }
   const Op quantize_op_ = Op::Get("qnn.quantize");
+  const bool hard_fail_;
 };
 
-Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod) {
-  return FakeQuantizationRewriter().Mutate(expr);
+Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail) {
+  return FakeQuantizationRewriter(hard_fail).Mutate(expr);
 }
 
 namespace transform {
 
-Pass FakeQuantizationToInteger() {
+Pass FakeQuantizationToInteger(bool hard_fail) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FakeQuantizationToInteger(f, m));
+        return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail));
       };
   return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
 }

@@ -32,7 +32,7 @@ def compacted_elementwise_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i in range(0, 16):
-        with T.block([]):
+        with T.block():
             T.reads(A[i, 0:16])
             T.writes(C[i, 0:16])
             B = T.alloc_buffer([1, 16], "float32", scope="global")
@@ -67,7 +67,7 @@ def compacted_gpu_func(a: T.handle, c: T.handle) -> None:
     for i0 in T.thread_binding(0, 4, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 2, thread="threadIdx.x"):
             for i2 in T.thread_binding(0, 2, thread="vthread"):
-                with T.block([]):
+                with T.block():
                     T.reads(A[i0 * 4 + i1 * 2 + i2, 0:16])
                     T.writes(C[i0 * 4 + i1 * 2 + i2, 0:16])
                     B = T.alloc_buffer([1, 16], "float32", scope="local")
@@ -108,17 +108,17 @@ def compacted_symbolic_func(a: T.handle, c: T.handle, n: T.int32, m: T.int32) ->
     C = T.match_buffer(c, (n, m), "float32")
 
     for i in range(0, n):
-        with T.block([]):
+        with T.block():
             T.reads(A[i, m])
             T.writes(C[i, m])
             B = T.alloc_buffer((m,), "float32", scope="global")
             for j in range(0, m):
-                with T.block([]) as []:
+                with T.block() as []:
                     T.reads(A[i, j])
                     T.writes(B[j])
                     B[j] = A[i, j] + 1.0
             for j in range(0, m):
-                with T.block([]) as []:
+                with T.block() as []:
                     T.reads(B[j])
                     T.writes(C[i, j])
                     C[i, j] = B[j] * 2.0
@@ -143,7 +143,7 @@ def compacted_predicate_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for i, j in T.grid(5, 7):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[i * 7 + j])
             T.writes(C[i * 7 + j])
             T.where(i * 7 + j < 32)
@@ -166,7 +166,7 @@ def compacted_unit_loop_func(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (32), "float32")
 
     for x, y, z in T.grid(4, 1, 8):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[x * 8 + y * 8 + z])
             T.writes(C[x * 8 + y * 8 + z])
             C[x * 8 + y * 8 + z] = A[x * 8 + y * 8 + z] + 1.0
@@ -187,7 +187,7 @@ def compacted_multi_alloc_func(a: T.handle, d: T.handle) -> None:
     D = T.match_buffer(d, (32), "float32")
 
     for i in range(0, 32):
-        with T.block([]) as []:
+        with T.block() as []:
             T.reads(A[i])
             T.writes(D[i])
             B = T.alloc_buffer((32,), scope="global")
@@ -215,7 +215,7 @@ def compacted_strided_buffer_func(a: T.handle, c: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     C = T.match_buffer(c, (16, 16), "float32")
     for i0 in range(0, 4):
-        with T.block([]):
+        with T.block():
             T.reads(A[i0 * 4 : i0 * 4 + 4, 0:16])
             T.writes(C[i0 * 4 : i0 * 4 + 4, 0:16])
             B = T.alloc_buffer([4, 16], "float32", strides=[17, 1], scope="global")
@@ -245,6 +245,13 @@ def flattened_strided_buffer_func(a: T.handle, c: T.handle) -> None:
         for i1 in T.serial(0, 4):
             for j in T.serial(0, 16):
                 C.data[i0 * 64 + i1 * 16 + j] = T.load("float32", B_new, i1 * 17 + j) * 2.0
+
+
+@T.prim_func
+def annotated_loops(a: T.handle) -> None:
+    A = T.match_buffer(a, (16,), "float32")
+    for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
+        A[i] = 0.0
 
 
 def test_elementwise():
@@ -284,6 +291,20 @@ def test_lower_te():
     tvm.ir.assert_structural_equal(mod, orig_mod)  # FlattenBuffer should do nothing on TE
 
 
+def test_annotated_loops():
+    mod = tvm.IRModule.from_expr(annotated_loops)
+    mod = tvm.tir.transform.FlattenBuffer()(mod)
+    # _check(annotated_loops, compacted_annotated_loops)
+    attr1 = mod["main"].body
+    attr2 = attr1.body
+    attr3 = attr2.body
+    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
+    assert attr2.attr_key == "pragma_2"
+    tvm.ir.assert_structural_equal(attr2.value, tvm.tir.IntImm("int32", 1))
+    assert attr3.attr_key == "pragma_3"
+    tvm.ir.assert_structural_equal(attr3.value, tvm.tir.FloatImm("float32", 0.0))
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_gpu_workload()
@@ -293,3 +314,4 @@ if __name__ == "__main__":
     test_multi_alloc()
     test_strided_buffer()
     test_lower_te()
+    test_annotated_loops()

@@ -16,25 +16,22 @@
 # under the License.
 """ Test Meta Schedule Task Scheduler """
 
+import random
+import sys
 from typing import List
 
-import sys
-import random
-
 import pytest
-
 import tvm
-from tvm.script import tir as T
 from tvm.ir import IRModule
-from tvm.tir import Schedule
-from tvm.meta_schedule import TuneContext
-from tvm.meta_schedule.space_generator import ScheduleFn
-from tvm.meta_schedule.search_strategy import ReplayTrace
-from tvm.meta_schedule.builder import PyBuilder, BuilderInput, BuilderResult
-from tvm.meta_schedule.runner import PyRunner, RunnerInput, RunnerFuture, RunnerResult
+from tvm.meta_schedule import TuneContext, measure_callback
+from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.task_scheduler import RoundRobin
-from tvm.meta_schedule.utils import structural_hash
+from tvm.meta_schedule.runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from tvm.meta_schedule.search_strategy import ReplayTrace
+from tvm.meta_schedule.space_generator import ScheduleFn
+from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin
+from tvm.script import tir as T
+from tvm.tir import Schedule
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
@@ -48,10 +45,12 @@ class MatmulModule:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @tvm.script.ir_module
@@ -63,12 +62,16 @@ class MatmulReluModule:
         B = T.match_buffer(b, (1024, 1024), "float32")
         D = T.match_buffer(d, (1024, 1024), "float32")
         C = T.alloc_buffer((1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with T.block([1024, 1024], "relu") as [vi, vj]:
-            D[vi, vj] = T.max(C[vi, vj], 0.0)
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(1024, 1024):
+            with T.block("relu"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 @tvm.script.ir_module
@@ -79,10 +82,12 @@ class BatchMatmulModule:
         A = T.match_buffer(a, [16, 128, 128])
         B = T.match_buffer(b, [16, 128, 128])
         C = T.match_buffer(c, [16, 128, 128])
-        with T.block([16, 128, 128, T.reduce_axis(0, 128)], "matmul") as [vn, vi, vj, vk]:
-            with T.init():
-                C[vn, vi, vj] = 0.0
-            C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+        for n, i, j, k in T.grid(16, 128, 128, 128):
+            with T.block("matmul"):
+                vn, vi, vj, vk = T.axis.remap("SSSR", [n, i, j, k])
+                with T.init():
+                    C[vn, vi, vj] = 0.0
+                C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
 
 
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks
@@ -133,6 +138,12 @@ class DummyDatabase(PyDatabase):
         self.records = []
         self.workload_reg = []
 
+    def has_workload(self, mod: IRModule) -> Workload:
+        for workload in self.workload_reg:
+            if tvm.ir.structural_equal(workload.mod, mod):
+                return True
+        return False
+
     def commit_tuning_record(self, record: TuningRecord) -> None:
         self.records.append(record)
 
@@ -173,7 +184,13 @@ def test_meta_schedule_task_scheduler_single():
         rand_state=42,
     )
     database = DummyDatabase()
-    round_robin = RoundRobin([task], DummyBuilder(), DummyRunner(), database)
+    round_robin = RoundRobin(
+        [task],
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[measure_callback.AddToDatabase()],
+    )
     round_robin.tune()
     assert len(database) == num_trials_total
 
@@ -208,12 +225,114 @@ def test_meta_schedule_task_scheduler_multiple():
         ),
     ]
     database = DummyDatabase()
-    round_robin = RoundRobin(tasks, DummyBuilder(), DummyRunner(), database)
+    round_robin = RoundRobin(
+        tasks,
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[measure_callback.AddToDatabase()],
+    )
     round_robin.tune()
     assert len(database) == num_trials_total * len(tasks)
     print(database.workload_reg)
     for task in tasks:
-        assert len(database.get_top_k(database.commit_workload(task.mod), 1e9)) == num_trials_total
+        assert (
+            len(
+                database.get_top_k(
+                    database.commit_workload(task.mod),
+                    100000,
+                )
+            )
+            == num_trials_total
+        )
+
+
+def test_meta_schedule_task_scheduler_not_implemented_error():  # pylint: disable=invalid-name
+    class MyTaskScheduler(PyTaskScheduler):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
+
+
+def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
+    class MyTaskScheduler(PyTaskScheduler):
+        done = set()
+
+        def next_task_id(self) -> int:
+            while len(self.done) != len(tasks):
+                x = random.randint(0, len(tasks) - 1)
+                task = tasks[x]
+                if not task.is_stopped:
+                    """Calling base func via following route:
+                    Python side:
+                        PyTaskScheduler does not have `_is_task_running`
+                        Call TaskScheduler's `is_task_running`, which calls ffi
+                    C++ side:
+                        The ffi calls TaskScheduler's `is_task_running`
+                        But it is overridden in PyTaskScheduler
+                        PyTaskScheduler checks if the function is overridden in python
+                        If not, it returns the TaskScheduler's vtable, calling
+                            TaskScheduler::IsTaskRunning
+                    """
+                    if self._is_task_running(x):
+                        # Same Here
+                        self._join_running_task(x)
+                    return x
+                else:
+                    self.done.add(x)
+            return -1
+
+    num_trials_per_iter = 6
+    num_trials_total = 101
+    tasks = [
+        TuneContext(
+            MatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="Matmul",
+            rand_state=42,
+        ),
+        TuneContext(
+            MatmulReluModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="MatmulRelu",
+            rand_state=0xDEADBEEF,
+        ),
+        TuneContext(
+            BatchMatmulModule,
+            target=tvm.target.Target("llvm"),
+            space_generator=ScheduleFn(sch_fn=_schedule_batch_matmul),
+            search_strategy=ReplayTrace(num_trials_per_iter, num_trials_total),
+            task_name="BatchMatmul",
+            rand_state=0x114514,
+        ),
+    ]
+    database = DummyDatabase()
+    scheduler = MyTaskScheduler(
+        tasks,
+        DummyBuilder(),
+        DummyRunner(),
+        database,
+        measure_callbacks=[
+            measure_callback.AddToDatabase(),
+        ],
+    )
+    scheduler.tune()
+    assert len(database) == num_trials_total * len(tasks)
+    for task in tasks:
+        assert (
+            len(
+                database.get_top_k(
+                    database.commit_workload(task.mod),
+                    100000,
+                )
+            )
+            == num_trials_total
+        )
 
 
 if __name__ == "__main__":

@@ -16,19 +16,8 @@
 # under the License.
 
 if(USE_MICRO)
-  message(STATUS "Build standalone CRT for micro TVM")
-  file(GLOB crt_srcs src/runtime/crt/**)
-
-  function(tvm_crt_add_copy_file var src dest)
-    get_filename_component(basename "${src}" NAME)
-    get_filename_component(dest_parent_dir "${dest}" DIRECTORY)
-    add_custom_command(
-        OUTPUT "${dest}"
-        COMMAND "${CMAKE_COMMAND}" -E copy "${src}" "${dest}"
-        DEPENDS "${src}")
-    list(APPEND "${var}" "${dest}")
-    set("${var}" "${${var}}" PARENT_SCOPE)
-  endfunction(tvm_crt_add_copy_file)
+  message(STATUS "Build standalone CRT for microTVM")
+  tvm_file_glob(GLOB crt_srcs src/runtime/crt/**)
 
   function(tvm_crt_define_targets)
     # Build an isolated build directory, separate from the TVM tree.
@@ -74,7 +63,7 @@ if(USE_MICRO)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")
         list(GET job_spec ${copy_dest_index} copy_dest)
 
-        file(GLOB_RECURSE copy_files
+        tvm_file_glob(GLOB_RECURSE copy_files
              RELATIVE "${job_src_base}"
              "${job_src_base}/${copy_pattern}")
         list(LENGTH copy_files copy_files_length)
@@ -83,7 +72,7 @@ if(USE_MICRO)
         endif()
         foreach(copy_src IN LISTS copy_files)
           get_filename_component(dest_path "${standalone_crt_base}/${copy_dest}/${copy_src}" ABSOLUTE)
-          tvm_crt_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
+          tvm_micro_add_copy_file(host_isolated_build_deps ${job_src_base}/${copy_src} ${dest_path})
         endforeach()
       endforeach()
     endforeach()
@@ -135,7 +124,7 @@ if(USE_MICRO)
     # Create the `crttest` target if we can find GTest.  If not, we create dummy
     # targets that give the user an informative error message.
     if(GTEST_FOUND)
-      file(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
+      tvm_file_glob(GLOB TEST_SRCS ${CMAKE_SOURCE_DIR}/tests/crt/*.cc)
       add_executable(crttest ${TEST_SRCS})
       target_include_directories(crttest SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/standalone_crt/include ${CMAKE_SOURCE_DIR}/src/runtime/micro)
       target_link_libraries(crttest PRIVATE ${cmake_crt_libraries} GTest::GTest GTest::Main pthread dl)

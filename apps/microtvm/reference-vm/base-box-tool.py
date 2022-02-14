@@ -18,6 +18,7 @@
 
 
 import argparse
+from ast import arg
 import copy
 import json
 import logging
@@ -27,6 +28,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import pathlib
 
 _LOG = logging.getLogger(__name__)
 
@@ -51,32 +53,25 @@ ALL_PLATFORMS = (
 # in [platform]/base-box/base_box_provision.sh
 EXTRA_SCRIPTS = {
     "arduino": (),
-    "zephyr": ("docker/install/ubuntu_init_zephyr_project.sh",),
+    "zephyr": (
+        "docker/install/ubuntu_init_zephyr_project.sh",
+        "docker/install/ubuntu_install_zephyr_sdk.sh",
+    ),
 }
 
 PACKER_FILE_NAME = "packer.json"
 
 
 # List of identifying strings for microTVM boards for testing.
-# TODO add a way to declare supported boards to ProjectAPI
+with open(pathlib.Path(THIS_DIR) / ".." / "zephyr" / "template_project" / "boards.json") as f:
+    zephyr_boards = json.load(f)
+
+with open(pathlib.Path(THIS_DIR) / ".." / "arduino" / "template_project" / "boards.json") as f:
+    arduino_boards = json.load(f)
+
 ALL_MICROTVM_BOARDS = {
-    "arduino": (
-        "due",
-        "feathers2",
-        "metrom4",
-        "nano33ble",
-        "pybadge",
-        "spresense",
-        "teensy40",
-        "teensy41",
-        "wioterminal",
-    ),
-    "zephyr": (
-        "nucleo_f746zg",
-        "stm32f746g_disco",
-        "nrf5340dk_nrf5340_cpuapp",
-        "mps2_an521",
-    ),
+    "arduino": arduino_boards.keys(),
+    "zephyr": zephyr_boards.keys(),
 }
 
 
@@ -233,6 +228,12 @@ def generate_packer_config(platform, file_path, providers):
     provisioners.append(
         {
             "type": "shell",
+            "script": "base_box_setup.sh",
+        }
+    )
+    provisioners.append(
+        {
+            "type": "shell",
             "script": "base_box_provision.sh",
         }
     )
@@ -281,7 +282,9 @@ VM_BOX_RE = re.compile(r'(.*\.vm\.box) = "(.*)"')
 SKIP_COPY_PATHS = [".vagrant", "base-box"]
 
 
-def do_build_release_test_vm(release_test_dir, user_box_dir, base_box_dir, provider_name):
+def do_build_release_test_vm(
+    release_test_dir, user_box_dir: pathlib.Path, base_box_dir: pathlib.Path, provider_name
+):
     if os.path.exists(release_test_dir):
         try:
             subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
@@ -369,10 +372,10 @@ def do_run_release_test(release_test_dir, platform, provider_name, test_config, 
 
 
 def test_command(args):
-    user_box_dir = os.path.join(THIS_DIR, args.platform)
-    base_box_dir = os.path.join(THIS_DIR, args.platform, "base-box")
-    test_config_file = os.path.join(base_box_dir, "test-config.json")
-    with open(test_config_file) as f:
+    user_box_dir = pathlib.Path(THIS_DIR) / args.platform
+    base_box_dir = user_box_dir / "base-box"
+    boards_file = pathlib.Path(THIS_DIR) / ".." / args.platform / "template_project" / "boards.json"
+    with open(boards_file) as f:
         test_config = json.load(f)
 
         # select microTVM test config
@@ -381,20 +384,22 @@ def test_command(args):
         for key, expected_type in REQUIRED_TEST_CONFIG_KEYS.items():
             assert key in microtvm_test_config and isinstance(
                 microtvm_test_config[key], expected_type
-            ), f"Expected key {key} of type {expected_type} in {test_config_file}: {test_config!r}"
+            ), f"Expected key {key} of type {expected_type} in {boards_file}: {test_config!r}"
 
         microtvm_test_config["vid_hex"] = microtvm_test_config["vid_hex"].lower()
         microtvm_test_config["pid_hex"] = microtvm_test_config["pid_hex"].lower()
         microtvm_test_config["microtvm_board"] = args.microtvm_board
 
     providers = args.provider
-    provider_passed = {p: False for p in providers}
 
     release_test_dir = os.path.join(THIS_DIR, f"release-test-{args.platform}")
 
-    if args.skip_build:
-        assert len(providers) == 1, "--skip-build was given, but >1 provider specified"
+    if args.skip_build or args.skip_destroy:
+        assert (
+            len(providers) == 1
+        ), "--skip-build and/or --skip-destroy was given, but >1 provider specified"
 
+    test_failed = False
     for provider_name in providers:
         try:
             if not args.skip_build:
@@ -408,22 +413,34 @@ def test_command(args):
                 microtvm_test_config,
                 args.test_device_serial,
             )
-            provider_passed[provider_name] = True
+
+        except subprocess.CalledProcessError:
+            test_failed = True
+            sys.exit(
+                f"\n\nERROR: Provider '{provider_name}' failed the release test. "
+                "You can re-run it to reproduce the issue without building everything "
+                "again by passing the --skip-build and specifying only the provider that failed. "
+                "The VM is still running in case you want to connect it via SSH to "
+                "investigate further the issue, thus it's necessary to destroy it manually "
+                "to release the resources back to the host, like a USB device attached to the VM."
+            )
 
         finally:
-            if not args.skip_build and len(providers) > 1:
+            # if we reached out here do_run_release_test() succeeded, hence we can
+            # destroy the VM and release the resources back to the host if user haven't
+            # requested to not destroy it.
+            if not (args.skip_destroy or test_failed):
                 subprocess.check_call(["vagrant", "destroy", "-f"], cwd=release_test_dir)
                 shutil.rmtree(release_test_dir)
 
-        if not all(provider_passed[p] for p in provider_passed.keys()):
-            sys.exit(
-                "some providers failed release test: "
-                + ",".join(name for name, passed in provider_passed if not passed)
-            )
+    print(f'\n\nThe release tests passed on all specified providers: {", ".join(providers)}.')
 
 
 def release_command(args):
-    vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
+    if args.release_full_name:
+        vm_name = args.release_full_name
+    else:
+        vm_name = f"tlcpack/microtvm-{args.platform}-{args.platform_version}"
 
     if not args.skip_creating_release_version:
         subprocess.check_call(
@@ -464,6 +481,8 @@ def parse_args():
         description="Automates building, testing, and releasing a base box"
     )
     subparsers = parser.add_subparsers(help="Action to perform.")
+    subparsers.required = True
+    subparsers.dest = "action"
     parser.add_argument(
         "--provider",
         choices=ALL_PROVIDERS,
@@ -493,9 +512,20 @@ def parse_args():
         "--skip-build",
         action="store_true",
         help=(
-            "If given, assume a box has already been built in "
-            "the release-test subdirectory. Attach a USB device to this box and execute the "
-            "release test script--do not delete it."
+            "If given, assume a box has already been built in the release-test subdirectory, "
+            "so use that box to execute the release test script. If the tests fail the VM used "
+            "for testing will be left running for further investigation and will need to be "
+            "destroyed manually. If all tests pass on all specified providers no VM is left running, "
+            "unless --skip-destroy is given too."
+        ),
+    )
+    parser_test.add_argument(
+        "--skip-destroy",
+        action="store_true",
+        help=(
+            "Skip destroying the test VM even if all tests pass. Can only be used if a single "
+            "provider is specified. Default is to destroy the VM if all tests pass (and always "
+            "skip destroying it if a test fails)."
         ),
     )
     parser_test.add_argument(
@@ -532,14 +562,29 @@ def parse_args():
     )
     parser_release.add_argument(
         "--platform-version",
-        required=True,
+        required=False,
         help=(
             "For Zephyr, the platform version to release, in the form 'x.y'. "
             "For Arduino, the version of arduino-cli that's being used, in the form 'x.y.z'."
         ),
     )
+    parser_release.add_argument(
+        "--release-full-name",
+        required=False,
+        type=str,
+        default=None,
+        help=(
+            "If set, it will use this as the full release name and version for the box. "
+            "If this set, it will ignore `--platform-version` and `--release-version`."
+        ),
+    )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.action == "release" and not args.release_full_name:
+        parser.error("--platform-version is requireed.")
+
+    return args
 
 
 def main():

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Ethos-N test functions"""
+"""Arm(R) Ethos(TM)-N test functions"""
 
 from __future__ import absolute_import, print_function
 import tvm
@@ -149,7 +149,7 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
     npu_partitions : int, optional
         The number of Ethos-N partitions expected.
     """
-    relay.backend.compile_engine.get().clear()
+    relay.backend.te_compiler.get().clear()
     with tvm.transform.PassContext(
         opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
     ):
@@ -170,11 +170,19 @@ def build(mod, params, npu=True, expected_host_ops=0, npu_partitions=1):
                 assert (
                     host_op_count == expected_host_ops
                 ), "Got {} host operators, expected {}".format(host_op_count, expected_host_ops)
-                partition_count = 0
-                for global_var in mod.get_global_vars():
-                    if "ethos-n" in global_var.name_hint:
-                        partition_count += 1
 
+                attrs = [
+                    mod[var.name_hint].attrs
+                    for var in mod.get_global_vars()
+                    if mod[var.name_hint].attrs
+                ]
+                partition_count = sum(
+                    [
+                        key == "Compiler" and value == "ethos-n"
+                        for attr in attrs
+                        for key, value in attr.items()
+                    ]
+                )
                 assert (
                     npu_partitions == partition_count
                 ), "Got {} ethos-n partitions, expected {}".format(partition_count, npu_partitions)
@@ -227,7 +235,7 @@ def build_and_run(
     return run(lib, inputs, outputs, npu)
 
 
-def verify(answers, atol, rtol=1e-07, verify_saturation=True):
+def verify(answers, dtype, atol, rtol=1e-07, verify_saturation=True):
     """Compare the array of answers. Each entry is a list of outputs"""
     if len(answers) < 2:
         print("No results to compare: expected at least two, found ", len(answers))
@@ -235,10 +243,12 @@ def verify(answers, atol, rtol=1e-07, verify_saturation=True):
         for outs in combinations(answer, 2):
             if verify_saturation:
                 assert (
-                    np.count_nonzero(outs[0].numpy() == 255) < 0.25 * outs[0].numpy().size
+                    np.count_nonzero(outs[0].numpy() == np.iinfo(dtype).max)
+                    < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
                 assert (
-                    np.count_nonzero(outs[0].numpy() == 0) < 0.25 * outs[0].numpy().size
+                    np.count_nonzero(outs[0].numpy() == np.iinfo(dtype).min)
+                    < 0.25 * outs[0].numpy().size
                 ), "Output is saturated: {}".format(outs[0])
             tvm.testing.assert_allclose(outs[0].numpy(), outs[1].numpy(), rtol=rtol, atol=atol)
 
@@ -254,7 +264,9 @@ def inference_result(outputs):
 
 def test_error(mod, params, err_msg):
     caught = None
-    with tvm.transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(
+        opt_level=3, config={"relay.ext.ethos-n.options": {"variant": get_ethosn_variant()}}
+    ):
         with tvm.target.Target("llvm"):
             try:
                 mod = relay.transform.InferType()(mod)
@@ -262,18 +274,18 @@ def test_error(mod, params, err_msg):
             except tvm.error.TVMError as e:
                 caught = e.args[0]
             finally:
-                relay.backend.compile_engine.get().clear()
+                relay.backend.te_compiler.get().clear()
 
     assert caught is not None
     assert err_msg in caught, caught
 
 
-def get_conv2d(var, shape):
+def get_conv2d(var, shape, dtype):
     """Standard convolution to test activation functions"""
 
     weight_shape = (1, 1, shape[3], 1)
-    w = tvm.nd.array(np.ones(weight_shape, "uint8"))
-    weights = relay.const(w, "uint8")
+    w = tvm.nd.array(np.ones(weight_shape, dtype))
+    weights = relay.const(w, dtype)
     conv = relay.qnn.op.conv2d(
         var,
         weights,
@@ -295,17 +307,27 @@ def get_conv2d(var, shape):
         relay.const(0, "int32"),  # input zero point
         relay.const(1.1, "float32"),  # output zero scale
         relay.const(0, "int32"),  # output zero point
-        out_dtype="uint8",
+        out_dtype=dtype,
     )
     params = {"w": w, "b": b}
     return req, params
 
 
-def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels):
-    input_max = input_sc * (255 - input_zp)
-    input_min = -input_sc * input_zp
-    kernel_max = kernel_sc * (255 - kernel_zp)
-    kernel_min = -kernel_sc * kernel_zp
+def get_conv2d_qnn_params(
+    dtype, input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, kernel_w, channels
+):
+    kernel_sc = (
+        kernel_sc.numpy() if isinstance(kernel_sc, tvm.runtime.ndarray.NDArray) else [kernel_sc]
+    )
+    dtype_min = np.iinfo(dtype).min
+    dtype_max = np.iinfo(dtype).max
+
+    input_max = input_sc * (dtype_max - input_zp)
+    input_min = input_sc * (dtype_min - input_zp)
+
+    kernel_max = max(kernel_sc) * (dtype_max - kernel_zp)
+    kernel_min = min(kernel_sc) * (dtype_min - kernel_zp)
+
     output_limits = [
         kernel_max * kernel_h * kernel_w * channels * input_max,
         kernel_min * kernel_h * kernel_w * channels * input_max,
@@ -314,8 +336,9 @@ def get_conv2d_qnn_params(input_zp, input_sc, kernel_zp, kernel_sc, kernel_h, ke
     ]
     output_max = max(output_limits)
     output_min = min(output_limits)
-    output_sc = (output_max - output_min) / 255
-    output_zp = -int(output_min / output_sc)
+
+    output_sc = (output_max - output_min) / (dtype_max - dtype_min)
+    output_zp = int(dtype_min - (output_min / output_sc))
     return output_zp, output_sc
 
 
@@ -324,7 +347,4 @@ def get_ethosn_api_version():
 
 
 def get_ethosn_variant():
-    ethosn_variant_config = os.getenv("ETHOSN_VARIANT_CONFIG")
-    if ethosn_variant_config is not None:
-        return "Ethos-N78_1TOPS_2PLE_RATIO"
-    return "Ethos-N77"
+    return os.getenv("ETHOSN_VARIANT_CONFIG", default="Ethos-N78_1TOPS_2PLE_RATIO")

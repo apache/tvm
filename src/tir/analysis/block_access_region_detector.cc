@@ -56,6 +56,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
  private:
   /*! \brief Iteration range for loop_vars */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
+  /*! \brief Extra iteration range hint for free vars */
+  std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
   /*! \brief The buffers that the current block reads */
   std::vector<Buffer> read_buffers_;
   /*! \brief The buffers that the current block writes */
@@ -96,13 +98,18 @@ class BlockReadWriteDetector : public StmtExprVisitor {
   /*! \brief Helper function to update a opaque access. */
   void UpdateOpaque(const Var& buffer_var);
 
+  /*! \brief Helper function to relax the buffer indices */
+  arith::IntSet RelaxAccessIndex(const PrimExpr& index);
+
   void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const IfThenElseNode* op) override;
   void VisitStmt_(const BlockRealizeNode* op) override;
   void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
   void VisitExpr_(const BufferLoadNode* op) override;
   void VisitExpr_(const LoadNode* op) override;
   void VisitExpr_(const VarNode* op) override;
+  void VisitExpr_(const CallNode* op) override;
 };
 
 void BlockReadWriteDetector::operator()(const Stmt& stmt) {
@@ -152,6 +159,38 @@ void BlockReadWriteDetector::VisitStmt_(const ForNode* op) {
   dom_map_[op->loop_var.get()] = arith::IntSet::FromRange(range);
   StmtVisitor::VisitStmt_(op);
   dom_map_.erase(op->loop_var.get());
+}
+
+void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
+  VisitExpr(op->condition);
+  {
+    // Visit then branch
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
+    StmtExprVisitor::VisitStmt(op->then_case);
+  }
+  if (op->else_case.defined()) {
+    // Visit else branch
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
+    StmtExprVisitor::VisitStmt(op->else_case);
+  }
+}
+
+void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
+  if (op->op.same_as(builtin::if_then_else())) {
+    VisitExpr(op->args[0]);
+    {
+      // Visit then branch
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
+      StmtExprVisitor::VisitExpr(op->args[1]);
+    }
+    {
+      // Visit else branch
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
+      StmtExprVisitor::VisitExpr(op->args[2]);
+    }
+    return;
+  }
+  StmtExprVisitor::VisitExpr_(op);
 }
 
 void BlockReadWriteDetector::VisitStmt_(const StoreNode* op) {

@@ -60,7 +60,12 @@ def test_gemm():
         res = te.compute(res_shape, lambda *i: res_min(*i).astype(env.inp_dtype), name="res")
 
         def verify(s):
-            mod = vta.build(s, [data, weight, res], "ext_dev", env.target_host, name="gemm")
+            mod = vta.build(
+                s,
+                [data, weight, res],
+                tvm.target.Target("ext_dev", host=env.target_host),
+                name="gemm",
+            )
             temp = utils.tempdir()
             mod.save(temp.relpath("gemm.o"))
             remote.upload(temp.relpath("gemm.o"))

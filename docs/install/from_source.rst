@@ -60,7 +60,7 @@ It is also possible to :ref:`build the runtime <deploy-and-integration>` library
 The minimal building requirements for the ``TVM`` libraries are:
 
    - A recent c++ compiler supporting C++ 14 (g++-5 or higher)
-   - CMake 3.5 or higher
+   - CMake 3.10 or higher
    - We highly recommend to build with LLVM to enable all the features.
    - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
    - On macOS, you may want to install `Homebrew <https://brew.sh>`_ to easily install and manage dependencies.
@@ -107,7 +107,7 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
       .. code:: bash
 
-          export TVM_LOG_DEBUG=1
+          export TVM_LOG_DEBUG="ir/transform.cc=1;relay/ir/transform.cc=1"
 
 - TVM requires LLVM for for CPU codegen. We highly recommend you to build with the LLVM support on.
 
@@ -122,6 +122,9 @@ The configuration of TVM can be modified by editing `config.cmake` and/or by pas
 
     - Note that apt-package append ``llvm-config`` with version number.
       For example, set ``set(USE_LLVM llvm-config-10)`` if you installed LLVM 10 package
+
+  - If you are a PyTorch user, it is recommended to set ``(USE_LLVM "/path/to/llvm-config --link-static")`` and ``set(HIDE_PRIVATE_SYMBOLS ON)``
+    to avoid potential symbol conflicts between different versions LLVM used by TVM and PyTorch.
 
 - We can then build tvm and related libraries.
 

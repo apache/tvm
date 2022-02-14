@@ -17,13 +17,13 @@
 # pylint: disable=import-self, too-many-lines, len-as-condition, no-else-return, unused-variable, too-many-nested-blocks
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, cell-var-from-loop, unnecessary-lambda
-# pylint: disable=missing-function-docstring
+# pylint: disable=missing-function-docstring, redefined-builtin
 """PT: PyTorch frontend."""
-import itertools
 import functools
-import logging
+import itertools
 import math
 import sys
+import logging
 
 import numpy as np
 import tvm
@@ -40,12 +40,12 @@ from ..loops import while_loop
 from ..prelude import Prelude, StaticTensorArrayOps
 from ..ty import Any, TensorType, TupleType
 from . import qnn_torch
-from .common import AttrCvt, get_relay_op, unbind, lstm_cell, gru_cell
-from .common import infer_value as _infer_value
+from .common import AttrCvt, get_relay_op, gru_cell, logger
 from .common import infer_shape as _infer_shape
+from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import try_infer_value
-from .pytorch_utils import is_version_greater_than
+from .common import lstm_cell, try_infer_value, unbind
+from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
 
@@ -409,11 +409,16 @@ class PyTorchOpConverter:
         ):
             return data
 
+        if target_begin is None and target_end is None:
+            return data
+
         # Process begin
         begin = [0] * ndim
-        begin[dim] = target_begin
 
-        if not isinstance(begin[dim], int):
+        if target_begin is not None:
+            begin[dim] = target_begin
+
+        if target_begin is not None and not isinstance(begin[dim], int):
             tmp = []
             for b in begin:
                 if isinstance(b, int):
@@ -456,7 +461,7 @@ class PyTorchOpConverter:
                     )
         else:
             end = _op.cast(_op.shape_of(data), axis_dtype)
-            if not isinstance(target_end, tvm.tir.Any):
+            if target_end is not None and not isinstance(target_end, tvm.tir.Any):
                 ttype = self.infer_type(target_end).dtype
                 if str(ttype) != axis_dtype:
                     target_end = _op.cast(target_end, axis_dtype)
@@ -746,7 +751,13 @@ class PyTorchOpConverter:
         else:
             stop = start + step
 
-        dtype = "float32" if inputs[3] is not None else _convert_dtype_value(inputs[3])
+        if inputs[3] is None:
+            import torch
+
+            dtype = _convert_data_type(str(torch.get_default_dtype()))
+        else:
+            dtype = _convert_dtype_value(inputs[3])
+
         start = _create_typed_const(start, dtype)
         stop = _create_typed_const(stop, dtype)
         step = _create_typed_const(step, dtype)
@@ -849,35 +860,23 @@ class PyTorchOpConverter:
         data = inputs[0]
         return data * self.hard_sigmoid(inputs, input_types)
 
-    def adaptive_avg_pool_2d(self, inputs, input_types):
+    def adaptive_avg_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
 
         def func(x):
-            return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
+            return op(x, output_size=output_size)
 
         if self.is_quantized_tensor(data):
             return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
 
-    def adaptive_max_pool_2d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-
-        # returns dummy indices too
-        return _op.nn.adaptive_max_pool2d(data, output_size=output_size), None
-
-    def adaptive_max_pool_3d(self, inputs, input_types):
+    def adaptive_max_pool(self, op, inputs, input_types):
         data = inputs[0]
         output_size = inputs[1]
         # returns dummy indices too
-        return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
-
-    def adaptive_avg_pool_3d(self, inputs, input_types):
-        data = inputs[0]
-        output_size = inputs[1]
-        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
+        return op(data, output_size=output_size), None
 
     @staticmethod
     def convert_const_list(data):
@@ -1022,6 +1021,9 @@ class PyTorchOpConverter:
         elif len(kernel_size) == 2:
             data_layout = "NCHW"
             kernel_layout = "OIHW"
+            if use_transpose:
+                # Transposed convolutions have IOHW layout.
+                kernel_layout = "IOHW"
         else:
             data_layout = "NCW"
             kernel_layout = "OIW"
@@ -1391,10 +1393,19 @@ class PyTorchOpConverter:
 
     def sigmoid(self, inputs, input_types):
         data = inputs[0]
-        return _op.tensor.sigmoid(data)
+
+        def func(x):
+            return _op.tensor.sigmoid(x)
+
+        if self.is_quantized_tensor(data):
+            assert len(inputs) == 3, "Input quant param not found in op inputs"
+            input_scale = _expr.const(inputs[1])
+            input_zero_point = _expr.const(inputs[2])
+            return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
+
+        return func(data)
 
     def softplus(self, inputs, input_types):
-        data = inputs[0]
         dtype = input_types[0]
         beta = _expr.const(float(inputs[1]), dtype=dtype)
         return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.0, dtype=dtype)) / beta
@@ -1581,9 +1592,24 @@ class PyTorchOpConverter:
             assert len(inputs) == 6, "Input quant param not found in op inputs"
             input_scale = _expr.const(inputs[4])
             input_zero_point = _expr.const(inputs[5])
-            return qnn_torch.quantized_mean(data, input_scale, input_zero_point, func)
+            # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
+            return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
         return func(data)
+
+    def var_mean(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
+
+        m, v = _op.reduce.mean_variance(data, axis, keepdims, False, unbiased)
+        return v, m
 
     def chunk(self, inputs, input_types):
         data = inputs[0]
@@ -1734,23 +1760,26 @@ class PyTorchOpConverter:
             paddings = [paddings[i : i + 2] for i in range(0, len(paddings), 2)]
 
             const_paddings = []
+            non_zero_found = False
             for pad in paddings:
                 const_paddings.append([])
                 for p in pad:
                     if not isinstance(p, int):
                         p = int(_infer_value(p, {}).numpy())
                     const_paddings[-1].append(p)
+                    if p != 0:
+                        non_zero_found = True
 
-            if mode == "constant":
+            if not non_zero_found:
+                return data
+            elif mode == "constant":
                 return _op.nn.pad(data, const_paddings, pad_value=inputs[2], pad_mode=mode)
             else:
                 return _op.nn.pad(data, const_paddings, pad_mode=mode)
 
         return pad
 
-    def clamp(self, inputs, input_types):
-        data = inputs[0]
-
+    def clamp_common(self, data, min=None, max=None):
         def get_v(v, default_v):
             if isinstance(v, _expr.Constant):
                 return float(v.data.numpy())
@@ -1762,9 +1791,31 @@ class PyTorchOpConverter:
                 return v
             return default_v
 
-        amin = get_v(inputs[1], np.finfo(np.float32).min)
-        amax = get_v(inputs[2], np.finfo(np.float32).max)
+        dtype = self.infer_type(data).dtype
+
+        type_info = np.finfo(dtype) if "float" in dtype else np.iinfo(dtype)
+
+        # TODO(masahi): Properly handle inf in a one-way clamp case.
+        if min is not None and max is not None:
+            amin = get_v(min, type_info.min)
+            amax = get_v(max, type_info.max)
+        elif min is not None:
+            amin = get_v(min, type_info.min)
+            amax = type_info.max
+        else:
+            amin = type_info.min
+            amax = get_v(max, type_info.max)
+
         return _op.clip(data, amin, amax)
+
+    def clamp(self, inputs, _):
+        return self.clamp_common(inputs[0], min=inputs[1], max=inputs[2])
+
+    def clamp_min(self, inputs, input_types):
+        return self.clamp_common(inputs[0], min=inputs[1])
+
+    def clamp_max(self, inputs, input_types):
+        return self.clamp_common(inputs[0], max=inputs[1])
 
     def to(self, inputs, input_types):
         data = inputs[0]
@@ -1831,7 +1882,7 @@ class PyTorchOpConverter:
 
             def func(x):
                 return _op.image.resize2d(
-                    x, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75
+                    x, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
                 )
 
             if self.is_quantized_tensor(data):
@@ -1840,7 +1891,8 @@ class PyTorchOpConverter:
                 assert isinstance(inputs[-1], int)
                 input_scale = _expr.const(inputs[-2])
                 input_zero_point = _expr.const(inputs[-1])
-                return qnn_torch.quantized_upsample(data, input_scale, input_zero_point, func)
+                # currently piggy backs to fp32, it gets identical output as torch
+                return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
             return func(data)
 
@@ -1863,7 +1915,7 @@ class PyTorchOpConverter:
             else:
                 coord_trans = "half_pixel"
 
-            return _op.image.resize3d(data, out_size, "NCDHW", method, coord_trans)
+            return _op.image.resize3d(data, out_size, None, "NCDHW", method, coord_trans)
 
         return upsample3d
 
@@ -1965,10 +2017,7 @@ class PyTorchOpConverter:
             return self.tensor_array_stack(inputs, input_types)
 
     def rsub(self, inputs, input_types):
-        data0, data1 = self.pytorch_promote_types(inputs[:2], input_types[:2])
-
-        # TODO (t-vi): should this also be part of the type promotion?
-        alpha = _expr.const(float(inputs[2]))
+        data0, data1, alpha = self.pytorch_promote_types(inputs, input_types)
 
         # note: rsub means data0 and data1 swap places
         return get_relay_op("subtract")(data1, alpha * data0)
@@ -2075,16 +2124,25 @@ class PyTorchOpConverter:
         data = inputs[0]
         weight = inputs[1]
         offset = inputs[2]
-        strides = (inputs[4], inputs[5])
-        padding = (inputs[6], inputs[7])
-        dilation = (inputs[8], inputs[9])
-        groups = inputs[10]
-        deformable_groups = inputs[11]
+
+        if len(inputs) > 12:
+            strides_offset = 5
+            bias = inputs[4]
+            logging.warning("mask argument in deformable conv2d is not supported and ignored")
+        else:
+            strides_offset = 4
+            bias = inputs[3]
+
+        strides = (inputs[strides_offset], inputs[strides_offset + 1])
+        padding = (inputs[strides_offset + 2], inputs[strides_offset + 3])
+        dilation = (inputs[strides_offset + 4], inputs[strides_offset + 5])
+        groups = inputs[strides_offset + 6]
+        deformable_groups = inputs[strides_offset + 7]
         weight_shape = self.infer_shape(weight)
         output_channels = weight_shape[0]
         kernel_size = (weight_shape[2], weight_shape[3])
 
-        return _op.nn.deformable_conv2d(
+        conv_out = _op.nn.deformable_conv2d(
             data,
             offset,
             weight,
@@ -2096,6 +2154,8 @@ class PyTorchOpConverter:
             output_channels,
             kernel_size,
         )
+
+        return _op.nn.bias_add(conv_out, bias)
 
     def unbind(self, inputs, input_types):
         data = inputs[0]
@@ -2195,7 +2255,9 @@ class PyTorchOpConverter:
         else:
             coord_trans = "half_pixel"
 
-        return _op.image.resize2d(data, out_size, "NCHW", method, coord_trans, cubic_alpha=-0.75)
+        return _op.image.resize2d(
+            data, out_size, None, "NCHW", method, coord_trans, cubic_alpha=-0.75
+        )
 
     def numel(self, inputs, input_types):
         return _op.ndarray_size(inputs[0])
@@ -2209,7 +2271,7 @@ class PyTorchOpConverter:
         weights = inputs[1]
         input_type = self.infer_type(data).dtype
         if input_type == "int64":
-            logging.warning(
+            logger.warning(
                 "Casting an int64 input to int32, since we do not have int64 atomic add"
                 "needed for bincount yet."
             )
@@ -2287,7 +2349,7 @@ class PyTorchOpConverter:
         assert len(inputs) == 4
         [data, is_sorted, return_inverse, return_counts] = inputs
         if not is_sorted:
-            logging.warning("TVM always assumes sorted=True for torch.unique")
+            logger.warning("TVM always assumes sorted=True for torch.unique")
             is_sorted = True
         if return_counts:
             [unique, indices, inverse_indices, num_uniq, counts] = _op.unique(
@@ -2774,6 +2836,99 @@ class PyTorchOpConverter:
             inp = inputs[0]
         return op(inp, axis=dim, keepdims=keepdim)
 
+    def searchsorted_common(self, sorted_sequence, values, out_int32, right):
+        dtype = "int32" if out_int32 else "int64"
+        values_shape = _infer_shape(values)
+
+        if len(values_shape) == 0:
+            values = _op.expand_dims(values, 0)
+
+        out = _op.searchsorted(sorted_sequence, values, right=right, dtype=dtype)
+
+        if len(values_shape) == 0:
+            return _op.squeeze(out)
+
+        return out
+
+    def searchsorted(self, inputs, input_types):
+        return self.searchsorted_common(*inputs)
+
+    def bucketize(self, inputs, input_types):
+        return self.searchsorted_common(inputs[1], inputs[0], inputs[2], inputs[3])
+
+    def roll(self, inputs, input_types):
+        def slide_axes(inp, shape, ax):
+            axes = list(range(len(shape)))
+            axes = axes[:ax] + [-1] + axes[ax:-1]
+            return _op.transpose(inp, axes)
+
+        x = inputs[0]
+        shifts = inputs[1]
+        dims = inputs[2]
+        shape = self.infer_shape(x)
+        start = _expr.const(0, "int64")
+        step = _expr.const(1, "int64")
+
+        out = x
+        for i, dim in enumerate(dims):
+            roll_dim = _expr.const(shape[dim], "int64")
+            indices_1d = _op.mod(
+                _op.transform.arange(start, roll_dim, step, "int64")
+                - _expr.const(shifts[i], "int64")
+                + roll_dim,
+                roll_dim,
+            )
+            # First fill in the last axis with roll indices, and then do transpose to
+            # bring the roll indices into the desired axis.
+            indices = slide_axes(
+                _op.tile(indices_1d, shape[:dim] + shape[dim + 1 :] + (1,)),
+                shape,
+                dim,
+            )
+            out = _op.gather(out, dim, indices)
+
+        return out
+
+    def einsum(self, inputs, input_types):
+        equation, data = inputs
+        return _op.einsum(data, equation)
+
+    def dot(self, inputs, _):
+        lhs, rhs = inputs
+        return _op.sum(_op.multiply(lhs, rhs))
+
+    def mv(self, inputs, _):
+        lhs, rhs = inputs
+
+        # Convert the 1D matrix (vector) into a 2D matrix with the extra
+        # dimension=1
+        rhs_matrix = _op.transform.expand_dims(rhs, 0)
+
+        # Run multiplication
+        dense_result = _op.nn.dense(lhs, rhs_matrix, units=None)
+
+        # Chop off the extra result dimension
+        return _op.transform.squeeze(dense_result)
+
+    def grid_sampler(self, inputs, input_types):
+        if inputs[2] == 0:
+            mode = "bilinear"
+        else:
+            msg = "Only bilinear mode is supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        if inputs[3] == 0:
+            padding_mode = "zeros"
+        elif inputs[3] == 1:
+            padding_mode = "border"
+        else:
+            msg = "Only zeros and border padding mode are supported in grid_sampler"
+            raise NotImplementedError(msg)
+
+        axes = [0, 3, 1, 2]
+        grid = _op.transform.transpose(inputs[1], axes)
+        return _op.image.grid_sample(inputs[0], grid, mode, "NCHW", padding_mode)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -2782,18 +2937,14 @@ class PyTorchOpConverter:
             "aten::device": self.none,
             "prim::device": self.none,
             "aten::sub": self.make_elemwise("subtract"),
-            "aten::sub_": self.make_elemwise("subtract"),
             "aten::max": self.max,
             "aten::min": self.min,
             "aten::mul": self.make_elemwise("multiply"),
-            "aten::mul_": self.make_elemwise("multiply"),
             "aten::pow": self.make_elemwise("power"),
             "aten::arange": self.arange,
             "aten::meshgrid": self.meshgrid,
             "aten::div": self.make_elemwise("divide"),
-            "aten::div_": self.make_elemwise("divide"),
             "aten::floor_divide": self.make_elemwise("floor_divide"),
-            "aten::floor_divide_": self.make_elemwise("floor_divide"),
             "aten::true_divide": self.make_elemwise("divide"),
             "aten::addcdiv": self.addcdiv,
             "aten::addcmul": self.addcmul,
@@ -2810,7 +2961,6 @@ class PyTorchOpConverter:
             "aten::to": self.to,
             "aten::squeeze": self.squeeze,
             "aten::unsqueeze": self.unsqueeze,
-            "aten::unsqueeze_": self.unsqueeze,
             "aten::cat": self.concatenate,
             "aten::slice": self.slice,
             "aten::narrow": self.narrow,
@@ -2821,36 +2971,46 @@ class PyTorchOpConverter:
             "aten::where": self.where,
             "aten::topk": self.topk,
             "aten::relu": self.relu,
-            "aten::relu_": self.relu,
             "aten::prelu": self.prelu,
             "aten::leaky_relu": self.leaky_relu,
-            "aten::leaky_relu_": self.leaky_relu,
             "aten::elu": self.elu,
-            "aten::elu_": self.elu,
             "aten::celu": self.celu,
             "aten::gelu": self.gelu,
             "aten::selu": self.selu,
             "aten::silu": self.silu,
             "aten::log_sigmoid": self.log_sigmoid,
-            "aten::adaptive_avg_pool2d": self.adaptive_avg_pool_2d,
-            "aten::adaptive_max_pool2d": self.adaptive_max_pool_2d,
+            "aten::adaptive_avg_pool1d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool1d
+            ),
+            "aten::adaptive_avg_pool2d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool2d
+            ),
+            "aten::adaptive_avg_pool3d": functools.partial(
+                self.adaptive_avg_pool, _op.nn.adaptive_avg_pool3d
+            ),
+            "aten::adaptive_max_pool1d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool1d
+            ),
+            "aten::adaptive_max_pool2d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool2d
+            ),
+            "aten::adaptive_max_pool3d": functools.partial(
+                self.adaptive_max_pool, _op.nn.adaptive_max_pool3d
+            ),
             "aten::max_pool2d": self.maxpool_2d,
             "aten::max_pool2d_with_indices": self.maxpool_2d_with_indices,
             "aten::max_pool1d": self.maxpool_1d,
             "aten::max_pool3d": self.maxpool_3d,
             "aten::hardtanh": self.hardtanh,
-            "aten::hardtanh_": self.hardtanh,
             "aten::_convolution": self.convolution,
             "aten::softmax": self.softmax,
             "aten::threshold": self.threshold,
-            "aten::threshold_": self.threshold,
             "aten::contiguous": self.contiguous,
             "aten::batch_norm": self.batch_norm,
             "aten::instance_norm": self.instance_norm,
             "aten::layer_norm": self.layer_norm,
             "aten::group_norm": self.group_norm,
             "aten::transpose": self.transpose,
-            "aten::transpose_": self.transpose,
             "aten::t": self.transpose,
             "aten::flatten": self.flatten,
             "aten::addmm": self.addmm,
@@ -2860,14 +3020,12 @@ class PyTorchOpConverter:
             "aten::clone": self.clone,
             "aten::log_softmax": self.log_softmax,
             "aten::sigmoid": self.sigmoid,
-            "aten::sigmoid_": self.sigmoid,
             "aten::softplus": self.softplus,
             "aten::avg_pool1d": self.make_avg_pool(1),
             "aten::avg_pool2d": self.make_avg_pool(2),
             "aten::avg_pool3d": self.make_avg_pool(3),
             "aten::linear": self.linear,
             "aten::dropout": self.dropout,
-            "aten::dropout_": self.dropout,
             "aten::feature_dropout": self.dropout,
             "aten::alpha_dropout": self.dropout,
             "aten::mean": self.mean,
@@ -2895,6 +3053,7 @@ class PyTorchOpConverter:
             "aten::frobenius_norm": self.frobenius_norm,
             "aten::std": self.std,
             "aten::var": self.variance,
+            "aten::var_mean": self.var_mean,
             "aten::abs": self.make_unary("abs"),
             "aten::neg": self.make_unary("negative"),
             "aten::cos": self.make_unary("cos"),
@@ -2903,7 +3062,6 @@ class PyTorchOpConverter:
             "aten::sinh": self.make_unary("sinh"),
             "aten::tan": self.make_unary("tan"),
             "aten::tanh": self.make_unary("tanh"),
-            "aten::tanh_": self.make_unary("tanh"),
             "aten::acos": self.make_unary("acos"),
             "aten::asin": self.make_unary("asin"),
             "aten::atan": self.make_unary("atan"),
@@ -2924,7 +3082,8 @@ class PyTorchOpConverter:
             "aten::isinf": self.make_unary("isinf"),
             "aten::isnan": self.make_unary("isnan"),
             "aten::clamp": self.clamp,
-            "aten::clamp_": self.clamp,
+            "aten::clamp_min": self.clamp_min,
+            "aten::clamp_max": self.clamp_max,
             "aten::detach": self.identity,
             "aten::upsample_bilinear2d": self.make_upsample("linear"),
             "aten::upsample_bicubic2d": self.make_upsample("cubic"),
@@ -2944,14 +3103,11 @@ class PyTorchOpConverter:
             "aten::bitwise_xor": self.bitwise_xor,
             "aten::Bool": self.Bool,
             "aten::Float": self.Float,
-            "aten::adaptive_avg_pool3d": self.adaptive_avg_pool_3d,
-            "aten::adaptive_max_pool3d": self.adaptive_max_pool_3d,
             "aten::rsub": self.rsub,
             "aten::embedding": self.embedding,
             "aten::one_hot": self.one_hot,
             "aten::mm": self.matmul,
             "aten::add": self.add,
-            "aten::add_": self.add,
             "aten::stack": self.stack,
             "aten::__getitem__": self.list_getitem,
             "aten::len": self.list_len,
@@ -2971,7 +3127,6 @@ class PyTorchOpConverter:
             "aten::nonzero_numpy": self.nonzero_numpy,
             "aten::scatter": self.scatter,
             "aten::index_put": self.index_put,
-            "aten::index_put_": self.index_put,
             "aten::scalar_tensor": self.scalar_tensor,
             "aten::__interpolate": self.interpolate,
             "aten::IntImplicit": self.identity,
@@ -2981,24 +3136,29 @@ class PyTorchOpConverter:
             "aten::bincount": self.bincount,
             "aten::scatter_add": self.scatter_add,
             "aten::__not__": self.logical_not,
-            "aten::hardswish_": self.hard_swish,
             "aten::hardswish": self.hard_swish,
-            "aten::hardsigmoid_": self.hard_sigmoid,
             "aten::hardsigmoid": self.hard_sigmoid,
             "aten::cumsum": self.cumsum,
             "aten::masked_fill": self.masked_fill,
-            "aten::masked_fill_": self.masked_fill,
             "aten::masked_select": self.masked_select,
             "aten::argsort": self.argsort,
             "aten::sort": self.sort,
             "aten::_unique2": self.unique,
             "aten::nll_loss": self.nll_loss,
             "aten::nll_loss2d": self.nll_loss,
+            "aten::nll_loss_nd": self.nll_loss,
             "aten::flip": self.flip,
             "aten::gru": self.gru,
             "aten::lstm": self.lstm,
             "aten::all": functools.partial(self.all_any_common, _op.all),
             "aten::any": functools.partial(self.all_any_common, _op.any),
+            "aten::searchsorted": self.searchsorted,
+            "aten::bucketize": self.bucketize,
+            "aten::roll": self.roll,
+            "aten::einsum": self.einsum,
+            "aten::dot": self.dot,
+            "aten::mv": self.mv,
+            "aten::grid_sampler": self.grid_sampler,
         }
 
     def update_convert_map(self, custom_map):
@@ -3020,7 +3180,14 @@ class PyTorchOpConverter:
         known_ops += list(self.convert_map.keys())
         known_ops += list(qnn_torch.convert_map.keys())
 
-        missing = [op_name for op_name in op_names if op_name not in known_ops]
+        missing = []
+
+        for op_name in op_names:
+            # Also take care of in-place variant ops like aten::relu_
+            if op_name not in known_ops and not (
+                op_name.endswith("_") and op_name[:-1] in known_ops
+            ):
+                missing.append(op_name)
 
         if missing:
             msg = "The following operators are not implemented: {}".format(missing)
@@ -3186,7 +3353,18 @@ class PyTorchOpConverter:
                 # In this case, we keep the Python list
                 outputs[node_name] = inputs
             elif operator == "prim::TupleConstruct":
-                outputs[node_name] = _expr.Tuple(inputs)
+
+                def _handel_nested_input(inputs):
+                    inputs_list = []
+                    for i, _ in enumerate(inputs):
+                        if isinstance(inputs[i], list):
+                            inputs_list.append(_handel_nested_input(inputs[i]))
+                        else:
+                            assert isinstance(inputs[i], _expr.Expr)
+                            inputs_list.append(inputs[i])
+                    return _expr.Tuple(inputs_list)
+
+                outputs[node_name] = _handel_nested_input(inputs)
             elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
                 assert len(inputs) == 1
                 if isinstance(inputs[0], (list, _expr.TupleWrapper)):
@@ -3195,7 +3373,7 @@ class PyTorchOpConverter:
                     unpacked = _unpack_tuple(inputs[0])
                 outputs.update(zip(_get_output_names(op_node), unpacked))
             elif operator == "prim::prim::RaiseException":
-                logging.warning("raising exceptions is ignored")
+                logger.warning("raising exceptions is ignored")
                 outputs[node_name] = None
             elif operator == "prim::If":
                 if_out = self.convert_if(op_node, outputs)
@@ -3206,7 +3384,19 @@ class PyTorchOpConverter:
                 assert len(loop_out) == len(unpacked_names)
                 outputs.update(zip(unpacked_names, loop_out))
             else:
-                relay_op = self.convert_map[operator]
+                if operator not in self.convert_map:
+                    # At this point, the only possible ops that are not in convert_map are
+                    # in-place variant of ops like aten::relu_
+                    assert operator.endswith("_")
+                    logger.warning(
+                        "An in-place op %s found, the result will not be correct "
+                        "if the model depends on side-effects by this op.",
+                        operator,
+                    )
+                    relay_op = self.convert_map[operator[:-1]]
+                else:
+                    relay_op = self.convert_map[operator]
+
                 relay_out = relay_op(
                     inputs, _get_input_types(op_node, outputs, default_dtype=self.default_dtype)
                 )
@@ -3353,7 +3543,7 @@ def _wrap_const(c):
     return c
 
 
-def _run_jit_passes(graph):
+def _run_jit_passes(graph, enable_lower_all_tuples=True):
     """The inline pass is necessary to unwrap prim::CallMethod"""
     # pylint: disable=c-extension-no-member
     import torch
@@ -3365,6 +3555,9 @@ def _run_jit_passes(graph):
         torch._C._jit_pass_onnx_function_substitution(graph)
     else:
         torch._C._jit_pass_inline(graph)
+
+    if enable_lower_all_tuples:
+        torch._C._jit_pass_lower_all_tuples(graph)
 
 
 def _get_tensor_and_var(torch_tensor, name):
@@ -3406,15 +3599,8 @@ def _get_users(node):
     return [use.user for use in _get_uses(node)]
 
 
-def _getattr_attr_name(node):
-    attribute_names = node.attributeNames()
-    assert len(attribute_names) == 1
-    attr_name = node.s(attribute_names[0])
-    return attr_name
-
-
 def _getattr_full_name(getattrs, sep="."):
-    return sep.join([_getattr_attr_name(node) for node in getattrs])
+    return sep.join([getattr_attr_name(node) for node in getattrs])
 
 
 def _get_pytorch_value_type(typ, default_dtype="float32"):
@@ -3423,7 +3609,7 @@ def _get_pytorch_value_type(typ, default_dtype="float32"):
         if typ.scalarType() is None:
             # Tensor's type can be unknown if we use torch.jit.script(...)
             # Defaults can be passed in, if not it is float32
-            logging.warning("Untyped Tensor found, assume it is %s", default_dtype)
+            logger.warning("Untyped Tensor found, assume it is %s", default_dtype)
             return default_dtype
         else:
             return _convert_data_type(typ.scalarType())
@@ -3781,11 +3967,19 @@ def from_pytorch(
 
     mod = tvm.IRModule()
     prelude = Prelude(mod)
+    enable_lower_all_tuples = True
 
     converter = PyTorchOpConverter(prelude, default_dtype)
 
     graph = script_module.graph.copy()
-    _run_jit_passes(graph)
+
+    # Check if lower_all_tuples pass can be enabled
+    graph_inputs = list(graph.inputs())
+    for inp in graph_inputs:
+        if inp.type().kind() == "TupleType" or inp.type().kind() == "ListType":
+            enable_lower_all_tuples = False
+            break
+    _run_jit_passes(graph, enable_lower_all_tuples)
 
     if custom_convert_map:
         converter.update_convert_map(custom_convert_map)
@@ -3816,6 +4010,7 @@ def from_pytorch(
         weight_quant_params = qnn_torch.get_weight_quant_params(
             script_module, packed_param_map.values()
         )
+        qnn_torch.inline_input_quant_params_for_fx(graph, tensors)
         input_scales_for_bias = qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_outputs(
             outputs,
@@ -3827,10 +4022,15 @@ def from_pytorch(
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         converter.update_convert_map(qnn_torch.convert_map)
 
-    ret = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)[0]
-    if isinstance(ret, list):
-        # ListConstruct kept original python list. Convert to tuple.
-        ret = _expr.Tuple(ret)
+    outputs = converter.convert_operators(_get_operator_nodes(graph.nodes()), outputs, ret_name)
+
+    # ListConstruct kept original python list. Convert to tuple.
+    outputs = [_expr.Tuple(output) if isinstance(output, list) else output for output in outputs]
+
+    if len(outputs) > 1:
+        ret = _expr.Tuple(outputs)
+    else:
+        ret = outputs[0]
 
     # Separate data inputs and parameters to make sure data inputs come first.
     func_args = []

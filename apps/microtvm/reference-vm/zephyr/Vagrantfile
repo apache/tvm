@@ -16,7 +16,7 @@
 # under the License.
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "tlcpack/microtvm-zephyr-2.5"
+  config.vm.box = "tlcpack/microtvm-zephyr-2.7"
 
   if ENV.has_key?("TVM_RVM_NUM_CORES")
     num_cores = ENV["TVM_RVM_NUM_CORES"]

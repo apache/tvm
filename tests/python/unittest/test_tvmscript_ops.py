@@ -37,22 +37,25 @@ def get_valid_counts(
     out_buf = T.match_buffer(out, (1, 2500, 6), "float32")
     out_indices_buf = T.match_buffer(out_indices, (1, 2500), "int32")
 
-    with T.block([1], "init") as [vi]:
+    with T.block("init"):
+        vi = T.axis.S(1, 0)
         valid_count_buf[vi] = T.int32(0)
-        with T.block([2500], "update") as [vj]:
-            T.reads([data_buf[vi, vj, 6]])
-            T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
-            if (data_buf[vi, vj, score_index] > score_threshold) and (
-                (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
-            ):
-                for k in T.serial(0, 6):
-                    out_buf[vi, valid_count_buf[vi], k] = data_buf[vi, vj, k]
-                out_indices_buf[vi, valid_count_buf[vi]] = vj
-                valid_count_buf[vi] = valid_count_buf[vi] + 1
-            if vj >= valid_count_buf[vi]:
-                for k in T.serial(0, 6):
-                    out_buf[vi, vj, k] = T.float32(-1)
-                out_indices_buf[vi, vj] = T.int32(-1)
+        for j in range(2500):
+            with T.block("update"):
+                vj = T.axis.S(2500, j)
+                T.reads([data_buf[vi, vj, 6]])
+                T.writes([valid_count_buf[vi], out_indices_buf[vi, vj], out_buf[vi, vj, 6]])
+                if (data_buf[vi, vj, score_index] > score_threshold) and (
+                    (id_index < 0) or (data_buf[vi, vj, id_index] >= T.float32(0))
+                ):
+                    for k in T.serial(0, 6):
+                        out_buf[vi, valid_count_buf[vi], k] = data_buf[vi, vj, k]
+                    out_indices_buf[vi, valid_count_buf[vi]] = vj
+                    valid_count_buf[vi] = valid_count_buf[vi] + 1
+                if vj >= valid_count_buf[vi]:
+                    for k in T.serial(0, 6):
+                        out_buf[vi, vj, k] = T.float32(-1)
+                    out_indices_buf[vi, vj] = T.int32(-1)
 
 
 def _check_get_valid_counts_with_numpy(f, dshape, score_threshold, id_index, score_index):
@@ -101,5 +104,64 @@ def test_get_valid_counts_script_func():
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
+@T.prim_func
+def alloc_zero_dim_buffer(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="float32")
+    B = T.match_buffer(b, [], dtype="float32")
+    # body
+    # tir.with block("root")
+    C = T.alloc_buffer([], dtype="float32")
+    A[()] = T.float32(2)
+    C[()] = A[()] + B[()]
+    B[()] = C[()]
+
+
+@T.prim_func
+def alloc_zero_dim_buffer_block(a: T.handle, b: T.handle) -> None:
+    A = T.match_buffer(a, (), "float32")
+    B = T.match_buffer(b, (), "float32")
+    with T.block("root"):
+        T.reads([])
+        T.writes([])
+        C = T.alloc_buffer((), "float32")
+        A[()] = T.float32(2)
+        C[()] = A[()] + B[()]
+        B[()] = C[()]
+
+
+def _check_alloc_zero_dim_buffer(f):
+    dtype = "float32"
+    ctx = tvm.cpu()
+
+    np_data = np.zeros(shape=()).astype(dtype)
+    np_out = np.zeros(shape=()).astype(dtype)
+    tvm_data = tvm.nd.array(np_data, ctx)
+    tvm_out = tvm.nd.array(np_out, ctx)
+
+    # np func exection
+    np_inter = np.array(1)
+    np_data[()] = 2.0
+    np_inter[()] = np_data[()] + np_out[()]
+    np_out[()] = np_inter[()]
+
+    # tvm func execution
+    f(tvm_data, tvm_out)
+    tvm.testing.assert_allclose(tvm_out.numpy(), np_out, rtol=1e-5)
+
+
+def test_alloc_zero_dim_buffer_round_trip():
+    func = alloc_zero_dim_buffer
+    func_with_block = alloc_zero_dim_buffer_block
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    rt_func_with_block = tvm.script.from_source(func_with_block.script(show_meta=True))
+    rt_mod = tvm.build(rt_func, "llvm")
+    rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
+    tvm.ir.assert_structural_equal(func, func_with_block)
+    tvm.ir.assert_structural_equal(rt_func, rt_func_with_block)
+    _check_alloc_zero_dim_buffer(rt_mod)
+    _check_alloc_zero_dim_buffer(rt_mod_with_block)
+
+
 if __name__ == "__main__":
     test_get_valid_counts_script_func()
+    test_alloc_zero_dim_buffer_round_trip()

@@ -269,14 +269,14 @@ will then be chosen. Implementations with same priority level in this case leads
 to an undefined behavior, and any of them might be selected.
 
 The selection policy for ops with symbolic input shapes is still work in
-progess. Currently, if any input tensor has a symbolic shape, only the
+progress. Currently, if any input tensor has a symbolic shape, only the
 implementation with highest priority level will be used for this operator. This
-will be updated after the implemention finishes.
+will be updated after the implementation finishes.
 
 For debug purpose, you can add the following lines before you compile the Relay
 model to learn which implementation is used for each operator.
 
 .. code:: python
 
-    logging.getLogger("compile_engine").setLevel(logging.INFO)
-    logging.getLogger("compile_engine").addHandler(logging.StreamHandler(sys.stdout))
+    logging.getLogger("te_compiler").setLevel(logging.INFO)
+    logging.getLogger("te_compiler").addHandler(logging.StreamHandler(sys.stdout))

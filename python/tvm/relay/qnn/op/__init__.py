@@ -18,5 +18,5 @@
 """QNN dialect related operators."""
 from __future__ import absolute_import as _abs
 from .qnn import *
-from .op import register_qnn_legalize
-from . import _qnn, legalizations, layout_conversions
+from .op import register_qnn_legalize, register_qnn_canonicalize
+from . import _qnn, legalizations, layout_conversions, canonicalizations

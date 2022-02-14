@@ -188,6 +188,58 @@ class LinkedParam : public ObjectRef {
 };
 
 /*!
+ * \brief Tensor intrinsics for tensorization
+ */
+class TensorIntrinNode : public Object {
+ public:
+  /*! \brief The function to describe the computation. */
+  PrimFunc desc;
+  /*! \brief The function of the implementation for the execution. */
+  PrimFunc impl;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("desc", &desc);
+    v->Visit("impl", &impl);
+  }
+
+  static constexpr const char* _type_key = "tir.TensorIntrin";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
+};
+
+/*!
+ * \brief Managed reference to TensorIntrinNode.
+ */
+class TensorIntrin : public ObjectRef {
+ public:
+  /*!
+   * \brief Constructor
+   * \param desc The function to describe the computation.
+   * \param impl The function of the implementation for the execution.
+   */
+  TVM_DLL explicit TensorIntrin(PrimFunc desc, PrimFunc impl);
+
+  /*!
+   * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
+   * up with its name.
+   * \param name The name of the TensorIntrin to register
+   * \param intrin The TensorIntrin to register.
+   * \throws This method throws an exception if the TensorIntrin with the specified name already
+   *         exists.
+   */
+  TVM_DLL static void Register(String name, TensorIntrin intrin);
+
+  /*!
+   * \brief Look up TensorIntrin by name. Raises an exception if not found.
+   * \param name The name of the TensorIntrin.
+   * \return The TensorIntrin with the specified name.
+   * \throws This method throws an exception if the TensorIntrin does not exist.
+   */
+  TVM_DLL static TensorIntrin Get(String name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+};
+
+/*!
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.
@@ -199,9 +251,10 @@ class LinkedParam : public ObjectRef {
  *  def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
  *      A = T.match_buffer(a, (m, n), "float32")
  *      B = T.match_buffer(b, (m, n), "float32")
- *
- *      with T.block([m, n], "") as [vi, vj]:
- *          B[vi, vj] = A[vi, vj]
+ *      for i, j in T.grid(m, n):
+ *          with T.block():
+ *              vi, vj = T.axis.remap("SS", [i, j])
+ *              B[vi, vj] = A[vi, vj]
  * \endcode
  *
  * Then we can make it specialized with given shapes or buffers.
@@ -218,9 +271,10 @@ class LinkedParam : public ObjectRef {
  *  def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
  *      A = T.match_buffer(a, (16, 16), "float32")
  *      B = T.match_buffer(b, (16, 16), "float32")
- *
- *      with T.block([16, 16], "") as [vi, vj]:
- *          B[vi, vj] = A[vi, vj]
+ *      for i, j in T.grid(16, 16):
+ *          with T.block():
+ *              vi, vj = T.axis.remap("SS", [i, j])
+ *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
 PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
@@ -286,6 +340,13 @@ constexpr const char* kIsEntryFunc = "tir.is_entry_func";
  *     tvm::target::packed_func::kLookupLinkedParam.
  */
 constexpr const char* kLinkedParams = "tir.linked_params";
+
+/*!
+ * \brief Mark the function as the global function called from the host.
+ *
+ * Type: Integer
+ */
+constexpr const char* kIsGlobalFunc = "tir.is_global_func";
 
 }  // namespace attr
 }  // namespace tir

@@ -231,12 +231,6 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
   }
 
  private:
-  struct GenerateBodyOutput {
-    std::string decl;
-    std::vector<std::string> buffers;
-    std::vector<Output> outputs;
-  };
-
   std::vector<std::string> GetArgumentNames(const CallNode* call) {
     std::vector<std::string> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
@@ -461,8 +455,26 @@ class DNNLJSONSerializer : public backend::contrib::JSONSerializer {
 
       if (name == "dnnl.conv2d_bias_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
+      } else if (name == "dnnl.conv2d_bias_tanh") {
+        call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "tanh"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_bias_sigmoid") {
+        call = GetRootCall(fn->body.as<CallNode>(), 2, {"nn.conv2d", "add", "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_bias") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "add"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else if (name == "dnnl.conv2d_relu") {
         call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_tanh") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "tanh"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.conv2d_sigmoid") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.conv2d", "sigmoid"});
+        ICHECK(call->op.as<OpNode>()) << "Not op node";
+      } else if (name == "dnnl.dense_bias") {
+        call = GetRootCall(fn->body.as<CallNode>(), 1, {"nn.dense", "add"});
         ICHECK(call->op.as<OpNode>()) << "Not op node";
       } else {
         LOG(FATAL) << "Unrecognized DNNL pattern: " << name;

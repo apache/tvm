@@ -51,7 +51,7 @@ def test_resize2d():
 
         coord_trans = "asymmetric" if method == "nearest_neighbor" else "align_corners"
         z = relay.image.resize2d(
-            x, size_var, layout, method, coordinate_transformation_mode=coord_trans
+            x, size_var, None, layout, method, coordinate_transformation_mode=coord_trans
         )
 
         zz = run_infer_type(z)

@@ -22,10 +22,12 @@ import sys
 import tvm
 import tvm.testing
 from tvm import te
-from tvm import topi
+from tvm.relay.backend import Runtime
 from tvm.contrib import utils, clang
+from tvm.target.codegen import llvm_lookup_intrinsic_id, llvm_get_intrinsic_name
+import tvm.script.tir as T
 import numpy as np
-import ctypes
+
 import math
 import re
 import pytest
@@ -54,6 +56,14 @@ def test_llvm_void_intrin():
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
     fcode = tvm.build(mod, None, "llvm")
+
+
+@tvm.testing.requires_llvm
+def test_llvm_intrinsic_id():
+    orig_name = "llvm.x86.sse2.pmadd.wd"
+    intrin_id = llvm_lookup_intrinsic_id(orig_name)
+    name = llvm_get_intrinsic_name(intrin_id)
+    assert orig_name == name
 
 
 @tvm.testing.requires_llvm
@@ -747,7 +757,12 @@ def test_llvm_crt_static_lib():
     B = te.placeholder((32,), dtype="bfloat16")
     d = te.compute((32,), lambda x: A[x] + B[x])
     sch = te.create_schedule(d.op)
-    module = tvm.build(sch, [A, B, d], target=tvm.target.Target("llvm --system-lib --runtime=c"))
+    module = tvm.build(
+        sch,
+        [A, B, d],
+        target=tvm.target.Target("llvm"),
+        runtime=Runtime("crt", {"system-lib": True}),
+    )
     print(module.get_source())
     module.save("test.o")
 
@@ -883,6 +898,39 @@ def test_llvm_import():
 
     check_llvm(use_file=True)
     check_llvm(use_file=False)
+
+
+@tvm.testing.requires_llvm
+def test_llvm_scalar_concat():
+    x = tvm.tir.Var("x", "int32")
+    y = tvm.tir.Var("y", "int32")
+    z = tvm.tir.decl_buffer((1,), "int32x2")
+    s = tvm.tir.Shuffle([x, y], [0, 1])
+    f = tvm.tir.PrimFunc([x, y, z], z.vstore(0, s))
+
+    mod = tvm.ir.IRModule.from_expr(f.with_attr("global_symbol", "codegen_scalar_concat"))
+
+    # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
+    # scalars to single-lane LLVM vectors.
+    with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+        m = tvm.build(mod, [x, y, z], target="llvm")
+
+
+@tvm.testing.requires_llvm
+def test_raise_exception_during_codegen():
+    @T.prim_func
+    def threadpool_nested_parallel_loop(
+        A: T.Buffer[(4, 4), "float32"], B: T.Buffer[(4, 4), "float32"]
+    ) -> None:
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i in T.parallel(4):
+            for j in T.parallel(4):
+                T.store(B.data, i * 4 + j, T.load("float32", A.data, i * 4 + j) * 2.0)
+
+    with pytest.raises(tvm.TVMError) as e:
+        tvm.build({"llvm": tvm.IRModule.from_expr(threadpool_nested_parallel_loop)})
+    msg = str(e)
+    assert msg.find("Nested parallel loop is not supported") != -1
 
 
 if __name__ == "__main__":

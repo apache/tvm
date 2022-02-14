@@ -16,7 +16,9 @@
 # under the License.
 """Local Runner"""
 from contextlib import contextmanager
+import logging
 from typing import Callable, List, Optional, Union
+
 import tvm
 
 from ...contrib.popen_pool import PopenPoolExecutor
@@ -25,11 +27,13 @@ from ..utils import get_global_func_with_default_on_worker
 from .config import EvaluatorConfig
 from .runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
 from .utils import (
-    T_ARG_INFO_JSON_OBJ_LIST,
     T_ARGUMENT_LIST,
+    T_ARG_INFO_JSON_OBJ_LIST,
     alloc_argument_common,
     run_evaluator_common,
 )
+
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class LocalRunnerFuture(RunnerFuture):
@@ -214,6 +218,7 @@ class LocalRunner(PyRunner):
         self.f_run_evaluator = f_run_evaluator
         self.f_cleanup = f_cleanup
 
+        logger.info("LocalRunner: max_workers = 1")
         self.pool = PopenPoolExecutor(
             max_workers=1,  # one local worker
             timeout=timeout_sec,
@@ -239,13 +244,11 @@ class LocalRunner(PyRunner):
                 result: List[float] = future.result()
                 error_message: str = None
             except TimeoutError as exception:
-                result: List[float] = None
-                error_message: str = (
-                    f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
-                )
+                result = None
+                error_message = f"LocalRunner: Timeout, killed after {self.timeout_sec} seconds\n"
             except Exception as exception:  # pylint: disable=broad-except
-                result: List[float] = None
-                error_message: str = "LocalRunner: An exception occurred\n" + str(exception)
+                result = None
+                error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
             results.append(local_future)
         return results

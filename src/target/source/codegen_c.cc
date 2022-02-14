@@ -22,6 +22,8 @@
  */
 #include "codegen_c.h"
 
+#include <tvm/arith/analyzer.h>
+
 #include <cctype>
 #include <iomanip>
 
@@ -360,61 +362,6 @@ void CodeGenC::PrintStorageScope(const std::string& scope, std::ostream& os) {  
   ICHECK_EQ(scope, "global");
 }
 
-void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
-  ICHECK_EQ(t.lanes(), 1) << "do not yet support vector types";
-  if (t.is_handle()) {
-    os << "void*";
-    return;
-  }
-  if (t.is_float()) {
-    if (t.bits() == 32) {
-      os << "float";
-      return;
-    }
-    if (t.bits() == 64) {
-      os << "double";
-      return;
-    }
-  } else if (t.is_uint()) {
-    switch (t.bits()) {
-      case 8:
-      case 16:
-      case 32:
-      case 64: {
-        os << "uint" << t.bits() << "_t";
-        return;
-      }
-      case 1:
-        os << "int";
-        return;
-    }
-  } else if (t.is_int()) {
-    switch (t.bits()) {
-      case 8:
-      case 16:
-      case 32:
-      case 64: {
-        os << "int" << t.bits() << "_t";
-        return;
-      }
-    }
-  }
-  LOG(FATAL) << "Cannot convert type " << t << " to C type";
-}
-
-void CodeGenC::PrintType(const Type& type, std::ostream& os) {  // NOLINT(*)
-  if (auto* ptr = type.as<PrimTypeNode>()) {
-    return PrintType(ptr->dtype, os);
-  } else if (auto* ptr = type.as<PointerTypeNode>()) {
-    PrintType(ptr->element_type, os);
-    os << '*';
-  } else if (IsVoidType(type)) {
-    os << "void";
-  } else {
-    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
-  }
-}
-
 inline void PrintConst(const IntImmNode* op, std::ostream& os, CodeGenC* p) {  // NOLINT(*)
   if (op->dtype == DataType::Int(32)) {
     std::ostringstream temp;
@@ -710,8 +657,19 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     ICHECK(is_one(op->predicate)) << "predicated load is not supported";
 
+    bool can_vector_load = false;
     arith::PVar<PrimExpr> base;
     if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
+      const RampNode* ramp = op->index.as<RampNode>();
+      ICHECK(ramp);
+      arith::ModularSet me = arith::Analyzer().modular_set(ramp->base);
+      // The condition: {k * coeff + base} divisible by the alignment for any k
+      if (me->coeff % op->dtype.lanes() == 0 && me->base % op->dtype.lanes() == 0) {
+        can_vector_load = true;
+      }
+    }
+
+    if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {

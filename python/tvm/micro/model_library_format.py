@@ -27,6 +27,7 @@ import typing
 
 import tvm
 from tvm.ir.type import TupleType
+from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
@@ -38,19 +39,24 @@ from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
+STANDALONE_CRT_URL = "./runtime"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
     """Raised when export_model_library_format does not support the given Module tree."""
 
 
-def generate_c_interface_header(module_name, inputs, outputs, include_path):
+def generate_c_interface_header(
+    module_name, inputs, outputs, pools, devices, workspace_size, include_path
+):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
-    interface_c_module = interface_c_create(module_name, inputs, outputs)
+    interface_c_module = interface_c_create(
+        module_name, inputs, outputs, pools, devices, workspace_size
+    )
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
@@ -84,10 +90,12 @@ def _populate_codegen_dir(mod, codegen_dir: str, module_name: str = None):
 
     for dso_mod in dso_modules:
         if dso_mod.type_key == "c":
+            assert dso_mod.format in ["c", "cc", "cpp"]
+            ext = dso_mod.format
             index = mod_indices["src"]
             mod_indices["src"] += 1
             parent_dir = os.path.join(host_codegen_dir, "src")
-            file_name = os.path.join(parent_dir, f"{lib_name}{index}.c")
+            file_name = os.path.join(parent_dir, f"{lib_name}{index}.{ext}")
         elif dso_mod.type_key == "llvm":
             index = mod_indices["lib"]
             mod_indices["lib"] += 1
@@ -174,11 +182,14 @@ def _build_function_memory_map(function_metadata):
     device_max_workspace = dict()
     main_func_metadata = function_metadata[MAIN_FUNC_NAME_STR]
     num_targets = len(main_func_metadata.workspace_sizes.items())
+    from tvm.driver import tvmc  # pylint: disable=import-outside-toplevel
+
+    external_codegens = tvmc.composite_target.get_codegen_names()
     func_entries = []
     target_local_entries = dict()
     for i in range(num_targets):
-        target = main_func_metadata.workspace_sizes.items()[i][0]
-        device_max_workspace[target] = 0
+        main_target = main_func_metadata.workspace_sizes.items()[i][0]
+        device_max_workspace[main_target] = 0
         for func_name, finfo in function_metadata.items():
             if func_name == MAIN_FUNC_NAME_STR:
                 continue
@@ -201,8 +212,11 @@ def _build_function_memory_map(function_metadata):
                 "workspace_size_bytes": int(workspace_size),
             }
             target_local_entries[func_name].append(target_entry)
-            if workspace_size > device_max_workspace[target]:
+            if workspace_size > device_max_workspace.get(target, 0):
                 device_max_workspace[target] = workspace_size
+            # TODO(Mousius) - Remove this massive hack when Targets are unified
+            if target.kind.name in external_codegens:
+                device_max_workspace[main_target] += int(workspace_size)
 
     for func_name, target_entries_ in target_local_entries.items():
         func_entry = {
@@ -263,11 +277,15 @@ def _get_inputs_and_outputs_from_module(mod):
     return inputs, outputs
 
 
+def _get_pools_from_module(mod):
+    return list(dict(mod.executor_codegen_metadata.pool_inputs).values())
+
+
 def _should_generate_interface_header(mod):
-    return any(target.attrs.get("interface-api") == "c" for target in mod.target.values())
+    return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
-def _make_tar(source_dir, tar_file_path):
+def _make_tar(source_dir, tar_file_path, mod):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
 
@@ -277,6 +295,9 @@ def _make_tar(source_dir, tar_file_path):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
+        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+        if is_aot and str(mod.runtime) == "crt":
+            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
 _GENERATED_VERSION = 5
@@ -307,6 +328,16 @@ def _export_graph_model_library_format(
         "style": "full-model",
     }
 
+    if is_aot and (str(mod.runtime) == "crt"):
+        standalone_crt = {
+            "short_name": "tvm_standalone_crt",
+            "url": f"{STANDALONE_CRT_URL}",
+            "url_type": "mlf_path",
+            "version_spec": f"{tvm.__version__}",
+        }
+        external_dependencies = [standalone_crt]
+        metadata["external_dependencies"] = external_dependencies
+
     with open(tempdir / "metadata.json", "w") as json_f:
         json.dump(metadata, json_f, indent=2, sort_keys=True)
 
@@ -318,7 +349,12 @@ def _export_graph_model_library_format(
         include_path = codegen_dir / "host" / "include"
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
-        generate_c_interface_header(mod.libmod_name, inputs, outputs, include_path)
+        devices = mod.get_devices()
+        pools = _get_pools_from_module(mod)
+        workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
+        generate_c_interface_header(
+            mod.libmod_name, inputs, outputs, pools, devices, workspace_size, include_path
+        )
 
     parameters_dir = tempdir / "parameters"
     parameters_dir.mkdir()
@@ -474,6 +510,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    _make_tar(tempdir.path, file_name)
+    _make_tar(tempdir.path, file_name, mod)
 
     return file_name

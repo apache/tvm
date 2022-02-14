@@ -53,7 +53,10 @@ class Handler(server.ProjectAPIHandler):
             else PROJECT_DIR / MODEL_LIBRARY_FORMAT_RELPATH,
             project_options=[
                 server.ProjectOption(
-                    "verbose", help="Run make with verbose output", choices=(True, False)
+                    "verbose",
+                    optional=["build"],
+                    type="bool",
+                    help="Run make with verbose output",
                 )
             ],
         )

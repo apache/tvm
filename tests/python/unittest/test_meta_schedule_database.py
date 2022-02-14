@@ -22,7 +22,6 @@ import tempfile
 from typing import Callable
 
 import pytest
-
 import tvm
 from tvm import tir
 from tvm.ir.module import IRModule
@@ -41,10 +40,12 @@ class Matmul:
         A = T.match_buffer(a, (1024, 1024), "float32")
         B = T.match_buffer(b, (1024, 1024), "float32")
         C = T.match_buffer(c, (1024, 1024), "float32")
-        with T.block([1024, 1024, T.reduce_axis(0, 1024)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
 @tvm.script.ir_module
@@ -56,12 +57,16 @@ class MatmulRelu:
         B = T.match_buffer(b, (16, 16), "float32")
         D = T.match_buffer(d, (16, 16), "float32")
         C = T.alloc_buffer((16, 16), "float32")
-        with T.block([16, 16, T.reduce_axis(0, 16)], "matmul") as [vi, vj, vk]:
-            with T.init():
-                C[vi, vj] = 0.0
-            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-        with T.block([16, 16], "relu") as [vi, vj]:
-            D[vi, vj] = T.max(C[vi, vj], 0.0)
+        for i, j, k in T.grid(16, 16, 16):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+        for i, j in T.grid(16, 16):
+            with T.block("relu"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
 # fmt: on
@@ -124,6 +129,25 @@ def test_meta_schedule_database_create():
         database = _create_tmp_database(tmpdir)
         assert osp.exists(database.path_workload)
         assert osp.exists(database.path_tuning_record)
+
+
+def test_meta_schedule_database_has_workload():
+    mod: IRModule = Matmul
+    missing_mod: IRModule = MatmulRelu
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir)
+        workload = database.commit_workload(mod)
+        record = TuningRecord(
+            _create_schedule(mod, _schedule_matmul).trace,
+            [1.5, 2.5, 1.8],
+            workload,
+            tvm.target.Target("llvm"),
+            ArgInfo.from_prim_func(func=mod["main"]),  # pylint: disable=unsubscriptable-object
+        )
+        database.commit_tuning_record(record)
+        assert len(database) == 1
+        assert database.has_workload(mod)
+        assert not database.has_workload(missing_mod)
 
 
 def test_meta_schedule_database_add_entry():

@@ -16,6 +16,7 @@
 # under the License.
 """TVM Script Parser Intrinsic Classes"""
 # pylint: disable=redefined-builtin, relative-beyond-top-level
+import builtins
 from typing import List, Any
 
 import tvm.tir
@@ -121,6 +122,11 @@ def floormod(x, y, span):
 
 
 @register
+def truncmod(x, y, span):
+    return tvm.tir.truncmod(x, y, span)
+
+
+@register
 def abs(x, span):
     return tvm.tir.abs(x, span)
 
@@ -211,3 +217,20 @@ class StoreIntrin(Intrin):
             return tvm.tir.Store(var, value, index, predicate, span)
 
         super().__init__(store, stmt=True)
+
+
+@register
+def comm_reducer(lambda_io, identities, span):
+    """Create a CommReducer from lambda inputs/outputs and the identities"""
+    lambda_input = lambda_io[0]
+    lambda_output = lambda_io[1]
+
+    num_args = len(lambda_input)
+    num_arg_per_group = num_args // 2
+    x = [lambda_input[i] for i in builtins.range(0, num_arg_per_group)]
+    y = [lambda_input[i] for i in builtins.range(num_arg_per_group, num_args)]
+
+    if not isinstance(lambda_output, tuple):
+        lambda_output = (lambda_output,)
+
+    return tvm.tir.CommReducer(x, y, lambda_output, identities, span)

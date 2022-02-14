@@ -16,6 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*!
+ * \file src/relay/backend/contrib/ethosn/ethosn_api.h
+ * \brief The Relay -> Arm(R) Ethos(TM)-N command stream compiler.
+ */
 
 #ifndef TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
 #define TVM_RELAY_BACKEND_CONTRIB_ETHOSN_ETHOSN_API_H_
@@ -88,6 +92,10 @@ struct SigmoidParams {
   sl::TensorInfo input_info;
 };
 
+struct MeanParams {
+  sl::TensorInfo input_info;
+};
+
 struct ConcatenateParams {
   sl::QuantizationInfo qInfo;
   sl::ConcatenationInfo concat_info = sl::ConcatenationInfo(1, qInfo);
@@ -142,7 +150,9 @@ class EthosnError {
    * \brief Construct error from a String
    * \param msg The message
    */
-  explicit EthosnError(const String& msg) { msgs.push_back(msg); }
+  explicit EthosnError(const String& msg) {
+    if (msg.size()) msgs.push_back(msg);
+  }
   /*!
    * \brief Construct error from an ErrStrm
    * \param err The ErrStrm
@@ -183,6 +193,8 @@ class EthosnAPI {
   static EthosnError Addition(const Expr& expr, AdditionParams* params);
   /*! \brief Extract the Support Library sigmoid params from a Relay an ethos-n.qnn_sigmoid func */
   static EthosnError Sigmoid(const Expr& expr, SigmoidParams* params);
+  /*! \brief Extract the Support Library mean params from a mean func */
+  static EthosnError Mean(const Expr& expr, MeanParams* params);
   /*! \brief Extract the Support Library concatenate params from a Relay qnn.concatenate call */
   static EthosnError Concatenate(const Expr& expr, ConcatenateParams* params);
   /*! \brief Extract the Support Library split params from a Relay split call */
@@ -206,7 +218,10 @@ class EthosnAPI {
   /*! \brief Convert TVM size array for pooling size to x and y values */
   static EthosnError Tvm2Npu(const Array<IndexExpr>& size, uint32_t* x, uint32_t* y);
   /*! \brief Convert TVM quantization info to SL quantization info */
-  static EthosnError Tvm2Npu(int32_t zero_point, float scale, sl::QuantizationInfo* npu_qinfo);
+  static EthosnError Tvm2Npu(const int32_t zero_point, const float scale,
+                             sl::QuantizationInfo* npu_qinfo);
+  static EthosnError Tvm2Npu(const int32_t zero_point, const std::valarray<float> scales,
+                             const unsigned int axis, sl::QuantizationInfo* npu_qinfo);
   /*! \brief Convert TVM 2D padding to SL padding */
   static EthosnError Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding* npu_padding);
   /*! \brief Convert a TVM Integer array to a SL tensor shape */
@@ -226,6 +241,7 @@ class EthosnAPI {
   // Get a T from a constant represented by a NDArray.
   template <typename T>
   static EthosnError AsConstant(const Expr& expr, T* out);
+  static EthosnError AsConstant(const Expr& expr, std::valarray<float>* out);
 };
 
 }  // namespace ethosn

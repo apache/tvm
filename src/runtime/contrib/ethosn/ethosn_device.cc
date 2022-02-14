@@ -19,8 +19,10 @@
 
 /*!
  * \file ethosn_device.cc
- * \brief Ethos-N NPU device integration.
+ * \brief Arm(R) Ethos(TM)-N NPU device integration.
  */
+
+#include "ethosn_device.h"
 
 #include <dlpack/dlpack.h>
 #include <poll.h>
@@ -32,6 +34,7 @@
 #include <memory>
 
 #include "ethosn_driver_library/Buffer.hpp"
+#include "ethosn_runtime.h"
 #include "ethosn_support_library/Support.hpp"
 
 #if defined ETHOSN_HW
@@ -43,7 +46,6 @@ namespace tvm {
 namespace runtime {
 namespace ethosn {
 
-namespace sl = ::ethosn::support_library;
 namespace dl = ::ethosn::driver_library;
 
 bool WaitForInference(dl::Inference* inference, int timeout) {
@@ -76,47 +78,66 @@ template <typename T>
 void CopyOutput(dl::Buffer* source_buffers[], std::vector<DLTensor*>* outputs) {
   for (DLTensor* tensor : *outputs) {
     dl::Buffer* source_buffer = source_buffers[0];
-    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
-    size_t size = source_buffer->GetSize();
     T* dest_pointer = static_cast<T*>(tensor->data);
+    size_t size = source_buffer->GetSize();
+#if _ETHOSN_API_VERSION_ < 2111
+    uint8_t* source_buffer_data = source_buffer->GetMappedBuffer();
+#else
+    uint8_t* source_buffer_data = source_buffer->Map();
+#endif
     std::copy_backward(source_buffer_data, source_buffer_data + size, dest_pointer + size);
+#if _ETHOSN_API_VERSION_ >= 2111
+    source_buffer->Unmap();
+#else
+#endif
     source_buffers++;
   }
 }
 
 void CreateBuffers(std::vector<std::shared_ptr<dl::Buffer> >* fm,
-                   const std::vector<DLTensor*>& tensors) {
+                   const std::vector<DLTensor*>& tensors, bool input) {
   int index = 0;
   for (auto buffer : tensors) {
     auto* data = static_cast<uint8_t*>(buffer->data);
     // The NPU only needs the size of the tensor * uint8_t.
     auto data_size = static_cast<uint32_t>(GetDataSize(*buffer));
-    (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
+    if (input) {
+      (*fm)[index++] = std::make_shared<dl::Buffer>(data, data_size, dl::DataFormat::NHWC);
+    } else {
+      (*fm)[index++] = std::make_shared<dl::Buffer>(data_size, dl::DataFormat::NHWC);
+    }
   }
 }
 
+#if _ETHOSN_API_VERSION_ <= 2102
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
                const std::vector<uint32_t>& input_order,
                const std::vector<uint32_t>& output_order) {
+#else
+bool Inference(tvm::runtime::TVMArgs args, dl::Network* npu,
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
+#endif
   // Unpack parameters
   uint8_t argc = 0;
-  std::vector<DLTensor*> inputs(input_order.size());
-  for (uint8_t i = 0; i < network->GetInputBufferInfos().size(); i++) {
+  size_t n_inputs = input_order.size();
+  size_t n_outputs = output_order.size();
+  std::vector<DLTensor*> inputs(n_inputs);
+  for (uint8_t i = 0; i < n_inputs; i++) {
     inputs[input_order[i]] = args[argc++];
   }
-  auto out_infos = network->GetOutputBufferInfos();
-  std::vector<DLTensor*> outputs(output_order.size());
-  for (uint8_t i = 0; i < network->GetOutputBufferInfos().size(); i++) {
+  std::vector<DLTensor*> outputs(n_outputs);
+  for (uint8_t i = 0; i < n_outputs; i++) {
     outputs[output_order[i]] = args[argc++];
   }
 
   // Set up input buffers
   std::vector<std::shared_ptr<dl::Buffer> > ifm(inputs.size());
-  CreateBuffers(&ifm, inputs);
+  CreateBuffers(&ifm, inputs, true);
 
   // Set up output buffers
   std::vector<std::shared_ptr<dl::Buffer> > ofm(outputs.size());
-  CreateBuffers(&ofm, outputs);
+  CreateBuffers(&ofm, outputs, false);
 
   // Raw pointers for the inference
   dl::Buffer* ifm_raw[inputs.size()];
@@ -128,7 +149,9 @@ bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
     ofm_raw[i] = ofm[i].get();
   }
 
+#if _ETHOSN_API_VERSION_ <= 2102
   auto npu = std::make_unique<dl::Network>(*network);
+#endif
 
   // Execute the inference.
   std::unique_ptr<dl::Inference> result(
@@ -197,11 +220,17 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.test.infra.inference_result")
     });
 
 // Allow the ethos-n support code to be tested without a device
+#if _ETHOSN_API_VERSION_ <= 2102
 bool Inference(tvm::runtime::TVMArgs args, sl::CompiledNetwork* network,
                const std::vector<uint32_t>& input_order,
                const std::vector<uint32_t>& output_order) {
+#else
+bool Inference(tvm::runtime::TVMArgs args, dl::Network* /* npu */,
+               const std::vector<uint32_t>& input_order,
+               const std::vector<uint32_t>& output_order) {
+#endif
   std::vector<DLTensor*> outputs;
-  for (int argc = network->GetInputBufferInfos().size(); argc < args.size(); argc++) {
+  for (int argc = input_order.size(); argc < args.size(); argc++) {
     outputs.push_back(args[argc]);
   }
   bool rc = false;

@@ -17,20 +17,22 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, too-many-arguments, consider-using-in
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
+import re
 
-from tvm import topi
-from tvm.topi.utils import get_const_tuple
-
+from tvm import relay, topi
 from tvm.runtime import convert
 from tvm.te.hybrid import script
-from .. import op as reg
-from .. import strategy
-from ..op import OpPattern
-from .._tensor import elemwise_shape_func
-from ..strategy.generic import is_depthwise_conv2d
-from ...transform import LayoutConfig
+from tvm.topi.utils import get_const_tuple
+from tvm.topi.nn.utils import get_pad_tuple
+
 from ....ir import container
 from ....tir import expr
+from ...transform import LayoutConfig
+from .. import op as reg
+from .. import strategy
+from .._tensor import elemwise_shape_func
+from ..op import OpPattern
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -151,6 +153,11 @@ reg.register_strategy("nn.batch_matmul", strategy.batch_matmul_strategy)
 reg.register_pattern("nn.batch_matmul", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# batch_norm
+reg.register_strategy("nn.batch_norm", strategy.batch_norm_strategy)
+reg.register_pattern("nn.batch_norm", reg.OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # sparse_dense
 @reg.register_compute("nn.sparse_dense")
 def compute_sparse_dense(attrs, inputs, out_type):
@@ -267,9 +274,6 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
 
     # First check if there is a LayoutConfig scope, and if so, whether
@@ -286,8 +290,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
     new_attrs["data_layout"] = desired_data_layout
+    need_tile = re.match(r"NCHW(\d*)c", desired_data_layout)
 
-    if desired_kernel_layout != "default":
+    if desired_kernel_layout != "default" and not need_tile:
         new_attrs["kernel_layout"] = desired_kernel_layout
         return relay.nn.conv2d(data, weight, **new_attrs)
 
@@ -312,6 +317,14 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "HWNC":
         new_attrs["kernel_layout"] = "HWOI"
         return relay.nn.conv2d(data, weight, **new_attrs)
+    elif need_tile:
+        assert desired_kernel_layout != "default", "Kernel layout cannot be default."
+        tile = int(need_tile.group(1))
+        if isinstance(data, relay.expr.Var) and data.checked_type.shape[1] % tile != 0:
+            return relay.nn.conv2d(data, weight, **attrs)
+        else:
+            new_attrs["kernel_layout"] = desired_kernel_layout
+            return relay.nn.contrib_conv2d_nchwc(data, weight, **new_attrs)
 
     raise ValueError("Layout %s is not yet supported." % desired_data_layout)
 
@@ -363,9 +376,6 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
@@ -379,7 +389,7 @@ def convert_conv2d_transpose(attrs, inputs, tinfos, desired_layouts):
 
     # Handle default kernel layouts
     if desired_data_layout == "NCHW":
-        new_attrs["kernel_layout"] = "OIHW"
+        new_attrs["kernel_layout"] = "IOHW"
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
     elif desired_data_layout == "NHWC":
         new_attrs["kernel_layout"] = "HWIO"
@@ -446,9 +456,6 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, weight = inputs
     new_attrs = dict(attrs)
     assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv3d's inputs"
@@ -515,6 +522,30 @@ reg.register_schedule("nn.max_pool2d", strategy.schedule_pool)
 reg.register_pattern("nn.max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_convert_op_layout("nn.max_pool2d")
+def convert_max_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for max_pool2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current pooling
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.max_pool2d(*inputs, **new_attrs)
+
+
 # max_pool3d
 reg.register_schedule("nn.max_pool3d", strategy.schedule_pool)
 reg.register_pattern("nn.max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
@@ -528,6 +559,30 @@ reg.register_pattern("nn.avg_pool1d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # avg_pool2d
 reg.register_schedule("nn.avg_pool2d", strategy.schedule_pool)
 reg.register_pattern("nn.avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_convert_op_layout("nn.avg_pool2d")
+def convert_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for avg_pool2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current pooling
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.avg_pool2d(*inputs, **new_attrs)
 
 
 # avg_pool3d
@@ -560,9 +615,57 @@ reg.register_schedule("nn.global_max_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+@reg.register_convert_op_layout("nn.global_max_pool2d")
+def convert_global_max_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for global_max_pool2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current pooling
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.global_max_pool2d(*inputs, **new_attrs)
+
+
 # global_avg_pool2d
 reg.register_schedule("nn.global_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_convert_op_layout("nn.global_avg_pool2d")
+def convert_global_avg_pool2d(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for global_avg_pool2d op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current pooling
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of one layout string
+        layout string defining our desired layout for input and output.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    new_attrs["layout"] = str(desired_layouts[0])
+    new_attrs["out_layout"] = str(desired_layouts[0])
+    return relay.nn.global_avg_pool2d(*inputs, **new_attrs)
 
 
 # adaptive_max_pool2d
@@ -796,9 +899,6 @@ def convert_deformable_conv2d(attrs, inputs, tinfos, desired_layouts):
     result : tvm.relay.Expr
         The transformed expr
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm import relay
-
     data, offset, weight = inputs
     new_attrs = dict(attrs)
     for attr in new_attrs:
@@ -962,6 +1062,122 @@ reg.register_injective_schedule("nn.space_to_batch_nd")
 reg.register_injective_schedule("nn.batch_to_space_nd")
 
 
+reg.register_strategy("nn.conv2d_backward_weight", strategy.conv2d_backward_weight_strategy)
+reg.register_pattern("nn.conv2d_backward_weight", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_legalize("nn.conv2d_backward_weight")
+def legalize_conv2d_backward_weight(attrs, inputs, types):
+    """Legalize conv2d_backward_weight op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    grad, data = inputs
+    data_shape = get_const_tuple(data.checked_type.shape)
+    weight_shape = get_const_tuple(types[2].shape)
+    _, out_channel, grad_h, grad_w = get_const_tuple(grad.checked_type.shape)
+    batch, in_channel, in_h, in_w = data_shape
+    _, _, filter_h, filter_w = weight_shape
+    fpad_top, fpad_left, fpad_bottom, fpad_right = get_pad_tuple(
+        get_const_tuple(attrs.padding), (filter_h, filter_w)
+    )
+    stride_h, stride_w = get_const_tuple(attrs.strides)
+    dilation_h, dilation_w = get_const_tuple(attrs.dilation)
+
+    grad = relay.tile(grad, [1, in_channel // attrs.groups, 1, 1])
+    grad = relay.reshape(grad, [-1, 1, 0, 0])  # batch * oc * ic // groups, 1, oh, ow
+    data = relay.reshape(data, [1, -1, 0, 0])  # 1, batch * ic, ih, iw
+
+    backward_weight = relay.nn.conv2d(
+        data,
+        grad,
+        strides=attrs.dilation,
+        padding=attrs.padding,
+        dilation=attrs.strides,
+        groups=in_channel * batch,
+        out_dtype=attrs.out_dtype,
+    )
+
+    # infer shape of backward_weight
+    padded_weight_grad_h = (
+        in_h - (grad_h - 1) * stride_h - 1 + fpad_top + fpad_bottom
+    ) // dilation_h + 1
+    padded_weight_grad_w = (
+        in_w - (grad_w - 1) * stride_w - 1 + fpad_left + fpad_right
+    ) // dilation_w + 1
+
+    backward_weight = relay.reshape(
+        backward_weight,
+        [
+            batch,
+            in_channel // attrs.groups,
+            out_channel,
+            padded_weight_grad_h,
+            padded_weight_grad_w,
+        ],
+    )
+    backward_weight = relay.sum(backward_weight, axis=0)
+    backward_weight = relay.transpose(backward_weight, [1, 0, 2, 3])
+
+    assert padded_weight_grad_h >= filter_h
+    assert padded_weight_grad_w >= filter_w
+
+    if padded_weight_grad_h > filter_h or padded_weight_grad_w > filter_w:
+        backward_weight = relay.strided_slice(
+            backward_weight,
+            begin=[0, 0, 0, 0],
+            end=[out_channel, in_channel // attrs.groups, filter_h, filter_w],
+        )
+
+    return backward_weight
+
+
+@reg.register_convert_op_layout("nn.conv2d_backward_weight")
+def convert_conv2d_backward_weight(attrs, inputs, _, desired_layouts):
+    """Convert Layout pass registration for conv2d_backward_weight op.
+    Note that `desired_layouts` must be a pair [`data_layout`, `kernel_layouts`],
+    where `kernel_layouts` affects the output of this op (since the output of this op
+    is the weight gradient). The layout of the output gradient (the second input to this op)
+    is assumed to be the same as `data_layout`.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of data and gradient."
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["grad_layout"] = desired_data_layout
+    new_attrs["data_layout"] = desired_data_layout
+    new_attrs["kernel_layout"] = desired_kernel_layout
+    new_attrs.pop("out_layout")
+    return relay.nn.conv2d_backward_weight(inputs[0], inputs[1], **new_attrs)
+
+
 #####################
 #  Shape functions  #
 #####################
@@ -1006,6 +1222,19 @@ def _conv_shape_func_nhwc_hwoi(dshape, kshape, strides, padding, dilation):
     return out
 
 
+@script
+def _conv_shape_func_nhwc_ohwi(dshape, kshape, strides, padding, dilation):
+    """Shape function for conv*d op with nhwc & ohwi layout."""
+    out = output_tensor((dshape.shape[0],), "int64")
+    out[0] = dshape[0]
+    out[dshape.shape[0] - 1] = kshape[0]
+
+    for i in const_range(dshape.shape[0] - 2):
+        dilated_k = (kshape[i + 1] - 1) * dilation[i] + 1
+        out[i + 1] = (dshape[i + 1] + 2 * padding[i] - dilated_k) // strides[i] + 1
+    return out
+
+
 def conv_shape_func(attrs, inputs, _):
     """Shape function for conv*d op."""
     strides = get_const_tuple(attrs.strides)
@@ -1019,6 +1248,8 @@ def conv_shape_func(attrs, inputs, _):
         shape_func = _conv_shape_func_nhwc_hwio
     elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWOI":
         shape_func = _conv_shape_func_nhwc_hwoi
+    elif attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "OHWI":
+        shape_func = _conv_shape_func_nhwc_ohwi
     else:
         raise ValueError(
             "Unsupported data/kernel layout: %s, %s"

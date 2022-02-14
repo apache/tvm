@@ -15,6 +15,7 @@ docs/sitemaps/sitemap_generator/__pycache__
 .Python
 env/
 build/
+build-*/
 develop-eggs/
 dist/
 downloads/
@@ -178,6 +179,7 @@ perf
 .bash_history
 *.json
 *.params
+*.ro
 *.onnx
 *.h5
 synset.txt
@@ -248,3 +250,8 @@ conda/pkg
 
 # Document internationalization
 *.mo
+# Local docs build
+_docs/
+jvm/target
+.config/configstore/
+.ci-py-scripts/

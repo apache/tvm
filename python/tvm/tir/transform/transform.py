@@ -206,6 +206,17 @@ def InjectDoubleBuffer():
     return _ffi_api.InjectDoubleBuffer()  # type: ignore
 
 
+def InjectRollingBuffer():
+    """Inject rolling buffer statements.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectRollingBuffer()  # type: ignore
+
+
 def StorageRewrite():
     """Rewrite storage allocation pattern.
 
@@ -298,6 +309,17 @@ def BF16TypeLowering():
         The result pass
     """
     return _ffi_api.BF16TypeLowering()  # type: ignore
+
+
+def CommonSubexprElimTIR(enable_cse_tir: bool = True):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir)  # type: ignore
 
 
 def RewriteUnsafeSelect():
@@ -577,6 +599,18 @@ def HoistIfThenElse(variant: Optional[str] = None):
         return _ffi_api.HoistIfThenElse()  # type: ignore
 
 
+def LowerCrossThreadReduction():
+    """Lower cross-thread reduction from thread bindings to
+    intrinsic function calls.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCrossThreadReduction()  # type: ignore
+
+
 def LowerInitBlock():
     """Lower block init stmt into IfThenElse statements.
 
@@ -628,7 +662,7 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with T.block([]):
+            with T.block():
                 B = T.alloc_buffer(16, 16)
                 for j in range(0, 16):
                     B[i, j] = A[i, j] + 1
@@ -643,7 +677,7 @@ def CompactBufferAllocation():
     .. code-block:: python
 
         for i in range(0, 16):
-            with T.block([]):
+            with T.block():
                 B = T.alloc_buffer(1, 16)
                 for j in range(0, 16):
                     B[0, j] = A[i, j] + 1

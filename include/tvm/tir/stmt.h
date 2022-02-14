@@ -1078,9 +1078,9 @@ class MatchBufferRegion : public ObjectRef {
  * \note Block's body is parameterized by iter vars.
  * \code
  *
- *  with T.block([extent0, extent1, ...], name) as [v0, v1, ...]:
- *      T.bind(v0, value0)
- *      T.bind(v1, value1)
+ *  with T.block(name):
+ *      v0 = T.axis.S(domain, value0)
+ *      v1 = T.axis.R(domain, value1)
  *      ...
  *      T.reads([buffer0[start:end, ...], ...])
  *      T.writes([buffer1[start:end, ...], ...])
@@ -1251,7 +1251,7 @@ constexpr const char* extern_scope = "extern_scope";
  *  This can hint some code generator to create a new function for compute.
  */
 constexpr const char* compute_scope = "compute_scope";
-/*! \brief Mark storage alignement requirement of buffers */
+/*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Mark storage scope of realization */
 constexpr const char* realize_scope = "realize_scope";
@@ -1263,6 +1263,10 @@ constexpr const char* device_type = "device_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
+/*! \brief Pragma: auto-unroll, max_step */
+constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
+/*! \brief Pragma: unroll explicit */
+constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 /*! \brief Mark region is guarded by the pragma extension */
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import C source or file into the final code gen module */
@@ -1284,6 +1288,8 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
  * \brief Marks region used by double buffer write
  */
 constexpr const char* double_buffer_write = "double_buffer_write";
+/*! \brief Mark realization for rolling buffer optimization */
+constexpr const char* rolling_buffer_scope = "rolling_buffer_scope";
 /*! \brief Mark of scan update scope */
 constexpr const char* scan_update_scope = "scan_update_scope";
 /*! \brief Mark of scan init scope */
@@ -1354,6 +1360,39 @@ constexpr const char* script_parsing_detect_access = "tir.script_parsing_detect_
  * \brief Mark that the loop should be partitioned.
  */
 constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+
+/*! \brief Mark the tiling structure of blocks that are applied by rule Multi-Level-Tiling */
+constexpr const char* meta_schedule_tiling_structure = "meta_schedule.tiling_structure";
+
+/*!
+ * \brief Mark that the loop should be further skip and bound to environment threads to enable
+ * cooperative fetching.
+ */
+constexpr const char* meta_schedule_cooperative_fetch = "meta_schedule.cooperative_fetch";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_low_inclusive =
+    "meta_schedule.thread_extent_low_inclusive";
+
+/*! \brief The allowed range of thread extent in thread bindings */
+constexpr const char* meta_schedule_thread_extent_high_inclusive =
+    "meta_schedule.thread_extent_high_inclusive";
+
+/*! \brief Mark the block whose producer needs to be applied by rule Random-Compute-Location */
+constexpr const char* meta_schedule_random_compute_producer =
+    "meta_schedule.random_compute_producer";
+
+/*! \brief Mark auto-parallel setting on the block. */
+constexpr const char* meta_schedule_parallel = "meta_schedule.parallel";
+
+/*! \brief Mark auto-vectorize setting on the block. */
+constexpr const char* meta_schedule_vectorize = "meta_schedule.vectorize";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_explicit = "meta_schedule.unroll_explicit";
+
+/*! \brief Mark auto-unroll setting on the block. */
+constexpr const char* meta_schedule_unroll_implicit = "meta_schedule.unroll_implicit";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

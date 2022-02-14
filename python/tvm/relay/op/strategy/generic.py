@@ -446,7 +446,7 @@ def deformable_conv2d_strategy(attrs, inputs, out_type, target):
 
 
 # conv2d_transpose
-def wrap_compute_conv2d_transpose(topi_compute):
+def wrap_compute_conv2d_transpose(topi_compute, has_groups=False, add_layout=False):
     """wrap conv2d_transpose topi compute"""
 
     def compute_conv2d_transpose(attrs, inputs, out_dtype):
@@ -456,7 +456,13 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out_dtype = attrs.out_dtype
         out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
+        # out = topi_compute(inputs[0], inputs[1], strides, padding, out_dtype, output_padding)
+        args = [inputs[0], inputs[1], strides, padding, out_dtype, output_padding]
+        if add_layout:
+            args.append(attrs.data_layout)
+        if has_groups:
+            args.append(attrs.groups)
+        out = topi_compute(*args)
         return [out]
 
     return compute_conv2d_transpose
@@ -471,13 +477,19 @@ def conv2d_transpose_strategy(attrs, inputs, out_type, target):
     groups = attrs.groups
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
-    assert groups == 1, "only support groups == 1 for now"
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
-        wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
-        name="conv2d_transpose_nchw.generic",
-    )
+    if groups == 1:
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.conv2d_transpose_nchw),
+            wrap_topi_schedule(topi.generic.schedule_conv2d_transpose_nchw),
+            name="conv2d_transpose_nchw.generic",
+        )
+    else:  # group_conv2d_transpose
+        strategy.add_implementation(
+            wrap_compute_conv2d_transpose(topi.nn.group_conv2d_transpose_nchw, has_groups=True),
+            wrap_topi_schedule(topi.generic.schedule_group_conv2d_transpose_nchw),
+            name="group_conv2d_transpose_nchw.generic",
+        )
     return strategy
 
 
@@ -621,6 +633,49 @@ def conv1d_strategy(attrs, inputs, out_type, target):
             wrap_compute_conv1d(topi.nn.conv1d_nwc),
             wrap_topi_schedule(topi.generic.schedule_conv1d_nwc),
             name="conv1d_nwc.generic",
+        )
+    else:
+        raise ValueError("Unsupported conv1d layout {}".format(layout))
+    return strategy
+
+
+def wrap_compute_group_conv1d(topi_compute):
+    """wrap conv1d topi compute"""
+
+    def _compute_group_conv1d(attrs, inputs, out_type):
+        """Compute definition of conv1d"""
+        strides = get_const_tuple(attrs.strides)
+        padding = get_const_tuple(attrs.padding)
+        dilation = get_const_tuple(attrs.dilation)
+        out_dtype = attrs.out_dtype
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        return [
+            topi_compute(inputs[0], inputs[1], strides, padding, dilation, attrs.groups, out_dtype)
+        ]
+
+    return _compute_group_conv1d
+
+
+@override_native_generic_func("group_conv1d_strategy")
+def group_conv1d_strategy(attrs, inputs, out_type, target):
+    """group_conv1d generic strategy"""
+    logger.warning("group_conv1d is not optimized for this platform.")
+    layout = attrs.data_layout
+    dilation = get_const_tuple(attrs.dilation)
+    if dilation[0] < 1:
+        raise ValueError("dilation should be a positive value")
+    strategy = _op.OpStrategy()
+    if layout == "NCW":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.group_conv1d_ncw),
+            wrap_topi_schedule(topi.generic.schedule_group_conv1d_ncw),
+            name="group_conv1d_ncw.generic",
+        )
+    elif layout == "NWC":
+        strategy.add_implementation(
+            wrap_compute_conv1d(topi.nn.group_conv1d_nwc),
+            wrap_topi_schedule(topi.generic.schedule_group_conv1d_nwc),
+            name="group_conv1d_nwc.generic",
         )
     else:
         raise ValueError("Unsupported conv1d layout {}".format(layout))
@@ -838,6 +893,29 @@ def batch_matmul_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# batch_norm
+def wrap_compute_batch_norm(topi_compute):
+    """wrap batch_norm topi compute"""
+
+    def _compute_batch_norm(attrs, inputs, out_type):
+        return topi_compute(*inputs, attrs.axis, attrs.epsilon, attrs.center, attrs.scale)
+
+    return _compute_batch_norm
+
+
+@override_native_generic_func("batch_norm_strategy")
+def batch_norm_strategy(attrs, inputs, out_type, target):
+    """batch_norm generic strategy"""
+    logger.warning("batch_norm is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_batch_norm(topi.nn.batch_norm),
+        wrap_topi_schedule(topi.generic.schedule_batch_norm),
+        name="batch_norm.generic",
+    )
+    return strategy
+
+
 # sparse dense
 def wrap_compute_sparse_dense(topi_compute):
     """wrap sparse dense topi compute"""
@@ -998,6 +1076,31 @@ def topk_strategy(attrs, inputs, out_type, target):
         wrap_compute_topk(topi.topk),
         wrap_topi_schedule(topi.generic.schedule_topk),
         name="topk.generic",
+    )
+    return strategy
+
+
+# searchsorted
+def wrap_compute_searchsorted(topi_compute):
+    """Wrap searchsorted compute"""
+
+    def _compute_searchsorted(attrs, inputs, out_type):
+        right = attrs.right
+        dtype = attrs.dtype
+        return [topi_compute(inputs[0], inputs[1], right, dtype)]
+
+    return _compute_searchsorted
+
+
+# searchsorted_strategy
+@override_native_generic_func("searchsorted_strategy")
+def searchsorted_strategy(attrs, inputs, out_type, target):
+    """searchsorted generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_searchsorted(topi.searchsorted),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="searchsorted.generic",
     )
     return strategy
 
@@ -1604,6 +1707,40 @@ def uniform_strategy(attrs, inputs, out_type, target):
     return strategy
 
 
+# sliding_window
+def wrap_compute_sliding_window():
+    """Wrap sliding_window topi compute"""
+
+    def _compute_sliding_window(attrs, inputs, _):
+        return [topi.sliding_window(inputs[0], attrs.axis, attrs.window_shape, attrs.strides)]
+
+    return _compute_sliding_window
+
+
+@override_native_generic_func("sliding_window_strategy")
+def sliding_window_strategy(attrs, inputs, out_type, target):
+    """sliding_window generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_sliding_window(),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="sliding_window.generic",
+    )
+    return strategy
+
+
+@override_native_generic_func("normal_strategy")
+def normal_strategy(attrs, inputs, out_type, target):
+    """normal generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_uniform(topi.random.normal),
+        wrap_topi_schedule(topi.generic.schedule_extern),
+        name="normal.generic",
+    )
+    return strategy
+
+
 def wrap_compute_scanop(topi_compute):
     """Wrap scanop style topi compute"""
 
@@ -1706,3 +1843,41 @@ def einsum_strategy(attrs, inputs, out_type, target):
         name="einsum.generic",
     )
     return strategy
+
+
+# conv2d_backward_weight
+def wrap_compute_conv2d_backward_weight(topi_compute):
+    """wrap conv2d_backward_weight topi compute"""
+
+    def _compute_conv2d_backward_weight(attrs, inputs, out_dtype):
+        kernel_size = get_const_tuple(attrs.kernel_size)
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        dilation = get_const_tuple(attrs.dilation)
+        groups = attrs.groups
+        out_dtype = attrs.out_dtype
+        layout = attrs.data_layout
+        out_dtype = inputs[0].dtype if out_dtype in ("same", "") else out_dtype
+        out = topi_compute(
+            inputs[0],
+            inputs[1],
+            kernel_size,
+            padding,
+            strides,
+            dilation,
+            groups,
+            layout,
+            out_dtype,
+        )
+        return [out]
+
+    return _compute_conv2d_backward_weight
+
+
+@override_native_generic_func("conv2d_backward_weight_strategy")
+def conv2d_backward_weight_strategy(attrs, inputs, out_type, target):
+    """wgrad generic strategy"""
+    raise RuntimeError(
+        "conv2d_backward_weight is currently only supported with cudnn. "
+        "Please run Legalize pass to decompose this op into supported ops."
+    )

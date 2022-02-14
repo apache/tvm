@@ -302,6 +302,12 @@ class IRModuleNode : public Object {
   TVM_DLL void ImportFromStd(const String& path);
 
   /*!
+   * \brief Should Link Parameters into the module
+   * \return Whether the Executor is configured to execute with linked parameters (Default: false)
+   */
+  TVM_DLL Bool ShouldLinkParameters() const;
+
+  /*!
    * \brief The set of imported files.
    */
   TVM_DLL std::unordered_set<String> Imports() const;
@@ -468,5 +474,36 @@ TVM_DLL String PrettyPrint(const ObjectRef& node);
  */
 TVM_DLL String AsText(const ObjectRef& node, bool show_meta_data = true,
                       runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
+
+namespace attr {
+
+/*!
+ * \brief Executor targetted by the module
+ *
+ * Type: Executor
+ *
+ * \sa tvm::relay::Executor
+ */
+constexpr const char* kExecutor = "executor";
+
+/*!
+ * \brief Runtime target of the module
+ *
+ * Type: Runtime
+ *
+ * \sa tvm::relay::Runtime
+ */
+constexpr const char* kRuntime = "runtime";
+
+/*!
+ * \brief workspace memory pools of the module
+ *
+ * Type: WorkspaceMemoryPools
+ *
+ * \sa tvm::WorkspaceMemoryPools
+ */
+constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
+
+}  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

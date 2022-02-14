@@ -65,18 +65,16 @@ class TestUnaryOp:
 
     def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
         target = tvm.target.Target(target)
-        if (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not have_fp16(tvm.cuda(0).compute_version)
-        ):
-            pytest.xfail("No float16 support on local cuda device")
-        elif (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not target.attrs.get("supports_float16", False)
-        ):
-            pytest.xfail("No float16 support on vulkan target")
+        if dtype == "float16":
+            if target.kind.name == "cuda":
+                if not have_fp16(tvm.cuda(0).compute_version):
+                    pytest.xfail(
+                        "No float16 support on local cuda device (compute_version != 5.3 and < 6.0)"
+                    )
+            elif target.kind.name == "vulkan" and not target.attrs.get("supports_float16", False):
+                pytest.xfail("No float16 support on vulkan target (supports_float16=False)")
+            else:
+                pytest.xfail(f"No float16 support on {target.kind.name} target")
 
         if target.kind.name == "vulkan" and relay_op in [
             tvm.relay.erf,
@@ -87,8 +85,8 @@ class TestUnaryOp:
 
         shape = (10, 4)
         dtype = dtype
-        tp = relay.TensorType(shape)
-        x = relay.var("x", tp, dtype=dtype)
+        tp = relay.TensorType(shape, dtype=dtype)
+        x = relay.var("x", type_annotation=tp)
         y = relay_op(x)
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
@@ -98,12 +96,12 @@ class TestUnaryOp:
 
         if ref_func is not None:
             data = np.random.rand(*shape).astype(dtype)
-            ref_res = ref_func(data)
+            ref_res = ref_func(data).astype(dtype)
             func = relay.Function([x], y)
             # use graph by execuor default for testing, as we need
             # create function explicitly to avoid constant-folding.
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -387,6 +385,7 @@ def test_batch_norm():
             )
         )
 
+        # axis=1
         beta = relay.var("beta", relay.TensorType((3,), dtype))
         gamma = relay.var("gamma", relay.TensorType((3,), dtype))
         moving_mean = relay.var("moving_mean", relay.TensorType((3,), dtype))
@@ -425,6 +424,53 @@ def test_batch_norm():
                 ]
             )
         )
+
+
+def test_batch_norm_fold_const():
+    axis = 1
+    dtype = "float32"
+    shape = [4, 5, 6]
+
+    data_np = np.random.random(shape).astype(dtype)
+    beta_np = np.random.random(shape[axis]).astype(dtype)
+    gamma_np = np.random.random(shape[axis]).astype(dtype)
+    moving_mean_np = np.random.random(shape[axis]).astype(dtype)
+    moving_var_np = np.random.random(shape[axis]).astype(dtype)
+
+    data = relay.var("data", relay.TensorType(shape, dtype))
+    beta = relay.var("beta", relay.TensorType((shape[1],), dtype))
+    gamma = relay.var("gamma", relay.TensorType((shape[1],), dtype))
+    moving_mean = relay.var("moving_mean", relay.TensorType((shape[1],), dtype))
+    moving_var = relay.var("moving_var", relay.TensorType((shape[1],), dtype))
+    out = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var, axis=axis).astuple()
+    func = relay.Function([data, gamma, beta, moving_mean, moving_var], out)
+
+    out_const = relay.nn.batch_norm(
+        relay.const(data_np),
+        relay.const(gamma_np),
+        relay.const(beta_np),
+        relay.const(moving_mean_np),
+        relay.const(moving_var_np),
+        axis=axis,
+    ).astuple()
+    func_const = relay.Function([], out_const)
+
+    # Build the module with constants to have FoldConstant transform batch_norm.
+    mod_const = tvm.IRModule.from_expr(func_const)
+    mod_const = relay.transform.FoldConstant()(mod_const)
+
+    const_data_out = mod_const["main"].body[0].data
+    const_moving_mean_out = mod_const["main"].body[1].data
+    const_moving_var_out = mod_const["main"].body[2].data
+
+    # Run the Relay func without constants. This will use SimplyInference instead.
+    vm_data_out, vm_moving_mean_out, vm_moving_var_out = relay.create_executor(
+        "vm", device=tvm.device("llvm"), target="llvm"
+    ).evaluate(func)(data_np, gamma_np, beta_np, moving_mean_np, moving_var_np)
+
+    tvm.testing.assert_allclose(const_data_out.numpy(), vm_data_out.numpy())
+    tvm.testing.assert_allclose(const_moving_mean_out.numpy(), vm_moving_mean_out.numpy())
+    tvm.testing.assert_allclose(const_moving_var_out.numpy(), vm_moving_var_out.numpy())
 
 
 @pytest.mark.xfail

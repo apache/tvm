@@ -292,6 +292,14 @@ def test_compile_nested_tuples():
         ref = ref + 1
 
 
+def test_compile_return_empty_tuple():
+    x = relay.var("x", shape=[16], dtype="float32")
+    mod = tvm.IRModule.from_expr(relay.Function([x], relay.Tuple([])))
+    graph, lib, _ = relay.build(mod, "llvm")
+    mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+    mod.run()
+
+
 def test_graph_executor_nested_tuples():
     x, y, z, w = [relay.var(c, shape=(2, 3), dtype="float32") for c in "xyzw"]
     out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])
@@ -324,6 +332,21 @@ def test_graph_executor_api():
     assert mod.get_input_index(dname_1) == 1
     assert mod.get_input_index(dname_0) == 0
     assert mod.get_input_index("Invalid") == -1
+
+    shape_dict, dtype_dict = mod.get_input_info()
+    assert isinstance(shape_dict, tvm.container.Map)
+    assert isinstance(dtype_dict, tvm.container.Map)
+    for data in [data_0, data_1]:
+        name = data.name_hint
+        ty = data.type_annotation
+        # verify shape
+        assert name in shape_dict
+        assert isinstance(shape_dict[name], tvm.runtime.container.ShapeTuple)
+        assert shape_dict[name] == tvm.runtime.container.ShapeTuple([i.value for i in ty.shape])
+        # verify dtype
+        assert name in dtype_dict
+        assert isinstance(dtype_dict[name], tvm.runtime.container.String)
+        assert dtype_dict[name] == ty.dtype
 
 
 @tvm.testing.requires_llvm

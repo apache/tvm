@@ -2672,10 +2672,12 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
     B = T.match_buffer(b, [128, 128])
     C = T.match_buffer(c, [128, 128])
 
-    with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
-        with T.init():
-            C[vi, vj] = T.float32(0)
-        C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+    for i, j, k in T.grid(128, 128, 128):
+        with T.block("update"):
+            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with T.init():
+                C[vi, vj] = T.float32(0)
+            C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
 @T.prim_func
@@ -2685,11 +2687,13 @@ def matmul_original(a: T.handle, b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, [128, 128])
 
     for i, j in T.grid(128, 128):
-        with T.block([128, 128], "init") as [vi, vj]:
+        with T.block("init"):
+            vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
 
         for k in range(128):
-            with T.block([128, 128, T.reduce_axis(0, 128)], "update") as [vi, vj, vk]:
+            with T.block("update"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -2699,11 +2703,14 @@ def element_wise(a: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (128, 128), "float32")
     B = T.alloc_buffer((128, 128), "float32")
 
-    with T.block([128, 128], "B") as [vi, vj]:
-        B[vi, vj] = A[vi, vj] * T.float32(2)
-
-    with T.block([128, 128], "C") as [vi, vj]:
-        C[vi, vj] = B[vi, vj] + T.float32(1)
+    for i, j in T.grid(128, 128):
+        with T.block("B"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            B[vi, vj] = A[vi, vj] * T.float32(2)
+    for i, j in T.grid(128, 128):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
 @T.prim_func
@@ -2712,9 +2719,9 @@ def predicate(b: T.handle, c: T.handle) -> None:
     C = T.match_buffer(c, (16, 16), "float32")
 
     for i, jo, ji in T.grid(16, 4, 5):
-        with T.block([16, 16], "update") as [vi, vj]:
-            T.bind(vi, i)
-            T.bind(vj, jo * 4 + ji)
+        with T.block("update"):
+            vi = T.axis.S(16, i)
+            vj = T.axis.S(16, jo * 4 + ji)
             T.where(jo * 4 + ji < 16)
             C[vi, vj] = B[vi, vj] + T.float32(1)
 
@@ -2807,12 +2814,16 @@ def match_buffer_region(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16, 16), "float32")
     B = T.match_buffer(b, (1), "float32")
 
-    with T.block([16, 4]) as [vi, vj]:
-        C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
-        with T.block([4]) as [vii]:
-            D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
-            for i, j in T.grid(4, 4):
-                B[0] += D[i, 0, j]
+    for i, j in T.grid(16, 4):
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
+            C = T.match_buffer(A[0:16, vi, vj * 4 : vj * 4 + 4], (16, 1, 4))
+            for ii in range(4):
+                with T.block():
+                    vii = T.axis.S(4, ii)
+                    D = T.match_buffer(C[vii * 4 : vii * 4 + 4, 0, 0:4], (4, 1, 4))
+                    for i, j in T.grid(4, 4):
+                        B[0] += D[i, 0, j]
 
 
 def test_match_buffer_region():
@@ -2844,8 +2855,8 @@ def block_elements(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
     B = T.match_buffer(b, (1, 1), "float32")
 
-    with T.block([1], "update") as [vi]:
-        T.bind(vi, 0)
+    with T.block("update"):
+        vi = T.axis.S(1, 0)
         T.where(True)
         T.reads(A[0:16, 0:16])
         T.writes(B[0, 0])
@@ -2879,11 +2890,11 @@ def opaque_block(a: T.handle, b: T.handle) -> None:
 
     for i in range(16):
         for j in range(16):
-            with T.block([]):
+            with T.block():
                 T.reads([])
                 T.writes(A[i, j])
                 A[i, j] = T.float32(0)
-        with T.block([]):
+        with T.block():
             T.reads([A[i, 0:16]])
             T.writes([B[i, 0:16]])
             for j in range(16):
@@ -2927,7 +2938,7 @@ def rank0_block(a: T.handle) -> None:
     B = T.alloc_buffer((), "float32")
     T.store(B.data, 0, T.load("float32", A.data, 0))
 
-    with T.block([], "update") as []:
+    with T.block("update") as []:
         T.reads([A[()]])
         T.writes([B[()]])
         for i in range(1):
@@ -2969,8 +2980,10 @@ def test_minmax():
 def abs(a: T.handle) -> None:
     A = T.match_buffer(a, (128, 128), "float32")
 
-    with T.block([128, 128], "A") as [vi, vj]:
-        A[vi, vj] = T.abs(A[vi, vj])
+    for i, j in T.grid(128, 128):
+        with T.block("A"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            A[vi, vj] = T.abs(A[vi, vj])
 
 
 def test_abs():
@@ -3011,15 +3024,13 @@ def test_simplify_bracket():
 @T.prim_func
 def var_with_same_name(a: T.handle) -> None:
     A = T.match_buffer(a, (16, 16), "float32")
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = 0
-    with T.block([16, 16]) as [vi, vj]:
-        A[vi, vj] = 0
     for i, j in T.grid(16, 16):
-        with T.block([16, 16]) as [vi, vj]:
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
             A[vi, vj] = 0
     for i, j in T.grid(16, 16):
-        with T.block([16, 16]) as [vi, vj]:
+        with T.block():
+            vi, vj = T.axis.remap("SS", [i, j])
             A[vi, vj] = 0
 
 
@@ -3029,13 +3040,9 @@ def test_same_name_var():
     rt_func = tvm.script.from_source(out_str)
     tvm.ir.assert_structural_equal(func, rt_func)
 
-    assert out_str.count("with T.block([16, 16]) as [vi, vj]") == 4
+    assert out_str.count('vi, vj = T.axis.remap("SS", [i, j])') == 2
     assert out_str.find("vi_") == -1
     assert out_str.find("vj_") == -1
-
-    assert out_str.count("for i0, i1 in T.grid(16, 16)") == 2
-    assert out_str.find("i0_") == -1
-    assert out_str.find("i1_") == -1
 
     assert out_str.count("for i, j in T.grid(16, 16)") == 2
     assert out_str.find("i_") == -1
@@ -3047,11 +3054,13 @@ def while_loop(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, (16,), "float32")
     B = T.match_buffer(b, (16,), "float32")
     i = T.alloc_buffer((), "int32", scope="local")
-    with T.block([16]) as [vi]:
-        B[vi] = 0
-    while i[()] < 10:
-        for j in range(16):
-            B[j] += A[j]
+    for ii in range(16):
+        with T.block():
+            vi = T.axis.S(16, ii)
+            B[vi] = 0
+        while i[()] < 10:
+            for j in range(16):
+                B[j] += A[j]
 
 
 def test_while_loop():
@@ -3082,6 +3091,213 @@ def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.han
 
 def test_primfunc_with_allocate_annotations():
     func = primfunc_with_allocate_annotations
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+# fmt: off
+@T.prim_func
+def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    threadIdx_x = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    for i in T.serial(0, 128):
+        T.launch_thread(threadIdx_x, 128)
+        reduce_temp0 = T.allocate([1], "float32", "local")
+        with T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+
+
+@T.prim_func
+def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
+    threadIdx_x = T.env_thread("threadIdx.x")
+    A = T.match_buffer(a, [128, 128], dtype="float32")
+    for i in T.serial(0, 128):
+        T.launch_thread(threadIdx_x, 128)
+        reduce_temp0 = T.allocate([1], "float32", "local")
+        with T.attr(T.comm_reducer(lambda x0, x1, y0, y1: (T.Select((x1 >= y1), x0, y0), T.Select((x1 >= y1), x1, y1)), [T.int32(-1), T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle")):
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), T.load("float32", A.data, i * 128 + threadIdx_x), True, reduce_temp0, threadIdx_x, dtype="handle"))
+
+
+@T.prim_func
+def multiple_commreducer() -> None:
+    normal_reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    normal_reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp0 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    reduce_temp1 = T.buffer_decl([1], dtype="float32", strides=[1], scope="local")
+    for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        with T.block("T_softmax_maxelem_cross_thread_reduction"):
+            T.attr(T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp0[0], True, reduce_temp0.data, ax0_1, dtype="handle"))
+    for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
+        with T.block("T_softmax_expsum_cross_thread_reduction"):
+            T.attr(T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.reinterpret(T.uint64(0), dtype="handle"))
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), normal_reduce_temp1[0], True, reduce_temp1.data, ax0_1, dtype="handle"))
+# fmt: on
+
+
+def test_primfunc_with_single_reduce_group_commreducer():
+    func = comm_reducer_single_reduce_group
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_primfunc_with_multiple_reduce_group_commreducer():
+    func = comm_reducer_multiple_reduce_groups
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_primfunc_with_multiple_commreducer():
+    func = multiple_commreducer
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_div_mod():
+    a = T.var("int32")
+    b = T.var("int32")
+    T.evaluate(a // b)
+    T.evaluate(a % b)
+    T.evaluate(a / b)
+    T.evaluate(T.truncmod(a, b))
+
+
+def test_div_mod():
+    func = func_div_mod
+    rt_func = tvm.script.from_source(func.script())
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+    assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
+    assert isinstance(func.body[1].value, tvm.tir.FloorMod)
+    assert isinstance(func.body[2].value, tvm.tir.Div)
+    assert isinstance(func.body[3].value, tvm.tir.Mod)
+
+
+@T.prim_func
+def loop_extent_dependent(a: T.handle) -> None:
+    A = T.match_buffer(a, [], dtype="int32")
+    for i in T.serial(0, 128):
+        for j in T.serial(0, i):
+            A[()] = A[()] + j
+
+
+def test_loop_extent_dependent():
+    func = loop_extent_dependent
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def nontrivial_range_axis(a: T.handle) -> None:
+    A = T.match_buffer(a, (10), "float32")
+    for i in range(10):
+        with T.block("block"):
+            vi = T.axis.spatial((1, 11), i + 1)
+            A[vi - 1] = A[vi - 1] + 1.0
+
+
+def test_nontrivial_range_axis():
+    func = nontrivial_range_axis
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_with_target_spec_by_config() -> None:
+    T.func_attr(
+        {
+            "kTarget": T.target(
+                {
+                    "max_num_threads": 1024,
+                    "arch": "sm_70",
+                    "thread_warp_size": 32,
+                    "kind": "cuda",
+                    "tag": "",
+                    "keys": ["cuda", "gpu"],
+                }
+            )
+        }
+    )
+    T.evaluate(0)
+
+
+@T.prim_func
+def func_with_target_spec_by_str() -> None:
+    T.func_attr({"kTarget": T.target("nvidia/nvidia-a100")})
+    T.evaluate(0)
+
+
+def test_func_with_target_spec_by_config():
+    func = func_with_target_spec_by_config
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+def test_func_with_target_spec_by_str():
+    func = func_with_target_spec_by_str
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_root_attr():
+    with T.block("root"):
+        T.block_attr({"a": "0"})
+        T.evaluate(0)
+
+
+def test_root_attr():
+    func = func_root_attr
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_T_ptr_let_statement(
+    args: T.handle, arg_type_ids_handle: T.Ptr[T.int32], num_args: T.int32
+) -> None:
+    # The T.Ptr declaration in the parameter list should parse
+    # correctly, and should be usable as the data pointer in a buffer.
+    arg_type_ids = T.buffer_decl([2], dtype="int32", data=arg_type_ids_handle)
+
+    arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
+    arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
+
+    # Functions that return a "handle" can be assigned to a T.Ptr
+    # variable.  A variable annotated with T.Ptr still has dtype of
+    # T.handle, but has type annotation as a pointer type.
+    A_data: T.Ptr[T.float32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+
+    # The buffer declaration has a data pointer defined earlier in
+    # this function.  It should only be defined after the data pointer
+    # has been defined, and should not be hoisted into the header of
+    # the function as other buffer_decl statements can be.
+    A = T.buffer_decl([1024], dtype="float32", data=A_data)
+    B_data: T.Ptr[T.float32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+    B = T.buffer_decl([1024], dtype="float32", data=B_data)
+
+    B[0] = A[0]
+
+
+def test_T_ptr_let_statement():
+    func = func_T_ptr_let_statement
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_T_ptr_allocate() -> None:
+    A_data: T.Ptr[T.float32] = T.allocate([1024], "float32", "global")
+    A = T.buffer_decl([1024], dtype="float32", data=A_data)
+
+    A[0] = 0.0
+
+
+def test_T_ptr_allocate():
+    func = func_T_ptr_allocate
     rt_func = tvm.script.from_source(func.script(show_meta=True))
     tvm.ir.assert_structural_equal(func, rt_func, True)
 

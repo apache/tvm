@@ -105,7 +105,8 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
-  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes);
+  TypedPointer PackClosureData(const Array<Var>& fields, uint64_t* num_bytes,
+                               std::string struct_name = "");
   TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buffer, llvm::Value* index, int kind);
   void UnpackClosureData(TypedPointer cdata, const Array<Var>& fields,
                          std::unordered_map<const VarNode*, llvm::Value*>* vmap);
@@ -124,7 +125,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch
-  void CreateParallelLaunch(const Stmt& body, int num_task);
+  void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.
   void CreateComputeScope(const AttrStmtNode* op);
   // Check if the call to packed function is successful

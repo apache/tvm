@@ -22,7 +22,7 @@ import tvm.topi.testing
 from tvm.topi.nn.utils import get_pad_tuple
 
 
-def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
+def _conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     """Transposed convolution operator in NCHW layout.
 
     Parameters
@@ -73,7 +73,7 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
             dilated_a_np.shape[2] + bpad_top + bpad_bottom,
             dilated_a_np.shape[3] + bpad_left + bpad_right,
         )
-    )
+    ).astype(a_np.dtype)
     padded_a_np[
         :,
         :,
@@ -83,7 +83,7 @@ def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding):
     # convolution stage
     out_h = (in_h - 1) * stride_h - fpad_top - fpad_bottom + filter_h + opad_h
     out_w = (in_w - 1) * stride_w - fpad_left - fpad_right + filter_w + opad_w
-    b_np = np.zeros((batch, out_c, out_h, out_w))
+    b_np = np.zeros((batch, out_c, out_h, out_w)).astype(a_np.dtype)
     for n in range(batch):
         for f in range(out_c):
             for c in range(in_c):
@@ -141,3 +141,41 @@ def conv2d_transpose_nhwc_python(
     )
     res_nhwc = np.transpose(res_nchw, (0, 2, 3, 1))
     return res_nhwc
+
+
+def conv2d_transpose_nchw_python(a_np, w_np, stride, padding, output_padding, groups=1):
+    """Convolution operator in NCHW layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [batch, in_channel, in_height, in_width]
+
+    w_np : numpy.ndarray
+        4-D with shape [in_channel, num_filter // groups, filter_height, filter_width]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    output_padding : int or a list/tuple of two ints
+        Use to disambiguate the output shape.
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    a_slices = np.array_split(a_np, groups, axis=1)
+    w_slices = np.array_split(w_np, groups, axis=0)
+    b_slices = [
+        _conv2d_transpose_nchw_python(a_slice, w_slice, stride, padding, output_padding)
+        for a_slice, w_slice in zip(a_slices, w_slices)
+    ]
+    b_np = np.concatenate(b_slices, axis=1)
+    return b_np

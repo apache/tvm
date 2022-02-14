@@ -94,7 +94,7 @@ class TypeSolver {
    * \brief Report a diagnostic.
    * \param diag The diagnostic to report.
    */
-  void EmitDiagnostic(const Diagnostic& diag);
+  void Emit(const Diagnostic& diag) { diag_ctx_.Emit(diag); }
 
  private:
   class OccursChecker;
@@ -176,13 +176,9 @@ class TypeSolver {
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*! \brief The global representing the current function. */
-  GlobalVar current_func;
-
- public:
+  GlobalVar current_func_;
   /*! \brief The diagnostic context. */
   DiagnosticContext diag_ctx_;
-
- private:
   /*! \brief The module. */
   IRModule module_;
 

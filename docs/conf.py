@@ -53,6 +53,7 @@ else:
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
+sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
 
@@ -205,7 +206,7 @@ latex_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/html-scipyorg/", None),
     "matplotlib": ("https://matplotlib.org/", None),
 }
 
@@ -257,10 +258,12 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "tvmc_python.py",
         "autotvm_relay_x86.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",
         "auto_scheduler_matmul_x86.py",
+        "tensor_ir_blitz_course.py",
         "topi.pi",
         "cross_compilation_and_rpc.py",
         "relay_quick_start.py",
@@ -310,6 +313,13 @@ within_subsection_order = {
         "use_pass_infra.py",
         "use_pass_instrument.py",
         "bring_your_own_datatypes.py",
+    ],
+    "micro": [
+        "micro_autotune.py",
+        "micro_reference_vm.py",
+        "micro_tflite.py",
+        "micro_ethosu.py",
+        "micro_tvmc.py",
     ],
 }
 
@@ -471,5 +481,9 @@ def process_docstring(app, what, name, obj, options, lines):
         update_alias_docstring(name, obj, lines)
 
 
+from legacy_redirect import build_legacy_redirect
+
+
 def setup(app):
     app.connect("autodoc-process-docstring", process_docstring)
+    app.connect("build-finished", build_legacy_redirect(tvm_path))

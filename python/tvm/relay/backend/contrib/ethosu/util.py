@@ -23,17 +23,34 @@ Refer to the description inside such functions
 
 from inspect import signature
 from enum import Enum
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import numpy as np  # type: ignore
 
 import tvm  # type: ignore
 from tvm import relay
+from tvm._ffi import register_object
+from tvm.runtime import Object
+from . import _ffi_api
 
 
 class QConv2DArgs(Enum):
     """
     This is a helper enum to obtain the correct index
     of qnn.conv2d arguments.
+    """
+
+    IFM = 0
+    WEIGHTS = 1
+    IFM_ZERO_POINT = 2
+    WEIGHTS_ZERO_POINT = 3
+    IFM_SCALE = 4
+    WEIGHTS_SCALE = 5
+
+
+class QConv2DTransposeArgs(Enum):
+    """
+    This is a helper enum to obtain the correct index
+    of qnn.conv2d_transpose arguments.
     """
 
     IFM = 0
@@ -75,6 +92,43 @@ class ClipArgs(Enum):
     A_MAX = 2
 
 
+class BinaryElementwiseArgs(Enum):
+    """This is a helper enums to access the correct index
+    of binary elementwise arguments
+    """
+
+    IFM = 0
+    IFM2 = 1
+    IFM_SCALE = 2
+    IFM_ZERO_POINT = 3
+    IFM2_SCALE = 4
+    IFM2_ZERO_POINT = 5
+    OFM_SCALE = 6
+    OFM_ZERO_POINT = 7
+
+
+class QuantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    quantize arguments
+    """
+
+    IFM = 0
+    OFM_SCALE = 1
+    OFM_ZERO_POINT = 2
+
+
+class DequantizeArgs(Enum):
+    """
+    This is a helper enums to access the correct index of
+    dequantize arguments
+    """
+
+    IFM = 0
+    IFM_SCALE = 1
+    IFM_ZERO_POINT = 2
+
+
 def is_composite_func(func: relay.Function, name: str) -> bool:
     """
     This method checks whether the call is to
@@ -100,6 +154,31 @@ def is_composite_func(func: relay.Function, name: str) -> bool:
     composite_name = func.attrs["Composite"]
 
     return composite_name == name
+
+
+def is_named_ethosu_op(expr: tvm.relay.Expr, name: str) -> bool:
+    """Checks whether a relay expression matches that of the
+    named operator.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The expression to check.
+    name : str
+        The name of the expected operator
+        (without NPU prefix "contrib.ethosu").
+
+    Returns
+    -------
+    bool
+        True if expression matches name, false if not.
+    """
+    prefix = "contrib.ethosu."
+    return (
+        isinstance(expr, tvm.relay.expr.Call)
+        and isinstance(expr.op, tvm.ir.op.Op)
+        and expr.op.name == prefix + name
+    )
 
 
 def get_range_for_dtype_str(dtype: str) -> Tuple[int, int]:
@@ -139,7 +218,7 @@ def round_up(a: int, b: int) -> int:
 
 def get_accelerator_config():
     """Get the variant of the accelerator to compile for"""
-    compiler_attrs = tvm.get_global_func("relay.ext.ethosu.get_compiler_attrs")()
+    compiler_attrs = tvm.get_global_func("relay.ext.ethos-u.get_compiler_attrs")()
     return compiler_attrs.accelerator_config
 
 
@@ -172,3 +251,51 @@ def calculate_size_bytes(expr):
     element_size = type_info.bits // 8
     elements = np.prod(list(expr.checked_type.shape))
     return element_size * elements
+
+
+@register_object("relay.ext.ethos-u.BaseAddress")
+class BaseAddress(Object):
+    """
+    This is a structure to hold base addresses for pointers
+    provided for the driver.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        primfunc_param_idx: int,
+        region: int,
+        size: int,
+        is_runtime_allocation: bool = False,
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BaseAddress,  # type: ignore # pylint: disable=no-member
+            name,
+            primfunc_param_idx,
+            region,
+            size,
+            is_runtime_allocation,
+        )
+
+
+@register_object("relay.ext.ethos-u.CompilationArtifact")
+class CompilationArtifact(Object):
+    """
+    This is a structure to hold binary artifacts
+    for the microNPU.
+    """
+
+    def __init__(
+        self,
+        function_name: str,
+        command_stream: str,
+        encoded_constants: str,
+        base_addresses: List[BaseAddress],
+    ):
+        self.__init_handle_by_constructor__(
+            _ffi_api.CompilationArtifact,  # type: ignore # pylint: disable=no-member
+            function_name,
+            command_stream,
+            encoded_constants,
+            base_addresses,
+        )

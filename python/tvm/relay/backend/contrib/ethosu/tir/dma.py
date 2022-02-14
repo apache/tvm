@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument
-"""Extract information from the DMA operators in TIR."""
+"""Extract parameters from the DMA operators in TIR."""
 import tvm
 from .utils import get_outer_loops, get_base_address, get_strides, get_op_attrs
 from .spec import SerialFeatureMap, SerialPadding
@@ -76,6 +76,31 @@ def get_pad_params(stmt):
     )
 
 
+def get_upscale_params(stmt):
+    """Get the upscale parameters from a loop nest.
+
+    Parameters
+    ----------
+    stmt : tvm.tir.AttrStmt
+        The outermost attribute statement of an upscale loop nest.
+
+    Returns
+    -------
+    input_pointer : tvm.tir.Var
+        The pointer consumed by the operation.
+    output_pointer : tvm.tir.Var
+        The pointer produced by the operation.
+    """
+    _, body = get_op_attrs(stmt)
+    _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
+    if isinstance(inner.value, tvm.tir.Call):
+        input_pointer = inner.value.args[1].buffer_var
+    else:
+        input_pointer = inner.value.buffer_var
+    output_pointer = inner.buffer_var
+    return (input_pointer, output_pointer)
+
+
 def get_convert_to_nhwc_params(stmt):
     """Get the true number of channels from a convert_to_nhwc loop nest.
 
@@ -94,10 +119,18 @@ def get_convert_to_nhwc_params(stmt):
         The pointer produced by the operation.
 
     """
-    _, body = get_op_attrs(stmt)
+    attrs, body = get_op_attrs(stmt)
     _, _, _, c, _, inner = get_outer_loops(body, "NHWC")
+
+    # Ignore the reduce sum operation inserted to ensure
+    # compute that is deemed uneccesary isn't removed by TVM.
+    if attrs["layout"] == "NHCWB16":
+        inner = inner.body
+        input_pointer = inner.value.b.buffer_var
+    else:
+        input_pointer = inner.value.buffer_var
+
     output_pointer = inner.buffer_var
-    input_pointer = inner.value.buffer_var
     return c.extent, input_pointer, output_pointer
 
 
@@ -256,6 +289,8 @@ def get_ifm_params(pointer, producers):
     """
     pad = producers[pointer]
     serial_padding, input_pointer, _ = get_pad_params(pad)
+    upscale = producers[input_pointer]
+    input_pointer, _ = get_upscale_params(upscale)
     convert_to_nhwc = producers[input_pointer]
     in_channels, input_pointer, _ = get_convert_to_nhwc_params(convert_to_nhwc)
     read = producers[input_pointer]
@@ -264,7 +299,7 @@ def get_ifm_params(pointer, producers):
     return serial_ifm, serial_padding
 
 
-def get_ofm_params(pointer, consumers):
+def get_ofm_params(pointer, consumers, producers):
     """Get the parameters associated with the DMA capabilities for an OFM.
 
     Parameters
@@ -274,6 +309,9 @@ def get_ofm_params(pointer, consumers):
     consumers : dict of tvm.tir.Var to tvm.tir.AttrStmt
         A dictionary to associate pointers with the loop nest
         that consumes their values.
+    producers : dict of tvm.tir.Var to tvm.tir.AttrStmt
+        A dictionary to associate pointers with the loop nest
+        that produces their values.
 
     Returns
     -------
@@ -281,11 +319,18 @@ def get_ofm_params(pointer, consumers):
         The serializable OFM.
     output_pointer : tvm.tir.Var
         The pointer that the OFM DMA pipeline produces.
+    is_allocator : bool
+        Whether this operator allocates its output.
 
     """
     convert_to_nhcwb16 = consumers[pointer]
     out_channels, _, output_pointer = get_convert_to_nhcwb16_params(convert_to_nhcwb16)
     write = consumers[output_pointer]
     serial_ofm, _, output_pointer = get_write_params(write)
+    is_allocator = True
+    if output_pointer not in producers:
+        is_allocator = False
+    elif producers[output_pointer] != write:
+        is_allocator = False
     serial_ofm.channels = out_channels
-    return serial_ofm, output_pointer
+    return serial_ofm, output_pointer, is_allocator
