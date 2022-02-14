@@ -525,8 +525,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     GenerateInternalWorkspaceBuffers();
 
     if (metadata_->unpacked_api) {
-      if (metadata_->interface_api == "c") {
-        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
+      if (metadata_->interface_api() == "c") {
+        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name());
 // =======
 //     if (metadata_->use_unpacked_api()) {
 //       LOG(INFO) << "Generate AOT Descriptor: " << metadata_->interface_api();

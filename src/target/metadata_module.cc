@@ -37,7 +37,8 @@ namespace codegen {
 
 static runtime::Module CreateCrtMetadataModule(
     runtime::Module target_module, Target target, relay::Runtime runtime,
-    runtime::metadata::Metadata metadata, Array<runtime::Module> non_crt_exportable_modules,
+    relay::backend::ExecutorCodegenMetadata metadata,
+    Array<runtime::Module> non_crt_exportable_modules,
     Array<runtime::Module> crt_exportable_modules,
     const std::unordered_map<std::string, runtime::NDArray>& const_var_ndarray) {
   if (!non_crt_exportable_modules.empty()) {
@@ -77,7 +78,7 @@ static runtime::Module CreateCrtMetadataModule(
 
 static runtime::Module CreateCppMetadataModule(
     runtime::Module target_module, Target target, relay::Runtime runtime,
-    runtime::metadata::Metadata metadata,
+    relay::backend::ExecutorCodegenMetadata metadata,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol,
     Array<runtime::Module> non_crt_exportable_modules,
     Array<runtime::Module> crt_exportable_modules,
@@ -92,15 +93,17 @@ static runtime::Module CreateCppMetadataModule(
     target_module = const_loader_mod;
   }
 
+  // TODO(masahi)
+  runtime::metadata::Metadata metadata_tmp;
   if (metadata->executor() == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
     if (target->kind->name == "c") {
-      auto metadata_module = CreateCSourceCppMetadataModule(metadata);
+      auto metadata_module = CreateCSourceCppMetadataModule(metadata_tmp);
       metadata_module->Import(target_module);
       target_module = metadata_module;
     }
 #ifdef TVM_LLVM_VERSION
     else if (target->kind->name == "llvm") {
-      auto metadata_module = CreateLLVMCppMetadataModule(metadata, target, runtime);
+      auto metadata_module = CreateLLVMCppMetadataModule(metadata_tmp, target, runtime);
       metadata_module->Import(target_module);
       target_module = metadata_module;
     }

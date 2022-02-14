@@ -297,7 +297,8 @@ class GraphExecutorCodegen : public backend::MemoizedExprTranslator<std::vector<
     auto n = make_object<target::metadata::InMemoryMetadataNode>(
         kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorGraph, mod_name_,
         "packed", Bool(false));
-    ret.metadata = runtime::metadata::Metadata(std::move(n));
+    // TODO(masahi)
+    // ret.metadata = runtime::metadata::Metadata(std::move(n));
     return ret;
   }
 
