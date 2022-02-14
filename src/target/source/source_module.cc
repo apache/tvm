@@ -446,7 +446,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     code_ << ");\n";
     code_ << "int32_t " << entrypoint_name << "(";
     code_ << "struct " << runtime::get_name_mangled(mod_name, "inputs") << "* inputs,";
-    if (metadata_->num_devices() > 0) {
+    if (metadata_->devices.size() > 0) {
       code_ << "struct " << runtime::get_name_mangled(mod_name, "outputs") << "* outputs,";
       code_ << "struct " << runtime::get_name_mangled(mod_name, "devices") << "* devices";
     } else {
@@ -512,10 +512,10 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
     const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
     const std::string run_func_mangled =
-        runtime::get_name_mangled(metadata_->mod_name(), run_func_suffix);
+        runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
     const std::string entrypoint_mangled =
-        runtime::get_name_mangled(metadata_->mod_name(), tvm_entrypoint_suffix);
-    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name(), "network");
+        runtime::get_name_mangled(metadata_->mod_name, tvm_entrypoint_suffix);
+    const std::string network_mangled = runtime::get_name_mangled(metadata_->mod_name, "network");
 
     code_ << "#include \"tvm/runtime/c_runtime_api.h\"\n";
     code_ << "#ifdef __cplusplus\n";
@@ -525,8 +525,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     GenerateInternalWorkspaceBuffers();
 
     if (metadata_->unpacked_api) {
-      if (metadata_->interface_api() == "c") {
-        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name());
+      if (metadata_->interface_api == "c") {
+        GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
 // =======
 //     if (metadata_->use_unpacked_api()) {
 //       LOG(INFO) << "Generate AOT Descriptor: " << metadata_->interface_api();
@@ -537,7 +537,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
         GenerateEntrypointForUnpackedAPI(entrypoint_mangled, run_func_mangled);
       }
     } else {
-      ICHECK_EQ(metadata_->interface_api(), "packed")
+      ICHECK_EQ(metadata_->interface_api, "packed")
           << "Packed interface required for packed operators";
       GenerateEntrypointForPackedAPI(entrypoint_mangled, run_func_mangled);
     }
@@ -552,8 +552,8 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
-    LOG(INFO) << "Metadata " << metadata_.defined() << " exec " << metadata_->executor();
-    if (metadata_.defined() && metadata_->executor() == runtime::kTvmExecutorAot) {
+    LOG(INFO) << "Metadata " << metadata_.defined() << " exec " << metadata_->executor;
+    if (metadata_.defined() && metadata_->executor == runtime::kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
     code_ << ";";

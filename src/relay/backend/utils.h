@@ -60,12 +60,6 @@ using Pass = tvm::transform::Pass;
  */
 class ExecutorCodegenMetadataNode : public Object {
  public:
-
-  int64_t num_devices() const { return devices.size(); }
-  String mod_name() const { return mod_name_; }
-  String interface_api() const {return interface_api_;}
-  String executor() const {return executor_;}
-
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
   /*! \brief output tensor type information */
@@ -77,15 +71,15 @@ class ExecutorCodegenMetadataNode : public Object {
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
-  String executor_ = runtime::kTvmExecutorGraph;
+  String executor = runtime::kTvmExecutorGraph;
   /*! \brief The external API (packed or c) in use */
-  String interface_api_;
+  String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
 
-  String mod_name_ = "";
+  String mod_name = "";
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "MetadataObj";
@@ -98,9 +92,8 @@ class ExecutorCodegenMetadataNode : public Object {
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
   TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<TensorType> output_tensor_types,
-				  Array<tir::Var> pools,
-                                  Array<String> devices, int num_outputs, String executor,
-                                  String mod_name, String interface_api = "packed",
+                                  Array<tir::Var> pools, Array<String> devices, int num_outputs,
+                                  String executor, String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
                                       Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
@@ -110,10 +103,10 @@ class ExecutorCodegenMetadata : public ObjectRef {
     n->pools = pools;
     n->devices = devices;
     n->num_outputs = num_outputs;
-    n->executor_ = executor;
-    n->interface_api_ = interface_api;
+    n->executor = executor;
+    n->interface_api = interface_api;
     n->unpacked_api = unpacked_api;
-    n->mod_name_ = mod_name;
+    n->mod_name = mod_name;
     n->pool_inputs = pool_inputs;
     data_ = std::move(n);
   }

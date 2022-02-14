@@ -27,9 +27,9 @@
 
 #include <vector>
 
+#include "../relay/backend/utils.h"
 #include "../runtime/const_loader_module.h"
 #include "../runtime/meta_data.h"
-#include "../relay/backend/utils.h"
 #include "llvm/llvm_module.h"
 #include "source/source_module.h"
 
@@ -119,12 +119,13 @@ static runtime::Module CreateCppMetadataModule(
   }
   auto n = make_object<target::metadata::InMemoryMetadataNode>(
       kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot,
-      metadata->mod_name(), metadata->interface_api(), metadata->unpacked_api);
+      metadata->mod_name, metadata->interface_api, metadata->unpacked_api);
 
-  runtime::metadata::Metadata metadata_tmp = runtime::metadata::Metadata(std::move(n));;
+  runtime::metadata::Metadata metadata_tmp = runtime::metadata::Metadata(std::move(n));
+  ;
   LOG(INFO) << "MAKE METADATA: " << metadata_tmp;
 
-  if (metadata->executor() == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
+  if (metadata->executor == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
     if (target->kind->name == "c") {
       auto metadata_module = CreateCSourceCppMetadataModule(metadata_tmp);
       metadata_module->Import(target_module);
