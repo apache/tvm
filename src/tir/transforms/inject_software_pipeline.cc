@@ -445,24 +445,6 @@ class PipelineRewriter : public StmtExprMutator {
   }
 
   /*!
-   * \brief Rewrite buffer allocations to create new buffers with new shapes according to
-   * the software pipeline.
-   * \param pipeline_allocs The buffer allocations inside the software pipeline scope.
-   */
-  void RemapPipelineBuffers(Array<Buffer> pipeline_allocs) {
-    std::unordered_map<Buffer, BufferAccessInfo, ObjectPtrHash, ObjectPtrEqual> infos =
-        GetBufferAccessInfo();
-    for (const Buffer& buffer : pipeline_allocs) {
-      const BufferAccessInfo& access_info = infos.at(buffer);
-      int num_versions = ComputeBufferVersions(buffer, access_info);
-      if (num_versions > 1) {
-        Buffer new_buffer = RewriteAllocBuffer(buffer, num_versions);
-        buffer_remap_.Set(buffer, new_buffer);
-      }
-    }
-  }
-
-  /*!
    * \brief Rewrite buffer allocation to keep multiple versions of original buffer for pipelined
    * accesses.
    * \param buffer The buffer to be resized.
