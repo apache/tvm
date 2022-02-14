@@ -280,17 +280,13 @@ stage('Build') {
             script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh",
             label: 'Create CPU cmake config',
           )
-          try {
-            make(ci_cpu, 'build', '-j2')
-            pack_lib('cpu', tvm_multilib_tsim)
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_cpu)
-              // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-              // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-              sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
+          make(ci_cpu, 'build', '-j2')
+          pack_lib('cpu', tvm_multilib_tsim)
+          timeout(time: max_time, unit: 'MINUTES') {
+            ci_setup(ci_cpu)
+            // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+            // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
+            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
           }
         }
       }
@@ -307,17 +303,13 @@ stage('Build') {
             script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh",
             label: 'Create WASM cmake config',
           )
-          try {
-            make(ci_wasm, 'build', '-j2')
-            timeout(time: max_time, unit: 'MINUTES') {
-              ci_setup(ci_wasm)
-              sh (
-                script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
-                label: 'Run WASM lint and tests',
-              )
-            }
-          } finally {
-            junit 'build/pytest-results/*.xml'
+          make(ci_wasm, 'build', '-j2')
+          timeout(time: max_time, unit: 'MINUTES') {
+            ci_setup(ci_wasm)
+            sh (
+              script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
+              label: 'Run WASM lint and tests',
+            )
           }
         }
       }
@@ -334,12 +326,8 @@ stage('Build') {
             script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh",
             label: 'Create i386 cmake config',
           )
-          try {
-            make(ci_i386, 'build', '-j2')
-            pack_lib('i386', tvm_multilib_tsim)
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_i386, 'build', '-j2')
+          pack_lib('i386', tvm_multilib_tsim)
         }
       }
     } else {
@@ -355,12 +343,8 @@ stage('Build') {
             script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh",
             label: 'Create ARM cmake config',
           )
-          try {
-            make(ci_arm, 'build', '-j4')
-            pack_lib('arm', tvm_multilib)
-          } finally {
-            junit 'build/pytest-results/*.xml'
-          }
+          make(ci_arm, 'build', '-j4')
+          pack_lib('arm', tvm_multilib)
         }
       }
      } else {
