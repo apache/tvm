@@ -198,6 +198,21 @@ inline bool IsDepthwiseConv2D(const Call& call, const Conv2DAttrs* param,
 }
 
 /*!
+ * \brief Check if the call is depthwise conv3d.
+ *
+ * \param call The conv3d call.
+ * \param param The conv3d attributes.
+ * \return Whether it is depthwise_conv3d.
+ */
+inline bool IsDepthwiseConv3D(const Call& call, const Conv3DAttrs* param,
+                              const Layout& kernel_layout) {
+  static const Layout kOIDHW("OIDHW");
+  const auto bilayout = tir::BijectiveLayout(kernel_layout, kOIDHW);
+  auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
+  return tir::is_const_int(wshape[0], param->groups) && tir::is_const_int(wshape[1], 1);
+}
+
+/*!
  * \brief Get super-dimension of output channels of conv2d
  * \param call The conv2d call.
  * \return Super-dimension size of output channels of conv2d.
