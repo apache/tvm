@@ -56,11 +56,6 @@ class CodeGenCPU : public CodeGenLLVM {
    */
   void DefineFunctionRegistry(Array<String> func_names);
 
-  /*!
-   * \brief Serialize the metadata object as data, and implement get_c_metadata function.
-   * \param metadata The metadata which should be serialized.
-   */
-  void DefineMetadata(runtime::metadata::Metadata metadata);
  protected:
   void AddStartupFunction() final;
   // meta data

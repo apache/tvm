@@ -65,13 +65,8 @@ static runtime::Module CreateCrtMetadataModule(
     crt_exportable_modules.push_back(target_module);
     target_module =
         CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
-  } else if (target->kind->name == "llvm") {
-#ifdef TVM_LLVM_VERSION
-    crt_exportable_modules.push_back(target_module);
-    target_module = CreateLLVMCrtMetadataModule(crt_exportable_modules, target, runtime);
-#else   // TVM_LLVM_VERSION
-    LOG(FATAL) << "TVM was not built with LLVM enabled.";
-#endif  // TVM_LLVM_VERSION
+  } else {
+    LOG(FATAL) << "Unsupported target kind " << target->kind->name << " in CreateCrtMetadataModule.";
   }
 
   return target_module;
@@ -137,16 +132,8 @@ static runtime::Module CreateCppMetadataModule(
       auto metadata_module = CreateCSourceCppMetadataModule(metadata_tmp);
       metadata_module->Import(target_module);
       target_module = metadata_module;
-    }
-#ifdef TVM_LLVM_VERSION
-    else if (target->kind->name == "llvm") {
-      auto metadata_module = CreateLLVMCppMetadataModule(metadata_tmp, target, runtime);
-      metadata_module->Import(target_module);
-      target_module = metadata_module;
-    }
-#endif  // TVM_LLVM_VERSION
-    else {
-      CHECK(false) << "Don't know how to create MetadataModule for target type " << target->str();
+    } else {
+      LOG(FATAL) << "Don't know how to create MetadataModule for target type " << target->str();
     }
   }
 

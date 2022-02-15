@@ -33,9 +33,6 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
-                                            tvm::relay::Runtime runtime);
-
 runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
                                             tvm::relay::Runtime runtime);
 
