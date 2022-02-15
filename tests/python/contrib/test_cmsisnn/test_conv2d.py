@@ -17,29 +17,29 @@
 
 """CMSIS-NN integration tests: Conv2D"""
 import itertools
+
 import numpy as np
 import pytest
 import tvm
+from relay.aot.aot_test_utils import (
+    AOT_CORSTONE300_RUNNER,
+    AOT_DEFAULT_RUNNER,
+    AOTTestModel,
+    compile_and_run,
+    generate_ref_data,
+)
 from tvm import relay
 from tvm.relay.op.contrib import cmsisnn
 
-
-from tests.python.relay.aot.aot_test_utils import (
-    AOTTestModel,
-    AOT_CORSTONE300_RUNNER,
-    AOT_DEFAULT_RUNNER,
-    generate_ref_data,
-    compile_and_run,
-)
 from utils import (
-    skip_if_no_reference_system,
-    make_module,
+    assert_no_external_function,
+    assert_partitioned_function,
+    get_conv2d_qnn_params,
     get_range_for_dtype_str,
     get_same_padding,
-    get_conv2d_qnn_params,
+    make_module,
     make_qnn_relu,
-    assert_partitioned_function,
-    assert_no_external_function,
+    skip_if_no_reference_system,
 )
 
 
@@ -89,6 +89,7 @@ def make_model(
             dtype=kernel_dtype,
         )
     )
+
     weight_const = relay.const(w, kernel_dtype)
     conv = relay.qnn.op.conv2d(
         invar,
@@ -335,20 +336,16 @@ def test_depthwise_int8(
     test_runner = AOT_CORSTONE300_RUNNER
 
     dtype = "int8"
-    groups = 1
-    weight_format = "HWIO"
+    in_min, in_max = get_range_for_dtype_str(dtype)
     kernel_h = kernel_size[0]
     kernel_w = kernel_size[1]
-    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
-    kernel_zero_point = 0
-    in_min, in_max = get_range_for_dtype_str(dtype)
-
     groups = ifm_shape[3]
     weight_format = "HWOI"
-    kernel_shape = (kernel_h, kernel_w, ifm_shape[3], depth_multiplier)
     out_channels = ifm_shape[3] * depth_multiplier
+    kernel_shape = (kernel_h, kernel_w, out_channels, ifm_shape[3] // groups)
     ks_len = len(kernel_scale)
     kernel_scale = [kernel_scale[i % ks_len] for i in range(out_channels)]
+    kernel_zero_point = 0
 
     output_scale, output_zero_point = get_conv2d_qnn_params(
         kernel_shape,
@@ -382,6 +379,7 @@ def test_depthwise_int8(
         enable_bias,
         relu_type,
     )
+
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
