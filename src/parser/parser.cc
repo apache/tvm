@@ -1137,7 +1137,17 @@ class Parser {
 
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
-        return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        // Promote "result_virtual_device" to first-class
+        if (raw_attrs.count("result_virtual_device")) {
+          ObjectRef vid = raw_attrs.at("result_virtual_device");
+          // TODO(@electriclilies): check that this is a virtaul device
+          raw_attrs.erase("result_virtual_device");
+          Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+          func->virtual_device_ = vid;
+          return func;
+        } else {
+          return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        }
       } else {
         return relay::Function(params, body, ret_type, generics, tvm::DictAttrs());
       }
