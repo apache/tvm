@@ -1080,6 +1080,16 @@ class Parser {
     }
   }
 
+  /*! brief The attribute key for the virtual device. This key will be promoted to first class on
+   * functions and variable bindings.
+   *
+   * Type: VirtualDevice
+   */
+  // why can't this be constexpr?
+  // also where to put me?
+  // also change to just virtual_device, no result
+  const char* kVirtualDevice = "result_virtual_device";
+
   /*! Parse a function definition without a leading keyword or identifier.
    *
    * Handles things of the form [T1, ..., TN](arg1: U1, ..., argN : UN) -> Ret { body }.
@@ -1137,11 +1147,14 @@ class Parser {
 
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
-        // Promote "result_virtual_device" to first-class
-        if (raw_attrs.count("result_virtual_device")) {
-          ObjectRef vid = raw_attrs.at("result_virtual_device");
-          // TODO(@electriclilies): check that this is a virtaul device
-          raw_attrs.erase("result_virtual_device");
+        // Promote kVirtualDevice to first-class
+        String vid_key = kVirtualDevice;
+        if (raw_attrs.count(vid_key)) {
+          ObjectRef vid = raw_attrs.at(kVirtualDevice);
+          ICHECK(vid.as<VirtualDeviceNode>())
+              << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
+              << vid->GetTypeKey();
+          raw_attrs.erase(kVirtualDevice);
           Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
           func->virtual_device_ = vid;
           return func;
