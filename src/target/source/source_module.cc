@@ -945,7 +945,7 @@ class MetadataSerializer : public AttrVisitor {
         } else {
           c_type += MetadataArrayTypeToCType(arr);
         }
-        code_ << c_type << "[" << arr->array.size()
+        code_ << c_type << " " << struct_name << "[" << arr->array.size()
               << "] = {" << std::endl;
         VisitArray(arr);
       } else {

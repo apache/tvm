@@ -152,7 +152,7 @@ enum MetadataTypeIndex : uint8_t {
 class MetadataArrayNode : public MetadataBaseNode {
  public:
   MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name) :
-      array{array}, type_index{type_index}, struct_name{struct_name} {}
+      array(array), type_index{type_index}, struct_name{struct_name} {}
 //  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
 //      : array(std::move(array)), c_type{c_type} {}
 
