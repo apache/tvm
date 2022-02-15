@@ -60,10 +60,12 @@ using Pass = tvm::transform::Pass;
  */
 class ExecutorCodegenMetadataNode : public Object {
  public:
-  // TODO(masahi): Remove inputs
+  // TODO(masahi): Remove inputs since it is subsumed by input_tensor_types
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
-  /*! \brief output tensor type information */
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
+  /*! \brief input tensor type information */
   Array<TensorType> input_tensor_types;
   /*! \brief output tensor type information */
   Array<TensorType> output_tensor_types;
@@ -77,9 +79,6 @@ class ExecutorCodegenMetadataNode : public Object {
   String interface_api;
   /*! \brief The internal API (packed or unpacked) in use */
   bool unpacked_api;
-
-  /*! \brief pool information for the main function */
-  Array<tir::Var> pools;
   /*! \brief the input var names that correspond to pool_inputs */
   Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
 
@@ -88,6 +87,8 @@ class ExecutorCodegenMetadataNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("inputs", &inputs);
     v->Visit("pools", &pools);
+    v->Visit("input_tensor_types", &input_tensor_types);
+    v->Visit("output_tensor_types", &output_tensor_types);
     v->Visit("num_outputs", &num_outputs);
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);

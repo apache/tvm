@@ -63,9 +63,7 @@ std::string TensorInfoNode::get_name() { return std::string{"TensorInfo"}; }
 
 class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
  public:
-  explicit MetadataModuleNode(runtime::metadata::Metadata metadata) {
-    metadata_ = metadata;
-  }
+  explicit MetadataModuleNode(runtime::metadata::Metadata metadata) { metadata_ = metadata; }
 
   const char* type_key() const { return "metadata_module"; }
 

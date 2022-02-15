@@ -74,6 +74,7 @@ static runtime::Module CreateCrtMetadataModule(
   return target_module;
 }
 
+// TODO(areusch,masahi): Unify metadata representation and remove the need for this function
 static runtime::metadata::Metadata ConvertMetaData(
     relay::backend::ExecutorCodegenMetadata metadata) {
   std::vector<runtime::metadata::TensorInfo> inputs;
@@ -91,6 +92,7 @@ static runtime::metadata::Metadata ConvertMetaData(
   for (unsigned int i = 0; i < output_ttypes.size(); i++) {
     auto ttype = output_ttypes[i];
     std::stringstream name;
+    name << "output" << i;
     outputs.push_back(
         runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
             name.str(), relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
@@ -98,7 +100,7 @@ static runtime::metadata::Metadata ConvertMetaData(
 
   std::vector<std::string> devices_vector;
   for (auto d : metadata->devices) {
-    devices_vector.push_back(d.operator std::string());
+    devices_vector.push_back(d);
   }
 
   auto n = make_object<target::metadata::InMemoryMetadataNode>(

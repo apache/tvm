@@ -1059,13 +1059,17 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                             return_sid_.size() - pool_vars.size() - devices.size());
 
     Array<TensorType> input_tensor_types;
-    for (auto input : lowered_main_func->params) {
-      input_tensor_types.push_back(Downcast<TensorType>(input->type_annotation));
+    for (size_t i = 0; i < inputs.size(); ++i) {
+      input_tensor_types.push_back(
+          Downcast<TensorType>(lowered_main_func->params[i]->type_annotation));
     }
-    Array<TensorType> output_tensor_types(final_aot_allocator.GetReturnTtypes());
+
+    Array<TensorType> output_tensor_types{final_aot_allocator.GetReturnTtypes()};
+
     ret.metadata = ExecutorCodegenMetadata(
         inputs, input_tensor_types, output_tensor_types, pool_vars, devices, return_sid_.size(),
         runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_, pool_var_info);
+
     return ret;
   }
 
