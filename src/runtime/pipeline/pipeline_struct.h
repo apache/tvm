@@ -578,12 +578,12 @@ class BackendRuntime {
   /*!
    * \brief Forwarding the output data into the child runtimes.
    */
-  void ForwardingOutputDataToChilds(void) {
+  void ForwardingOutputDataToChildren(void) {
     for (auto child : children_) {
       // TODO(huajsj): Getting the output data from the current runtime in order to forward
       // data to the child.
 
-      // Notifying the 'childs runtime' that the forwarding data are ready.
+      // Notifying the 'children runtime' that the forwarding data are ready.
       for (auto module_pair : child.second) {
         module_pair.first->ParentNotify(module_pair.second);
       }
@@ -744,7 +744,7 @@ class BackendRuntime {
   /*!\brief Running the runtime in the pipeline mode.*/
   void RunPipeLine() {
     Run();
-    ForwardingOutputDataToChilds();
+    ForwardingOutputDataToChildren();
     statistic_pipeline_execute_times_++;
   }
 };
