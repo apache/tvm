@@ -806,17 +806,22 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     """
 
     def _check():
+        logger.debug("waiting for device...")
         remote = request_remote(device_key, host, port, priority)
         dev = remote.device(str(target))
         while not dev.exist:  # wait until we get an available device
             pass
+        logger.debug("device available")
 
     t = threading.Thread(
         target=_check,
     )
     t.start()
     t.join(timeout)
-    return not t.is_alive()
+
+    remote = request_remote(device_key, host, port, priority)
+    dev = remote.device(str(target))
+    return dev.exist
 
 
 def set_cuda_target_arch(arch):
