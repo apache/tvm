@@ -108,6 +108,8 @@ DerivedData/
 *.class
 jvm/*/target/
 jvm/*/*/target/
+jvm/native/*/generated
+jvm/native/src/main/native/org_apache_tvm_native_c_api.h
 *.worksheet
 *.idea
 *.iml
