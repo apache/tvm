@@ -144,9 +144,9 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
                           VirtualDevice result_virtual_device) {
-  auto func = WithAttrs(
+  auto func = WithAttr(
       WithFields(std::move(function), {}, {}, {}, {}, {}, std::move(result_virtual_device)),
-      {{tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices)}});
+      tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices));
   VLOG(1) << "Annotated func: " << PrettyPrint(func);
   return func;
 }
