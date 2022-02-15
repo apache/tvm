@@ -47,7 +47,7 @@ def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
 
     # Test running the model
     output_path = os.path.join(tmpdir, "predictions.npz")
-    run_str = f"tvmc run --outputs {output_path} {package_path}"
+    run_str = f"tvmc run --end-to-end --outputs {output_path} {package_path}"
     run_args = run_str.split(" ")[1:]
     _main(run_args)
     assert os.path.exists(output_path)
