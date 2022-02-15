@@ -92,7 +92,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
   void CreatePrimFuncForExtern(const GlobalVar& global_var, Array<tir::Var> func_signature,
                                const Map<tir::Var, tir::Buffer>& buffer_map,
                                tvm::Array<PrimExpr> call_extern_args,
-                               tir::Var context_buffer_var = tir::Var{"NULL"},
+                               PrimExpr context_buffer_var = PrimExpr(),
                                int context_buffer_size = 0) {
     Map<String, ObjectRef> dict_attrs;
     dict_attrs.Set(tvm::attr::kGlobalSymbol, global_var->name_hint);
@@ -103,8 +103,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         tvm::tir::Call(DataType::Int(8), tir::builtin::call_extern(), call_extern_args));
 
     if (context_buffer_size) {
-      body = tir::Allocate(context_buffer_var, DataType::Int(8), {context_buffer_size},
-                           tir::const_true(), body);
+      body = tir::Allocate(Downcast<tir::Var>(context_buffer_var), DataType::Int(8),
+                           {context_buffer_size}, tir::const_true(), body);
     }
 
     tir::PrimFunc replacement_func(func_signature, body, VoidType(), buffer_map,
@@ -233,7 +233,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     call_ext_args.push_back(shift);
     call_ext_args.push_back(output);
 
-    tir::Var buffer_var{"NULL"};
+    PrimExpr buffer_var = tir::StringImm("NULL");
     CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
     size_t context_buffer_size;
     if (is_depthwise) {
@@ -350,9 +350,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     call_ext_args.push_back(output);
 
     int context_buffer_size = 0;
-    std::string context_buffer_name = "NULL";
-    tir::Var buffer_var =
-        tir::Var(context_buffer_name, PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+    PrimExpr buffer_var = tir::StringImm("NULL");
     tvm::Array<PrimExpr> context_buffer_args = {buffer_var, ToArg(context_buffer_size)};
 
     scalar_args = tvm::runtime::Concat(context_buffer_args, scalar_args);
@@ -435,7 +433,7 @@ class RelayToTIRVisitor : public MixedModeMutator {
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, output};
 
     int context_buffer_size = 0;
-    tir::Var context_buffer_var{"NULL"};
+    PrimExpr context_buffer_var = tir::StringImm("NULL");
     if (pool_name == "cmsisnn.qnn_avg_pool2d") {
       CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
       int32_t input_c = qnn::get_const_int(input_shape[3]);
