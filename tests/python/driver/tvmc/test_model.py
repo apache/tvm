@@ -30,7 +30,7 @@ def test_tvmc_workflow(keras_simple):
     tvmc_model = tvmc.load(keras_simple)
     tuning_records = tvmc.tune(tvmc_model, target="llvm", enable_autoscheduler=True, trials=2)
     tvmc_package = tvmc.compile(tvmc_model, tuning_records=tuning_records, target="llvm")
-    result = tvmc.run(tvmc_package, device="cpu")
+    result = tvmc.run(tvmc_package, device="cpu", end_to_end=True)
     assert type(tvmc_model) is TVMCModel
     assert type(tvmc_package) is TVMCPackage
     assert type(result) is TVMCResult
