@@ -1067,6 +1067,32 @@ def test_forward_conv_transpose(
     verify_model(conv1d_transpose, conv1d_input_data)
 
 
+def test_forward_conv2d_transpose_group():
+    # https://github.com/apache/tvm/issues/10223
+
+    class ModulatedConvTranspose2D(torch.nn.Module):
+        def forward(self, x, w, s):
+            B, C, H, W = x.shape
+            I, O, KH, KW = w.shape
+
+            # weight is different for each input in batch (this is why we want grouped conv transpose)
+            w = w.unsqueeze(0) * s.reshape(B, 1, 1, 1, 1)
+            w = w.reshape(B * I, O, KH, KW)
+            x = x.reshape(1, B * C, H, W)
+            x = torch.nn.functional.conv_transpose2d(
+                x, w, stride=(2, 2), padding=(1, 1), output_padding=(1, 1), groups=B
+            )
+            return x.reshape(B, O, H * 2, W * 2)
+
+    b, c, h, w, k = 4, 512, 8, 16, 3
+    inputs = torch.rand(b, c, h, w)
+    weights = torch.rand(c, c // 2, k, k)
+    styles = torch.rand(b)
+
+    # cuda not supported for group > 1 conv2d_transpose
+    verify_trace_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles], ["llvm"])
+
+
 def test_forward_deform_conv():
     torch.set_grad_enabled(False)
 
@@ -4168,7 +4194,7 @@ def test_list_tuple():
 
     x = torch.rand([4, 4, 16, 32]).float()
     script_module = torch.jit.trace(List_tuple(), x, strict=False).eval()
-    mod, params = relay.frontend.from_pytorch(script_module, [("x", x.shape)])
+    relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
 if __name__ == "__main__":
