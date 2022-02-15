@@ -128,7 +128,7 @@ bool QnnConv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return Conv2DTransposeRel<Conv2DTransposeAttrs>(tensor_types, 3, attrs, reporter);
+  return Conv2DTransposeRel(tensor_types, 3, attrs, reporter);
 }
 
 RELAY_REGISTER_OP("qnn.conv2d_transpose")
