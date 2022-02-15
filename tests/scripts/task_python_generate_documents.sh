@@ -1,4 +1,21 @@
 #!/bin/bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 
 # run as: " ./task_python_generate_documents.sh [0/1] [0/1] [language] "
 # the first [true/false]: re-generate gettext or not
@@ -6,28 +23,28 @@
 # the third [true/false]: generate html or not. The Sitemap will be generate at the same time.
 # The two above will do their best to satisfy. if not exist, process will generate directly.
 # [language]: the language kind of documents, write as:
-# # bn – Bengali
-# # ca – Catalan
-# # cs – Czech
-# # da – Danish
-# # de – German
-# # en – English
-# # es – Spanish
-# # fi – Finnish
-# # fr – French
-# # hr – Croatian
-# # it – Italian
-# # lt – Lithuanian
-# # nl – Dutch
-# # pl – Polish
-# # pt_BR – Brazilian Portuguese
-# # ru – Russian
-# # sl – Slovenian
-# # sv – Swedish
-# # tr – Turkish
-# # uk_UA – Ukrainian
-# # zh_CN – Simplified Chinese
-# # zh_TW – Traditional Chinese
+# # bn - Bengali
+# # ca - Catalan
+# # cs - Czech
+# # da - Danish
+# # de - German
+# # en - English
+# # es - Spanish
+# # fi - Finnish
+# # fr - French
+# # hr - Croatian
+# # it - Italian
+# # lt - Lithuanian
+# # nl - Dutch
+# # pl - Polish
+# # pt_BR - Brazilian Portuguese
+# # ru - Russian
+# # sl - Slovenian
+# # sv - Swedish
+# # tr - Turkish
+# # uk_UA - Ukrainian
+# # zh_CN - Simplified Chinese
+# # zh_TW - Traditional Chinese
 
 # if you want to add some files to the root of website-fold, you can put then in the docs/html_additions/<language>/
 
