@@ -144,11 +144,6 @@ parser.add_argument("--html", action="store_false", help="contains .html suffix,
 
 args = parser.parse_args()
 
-pt = compare(
-    args.odir,
-    args.ndir,
-    args.ositemap,
-    args.html
-)
+pt = compare(args.odir, args.ndir, args.ositemap, args.html)
 pt.sort()
 pt.save(os.path.abspath(args.sitemap))

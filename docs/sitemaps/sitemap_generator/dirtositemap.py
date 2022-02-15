@@ -75,7 +75,7 @@ class DirToSitemap:
         # homepage file
         if rpath == self.home_page:
             return self.root_url
-        if (platform.system() == "Windows"):
+        if platform.system() == "Windows":
             rpath = "/".join(rpath.split("\\"))
         # add ".html" suffix
         if html is True:
