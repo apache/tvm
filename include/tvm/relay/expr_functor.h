@@ -476,8 +476,19 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   auto fexpand_expr = [](const Expr& expr) {
     std::vector<Expr> result;
     if (const CallNode* op = expr.as<CallNode>()) {
-      for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
-        result.push_back(*it);
+      if (op->op == Op::Get("call_lowered")) {
+        // Ignore the intermediate tuple since this is purely a calling-convention detail
+        const auto* tuple_args = op->args[1].as<TupleNode>();
+        ICHECK(tuple_args)
+            << "Expected second arg to call_lowered to be a Tuple of input arguments.";
+        for (auto it = tuple_args->fields.rbegin(); it != tuple_args->fields.rend(); ++it) {
+          result.push_back(*it);
+        }
+        result.push_back(op->args[0]);
+      } else {
+        for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+          result.push_back(*it);
+        }
       }
       result.push_back(op->op);
     } else if (const TupleNode* op = expr.as<TupleNode>()) {
