@@ -132,7 +132,6 @@ class MatchBuffer(SpecialStmt):
             align=-1,
             offset_factor=0,
             buffer_type="default",
-            flatten_buffer=False,
             span=None,
         ):
             if not isinstance(self.node, ast.Assign) or not len(self.node.lhs) == 1:
@@ -166,12 +165,7 @@ class MatchBuffer(SpecialStmt):
                     self.context.report_error(
                         "Can not bind non-input param to buffer", self.node.rhs.params[0].span
                     )
-                if flatten_buffer:
-                    self.context.func_preflattened_buffer_map[param] = buffer
-                    buffer = buffer.get_flattened_buffer()
-                    self.context.func_buffer_map[param] = buffer
-                else:
-                    self.context.func_buffer_map[param] = buffer
+                self.context.func_buffer_map[param] = buffer
             elif isinstance(param, BufferSlice):
                 buffer_region = buffer_slice_to_region(param)
                 self.context.current_block_scope().match_buffers.append(
