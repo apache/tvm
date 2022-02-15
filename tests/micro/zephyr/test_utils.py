@@ -210,7 +210,7 @@ def generate_project(
                         model_files_path, arcname=os.path.relpath(model_files_path, tar_temp_dir)
                     )
                 header_path = generate_c_interface_header(
-                    lowered.libmod_name, ["input_1"], ["output"], [], [], 0, model_files_path
+                    lowered.libmod_name, ["input_1"], ["Identity"], [], [], 0, model_files_path
                 )
                 tf.add(header_path, arcname=os.path.relpath(header_path, tar_temp_dir))
 

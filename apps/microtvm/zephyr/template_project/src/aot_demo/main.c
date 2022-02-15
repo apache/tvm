@@ -178,7 +178,7 @@ void TVMInfer() {
       .input_1 = input_data,
   };
   struct tvmgen_default_outputs outputs = {
-      .output = output_data,
+      .Identity = output_data,
   };
 
   StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE);
