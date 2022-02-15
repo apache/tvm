@@ -49,7 +49,7 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
   }
   // Initializing and then running the work thread.
   for (auto runtime : runtimes) {
-    runtime->Pipeline_Initialize(pipeline_config, &runtimes);
+    runtime->InitializePipeline(pipeline_config, &runtimes);
   }
   return runtimes;
 }

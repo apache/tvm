@@ -238,8 +238,7 @@ std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
   return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
 }
 /*!
- * \brief Getting the times of pipeline running.
- * \return Returning the times of pipeline running.
+ * \brief Getting the numbers of pipeline running.
  */
 int PipelineExecutor::PipelineStatisticPipeExecuteNumber() {
   return runtimes_.back()->GetStatisticPipelineExecuteNumber();

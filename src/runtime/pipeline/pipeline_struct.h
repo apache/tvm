@@ -24,6 +24,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <limits>
@@ -57,48 +58,50 @@ using ModuleOutputPair = std::pair<int, int>;
  * The first 'int' is the module index, and the second 'int' is the module input index.
  */
 using ModuleInputPair = std::pair<int, int>;
+/*!
+ *\brief The pair includes the module index and the module output index.
+ * The first 'int' is the module index, and the second 'int' is the module output index.
+ */
+using ModuleOutputPair = std::pair<int, int>;
 /*!\brief The data notification structure.*/
 class DataNotify {
  private:
   /*!\brief The 'contitional variable' is used to wait for notification.*/
-  std::condition_variable condition_;
+  std::condition_variable notify_cv;
   /*!\brief The mutex is used to protect the 'conditional variable'.*/
   std::mutex mutex_;
   /*!\brief Whether a data is ready or not.*/
   volatile bool data_ready_ = false;
   /*!\brief Whether the thread should exit or not.*/
   volatile bool exit_state_ = false;
-  /*!\brief The index of runtime which is sending out the data notification.*/
-  int parent_idx_;
-  /*!\brief The index of runtime output interface which is sending out the data notification.*/
-  int parent_output_idx_;
+  /*!
+   * \brief The 'ModuleOutputPair' in which the data was ready and triggered this
+   *  notification.
+   */
+  ModuleOutputPair notification_source_;
 
  public:
   /*!
    * \brief Constructing the DataNotify class.
-   * \param parent_idx The index of runtime which is sending out the data notification
-   * \param parent_output_idx The index of runtime output interface which is sending out
+   * \param parent_output_pair The index of runtime which is sending out the data notification
    *  the data notification.
    */
-  DataNotify(int parent_idx, int parent_output_idx) {
-    parent_idx_ = parent_idx;
-    parent_output_idx_ = parent_output_idx;
+  explicit DataNotify(ModuleOutputPair parent_output_pair) {
+    notification_source_ = parent_output_pair;
   }
   /*!
    * \brief Getting the notification source.
    * \return The first 'int' is the runtime index, and the second 'int' is the output index.
    */
-  std::pair<int, int> GetNotifySource(void) {
-    return std::make_pair(parent_idx_, parent_output_idx_);
-  }
+  ModuleOutputPair GetNotifySource(void) { return notification_source_; }
   /*!
-   *\brief Waiting the notification.
+   *\brief Waiting for the notification.
    *\return Returning the value 'false' when the notification is in a 'exit' state, else
    * return true.
    */
   bool Wait(void) {
     std::unique_lock<std::mutex> lock(mutex_);
-    condition_.wait(lock, [&] { return this->data_ready_; });
+    notify_cv.wait(lock, [&] { return this->data_ready_; });
     data_ready_ = false;
     return !exit_state_;
   }
@@ -108,7 +111,7 @@ class DataNotify {
       std::lock_guard<std::mutex> lock(mutex_);
       data_ready_ = true;
     }
-    condition_.notify_one();
+    notify_cv.notify_one();
   }
   /*!brief Sending the notification when the notification state changes into 'exit'.*/
   void ExitNotify(void) {
@@ -133,7 +136,7 @@ class ConfigBindings {
   /*!\brief Returning the binding configuration.*/
   std::unordered_map<int, std::string>& Get() { return bindings_; }
   /*!
-   * \brief Enumrating the binding configuration.
+   * \brief Enumerating the binding configuration.
    * \param parse_function The function is used to parse the binding configuration.
    * \param output_idx The index of output interface is used for parsing.
    */
@@ -487,8 +490,8 @@ class BackendRuntime {
   /*\brief The thread is associated with the current runtime*/
   std::thread thread_;
   /*\brief A list of runtime which depends on the current runtime.*/
-  std::unordered_map<int, ModuleInputPairList> childs_;
-  /*\brief A map including the runtime input index and the notification data struction.*/
+  std::unordered_map<int, ModuleInputPairList> children_;
+  /*\brief A map including the runtime input index and the notification data structure.*/
   std::unordered_map<int, std::shared_ptr<DataNotify>> parents_notify_;
   /*\brief The times of using pipeline function. */
   uint32_t statistic_pipeline_execute_times_ = 0;
@@ -506,7 +509,7 @@ class BackendRuntime {
   tvm::runtime::PackedFunc get_num_inputs_;
   tvm::runtime::PackedFunc get_input_index_;
   tvm::runtime::PackedFunc run_;
-  /*!\brief The working thread is used to execute the runtimes in pipeline.*/
+  /*!\brief The worker thread is used to execute the runtimes in pipeline.*/
   void StartWorkThread() {
     if (runtime_idx_ == 0) {
       this->CreateParentsNotify(0, GLOBAL_MODULE_INDEX, 0);
@@ -576,7 +579,7 @@ class BackendRuntime {
    * \brief Forwarding the output data into the child runtimes.
    */
   void ForwardingOutputDataToChilds(void) {
-    for (auto child : childs_) {
+    for (auto child : children_) {
       // TODO(huajsj): Getting the output data from the current runtime in order to forward
       // data to the child.
 
@@ -597,7 +600,8 @@ class BackendRuntime {
     if (parents_notify_.find(input_index) != parents_notify_.end()) {
       LOG(FATAL) << "Not finding the input index " << input_index << " in runtime " << runtime_idx_;
     }
-    parents_notify_[input_index] = std::make_shared<DataNotify>(parent_idx, parent_output_idx);
+    parents_notify_[input_index] =
+        std::make_shared<DataNotify>(std::make_pair(parent_idx, parent_output_idx));
   }
   /*!
    * \brief Copying from a given tensor and using 'CPU' as the device.
@@ -670,8 +674,8 @@ class BackendRuntime {
    * \param config The pipeline configueration.
    * \param runtimes A list of BackendRuntime.
    */
-  void Pipeline_Initialize(ConfigPipelineExecution config,
-                           std::vector<std::shared_ptr<BackendRuntime>>* runtimes) {
+  void InitializePipeline(ConfigPipelineExecution config,
+                          std::vector<std::shared_ptr<BackendRuntime>>* runtimes) {
     // Getting the 'binding configuration' for each runtime.
     config.VisitRuntimeOutputConfig(
         [&](int output_idx, int child_idx, std::string child_input_name) {
@@ -684,7 +688,7 @@ class BackendRuntime {
           if (input_index < 0) {
             LOG(FATAL) << "Can not find the input " << input_index << "in runtime " << child_idx;
           }
-          childs_[output_idx].push_back(std::make_pair(child_runtime, input_index));
+          children_[output_idx].push_back(std::make_pair(child_runtime, input_index));
           child_runtime->CreateParentsNotify(input_index, runtime_idx_, output_idx);
           VLOG(1) << " parent_idx.output:" << runtime_idx_ << "." << output_idx << " child.input"
                   << child_idx << "." << input_index;
