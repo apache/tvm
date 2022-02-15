@@ -70,6 +70,7 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   void Run(const Function& func) { VisitExpr(func); }
 
   std::vector<int> GetReturnIds() const { return return_ids_; }
+  std::vector<TensorType> GetReturnTtypes() const { return return_ttypes_; }
 
   StorageMap GetStorageMap() const { return storage_device_map_; }
 
@@ -177,6 +178,12 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
       for (auto sid : sinfo->storage_ids) {
         return_ids_.push_back(sid);
       }
+      return_ttypes_.clear();
+      auto ttypes = FlattenTupleType(e->checked_type());
+      return_ttypes_.reserve(ttypes.size());
+      for (auto ttype : ttypes) {
+        return_ttypes_.push_back(ttype);
+      }
     }
   }
   /*!
@@ -252,6 +259,8 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
   int next_available_sid_{0};
   /*! \brief the set of intermediate tensors that are return variables */
   std::vector<int> return_ids_;
+  /*! \brief the data types of the return values */
+  std::vector<TensorType> return_ttypes_;
 };
 
 /*! \brief Code generator for AOT executor */
