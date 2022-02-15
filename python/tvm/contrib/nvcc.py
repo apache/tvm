@@ -211,7 +211,7 @@ def find_libdevice_path(arch):
     selected_ver = 0
     selected_path = None
     cuda_ver = get_cuda_version(cuda_path)
-    if cuda_ver in ((9,0), (9,1), (10,0), (10,1), (10,2), (11,0), (11,1), (11,2), (11,3)):
+    if cuda_ver in ((9, 0), (9, 1), (10, 0), (10, 1), (10, 2), (11, 0), (11, 1), (11, 2), (11, 3)):
         path = os.path.join(lib_path, "libdevice.10.bc")
     else:
         for fn in os.listdir(lib_path):
@@ -364,7 +364,7 @@ def have_cudagraph():
     """Either CUDA Graph support is provided"""
     try:
         cuda_ver = get_cuda_version()
-        if cuda_ver < (10,0):
+        if cuda_ver < (10, 0):
             return False
         return True
     except RuntimeError:
