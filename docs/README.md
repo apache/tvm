@@ -126,10 +126,10 @@ If you have questions or want to get a complete example, we have deployed [a pro
 
    ```bash
    cd docs/
-   ../tests/scripts/task_python_generate_documents.sh true true false <language>
+   ./generate_documents.sh true true false <language>
 
    # for example:
-   ../tests/scripts/task_python_generate_documents.sh true true false zh_CN   # for Simplified Chinese, You can find out how to use it at the end of the document.
+   ./generate_documents.sh true true false zh_CN   # for Simplified Chinese, You can find out how to use it at the end of the document.
    ```
 
    The following types of `language` are supported:
@@ -183,7 +183,7 @@ If you have questions or want to get a complete example, we have deployed [a pro
 
       ```bash
       cd docs/
-      ../tests/scripts/task_python_generate_documents.sh true true false <language>   # update your gettext(*.pot)
+      ./generate_documents.sh true true false <language>   # update your gettext(*.pot)
 
       ./tx_transifex.sh update                                                   # update transifex-config
       ```
@@ -208,7 +208,7 @@ If you have questions or want to get a complete example, we have deployed [a pro
 
    ```bash
    cd docs/
-   ../tests/scripts/task_python_generate_documents.sh false false true <language> # the _build/html_zh_CN will be created. you can directly deploy to your website.
+   ./generate_documents.sh false false true <language> # the _build/html_zh_CN will be created. you can directly deploy to your website.
    ```
 
 6. some tips
@@ -218,5 +218,5 @@ If you have questions or want to get a complete example, we have deployed [a pro
    ```bash
    cd docs/
    ./tx_transifex.sh pull  # if you use <transifex.com> and do translation work remotely, or you can skip this command
-   ../tests/scripts/task_python_generate_documents.sh false false true <language>
+   ./generate_documents.sh false false true <language>
    ```

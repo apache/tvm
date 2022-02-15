@@ -17,7 +17,7 @@
 # under the License.
 
 
-# run as: " ./task_python_generate_documents.sh [0/1] [0/1] [language] "
+# run as: " ./generate_documents.sh [0/1] [0/1] [language] "
 # the first [true/false]: re-generate gettext or not
 # the second [true/false]: update locales file or not
 # the third [true/false]: generate html or not. The Sitemap will be generate at the same time.
@@ -55,14 +55,14 @@ MAXPROCESS=20
 
 if [ $# -ne 4 ] 
 then
-    echo "error bash command, please run as: \" ./task_python_generate_documents.sh [true/false] [true/false] [true/false] [language]\""
+    echo "error bash command, please run as: \" ./generate_documents.sh [true/false] [true/false] [true/false] [language]\""
     echo "for example: \"$0 true true true zh_CN\" can generate documents for Chinese"
     exit
 fi
 
 # calc the docs path
 SCRIPTFOLD=$(dirname $0)
-DOCS=$(cd "$SCRIPTFOLD/../../docs/";pwd)
+DOCS=$(cd "$SCRIPTFOLD/";pwd)
 
 BUILDDIR="_build"
 TXDIR=".tx"
