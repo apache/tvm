@@ -230,6 +230,13 @@ GlobalTypeVar AddOrGet(InternTable<GlobalTypeVar>* table, const std::string& nam
   }
 }
 
+/*! brief The attribute key for the virtual device. This key will be promoted to first class on
+ * functions.
+ *
+ * Type: VirtualDevice
+ */
+constexpr const char* kVirtualDevice = "result_virtual_device";
+
 /*! \brief The parser class is the main interface to the parser.
  * the parser is not currently exposed beyond this .cc file.
  *
@@ -1079,16 +1086,6 @@ class Parser {
       }
     }
   }
-
-  /*! brief The attribute key for the virtual device. This key will be promoted to first class on
-   * functions and variable bindings.
-   *
-   * Type: VirtualDevice
-   */
-  // why can't this be constexpr?
-  // also where to put me?
-  // also change to just virtual_device, no result
-  const char* kVirtualDevice = "result_virtual_device";
 
   /*! Parse a function definition without a leading keyword or identifier.
    *
