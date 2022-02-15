@@ -94,7 +94,7 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
 @tvm.testing.requires_llvm
 def test_in_bounds_vectorize_llvm():
     n = 512
-    lanes = 1
+    lanes = 2
     A = te.placeholder((n,), name="A", dtype="float32x%d" % lanes)
     B = te.compute((n,), lambda i: A[i], name="B")
     C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name="C")
