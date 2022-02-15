@@ -33,12 +33,11 @@ from .test_codegen import _compare_tvm_with_tflite
 
 
 def _optimize(expr, optimize=True):
-    """Create IRModule and run layout optimizer pass."""
+    """Create IRModule and run identity optimizer pass."""
     mod = tvm.IRModule.from_expr(expr)
     mod = relay.transform.InferType()(mod)
     if optimize:
         mod = IdentityOptimizer()(mod)
-    print(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
 
@@ -154,6 +153,26 @@ def test_multiple_output_identity():
     _assert_structural_equal(actual, expected)
 
 
+def test_identity_before_concatenate_no_removal():
+    """Check that an identity isn't removed when the operator
+    following it is a concatenate operation."""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 1, 4, 4), dtype="int8")
+        y = relay.var("y", shape=(1, 2, 2, 4), dtype="int8")
+        z = relay.var("z", shape=(1, 2, 2, 4), dtype="int8")
+        x = relay.reshape(x, newshape=(1, 2, 2, 4))
+        y = relay.strided_slice(y, begin=(0, 0, 0, 0), end=(1, 2, 2, 4))
+        x = infra.make_ethosu_identity(x)
+        y = infra.make_ethosu_identity(y)
+        out = relay.concatenate([x, y, z], axis=0)
+        return relay.Function(relay.analysis.free_vars(out), out)
+
+    actual = _optimize(get_graph())
+    expected = _optimize(get_graph(), optimize=False)
+    _assert_structural_equal(actual, expected)
+
+
 def test_identity_removal_with_multiple_transform_ops():
     """Check that only an identity directly parent to a compute
     operation is removed."""
@@ -233,7 +252,7 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
 def test_same_output():
     """Check that the output remains the same when the identity
     optimizer pass removes some identities inserted during legalization."""
-    ifm_shapes = [(1, 1, 25, 8), (1, 25, 1, 8)]
+    ifm_shapes = [(1, 1, 25, 8), (1, 5, 5, 8)]
 
     @tf.function
     def model(x, y):
