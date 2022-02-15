@@ -179,10 +179,11 @@ class PrimFunc : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
-                   Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
-                   Map<tir::Var, Buffer> preflattened_buffer_map = Map<tir::Var, Buffer>(),
-                   DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
+  TVM_DLL PrimFunc(
+      Array<tir::Var> params, Stmt body, Type ret_type = VoidType(),
+      Map<tir::Var, Buffer> buffer_map = Map<tir::Var, Buffer>(),
+      Optional<Map<tir::Var, Buffer>> preflattened_buffer_map = Optional<Map<tir::Var, Buffer>>(),
+      DictAttrs attrs = NullValue<DictAttrs>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);

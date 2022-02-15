@@ -37,8 +37,9 @@ LinkedParam::LinkedParam(int64_t id, ::tvm::runtime::NDArray param) {
 
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
-                   Map<tir::Var, Buffer> buffer_map, Map<tir::Var, Buffer> preflattened_buffer_map,
-                   DictAttrs attrs, Span span) {
+                   Map<tir::Var, Buffer> buffer_map,
+                   Optional<Map<tir::Var, Buffer>> preflattened_buffer_map, DictAttrs attrs,
+                   Span span) {
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
@@ -49,7 +50,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->buffer_map = std::move(buffer_map);
-  n->preflattened_buffer_map = std::move(preflattened_buffer_map);
+  n->preflattened_buffer_map = preflattened_buffer_map.value_or(Map<tir::Var, Buffer>());
   n->attrs = std::move(attrs);
   n->checked_type_ = n->func_type_annotation();
   n->span = std::move(span);
