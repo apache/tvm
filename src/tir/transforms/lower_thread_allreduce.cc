@@ -120,7 +120,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     {
-      auto it = load_remap_.find(op->buffer.get());
+      auto it = load_remap_.find(op->buffer->data.get());
       if (it != load_remap_.end()) {
         for (const auto& index : op->indices) {
           ICHECK(is_zero(index));
@@ -398,12 +398,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
       // Update existing allocations.
       for (size_t i = 0; i < size; ++i) {
-        ICHECK(!load_remap_.count(buffers[i].get()));
+        ICHECK(!load_remap_.count(buffers[i]->data.get()));
         PrimExpr pred = const_true(types[i].lanes());
         Buffer buf = shared_bufs[i];
         PrimExpr val = BufferLoad(buf, zero_indices);
         ICHECK_EQ(val->dtype, types[i]);
-        load_remap_[buffers[i].get()] = val;
+        load_remap_[buffers[i]->data.get()] = val;
         store_remap_[buffers[i].get()] = buf;
         Array<PrimExpr> extents{PrimExpr(1)};
         auto node = Allocate(buf->data, types[i], extents, pred, Evaluate(0));
@@ -442,12 +442,12 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
                                         reduce_extent, threadx_extent));
       for (size_t idx = 0; idx < size; ++idx) {
-        ICHECK(!load_remap_.count(buffers[idx].get()));
+        ICHECK(!load_remap_.count(buffers[idx]->data.get()));
         PrimExpr pred = const_true(types[idx].lanes());
         BufferLoad load(shared_bufs[idx],
                         {BufIndex(make_zero(reduce_index.dtype()), group_index, reduce_extent)});
         ICHECK_EQ(load->dtype, types[idx]);
-        load_remap_[buffers[idx].get()] = load;
+        load_remap_[buffers[idx]->data.get()] = load;
         alloc_remap_[buffers[idx]->data.get()] =
             Allocate(shared_bufs[idx]->data, types[idx],
                      {PrimExpr(group_extent), PrimExpr(reduce_extent)}, pred, Evaluate(0));
@@ -669,7 +669,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::vector<const AttrStmtNode*> thread_extents_;
   std::vector<const CommReducerNode*> reduce_combiner_;
   // The load remap
-  std::unordered_map<const BufferNode*, PrimExpr> load_remap_;
+  std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // The store remap
   std::unordered_map<const BufferNode*, Buffer> store_remap_;
   // Allocate remap
