@@ -26,9 +26,9 @@ class SitemapTree:
         :param file: sitemap file, format is xml, if not none, parse a sitemap tree from the file
         """
         if file == "":  # init a sitemaptree with only one node
-            self.urlset = etree.Element('urlset')
+            self.urlset = etree.Element("urlset")
             self.nsmap = namespace
-            self.urlset.attrib['xmlns'] = self.nsmap
+            self.urlset.attrib["xmlns"] = self.nsmap
             self.etree = etree.ElementTree(self.urlset)
         else:  # parse sitemaptree for xml file
             self.etree = etree.parse(file, etree.XMLParser())
@@ -50,9 +50,11 @@ class SitemapTree:
         """
         cnodes = self.urlset.getchildren()
         for cnode in cnodes:
-            loc_node = cnode.find('loc', namespaces=cnode.nsmap)
+            loc_node = cnode.find("loc", namespaces=cnode.nsmap)
             if loc_node == None:
-                logging.error("there should be a loc in url,url is {},cnode is {}".format(url, cnode))
+                logging.error(
+                    "there should be a loc in url,url is {},cnode is {}".format(url, cnode)
+                )
                 continue
             if url == loc_node.text:
                 return cnode
@@ -67,34 +69,34 @@ class SitemapTree:
         :param priority:
         :return: etree node
         """
-        url = etree.Element('url')
+        url = etree.Element("url")
         # loc
-        loc = etree.Element('loc')
-        if kwargs.get('loc') != None:
-            loc.text = kwargs['loc']
+        loc = etree.Element("loc")
+        if kwargs.get("loc") != None:
+            loc.text = kwargs["loc"]
         else:
-            logging.error('the url is None')
+            logging.error("the url is None")
             return None
         url.append(loc)
 
-        lastmod = etree.Element('lastmod')
-        if kwargs.get('lastmod') != None:
-            lastmod.text = kwargs['lastmod']
+        lastmod = etree.Element("lastmod")
+        if kwargs.get("lastmod") != None:
+            lastmod.text = kwargs["lastmod"]
         else:
-            logging.error(url + 'does not have last modified time')
+            logging.error(url + "does not have last modified time")
             return None
         url.append(lastmod)
 
-        changefreq = etree.Element('changefreq')
-        if kwargs.get('changefreq') != None:
-            changefreq.text = kwargs['changefreq']
+        changefreq = etree.Element("changefreq")
+        if kwargs.get("changefreq") != None:
+            changefreq.text = kwargs["changefreq"]
         else:
-            changefreq.text = 'weekly'
+            changefreq.text = "weekly"
         url.append(changefreq)
 
-        priority = etree.Element('priority')
-        if kwargs.get('priority') != None:
-            priority.text = str(kwargs['priority'])
+        priority = etree.Element("priority")
+        if kwargs.get("priority") != None:
+            priority.text = str(kwargs["priority"])
         else:
             priority.text = str(0.5)
         url.append(priority)
@@ -107,7 +109,7 @@ class SitemapTree:
         """
         get url from node
         """
-        loc_node = node.find('loc', namespaces=node.nsmap)
+        loc_node = node.find("loc", namespaces=node.nsmap)
         if loc_node is None:
             t = etree.tostring(node, pretty_print=1).decode("utf-8")
             logging.error("node \n {} does not include loc".format(t))
@@ -129,6 +131,6 @@ class SitemapTree:
         """
         try:
             self.etree.write(file_name, pretty_print=True, xml_declaration=True, encoding="utf-8")
-            logging.info('Sitemap saved in: {}'.format(file_name))
+            logging.info("Sitemap saved in: {}".format(file_name))
         except:
             logging.error("save " + file_name + " sitemap failed")

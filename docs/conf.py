@@ -57,8 +57,8 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
 
-locale_dirs = ['translates/locales/'] 
-gettext_compact=False
+locale_dirs = ["translates/locales/"] 
+gettext_compact = False
 
 # General information about the project.
 project = "tvm"
@@ -85,8 +85,7 @@ from tvm import topi
 from tvm import te
 from tvm import testing
 
-# version = git_describe_version(tvm.__version__)
-version = git_describe_version(tvm.__version__).split("+")[0]
+version = git_describe_version(tvm.__version__)
 release = version
 
 # Add any Sphinx extension module names here, as strings. They can be
