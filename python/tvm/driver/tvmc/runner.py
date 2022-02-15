@@ -573,6 +573,8 @@ def run_module(
             # Optionally measure e2e data transfers from the
             # CPU to device memory overheads (e.g. PCIE
             # overheads if the device is a discrete GPU).
+            if end_to_end:
+                dev = session.cpu()
             times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
 
         logger.debug("Collecting the output tensors.")
