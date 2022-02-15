@@ -28,7 +28,7 @@ STAGINGDIR    = _staging
 # for internationalization
 TRANSLATEDIR  = translates
 LOCALESDIR	  = locales
-HTMLFOLD	  = html_zh
+HTMLFOLD	  = html_international
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4

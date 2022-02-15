@@ -3,7 +3,7 @@
 # run as: " ./task_python_generate_documents.sh [0/1] [0/1] [language] "
 # the first [true/false]: re-generate gettext or not
 # the second [true/false]: update locales file or not
-# the third [true/false]: generate html or not
+# the third [true/false]: generate html or not. The Sitemap will be generate at the same time.
 # The two above will do their best to satisfy. if not exist, process will generate directly.
 # [language]: the language kind of documents, write as:
 # # bn – Bengali
@@ -28,6 +28,8 @@
 # # uk_UA – Ukrainian
 # # zh_CN – Simplified Chinese
 # # zh_TW – Traditional Chinese
+
+# if you want to add some files to the root of website-fold, you can put then in the docs/html_additions/<language>/
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
@@ -104,14 +106,10 @@ then
     touch $DOCS/_build/html_$LANGUAGE/.nojekyll
     cp -r $DOCS/html_additions/$LANGUAGE/* $DOCS/_build/html_$LANGUAGE/
 
-    echo "if you want to flush the contribute pages, please download and replace docs/contribute_translate/translator_data.csv"
-    python3 $DOCS/contribute_translate/build_html.py
-    cp $DOCS/contribute_translate/declaration_zh_CN.html $DOCS/_build/html_$LANGUAGE/
-
     echo "--finish create the $DOCS/_build/html_$LANGUAGE"
     echo "done."
 
-    echo "start to generate sitemap for website."
+    echo "start to generate sitemap for website. Make sure you have specified the <ROOTURL> in docs/sitemaps/sitemap_generator/config,py, which represents the root path url of the site"
     # old html fold: $DOCS/_build/last_html_$LANGUAGE
     # new html fold: $DOCS/_build/html_$LANGUAGE
     python3 $DOCS/sitemaps/sitemap_generator/generate_sitemap.py --ndir $DOCS/_build/html_$LANGUAGE --odir $DOCS/_build/last_html_$LANGUAGE --ositemap $DOCS/_build/last_html_$LANGUAGE/google-sitemap.xml --sitemap $DOCS/_build/html_$LANGUAGE/google-sitemap.xml

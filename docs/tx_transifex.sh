@@ -10,8 +10,8 @@ SCRIPTFOLD="$( cd "$( dirname "$0"  )" && pwd )"
 
 POTDIR="translates/gettext"                 # the *.pot fold
 LOCALESDIR="translates/locales"             # the *.po fold, it can be unexist.
-URLNAME="tvmchinese_0_8_dev"                # depend on transifex.com 
-LANGUAGE="zh_CN"
+URLNAME=""                                  # you can find it in your project in transifex.com, the same as the share-URL suffix.
+LANGUAGE=""                                 # the target language, "zh_CN" (Simplified Chinese) for example
 
 cd $SCRIPTFOLD
 if [ $# -ne 1 ] 

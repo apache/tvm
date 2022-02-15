@@ -406,7 +406,6 @@ header_links = [
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
     ("Github", "https://github.com/apache/tvm/"),
-    ("About-Translators", "https://tvmchinese.github.io/declaration_zh_CN.html")
 ]
 
 header_dropdown = {
@@ -418,7 +417,6 @@ header_dropdown = {
         ("Security", "https://www.apache.org/security/"),
         ("Thanks", "https://www.apache.org/foundation/thanks.html"),
         ("Events", "https://www.apache.org/events/current-event"),
-        ("Zhihu","https://www.zhihu.com/column/c_1429578595417563136")
     ],
 }
 
