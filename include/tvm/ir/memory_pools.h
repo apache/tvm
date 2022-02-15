@@ -103,14 +103,17 @@ struct PoolInfoNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
 };
 
+/*!
+* \brief The string parameter to indicate read and write access to a pool
+* This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
+* python/tvm/ir/memory_pools.py
+*/
+
+static constexpr const char* kTargetPoolReadWriteAccess = "rw";
+
 class PoolInfo : public ObjectRef {
  public:
-  /*!
-   * \brief The string parameter to indicate read and write access to a pool
-   * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
-   * python/tvm/ir/memory_pools.py
-   */
-  static constexpr const char* kTargetPoolReadWriteAccess = "rw";
+
   /*!
    * \brief The string parameter to indicate read only access to a pool
    * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in

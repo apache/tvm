@@ -49,7 +49,7 @@ class PoolInfoAssigner : public StmtExprMutator {
     WorkspaceMemoryPools workspace_pools =
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
             .value_or(WorkspaceMemoryPools({PoolInfo(
-                "global_workspace", {{target_host.value(), PoolInfo::kTargetPoolReadWriteAccess}},
+                "global_workspace", {{target_host.value(), kTargetPoolReadWriteAccess}},
                 PoolInfo::kUnrestrictedPoolSizeHint, PoolInfo::kUnknownClockFrequency,
                 PoolInfo::kUnknownReadBandwidth, PoolInfo::kUnknownWriteBandwidth, 0, 0,
                 {{target_host.value(), 1}}, Bool(true))}));
