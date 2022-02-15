@@ -115,12 +115,6 @@ class BufferNode : public Object {
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
     // Use DefEqual as buffer can define variables in its semantics,
     // skip name as name is not important.
-
-    // The pre-flattened information is only used for type-checking,
-    // and doesn't represent a different computation.
-    //
-    // TODO(Lunderberg): Move the pre-flattened buffer information
-    // into the PrimFunc's buffer_map.
     return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
            equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
            equal.DefEqual(axis_separators, other->axis_separators) &&
