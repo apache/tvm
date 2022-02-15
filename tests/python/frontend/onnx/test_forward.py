@@ -5017,7 +5017,6 @@ onnx_test_folders = sorted(
 )
 
 unsupported_onnx_tests = [
-    "test_basic_convinteger",
     "test_batchnorm_epsilon_training_mode",
     "test_batchnorm_example_training_mode",
     "test_bernoulli",
@@ -5046,8 +5045,6 @@ unsupported_onnx_tests = [
     "test_castlike_FLOAT_to_STRING_expanded",
     "test_castlike_STRING_to_FLOAT",
     "test_castlike_STRING_to_FLOAT_expanded",
-    "test_convinteger_with_padding",
-    "test_convinteger_without_padding",
     "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_convtranspose_output_shape",
@@ -5072,8 +5069,6 @@ unsupported_onnx_tests = [
     "test_loop13_seq",
     "test_lstm_batchwise",
     "test_matmulinteger",
-    "test_maxpool_2d_same_lower",
-    "test_maxpool_2d_same_upper",
     "test_maxpool_with_argmax_2d_precomputed_pads",
     "test_maxpool_with_argmax_2d_precomputed_strides",
     "test_maxunpool_export_with_output_shape",
