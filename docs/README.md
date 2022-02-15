@@ -113,7 +113,7 @@ By default, the tutorials within one subsection are sorted by filename.
 
 ## Generate multilingual documents
 
-If you have questions or want to get a complete example, we have deployed [a project for Chinese documentation](https://github.com/TVMChinese/tvm). For more information, view the following [repositories](https://github.com/TVMChinese) directly, and this mentioned project is complete and has been deployed on the [website](https://chinese.tvm.wiki/), and our international translation is performed via transifex.com.
+If you have questions or want to get a complete example, we have deployed [a project for Chinese documentation](https://github.com/TVMChinese/tvm). For more information, view the following [repositories](https://github.com/TVMChinese) directly, and this mentioned project is complete and has been deployed on the [website](https://tvmchinese.github.io/), and our international translation is performed via transifex.com.
 
 0. The following work was done in the following environment:
 
@@ -185,7 +185,7 @@ If you have questions or want to get a complete example, we have deployed [a pro
       cd docs/
       ./generate_documents.sh true true false <language>   # update your gettext(*.pot)
 
-      ./tx_transifex.sh update                                                   # update transifex-config
+      ./tx_transifex.sh update                             # update transifex-config
       ```
 
    d. push your changes to transifex.com
@@ -208,7 +208,7 @@ If you have questions or want to get a complete example, we have deployed [a pro
 
    ```bash
    cd docs/
-   ./generate_documents.sh false false true <language> # the _build/html_zh_CN will be created. you can directly deploy to your website.
+   ./generate_documents.sh false false true <language> # the _build/html_<language> will be created. you can directly deploy to your website.
    ```
 
 6. some tips

@@ -56,7 +56,7 @@ MAXPROCESS=20
 if [ $# -ne 4 ] 
 then
     echo "error bash command, please run as: \" ./generate_documents.sh [true/false] [true/false] [true/false] [language]\""
-    echo "for example: \"$0 true true true zh_CN\" can generate documents for Chinese"
+    echo "for example: \"$0 true true true zh_CN\" can generate documents for Simplified Chinese"
     exit
 fi
 
