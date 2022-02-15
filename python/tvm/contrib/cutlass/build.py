@@ -21,7 +21,7 @@ import os
 import multiprocessing
 import tvm
 from tvm import runtime, relay
-from tvm.contrib.nvcc import find_cuda_path, get_cuda_version
+from tvm.contrib.nvcc import get_cuda_version
 from .gen_gemm import CutlassGemmProfiler
 from .gen_conv2d import CutlassConv2DProfiler
 from .library import ConvKind

@@ -673,7 +673,7 @@ def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     ]
 
     def inner(func):
-        return _compose([inner], requires)
+        return _compose([func], requires)
 
     return inner
 
