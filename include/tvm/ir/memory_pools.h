@@ -104,10 +104,10 @@ struct PoolInfoNode : public Object {
 };
 
 /*!
-* \brief The string parameter to indicate read and write access to a pool
-* This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
-* python/tvm/ir/memory_pools.py
-*/
+ * \brief The string parameter to indicate read and write access to a pool
+ * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
+ * python/tvm/ir/memory_pools.py
+ */
 
 static constexpr const char* kTargetPoolReadWriteAccess = "rw";
 
