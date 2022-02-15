@@ -64,12 +64,7 @@ std::string TensorInfoNode::get_name() { return std::string{"TensorInfo"}; }
 class MetadataModuleNode : public ::tvm::runtime::ModuleNode {
  public:
   explicit MetadataModuleNode(runtime::metadata::Metadata metadata) {
-    // CHECK((metadata.defined() && code.size() > 0) || (!metadata.defined() && code.size() == 0))
-    //   << "metadata and code must both be either defined (when passed from compiler) or undefined
-    //   "
-    //   << "(when passed from runtime)";
     metadata_ = metadata;
-    //    code_ = code;
   }
 
   const char* type_key() const { return "metadata_module"; }

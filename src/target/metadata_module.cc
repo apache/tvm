@@ -58,8 +58,8 @@ static runtime::Module CreateCrtMetadataModule(
             std::string{"(module type_key="} + mod->type_key() + std::string{")"};
       }
     }
-    CHECK(false) << "These " << non_crt_exportable_modules.size()
-                 << " modules are not exportable to C-runtime: " << non_exportable_modules;
+    LOG(FATAL) << "These " << non_crt_exportable_modules.size()
+               << " modules are not exportable to C-runtime: " << non_exportable_modules;
   }
 
   if (target->kind->name == "c") {
@@ -77,7 +77,7 @@ static runtime::Module CreateCrtMetadataModule(
 static runtime::metadata::Metadata ConvertMetaData(
     relay::backend::ExecutorCodegenMetadata metadata) {
   std::vector<runtime::metadata::TensorInfo> inputs;
-  CHECK(metadata.defined());
+  ICHECK(metadata.defined());
   for (size_t i = 0; i < metadata->inputs.size(); ++i) {
     auto ttype = metadata->input_tensor_types[i];
     auto v = metadata->inputs[i];
@@ -86,21 +86,21 @@ static runtime::metadata::Metadata ConvertMetaData(
             v->name_hint, relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
   }
 
-  LOG(INFO) << "MAKE METADATA? ";
   std::vector<runtime::metadata::TensorInfo> outputs;
   auto output_ttypes = metadata->output_tensor_types;
   for (unsigned int i = 0; i < output_ttypes.size(); i++) {
     auto ttype = output_ttypes[i];
     std::stringstream name;
-    name << "output" << i;
     outputs.push_back(
         runtime::metadata::TensorInfo(make_object<target::metadata::InMemoryTensorInfoNode>(
             name.str(), relay::backend::ShapeToJSON(ttype->shape), ttype->dtype)));
   }
+
   std::vector<std::string> devices_vector;
   for (auto d : metadata->devices) {
     devices_vector.push_back(d.operator std::string());
   }
+
   auto n = make_object<target::metadata::InMemoryMetadataNode>(
       kMetadataVersion, inputs, outputs, devices_vector, runtime::kTvmExecutorAot,
       metadata->mod_name, metadata->interface_api, metadata->unpacked_api);
@@ -126,8 +126,6 @@ static runtime::Module CreateCppMetadataModule(
   }
 
   runtime::metadata::Metadata metadata_tmp = ConvertMetaData(metadata);
-
-  LOG(INFO) << "MAKE METADATA: " << metadata_tmp;
 
   if (metadata->executor == runtime::kTvmExecutorAot && runtime->name == relay::kTvmRuntimeCpp) {
     if (target->kind->name == "c") {
@@ -202,7 +200,6 @@ runtime::Module CreateMetadataModule(
   }
 
   if (is_targeting_crt) {
-    LOG(INFO) << "Create CRT metadata: " << metadata.defined();
     return CreateCrtMetadataModule(target_module, target, runtime, metadata,
                                    non_crt_exportable_modules, crt_exportable_modules,
                                    const_var_ndarray);

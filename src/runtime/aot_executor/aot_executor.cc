@@ -121,7 +121,6 @@ PackedFunc AotExecutor::GetFunction(const std::string& name,
 }
 
 void AotExecutor::Run() {
-  LOG(INFO) << "Get entrypoint " << metadata_->mod_name() << "_run_model";
   auto pf = module_.GetFunction(metadata_->mod_name() + "_run_model", true /* query_imports */);
   ICHECK(pf != nullptr) << "Module entrypoint is not defined";
 
@@ -162,11 +161,11 @@ int AotExecutor::GetOutputIndex(const std::string& name) {
 void AotExecutor::SetInput(int index, DLTensor* data_ref) { args_[index].CopyFrom(data_ref); }
 
 void AotExecutor::SetInputZeroCopy(int index, DLTensor* data_ref) {
-  ICHECK(false) << "not implemented";
+  LOG(FATAL) << "not implemented";
 }
 
 void AotExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
-  ICHECK(false) << "not implemented";
+  LOG(FATAL) << "not implemented";
 }
 
 int AotExecutor::NumOutputs() const { return metadata_->num_outputs(); }

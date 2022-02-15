@@ -495,7 +495,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
     GenerateInternalWorkspaceBuffers();
 
     if (metadata_->unpacked_api) {
-      LOG(INFO) << "Generate AOT Descriptor: " << metadata_->interface_api;
       if (metadata_->interface_api == "c") {
         GenerateCInterfaceEntrypoint(entrypoint_mangled, run_func_mangled, metadata_->mod_name);
       } else {
@@ -517,7 +516,6 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       CreateFuncRegistry();
       GenerateCrtSystemLib();
     }
-    LOG(INFO) << "Metadata " << metadata_.defined() << " exec " << metadata_->executor;
     if (metadata_.defined() && metadata_->executor == runtime::kTvmExecutorAot) {
       GenerateAOTDescriptor();
     }
@@ -545,8 +543,9 @@ class CMetadataWriterVisitor : public ::tvm::AttrVisitor {
   }
 
   void Visit(const char* key, std::string* value) override {
-    (*current_stream_) << "\"" << value
-                       << "\"";  // todo: ->replace('\\', "\\\\").replace('\"', "\\\"") << "\"";
+    (*current_stream_)
+        << "\"" << value
+        << "\"";  // TODO(areusch): -> replace('\\', "\\\\").replace('\"', "\\\"") << "\"";
   }
 
   void Visit(const char* key, void** value) override { (*current_stream_) << *value; }
@@ -557,13 +556,10 @@ class CMetadataWriterVisitor : public ::tvm::AttrVisitor {
   }
 
   void Visit(const char* key, runtime::NDArray* value) override {
-    ICHECK(false) << "at key " << key << ": cannot emit metadata of type NDArray";
+    LOG(FATAL) << "at key " << key << ": cannot emit metadata of type NDArray";
   }
 
-  void Visit(const char* key, runtime::ObjectRef* value) override {
-    //    if (value->as<
-    // todo
-  }
+  void Visit(const char* key, runtime::ObjectRef* value) override {}
 };
 
 class MetadataStructDefiner : public AttrVisitor {
@@ -571,43 +567,33 @@ class MetadataStructDefiner : public AttrVisitor {
 
  public:
   void Visit(const char* key, double* value) final {
-    // dns: mangle name
     code_ << "  double " << key << ";" << std::endl;
   }
 
   void Visit(const char* key, int64_t* value) final {
-    // dns: mangle name
     code_ << "  int64_t " << key << ";" << std::endl;
   }
 
   void Visit(const char* key, uint64_t* value) final {
-    // dns: mangle name
     code_ << "  uint64_t " << key << ";" << std::endl;
   }
-  void Visit(const char* key, int* value) final {
-    // dns: mangle name
-    code_ << "  int " << key << ";" << std::endl;
-  }
+  void Visit(const char* key, int* value) final { code_ << "  int " << key << ";" << std::endl; }
   void Visit(const char* key, bool* value) final {
-    // dns: mangle name
     code_ << "  uint8_t " << key << ";" << std::endl;
   }
   void Visit(const char* key, std::string* value) final {
-    // dns: mangle name
     code_ << "  const char* " << key << ";" << std::endl;
   }
   void Visit(const char* key, void** value) final {
-    // dns: mangle name
     code_ << "  void* " << key << ";" << std::endl;
   }
   void Visit(const char* key, DataType* value) final {
-    // dns: mangle name
     code_ << "  DLDataType " << key << ";" << std::endl;
   }
 
   void Visit(const char* key, runtime::NDArray* value) final {
     // TODO(areusch): probably we could consolidate --link-params here, tho...
-    ICHECK(false) << "do not support serializing NDArray as metadata";
+    LOG(FATAL) << "do not support serializing NDArray as metadata";
   }
 
   void WriteComma() {
@@ -627,29 +613,9 @@ class MetadataStructDefiner : public AttrVisitor {
       case MetadataTypeIndex::kString:
         code_ << "  const char** " << key << ";" << std::endl;
       default:
-        CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
+        LOG(FATAL) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
     }
   }
-
-  //   const ArrayNode* arr = value->as<ArrayNode>();
-  //   if (arr != nullptr) {
-  //     // dns: mangle name
-
-  //     code_ << "  " <<  "" << key << ";" << std::endl;
-  //     WriteComma();
-  //     code_ << "{";
-  //     if (arr->size() > 0) {
-  //       is_first_item_ = true;
-  //       for (ObjectRef o : *arr) {
-  //         // todo might have to switch on object type.
-  //         WriteComma();
-  //         ReflectionVTable::Global()->VisitAttrs(o.get(), this);
-  //       }
-  //     }
-  //     code_ << "}";
-  //     return;
-  //   }
-  // }
 
   void Visit(const char* key, ObjectRef* value) final {
     auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
@@ -706,12 +672,9 @@ class MetadataQueuer : public AttrVisitor {
       auto metadata = Downcast<runtime::metadata::MetadataBase>(*value);
       const runtime::metadata::MetadataArrayNode* arr =
           value->as<runtime::metadata::MetadataArrayNode>();
-      std::cout << "Is array? " << arr << std::endl;
       if (arr != nullptr) {
         for (unsigned int i = 0; i < arr->array.size(); i++) {
           ObjectRef o = arr->array[i];
-          std::cout << "queue-visiting array element " << i << ": " << o->type_index() << " ("
-                    << o.operator->() << ")" << std::endl;
           if (o.as<runtime::metadata::MetadataBaseNode>() != nullptr) {
             std::stringstream ss;
             ss << i;
@@ -753,10 +716,10 @@ std::string MetadataArrayTypeToCType(const runtime::metadata::MetadataArrayNode*
       return "const char*";
       break;
     case MetadataTypeIndex::kMetadata:
-      return ::std::string {"struct "} + array->struct_name;
+      return ::std::string{"struct "} + array->struct_name;
       break;
     default:
-      ICHECK(false) << "Unexpected MetadataTypeIndex " << array->type_index;
+      LOG(FATAL) << "Unexpected MetadataTypeIndex " << array->type_index;
       return "";
   }
 }
@@ -829,18 +792,14 @@ class MetadataSerializer : public AttrVisitor {
 
   void Visit(const char* key, runtime::NDArray* value) final {
     // TODO(areusch): probably we could consolidate --link-params here, tho...
-    ICHECK(false) << "do not support serializing NDArray as metadata";
+    LOG(FATAL) << "do not support serializing NDArray as metadata";
   }
 
   void VisitArray(const runtime::metadata::MetadataArrayNode* array) {
-    std::cout << "visit array " << array << ": " << array->type_index << " " << array->array.size()
-              << std::endl;
     auto old_is_first_item = is_first_item_;
     is_first_item_ = true;
     for (unsigned int i = 0; i < array->array.size(); ++i) {  // ObjectRef o : *(array->array)) {
       ObjectRef o = array->array[i];
-      std::cout << "visiting array element " << i << ": " << o->type_index() << " ("
-                << o.operator->() << ")" << std::endl;
       if (o->IsInstance<IntImmNode>()) {
         int64_t i = Downcast<Integer>(o);
         Visit(nullptr, &i);
@@ -854,13 +813,11 @@ class MetadataSerializer : public AttrVisitor {
       }
 
       runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(o);
-      std::cout << "visit member " << metadata->get_name() << std::endl;
       std::stringstream i_str;
       i_str << i;
       address_.push_back(i_str.str());
       Visit(nullptr, &metadata);
       address_.pop_back();
-      //      ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), this);
     }
     is_first_item_ = old_is_first_item;
   }
@@ -868,7 +825,6 @@ class MetadataSerializer : public AttrVisitor {
   void Visit(const char* key, ObjectRef* value) final {
     const runtime::metadata::MetadataArrayNode* arr =
         value->as<runtime::metadata::MetadataArrayNode>();
-    std::cout << "Is array? " << arr << std::endl;
     if (arr != nullptr) {
       WriteComma();
       if (key != nullptr) {
@@ -879,24 +835,10 @@ class MetadataSerializer : public AttrVisitor {
       if (key != nullptr) {
         address_.pop_back();
       }
-      //      VisitArray(key, Downcast<runtime::metadata::MetadataArray>(*value).operator->());
-      // WriteComma();
-      // code_ << "{";
-      // if (arr->size() > 0) {
-      //   is_first_item_ = true;
-      //   for (ObjectRef* o : *arr) {
-      //     // todo might have to switch on object type.
-      //     WriteComma();
-      //     ReflectionVTable::Global()->VisitAttrs(o.get(), this);
-      //   }
-      // }
-      // code_ << "}";
       return;
     }
 
-    std::cout << "downcast..." << std::endl;
     runtime::metadata::MetadataBase metadata = Downcast<runtime::metadata::MetadataBase>(*value);
-    std::cout << "downcast ok: " << metadata->get_name() << std::endl;
 
     if (key != nullptr) {  // NOTE: outermost call passes nullptr key
       address_.push_back(key);
@@ -906,21 +848,6 @@ class MetadataSerializer : public AttrVisitor {
       address_.pop_back();
     }
   }
-
-  // void EnterStruct(::tvm::runtime::metadata::MetadataBase metadata) {
-  //   const char* type_key = metadata->GetTypeKey();
-  //   is_defining_struct_.emplace_back(
-  //     !generated_struct_decls_.contains(type_key));
-  //   if (is_defining_struct()) {
-  //     decl_ << "struct " << get_struct_name(metadata) << "{";
-  //   }
-  //   is_first_item_.emplace_back(true);
-  // }
-
-  // void ExitStruct(::tvm::runtime::metadata::MetadataBase metadata) {
-  //   decl_ << "}; // struct " << get_struct_name(metadata);
-  //   is_first_item_.pop_back();
-  // }
 
   void CodegenMetadata(::tvm::runtime::metadata::Metadata metadata) {
     decl_ << "#include <inttypes.h>" << std::endl
@@ -934,7 +861,6 @@ class MetadataSerializer : public AttrVisitor {
       auto struct_name = std::get<0>(item);
       auto obj = std::get<1>(item);
       auto arr = obj.as<runtime::metadata::MetadataArrayNode>();
-      std::cout << "codegen: " << struct_name;
       is_first_item_ = true;
       address_.push_back(struct_name);
       if (arr != nullptr) {
@@ -989,8 +915,6 @@ runtime::Module CreateCSourceCrtMetadataModule(const Array<runtime::Module>& mod
 }
 
 runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metadata) {
-  //  MetadataStructDefiner definer;
-  //  ReflectionVTable::Global()->VisitAttrs(metadata.operator->(), &definer);
   MetadataSerializer serializer;
   serializer.CodegenMetadata(metadata);
   std::stringstream lookup_func;
@@ -1009,7 +933,6 @@ runtime::Module CreateCSourceCppMetadataModule(runtime::metadata::Metadata metad
 
   auto mod = MetadataModuleCreate(metadata);
   std::vector<String> func_names{"get_c_metadata"};
-  // definer.GetOutput() +
   auto c = CSourceModuleCreate(serializer.GetOutput() + lookup_func.str(), "c", func_names,
                                Array<String>());
   mod->Import(c);
