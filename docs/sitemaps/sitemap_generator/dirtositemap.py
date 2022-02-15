@@ -22,15 +22,15 @@ from datetime import datetime, timezone, timedelta
 
 class DirToSitemap:
     def __init__(
-        self, 
-        dir, 
-        html, 
-        root_url, 
-        home_page, 
-        change_freq, 
-        nsmap, 
-        priorities, 
-        time_zone, 
+        self,
+        dir,
+        html,
+        root_url,
+        home_page,
+        change_freq,
+        nsmap,
+        priorities,
+        time_zone,
         time_pattern,
     ):
         """
@@ -60,7 +60,7 @@ class DirToSitemap:
             if self.tp == "%Y-%m-%dT%H:%M:%S+00:00":
                 node.find("lastmod", namespaces=node.nsmap).text = t
             elif self.tp == "%Y-%m-%d":
-                node.find("lastmod", namespaces=node.nsmap).text = t[0:t.find("T")]
+                node.find("lastmod", namespaces=node.nsmap).text = t[0 : t.find("T")]
             else:
                 logging.error("sitemap time pattern should be %Y-%m-%dT%H:%M:%S+00:00 or %Y-%m-%d")
         else:

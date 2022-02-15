@@ -25,9 +25,7 @@ HOMEPAGE = "index.html"
 ENC_UTF8 = "UTF-8"
 
 # General Sitemap tags
-GENERAL_SITEMAP_TAGS = [
-    "loc", "changefreq", "priority", "lastmod"
-]
+GENERAL_SITEMAP_TAGS = ["loc", "changefreq", "priority", "lastmod"]
 
 # Match patterns for changefreq attributes
 CHANGEFREQ_PATTERNS = ["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"]

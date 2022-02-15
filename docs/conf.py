@@ -57,7 +57,7 @@ sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
 
-locale_dirs = ["translates/locales/"] 
+locale_dirs = ["translates/locales/"]
 gettext_compact = False
 
 # General information about the project.
@@ -67,6 +67,7 @@ copyright = "2020 - 2021, %s" % author
 github_doc_root = "https://github.com/apache/tvm/tree/main/docs/"
 
 os.environ["TVM_BUILD_DOC"] = "1"
+
 
 def git_describe_version(original_version):
     """Get git describe version."""

@@ -18,6 +18,7 @@
 import logging
 from lxml import etree
 
+
 class SitemapTree:
     def __init__(self, namespace="", file=""):
         """

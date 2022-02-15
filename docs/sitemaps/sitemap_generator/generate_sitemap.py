@@ -74,15 +74,15 @@ def compare(old_dir, new_dir, old_sitemap, html):
     """
     # sitemaptree for dir html
     sitemap = DirToSitemap(
-        dir=new_dir, 
-        html=html, 
-        root_url=ROOTURL, 
+        dir=new_dir,
+        html=html,
+        root_url=ROOTURL,
         home_page=HOMEPAGE,
-        change_freq=CHANGEFREQ_PATTERNS[3], 
-        nsmap=XMLNS, 
-        priorities=PRIORITIES, 
+        change_freq=CHANGEFREQ_PATTERNS[3],
+        nsmap=XMLNS,
+        priorities=PRIORITIES,
         time_zone=TIMEZONE,
-        time_pattern=LASTMODFORMAT
+        time_pattern=LASTMODFORMAT,
     )
     pt = sitemap.parse_dir("")
 
