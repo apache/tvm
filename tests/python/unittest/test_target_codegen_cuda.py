@@ -1031,7 +1031,7 @@ def test_try_unaligned_vector_load():
     N, C_N, A, C = get_compute_aligned()
     a_data, c, kernel_source = build(A, C, N, C_N)
     # (uint1*)(A + (2)) is a valid vector load
-    assert "A + (2)" in kernel_source
+    assert "A + 2" in kernel_source
 
     expected = a_data[2 : C_N + 2]
     assert np.allclose(c, expected), f"expected={expected}\nactual={c}"
