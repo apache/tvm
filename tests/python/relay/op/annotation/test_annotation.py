@@ -70,7 +70,7 @@ def test_function_on_device():
     assert len(func.attrs["param_virtual_devices"]) == 2
     assert func.attrs["param_virtual_devices"][0].device_type_int == 1  # ie kDLCPU
     assert func.attrs["param_virtual_devices"][1].device_type_int == 2  # ie kDLCUDA
-    assert func.attrs["result_virtual_device"].device_type_int == 2  # ie KDLCUDA
+    assert func.virtual_device_.device_type_int == 2  # ie KDLCUDA
 
 
 if __name__ == "__main__":
