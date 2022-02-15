@@ -112,7 +112,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
-    this->HandleUse(op->buffer->data);
+    VisitBuffer(op->buffer);
     return StmtExprMutator::VisitStmt_(op);
   }
 
@@ -165,7 +165,7 @@ class VarUseDefAnalysis : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    this->HandleUse(op->buffer->data);
+    VisitBuffer(op->buffer);
     return StmtExprMutator::VisitExpr_(op);
   }
 
