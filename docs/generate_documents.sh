@@ -17,11 +17,11 @@
 # under the License.
 
 
-# run as: " ./generate_documents.sh [0/1] [0/1] [language] "
+# run as: " ./generate_documents.sh [true/false] [true/false] [true/false] [language] "
 # the first [true/false]: re-generate gettext or not
 # the second [true/false]: update locales file or not
+# All above will do their best to satisfy. if not exist, process will generate directly.
 # the third [true/false]: generate html or not. The Sitemap will be generate at the same time.
-# The two above will do their best to satisfy. if not exist, process will generate directly.
 # [language]: the language kind of documents, write as:
 # # bn - Bengali
 # # ca - Catalan
@@ -51,12 +51,43 @@
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 
-MAXPROCESS=20
+MAXPROCESS=4
 
 if [ $# -ne 4 ] 
 then
-    echo "error bash command, please run as: \" ./generate_documents.sh [true/false] [true/false] [true/false] [language]\""
+    echo "[Usage]:"
+    echo "run as: \" ./generate_documents.sh [true/false] [true/false] [true/false] [language]\""
     echo "for example: \"$0 true true true zh_CN\" can generate documents for Simplified Chinese"
+    echo ""
+    echo "[Help]:"
+    echo "the first [true/false]: re-generate gettext or not"
+    echo "the second [true/false]: update locales file or not"
+    echo "All above will do their best to satisfy. if not exist, process will generate directly."
+    echo "the third [true/false]: generate html or not. The Sitemap will be generate at the same time."
+    echo "[language]: the language kind of documents, write as:"
+    echo "* bn - Bengali"
+    echo "* ca - Catalan"
+    echo "* cs - Czech"
+    echo "* da - Danish"
+    echo "* de - German"
+    echo "* en - English"
+    echo "* es - Spanish"
+    echo "* fi - Finnish"
+    echo "* fr - French"
+    echo "* hr - Croatian"
+    echo "* it - Italian"
+    echo "* lt - Lithuanian"
+    echo "* nl - Dutch"
+    echo "* pl - Polish"
+    echo "* pt_BR - Brazilian Portuguese"
+    echo "* ru - Russian"
+    echo "* sl - Slovenian"
+    echo "* sv - Swedish"
+    echo "* tr - Turkish"
+    echo "* uk_UA - Ukrainian"
+    echo "* zh_CN - Simplified Chinese"
+    echo "* zh_TW - Traditional Chinese"
+    echo "if you want to add some files to the root of website-fold, you can put then in the docs/html_additions/<language>/"
     exit
 fi
 
