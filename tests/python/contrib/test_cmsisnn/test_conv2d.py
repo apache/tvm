@@ -340,9 +340,9 @@ def test_depthwise_int8(
     kernel_h = kernel_size[0]
     kernel_w = kernel_size[1]
     groups = ifm_shape[3]
-    weight_format = "HWOI"
+    weight_format = "HWIO"
     out_channels = ifm_shape[3] * depth_multiplier
-    kernel_shape = (kernel_h, kernel_w, out_channels, ifm_shape[3] // groups)
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
     ks_len = len(kernel_scale)
     kernel_scale = [kernel_scale[i % ks_len] for i in range(out_channels)]
     kernel_zero_point = 0
