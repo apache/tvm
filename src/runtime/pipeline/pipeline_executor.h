@@ -96,7 +96,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   NDArray GetInput(std::string input_name);
   /*!
-   * \brief Getting the numbers of pipeline running.
+   * \brief Getting the numbers of running pipeline.
    */
   int PipelineStatisticPipeExecuteNumber();
   /*!
