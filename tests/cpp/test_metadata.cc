@@ -25,31 +25,33 @@
 
 namespace {
 const int64_t kNormalInput1Shape[4] = {1, 5, 5, 3};
-const struct TVMTensorInfo kNormalInputs[1] = {{"input1", kNormalInput1Shape, 4, DLDataType{1, 2, 3}}};
+const struct TVMTensorInfo kNormalInputs[1] = {
+    {"input1", kNormalInput1Shape, 4, DLDataType{1, 2, 3}}};
 
 const int64_t kNormalOutput1Shape[3] = {3, 8, 8};
-const struct TVMTensorInfo kNormalOutputs[1] = {{"output1", kNormalOutput1Shape, 3, DLDataType{3, 4, 5}}};
+const struct TVMTensorInfo kNormalOutputs[1] = {
+    {"output1", kNormalOutput1Shape, 3, DLDataType{3, 4, 5}}};
 
 const char* kNormalDevices[2] = {"device1", "device2"};
 
 const struct TVMMetadata kNormal = {
-  TVM_METADATA_VERSION,
-  kNormalInputs,
-  1,
-  kNormalOutputs,
-  1,
-  kNormalDevices,
-  2,
-  "aot",
-  "default",
-  "c",
-  true,
-  };
-}
+    TVM_METADATA_VERSION,
+    kNormalInputs,
+    1,
+    kNormalOutputs,
+    1,
+    kNormalDevices,
+    2,
+    "aot",
+    "default",
+    "c",
+    true,
+};
+}  // namespace
 
-using ::tvm::runtime::Downcast;
-using ::testing::Eq;
 using ::testing::ElementsAre;
+using ::testing::Eq;
+using ::tvm::runtime::Downcast;
 
 TEST(Metadata, ParseStruct) {
   tvm::runtime::metadata::Metadata md = tvm::runtime::metadata::Metadata(&kNormal);
@@ -68,8 +70,8 @@ TEST(Metadata, ParseStruct) {
   EXPECT_THAT(output1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 5})));
 
   auto devices = md->devices();
-  EXPECT_THAT(devices, ElementsAre(::tvm::runtime::String("device1"),
-        ::tvm::runtime::String("device2")));
+  EXPECT_THAT(devices,
+              ElementsAre(::tvm::runtime::String("device1"), ::tvm::runtime::String("device2")));
 
   EXPECT_THAT(md->executor(), Eq("aot"));
   EXPECT_THAT(md->mod_name(), Eq("default"));
@@ -114,9 +116,7 @@ class TestVisitor : public tvm::AttrVisitor {
     keys.push_back(key);
     values.push_back(*value);
   }
-  void Visit(const char* key, void** value) final {
-    CHECK(false) << "Do not expect this type";
-  }
+  void Visit(const char* key, void** value) final { CHECK(false) << "Do not expect this type"; }
 
   void Visit(const char* key, ::tvm::runtime::ObjectRef* value) final {
     keys.push_back(key);
@@ -132,16 +132,9 @@ TEST(Metadata, Visitor) {
   TestVisitor v;
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
-  EXPECT_THAT(v.keys, ElementsAre(
-                Eq("version"),
-                Eq("inputs"),
-                Eq("outputs"),
-                Eq("devices"),
-                Eq("executor"),
-                Eq("mod_name"),
-                Eq("interface_api"),
-                Eq("use_unpacked_api")
-                ));
+  EXPECT_THAT(v.keys,
+              ElementsAre(Eq("version"), Eq("inputs"), Eq("outputs"), Eq("devices"), Eq("executor"),
+                          Eq("mod_name"), Eq("interface_api"), Eq("use_unpacked_api")));
 
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
@@ -167,5 +160,5 @@ TEST(Metadata, Visitor) {
   EXPECT_THAT(Downcast<tvm::runtime::String>(devices->array[0]), Eq("device1"));
   EXPECT_THAT(Downcast<tvm::runtime::String>(devices->array[1]), Eq("device1"));
 
-//  EXPECT_THAT(Downcast<IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
+  //  EXPECT_THAT(Downcast<IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 }

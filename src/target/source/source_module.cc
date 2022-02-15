@@ -618,16 +618,16 @@ class MetadataStructDefiner : public AttrVisitor {
 
   void VisitArray(const char* key, const runtime::metadata::MetadataArrayNode* array) {
     switch (array->type_index) {
-    case MetadataTypeIndex::kUint64:
-      code_ << "  uint64_t** " << key << ";" << std::endl;
-    case MetadataTypeIndex::kInt64:
-      code_ << "  int64_t** " << key << ";" << std::endl;
-    case MetadataTypeIndex::kBool:
-      code_ << "  bool** " << key << ";" << std::endl;
-    case MetadataTypeIndex::kString:
-      code_ << "  const char** " << key << ";" << std::endl;
-    default:
-      CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
+      case MetadataTypeIndex::kUint64:
+        code_ << "  uint64_t** " << key << ";" << std::endl;
+      case MetadataTypeIndex::kInt64:
+        code_ << "  int64_t** " << key << ";" << std::endl;
+      case MetadataTypeIndex::kBool:
+        code_ << "  bool** " << key << ";" << std::endl;
+      case MetadataTypeIndex::kString:
+        code_ << "  const char** " << key << ";" << std::endl;
+      default:
+        CHECK(false) << "Field " << key << ": unknown MetadataTypeIndex: " << array->type_index;
     }
   }
 
@@ -740,24 +740,24 @@ std::string MetadataArrayTypeToCType(const runtime::metadata::MetadataArrayNode*
   using MetadataTypeIndex = runtime::metadata::MetadataTypeIndex;
 
   switch (array->type_index) {
-  case MetadataTypeIndex::kInt64:
-    return "int64_t";
-    break;
-  case MetadataTypeIndex::kUint64:
-    return "uint64_t";
-    break;
-  case MetadataTypeIndex::kBool:
-    return "int8_t";
-    break;
-  case MetadataTypeIndex::kString:
-    return "const char*";
-    break;
-  case MetadataTypeIndex::kMetadata:
-    return ::std::string{"struct "} + array->struct_name;
-    break;
-  default:
-    ICHECK(false) << "Unexpected MetadataTypeIndex " << array->type_index;
-    return "";
+    case MetadataTypeIndex::kInt64:
+      return "int64_t";
+      break;
+    case MetadataTypeIndex::kUint64:
+      return "uint64_t";
+      break;
+    case MetadataTypeIndex::kBool:
+      return "int8_t";
+      break;
+    case MetadataTypeIndex::kString:
+      return "const char*";
+      break;
+    case MetadataTypeIndex::kMetadata:
+      return ::std::string{"struct "} + array->struct_name;
+      break;
+    default:
+      ICHECK(false) << "Unexpected MetadataTypeIndex " << array->type_index;
+      return "";
   };
 }
 
@@ -945,8 +945,7 @@ class MetadataSerializer : public AttrVisitor {
         } else {
           c_type += MetadataArrayTypeToCType(arr);
         }
-        code_ << c_type << " " << struct_name << "[" << arr->array.size()
-              << "] = {" << std::endl;
+        code_ << c_type << " " << struct_name << "[" << arr->array.size() << "] = {" << std::endl;
         VisitArray(arr);
       } else {
         code_ << "const struct TVMMetadata " << struct_name << " = {" << std::endl;

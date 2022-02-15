@@ -57,7 +57,8 @@ class ArrayIterator {
  public:
   using value_type = Ref;
 
-  ArrayIterator(size_t index, const ArrayAccessor<C, Ref>* parent) : index_{index}, parent_{parent} {}
+  ArrayIterator(size_t index, const ArrayAccessor<C, Ref>* parent)
+      : index_{index}, parent_{parent} {}
 
   inline Ref operator*() { return (*parent_)[index_]; }
 
@@ -151,10 +152,10 @@ enum MetadataTypeIndex : uint8_t {
 
 class MetadataArrayNode : public MetadataBaseNode {
  public:
-  MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name) :
-      array(array), type_index{type_index}, struct_name{struct_name} {}
-//  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
-//      : array(std::move(array)), c_type{c_type} {}
+  MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name)
+      : array(array), type_index{type_index}, struct_name{struct_name} {}
+  //  MetadataArrayNode(Array<ObjectRef> array, const char* c_type)
+  //      : array(std::move(array)), c_type{c_type} {}
 
   std::string get_name() override;
 

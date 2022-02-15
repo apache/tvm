@@ -52,7 +52,9 @@ class Span {
       return *this;
     }
 
-    inline bool operator==(iterator other) const { return ptr_ == other.ptr_ && end_ == other.end_; }
+    inline bool operator==(iterator other) const {
+      return ptr_ == other.ptr_ && end_ == other.end_;
+    }
 
     inline bool operator!=(iterator other) const { return !(*this == other); }
 

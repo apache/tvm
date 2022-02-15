@@ -66,7 +66,8 @@ static runtime::Module CreateCrtMetadataModule(
     target_module =
         CreateCSourceCrtMetadataModule(crt_exportable_modules, target, runtime, metadata);
   } else {
-    LOG(FATAL) << "Unsupported target kind " << target->kind->name << " in CreateCrtMetadataModule.";
+    LOG(FATAL) << "Unsupported target kind " << target->kind->name
+               << " in CreateCrtMetadataModule.";
   }
 
   return target_module;

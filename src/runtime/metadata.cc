@@ -33,7 +33,8 @@ namespace tvm {
 namespace runtime {
 namespace metadata {
 
-MetadataArray::MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name)
+MetadataArray::MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index,
+                             const char* struct_name)
     : MetadataBase{make_object<MetadataArrayNode>(array, type_index, struct_name)} {}
 
 std::string MetadataArrayNode::get_name() { return "MetadataArray"; }
