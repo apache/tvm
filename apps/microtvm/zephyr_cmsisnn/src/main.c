@@ -62,7 +62,7 @@ void main(void) {
   StackMemoryManager_Init(&app_workspace, g_crt_workspace, TVMGEN_DEFAULT_WORKSPACE_SIZE);
 
   struct tvmgen_default_inputs inputs = {.input = input_storage};
-  struct tvmgen_default_outputs outputs = {.output = output_storage};
+  struct tvmgen_default_outputs outputs = {.Identity = output_storage};
 
   if (tvmgen_default_run(&inputs, &outputs) != 0) {
     printk("Model run failed\n");

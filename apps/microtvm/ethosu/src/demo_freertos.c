@@ -106,7 +106,7 @@ static void prvInferenceTask(void* pvParameters) {
       .tfl_quantize = pucReceivedData,
   };
   struct tvmgen_default_outputs xOutputs = {
-      .output = output,
+      .MobilenetV2_Predictions_Reshape_11 = output,
   };
   struct ethosu_driver* xDriver = ethosu_reserve_driver();
   struct tvmgen_default_devices xDevices = {
