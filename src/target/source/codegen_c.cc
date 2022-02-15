@@ -193,12 +193,14 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
 
   std::string index_str = PrintExpr(index);
   if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
-    std::stringstream temp;
-    temp << "(" << index_str << ") / " << (32 / t.bits());
-    index_str = temp.str();
-  }
-
-  if (t == buffer_element_dtype) {
+    // This is a special case, because CodegenCUDA::PrintType()
+    // returns "int" for bool and for 4-bit integers.  Therefore, we
+    // need to do the pointer arithmetic in the output's datatype,
+    // rather than the buffer's element type.
+    os << "*("
+       << "(" << ptr_cast(t) << vid << ")"
+       << " + " << index_str << " / " << t.lanes() << ")";
+  } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
   } else {
     os << "*" << ptr_cast(t) << "(" << buffer_str << " + " << index_str << ")";
