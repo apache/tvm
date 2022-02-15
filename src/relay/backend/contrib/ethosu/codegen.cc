@@ -107,7 +107,7 @@ tvm::transform::Pass RelayToTIR() {
  */
 class CountIdentityOutputs : public MixedModeVisitor {
  public:
-  CountIdentityOutputs(){};
+  CountIdentityOutputs() {}
 
   void VisitExpr_(const CallNode* call) {
     for (auto arg : call->args) {

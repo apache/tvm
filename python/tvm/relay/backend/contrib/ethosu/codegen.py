@@ -301,7 +301,7 @@ class LayoutOptimizer:
         pass
 
 
-def IdentityOptimizer():
+def IdentityOptimizer():  # pylint: disable=invalid-name
     """Pass that removes redundant identities
 
     Return

@@ -22,6 +22,9 @@
  * \brief Attributes for the Arm(R) Ethos(TM)-U NPU operators.
  */
 
+#ifndef TVM_RELAY_OP_CONTRIB_ETHOSU_OP_ATTRS_H_
+#define TVM_RELAY_OP_CONTRIB_ETHOSU_OP_ATTRS_H_
+
 #include <tvm/relay/op.h>
 
 namespace tvm {
@@ -473,3 +476,5 @@ TVM_REGISTER_NODE_TYPE(EthosuUnaryElementwiseAttrs);
 }  // namespace op
 }  // namespace relay
 }  // namespace tvm
+
+#endif  // TVM_RELAY_OP_CONTRIB_ETHOSU_OP_ATTRS_H_
