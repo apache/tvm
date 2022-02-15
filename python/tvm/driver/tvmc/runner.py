@@ -570,7 +570,7 @@ def run_module(
             times = []
         else:
             # Call the benchmarking function of the executor.
-            # Optionally measure e2e data transfers from the 
+            # Optionally measure e2e data transfers from the
             # CPU to device memory overheads (e.g. PCIE
             # overheads if the device is a discrete GPU).
             times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
