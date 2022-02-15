@@ -25,6 +25,7 @@
 
 #include <tvm/relay/runtime.h>
 
+#include <utility>
 #include <vector>
 
 #include "../relay/backend/utils.h"

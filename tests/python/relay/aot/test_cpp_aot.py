@@ -98,7 +98,9 @@ def test_conv2d(target_kind, unpacked_api):
             ir_mod,
             params=params,
             target=target_kind,
-            executor=backend.Executor("aot", {"unpacked-api": unpacked_api, "interface-api": "packed"}),
+            executor=backend.Executor(
+                "aot", {"unpacked-api": unpacked_api, "interface-api": "packed"}
+            ),
         )
 
     print_mod_tree(mod.module)

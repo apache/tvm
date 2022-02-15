@@ -753,12 +753,12 @@ std::string MetadataArrayTypeToCType(const runtime::metadata::MetadataArrayNode*
       return "const char*";
       break;
     case MetadataTypeIndex::kMetadata:
-      return ::std::string{"struct "} + array->struct_name;
+      return ::std::string {"struct "} + array->struct_name;
       break;
     default:
       ICHECK(false) << "Unexpected MetadataTypeIndex " << array->type_index;
       return "";
-  };
+  }
 }
 
 class MetadataSerializer : public AttrVisitor {
