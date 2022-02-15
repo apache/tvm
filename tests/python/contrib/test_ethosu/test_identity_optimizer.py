@@ -19,7 +19,10 @@
 Test the identity optimizer pass that removes redundant identity
 operations from the microNPU codegen.
 """
-import numpy as np
+import pytest
+
+pytest.importorskip("ethosu.vela")
+
 import tensorflow as tf
 
 import tvm
