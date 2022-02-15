@@ -32,10 +32,12 @@ pip3 install \
     packaging \
     Pillow \
     pytest \
+    tlcpack-sphinx-addon==0.2.1 \
     pytest-profiling \
     pytest-xdist \
     requests \
     scipy \
     synr==0.6.0 \
+    junitparser==2.4.2 \
     six \
     tornado
