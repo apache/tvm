@@ -291,7 +291,7 @@ class ConfigPipelineExecution {
     return config_[key];
   }
   /*!
-   * \brief Enumurating the binding configuration for a specify runtime.
+   * \brief Enumerating the binding configuration for a specified runtime.
    * \param parse_function The callback function is used to parse the binding configuration.
    * \param runtime_index The index of a runtime is used to parse the binding configuration.
    */
@@ -514,7 +514,7 @@ class BackendRuntime {
     if (runtime_idx_ == 0) {
       this->CreateParentsNotify(0, GLOBAL_MODULE_INDEX, 0);
     } else {
-      // Only launching work thread for the runtimes after the first runtime.
+      // Only launching the worker thread for the runtimes after the first runtime.
       thread_ = std::thread([&]() {
         while (!this->WaitAndLoadPipeLineData()) {
           this->RunPipeLine();

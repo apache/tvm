@@ -47,7 +47,7 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
     NDArray output = runtimes[output_pair.first]->CreateFromOutput(output_pair.second);
     output_arrays_.push_back(output);
   }
-  // Initializing and then running the work thread.
+  // Initializing and then running the worker thread.
   for (auto runtime : runtimes) {
     runtime->InitializePipeline(pipeline_config, &runtimes);
   }

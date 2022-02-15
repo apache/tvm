@@ -211,11 +211,11 @@ class PipelineModule(object):
 
     @property
     def number_pipe_execute(self):
-        """Getting the numbers of pipeline running.
+        """Getting the numbers of running pipeline.
         Returns
         -------
         count : int
-            The numbers of pipeline running.
+            The numbers of running pipeline.
         """
         return self._get_pipe_execute_number()
 
