@@ -4830,7 +4830,32 @@ class GraphProto:
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
         self.opset = opset
-        # parse network inputs to relay, aka parameters
+        self._parse_graph_initializers(graph)
+        self._parse_graph_input(graph)
+        self._check_user_inputs_in_outermost_graph_scope()
+        self._check_for_unsupported_ops(graph)
+        self._construct_nodes(graph)
+        
+        # now return the outputs
+        outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
+        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+        # If requested, directly return the converted expressions.
+        if get_output_expr:
+            return outputs
+        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
+        ## those parameters that are needed to execute the relay graph
+        free_vars = analysis.free_vars(outputs)
+        nodes = {v: k for k, v in self._nodes.items()}
+        free_vars = [nodes[var] for var in free_vars]
+        for i_name in self._params:
+            if i_name in free_vars and i_name not in self._inputs:
+                self._inputs[i_name] = self._nodes[i_name]
+        # Create a function from our output expression and all input variables.
+        func = _function.Function([v for k, v in self._inputs.items()], outputs)
+        return IRModule.from_expr(func), self._params
+
+    def _parse_graph_initializers(self, graph):
+        """Parse network inputs to relay, aka parameters."""
         for init_tensor in graph.initializer:
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
@@ -4844,6 +4869,8 @@ class GraphProto:
                     shape=self._params[init_tensor.name].shape,
                     dtype=self._params[init_tensor.name].dtype,
                 )
+
+    def _parse_graph_input(self, graph):
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
@@ -4876,15 +4903,18 @@ class GraphProto:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
-        # Only check user inputs in the outer-most graph scope.
+
+    def _check_user_inputs_in_outermost_graph_scope(self):
+        """Only check user inputs in the outer-most graph scope."""
         if self._old_manager is None:
             assert all(
                 [name in self._input_names for name in self._shape.keys()]
             ), "User specified the shape for inputs that weren't found in the graph: " + str(
                 self._shape
             )
-        # get list of unsupported ops
-        convert_map = _get_convert_map(opset)
+
+    def _check_for_unsupported_ops(self, graph):
+        convert_map = _get_convert_map(self.opset)
         unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
@@ -4898,7 +4928,9 @@ class GraphProto:
             msg = "The following operators are not supported for frontend ONNX: "
             msg += ", ".join(unsupported_ops)
             raise tvm.error.OpNotImplemented(msg)
-        # construct nodes, nodes are stored as directed acyclic graph
+
+    def _construct_nodes(self, graph):
+        """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
@@ -4915,7 +4947,7 @@ class GraphProto:
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(node_output)
 
-            op = self._convert_operator(op_name, inputs, attr, opset)
+            op = self._convert_operator(op_name, inputs, attr, self.opset)
             if not isinstance(op, _expr.TupleWrapper):
                 outputs_num = 1
             else:
@@ -4963,24 +4995,6 @@ class GraphProto:
             else:
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
-
-        # now return the outputs
-        outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
-        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        # If requested, directly return the converted expressions.
-        if get_output_expr:
-            return outputs
-        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
-        ## those parameters that are needed to execute the relay graph
-        free_vars = analysis.free_vars(outputs)
-        nodes = {v: k for k, v in self._nodes.items()}
-        free_vars = [nodes[var] for var in free_vars]
-        for i_name in self._params:
-            if i_name in free_vars and i_name not in self._inputs:
-                self._inputs[i_name] = self._nodes[i_name]
-        # Create a function from our output expression and all input variables.
-        func = _function.Function([v for k, v in self._inputs.items()], outputs)
-        return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""
