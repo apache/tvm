@@ -31,6 +31,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/virtual_device.h>
 
 #include <fstream>
 
@@ -229,13 +230,6 @@ GlobalTypeVar AddOrGet(InternTable<GlobalTypeVar>* table, const std::string& nam
     return gvar;
   }
 }
-
-/*! brief The attribute key for the virtual device. This key will be promoted to first class on
- * functions.
- *
- * Type: VirtualDevice
- */
-constexpr const char* kVirtualDevice = "result_virtual_device";
 
 /*! \brief The parser class is the main interface to the parser.
  * the parser is not currently exposed beyond this .cc file.
@@ -1145,8 +1139,7 @@ class Parser {
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
         // Promote kVirtualDevice to first-class
-        String vid_key = kVirtualDevice;
-        if (raw_attrs.count(vid_key)) {
+        if (raw_attrs.count(kVirtualDevice)) {
           ObjectRef vid = raw_attrs.at(kVirtualDevice);
           ICHECK(vid.as<VirtualDeviceNode>())
               << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
