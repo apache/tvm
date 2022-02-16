@@ -54,7 +54,7 @@ using GlobalOutputPair = std::pair<int, int>;
  */
 using ModuleOutputPair = std::pair<int, int>;
 /*!
- *\brief The pair includes the module index and the module input index.
+ *\brief The pair includes the runtime module index and the module input index.
  * The first 'int' is the module index, and the second 'int' is the module input index.
  */
 using ModuleInputPair = std::pair<int, int>;
