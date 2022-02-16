@@ -326,6 +326,16 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     }
   }
 
+  void PushArgs(const Expr& expr, std::vector<tir::Var> sids, Array<PrimExpr>* args) {
+    const TupleNode* t = expr.as<TupleNode>();
+    if (t != nullptr) {
+      CHECK_EQ(sids.size(), t->fields.size()) << "Relay tuple does not map 1:1 into TIR; AOT can't "
+                                                 "handle this type of Relay Expr in a CallNode.";
+    }
+
+    args->insert(args->end(), sids.begin(), sids.end());
+  }
+
   /*!
    * brief Create a function call
    * \param call_lowered_props The lowered function and the arguments to call it with
@@ -343,17 +353,14 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                                            {tir::StringImm(params_by_expr_[arg])});
         args.push_back(tvm::tir::Cast(DataType::Handle(), param_handle));
       } else {
-        auto var_arg = FindExpr(arg);
-        for (const auto& var : var_arg) {
-          args.push_back(var);
-        }
+        auto sids = FindExpr(arg);
+        PushArgs(arg, sids, &args);
       }
     }
 
     // Pack the return(s) value. A call node can produce multiple outputs
-    for (const auto& var : PackSid(result_expr)) {
-      args.push_back(var);
-    }
+    auto result_expr_sid = PackSid(result_expr);
+    PushArgs(result_expr, result_expr_sid, &args);
 
     // Use tvm_call_packed to execute the function unless we're calling directly
     auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
