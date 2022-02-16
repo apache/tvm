@@ -718,6 +718,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.reshape")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       Call call = args[0];
       ReshapeParams params;
+      EthosnAPI::DefaultInputTensor(call);
       auto err = EthosnAPI::Reshape(call, &params);
       err += EthosnCompiler::SupportedSetup();
       char reason[kReasonMaxLength];
@@ -784,6 +785,7 @@ TVM_REGISTER_GLOBAL("relay.ethos-n.support.split")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
       Call call = args[0];
       SplitParams params;
+      EthosnAPI::DefaultInputTensor(call);
       auto err = EthosnAPI::Split(call, &params);
       err += EthosnCompiler::SupportedSetup();
       char reason[kReasonMaxLength];

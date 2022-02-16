@@ -69,7 +69,7 @@ def test_depth_to_space_failure():
             "dtype='int16', dtype must be either uint8, int8 or int32;",
         ),
         ((1, 16, 16, 16), 4, "uint8", "NHWC", "Only block size of 2 is supported"),
-        ((1, 16, 16, 16), 2, "uint8", "NCHW", "layout=NCHW, layout must = NHWC"),
+        ((1, 16, 16, 16), 2, "uint8", "NCHW", "Input layer must be NHWC or NHWCB"),
     ]
 
     for shape, block, dtype, layout, err_msg in trials:

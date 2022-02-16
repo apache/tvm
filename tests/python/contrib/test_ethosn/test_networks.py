@@ -228,7 +228,8 @@ def test_ssd_mobilenet_v1():
     # on hardware that isn't available in CI.
     _compile_hash = {"5ee8ed6af9a7f31fc14957b51a8e7423", "e6a91ccc47ba4c6b4614fcd676bd726f"}
     if tei.get_ethosn_api_version() == 2111:
-        _compile_hash = {"afb68ca8f452d1f4a674b457b5e30f59", "a37f900601b9493bd142e8aed16205e5"}
+        # TODO(Leo-arm): review split operator
+        _compile_hash = {"a37f900601b9493bd142e8aed16205e5", "afb68ca8f452d1f4a674b457b5e30f59"}
     if tei.get_ethosn_api_version() == 2102:
         _compile_hash = {"7795b6c67178da9d1f9b98063bad75b1", "10826406ae724e52f360a06c35ced09d"}
         if tei.get_ethosn_variant() == "Ethos-N78_1TOPS_2PLE_RATIO":
