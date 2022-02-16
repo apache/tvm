@@ -39,27 +39,38 @@ from aot_test_utils import (
 )
 
 
-def print_mod_tree(m, indent=0):
-    print(f"{' ' * indent} - {m!r}")
-    for i in m.imported_modules:
-      print_mod_tree(i, indent + 2)
+enable_usmp = tvm.testing.parameter(True, False)
 
-def test_conv2d():
-    RELAY_MODEL = textwrap.dedent("""\
+
+def test_conv2d(enable_usmp):
+    RELAY_MODEL = textwrap.dedent(
+        """\
         #[version = "0.0.5"]
-        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), int8]) {
+        def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(3, 3, 5, 5), int8]) {
             %1 = nn.conv2d(
                  %data,
                  %weight,
                  padding=[2, 2],
-                 channels=8,
+                 channels=3,
                  kernel_size=[5, 5],
                  data_layout="NCHW",
                  kernel_layout="OIHW",
                  out_dtype="int32");
-          %1
+            %2 = cast(nn.max_pool2d(%1, pool_size=[3, 3]), dtype="int8");
+            %3 = nn.conv2d(
+                 %2,
+                 %weight,
+                 padding=[2, 2],
+                 channels=3,
+                 kernel_size=[5, 5],
+                 data_layout="NCHW",
+                 kernel_layout="OIHW",
+                 out_dtype="int32");
+            %4 = nn.max_pool2d(%3, pool_size=[3, 3]);
+            %4
         }
-    """)
+    """
+    )
     ir_mod = tvm.parser.fromtext(RELAY_MODEL)
 
     main_func = ir_mod["main"]
@@ -71,23 +82,51 @@ def test_conv2d():
 
     params = {"weight": weight_data}
     inputs = {"data": input_data}
-    output_list = generate_ref_data(ir_mod, inputs, params)
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
 
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        mod = tvm.relay.build(ir_mod, params=params, target="c",
-                              executor=backend.Executor("aot", {"interface-api": "c"}))
+    with tvm.transform.PassContext(
+        opt_level=3, config={"tir.disable_vectorize": True, "tir.usmp.enable": enable_usmp}
+    ):
+        mod = tvm.relay.build(
+            ir_mod,
+            params=params,
+            target="c",
+            executor=backend.Executor("aot", {"interface-api": "packed"}),
+        )
 
-    print_mod_tree(mod.module)
-
-    with tvm.contrib.utils.TempDirectory.set_keep_for_debug():
-        mod.export_library("test.so")
-    mod.export_library("test.tar")
-    runner = tvm.runtime.load_module("test.so")
-    print_mod_tree(runner)
-    runner = tvm.runtime.executor.AotModule(runner["default"](tvm.cpu(0)))
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+    runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
     runner.set_input(**inputs)
     runner.run()
-    assert (runner.get_output(0).asnumpy() == output_list[0]).all()
+    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
+
+
+def test_mobilenet():
+    ir_mod, params = testing.mobilenet.get_workload(batch_size=1)
+    data_shape = [int(x) for x in ir_mod["main"].checked_type.arg_types[0].shape]
+    data = np.random.uniform(size=data_shape).astype("float32")
+    inputs = {"data": data}
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        mod = tvm.relay.build(
+            ir_mod,
+            params=params,
+            target="c",
+            executor=backend.Executor("aot", {"interface-api": "packed"}),
+        )
+
+    temp_dir = tvm.contrib.utils.TempDirectory()
+    test_so_path = temp_dir / "test.so"
+    mod.export_library(test_so_path, cc="gcc", options=["-std=c11"])
+    loaded_mod = tvm.runtime.load_module(test_so_path)
+    runner = tvm.runtime.executor.AotModule(loaded_mod["default"](tvm.cpu(0)))
+    runner.set_input(**inputs)
+    runner.run()
+    assert (runner.get_output(0).asnumpy() == list(ref_outputs.values())[0]).all()
 
 
 if __name__ == "__main__":
