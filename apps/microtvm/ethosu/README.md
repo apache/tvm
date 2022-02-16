@@ -58,10 +58,15 @@ export PATH=/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4:/opt/arm/cmake/
 
 Running the demo application
 ----------------------------
-Type the following command to run the demo application:
+Type the following command to run the bare metal demo application ([src/demo_bare_metal.c](./src/demo_bare_metal.c)):
 
 ```bash
 ./run_demo.sh
+```
+
+To run the demo using FreeRTOS task scheduling and queues ([src/demo_freertos.c](./src/demo_freertos.c)), specify the path to FreeRTOS using `--freertos_path`, for example:
+```
+./run_demo.sh --freertos_path /opt/freertos/FreeRTOSv202112.00/
 ```
 
 If the Ethos(TM)-U driver and/or CMSIS have not been installed in /opt/arm/ethosu then

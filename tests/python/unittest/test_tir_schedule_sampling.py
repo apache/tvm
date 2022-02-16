@@ -17,6 +17,7 @@
 from collections import defaultdict
 import sys
 
+import numpy
 import pytest
 
 from tvm import tir
@@ -190,7 +191,7 @@ def test_sample_compute_location():
     n_candidates = 8
     expected_rate = 1.0 / n_candidates
     for _, cnt in decision_dict.items():
-        assert (expected_rate - 0.03) * n <= cnt <= (expected_rate + 0.03) * n
+        numpy.testing.assert_allclose(expected_rate, cnt / n, atol=0.04)
 
 
 if __name__ == "__main__":

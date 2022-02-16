@@ -972,19 +972,21 @@ class PyTorchOpConverter:
             msg = "Data type %s could not be parsed in conv op" % (type(weight))
             raise AssertionError(msg)
 
-        # Transposed convolutions have IOHW layout.
-        if use_transpose:
-            weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
-
-        channels = weight_shape[0]
         groups = int(inputs[8])
+
+        if use_transpose:
+            channels = weight_shape[1] * groups
+            in_channels = weight_shape[0]
+        else:
+            channels = weight_shape[0]
+            in_channels = weight_shape[1]
 
         # Check if this is depth wise convolution
         # We need to reshape weight so that Relay could recognize this is depth wise
         # weight_shape[1] is always in_channels // groups
         # For depthwise, in_channels == groups, so weight_shape[1] == 1
         # If groups > 1 but weight_shape[1] != 1, this is group convolution
-        if groups > 1 and weight_shape[1] == 1:
+        if groups > 1 and in_channels == 1:
             channel_multiplier = channels // groups
             new_weight_shape = (groups, channel_multiplier) + tuple(weight_shape[2:])
             weight = _op.transform.reshape(weight, new_weight_shape)
@@ -1596,6 +1598,20 @@ class PyTorchOpConverter:
             return qnn_torch.apply_with_fp32_fallback(data, input_scale, input_zero_point, func)
 
         return func(data)
+
+    def var_mean(self, inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 2:
+            axis = None
+            keepdims = False
+            unbiased = bool(inputs[1])
+        else:
+            axis = inputs[1]
+            keepdims = bool(inputs[3])
+            unbiased = bool(inputs[2])
+
+        m, v = _op.reduce.mean_variance(data, axis, keepdims, False, unbiased)
+        return v, m
 
     def chunk(self, inputs, input_types):
         data = inputs[0]
@@ -3039,6 +3055,7 @@ class PyTorchOpConverter:
             "aten::frobenius_norm": self.frobenius_norm,
             "aten::std": self.std,
             "aten::var": self.variance,
+            "aten::var_mean": self.var_mean,
             "aten::abs": self.make_unary("abs"),
             "aten::neg": self.make_unary("negative"),
             "aten::cos": self.make_unary("cos"),

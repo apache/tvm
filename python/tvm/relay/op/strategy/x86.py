@@ -530,11 +530,27 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
 def dense_pack_strategy_cpu(attrs, inputs, out_type, target):
     """dense_pack x86 strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_dense(topi.x86.dense_pack),
-        wrap_topi_schedule(topi.x86.schedule_dense_pack),
-        name="dense_pack.x86",
-    )
+
+    if (
+        inputs[0].dtype == "uint8"
+        and inputs[1].dtype == "int8"
+        and out_type.dtype == "int32"
+        and attrs["weight_layout"] == "NC16n4c"
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_vnni),
+            wrap_topi_schedule(topi.x86.schedule_dense_vnni),
+            name="dense_vnni.x86",
+            plevel=12,
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_dense(topi.x86.dense_pack),
+            wrap_topi_schedule(topi.x86.schedule_dense_pack),
+            name="dense_pack.x86",
+            plevel=10,
+        )
+
     return strategy
 
 

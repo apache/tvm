@@ -912,7 +912,7 @@ def concat_two_elemwise(x: T.Buffer[(16,), "float32"],
     for i in T.serial(24):
         with T.block("T_concat"):
             ax = T.axis.spatial(24, i)
-            T_concat[ax] = T.if_then_else(16 <= ax, T_add_1[ax - 16], T_add_2[ax], dtype="float32")
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
 
 @T.prim_func
 def concat_two_elemwise_after_compute_at(x: T.Buffer[(16,), "float32"],
@@ -922,16 +922,16 @@ def concat_two_elemwise_after_compute_at(x: T.Buffer[(16,), "float32"],
     T_add_2 = T.alloc_buffer([8], dtype="float32")
     for i in T.serial(24):
         with T.block("T_add_1"):
-            ax = T.axis.spatial(16, i - 16)
-            T.where(16 <= i)
+            ax = T.axis.spatial(16, i)
+            T.where(i < 16)
             T_add_1[ax] = x[ax] + T.float32(1)
         with T.block("T_add_2"):
-            ax = T.axis.spatial(8, i)
-            T.where(i < 8)
+            ax = T.axis.spatial(8, i - 16)
+            T.where(16 <= i)
             T_add_2[ax] = y[ax] + T.float32(2)
         with T.block("T_concat"):
             ax = T.axis.spatial(24, i)
-            T_concat[ax] = T.if_then_else(16 <= ax, T_add_1[ax - 16], T_add_2[ax], dtype="float32")
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
 
 @T.prim_func
 def floordiv_and_floormod_indices(a: T.handle, b: T.handle) -> None:
@@ -961,6 +961,31 @@ def floordiv_and_floormod_indices_after_reverse_compute_at(a: T.handle, b: T.han
             with T.block("B"):
                 v_i = T.axis.spatial(256, i * 16 + ax0)
                 Y[v_i] = temp[v_i // 16, v_i % 16]
+
+
+@T.prim_func
+def tiled_repeat_op(x: T.Buffer[(4,), "float32"], T_repeat: T.Buffer[(64,), "float32"]) -> None:
+    T_add = T.alloc_buffer([4], dtype="float32")
+    for i0 in T.serial(4):
+        with T.block("T_add"):
+            ax0 = T.axis.spatial(4, i0)
+            T_add[ax0] = x[ax0] + 1.0
+    for i0_0, i0_1 in T.grid(8, 8):
+        with T.block("T_repeat"):
+            ax0 = T.axis.spatial(64, i0_0 * 8 + i0_1)
+            T_repeat[ax0] = T_add[ax0 // 16]
+
+@T.prim_func
+def tiled_repeat_op_after_compute_at(x: T.Buffer[(4,), "float32"], T_repeat: T.Buffer[(64,), "float32"]) -> None:
+    T_add = T.alloc_buffer([4], dtype="float32")
+    for i0_0 in T.serial(8):
+        with T.block("T_add"):
+            ax0 = T.axis.spatial(4, i0_0 // 2)
+            T_add[ax0] = x[ax0] + T.float32(1)
+        for i0_1 in T.serial(8):
+            with T.block("T_repeat"):
+                ax0 = T.axis.spatial(64, i0_0 * 8 + i0_1)
+                T_repeat[ax0] = T_add[ax0 // 16]
 
 # pylint: enable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 # fmt: on
@@ -1075,6 +1100,14 @@ def test_compute_at_concat():
     sch.compute_at(add2, axis)
     tvm.ir.assert_structural_equal(concat_two_elemwise_after_compute_at, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=concat_two_elemwise)
+
+
+def test_compute_at_tiled_repeat_op():
+    sch = tir.Schedule(tiled_repeat_op, debug_mask="all")
+    outer_ax, _ = sch.get_loops(sch.get_block("T_repeat"))
+    sch.compute_at(sch.get_block("T_add"), outer_ax)
+    tvm.ir.assert_structural_equal(tiled_repeat_op_after_compute_at, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=tiled_repeat_op)
 
 
 def test_reverse_compute_at_tiled():

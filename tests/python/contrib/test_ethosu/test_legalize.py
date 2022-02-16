@@ -853,22 +853,63 @@ def test_relay_reshape_legalize(ifm_shape, new_shape):
 
 
 @pytest.mark.parametrize(
-    "ifm_shape, begin, end",
+    "ifm_shape, begin, size",
     [
-        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 10, 22, 3]),
-        ([1, 101, 35, 27], [0, 5, 11, 2], [1, 10, 22, 3]),
-        ([15, 17, 3], [3, 0, 0], [11, 17, 1]),
-        ([1, 6043], [0, 704], [1, 800]),
+        ([1, 10, 50, 4], [0, 5, 11, 2], [1, 5, 11, 1]),
+        ([15, 17, 3], [3, 0, 1], [8, 17, 2]),
+        ([7, 6043], [0, 704], [1, 2860]),
+        ([5000], [123], [2151]),
     ],
 )
-def test_relay_strided_slice_legalize(ifm_shape, begin, end):
+def test_tflite_strided_slice(ifm_shape, begin, size):
+    dtype = "int8"
 
-    ifm = relay.var("ifm", shape=ifm_shape, dtype="int8")
-    strided_slice = relay.op.strided_slice(ifm, begin, end)
-    func = relay.Function([ifm], strided_slice)
-    mod = tvm.IRModule()
-    mod["main"] = func
-    mod = relay.transform.InferType()(mod)
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def slice_func(self, x):
+                return tf.slice(x, begin, size)
+
+        model = Model()
+
+        # Save the model
+        concrete_func = model.slice_func.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        identity = ext_func.body
+        assert identity.op.name == "contrib.ethosu.identity"
+
+        # check that the strided_slice is still there
+        strided_slice = identity.args[0]
+        assert strided_slice.op.name == "strided_slice"
+
+        # check that identity's output shape matches strided slice's output shape
+        assert list(identity.checked_type.shape) == size
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    mod, _ = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": dtype},
+    )
 
     strided_slice_pattern_table = [
         (
@@ -877,8 +918,8 @@ def test_relay_strided_slice_legalize(ifm_shape, begin, end):
             lambda pat: ethosu.StridedSliceParams(pat).is_valid(),
         ),
     ]
-
     mod = partition_ethosu_by_table(mod, strided_slice_pattern_table)
+
     mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
         legalize.StridedSliceRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
@@ -887,18 +928,7 @@ def test_relay_strided_slice_legalize(ifm_shape, begin, end):
     )
     mod = relay.transform.InferType()(mod)
 
-    ext_func = mod["tvmgen_default_ethos_u_main_0"]
-
-    identity = ext_func.body
-    assert identity.op.name == "contrib.ethosu.identity"
-
-    # check that the strided_slice is still there
-    strided_slice = identity.args[0]
-    assert strided_slice.op.name == "strided_slice"
-
-    # check that identity's output shape matches strided slice's output shape
-    slice_shape = [a - b for a, b in zip(end, begin)]
-    assert list(identity.checked_type.shape) == slice_shape
+    verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
 @pytest.mark.parametrize("operator_type", ["ABS"])

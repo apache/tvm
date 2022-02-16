@@ -71,6 +71,18 @@ while (( $# )); do
             fi
             ;;
 
+        --freertos_path)
+            if [ $# -gt 1 ]
+            then
+                export FREERTOS_PATH="$2"
+                shift 2
+            else
+                echo 'ERROR: --freertos_path requires a non-empty argument' >&2
+                show_usage >&2
+                exit 1
+            fi
+            ;;
+
         --ethosu_platform_path)
             if [ $# -gt 1 ]
             then
@@ -105,7 +117,7 @@ while (( $# )); do
                 show_usage >&2
                 exit 1
             fi
-            ;;            
+            ;;
 
         -*|--*)
             echo "Error: Unknown flag: $1" >&2
