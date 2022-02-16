@@ -27,6 +27,16 @@
 
 namespace tvm {
 
+// In C++14, even though these are declared as static constexpr and
+// have a value defined in the class definition, they must still have
+// a declaration in a compilation unit.  This defect is fixed in
+// C++17, but since TVM currently targets C++14, these declarations
+// are required.
+//
+// See https://stackoverflow.com/a/28846608 for more details.
+constexpr const char* PoolInfo::kTargetPoolReadOnlyAccess;
+constexpr const char* PoolInfo::kTargetPoolReadWriteAccess;
+
 PoolInfo::PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes,
                    Integer clock_frequency_hz, Integer read_bandwidth_bytes_per_cycle,
                    Integer write_bandwidth_bytes_per_cycle, Integer read_latency_cycles,
