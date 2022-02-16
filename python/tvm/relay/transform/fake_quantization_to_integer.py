@@ -140,22 +140,6 @@ def broadcast_to(expr, type_map):
     return [out, t]
 
 
-@register_fake_quantization_to_integer("rsqrt")
-def rsqrt(expr, type_map):
-    """Rewrite a rsqrt op"""
-    arg = expr.args[0]
-    x_t = type_map[arg]
-    out_t = type_map[expr]
-    out = relay.qnn.op.rsqrt(
-        arg,
-        x_t.scale,
-        x_t.zero_point,
-        out_t.scale,
-        out_t.zero_point,
-    )
-    return [out, x_t]
-
-
 @register_fake_quantization_to_integer("nn.bias_add")
 def bias_add(expr, type_map):
     """Rewrite a bias_add op"""
@@ -481,3 +465,30 @@ def register_binary_identity(op_name, op):
 
 register_binary_identity("minimum", relay.op.minimum)
 register_binary_identity("maximum", relay.op.maximum)
+
+
+def register_unary_qnn(op_name, op):
+    """Rewrite a unary op"""
+
+    def unary(expr, type_map):
+        arg = expr.args[0]
+        x_t = type_map[arg]
+        out_t = type_map[expr]
+        out = op(
+            arg,
+            x_t.scale,
+            x_t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+        )
+        return [out, x_t]
+
+    return register_fake_quantization_to_integer(op_name, unary)
+
+
+register_unary_qnn("sqrt", relay.qnn.op.sqrt)
+register_unary_qnn("rsqrt", relay.qnn.op.rsqrt)
+register_unary_qnn("exp", relay.qnn.op.exp)
+register_unary_qnn("erf", relay.qnn.op.erf)
+register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
+register_unary_qnn("tanh", relay.qnn.op.tanh)

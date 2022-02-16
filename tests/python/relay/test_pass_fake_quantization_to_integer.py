@@ -303,17 +303,36 @@ def test_fake_quantize_global_avg_pool():
     compare_fq_to_int(op, [x_np], True)
 
 
-def test_fake_quantize_rsqrt():
-    x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
-    mid_point = relay.const(-128)
+class TestUnaryQNNOp:
+    def helper_test_fake_quantize_unary_op(self, fp32_op, scale=0.125):
+        x = relay.var("x", shape=[1, 3, 3, 3], dtype="int8")
+        mid_point = relay.const(-128)
 
-    x = relay.qnn.op.dequantize(x, relay.const(0.125), mid_point)
-    op = relay.rsqrt(x)
-    op = relay.qnn.op.quantize(op, relay.const(0.125), mid_point)
+        x = relay.qnn.op.dequantize(x, relay.const(scale), mid_point)
+        op = fp32_op(x)
+        op = relay.qnn.op.quantize(op, relay.const(scale), mid_point)
 
-    x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
+        x_np = np.random.randint(-128, 127, size=[1, 3, 3, 3], dtype="int8")
 
-    compare_fq_to_int(op, [x_np], True)
+        compare_fq_to_int(op, [x_np], True)
+
+    def test_sqrt(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sqrt)
+
+    def test_rsqrt(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.rsqrt)
+
+    def test_exp(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.exp)
+
+    def test_erf(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.erf)
+
+    def test_sigmoid(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.sigmoid)
+
+    def test_tanh(self):
+        self.helper_test_fake_quantize_unary_op(fp32_op=relay.tanh)
 
 
 def test_fake_quantize_reshape():
