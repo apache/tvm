@@ -877,7 +877,7 @@ class DeviceDefaulter : public ExprVisitor {
 };
 
 /* =============== Phase 3 =============== */
-
+// TODO(@electriclilies): rewrite this comment
 /*!
  * \brief Inserts missing "device_copy" CallNodes, and ensures the device type of every
  * sub-expression in a module can be easily recovered by a later transformation using simple
