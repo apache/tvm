@@ -49,6 +49,8 @@ def legalize_qnn_dense(attrs, inputs, types):
 
 
 def register_qnn_unary_op_legalize(op_name, floating_point_func):
+    """Register unary qnn op for legalization via table lookup op."""
+
     def legalize_qnn_unary_op(attrs, inputs, types):
         return create_integer_lookup_op(
             input_arg=inputs[0],
@@ -64,12 +66,12 @@ def register_qnn_unary_op_legalize(op_name, floating_point_func):
     return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
 
 
-register_qnn_unary_op_legalize("qnn.sqrt", lambda arr: np.sqrt(arr))
+register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
 register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
-register_qnn_unary_op_legalize("qnn.exp", lambda arr: np.exp(arr))
-register_qnn_unary_op_legalize("qnn.erf", lambda arr: special.erf(arr))
+register_qnn_unary_op_legalize("qnn.exp", np.exp)
+register_qnn_unary_op_legalize("qnn.erf", special.erf)
 register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
-register_qnn_unary_op_legalize("qnn.tanh", lambda arr: np.tanh(arr))
+register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
 
 
 # Default to None. If overridden by target, this will not be run.
