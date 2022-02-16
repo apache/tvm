@@ -31,13 +31,6 @@
 #include <string>
 #include <vector>
 
-// Forward declarations from tvm::relay
-namespace tvm {
-namespace relay {
-class ConstantNode;
-}  // namespace relay
-}  // namespace tvm
-
 namespace tvm {
 namespace tir {
 namespace transform {
