@@ -28,13 +28,13 @@ export TVM_TEST_TARGETS="llvm;cuda"
 find . -type f -path "*.pyc" | xargs rm -f
 
 # Rebuild cython
-make cython3
+make cython3 -j"$(nproc)"
 
 echo "Running relay MXNet frontend test..."
-run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
+N_CPUS=$(nproc) run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
 
 echo "Running relay ONNX frontend test..."
-run_pytest cython python-frontend-onnx tests/python/frontend/onnx
+N_CPUS=$(nproc) run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
 run_pytest cython python-frontend-coreml tests/python/frontend/coreml
