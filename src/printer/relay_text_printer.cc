@@ -447,7 +447,7 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   }
   if (fn->virtual_device() != VirtualDevice::FullyUnconstrained()) {
     Doc vid_doc;
-    vid_doc << kVirtualDevice << "=" << Print(fn->virtual_device());
+    vid_doc << kVirtualDevice << "=" << PrintAttributeValue(fn->virtual_device());
     params.push_back(vid_doc);
   }
   doc << Doc::Concat(params) << ") ";
@@ -521,11 +521,7 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
-#if TVM_LOG_DEBUG
-  for (const Type& type_arg : op->type_args) {
-    args.push_back(Print(type_arg));
-  }
-#endif
+
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }
