@@ -362,7 +362,7 @@ def get_convolutional_args(call, include_buffers=False, remove_constants=False):
     remove_indices = [0]
 
     if remove_constants:
-        remove_indices += [41, 42, 44, 45]
+        remove_indices += [41, 42, 43, 44, 46, 47, 48, 49]
 
     for i, arg in enumerate(args):
         if i in remove_indices:

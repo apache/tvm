@@ -23,7 +23,7 @@ from tvm import relay
 from tvm.relay.testing import run_opt_pass
 from tvm.relay.backend.contrib.ethosu.tir.compiler import lower_to_tir
 from tvm.relay.backend.contrib.ethosu.tir.scheduler import total_cascader
-from .infra import make_ethosu_conv2d
+from .infra import make_ethosu_conv2d, get_convolutional_args
 
 
 def _create_serial_conv2d_params(
@@ -127,28 +127,6 @@ def _create_serial_conv2d_params(
         rounding_mode,
         upscale,
     ]
-
-
-def get_conv2d_args(call, include_buffers=False, remove_constants=False):
-    """A method to extract the arguments from conv2d extern call."""
-    args = call.args
-    conv_args = []
-    remove_indices = [0]
-
-    if remove_constants:
-        remove_indices += [41, 42, 43, 44, 46, 47, 48, 49]
-
-    for i, arg in enumerate(args):
-        if i in remove_indices:
-            continue
-        elif isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
-            conv_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            conv_args.append(arg.index)
-        else:
-            conv_args.append(arg)
-
-    return conv_args
 
 
 @pytest.mark.parametrize(
@@ -343,7 +321,7 @@ def test_conv2d_single(trial):
 
     def _visit(stmt):
         if isinstance(stmt, tvm.tir.Call):
-            data.append(get_conv2d_args(stmt, remove_constants=True))
+            data.append(get_convolutional_args(stmt, remove_constants=True))
 
     tvm.tir.stmt_functor.post_order_visit(mod["main"].body, _visit)
 

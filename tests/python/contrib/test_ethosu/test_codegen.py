@@ -394,7 +394,7 @@ def _create_ethosu_partition(mod):
     return mod
 
 
-@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES + ["ethos-u65-512"])
 @pytest.mark.parametrize("ifm_shape", [(1, 55, 55, 3), (1, 23, 32, 7)])
 @pytest.mark.parametrize(
     "kernel_shape, activation_function",

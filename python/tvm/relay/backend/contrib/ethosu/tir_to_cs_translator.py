@@ -677,14 +677,32 @@ def translate_ethosu_depthwise_conv2d(
 
 
 def _create_npu_op_depthwise_conv2d(serial_2d_depthwise):
+
+    has_two_weights = serial_2d_depthwise.weight2.address != -1
+    has_two_biases = serial_2d_depthwise.scale_bias2.address != -1
+
     npu_depthwise_conv2d_op = vapi.NpuConvDepthWiseOperation()
 
     npu_depthwise_conv2d_op.ifm = _create_npu_feature_map(serial_2d_depthwise.ifm)
     npu_depthwise_conv2d_op.ofm = _create_npu_feature_map(serial_2d_depthwise.ofm)
     npu_depthwise_conv2d_op.kernel = _create_npu_kernel(serial_2d_depthwise.kernel)
-    npu_depthwise_conv2d_op.weights = [_create_npu_address_range(serial_2d_depthwise.weight)]
+    npu_depthwise_conv2d_op.weights = (
+        [
+            _create_npu_address_range(serial_2d_depthwise.weight),
+            _create_npu_address_range(serial_2d_depthwise.weight2),
+        ]
+        if has_two_weights
+        else [_create_npu_address_range(serial_2d_depthwise.weight)]
+    )
     weights_zero_point = np.int64(serial_2d_depthwise.weight_zero_point.value)
-    npu_depthwise_conv2d_op.biases = [_create_npu_address_range(serial_2d_depthwise.scale_bias)]
+    npu_depthwise_conv2d_op.biases = (
+        [
+            _create_npu_address_range(serial_2d_depthwise.scale_bias),
+            _create_npu_address_range(serial_2d_depthwise.scale_bias2),
+        ]
+        if has_two_biases
+        else [_create_npu_address_range(serial_2d_depthwise.scale_bias)]
+    )
     npu_depthwise_conv2d_op.padding = _create_npu_padding(serial_2d_depthwise.padding)
 
     npu_depthwise_conv2d_op.activation = _create_npu_activation(serial_2d_depthwise.activation)
