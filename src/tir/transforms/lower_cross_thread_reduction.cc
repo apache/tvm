@@ -314,7 +314,7 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize, const Optional<Buf
     // 3-rd argument: predicate
     parameters.push_back(const_true());
     // 4-th argument: destination
-    parameters.push_back(ct_buffer->data);
+    parameters.push_back(BufferLoad(ct_buffer, {0}));
     // next arguments: all the reduction threads
     for (const ForNode* reduction_loop : reduction_loops) {
       if (reduction_loop->thread_binding.defined()) {
