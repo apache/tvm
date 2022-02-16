@@ -328,8 +328,8 @@ class BuiltinLower : public StmtExprMutator {
 
     // cpacked call resource_handle
     if (!use_string_lookup) {
-      tir::Var resource_handle = Downcast<Var>(op->args[arg_count]);
-      packed_args.push_back(StringImm(resource_handle->name_hint));
+//      tir::Var resource_handle = Downcast<Var>(op->args[arg_count]);
+//      packed_args.push_back(StringImm(resource_handle->name_hint));
     }
 
     auto builtin_call = use_string_lookup ? builtin::tvm_call_packed_lowered()

@@ -175,9 +175,9 @@ class AOTOnDemandAllocator : public transform::DeviceAwareExprVisitor {
  private:
   void AssignReturnSid(Expr e) {
     if (storage_device_map_.find(e) != storage_device_map_.end()) {
-      LOG(INFO) << "AssignReturnSid: is now " << e;
+//      LOG(INFO) << "AssignReturnSid: is now " << e;
       StorageInfo& sinfo = storage_device_map_[e];
-      LOG(INFO) << "AssignReturnSid: storage_device_map_ " << sinfo;
+//      LOG(INFO) << "AssignReturnSid: storage_device_map_ " << sinfo;
       return_ids_.clear();
       for (auto sid : sinfo->storage_ids) {
         return_ids_.push_back(sid);
@@ -337,7 +337,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
    * a DLTensor on stack.
    */
   PrimExpr MakeDLTensor(Expr relay_arg, TensorType ttype, PrimExpr data) {
-    LOG(INFO) << "MakeDLTensor: " << relay_arg << " (ttype " << ttype << "): " << data;
+//    LOG(INFO) << "MakeDLTensor: " << relay_arg << " (ttype " << ttype << "): " << data;
     return data;
   }
   //   for (Var v : input_vars_) {
@@ -471,7 +471,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }));
     } else if (use_call_cpacked_ && !use_unpacked_api_) {
       // call_cpacked calling convention needs a blank context
-      args.push_back(tir::make_zero(DataType::Handle()));
+      // TOOD only c runtime
+//      args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
       create_func_call_stmts.push_back(func_call);
     } else {
@@ -971,8 +972,10 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // Legalize AOT if needed. This means that all the packed calls
     // need to be wrapped in TVMValues (unless use_unpacked_api is set)
     if (!use_unpacked_api_) {
+      LOG(INFO) << "Legalize Packed " << mod_run;
       auto pack_calls = tir::transform::LegalizePackedCalls();
       mod_run = pack_calls(mod_run);
+      LOG(INFO) << "Legalize Packed done " << mod_run;
     }
 
     ret.function_metadata = std::move(function_metadata_);

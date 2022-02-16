@@ -194,10 +194,11 @@ llvm::GlobalVariable* CodeGenLLVM::GetLinkedParamSymbol(const std::string& param
   std::string symbol_name = std::string(::tvm::runtime::symbol::tvm_param_prefix) + param_name;
   llvm::GlobalVariable* var = module_->getGlobalVariable(symbol_name);
   if (var == nullptr) {
+    CHECK(array != nullptr) << "Expect param symbol " << symbol_name << " to either be defined or for the array to be supplied";
     var = new llvm::GlobalVariable(
-      *module_, t_void_p_, true, llvm::GlobalValue::CommonLinkage, nullptr, symbol_name);
+      *module_, static_cast<llvm::Type*>(array->getType()), true, llvm::GlobalValue::CommonLinkage, array, symbol_name);
   }
-  //(array != nullptr ? static_cast<llvm::Type*>(array->getType()) : static_cast<llvm::Type*>(t_void_p_)),
+  //(array != nullptr ?  : static_cast<llvm::Type*>(t_void_p_)),
   return var;
 }
 
@@ -401,7 +402,7 @@ void CodeGenLLVM::Optimize() {
   std::string tmp;
   llvm::raw_string_ostream stream(tmp);
   module_->print(stream, nullptr);
-  LOG(INFO) << "LLVM IR: " << stream.str();
+//  LOG(INFO) << "LLVM IR: " << stream.str();
   mpass.run(*module_);
 }
 
@@ -1274,13 +1275,10 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const CallNode* op) {
+//  LOG(INFO) << "Visit Call:" << GetRef<Call>(op);
   if (auto* ptr_op = op->op.as<OpNode>()) {
     auto call_op = GetRef<Op>(ptr_op);
-    if (op->op.same_as(builtin_tvm_call_cpacked_lowered_)) {
-      auto global_symbol = Downcast<StringImm>(op->args[0]);
-      return this->CreateCallExtern(GetType(GetRef<PrimExpr>(op)), global_symbol->value, op->args,
-                                    true);
-    } else if (op->op.same_as(builtin_lookup_param_)) {
+    if (op->op.same_as(builtin_lookup_param_)) {
 //      return llvm::ConstantInt::get(t_void_p_, 0);
       return GetLinkedParamSymbol(Downcast<StringImm>(op->args[0])->value, nullptr);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {

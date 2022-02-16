@@ -74,7 +74,7 @@ void CodeGenCPU::Init(const std::string& module_name, llvm::TargetMachine* tm,
   //                                      void* resource_handle);
   ftype_tvm_backend_packed_c_func_ = llvm::FunctionType::get(
       t_int_,
-      {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
+      {t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
        t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_void_p_},
       false);
   t_tvm_crt_func_registry_ = llvm::StructType::create(
@@ -795,10 +795,13 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 
 CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& args,
                                                          const DataType& r_type,
-                                                         const int64_t begin, const int64_t end) {
+                                                         const int64_t begin, const int64_t end, bool use_string_lookup) {
   PackedCall pc;
   std::string func_name = args[0].as<StringImmNode>()->value;
-  llvm::Value* handle = GetPackedFuncHandle(func_name);
+  llvm::Value* handle = nullptr;
+  if (use_string_lookup) {
+    handle = GetPackedFuncHandle(func_name);
+  }
   // call the function
   int64_t nargs = end - begin;
   ICHECK_GE(nargs, 0);
@@ -813,14 +816,31 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
       ConstInt32(end));
   TypedPointer ret_tcode = CreateBufferPtr(DataType::Int(32), stack_tcode, ConstInt32(end));
 
+  llvm::FunctionType* callee_ftype = nullptr;
+  llvm::Value* callee_value = nullptr;
+  std::vector<llvm::Value*> call_args;
+  if (use_string_lookup) {
+    callee_ftype = ftype_tvm_func_call_;
+    callee_value = RuntimeTVMFuncCall();
+    call_args.push_back(handle);
+  } else {
+    callee_ftype = ftype_tvm_backend_packed_c_func_;
+    callee_value = module_->getFunction(func_name);
+    if (callee_value == nullptr) {
+      callee_value = llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage, func_name, module_.get());
+    }
+  }
+  call_args.insert(call_args.end(), {arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
+  if (!use_string_lookup) {
+    call_args.push_back(llvm::ConstantPointerNull::get(t_void_p_));
+  }
 #if TVM_LLVM_VERSION >= 90
-  auto call_callee = llvm::FunctionCallee(ftype_tvm_func_call_, RuntimeTVMFuncCall());
+  auto call_callee = llvm::FunctionCallee(callee_ftype, callee_value);
 #else
-  auto call_callee = RuntimeTVMFuncCall();
+  auto call_callee = callee_value;
 #endif
-  llvm::Value* call = builder_->CreateCall(
-      call_callee,
-      {handle, arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
+  llvm::Value* call = builder_->CreateCall(call_callee, call_args);
+
   llvm::BasicBlock* end_block = CheckCallSuccess(call);
 
   // Load the return value and cast it to the designated type (r_type).
@@ -849,17 +869,18 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   return pc;
 }
 
-llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
+llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op, bool use_string_lookup) {
+  LOG(INFO) << "CreateCallPacked: " << GetRef<Call>(op);
   ICHECK_EQ(op->args.size(), 5U);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
+                                        op->args[4].as<IntImmNode>()->value, use_string_lookup);
   return pc.ret_value;
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   ICHECK_EQ(op->args.size(), 6U);
   PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value);
+                                        op->args[4].as<IntImmNode>()->value, true);
   // Get traced value.
   llvm::Value* traced_value = MakeValue(op->args[5]);
   // The update_block handles case when we need to update the return value.
@@ -1216,9 +1237,11 @@ void CodeGenCPU::AddStartupFunction() {
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    return CreateCallPacked(op);
+    return CreateCallPacked(op, true /* use_string_lookup */);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
     return CreateCallTracePacked(op);
+  } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
+    return CreateCallPacked(op, false /* use_string_lookup */);
   } else if (op->op.same_as(builtin::tvm_static_handle())) {
     return CreateStaticHandle();
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {

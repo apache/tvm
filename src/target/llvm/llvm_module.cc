@@ -308,14 +308,14 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
     cg->SetFastMathFlag(fmf);
 
+    if (found_linked_params) {
+      cg->LinkParameters(linked_params);
+    }
     cg->AddFunctionsOrdered(funcs.begin(), funcs.end());
     if (entry_func.length() != 0) {
       cg->AddMainFunction(entry_func);
     }
 
-    if (found_linked_params) {
-      cg->LinkParameters(linked_params);
-    }
     module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target",
                            llvm::MDString::get(*ctx_, LLVMTargetToString(target)));
