@@ -501,7 +501,6 @@ TVM_DLL Pass ConvertForLoopsToSerial();
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
-<<<<<<< HEAD
 /*!
  * \brief This pass transforms annotated loops into pipelined ones where producers and consumers
  * are overlapped with the information provided in loop annotations, which enables optimization
@@ -604,6 +603,13 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
 TVM_DLL Pass InjectSoftwarePipeline();
 
 TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
+
+/*!
+ * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ExtractPrimFuncConstants();
 
 }  // namespace transform
 }  // namespace tir

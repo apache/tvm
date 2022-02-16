@@ -35,20 +35,19 @@
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
-#include <tvm/tir/function.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
 
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
 
 namespace tvm {
+
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
                    std::unordered_set<String> import_set, parser::SourceMap source_map,
                    DictAttrs attrs) {
   auto n = make_object<IRModuleNode>();
+  n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
   n->global_type_var_map_ = {};
   n->global_var_map_ = {};
@@ -56,15 +55,12 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   n->import_set_ = std::move(import_set);
   n->source_map = source_map;
   n->attrs = std::move(attrs);
-  n->functions = std::move(functions);
-  if (n->functions.defined()) {
-    for (const auto& kv : n->functions) {
-      // set global var map
-      ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
-          << "Duplicate global function name " << kv.first->name_hint;
-      n->global_var_map_.Set(kv.first->name_hint, kv.first);
-      n->ExtractConstants(kv.second);
-    }
+
+  for (const auto& kv : n->functions) {
+    // set global var map
+    ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
+        << "Duplicate global function name " << kv.first->name_hint;
+    n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
 
   for (const auto& kv : n->type_definitions) {
@@ -206,7 +202,6 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
     WarnIfMalformed(GetRef<IRModule>(this), GetRef<relay::Function>(ptr));
   }
 
-  ExtractConstants(f);
   AddUnchecked(var, checked_func);
 }
 
@@ -222,67 +217,6 @@ void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
   }
 
   global_var_map_.Set(var->name_hint, var);
-}
-
-// Replaces constant data to index into mod's "Constants" attrs array.
-// Only processes tir::PrimFunc and ignores everything else
-void IRModuleNode::ExtractConstants(BaseFunc f) {
-  using ConstArrayType = Array<runtime::NDArray>;
-  class Applicator : public tir::StmtExprVisitor {
-   protected:
-    // returns index of the a in constant_array_, if not found - appends
-    size_t deDup(const runtime::NDArray& a) {
-      tvm::SEqualReducer eql;
-      auto it = std::find_if(
-          constant_array_.begin(), constant_array_.end(), [&eql, a](const runtime::NDArray& v) {
-            return NDArrayContainerTrait::SEqualReduce(a.as<runtime::NDArray::Container>(),
-                                                       v.as<runtime::NDArray::Container>(), eql);
-          });
-      if (it != constant_array_.end()) {
-        return it - constant_array_.begin();
-      }
-      constant_array_.push_back(std::move(a));
-      return constant_array_.size() - 1;
-    }
-
-   public:
-    ConstArrayType Apply(tir::Stmt body, const ConstArrayType& constant_array) {
-      constant_array_ = constant_array;
-      this->VisitStmt(body);
-      return constant_array_;
-    }
-
-    void VisitStmt_(const tir::AllocateConstNode* acn) override {
-      tir::AllocateConstNode* node = const_cast<tir::AllocateConstNode*>(acn);
-      // Check whether the data already defined within the module's attrs
-      // and replace it with array index;
-      ICHECK(node->data) << "data field should be defined";
-      if (node->data) {
-        node->irmod_storage_idx = Optional<Integer>(Integer(deDup(node->data.value())));
-      }
-      tir::StmtExprVisitor::VisitStmt_(acn);
-    }
-
-   private:
-    ConstArrayType constant_array_;
-  };
-
-  if (f->IsInstance<tir::PrimFuncNode>()) {
-    auto func = Downcast<tir::PrimFunc>(f);
-    ConstArrayType constant_array_ =
-        (attrs.defined() && attrs->dict.count(tvm::attr::kConstantsArray))
-            ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
-            : ConstArrayType();
-
-    const ConstArrayType constant_list =
-        Applicator().Apply(func.CopyOnWrite()->body, constant_array_);
-    if (constant_list.size()) {
-      if (!attrs.defined()) {
-        attrs = DictAttrs(Map<String, ObjectRef>());
-      }
-      attrs.CopyOnWrite()->dict.Set(tvm::attr::kConstantsArray, constant_list);
-    }
-  }
 }
 
 void IRModuleNode::RegisterConstructors(const GlobalTypeVar& var, const TypeData& type) {

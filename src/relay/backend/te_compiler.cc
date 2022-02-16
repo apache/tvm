@@ -1186,7 +1186,8 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
+       tvm::tir::transform::ExtractPrimFuncConstants()});
 }
 }  // namespace tec
 }  // namespace relay

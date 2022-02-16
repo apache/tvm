@@ -618,6 +618,8 @@ class AllocateConstNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
+    v->Visit("data", &data);
+    v->Visit("irmod_storage_idx", &irmod_storage_idx);
     v->Visit("dtype", &dtype);
     v->Visit("extents", &extents);
     v->Visit("body", &body);

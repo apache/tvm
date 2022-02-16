@@ -386,9 +386,6 @@ class IRModuleNode : public Object {
    */
   std::unordered_set<String> import_set_;
   friend class IRModule;
-
- public:
-  void ExtractConstants(BaseFunc func);
 };
 
 /*!

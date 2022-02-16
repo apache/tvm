@@ -123,7 +123,6 @@ Pass BindParams(const Array<runtime::NDArray>& constants) {
       DataType dtype = DataType(constant_map[var]->dtype);
       n->body = tir::AllocateConst(var, dtype, extents, constant_map[var], n->body);
     }
-    m->ExtractConstants(f);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BindParams", {});
