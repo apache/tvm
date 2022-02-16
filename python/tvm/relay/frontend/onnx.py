@@ -4835,7 +4835,7 @@ class GraphProto:
         self._check_user_inputs_in_outermost_graph_scope()
         self._check_for_unsupported_ops(graph)
         self._construct_nodes(graph)
-        
+
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
