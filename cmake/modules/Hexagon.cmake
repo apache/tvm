@@ -209,6 +209,10 @@ if(USE_HEXAGON_RPC)
     file_glob_append(RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/android/*.cc"
+    )
+    # Add this file separately, because it's auto-generated, and glob won't
+    # find it during cmake-time.
+    list(APPEND RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/rpc/hexagon_rpc_stub.c"
     )
     list(APPEND TVM_RUNTIME_LINKER_LIBS cdsprpc)
