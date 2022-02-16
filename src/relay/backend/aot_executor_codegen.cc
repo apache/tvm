@@ -723,6 +723,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       tir::Buffer buffer = tir::Buffer(buffer_var, elem_type, tensor_type->shape, {}, 0,
                                        name + "_buffer", 16, 1, tir::BufferType::kDefault);
       main_buffer_map_.Set(var, buffer);
+      io_tensor_types_.Set(var, Downcast<TensorType>(expr->checked_type()));
     }
   }
 
@@ -831,6 +832,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Array<tir::Var> main_signature_;
   /*! \brief input and output variables belonging to the main function signature */
   Map<tir::Var, tir::Buffer> main_buffer_map_;
+  /*! \brief maps input and output variables to TensorType which describe them */
+  Map<tir::Var, TensorType> io_tensor_types_;
   /*! \brief target device */
   tec::TargetMap targets_;
   /*! \brief target host */
@@ -1060,6 +1063,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
                         tir_main_func->params.begin() + tir_main_func->params.size() -
                             return_sid_.size() - pool_vars.size() - devices.size());
 
+    Array<TensorType> input_tensor_types;
+    for (auto i : inputs) {
+      input_tensor_types.push_back(io_tensor_types_[i]);
+    }
+
     std::vector<String> output_var_names;
     if (auto opt = func->GetAttr<Array<String>>("output_tensor_names")) {
       Array<String> output_tensor_names = opt.value();
@@ -1079,9 +1087,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
       }
     }
 
-    ret.metadata = ExecutorCodegenMetadata(inputs, pool_vars, devices, output_var_names,
-                                           runtime::kTvmExecutorAot, mod_name, interface_api,
-                                           use_unpacked_api_, pool_var_info);
+    Array<TensorType> output_tensor_types{final_aot_allocator.GetReturnTtypes()};
+
+    ret.metadata = ExecutorCodegenMetadata(
+        inputs, input_tensor_types, output_var_names, output_tensor_types, pool_vars, devices,
+        runtime::kTvmExecutorAot, mod_name, interface_api, use_unpacked_api_, pool_var_info);
     return ret;
   }
 
