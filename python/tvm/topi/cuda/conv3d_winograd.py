@@ -655,7 +655,9 @@ def conv3d_ncdhw_winograd_without_weight_transform(
     cfg, data, kernel, strides, padding, dilation, groups, out_dtype
 ):
     """Conv3d NCDHW winograd without weight transform."""
-    assert groups == 1, "conv3d_ncdhw_winograd_without_weight_transform does not support more than one group"
+    assert (
+        groups == 1
+    ), "conv3d_ncdhw_winograd_without_weight_transform does not support more than one group"
     A, B, C, _, _ = get_const_tuple(kernel.shape)
     # Check if we can transform depth.
     if A == B == C:
