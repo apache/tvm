@@ -103,29 +103,34 @@ struct PoolInfoNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
 };
 
+/*!
+ * \brief The string parameter to indicate read and write access to a pool
+ * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
+ * python/tvm/ir/memory_pools.py
+ */
+static constexpr const char* kTargetPoolReadWriteAccess = "rw";
+
+/*!
+ * \brief The string parameter to indicate read only access to a pool
+ * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
+ * python/tvm/ir/memory_pools.py
+ */
+static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
+
+/*! \brief The PoolSize is unrestricted for the memory planner */
+static const int kUnrestrictedPoolSizeHint = -1;
+
+/*! \brief The clock frequency is not known */
+static const int kUnknownClockFrequency = -1;
+
+/*! \brief The read bandwidth is not known */
+static const int kUnknownReadBandwidth = -1;
+
+/*! \brief The write bandwidth is not known */
+static const int kUnknownWriteBandwidth = -1;
+
 class PoolInfo : public ObjectRef {
  public:
-  /*!
-   * \brief The string parameter to indicate read and write access to a pool
-   * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
-   * python/tvm/ir/memory_pools.py
-   */
-  static constexpr const char* kTargetPoolReadWriteAccess = "rw";
-  /*!
-   * \brief The string parameter to indicate read only access to a pool
-   * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
-   * python/tvm/ir/memory_pools.py
-   */
-  static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
-  /*! \brief The PoolSize is unrestricted for the memory planner */
-  static const int kUnrestrictedPoolSizeHint = -1;
-  /*! \brief The clock frequency is not known */
-  static const int kUnknownClockFrequency = -1;
-  /*! \brief The read bandwidth is not known */
-  static const int kUnknownReadBandwidth = -1;
-  /*! \brief The write bandwidth is not known */
-  static const int kUnknownWriteBandwidth = -1;
-
   TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
                    Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
                    Integer clock_frequency_hz = kUnknownClockFrequency,
