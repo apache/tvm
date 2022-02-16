@@ -27,6 +27,7 @@
 #include <tvm/relay/attrs/call.h>
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/runtime.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/analysis.h>
@@ -362,16 +363,19 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     auto result_expr_sid = PackSid(result_expr);
     PushArgs(result_expr, result_expr_sid, &args);
 
-    // Use tvm_call_packed to execute the function unless we're calling directly
-    auto calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    // Choose call style based on Runtime/Executor config.
+    Op calling_pattern;
     if (use_unpacked_api_) {
       calling_pattern = tvm::tir::builtin::call_extern();
+    } else if (use_call_cpacked_) {
+      calling_pattern = tvm::tir::builtin::tvm_call_cpacked();
+    } else {
+      calling_pattern = tvm::tir::builtin::tvm_call_packed();
     }
 
     GlobalVar global_var = call_lowered_props.lowered_func;
     tir::Var empty_var("no_device_context", DataType::Handle());
     bool has_c_device_api_context = device_contexts_.count(global_var) != 0;
-    bool use_cpacked_api = !use_unpacked_api_;
 
     // The device context is passed to the operator in one of the following calling patterns:
     //  * Unpacked / direct function call with context:
@@ -395,7 +399,7 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           func_call,
           GenerateDeviceHook(context, "Close"),
       }));
-    } else if (use_cpacked_api) {
+    } else if (use_call_cpacked_) {
       // call_cpacked calling convention needs a blank context
       args.push_back(tir::make_zero(DataType::Handle()));
       tir::Evaluate func_call(tvm::tir::Call(DataType::Int(32), calling_pattern, args));
@@ -828,13 +832,29 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Target target_host_;
   /*!
    * \brief unpacked api toggle
-   * When set to true the code generated will use unpacked calls to functions:
+   * When set to true, the generated code will use unpacked calls to functions:
    * func(void* arg0, void* arg1)
-   * Rather than packed calls:
-   * func(void* args)
+   * Rather than packed calls (in which arg0 and arg1 are in `arg_values`).
+   * func(TVMValue* arg_values, int* arg_type_codes, int num_args, ...)
    * Defaults to using the packed calling convention
+   *
+   * Unpacked API is supported when runtime == "c" and interface_api is "c".
    */
   Bool use_unpacked_api_;
+  /*!
+   * \brief cpacked api toggle
+   * When set to true, the generated code will use call_cpacked to call functions directly, assuming
+   * they exist in a DSO-exportable module:
+   * func(...)
+   * Rather than through the traditional call_packed calls, which should use function pointers
+   * looked-up through TVMBackendGetFuncFromEnv:
+   * TVMBackendPackedCFunc* func_ptr = TVMBackendGetFuncFromEnv("func");
+   * func_ptr(...)
+   * Defaults to using the packed calling convention
+   *
+   * call_cpacked is required when runtime is "c++" and supported when runtime is "c"
+   */
+  Bool use_call_cpacked_;
 
   /*!
    * \brief parameters (i.e. ConstantNodes found in the graph).
@@ -863,7 +883,11 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
  public:
   AOTExecutorCodegen(runtime::Module* mod, const tec::TargetMap& targets, Target target_host)
-      : mod_(mod), targets_(targets), target_host_(target_host), use_unpacked_api_(Bool(false)) {}
+      : mod_(mod),
+        targets_(targets),
+        target_host_(target_host),
+        use_unpacked_api_(Bool(false)),
+        use_call_cpacked_(Bool(false)) {}
 
   LoweredOutput Codegen(IRModule mod, relay::Function func, String mod_name) {
     VLOG_CONTEXT << "AOT";
@@ -873,11 +897,30 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     ICHECK(target_host_.defined()) << "require a target_host to be given for AOT codegen";
     VLOG(1) << "target host: " << target_host_->ToDebugString();
 
+    Runtime runtime_config = mod->GetAttr<Runtime>(tvm::attr::kRuntime).value();
     Executor executor_config = mod->GetAttr<Executor>(tvm::attr::kExecutor).value();
     String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
     Integer workspace_byte_alignment =
         executor_config->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
     use_unpacked_api_ = executor_config->GetAttr<Bool>("unpacked-api").value_or(Bool(false));
+    use_call_cpacked_ = !use_unpacked_api_;
+
+    // Validate choice of use_unpacked_api_ and use_call_cpacked_
+    if (runtime_config->name == kTvmRuntimeCrt) {
+      CHECK(interface_api == "c" || static_cast<bool>(use_unpacked_api_) == false)
+          << "Either need interface_api == \"c\" (got: " << interface_api
+          << ") or unpacked-api == false (got: " << use_unpacked_api_
+          << ") when targeting c runtime";
+    } else if (runtime_config->name == kTvmRuntimeCpp) {
+      CHECK(static_cast<bool>(use_unpacked_api_) == false &&
+            static_cast<bool>(use_call_cpacked_) == true)
+          << "Need unpacked-api == false (got: " << use_unpacked_api_
+          << ") and interface-api == \"packed\" (got: " << interface_api
+          << ") when targeting c++ runtime";
+    } else {
+      ICHECK(false) << "runtime_config (" << runtime_config->name
+                    << ") is not one of the expected values";
+    }
 
     // TODO(mbs): Plumb from compiler config
     VirtualDevice host_virtual_device = VirtualDevice::ForTarget(target_host_);
