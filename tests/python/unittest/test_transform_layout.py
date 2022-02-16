@@ -258,7 +258,12 @@ class Test2DPhysicalLayout:
         if transform_B:
             s[B].transform_layout(lambda i, j, k: [i, j, te.AXIS_SEPARATOR, k])
 
-        mod = tvm.lower(s, [A, B])
+        # If the two buffers are accessed with the same indices, CSE
+        # will replace them with a Let binding.  Since this makes it
+        # harder to test what the transformed indices are, disabling
+        # the CSE pass for this test.
+        with tvm.transform.PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
+            mod = tvm.lower(s, [A, B])
 
         i, j, k = self.extract_loop_vars(mod["main"].body)
         indices_1d = [i * (logical_shape[1] * logical_shape[2]) + j * logical_shape[2] + k]
