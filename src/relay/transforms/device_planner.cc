@@ -22,9 +22,6 @@
  * \brief Determines a unique \p VirtualDevice to hold the result of every Relay sub-expression.
  * This pass can be run multiple times, and can be run both before and after lowering.
  *
- * TODO(mbs): Rename VirtualDevice |-> VirtualDevice, and use 'virtual device' (or just 'device')
- * throughout.
- *
  * We say a Relay expression E is 'on device D' if the result of executing E is stored on D.
  * We represent D by an \p VirtualDevice, which means we can track anywhere from an arbitrary device
  * of some \p DLDeviceType to a specific memory scope on a specific (virtual) \p Device who's
@@ -423,7 +420,7 @@ class RewriteOnDevices : public ExprMutator {
  * \endcode
  * we discover \p %b must be on device \p d.
  */
-class DeviceAnalyzer : public ExprVisitor {
+class DeviceAnalyzer : public MixedModeVisitor {
  public:
   DeviceAnalyzer(IRModule mod, CompilationConfig config)
       : mod_(std::move(mod)), domains_(std::make_unique<DeviceDomains>(std::move(config))) {}
@@ -504,7 +501,6 @@ class DeviceAnalyzer : public ExprVisitor {
     args_and_result_domains.reserve(vanilla_call->args.size() + 1);
     for (const auto& arg : vanilla_call->args) {
       args_and_result_domains.emplace_back(domains_->DomainFor(arg));
-      VisitExpr(arg);
     }
     args_and_result_domains.emplace_back(domains_->DomainFor(call));
     auto implied_domain =
@@ -625,7 +621,6 @@ class DeviceAnalyzer : public ExprVisitor {
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       auto domain = domains_->DomainFor(tuple->fields[i]);  // may be higher-order
       domains_->UnifyExprCollapsed(tuple, domain);          // collapse to first-order if needed
-      VisitExpr(tuple->fields[i]);
     }
   }
 
@@ -634,7 +629,6 @@ class DeviceAnalyzer : public ExprVisitor {
     auto domain = domains_->DomainFor(tuple_get_item);  // may be higher-order
     domains_->UnifyExprCollapsed(tuple_get_item_node->tuple,
                                  domain);  // collapse to first-order if needed
-    VisitExpr(tuple_get_item_node->tuple);
   }
 
   class DevicePatternAnalyzer : public PatternVisitor {
