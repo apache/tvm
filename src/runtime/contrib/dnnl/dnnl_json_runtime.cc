@@ -472,13 +472,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // Memory shapes.
     dnnl::memory::dims src_dims = TransDims2Plain(input_shape, data_layout);
     dnnl::memory::dims weights_dims_ = TransDims2Plain(weight_shape, kernel_layout);
-    // legalize shape IOHW with layout OIHW
-    if (weights_dims_[0] == src_dims[1] && weights_dims_[1] == channels) {
-      std::swap(weights_dims_[0], weights_dims_[1]);
-      if (kernel_layout.find("OI") == 0) {
-        kernel_layout.replace(kernel_layout.find("OI"), 2, "IO");
-      }
-    }
     dnnl::memory::dims bias_dims = {channels};
     dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides);
     dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, true);
