@@ -4878,7 +4878,6 @@ class GraphProto:
             if i_name in self._params:
                 # i is a param instead of input
                 self._num_param += 1
-                self._params[i_name] = self._params.pop(i_name)
                 self._nodes[i_name] = new_var(
                     i_name, shape=self._params[i_name].shape, dtype=self._params[i_name].dtype
                 )
