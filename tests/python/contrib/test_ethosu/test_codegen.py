@@ -1150,5 +1150,16 @@ def test_tflite_unpack(accel_type, ifm_shape, axis):
     _compare_tvm_with_tflite(unpack_func, [ifm_shape], accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("ifm_shape", [(1, 15, 15, 3), (1, 8, 9, 1)])
+@pytest.mark.parametrize("alpha", [0.2, 0.634])
+def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
+    @tf.function
+    def leaky_relu_func(x):
+        return tf.nn.leaky_relu(x, alpha=alpha)
+
+    _compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

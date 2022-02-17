@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument, import-outside-toplevel, no-value-for-parameter
 """A set of passes to legalize some of operations for the NPU"""
-from typing import List, Type, Callable
+from typing import List, Type, Callable, Any, Dict
 import math
 
 import numpy as np  # type: ignore
@@ -145,16 +145,22 @@ class LegalizeSplit:
 
 
 def get_lut_from_func(
-    ifm_scale: float, ifm_zp: int, ofm_scale: float, ofm_zp: int, func: Callable[[float], float]
+    ifm_scale: float,
+    ifm_zp: int,
+    ofm_scale: float,
+    ofm_zp: int,
+    func: Callable[[float], float],
+    func_params: Dict[str, Any],
 ) -> List[int]:
-    """Method to calculate the values of the lookup table based on the calculation function"""
+    """Calculates the values of the lookup table based on the calculation function"""
+
     lut_values = list()
     # Only int8 is currently supported
     dtype = np.int8
     qmin, qmax = np.iinfo(dtype).min, np.iinfo(dtype).max
     for x in range(qmin, qmax + 1):
         x_real = ifm_scale * (x - ifm_zp)
-        out_real = func(x_real)
+        out_real = func(x_real, **func_params)
         lut_result = int(util.round_away_zero(ofm_zp + out_real / ofm_scale))
         lut_result = min(qmax, max(qmin, lut_result))
         lut_values.append(lut_result)
@@ -166,32 +172,58 @@ class LutActivationRewriter(DFPatternCallback):
     """A class to create an identity operator with the LUT"""
 
     def __init__(
-        self, params_class: Type, activation_type: str, calc_func: Callable[[float], float]
+        self,
+        params_class: Type,
+        activation_type: str,
+        calc_func: Callable[[float], float],
     ):
         super().__init__(require_type=True, rewrite_once=True)
+        self.params_class = params_class
         self.pattern = (wildcard().has_attr({"Composite": params_class.composite_name}))(wildcard())
         self.activation_type = activation_type
         self.calc_func = calc_func
 
+    def get_calc_func_params(self, expr: tvm.relay.Expr) -> Dict[str, Any]:
+        """
+        Overridable method that can be used to extract additional arguments
+        for passing to calc_func.
+
+        Parameters
+        ----------
+        expr : tvm.relay.Expr
+            The matched composite activation function.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Maps argument name to argument value.
+        """
+        return {}
+
     def callback(self, pre: tvm.relay.Expr, post: tvm.relay.Expr, node_map: tvm.ir.container.Map):
-        id_input = post.args[0]
+        params = self.params_class(post.op.body)
+        params.ifm.tensor = post.args[0]
 
-        quantize_args = post.op.body.args
-        output_scale = float(quantize_args[1].data.asnumpy())
-        output_zp = int(quantize_args[2].data.asnumpy())
+        calc_func_params = self.get_calc_func_params(post.op)
 
-        dequantize_args = quantize_args[0].args[0].args
-        input_scale = float(dequantize_args[1].data.asnumpy())
-        input_zp = int(dequantize_args[2].data.asnumpy())
+        input_scale = float(params.ifm.q_params.scale_f32)
+        input_zp = int(params.ifm.q_params.zero_point)
+        output_scale = float(params.ofm.q_params.scale_f32)
+        output_zp = int(params.ofm.q_params.zero_point)
 
         lut_values = get_lut_from_func(
-            input_scale, input_zp, output_scale, output_zp, self.calc_func
+            input_scale,
+            input_zp,
+            output_scale,
+            output_zp,
+            self.calc_func,
+            calc_func_params,
         )
-        lut = relay.const(lut_values, dtype="uint8")
+        lut = relay.const(lut_values, dtype=params.ifm.dtype)
 
         # We baked the requantization into the LUT, so we don't requantize the identity operator
         identity = ethosu_ops.ethosu_identity(
-            ifm=id_input,
+            ifm=params.ifm.tensor,
             lut=lut,
             ifm_scale=input_scale,
             ifm_zero_point=input_zp,
@@ -263,6 +295,42 @@ class LegalizeSigmoid:
     ) -> tvm.ir.IRModule:
         for global_var, func in mod.functions.items():
             func = rewrite(SigmoidRewriter(), func)
+            mod.update_func(global_var, func)
+        return mod
+
+    def __call__(self, *args, **kwargs):
+        pass
+
+
+def leaky_relu_calc_func(x: float, alpha: float) -> float:
+    """Function to calculate the values for leaky relu."""
+    return x if x >= 0 else x * alpha
+
+
+class LeakyReLURewriter(LutActivationRewriter):
+    """This pass adds leaky relu as a LUT for identity op."""
+
+    def __init__(self):
+        super().__init__(
+            params_class=ethosu_patterns.LeakyReLUParams,
+            activation_type="LUT",
+            calc_func=leaky_relu_calc_func,
+        )
+
+    def get_calc_func_params(self, expr: tvm.relay.Expr) -> Dict[str, Any]:
+        params = ethosu_patterns.LeakyReLUParams(expr.body)
+        return {"alpha": params.alpha}
+
+
+@ir.transform.module_pass(opt_level=1)
+class LegalizeLeakyReLU:
+    """This is the pass that wraps LeakyReLURewriter."""
+
+    def transform_module(
+        self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
+    ) -> tvm.ir.IRModule:
+        for global_var, func in mod.functions.items():
+            func = rewrite(LeakyReLURewriter(), func)
             mod.update_func(global_var, func)
         return mod
 
@@ -1536,6 +1604,7 @@ class LegalizeEthosU:
         mod = LegalizeShl()(mod)
         mod = LegalizeAbs()(mod)
         mod = LegalizeTanh()(mod)
+        mod = LegalizeLeakyReLU()(mod)
         mod = LegalizeMean()(mod)
         mod = LegalizeConcat()(mod)
         mod = LegalizeSigmoid()(mod)
