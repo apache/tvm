@@ -221,6 +221,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
+  } else if (name == "set_input_with_index") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInputWithIndex(args[0], args); });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
@@ -265,6 +268,46 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   }
   inputs_.erase(func_name);
   inputs_.emplace(func_name, func_args);
+}
+
+void VirtualMachine::SetInputWithIndex(std::string func_name, TVMArgs args) {
+  ICHECK(exec_) << "The executable is not created yet.";
+  auto gvit = exec_->global_map.find(func_name);
+  ICHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
+  auto func_index = gvit->second;
+  const auto& vm_func = exec_->functions[func_index];
+  const auto& param_names = vm_func.params;
+  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index, tensor)";
+  // TODO(vvchernov): Looks like it should be checked earlier and in other place
+  ICHECK_EQ(param_names.size(), vm_func.param_device_indexes.size())
+      << "The number of provided parameters doesn't match the number of assigned devices";
+  if (inputs_.count(func_name)) {
+    ICHECK_EQ(inputs_[func_name].size(), param_names.size())
+        << "The size of function" << func_name
+        << " doesn't match the number of provided parameters";
+  } else {
+    std::vector<ObjectRef> func_args(param_names.size());
+    inputs_.emplace(func_name, func_args);
+  }
+  ICHECK_EQ(args[1].type_code(), kTVMArgInt) << "The second argument doesn't match integer index";
+  int inp_index = args[1];
+  auto& input_tensors = inputs_[func_name];
+  Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
+
+  if (args[2].type_code() == kTVMDLTensorHandle) {
+    // Automatically convert input DLTensors to NDArray
+    DLTensor* tensor = args[2];
+    std::vector<int64_t> shape;
+    for (int64_t i = 0; i < tensor->ndim; i++) {
+      shape.push_back(tensor->shape[i]);
+    }
+    NDArray ary = NDArray::Empty(shape, tensor->dtype, dev);
+    ary.CopyFrom(tensor);
+    input_tensors[inp_index] = ary;
+  } else {
+    ObjectRef obj = CopyTo(args[2], dev);
+    input_tensors[inp_index] = obj;
+  }
 }
 
 inline Device VirtualMachine::GetDevice(Index device_index) const {

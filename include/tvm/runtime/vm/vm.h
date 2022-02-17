@@ -271,6 +271,15 @@ class VirtualMachine : public runtime::ModuleNode {
   void SetInput(std::string name, TVMArgs args, int offset);
 
   /*!
+   * \brief Set input tensor with index to a function.
+   * \param name The function name
+   * \param args args[1:] are two arguments (index, tensor) to the
+   * function. If the tensor is not of the correct device for the function,
+   * they will be copied to the device.
+   */
+  void SetInputWithIndex(std::string name, TVMArgs args);
+
+  /*!
    * \brief Internal hook for profiling the start of an op.
    *
    * This hook is only called on certain ops that are likely to take a
