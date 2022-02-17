@@ -102,46 +102,12 @@ tvm::transform::Pass RelayToTIR() {
 }
 
 /*!
- * \brief This visitor counts the number of outputs each identity operation has, since Relay doesn't
- * keep references to child nodes.
- */
-class CountIdentityOutputs : public MixedModeVisitor {
- public:
-  void VisitExpr_(const CallNode* call) {
-    for (auto arg : call->args) {
-      if (const auto* parent_callnode = arg.as<CallNode>()) {
-        if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
-          if (parent_op->name != "contrib.ethosu.identity") {
-            continue;
-          }
-
-          Call parent_call = GetRef<Call>(parent_callnode);
-          Optional<Integer> current_count = output_count_.Get(parent_call);
-          if (current_count) {
-            output_count_.Set(parent_call, Integer(current_count.as<IntImmNode>()->value + 1));
-          } else {
-            output_count_.Set(parent_call, 1);
-          }
-        }
-      }
-    }
-  }
-
-  Map<Call, Integer> GetOutputCountMap() { return output_count_; }
-
- private:
-  Map<Call, Integer> output_count_;
-};
-
-/*!
- * \brief This mutator removes identity operations that are not necessary. Specifically, an identity
- * operation can be removed when it is immediately followed by an NPU compute operation.
+ * \brief This mutator removes identity operations that are not necessary. Specifically, an
+ * identity operation can be removed when it is immediately followed by an NPU compute
+ * operation.
  */
 class RemoveRedundantIdentities : public MixedModeMutator {
  public:
-  explicit RemoveRedundantIdentities(Map<Call, Integer> identity_output_count)
-      : identity_output_count_(identity_output_count) {}
-
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     Call call = Downcast<Call>(post);
 
@@ -162,11 +128,7 @@ class RemoveRedundantIdentities : public MixedModeMutator {
       if (const auto* parent_callnode = arg.as<CallNode>()) {
         if (const auto* parent_op = parent_callnode->op.as<OpNode>()) {
           Call parent_call = GetRef<Call>(parent_callnode);
-          // TODO(lhutton1) support removal of identities with multiple outputs.
-          bool has_single_output = identity_output_count_.Get(parent_call) == 1;
-
-          if (parent_op->name == "contrib.ethosu.identity" && IdentityDoesNothing(parent_call) &&
-              has_single_output) {
+          if (parent_op->name == "contrib.ethosu.identity" && IdentityDoesNothing(parent_call)) {
             needs_rewrite = true;
             new_args.push_back(parent_call->args[0]);
             continue;
@@ -190,8 +152,6 @@ class RemoveRedundantIdentities : public MixedModeMutator {
     bool has_no_activation = attrs->activation == "NONE";
     return does_not_requantize && has_no_activation;
   }
-
-  Map<Call, Integer> identity_output_count_;
 };
 
 /*!
@@ -202,10 +162,7 @@ tvm::transform::Pass IdentityOptimizer() {
       [=](IRModule mod, transform::PassContext ctx) {
         for (auto gv : mod->GetGlobalVars()) {
           Function main_func = Downcast<Function>(mod->Lookup(gv));
-          CountIdentityOutputs counter = CountIdentityOutputs();
-          counter.VisitExpr(main_func->body);
-          auto new_main_body =
-              RemoveRedundantIdentities(counter.GetOutputCountMap()).VisitExpr(main_func->body);
+          auto new_main_body = RemoveRedundantIdentities().VisitExpr(main_func->body);
           if (!new_main_body.same_as(main_func->body)) {
             Function new_main_func = WithFields(main_func, main_func->params, new_main_body);
             mod->Update(gv, new_main_func);
