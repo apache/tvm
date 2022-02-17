@@ -130,6 +130,16 @@ def global_avgpool2d(expr, type_map):
     return [out, t]
 
 
+@register_fake_quantization_to_integer("broadcast_to")
+def broadcast_to(expr, type_map):
+    """Rewrite a broadcast_to op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    shape = expr.attrs.shape
+    out = relay.op.broadcast_to(arg, shape)
+    return [out, t]
+
+
 @register_fake_quantization_to_integer("rsqrt")
 def rsqrt(expr, type_map):
     """Rewrite a rsqrt op"""
