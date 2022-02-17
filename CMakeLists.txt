@@ -482,6 +482,7 @@ add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
@@ -496,6 +497,7 @@ else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
+target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
@@ -566,17 +568,6 @@ target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
-
-# Related headers
-target_include_directories(
-  tvm
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_objs
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_libinfo_objs
-  PUBLIC "topi/include")
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
 target_include_directorieS(
   tvm_objs
@@ -621,32 +612,55 @@ endif()
 add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
-install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(
-    DIRECTORY "include/." DESTINATION "include"
+    DIRECTORY "include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dlpack/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
   install(
-    DIRECTORY "3rdparty/dmlc-core/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
     )
 endif(INSTALL_DEV)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
+string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
+string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
+string(APPEND PROJECT_CONFIG_CONTENT
+       "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
+
+install(EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+# Create config for find_package()
+configure_package_config_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+
+install(
+  FILES
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 # More target definitions
 if(MSVC)
