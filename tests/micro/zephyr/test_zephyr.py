@@ -376,6 +376,7 @@ def test_rpc_large_array(temp_dir, board, west_cmd, tvm_debug, shape):
         test_tensors(sess)
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10297")
 @tvm.testing.requires_micro
 def test_autotune_conv2d(temp_dir, board, west_cmd, tvm_debug):
     """Test AutoTune for microTVM Zephyr"""
