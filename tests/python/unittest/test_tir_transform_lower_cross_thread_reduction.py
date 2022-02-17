@@ -25,7 +25,14 @@ from tvm.script import tir as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original)
     mod = tvm.tir.transform.LowerCrossThreadReduction()(mod)
-    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    try:
+        tvm.ir.assert_structural_equal(mod["main"], transformed, True)
+    except ValueError:
+        with open("temp_expected.txt", "w") as f:
+            f.write(transformed.script())
+        with open("temp_observed.txt", "w") as f:
+            f.write(mod["main"].script())
+        raise
 
 
 def _check_fail(original):
@@ -82,7 +89,7 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                         T.uint32(1),
                         normal_reduce_temp0[0],
                         True,
-                        reduce_temp0.data,
+                        reduce_temp0[0],
                         ki,
                         dtype="handle",
                     )
@@ -127,7 +134,7 @@ def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0.data, k, dtype="handle"
+                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
                     )
                 )
             with T.block("B_write_back"):
@@ -174,7 +181,7 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
-                            T.uint32(1), A[vi, vk], True, reduce_temp0.data, ko, ki, dtype="handle"
+                            T.uint32(1), A[vi, vk], True, reduce_temp0[0], ko, ki, dtype="handle"
                         )
                     )
                 with T.block("B_write_back"):
@@ -253,7 +260,7 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
                         T.uint32(1),
                         normal_reduce_temp0[0],
                         True,
-                        reduce_temp0.data,
+                        reduce_temp0[0],
                         k0o,
                         dtype="handle",
                     )
@@ -315,7 +322,7 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
                         T.uint32(1),
                         normal_reduce_temp0[0],
                         True,
-                        reduce_temp0.data,
+                        reduce_temp0[0],
                         ki,
                         dtype="handle",
                     )
@@ -418,7 +425,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                             T.uint32(1),
                             in_thread_0[0],
                             True,
-                            cross_thread_0.data,
+                            cross_thread_0[0],
                             ax1_1,
                             dtype="handle",
                         )
@@ -456,7 +463,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                             T.uint32(1),
                             in_thread_1[0],
                             True,
-                            cross_thread_1.data,
+                            cross_thread_1[0],
                             ax1_1,
                             dtype="handle",
                         )
@@ -516,7 +523,7 @@ def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0.data, k, dtype="handle"
+                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
                     )
                 )
             with T.block("B_write_back"):
@@ -556,9 +563,7 @@ def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
                 T.reinterpret(T.uint64(0), dtype="handle"),
             )
             T.evaluate(
-                T.tvm_thread_allreduce(
-                    T.uint32(1), A[vk], True, reduce_temp0.data, k, dtype="handle"
-                )
+                T.tvm_thread_allreduce(T.uint32(1), A[vk], True, reduce_temp0[0], k, dtype="handle")
             )
         with T.block("B_write_back"):
             T.reads([reduce_temp0[0]])
@@ -746,7 +751,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                         T.uint32(1),
                         normal_reduce_temp0[0],
                         True,
-                        reduce_temp0.data,
+                        reduce_temp0[0],
                         ax0_1,
                         dtype="handle",
                     )
@@ -789,7 +794,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                         T.uint32(1),
                         normal_reduce_temp1[0],
                         True,
-                        reduce_temp1.data,
+                        reduce_temp1[0],
                         ax0_1,
                         dtype="handle",
                     )
