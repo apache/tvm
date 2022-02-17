@@ -162,6 +162,7 @@ def test_alter_layout():
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
+
 def test_alter_layout_multi():
     """Test alternating the layout of a conv2d.
     The layout of broadcast operators and the weight should be changed accordingly.
@@ -206,6 +207,7 @@ def test_alter_layout_multi():
         b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
 
 def test_alter_layout_lrn():
     """Test alternating the layout of a conv2d.
