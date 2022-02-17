@@ -37,6 +37,9 @@ function run_lint_step() {
             ;;
         asf)
             cmd=( tests/lint/check_asf_header.sh --local )
+            if [ $inplace_fix -eq 1 ]; then
+                cmd=( "${cmd[@]}" --fix )
+            fi
             ;;
         clang_format)
             if [ $inplace_fix -eq 0 ]; then
