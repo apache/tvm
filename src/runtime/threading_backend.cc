@@ -42,7 +42,7 @@
 namespace tvm {
 namespace runtime {
 namespace threading {
-thread_local int max_concurrency_value = 0;
+thread_local int max_concurrency = 0;
 class ThreadGroup::Impl {
  public:
   Impl(int num_workers, std::function<void(int)> worker_callback, bool exclude_worker0)
@@ -61,8 +61,8 @@ class ThreadGroup::Impl {
     }
   }
 
-  int Configure(AffinityMode mode, int nthreads, std::vector<unsigned int> cpus,
-                bool exclude_worker0) {
+  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
+                std::vector<unsigned int> cpus) {
     int num_workers_used = 0;
     if (mode == kLittle) {
       num_workers_used = little_count_;
@@ -245,21 +245,21 @@ ThreadGroup::ThreadGroup(int num_workers, std::function<void(int)> worker_callba
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
 
-int ThreadGroup::Configure(AffinityMode mode, int nthreads, std::vector<unsigned int> cpus,
-                           bool exclude_worker0) {
-  return impl_->Configure(mode, nthreads, cpus, exclude_worker0);
+int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
+                           std::vector<unsigned int> cpus) {
+  return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
 void Yield() { std::this_thread::yield(); }
 void SetMaxConcurrency(int value) {
   if (value > 0) {
-    max_concurrency_value = value;
+    max_concurrency = value;
   }
 }
 int MaxConcurrency() {
   int max_concurrency = 1;
-  if (tvm::runtime::threading::max_concurrency_value != 0) {
-    max_concurrency = tvm::runtime::threading::max_concurrency_value;
+  if (tvm::runtime::threading::max_concurrency != 0) {
+    max_concurrency = tvm::runtime::threading::max_concurrency;
   } else {
     const char* val = getenv("TVM_NUM_THREADS");
     if (val == nullptr) {

@@ -43,12 +43,13 @@
 #include <thread>
 #include <vector>
 
+#include "../support/utils.h"
 const constexpr int kL1CacheBytes = 64;
 
 namespace tvm {
 namespace runtime {
 namespace {
-
+using support::IsNumber;
 constexpr uint32_t kDefaultSpinCount = 300000;
 
 uint32_t GetSpinCount() {
@@ -322,7 +323,7 @@ class ThreadPool {
                                  const std::vector<unsigned int>& cpus) {
     // this will also reset the affinity of the ThreadGroup
     // may use less than the MaxConcurrency number of workers
-    num_workers_used_ = threads_->Configure(mode, nthreads, cpus, exclude_worker0_);
+    num_workers_used_ = threads_->Configure(mode, nthreads, exclude_worker0_, cpus);
     // if MaxConcurrency restricted the number of workers (e.g., due to
     // hyperthreading), respect the restriction
     num_workers_used_ = std::min(num_workers_, num_workers_used_);
@@ -339,7 +340,7 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
             num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
             exclude_worker0_ /* include_main_thread */));
-    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, {}, exclude_worker0_);
+    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
   }
 
   // Internal worker function.
@@ -371,6 +372,11 @@ class ThreadPool {
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
+/*!
+ * \brief args[0] is the AffinityMode, args[1] is the number of threads.
+ *  args[2](optional) is a list id of CPU which is used to set CPU affinity.
+ *  args[3](optional) is the maximum numbers of worker threads which is create to run the task.
+ */
 TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
   threading::ThreadGroup::AffinityMode mode =
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
@@ -380,6 +386,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
   if (args.num_args == 3) {
     Array<String> cpu_array = args[2];
     for (auto cpu : cpu_array) {
+      ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
       cpus.push_back(std::stoi(cpu));
     }
   }
