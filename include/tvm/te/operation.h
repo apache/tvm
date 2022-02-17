@@ -475,6 +475,8 @@ class HybridOpNode : public OperationNode {
  public:
   /*! \brief The input tensors */
   Array<Tensor> inputs;
+  /*! \brief Symbolic placeholder representation of outputs */
+  Array<Tensor> symbolic_outputs;
   /*! \brief The axis of iterations */
   Array<IterVar> axis;
   /*! \brief the statement that generates the computation. This is
@@ -509,7 +511,7 @@ class HybridOpNode : public OperationNode {
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
     v->Visit("inputs", &inputs);
-    v->Visit("outputs", &outputs);
+    v->Visit("symbolic_outputs", &symbolic_outputs);
     v->Visit("axis", &axis);
     v->Visit("body", &body);
   }
