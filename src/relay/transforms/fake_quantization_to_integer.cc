@@ -31,18 +31,18 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/qnn/attrs.h>
-#include <tvm/relay/qnn/op/dequantize.h>
 #include <tvm/relay/transform.h>
 
 #include <unordered_map>
+
+#include "../qnn/utils.h"
 
 namespace tvm {
 namespace relay {
 
 /* Description of FakeQuantizationToInteger
  *
- * This pass consists of two parts, a basic one and an optional one.
- * The purpose of the basic part is to find regions of the graph that follow
+ * The purpose of this pass is to find regions of the graph that follow
  * the general pattern:
  *
  *   x    w
@@ -57,7 +57,7 @@ namespace relay {
  *
  * and convert them into subgraphs with actual integer operations on x and w
  *
- * The basic part does this via a multi-pass approach:
+ * The pass does this via a multi-pass approach:
  *
  * The main pass is a MixedModeMutator that traverses the full graph searching for
  * quantize operations
@@ -75,10 +75,14 @@ namespace relay {
  * After the second and third passes run, the first pass replaces the quantize with the
  * rewritten subgraph and the processing continues
  *
- * The main idea of the optional part is to find and transform operations with dequantized inputs
- * one by one individually. Only operations from the allowed list are allowed. For example, if on
- * the above general  pattern op2 is not registered with the FTVMFakeQuantizationToInteger
- * attribute, op1 operation can still be converted. Converted pattern below:
+ *
+ * After that an additional QAT pass can be enabled by use_qat flag. The goal of the pass is to find
+ * operations in those regions(which were not successfully converted by the main pass) that can
+ * still be converted into quantized form. The idea is to find and transform operations with
+ * dequantized inputs one by one individually. Only operations for which all parameters can be
+ * explicitly calculated are allowed. For example, if on the above general  pattern op2 is not
+ * registered with the FTVMFakeQuantizationToInteger attribute, op1 operation can still be
+ * converted. Converted pattern below:
  *
  *   x    w
  *   |    |
@@ -91,7 +95,7 @@ namespace relay {
  *      |
  *      q
  *
- * The optional part works in the same multi-pass approach.
+ * This pass works in the same multi-pass approach.
  */
 
 using ExprSet = std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual>;
@@ -293,41 +297,49 @@ class FakeQuantizationRewriter : public MixedModeMutator {
   const bool hard_fail_;
 };
 
+/* Checks if the operation to convert QAT pass is enabled.
+ * The following conditions must be satisfied:
+ * 1. operations registered for FTVMFakeQuantizationToInteger;
+ * 2. Unary operators or operators with with the TensorAffineType calculated during
+ * FTVMFakeQuantizationToInteger conversion;
+ * 3. Not one of the "key" operations: requantize,quantize and dequantize(they are at the boundaries
+ * of regions defined to be quantized).
+ */
 bool is_op_enabled_for_optional_fq2i(const CallNode* call_node) {
   const Op op = Downcast<Op>(call_node->op);
   static auto fqfq = Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
   static std::unordered_set<Op, tvm::ObjectHash, tvm::ObjectEqual> ops = {
-      Op::Get("reshape"),
-      Op::Get("squeeze"),
-      Op::Get("strided_slice"),
-      Op::Get("transpose"),
+      Op::Get("broadcast_to"),
+      Op::Get("clip"),
       Op::Get("expand_dims"),
-      Op::Get("nn.max_pool2d"),
-      Op::Get("nn.batch_flatten"),
-      Op::Get("nn.depth_to_space"),
       Op::Get("max"),
+      Op::Get("maximum"),
       Op::Get("min"),
+      Op::Get("minimum"),
       Op::Get("nn.avg_pool2d"),
-      Op::Get("nn.global_avg_pool2d"),
+      Op::Get("nn.batch_flatten"),
+      Op::Get("nn.batch_matmul"),
       Op::Get("nn.bias_add"),
       Op::Get("nn.conv2d"),
       Op::Get("nn.conv2d_transpose"),
       Op::Get("nn.dense"),
-      Op::Get("nn.batch_matmul"),
-      Op::Get("split"),
-      Op::Get("clip"),
-      Op::Get("nn.relu"),
+      Op::Get("nn.depth_to_space"),
+      Op::Get("nn.global_avg_pool2d"),
+      Op::Get("nn.max_pool2d"),
       Op::Get("nn.pad"),
-      Op::Get("broadcast_to"),
-      Op::Get("minimum"),
-      Op::Get("maximum")};
+      Op::Get("nn.relu"),
+      Op::Get("reshape"),
+      Op::Get("split"),
+      Op::Get("squeeze"),
+      Op::Get("strided_slice"),
+      Op::Get("transpose")};
 
   auto is_enabled = [&](const auto i) { return i == call_node->op; };
   auto result = std::find_if(std::begin(ops), std::end(ops), is_enabled);
   return result != ops.end() && fqfq.count(Downcast<Op>(op));
 }
 
-class OptionalSubgraphExtractor : public ExprVisitor {
+class QATSubgraphExtractor : public ExprVisitor {
  public:
   const ExprSet GetSubgraph(const Expr& expr) {
     expr_call_node_ = expr.as<CallNode>();
@@ -392,9 +404,9 @@ class OptionalSubgraphExtractor : public ExprVisitor {
   const CallNode* expr_call_node_ = nullptr;
 };
 
-class OptionalSubgraphMutator : public ExprMutator {
+class QATSubgraphMutator : public ExprMutator {
  public:
-  OptionalSubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
+  QATSubgraphMutator(ExprSet subgraph, AffineTypeMap affine_types, bool hard_fail)
       : subgraph_(subgraph), affine_types_(affine_types), hard_fail_(hard_fail) {}
 
   Expr MutateSubgraph(const Expr& expr) {
@@ -410,12 +422,12 @@ class OptionalSubgraphMutator : public ExprMutator {
       const Op op = Downcast<Op>(node.as<CallNode>()->op);
 
       if (node.as<CallNode>()->op != dequantize_op_) {
-        // Only modify the subgraph if we have translation
-        // rules for every op
         if (hard_fail_) {
-          LOG(FATAL) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+          LOG(FATAL) << "Not dequantization was found in the input arguments for"
+                     << AsText(op, false) << std::endl;
         } else {
-          DLOG(INFO) << "Found no rewrite rule for " << AsText(op, false) << std::endl;
+          DLOG(INFO) << "Not dequantization was found in the input arguments for "
+                     << AsText(op, false) << std::endl;
           return expr;
         }
       }
@@ -494,19 +506,19 @@ class OptionalSubgraphMutator : public ExprMutator {
   const CallNode* quantize_node_ = nullptr;
 };
 
-class OptionalFakeQuantizationRewriter : public MixedModeMutator {
+class QATRewriter : public MixedModeMutator {
  public:
-  explicit OptionalFakeQuantizationRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
+  explicit QATRewriter(bool hard_fail) : hard_fail_(hard_fail) {}
 
  protected:
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
     if (const CallNode* call_node = post.as<CallNode>()) {
       const Op op = Downcast<Op>(call_node->op);
       if (is_op_enabled_for_optional_fq2i(call_node)) {
-        OptionalSubgraphExtractor extractor;
+        QATSubgraphExtractor extractor;
         ExprSet subgraph = extractor.GetSubgraph(post);
         AffineTypeMap affine_types = extractor.GetAffineTypes();
-        Expr out = OptionalSubgraphMutator(subgraph, affine_types, hard_fail_).MutateSubgraph(post);
+        Expr out = QATSubgraphMutator(subgraph, affine_types, hard_fail_).MutateSubgraph(post);
         return out;
       }
     }
@@ -515,19 +527,22 @@ class OptionalFakeQuantizationRewriter : public MixedModeMutator {
   const bool hard_fail_;
 };
 
-Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail) {
+Expr FakeQuantizationToInteger(const Expr& expr, const IRModule& mod, bool hard_fail,
+                               bool use_qat) {
   auto fq_expr = FakeQuantizationRewriter(hard_fail).Mutate(expr);
-  auto fq_inferred_expr = tvm::relay::InferType(fq_expr);
-  auto ofq_expr = OptionalFakeQuantizationRewriter(hard_fail).Mutate(fq_inferred_expr);
-  return ofq_expr;
+  if (use_qat) {
+    fq_expr = tvm::relay::InferType(fq_expr);
+    fq_expr = QATRewriter(hard_fail).Mutate(fq_expr);
+  }
+  return fq_expr;
 }
 
 namespace transform {
 
-Pass FakeQuantizationToInteger(bool hard_fail) {
+Pass FakeQuantizationToInteger(bool hard_fail, bool use_qat) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail));
+        return Downcast<Function>(FakeQuantizationToInteger(f, m, hard_fail, use_qat));
       };
   return CreateFunctionPass(pass_func, 0, "FakeQuantizationToInteger", {"InferType"});
 }

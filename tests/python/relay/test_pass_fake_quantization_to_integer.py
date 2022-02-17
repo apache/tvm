@@ -17,7 +17,6 @@
 # pylint: disable=unused-wildcard-import
 import numpy as np
 import pytest
-import sys
 import tvm
 from tvm import relay
 from tvm.relay.transform import fake_quantization_to_integer
@@ -629,14 +628,11 @@ def test_fq_hard_fail():
         mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
 
 
-def compare_expected_fq_to_int(expr, expected_expr, args, allow_rounding_error=False):
+def compare_expected_fq_qat_to_int(expr, expected_expr, args, allow_rounding_error=False):
     mod = tvm.IRModule.from_expr(expr)
     mod_def = tvm.relay.transform.InferType()(mod)
-    mod_int = tvm.relay.transform.FakeQuantizationToInteger(False)(mod_def)
+    mod_int = tvm.relay.transform.FakeQuantizationToInteger(False, True)(mod_def)
     mod_exp = tvm.relay.transform.InferType()(tvm.IRModule.from_expr(expected_expr))
-    print("mod_def\n", mod_def, "\n")
-    print("mod_int\n", mod_int, "\n")
-    print("mod_exp\n", mod_exp, "\n")
     assert not tvm.ir.structural_equal(mod, mod_int)
     assert tvm.ir.structural_equal(mod_int, mod_exp)
     result_def = (
@@ -654,9 +650,6 @@ def compare_expected_fq_to_int(expr, expected_expr, args, allow_rounding_error=F
         .evaluate()(*args)
         .numpy()
     )
-    print("result_def\n", result_def)
-    print("result_int\n", result_int)
-    print("result_exp\n", result_exp)
     if allow_rounding_error:
         assert np.all(np.abs(result_def.astype("int32") - result_int.astype("int32")) <= 1)
     else:
@@ -665,7 +658,8 @@ def compare_expected_fq_to_int(expr, expected_expr, args, allow_rounding_error=F
     assert np.array_equal(result_int, result_exp)
 
 
-def test_fq2i_optional_op_chaind_with_disabled_op():
+def test_fq_qat_op_positive_part():
+    # Only the first operation is converted, since the next operation("add") is not enabled.
     shape_x = [1, 4, 2]
     shape_w = [1, 4, 2]
     a = relay.var("a", shape=shape_x, dtype="int8")
@@ -686,10 +680,11 @@ def test_fq2i_optional_op_chaind_with_disabled_op():
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
     w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np, w_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
 
 
-def test_fq2i_optional_negative():
+def test_fq_qat_negative_all():
+    # None of the operations are converted, since the first operation("add") is not enabled.
     shape_x = [1, 4, 2]
     shape_w = [1, 4, 2]
     a = relay.var("a", shape=shape_x, dtype="int8")
@@ -705,11 +700,11 @@ def test_fq2i_optional_negative():
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
     w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np, w_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
 
 
-def test_fq2i_optional_args():
-    # pron one
+def test_fq_qat_positive_single():
+    # The single operation is converted.
     shape_x = [1, 4, 2]
     shape_w = [1, 4, 2]
     a = relay.var("a", shape=shape_x, dtype="int8")
@@ -726,10 +721,11 @@ def test_fq2i_optional_args():
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
     w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np, w_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
 
 
-def test_fq2i_optional_idly():
+def test_fq_qat_positive_nothing_to_do():
+    # All operations are converted by the non-QAT pass.
     shape_x = [1, 4, 2]
     shape_w = [1, 4, 2]
     a = relay.var("a", shape=shape_x, dtype="int8")
@@ -763,10 +759,11 @@ def test_fq2i_optional_idly():
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
     w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np, w_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
 
 
-def test_fq2i_optional_op_chain():
+def test_fq_qat_positive_couple():
+    # Several consecutive operations are converted.
     shape_x = [1, 2, 4]
     shape_w = [2]
     a = relay.var("a", shape=shape_x, dtype="int8")
@@ -789,10 +786,11 @@ def test_fq2i_optional_op_chain():
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
     w_np = np.random.randint(-128, 127, size=shape_w, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np, w_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np, w_np])
 
 
-def test_fq2i_optional_one_arg():
+def test_fq_positive_single_arg_part():
+    # The single-argument operation is converted.
     shape_x = [1, 2, 4]
     a = relay.var("a", shape=shape_x, dtype="int8")
 
@@ -805,10 +803,11 @@ def test_fq2i_optional_one_arg():
     op1 = relay.qnn.op.dequantize(op0, relay.const(2.0), relay.const(0))
     expected_expr = relay.op.erf(op1)
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int8")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
 
 
-def test_fq2i_optional_intermediate_infertype():
+def test_fq_qat_intermediate_infertype():
+    # Complex conversion of non-QAT and QAT passes that form FakeQuantizationToInteger.
     shape_x = [1, 2, 4]
     x = relay.var("x", shape=shape_x, dtype="float32")
     const_0 = relay.const(np.random.uniform(size=[1, 4, 2]).astype("float32"))
@@ -836,8 +835,10 @@ def test_fq2i_optional_intermediate_infertype():
     expected_expr = relay.op.add(op5, relay.const(5.0))
 
     x_np = np.random.randint(-128, 127, size=shape_x, dtype="int32").astype("float32")
-    compare_expected_fq_to_int(expr, expected_expr, [x_np], False)
+    compare_expected_fq_qat_to_int(expr, expected_expr, [x_np])
 
 
 if __name__ == "__main__":
+    import sys
+
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

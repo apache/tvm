@@ -915,8 +915,6 @@ Type InferTypeLocal(const Expr& expr) {
   */
   SameTypedSubgraphExtractor subgraph_extractor;
   Expr sub_graph = subgraph_extractor(expr);
-  auto mod = IRModule::FromExpr(sub_graph);
-  mod = transform::InferType()(mod);
 
   Type result_type;
   result_type = relay::InferType(sub_graph)->checked_type();
