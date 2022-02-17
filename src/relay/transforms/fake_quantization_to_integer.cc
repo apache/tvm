@@ -308,7 +308,7 @@ class FakeQuantizationRewriter : public MixedModeMutator {
 bool is_op_enabled_for_optional_fq2i(const CallNode* call_node) {
   const Op op = Downcast<Op>(call_node->op);
   static auto fqfq = Op::GetAttrMap<FTVMFakeQuantizationToInteger>("FTVMFakeQuantizationToInteger");
-  static std::unordered_set<Op, tvm::ObjectHash, tvm::ObjectEqual> ops = {
+  static std::unordered_set<relay::Expr, tvm::ObjectHash, tvm::ObjectEqual> ops = {
       Op::Get("broadcast_to"),
       Op::Get("clip"),
       Op::Get("expand_dims"),
@@ -334,9 +334,7 @@ bool is_op_enabled_for_optional_fq2i(const CallNode* call_node) {
       Op::Get("strided_slice"),
       Op::Get("transpose")};
 
-  auto is_enabled = [&](const auto i) { return i == call_node->op; };
-  auto result = std::find_if(std::begin(ops), std::end(ops), is_enabled);
-  return result != ops.end() && fqfq.count(Downcast<Op>(op));
+  return ops.find(call_node->op) != ops.end() && fqfq.count(Downcast<Op>(op));
 }
 
 class QATSubgraphExtractor : public ExprVisitor {
