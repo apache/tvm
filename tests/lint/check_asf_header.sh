@@ -76,6 +76,7 @@ else
         echo "- Create file_list.txt in your text editor"
         echo "- Copy paste the above content in file-list into file_list.txt"
         echo "- python3 tests/lint/add_asf_header.py file_list.txt"
+        echo "When running via docker/lint.sh, add -i to automatically fix these problems."
     fi
     exit 1
 fi
