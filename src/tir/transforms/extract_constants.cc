@@ -19,29 +19,26 @@
 
 /*!
  * \file extract_constants.cc
- * \brief Collects constants from PrimFunc
-    TODO:
-    For more information, see the RFC:
-    TODO
-    https://discuss.tvm.apache.org/t/rfc-introducing-a-rolling-buffer-scheduling-primitive/9836
+ * \brief Collects PrimFunc's constant data into mod's 'tvm::attr::kConstantsArray' attrs array,
+ * sets irmod_storage_idx as index in this array.
+ * For more information, see the RFC:
+ * https://github.com/apache/tvm-rfcs/blob/main/rfcs/0022-tir-non-scalar-constants.md
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/transform.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/transform.h>
 
 #include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
 
-// Replaces constant data to index into mod's "Constants" attrs array.
-// Only processes tir::PrimFunc and ignores everything else
 using ConstArrayType = Array<runtime::NDArray>;
-class Applicator : public tir::StmtExprVisitor {
+class Applicator : public tir::StmtMutator {
  protected:
   // returns index of the a in constant_array_, if not found - appends
-  size_t deDup(const runtime::NDArray& a) {
+  size_t DeDup(const runtime::NDArray& a) {
     tvm::SEqualReducer eql;
     auto it = std::find_if(
         constant_array_.begin(), constant_array_.end(), [&eql, a](const runtime::NDArray& v) {
@@ -56,32 +53,28 @@ class Applicator : public tir::StmtExprVisitor {
   }
 
  public:
-  ConstArrayType Apply(tir::Stmt body, const ConstArrayType& constant_array) {
+  Stmt Apply(tir::Stmt body, const ConstArrayType& constant_array) {
     constant_array_ = constant_array;
-    this->VisitStmt(body);
-    return constant_array_;
+    return this->VisitStmt(body);
   }
 
-  void VisitStmt_(const tir::AllocateConstNode* acn) override {
-    tir::AllocateConstNode* node = const_cast<tir::AllocateConstNode*>(acn);
+  Stmt VisitStmt_(const tir::AllocateConstNode* acn) override {
     // Check whether the data already defined within the module's attrs
-    // and replace it with array index;
-    ICHECK(node->data) << "data field should be defined";
-    if (node->data) {
-      node->irmod_storage_idx = Optional<Integer>(Integer(deDup(node->data.value())));
-    }
-    tir::StmtExprVisitor::VisitStmt_(acn);
+    // and add array index.
+    ICHECK(acn->data) << "data field should be defined";
+    auto node = CopyOnWrite(acn);
+    node->irmod_storage_idx = Optional<Integer>(Integer(DeDup(node->data.value())));
+    return Stmt(node);
   }
 
- private:
   ConstArrayType constant_array_;
 };
 
 namespace transform {
 
-Pass ExtractPrimFuncConstants() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto* func = f.CopyOnWrite();
+tvm::transform::Pass ExtractPrimFuncConstants() {
+  auto prim_func_pass = [=](PrimFunc foo, IRModule m, tvm::transform::PassContext ctx) {
+    auto* func = foo.CopyOnWrite();
     if (!m->attrs.defined()) {
       m->attrs = DictAttrs(Map<String, ObjectRef>());
     }
@@ -90,14 +83,27 @@ Pass ExtractPrimFuncConstants() {
         (attrs->dict.count(tvm::attr::kConstantsArray))
             ? Downcast<ConstArrayType>(attrs->dict[tvm::attr::kConstantsArray])
             : ConstArrayType();
-
-    const ConstArrayType constant_list = Applicator().Apply(func->body, constant_array_);
+    Applicator a = Applicator();
+    func->body = a.Apply(func->body, constant_array_);
+    const ConstArrayType constant_list = a.constant_array_;
     if (constant_list.size()) {
       attrs->dict.Set(tvm::attr::kConstantsArray, constant_list);
     }
-    return f;
+    return GetRef<PrimFunc>(func);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.ExtractPrimFuncConstants", {});
+
+  auto pass_func = [=](IRModule module, tvm::transform::PassContext pc) {
+    auto m = GetRef<IRModule>(module.CopyOnWrite());
+    for (const auto& kv : m->functions) {
+      BaseFunc f = kv.second;
+      if (f->IsInstance<PrimFuncNode>()) {
+        m->Update(kv.first, prim_func_pass(GetRef<PrimFunc>(f.as<PrimFuncNode>()), m, pc));
+      }
+    }
+    return m;
+  };
+
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.ExtractPrimFuncConstants", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.ExtractPrimFuncConstants")
