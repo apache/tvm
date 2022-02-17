@@ -81,6 +81,7 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
     return DMA_FAILURE;
   }
 
+  dma_desc_set_state(dma_desc, DESC_STATE_READY);
   dma_desc_set_next(dma_desc, DMA_NULL_PTR);
   dma_desc_set_length(dma_desc, length);
   dma_desc_set_desctype(dma_desc, DESC_DESCTYPE_1D);
@@ -89,13 +90,13 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
   dma_desc_set_bypassdst(dma_desc, DESC_BYPASS_OFF);
   dma_desc_set_bypasssrc(dma_desc, DESC_BYPASS_OFF);
   dma_desc_set_order(dma_desc, DESC_ORDER_ORDER);
-  dma_desc_set_dstate(dma_desc, DESC_DSTATE_INCOMPLETE);
+  dma_desc_set_done(dma_desc, DESC_DONE_INCOMPLETE);
   dma_desc_set_src(dma_desc, src32);
   dma_desc_set_dst(dma_desc, dst32);
 
   dmstart(dma_desc);
   unsigned int status = dmwait() & DM0_STATUS_MASK;
-  unsigned int done = dma_desc_get_dstate(dma_desc);
+  unsigned int done = dma_desc_get_done(dma_desc);
 
 #ifdef _WIN32
   _aligned_free(dma_desc);
@@ -103,7 +104,7 @@ int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length) {
   free(dma_desc);
 #endif
 
-  if (status == DM0_STATUS_IDLE && done == DESC_DSTATE_COMPLETE) {
+  if (status == DM0_STATUS_IDLE && done == DESC_DONE_COMPLETE) {
     return DMA_SUCCESS;
   }
   return DMA_FAILURE;
