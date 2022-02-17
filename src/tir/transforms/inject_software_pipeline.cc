@@ -73,6 +73,104 @@ struct BufferAccessInfo {
   int use = -1;  // the last using stage of the buffer
 };
 
+class PipelineOpaqueAccessRewriter {
+ public:
+  /*!
+   * \brief Constructor
+   * \param buffer_data_to_buffer The map from buffer data to buffer.
+   * \param buffer_remap The map from original buffer to the buffer with updated shape for
+   *        multi-versioning in the software pipeline.
+   * \param pipeline_loop The original loop to be software pipelined.
+   * \param fragment_info Information about tensor core fragment
+   */
+  PipelineOpaqueAccessRewriter(
+      const Map<Var, Buffer>& buffer_data_to_buffer, const Map<Buffer, Buffer>& buffer_remap,
+      const For& pipeline_loop,
+      const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
+      : buffer_data_to_buffer_(buffer_data_to_buffer),
+        buffer_remap_(buffer_remap),
+        pipeline_loop_(pipeline_loop),
+        fragment_info_(fragment_info) {}
+
+  PrimExpr Rewrite(const Call& call) {
+    // Intrinsic calls should be handled explicitly here as they are opaque accesses to
+    // buffer.
+    static const auto& load_matrix_sync = builtin::tvm_load_matrix_sync();
+    static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
+    static const auto& mma_sync = builtin::tvm_mma_sync();
+    static const auto& access_ptr = builtin::tvm_access_ptr();
+    if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
+      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
+      auto it = buffer_remap_.find(buffer);
+      if (it != buffer_remap_.end()) {
+        Array<PrimExpr> new_args = call->args;
+        const Buffer& new_buffer = (*it).second;
+        new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
+        return Call(call->dtype, call->op, new_args, call->span);
+      }
+    } else if (call->op.same_as(mma_sync)) {
+      Array<PrimExpr> new_args = call->args;
+      for (int i = 0; i < 4; i++) {
+        const Var& buffer_var = Downcast<Var>(call->args[i * 2]);
+        const PrimExpr& index = call->args[i * 2 + 1];
+        const Buffer& buffer = buffer_data_to_buffer_.at(buffer_var);
+        auto it = buffer_remap_.find(buffer);
+        if (it != buffer_remap_.end()) {
+          PrimExpr new_index = RewriteWmmaFragmentIndex(buffer, (*it).second, index);
+          new_args.Set(i * 2 + 1, new_index);
+        }
+      }
+      return Call(call->dtype, call->op, new_args, call->span);
+    } else if (call->op.same_as(access_ptr)) {
+      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[1]));
+      auto it = buffer_remap_.find(buffer);
+      if (it != buffer_remap_.end()) {
+        Array<PrimExpr> new_args = call->args;
+        const Buffer& new_buffer = (*it).second;
+        const PrimExpr& old_index = call->args[2];
+        PrimExpr offset;
+        if (new_buffer->strides.empty()) {
+          offset = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                         make_const(DataType::Int(32), 1), buffer->shape);
+        } else {
+          offset = new_buffer->strides[0];
+        }
+        PrimExpr new_index = old_index + floormod(pipeline_loop_->loop_var, 2) * offset;
+        new_args.Set(2, new_index);
+        return Call(call->dtype, call->op, new_args, call->span);
+      }
+    }
+    return call;
+  }
+
+ private:
+  int GetWmmaFragmentSize(const Buffer& buffer) {
+    auto it = fragment_info_.find(buffer->data.get());
+    ICHECK(it != fragment_info_.end());
+    const FragmentInfo& info = (*it).second;
+    return info.GetSize();
+  }
+
+  PrimExpr RewriteWmmaFragmentIndex(const Buffer& old_buffer, const Buffer& new_buffer,
+                                    const PrimExpr& old_index) {
+    PrimExpr new_buffer_offset = old_index;
+
+    int fragment_size = GetWmmaFragmentSize(old_buffer);
+    PrimExpr offset =
+        floordiv(foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
+                       make_const(DataType::Int(32), 1), old_buffer->shape),
+                 fragment_size);
+    new_buffer_offset +=
+        floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]) * offset;
+    return new_buffer_offset;
+  }
+
+  const Map<Var, Buffer>& buffer_data_to_buffer_;
+  const Map<Buffer, Buffer>& buffer_remap_;
+  const For& pipeline_loop_;
+  const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
+};
+
 /*!
  * \brief Rewriter for the body of the software pipeline. This pass inserts `floormod` to indices
  * of the remapped buffer to select the version corresponding to the pipeline stage.
@@ -98,7 +196,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
         buffer_remap_(buffer_remap),
         pipeline_loop_(pipeline_loop),
         access_all_versions_(access_all_versions),
-        fragment_info_(fragment_info) {}
+        opaque_access_rewriter_(buffer_data_to_buffer_, buffer_remap_, pipeline_loop_,
+                                fragment_info) {}
 
  private:
   BufferRegion RewritePipelineBufferRegion(const BufferRegion& buffer_region) const {
@@ -168,88 +267,16 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return std::move(load);
   }
 
-  int GetWmmaFragmentSize(const Buffer& buffer) {
-    auto it = fragment_info_.find(buffer->data.get());
-    ICHECK(it != fragment_info_.end());
-    const FragmentInfo& info = (*it).second;
-    return info.GetSize();
-  }
-
-  PrimExpr RewriteWmmaFragmentIndex(const Buffer& old_buffer, const Buffer& new_buffer,
-                                    const PrimExpr& old_index) {
-    PrimExpr new_buffer_offset = old_index;
-
-    int fragment_size = GetWmmaFragmentSize(old_buffer);
-    PrimExpr offset =
-        floordiv(foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                       make_const(DataType::Int(32), 1), old_buffer->shape),
-                 fragment_size);
-    new_buffer_offset +=
-        floormod(pipeline_loop_->loop_var - pipeline_loop_->min, new_buffer->shape[0]) * offset;
-    return new_buffer_offset;
-  }
-
-  PrimExpr RewriteOpaqueAccesses(const Call& call) {
-    // Intrinsic calls should be handled explicitly here as they are opaque accesses to
-    // buffer.
-    static const auto& load_matrix_sync = builtin::tvm_load_matrix_sync();
-    static const auto& store_matrix_sync = builtin::tvm_store_matrix_sync();
-    static const auto& mma_sync = builtin::tvm_mma_sync();
-    static const auto& access_ptr = builtin::tvm_access_ptr();
-    if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
-      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[0]));
-      auto it = buffer_remap_.find(buffer);
-      if (it != buffer_remap_.end()) {
-        Array<PrimExpr> new_args = call->args;
-        const Buffer& new_buffer = (*it).second;
-        new_args.Set(4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4]));
-        return Call(call->dtype, call->op, new_args, call->span);
-      }
-    } else if (call->op.same_as(mma_sync)) {
-      Array<PrimExpr> new_args = call->args;
-      for (int i = 0; i < 4; i++) {
-        const Var& buffer_var = Downcast<Var>(call->args[i * 2]);
-        const PrimExpr& index = call->args[i * 2 + 1];
-        const Buffer& buffer = buffer_data_to_buffer_.at(buffer_var);
-        auto it = buffer_remap_.find(buffer);
-        if (it != buffer_remap_.end()) {
-          PrimExpr new_index = RewriteWmmaFragmentIndex(buffer, (*it).second, index);
-          new_args.Set(i * 2 + 1, new_index);
-        }
-      }
-      return Call(call->dtype, call->op, new_args, call->span);
-    } else if (call->op.same_as(access_ptr)) {
-      const Buffer& buffer = buffer_data_to_buffer_.at(Downcast<Var>(call->args[1]));
-      auto it = buffer_remap_.find(buffer);
-      if (it != buffer_remap_.end()) {
-        Array<PrimExpr> new_args = call->args;
-        const Buffer& new_buffer = (*it).second;
-        const PrimExpr& old_index = call->args[2];
-        PrimExpr offset;
-        if (new_buffer->strides.empty()) {
-          offset = foldl([](PrimExpr a, PrimExpr b, Span span) { return mul(a, b, span); },
-                         make_const(DataType::Int(32), 1), buffer->shape);
-        } else {
-          offset = new_buffer->strides[0];
-        }
-        PrimExpr new_index = old_index + floormod(pipeline_loop_->loop_var, 2) * offset;
-        new_args.Set(2, new_index);
-        return Call(call->dtype, call->op, new_args, call->span);
-      }
-    }
-    return call;
-  }
-
   PrimExpr VisitExpr_(const CallNode* op) final {
     Call call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
-    return RewriteOpaqueAccesses(call);
+    return opaque_access_rewriter_.Rewrite(call);
   }
 
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Buffer, Buffer> buffer_remap_;
   For pipeline_loop_;
   bool access_all_versions_;
-  const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
+  PipelineOpaqueAccessRewriter opaque_access_rewriter_;
 };
 
 /*!
