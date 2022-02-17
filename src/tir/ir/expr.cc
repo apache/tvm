@@ -1070,6 +1070,11 @@ void BufferLoadNode::LegalizeDtype() {
 }
 
 BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
+  ICHECK_EQ(buffer->shape.size(), indices.size())
+      << "Buffer " << buffer->name << " is " << buffer->shape.size()
+      << "-dimensional, cannot be indexed with the " << indices.size()
+      << "-dimensional indices provided.";
+
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);

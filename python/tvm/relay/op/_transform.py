@@ -200,10 +200,10 @@ _reg.register_shape_func("invert_permutation", False, elemwise_shape_func)
 @script
 def _arange_shape_func(start, stop, step):
     out = output_tensor((1,), "int64")
-    if step[0] < 0:
-        out[0] = int64(ceil_div((int64(start[0]) - int64(stop[0])), int64(-step[0])))
+    if step[()] < 0:
+        out[0] = int64(ceil_div((int64(start[()]) - int64(stop[()])), int64(-step[()])))
     else:
-        out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
+        out[0] = int64(ceil_div((int64(stop[()]) - int64(start[()])), int64(step[()])))
     return out
 
 
