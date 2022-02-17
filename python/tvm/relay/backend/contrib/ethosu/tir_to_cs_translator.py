@@ -81,6 +81,12 @@ class RegionOffset(NamedTuple):
 
 def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scratch: List[int]):
     """
+    This function analyzes the IRModule for intermediary tensors that can be resulting
+    from a offset of pool variables (via Let nodes) and/or allocate nodes. The allocate
+    nodes will be folded into a single TVMBackendallocWorkspace call with offsets. Ultimately
+    this will produce a mapping from each such node to a RegionOffset named tuple that
+    has the region and the obtained offset, as mentioned above.
+
     Parameters
     ----------
     mod: tvm.IRModule
@@ -90,7 +96,7 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
 
     Returns
     -------
-    scratch_region_map : Dict[tvm.tir.Var, int]
+    scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
         A map between buffer vars to scratch regions they are assigned
     tvm_backend_alloc_workspace_size : int
         The size of tvm_backend_alloc_workspace call required to service
@@ -195,6 +201,11 @@ def translate(tir_module, params):
     base_addresses : List[util.BaseAddress]
         base addresses to be used by the driver
     """
+
+    # The NPU has 6 usable regions ranging from 0-6
+    # The regions 0, 3, and 4 is already used for input,
+    # output and constant, respectively (See _get_regions()).
+    # Thus, for scratch we are left with 5, 2 and 1.
     candidate_regions_for_scratch = [5, 2, 1]
     (
         scratch_region_map,

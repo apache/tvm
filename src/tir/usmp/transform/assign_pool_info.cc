@@ -84,11 +84,11 @@ PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) 
   for (const auto& kv : module->functions) {
     BaseFunc func = kv.second;
     Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
-    target_access.Set(target.value_or(target_host), PoolInfo::kTargetPoolReadWriteAccess);
+    target_access.Set(target.value_or(target_host), kTargetPoolReadWriteAccess);
   }
   return PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
-                  kUnknownClockFrequency, kUnknownReadBandwidth,
-                  kUnknownWriteBandwidth, 0, 0, {}, Bool(true));
+                  kUnknownClockFrequency, kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0, {},
+                  Bool(true));
 }
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
