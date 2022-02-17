@@ -106,6 +106,17 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr, IRModule mod
  */
 Expr PartitionPattern(DFPattern pattern, Expr expr, Map<String, ObjectRef> attrs, PackedFunc check);
 
+/*!
+ * \brief Infer the type of an expression.
+ *
+ * \param expr The expression to rewrite
+ *
+ * \return Return An Expr with unambiguous type information filled in, as well as it's
+ * checked type field populated with the result type.
+ *
+ */
+Expr InferType(const Expr& expr);
+
 }  // namespace relay
 }  // namespace tvm
 

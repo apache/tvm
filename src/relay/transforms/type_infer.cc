@@ -41,6 +41,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/relay/transform.h>
@@ -918,11 +919,7 @@ Type InferTypeLocal(const Expr& expr) {
   mod = transform::InferType()(mod);
 
   Type result_type;
-  if (expr.as<FunctionNode>()) {
-    result_type = mod->Lookup("main")->checked_type();
-  } else {
-    result_type = mod->Lookup("main").as<FunctionNode>()->body->checked_type();
-  }
+  result_type = relay::InferType(sub_graph)->checked_type();
 
   expr->checked_type_ = result_type;
   return result_type;
