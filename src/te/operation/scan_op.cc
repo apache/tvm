@@ -144,6 +144,7 @@ Operation ScanOpNode::ReplaceInputs(const Operation& self,
                                     const std::unordered_map<Tensor, Tensor>& rmap) const {
   ICHECK_EQ(self.operator->(), this);
   auto n = make_object<ScanOpNode>(*this);
+  n->outputs = Array<Tensor>();
   for (size_t i = 0; i < n->init.size(); ++i) {
     if (rmap.count(n->init[i])) {
       n->init.Set(i, rmap.at(n->init[i]));

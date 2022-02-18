@@ -79,6 +79,7 @@ String TensorNode::GetNameHint() const {
 }
 
 Tensor Operation::output(size_t n) const {
+  // cache the output tensors if empty
   if ((*this)->outputs.empty()) {
     auto* ptr = static_cast<OperationNode*>(get_mutable());
     size_t num = static_cast<size_t>((*this)->num_outputs());

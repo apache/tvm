@@ -511,6 +511,7 @@ class HybridOpNode : public OperationNode {
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
     v->Visit("inputs", &inputs);
+    v->Visit("outputs", &outputs);
     v->Visit("symbolic_outputs", &symbolic_outputs);
     v->Visit("axis", &axis);
     v->Visit("body", &body);
