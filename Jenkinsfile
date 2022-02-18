@@ -399,7 +399,7 @@ stage('Build') {
               label: 'Build Hexagon API',
             )
             sh (
-              script: "${docker_run} ${ci_qemu} ./tests/scripts/task_python_hexagon.sh",
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
               label: 'Run Hexagon tests',
             )
           } finally {

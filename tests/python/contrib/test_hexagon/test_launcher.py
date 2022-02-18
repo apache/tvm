@@ -50,7 +50,7 @@ def test_add(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     func.save(dso_binary_path)
 
     if not android_serial_number:
-        logging.info("Skip hardware test.")
+        logging.info("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
         return
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
@@ -98,7 +98,7 @@ def test_add_vtcm(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     func.save(dso_binary_path)
 
     if not android_serial_number:
-        logging.info("Skip hardware test.")
+        logging.info("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
         return
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
@@ -154,7 +154,7 @@ class TestMatMul:
         func.save(dso_binary_path)
 
         if not android_serial_number:
-            logging.info("Skip hardware test.")
+            logging.info("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
             return
 
         launcher = HexagonLauncher(serial_number=android_serial_number)
@@ -230,7 +230,7 @@ def test_graph_executor(android_serial_number, tvm_tracker_host, tvm_tracker_por
         lowered.get_lib().save(dso_binary_path)
 
     if not android_serial_number:
-        logging.info("Skip hardware test.")
+        logging.info("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
         return
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
