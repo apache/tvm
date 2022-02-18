@@ -129,10 +129,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
     // Cast int->float when the other operand is a float
     rhs = cast(ltype, rhs);
   } else if (!ltype.is_bfloat16() &&
-             (rtype.is_bfloat16() || datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
+             (rtype.is_bfloat16() ||
+              datatype::Registry::Global()->GetTypeRegistered(rtype.code()))) {
     // Cast int->bfloat16 when the other operand is a bfloat16
     lhs = cast(rtype, lhs);
-  } else if ((ltype.is_bfloat16() || datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
+  } else if ((ltype.is_bfloat16() ||
+              datatype::Registry::Global()->GetTypeRegistered(ltype.code())) &&
              !rtype.is_bfloat16()) {
     // Cast int->bfloat16 when the other operand is a bfloat16
     rhs = cast(ltype, rhs);
