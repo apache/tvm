@@ -130,8 +130,10 @@ TEST(Metadata, Visitor) {
   TestVisitor v;
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
-  EXPECT_THAT(v.keys,
-              ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("outputs"), StrEq("mod_name")));
+  EXPECT_THAT(v.keys, ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"),
+                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("mod_name")));
+  EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
+
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
   // Just identify the tensor.
@@ -150,14 +152,18 @@ TEST(Metadata, Visitor) {
   EXPECT_THAT(input1->shape(), ElementsAre(1, 5, 5, 3));
   EXPECT_THAT(input1->dtype(), tvm::runtime::DataType(DLDataType{1, 2, 3}));
 
-  auto output_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[2]);
+  auto num_inputs = Downcast<tvm::IntImm>(v.values[2]);
+  EXPECT_THAT(num_inputs->value, Eq(2));
+
+  auto output_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[3]);
   EXPECT_THAT(output_array->type_index, Eq(tvm::runtime::metadata::MetadataTypeIndex::kMetadata));
   EXPECT_THAT(output_array->struct_name, StrEq("TVMTensorInfo"));
   auto output1 = Downcast<tvm::runtime::metadata::TensorInfo>(output_array->array[0]);
 
   EXPECT_THAT(output1->name(), Eq("output1"));
 
-  EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
+  auto num_outputs = Downcast<tvm::IntImm>(v.values[4]);
+  EXPECT_THAT(num_outputs->value, Eq(1));
 }
 
 using ::tvm::runtime::make_object;

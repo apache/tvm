@@ -51,6 +51,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     ::tvm::runtime::metadata::MetadataArray inputs_metadata_array{
         inputs_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
     v->Visit("inputs", &inputs_metadata_array);
+    int64_t num_inputs_cpp = num_inputs();
+    v->Visit("num_inputs", &num_inputs_cpp);
     auto outputs_array = Array<ObjectRef>();
     auto outputs_accessor = outputs();
     outputs_array.reserve(num_outputs());
@@ -60,6 +62,8 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
     ::tvm::runtime::metadata::MetadataArray outputs_metadata_array{
         outputs_array, ::tvm::runtime::metadata::MetadataTypeIndex::kMetadata, "TVMTensorInfo"};
     v->Visit("outputs", &outputs_metadata_array);
+    int64_t num_outputs_cpp = num_outputs();
+    v->Visit("num_outputs", &num_outputs_cpp);
     ::std::string mod_name_cpp{data()->mod_name};
     v->Visit("mod_name", &mod_name_cpp);
   }
@@ -119,6 +123,8 @@ class VisitableTensorInfoNode : public ::tvm::runtime::metadata::TensorInfoNode 
     ::tvm::runtime::metadata::MetadataArray shape_metadata_array{
         shape_array, ::tvm::runtime::metadata::MetadataTypeIndex::kInt64, nullptr};
     v->Visit("shape", &shape_metadata_array);
+    int64_t num_shape_cpp = num_shape();
+    v->Visit("num_shape", &num_shape_cpp);
     ::tvm::runtime::DataType dtype_cpp{dtype()};
     v->Visit("dtype", &dtype_cpp);
   }
