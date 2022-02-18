@@ -102,9 +102,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     )
                 else:
                     strategy.add_implementation(
-                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw),
-                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw),
-                        name="conv2d_nchw.arm_cpu",
+                        wrap_compute_conv2d(topi.x86.conv2d_nchw),
+                        wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
+                        name="conv2d_nchw.x86",
                     )
 
                 # check if winograd algorithm is applicable

@@ -254,7 +254,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         return relay.nn.conv2d(*inputs, **new_attrs)
 
-    if topi_tmpl == "conv2d_NCHWc.arm_cpu":
+    if topi_tmpl == "conv2d_NCHWc.x86":
         # Converting NCHW to NCHWc.
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         if cfg.is_fallback:

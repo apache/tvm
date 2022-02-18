@@ -26,8 +26,6 @@ import tvm.contrib.nnpack
 from ..utils import traverse_inline, get_const_tuple
 from .. import nn
 from ..nn.utils import get_const_int, get_pad_tuple
-from ..x86.conv2d import conv2d_NCHWc_compute, schedule_conv2d_NCHWc
-from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.winograd_util import winograd_transform_matrices
 from .conv2d_spatial_pack import (
     conv2d_spatial_pack_nchw,
@@ -520,29 +518,3 @@ def conv2d_nhwc_dsp(cfg, data, kernel, strides, padding, dilation, out_dtype):
 def schedule_conv2d_nhwc_dsp(cfg, outs):
     """Create schedule for conv2d_nhwc_dsp"""
     return conv2d_nhwc_dsp_schedule(cfg, outs)
-
-
-@autotvm.register_topi_compute("conv2d_NCHWc.arm_cpu")
-def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
-    # pylint: disable=no-value-for-parameter
-    return conv2d_NCHWc_compute(
-        cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
-    )
-
-
-@autotvm.register_topi_schedule("conv2d_NCHWc.arm_cpu")
-def schedule_conv2d_NCHWc_arm(cfg, outs):
-    return schedule_conv2d_NCHWc(cfg, outs)
-
-
-def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
-    layout = "NCHW"
-    # pylint: disable=no-value-for-parameter
-    packed_out = conv2d_NCHWc(data, kernel, strides, padding, dilation, layout, layout, out_dtype)
-    return unpack_NCHWc_to_nchw(packed_out, out_dtype)
-
-
-def schedule_conv2d_nchw(outs):
-    """Create schedule for tensors"""
-    # pylint: disable=no-value-for-parameter
-    return schedule_conv2d_NCHWc_arm(outs)
