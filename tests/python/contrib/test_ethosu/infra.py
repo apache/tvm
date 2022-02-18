@@ -565,8 +565,8 @@ def get_binary_elementwise_args(call, include_buffers=False):
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             binary_elementwise_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            binary_elementwise_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            binary_elementwise_args.append(arg.indices[0])
         else:
             binary_elementwise_args.append(arg)
 
