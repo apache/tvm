@@ -54,7 +54,7 @@ macro(file_glob_append _output_list)
   set(${_output_list} ${_tmp1})
 endmacro()
 
-set(TVMRT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/runtime")
+set(TVMRT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime")
 
 # First, verify that USE_HEXAGON_DEVICE has a valid value.
 if(DEFINED USE_HEXAGON_DEVICE)

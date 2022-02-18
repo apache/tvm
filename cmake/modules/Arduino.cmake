@@ -43,7 +43,7 @@ if(USE_MICRO)
       math(EXPR job_spec_stop "${job_spec_length} - 3")
 
       list(GET job_spec 0 job_src_base)
-      set(job_src_base "${CMAKE_SOURCE_DIR}/${job_src_base}")
+      set(job_src_base "${CMAKE_CURRENT_SOURCE_DIR}/${job_src_base}")
       foreach(copy_pattern_index RANGE 1 "${job_spec_stop}" 3)
         list(GET job_spec ${copy_pattern_index} copy_pattern)
         math(EXPR copy_dest_index "${copy_pattern_index} + 2")
