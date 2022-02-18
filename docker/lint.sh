@@ -37,6 +37,9 @@ function run_lint_step() {
             ;;
         asf)
             cmd=( tests/lint/check_asf_header.sh --local )
+            if [ $inplace_fix -eq 1 ]; then
+                cmd=( "${cmd[@]}" --fix )
+            fi
             ;;
         clang_format)
             if [ $inplace_fix -eq 0 ]; then
@@ -76,6 +79,9 @@ function run_lint_step() {
         *)
             echo "error: don't know how to run lint step: $1" >&2
             echo "usage: ${SCRIPT_NAME} [-i] <lint_step>" >&2
+            echo >&2
+            echo "options:" >&2
+            echo " -i    Fix lint errors in-place where possible (modifies non-compliant files)" >&2
             echo >&2
             echo "available lint_step: ${DEFAULT_STEPS[@]}" >&2
             exit 2
