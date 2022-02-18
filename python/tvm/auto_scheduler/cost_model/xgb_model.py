@@ -110,7 +110,6 @@ class XGBModel(PythonBasedModel):
         seed=None,
         model_file=None,
         adapative_training=False,
-
     ):
         global xgb
         try:
@@ -135,8 +134,8 @@ class XGBModel(PythonBasedModel):
             "tree_method": "gpu_hist",
             "predictor": "gpu_predictor",
             "nthread": multiprocessing.cpu_count(),
-            #"n_gpus": 0,
-            #"nthread": multiprocessing.cpu_count() // 2,
+            # "n_gpus": 0,
+            # "nthread": multiprocessing.cpu_count() // 2,
             "verbosity": 0,
             "seed": seed or 43,
             "disable_default_eval_metric": 1,
@@ -345,6 +344,7 @@ class XGBModel(PythonBasedModel):
             self.bst = xgb.Booster(self.xgb_params)
         self.bst.load_model(file_name)
         self.num_warmup_sample = -1
+
 
 def feature_to_pack_sum_xgbmatrix(xs):
     """Convert an extracted multi-stage feature vector to a xgbmatrx in pack-sum format

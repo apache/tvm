@@ -1198,8 +1198,34 @@ def _rpc_run_worker(args):
 
 
 def rpc_runner_run_parallel(args):
-    n_parallel, inputs, build_results, key, host, port, priority, timeout, number, repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush, verbose, device_id = args
+    """Run function of RPCRunner to test the performance of the input BuildResults.
 
+    Parameters
+    ----------
+    args : Tuple[MeasureInput, BuildResult, ...]
+        Parallel number plus the rest of the arguments to `rpc_runner_run`.
+    Returns
+    -------
+    res : map[_rpc_run_worker]
+        The parallel rpc worker.
+    """
+    (
+        n_parallel,
+        inputs,
+        build_results,
+        key,
+        host,
+        port,
+        priority,
+        timeout,
+        number,
+        repeat,
+        min_repeat_ms,
+        cooldown_interval,
+        enable_cpu_cache_flush,
+        verbose,
+        device_id,
+    ) = args
     # This pool is not doing computationally intensive work, so we can use threads
     pool = multiprocessing.pool.ThreadPool(n_parallel)
     tuple_res = pool.map(
@@ -1229,6 +1255,7 @@ def rpc_runner_run_parallel(args):
     del pool
 
     return tuple_res
+
 
 @tvm._ffi.register_func("auto_scheduler.rpc_runner.run")
 def rpc_runner_run(
@@ -1301,37 +1328,7 @@ def rpc_runner_run(
         The measure results of these MeasureInputs.
     """
     assert len(inputs) == len(build_results), "Measure input size should be equal to build results"
-    '''
-    # This pool is not doing computationally intensive work, so we can use threads
-    device_number = int(os.environ.get('TVM_DEVICE_NUMBER', '1'))
-    run_per_device = len(inputs) // device_number
-    end_index = 0
-    args_list = []
-    for i in range(device_number):
-        if i < len(inputs) % device_number:
-            run_times = run_per_device + 1
-        else:
-            run_times = run_per_device
-        if i != 0:
-            key = os.environ.get(f"TVM_RPC_KEY-{i}", "-1")
-            host = os.environ.get(f"TVM_RPC_HOST-{i}", "-1")
-            port = int(os.environ.get(f"TVM_RPC_PORT-{i}", "-1"))
-            assert '-1' not in [key, host] and -1 != port
-        args_list.append((n_parallel, inputs[end_index: end_index + run_times], build_results[end_index: end_index + run_times], key, host, port, priority, timeout, number, repeat, min_repeat_ms, cooldown_interval, enable_cpu_cache_flush, verbose, i))
-        end_index += run_times
 
-    if device_number > 1:
-        pool = multiprocessing.Pool.ThreadPool(device_number)
-        tuple_res_list = pool.map(rpc_runner_run_parallel, args_list)
-        pool.terminate()
-        pool.join()
-        del pool
-        tuple_res = []
-        for entry in tuple_res_list:
-            tuple_res += entry
-    else:
-        tuple_res = rpc_runner_run_parallel(args_list[0])
-    '''
     executor = PopenPoolExecutor(n_parallel)
     tuple_res = executor.map_with_error_catching(
         _rpc_run_worker,
@@ -1355,10 +1352,6 @@ def rpc_runner_run(
             for inp, build_res in zip(inputs, build_results)
         ],
     )
-    
-
-
-
 
     results = []
     for i, res in enumerate(tuple_res):

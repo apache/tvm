@@ -28,7 +28,6 @@ import math
 import logging
 
 import numpy as np
-from tvm.auto_scheduler.cost_model import cost_model
 
 from .search_policy import SearchPolicy, SketchPolicy, PreloadMeasuredStates
 from .cost_model import RandomModel, XGBModel
@@ -49,7 +48,7 @@ def make_search_policies(
     family_group,
     load_model_file=None,
     load_log_file=None,
-    adapative_training=False, 
+    adapative_training=False,
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -205,9 +204,7 @@ def make_family_group(
     tasks,
     search_policy,
 ):
-    """identify each subgraphs and group them into subgraph family.
-    
-    """
+    """identify each subgraphs and group them into subgraph family."""
     if search_policy == "default":
         search_policy = "sketch.xgb"
 
@@ -215,16 +212,16 @@ def make_family_group(
         policy = search_policy.split(".")
         if len(policy) == 2:
             return {}
-        elif len(policy) == 3:
+        if len(policy) == 3:
             _, _, model_group = policy
             _, class_type = model_group.split("_")
         else:
             raise ValueError("Invalid search policy: " + search_policy)
-        
+
     family_group = {}
     if class_type == "op":
         for idx, task in enumerate(tasks):
-            task_layers = task.desc.split('_')
+            task_layers = task.desc.split("_")
             if task_layers[1] not in family_group:
                 family_group[task_layers[1]] = []
                 family_group[task_layers[1]].append(idx)
@@ -233,8 +230,8 @@ def make_family_group(
 
     elif class_type == "hash":
         for idx, task in enumerate(tasks):
-            first = task.workload_key.find("[\"") + 2
-            end = task.workload_key.find("\",")
+            first = task.workload_key.find('["') + 2
+            end = task.workload_key.find('",')
             task_hash = task.workload_key[first:end]
             if task_hash not in family_group:
                 family_group[task_hash] = []
@@ -249,12 +246,13 @@ def make_family_group(
                 family_group[task.workload_key].append(idx)
             else:
                 family_group[task.workload_key].append(idx)
-        
+
     if family_group is not None:
         for key, value in family_group.items():
             print("family group :", key, "---", value)
 
     return family_group
+
 
 class TaskScheduler:
     """
@@ -354,7 +352,7 @@ class TaskScheduler:
         self.cur_score = self._compute_score(self.best_costs)
 
         self.tune_option = self.measurer = self.search_policies = None
-        #ct: number of trial
+        # ct: number of trial
         self.ct = self.best_ct = self.best_score = self.tic = None
         self.num_measures_per_round = None
         self.dead_tasks = set()
@@ -531,12 +529,12 @@ class TaskScheduler:
                     task_idx = np.random.choice(len(gradients))
                 else:
                     task_idx = np.argmin(gradients)
-                
+
             else:
                 raise ValueError("Invalid strategy: " + self.strategy)
 
             self._tune_task(task_idx)
-            
+
             # tune family subgraph
             if self.family_group is not None:
                 tune_task_family = []
@@ -544,15 +542,15 @@ class TaskScheduler:
                     if task_idx in task_family:
                         tune_task_family = list(task_family)
                         tune_task_family.remove(task_idx)
-                        for dead_task_idx in self.dead_tasks:
-                            if dead_task_idx in tune_task_family:
-                                tune_task_family.remove(dead_task_idx)
+                for dead_task_idx in self.dead_tasks:
+                    if dead_task_idx in tune_task_family:
+                        tune_task_family.remove(dead_task_idx)
                 if tune_task_family:
                     print(tune_task_family)
-                    family_gradients = []   
+                    family_gradients = []
                     for family_task_idx in tune_task_family:
                         family_gradients.append(gradients[family_task_idx])
-                    
+
                     if max(family_gradients) == min(family_gradients):
                         family_task_idx = tune_task_family[np.random.choice(len(family_gradients))]
                     else:
@@ -561,7 +559,6 @@ class TaskScheduler:
                     print("family next id:", family_task_idx)
                     self._tune_family_task([family_task_idx], 16)
 
-            
             self._adjust_similarity_group(task_idx)
 
             if self.cur_score < self.best_score:
@@ -577,11 +574,11 @@ class TaskScheduler:
                         + " measurement trials."
                     )
                 break
-    
+
     def _tune_family_task(
-        self, 
-        task_idx_groups, 
-        skip_measures_per_round,  
+        self,
+        task_idx_groups,
+        skip_measures_per_round,
     ):
         """Tune the select family tasks for one round.
 
@@ -597,13 +594,13 @@ class TaskScheduler:
             for callback in self.callbacks:
                 callback.pre_tune(self, task_idx)
 
-            measure_inputs, measure_results = self.search_policies[task_idx].continue_search_one_round(
+            m_inputs, m_results = self.search_policies[task_idx].continue_search_one_round(
                 skip_measures_per_round, self.measurer
             )
 
-            #self.task_cts[task_idx] += 1
+            # self.task_cts[task_idx] += 1
 
-            for res in measure_results:
+            for res in m_results:
                 cost = array_mean(res.costs)
                 if cost < self.best_costs[task_idx]:
                     self.task_best_cts[task_idx] = self.task_cts[task_idx]
@@ -614,11 +611,11 @@ class TaskScheduler:
             no_change_trials = (
                 self.task_cts[task_idx] - self.task_best_cts[task_idx]
             ) * skip_measures_per_round
-            if len(measure_inputs) == 0 or no_change_trials > self.early_stopping_task:
+            if len(m_inputs) == 0 or no_change_trials > self.early_stopping_task:
                 self.dead_tasks.add(task_idx)
-                
+
             self.task_costs_history[task_idx].append(self.best_costs[task_idx])
-            self.ct += len(measure_inputs)
+            self.ct += len(m_inputs)
             self.cur_score = self._compute_score(self.best_costs)
 
             # Run post-tune callbacks
@@ -651,7 +648,7 @@ class TaskScheduler:
         ) * self.num_measures_per_round
         if len(measure_inputs) == 0 or no_change_trials > self.early_stopping_task:
             self.dead_tasks.add(task_idx)
-            
+
         self.task_costs_history[task_idx].append(self.best_costs[task_idx])
 
         self.ct += len(measure_inputs)
@@ -782,9 +779,12 @@ class PrintTableInfo(TaskSchedulerCallback):
                 if task_scheduler.best_costs[i] < 1e9
                 else "-"
             )
-            
+
             trials_str = "%d" % (task_scheduler.task_cts[i] * task_scheduler.num_measures_per_round)
-            print("| %4s | %12s | % 18s | % 14s | %6s |" % (id_str, latency_str, t_latency_str, speed_str, trials_str))
+            print(
+                "| %4s | %12s | % 18s | % 14s | %6s |"
+                % (id_str, latency_str, t_latency_str, speed_str, trials_str)
+            )
         print("----------------------------------------------------------------------")
 
         # overall info
