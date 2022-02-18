@@ -67,16 +67,12 @@ if(DEFINED USE_HEXAGON_DEVICE)
   endif()
 endif()
 
-if(BUILD_FOR_HEXAGON)
-  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
-  # Add SDK and QuRT includes when building for Hexagon.
-  include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
-endif()
-
 # This .cmake file is included when building any part of TVM for any
 # architecture. It shouldn't require any Hexagon-specific parameters
 # (like the path to the SDK), unless it's needed.
-# Two flags can enable some Hexagon-related functionality:
+#
+# Aside from building the code for Hexagon, two flags can enable some
+# Hexagon-related functionality:
 # - USE_HEXAGON_DEVICE
 # - USE_HEXAGON_RPC
 #
@@ -92,7 +88,7 @@ if(NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
 endif()
 
 
-if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC)
+if(NOT USE_HEXAGON_DEVICE AND NOT USE_HEXAGON_RPC AND NOT BUILD_FOR_HEXAGON)
   # If nothing related to Hexagon is enabled, add phony Hexagon codegen,
   # and some stuff needed by cpptests (this part is a temporary workaround
   # until e2e support for Hexagon is enabled).
@@ -126,6 +122,15 @@ file_glob_append(RUNTIME_HEXAGON_COMMON_SRCS
   "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
   "${TVMRT_SOURCE_DIR}/hexagon/hexagon/*.cc"
 )
+
+
+if(BUILD_FOR_HEXAGON)
+  find_hexagon_sdk_root("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}")
+  # Add SDK and QuRT includes when building for Hexagon.
+  include_directories(SYSTEM ${HEXAGON_SDK_INCLUDES} ${HEXAGON_QURT_INCLUDES})
+
+  list(APPEND RUNTIME_HEXAGON_SRCS ${RUNTIME_HEXAGON_COMMON_SRCS})
+endif()
 
 
 if(USE_HEXAGON_DEVICE)
