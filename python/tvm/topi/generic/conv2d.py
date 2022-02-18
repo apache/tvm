@@ -191,8 +191,10 @@ def schedule_conv_NCHWc_cpu_common_int8(
 
     ow_chunk, ow_block = s[CC].split(ow, factor=reg_n)
 
-    assert oc_bn % int32_lanes == 0, f"{oc_bn=} % {int32_lanes=} != 0"
-    assert ic_bn % int8_elems == 0, f"{ic_bn=} % {int8_elems=} != 0"  # (u)int8 elements in (u)int32
+    assert oc_bn % int32_lanes == 0, f"oc_bn={oc_bn} % int32_lanes={int32_lanes} != 0"
+    assert (
+        ic_bn % int8_elems == 0
+    ), f"ic_bn={ic_bn} % int8_elems={int8_elems} != 0"  # (u)int8 elements in (u)int32
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
