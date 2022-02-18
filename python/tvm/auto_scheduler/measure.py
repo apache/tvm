@@ -1070,7 +1070,7 @@ def _rpc_run(
     cooldown_interval,
     enable_cpu_cache_flush,
     verbose,
-    device_id,
+    device,
 ):
     inp = MeasureInput.deserialize(inp_serialized)
     tic = time.time()
@@ -1081,7 +1081,7 @@ def _rpc_run(
         remote = request_remote(key, host, port, priority, timeout)
         remote.upload(build_res.filename)
         func = remote.load_module(os.path.split(build_res.filename)[1])
-        dev = remote.device(str(inp.task.target), device_id)
+        dev = remote.device(str(inp.task.target), device)
         # Limitation:
         # We can not get PackFunction directly in the remote mode as it is wrapped
         # under the std::function. We could lift the restriction later once we fold
@@ -1170,7 +1170,7 @@ def _rpc_run_worker(args):
     res : MeasureResult
         The measure result of this Runner thread.
     """
-    _, build_res, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
+    _, build_res, _, _, _, _, _, timeout, _, _, _, _, _, verbose, _ = args
     if build_res.error_no != MeasureErrorNo.NO_ERROR:
         return (
             (MAX_FLOAT,),

@@ -342,7 +342,7 @@ def distill_record_file(in_file, out_file):
 
 def top5_record_file(in_file, out_file):
     """
-    Pick the top5 entries from a record file and store them to another file using the stupidest way.
+    Pick the top5 entries from a record file and store them to another file using the regular expression way.
     This function distills the useful log entries from a large log file.
     If out_file already exists, the best entries from both
     in_file and out_file will be saved.
