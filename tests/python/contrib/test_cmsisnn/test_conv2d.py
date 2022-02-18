@@ -213,6 +213,7 @@ def test_conv2d_symmetric_padding_int8(
     )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -302,6 +303,7 @@ def test_conv2d_asymmetric_padding_int8(
     )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize("kernel_size", [(3, 3)])
