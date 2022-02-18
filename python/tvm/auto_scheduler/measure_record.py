@@ -362,9 +362,6 @@ def top5_record_file(in_file, out_file):
         out_context = load_records(out_file)
         context = itertools.chain(context, out_context)
 
-    def measure_input_str_key(inp):
-        return _ffi_api.SerializeMeasureInput(inp)
-
     # Dict[target key,
     #   Dict[workload hash,
     #     Dict[workload args, (cost, (MeasureInput, MeasureResult))]]]
@@ -372,7 +369,7 @@ def top5_record_file(in_file, out_file):
 
     record_cost = []
 
-    for inp, res in context:
+    for _, res in context:
         if res.error_no != 0:
             continue
 
@@ -383,7 +380,6 @@ def top5_record_file(in_file, out_file):
         record_cost.append(cost)
     
     import re
-    record_top5 = {}
     record_min_stack = {}
     record_list = {}
 
@@ -400,7 +396,7 @@ def top5_record_file(in_file, out_file):
             record_min_stack[workload_key] = []
             record_list[workload_key] = []
         else:
-            if len(record_min_stack[workload_key]) < 2:
+            if len(record_min_stack[workload_key]) < 5:
                 record_min_stack[workload_key].append(speed)
                 record_list[workload_key].append(line)
             else:
@@ -416,7 +412,7 @@ def top5_record_file(in_file, out_file):
         idx = idx + 1
     
     # sort to minimum list
-    for workload_key,key_list in record_list.items():
+    for workload_key, _ in record_list.items():
         lpi = 0 
         while lpi < len(record_min_stack[workload_key]):
             lpj = lpi + 1
@@ -436,7 +432,7 @@ def top5_record_file(in_file, out_file):
     for re_list in record_list.values():
         for line in re_list:
             f.write(line)
-    logger.info("Extract %d best records from %s to %s", len(record_list)*2, in_file, out_file)
+    logger.info("Extract %d best records from %s to %s", len(record_list)*5, in_file, out_file)
 
 
 def main():

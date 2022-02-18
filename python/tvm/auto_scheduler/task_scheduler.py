@@ -49,9 +49,7 @@ def make_search_policies(
     family_group,
     load_model_file=None,
     load_log_file=None,
-    adapative_training=False,
-    
-    
+    adapative_training=False, 
 ):
     """Make a list of search policies for a list of search tasks.
     It creates one policy per task.
@@ -95,14 +93,13 @@ def make_search_policies(
             model_group = None
         elif len(policy) == 3:
             policy_type, model_type, model_group = policy
-        
         if policy_type == "sketch":
             if load_log_file:
                 # use the log file to restore the status of search policies.
                 init_search_callbacks = [PreloadMeasuredStates(load_log_file)]
             else:
                 init_search_callbacks = None
-        if model_group == None:
+        if model_group is None:
             if model_type == "xgb":
                 cost_model = XGBModel(
                     num_warmup_sample=len(tasks) * num_measures_per_round,
@@ -131,7 +128,7 @@ def make_search_policies(
             ]
         elif "family" in model_group:
             cost_model_pool = []
-            for _,group in family_group.items():
+            for _, group in family_group.items():
                 if model_type == "xgb":
                     cost_model = XGBModel(
                         num_warmup_sample=len(group) * num_measures_per_round,
@@ -150,8 +147,8 @@ def make_search_policies(
                     raise ValueError("Invalid search policy: " + search_policy)
                 cost_model_pool.append(cost_model)
             search_policies = []
-            for task_idx,task in enumerate(tasks):
-                for group_idx,group in enumerate(family_group.values()):
+            for task_idx, task in enumerate(tasks):
+                for group_idx, group in enumerate(family_group.values()):
                     if task_idx in group:
                         search_policies.append(
                             SketchPolicy(
@@ -208,6 +205,9 @@ def make_family_group(
     tasks,
     search_policy,
 ):
+    """identify each subgraphs and group them into subgraph family.
+    
+    """
     if search_policy == "default":
         search_policy = "sketch.xgb"
 
@@ -216,16 +216,15 @@ def make_family_group(
         if len(policy) == 2:
             return {}
         elif len(policy) == 3:
-            policy_type, model_type, model_group = policy
+            _, _, model_group = policy
             _, class_type = model_group.split("_")
         else:
             raise ValueError("Invalid search policy: " + search_policy)
         
-
     family_group = {}
     if class_type == "op":
         for idx, task in enumerate(tasks):
-            task_layers=task.desc.split('_')
+            task_layers = task.desc.split('_')
             if task_layers[1] not in family_group:
                 family_group[task_layers[1]] = []
                 family_group[task_layers[1]].append(idx)
@@ -234,7 +233,9 @@ def make_family_group(
 
     elif class_type == "hash":
         for idx, task in enumerate(tasks):
-            task_hash=task.workload_key[2:34]
+            first = task.workload_key.find("[\"") + 2
+            end = task.workload_key.find("\",")
+            task_hash = task.workload_key[first:end]
             if task_hash not in family_group:
                 family_group[task_hash] = []
                 family_group[task_hash].append(idx)
@@ -249,9 +250,8 @@ def make_family_group(
             else:
                 family_group[task.workload_key].append(idx)
         
-
     if family_group is not None:
-        for key,value in family_group.items():
+        for key, value in family_group.items():
             print("family group :", key, "---", value)
 
     return family_group
@@ -376,9 +376,8 @@ class TaskScheduler:
                 self.group_task_ids.append([])
             self.group_task_ids[self.tag_to_group_id[tag]].append(i)
 
-
+        # Family subgraphs
         self.family_group = {}
-
 
     def tune(
         self,
@@ -466,10 +465,6 @@ class TaskScheduler:
                 self._tune_task(idx)
         self.best_ct = self.ct
         self.best_score = self.cur_score
-        
-        # set each cost model to activate prediction
-        #for cm in self.cost_model_pool.values():
-        #    cm.set_warmup()
 
         # use the specific strategy to choose workload to tune
         task_idx = -1
@@ -542,19 +537,19 @@ class TaskScheduler:
 
             self._tune_task(task_idx)
             
-            #TODO family group code
+            # tune family subgraph
             if self.family_group is not None:
                 tune_task_family = []
                 for task_family in self.family_group.values():
                     if task_idx in task_family:
-                        tune_task_family =list(task_family)
+                        tune_task_family = list(task_family)
                         tune_task_family.remove(task_idx)
                         for dead_task_idx in self.dead_tasks:
                             if dead_task_idx in tune_task_family:
                                 tune_task_family.remove(dead_task_idx)
-                print (tune_task_family)
                 if tune_task_family:
-                    family_gradients= []   
+                    print(tune_task_family)
+                    family_gradients = []   
                     for family_task_idx in tune_task_family:
                         family_gradients.append(gradients[family_task_idx])
                     
@@ -562,9 +557,9 @@ class TaskScheduler:
                         family_task_idx = tune_task_family[np.random.choice(len(family_gradients))]
                     else:
                         family_task_idx = tune_task_family[np.argmin(family_gradients)]
-                    print (family_gradients)
-                    print("family next id:",family_task_idx)
-                    self._tune_family_task([family_task_idx],16)
+                    print(family_gradients)
+                    print("family next id:", family_task_idx)
+                    self._tune_family_task([family_task_idx], 16)
 
             
             self._adjust_similarity_group(task_idx)
@@ -583,11 +578,19 @@ class TaskScheduler:
                     )
                 break
     
-    def _tune_family_task(self, task_idx_groups,skip_measures_per_round):
-        """Tune the select family task for one round.
-           The family task 
-        
-        
+    def _tune_family_task(
+        self, 
+        task_idx_groups, 
+        skip_measures_per_round,  
+    ):
+        """Tune the select family tasks for one round.
+
+        Parameters
+        ----------
+        task_idx_groups: : List[task_id]
+            The list of family tasks to tune.
+        skip_measures_per_round : int
+            measurement trials to use on each family task.
         """
         for task_idx in task_idx_groups:
             # Run pre-tune callbacks
@@ -615,10 +618,7 @@ class TaskScheduler:
                 self.dead_tasks.add(task_idx)
                 
             self.task_costs_history[task_idx].append(self.best_costs[task_idx])
-            if (len(measure_inputs) == skip_measures_per_round):
-                self.ct += skip_measures_per_round
-            else:
-                self.ct +=len(measure_inputs)
+            self.ct += len(measure_inputs)
             self.cur_score = self._compute_score(self.best_costs)
 
             # Run post-tune callbacks

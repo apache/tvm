@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import auto_scheduler
 
-from tvm.testing.auto_scheduler import matmul_auto_scheduler_test
+from tvm.testing.auto_scheduler import matmul_auto_scheduler_test, softmax_nm_auto_scheduler_test
 
 
 @tvm.testing.requires_llvm
@@ -139,7 +139,38 @@ def test_task_scheduler_gradient():
         del measure_ctx
 
 
+@tvm.testing.requires_llvm
+def test_task_scheduler_family():
+    tasks = []
+    for n in [2, 4]:
+        tasks.append(
+            auto_scheduler.SearchTask(
+                func=matmul_auto_scheduler_test, args=(n, n, n), target="llvm"
+            )
+        )
+    for n in [2,4]:
+        tasks.append(
+            auto_scheduler.SearchTask(
+                func=softmax_nm_auto_scheduler_test, args=(n, n), target="llvm"
+            )
+        )
+    
+    family_group = auto_scheduler.task_scheduler.make_family_group(tasks,search_policy="sketch.random.family_hash")    
+    assert family_group == {
+        'matmul_auto_scheduler_test': [0, 1],
+        'softmax_nm_auto_scheduler_test': [2, 3]
+        }
+
+    family_group = auto_scheduler.task_scheduler.make_family_group(tasks,search_policy="sketch.random.family_ind")    
+    assert family_group == {
+        '["matmul_auto_scheduler_test", 2, 2, 2]': [0],
+        '["matmul_auto_scheduler_test", 4, 4, 4]': [1],
+        '["softmax_nm_auto_scheduler_test", 2, 2]': [2], 
+        '["softmax_nm_auto_scheduler_test", 4, 4]': [3]
+        }
+
 if __name__ == "__main__":
     test_task_scheduler_round_robin()
     test_task_scheduler_round_robin_spawn()
     test_task_scheduler_gradient()
+    test_task_scheduler_family()

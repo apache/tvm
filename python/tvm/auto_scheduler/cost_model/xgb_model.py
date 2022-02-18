@@ -148,8 +148,6 @@ class XGBModel(PythonBasedModel):
         self.model_file = model_file
         self.adapative_training = adapative_training
 
-
-        
         super().__init__()
 
         # cache measurement input/result pairs and extracted features
@@ -174,7 +172,6 @@ class XGBModel(PythonBasedModel):
 
         self.inputs.extend(inputs)
         self.results.extend(results)
-            
         if (
             self.adapative_training
             and len(self.inputs) - self.last_train_length < self.last_train_length / 5
