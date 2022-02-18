@@ -524,6 +524,7 @@ def schedule_conv2d_nhwc_dsp(cfg, outs):
 
 @autotvm.register_topi_compute("conv2d_NCHWc.arm_cpu")
 def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
+    # pylint: disable=no-value-for-parameter
     return conv2d_NCHWc_compute(
         cfg, data, kernel, strides, padding, dilation, layout, out_layout, out_dtype
     )
@@ -536,10 +537,12 @@ def schedule_conv2d_NCHWc_arm(cfg, outs):
 
 def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype):
     layout = "NCHW"
+    # pylint: disable=no-value-for-parameter
     packed_out = conv2d_NCHWc(data, kernel, strides, padding, dilation, layout, layout, out_dtype)
     return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
 
 def schedule_conv2d_nchw(outs):
     """Create schedule for tensors"""
+    # pylint: disable=no-value-for-parameter
     return schedule_conv2d_NCHWc_arm(outs)

@@ -187,6 +187,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype):
     """Compute conv2d with NCHW layout and int8 dtype"""
     layout = "NCHW"
+    # pylint: disable=no-value-for-parameter
     packed_out = conv2d_NCHWc_int8(
         data, kernel, strides, padding, dilation, layout, layout, out_dtype
     )
@@ -195,6 +196,7 @@ def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype):
 
 def schedule_conv2d_nchw_int8(outs):
     """Create the schedule for conv2d_nchw_int8"""
+    # pylint: disable=no-value-for-parameter
     return schedule_conv2d_NCHWc_int8(outs)
 
 
