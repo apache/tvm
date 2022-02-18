@@ -202,6 +202,10 @@ struct BlockVarDomainInfo {
     if (analyzer->CanProveEqual(dom.min(), intersect.min()) &&
         analyzer->CanProveEqual(dom.max(), intersect.max())) {
       bound = arith::IntSet::Nothing();
+    } else if (analyzer->CanProveEqual(bound.min(), intersect.min()) &&
+               analyzer->CanProveEqual(bound.max(), intersect.max())) {
+      dom = bound;
+      bound = arith::IntSet::Nothing();
     }
   }
 };
