@@ -315,6 +315,7 @@ def EncodeConstants(const_dict):
     new_const_dict = {}
     buffer_to_const = {}
     pointer_to_buffer = {}
+    encoded_buffers = set()
     rewrite_buffer = {}
     rewrite_pointer = {}
     accel_config = vela_api.get_accelerator_config()
@@ -348,6 +349,7 @@ def EncodeConstants(const_dict):
 
         rewrite_buffer[old_buffer] = new_buffer
         rewrite_pointer[old_buffer.data] = new_buffer.data
+        encoded_buffers.add(new_buffer)
 
     def _visit_encode_pre(stmt):
         if isinstance(stmt, tvm.tir.Call):
@@ -416,7 +418,7 @@ def EncodeConstants(const_dict):
                     if old_buffer.data in pointer_to_buffer:
                         new_buffer = pointer_to_buffer[old_buffer.data]
                         # Only rewrite the arguments of buffers that have been encoded
-                        if new_buffer in new_buffers:
+                        if new_buffer in encoded_buffers:
                             new_arg = np.prod(list(new_buffer.shape))
                             new_args.append(new_arg)
                             continue
