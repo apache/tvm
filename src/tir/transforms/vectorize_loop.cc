@@ -91,8 +91,6 @@ class VecAllocAccess : public StmtExprMutator {
       return node;
     }
 
-    arith::Analyzer analyzer;
-
     // Find/make a Buffer object with the correct updated shape.
     Buffer buf;
     auto it = buffer_map_.find(node->buffer.get());
@@ -103,7 +101,7 @@ class VecAllocAccess : public StmtExprMutator {
       // var_lanes_.  Typically, this will be a 1-d index into a flat
       // memory space.
       Array<PrimExpr> shape = node->buffer->shape;
-      shape.Set(shape.size() - 1, analyzer.Simplify(shape[shape.size() - 1] * var_lanes_));
+      shape.Set(shape.size() - 1, analyzer_.Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
       // StorageFlatten/FlattenBuffer, implement by appending a
@@ -118,7 +116,7 @@ class VecAllocAccess : public StmtExprMutator {
         if (i != strides.size() - 1) {
           stride *= var_lanes_;
         }
-        strides.push_back(analyzer.Simplify(stride));
+        strides.push_back(analyzer_.Simplify(stride));
       }
 
       // Copy everything into the new buffer.
@@ -133,7 +131,7 @@ class VecAllocAccess : public StmtExprMutator {
     // variable.
     Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
-                analyzer.Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
+                analyzer_.Simplify(indices[indices.size() - 1] * var_lanes_ + var_));
 
     auto writer = node.CopyOnWrite();
     writer->buffer = buf;
@@ -149,6 +147,8 @@ class VecAllocAccess : public StmtExprMutator {
   Var var_;
   // the lanes.
   int var_lanes_;
+  // Analyzer for simplifications
+  arith::Analyzer analyzer_;
 };
 
 // We use ExprFunctor directly instead of StmtExprMutator
