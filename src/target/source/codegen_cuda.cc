@@ -1048,7 +1048,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
                                  std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
-  std::string shape_str = fragment_shapes[variable];
+  std::string shape_str = fragment_shapes.at(variable);
   if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
     type.str(std::string());
     if (t.is_int()) {
@@ -1084,18 +1084,27 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
   }
 }
 
+int stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    LOG(FATAL) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
-  std::string shape_str = fragment_shapes[variable];
+  std::string shape_str = fragment_shapes.at(variable);
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;
   pos = shape_str.find(", ", last_pos);
-  m = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  m = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
   last_pos = pos + 2;
   pos = shape_str.find(", ", last_pos);
-  n = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  n = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
   last_pos = pos + 2;
-  k = std::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  k = tvm::codegen::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
   if (scope == "wmma.matrix_a") {
     return size / m / k;
   } else if (scope == "wmma.matrix_b") {
