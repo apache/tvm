@@ -27,6 +27,7 @@
 
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/transform.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 
@@ -147,11 +148,17 @@ Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_
   // TODO(@electriclilies): I think we can get rid of FunctionOnDevice eventually.
   ICHECK_EQ(param_virtual_devices.size(), function->params.size())
   << "There should be one virtual device per function parameter.";
-  Array<Var> annoated_params;
+  Array<Var> annotated_params;
+  Map<Var, Expr> free_var_bind_map;
   for (size_t i = 0; i < function->params.size(); i++) {
-    annoated_params.push_back(WithFields(function->params[i], {}, {}, param_virtual_devices[i]));
+    Var annotated_param = WithFields(function->params[i], {}, {}, param_virtual_devices[i]);
+    annotated_params.push_back(annotated_param);
+    // We are creating new parameters so we need to substitute uses of the old parameters with the new ones
+    free_var_bind_map.Set(function->params[i], annotated_param);
   }
-  auto func = WithFields(std::move(function), std::move(annoated_params), {}, {}, {}, {}, std::move(result_virtual_device));
+  
+  // bind here? in helper?
+  auto func = WithFields(function, annotated_params, Bind(function->body, free_var_bind_map), {}, {}, {}, std::move(result_virtual_device));
   VLOG(1) << "Annotated func: " << PrettyPrint(func);
   return func;
 }
