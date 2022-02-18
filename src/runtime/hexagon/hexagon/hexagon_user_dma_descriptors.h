@@ -27,7 +27,11 @@ namespace hexagon {
 // NOTE: Using 2D descriptor size even for 1D descriptors
 #define DMA_DESC_2D_SIZE 32
 
-// TODO(Straw): DMA Status [0][3:0]?
+// DMA State
+// desc[0][3:0]
+#define DESC_STATE_MASK 0x0000000F
+#define DESC_STATE_SHIFT 0
+#define DESC_STATE_READY 0
 
 // desc[0][31:4]
 // Descriptors addresses must be (minimum) 16 byte aligned
@@ -72,10 +76,10 @@ namespace hexagon {
 #define DESC_ORDER_ORDER 1
 
 // desc[1][31]
-#define DESC_DSTATE_MASK 0x80000000
-#define DESC_DSTATE_SHIFT 31
-#define DESC_DSTATE_INCOMPLETE 0
-#define DESC_DSTATE_COMPLETE 1
+#define DESC_DONE_MASK 0x80000000
+#define DESC_DONE_SHIFT 31
+#define DESC_DONE_INCOMPLETE 0
+#define DESC_DONE_COMPLETE 1
 
 // desc[2]
 #define DESC_SRC_MASK 0xFFFFFFFF
@@ -130,8 +134,8 @@ namespace hexagon {
 /* 1D (linear) descriptor */
 /**************************/
 struct dma_desc_1d_t {
-  unsigned int next;
-  unsigned int dstate_order_bypass_comp_desctype_length;
+  unsigned int next_state;
+  unsigned int done_order_bypass_comp_desctype_length;
   unsigned int src;
   unsigned int dst;
 };
@@ -140,8 +144,8 @@ struct dma_desc_1d_t {
 /* 2D (box) descriptor */
 /***********************/
 struct dma_desc_2d_t {
-  unsigned int next;
-  unsigned int dstate_order_bypass_comp_desctype_length;
+  unsigned int next_state;
+  unsigned int done_order_bypass_comp_desctype_length;
   unsigned int src;
   unsigned int dst;
   unsigned int allocation_padding;
@@ -150,26 +154,33 @@ struct dma_desc_2d_t {
   unsigned int dstwidthoffset_srcwidthoffset;
 };
 
+// desc[0][3:0]
+inline void dma_desc_set_state(void* dma_desc_ptr, unsigned int v) {
+  dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
+  (dma_desc_1d_ptr->next_state) &= ~DESC_STATE_MASK;
+  (dma_desc_1d_ptr->next_state) |= ((v << DESC_STATE_SHIFT) & DESC_STATE_MASK);
+}
+
 // desc[0][31:4]
 inline void dma_desc_set_next(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->next) &= ~DESC_NEXT_MASK;
-  (dma_desc_1d_ptr->next) |= ((v << DESC_NEXT_SHIFT) & DESC_NEXT_MASK);
+  (dma_desc_1d_ptr->next_state) &= ~DESC_NEXT_MASK;
+  (dma_desc_1d_ptr->next_state) |= ((v << DESC_NEXT_SHIFT) & DESC_NEXT_MASK);
 }
 
 // desc[1][23:0]
 inline void dma_desc_set_length(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_LENGTH_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_LENGTH_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_LENGTH_SHIFT) & DESC_LENGTH_MASK);
 }
 
 // desc[1][25:24]
 inline void dma_desc_set_desctype(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_DESCTYPE_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_DESCTYPE_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_DESCTYPE_SHIFT) & DESC_DESCTYPE_MASK);
 }
 
@@ -177,8 +188,8 @@ inline void dma_desc_set_desctype(void* dma_desc_ptr, unsigned int v) {
 // desc[1][26]
 inline void dma_desc_set_dstcomp(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_DSTCOMP_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_DSTCOMP_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_DSTCOMP_SHIFT) & DESC_DSTCOMP_MASK);
 }
 
@@ -186,48 +197,48 @@ inline void dma_desc_set_dstcomp(void* dma_desc_ptr, unsigned int v) {
 // desc[1][27]
 inline void dma_desc_set_srccomp(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_SRCCOMP_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_SRCCOMP_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_SRCCOMP_SHIFT) & DESC_SRCCOMP_MASK);
 }
 
 // desc[1][28]
 inline void dma_desc_set_bypassdst(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_BYPASSDST_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_BYPASSDST_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_BYPASSDST_SHIFT) & DESC_BYPASSDST_MASK);
 }
 
 // desc[1][29]
 inline void dma_desc_set_bypasssrc(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_BYPASSSRC_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_BYPASSSRC_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_BYPASSSRC_SHIFT) & DESC_BYPASSSRC_MASK);
 }
 
 // desc[1][30]
 inline void dma_desc_set_order(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_ORDER_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_ORDER_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
       ((v << DESC_ORDER_SHIFT) & DESC_ORDER_MASK);
 }
 
 // desc[1][31]
-inline void dma_desc_set_dstate(void* dma_desc_ptr, unsigned int v) {
+inline void dma_desc_set_done(void* dma_desc_ptr, unsigned int v) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) &= ~DESC_DSTATE_MASK;
-  (dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) |=
-      ((v << DESC_DSTATE_SHIFT) & DESC_DSTATE_MASK);
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) &= ~DESC_DONE_MASK;
+  (dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) |=
+      ((v << DESC_DONE_SHIFT) & DESC_DONE_MASK);
 }
 
 // desc[1][31]
-inline unsigned int dma_desc_get_dstate(void* dma_desc_ptr) {
+inline unsigned int dma_desc_get_done(void* dma_desc_ptr) {
   dma_desc_1d_t* dma_desc_1d_ptr = reinterpret_cast<dma_desc_1d_t*>(dma_desc_ptr);
-  return (((dma_desc_1d_ptr->dstate_order_bypass_comp_desctype_length) & DESC_DSTATE_MASK) >>
-          DESC_DSTATE_SHIFT);
+  return (((dma_desc_1d_ptr->done_order_bypass_comp_desctype_length) & DESC_DONE_MASK) >>
+          DESC_DONE_SHIFT);
 }
 
 // desc[2]
