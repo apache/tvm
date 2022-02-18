@@ -666,6 +666,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
             and stride_w == 1
             and dilation_h == 1
             and dilation_w == 1
+            and attrs["groups"] == 1
         ):
             strategy.add_implementation(
                 wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd),
@@ -688,7 +689,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                     (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0)
                     or (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0)
                     or (N % 32 == 0 and CI % 16 == 0 and CO % 8 == 0)
-                ):
+                ) and out_type == "float16":
                     strategy.add_implementation(
                         wrap_compute_conv3d(topi.cuda.conv3d_ndhwc_tensorcore),
                         wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc_tensorcore),
