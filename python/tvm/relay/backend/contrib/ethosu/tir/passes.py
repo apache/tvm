@@ -729,6 +729,7 @@ def CreatePrimFuncWithoutConstants(const_dict):
     def _ftransform(f, mod, ctx):
         new_params = list()
         new_buffer_map = dict()
+        new_preflattened_buffer_map = dict()
         for param_idx in const_dict.keys():
             # We are using buffer_var to key the constants as
             # PrimFunc params of constants will be removed.
@@ -737,12 +738,13 @@ def CreatePrimFuncWithoutConstants(const_dict):
             if i not in const_dict.keys():
                 new_params.append(f.params[i])
                 new_buffer_map[f.params[i]] = f.buffer_map[f.params[i]]
+                new_preflattened_buffer_map[f.params[i]] = f.preflattened_buffer_map[f.params[i]]
         return tvm.tir.PrimFunc(
             new_params,
             f.body,
             f.ret_type,
             new_buffer_map,
-            f.preflattened_buffer_map,
+            new_preflattened_buffer_map,
             f.attrs,
             f.span,
         )
