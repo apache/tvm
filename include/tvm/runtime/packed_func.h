@@ -56,6 +56,205 @@ class TVMArgValue;
 class TVMMovableArgValueWithContext_;
 class TVMRetValue;
 class TVMArgsSetter;
+template <typename FType> class TypedPackedFunc;
+template <typename TSignature> struct SignaturePrinter;
+
+
+namespace details {
+namespace signature {
+  template <typename T> struct FunctionSignature;
+}
+namespace type2str {
+
+using details::signature::FunctionSignature;
+
+template <typename T> struct TypeSimplifier;
+
+template <typename T> struct Type2Str {
+  template<typename = std::enable_if_t<std::is_base_of<ObjectRef, T>::value>>
+  static std::string v() {
+    return T::ContainerType::_type_key;
+  }
+};
+template <> struct Type2Str<int> { static std::string v() {return "int";} };
+template <> struct Type2Str<double> { static std::string v() {return "double";} };
+template <> struct Type2Str<long int> { static std::string v() {return "long int";} };
+template <> struct Type2Str<long unsigned int> { static std::string v() {return "long unsigned int";} };
+template <> struct Type2Str<bool> { static std::string v() {return "bool";} };
+template <> struct Type2Str<void> { static std::string v() {return "void";} };
+template <> struct Type2Str<std::basic_string<char> > { static std::string v() {return "basic_string<char>";} };
+template <typename K, typename V> struct Type2Str<Map<K, V> > {
+  static std::string v() {return "Map<" + TypeSimplifier<K>::v() + ", " + TypeSimplifier<V>::v() + ">";}
+};
+template <> struct Type2Str<DLDevice> { static std::string v() {return "DLDevice";} };
+
+template <> struct Type2Str<DLTensor> { static std::string v() {return "DLTensor";} };
+
+template <> struct Type2Str<DataType> { static std::string v() {return "DataType";} };
+template <> struct Type2Str<TVMRetValue> { static std::string v() {return "TVMRetValue";} };
+template <> struct Type2Str<TVMArgValue> { static std::string v() {return "TVMArgValue";} };
+template <typename FType> struct Type2Str<TypedPackedFunc<FType> > { 
+  static std::string v() {return SignaturePrinter<FunctionSignature<FType> >::F();} 
+};
+
+// template <typename R, typename... Args> struct Type2Str<TypedPackedFunc<R(Args...)> > { 
+//   static std::string v() {return SignaturePrinter<FunctionSignature<R(Args...)> >::F();} 
+// };
+
+template <typename T> 
+struct Type2Str<Array<T> > { 
+  static std::string v() {return "Array<" + TypeSimplifier<T>::v() + ">";} 
+};
+template <typename T> struct TypeSimplifier {
+  static std::string v() {
+    using U = typename std::remove_cv<typename std::remove_reference<typename std::remove_pointer<T>::type>::type>::type;
+    return (std::is_const<T>::value? "const " : "") + 
+      Type2Str<U>::v() + 
+      (std::is_reference<T>::value? "&" : "") +
+      (std::is_pointer<T>::value? "*" : "");
+  }
+};
+
+}
+}
+
+namespace details {
+namespace parameter_pack {
+
+template <typename ...EnumArgs>
+struct EnumeratedParamPack {
+
+  struct Invoke0 {
+    template <
+      template <size_t i, typename TArgument> class Functor,
+      typename... ExtraParams
+    >
+    static void F(ExtraParams&&... extra_params) {
+      using TExpander = int[];
+      (void) TExpander {0,
+        (Functor<EnumArgs::i, typename EnumArgs::T>::F(extra_params...), 0)...,
+      };
+    }
+  };
+
+};
+
+template <typename ...Args>
+struct EnumerateImpl {
+ private:
+  template <size_t _i, typename _T>
+  struct Item {
+    static const constexpr size_t i = _i;
+    using T = _T;
+  };
+
+  template<typename...> struct Zipper;
+
+  template<std::size_t... id>
+  struct Zipper<std::integer_sequence<std::size_t, id...>> {
+    using T = EnumeratedParamPack<Item<id, Args>...>;
+  };
+
+ public:
+  using T = typename Zipper<std::index_sequence_for<Args...>>::T;
+};
+
+template <typename ...Args>
+using Enumerate = typename EnumerateImpl<Args...>::T;
+
+
+template <typename ...Args>
+struct ParamPack {
+
+  template <
+    template <size_t i, typename TArgument> class Functor,
+    typename... ExtraParams
+  >
+  static void InvokeWithoutArg(ExtraParams&&... extra_params) {
+    Enumerate<Args...>::                              //
+      Invoke0::                                       //
+      template F<Functor, ExtraParams...>(            //
+          std::forward<ExtraParams>(extra_params)...  //
+      );
+  }
+};
+
+}
+}
+
+namespace details {
+namespace signature {
+
+template <typename T>
+struct Helper;
+
+template <typename T, typename R, typename... Args>
+struct Helper<R (T::*)(Args...)> {
+  using TFunc = R(Args...);
+  using TParam = details::parameter_pack::ParamPack<Args...>;
+  using TRet = R;
+};
+
+template <typename T, typename R, typename... Args>
+struct Helper<R (T::*)(Args...) const> {
+  using TFunc = R(Args...);
+  using TParam = details::parameter_pack::ParamPack<Args...>;
+  using TRet = R;
+};
+
+template <typename T>
+struct FunctionSignature {
+  using TFunc = typename Helper<decltype(&T::operator())>::TFunc;
+  using TParam = typename Helper<decltype(&T::operator())>::TParam;
+  using TRet = typename Helper<decltype(&T::operator())>::TRet;
+};
+
+// handle case of function.
+template <typename R, typename... Args>
+struct FunctionSignature<R(Args...)> {
+  using TFunc = R(Args...);
+  using TParam = details::parameter_pack::ParamPack<Args...>;
+  using TRet = R;
+};
+
+// handle case of function ptr.
+template <typename R, typename... Args>
+struct FunctionSignature<R (*)(Args...)> {
+  using TFunc = R(Args...);
+  using TParam = details::parameter_pack::ParamPack<Args...>;
+  using TRet = R;
+};
+
+}
+}
+
+
+using details::signature::FunctionSignature;
+using details::type2str::Type2Str;
+using details::type2str::TypeSimplifier;
+using details::parameter_pack::ParamPack;
+
+template <typename TSignature>
+struct SignaturePrinter {
+  using TParam = typename TSignature::TParam;
+  using TRet = typename TSignature::TRet;
+
+  template <size_t i, typename TArgument>
+  struct PrintParamType {
+    static void F(std::ostream& os) {
+      os << "  " << i << " : " << TypeSimplifier<TArgument>::v() << "," << std::endl;
+    }
+  };
+
+  static std::string F() {
+    std::ostringstream oss;
+    oss << "(" << std::endl;
+    TParam::template InvokeWithoutArg<PrintParamType>(oss);
+    oss << ") -> " << TypeSimplifier<TRet>::v() << std::endl << std::endl;
+    return oss.str();
+  }
+};
+
 
 /*!
  * \brief Object container class that backs PackedFunc.
@@ -92,6 +291,8 @@ class PackedFuncObj : public Object {
   /*! \brief The internal callable function type. */
   using FCallPacked = void(const PackedFuncObj*, TVMArgs, TVMRetValue*);
 
+  using FSig = std::string();
+
   /*!
    * \brief Constructing a packed function object from a function pointer.
    * \param f_call_pack The function pointer used to call the packed function.
@@ -103,6 +304,10 @@ class PackedFuncObj : public Object {
 
   /*! \brief Internal callable function pointer used to call the packed function. */
   FCallPacked* f_call_packed_;
+  FSig* f_sig_ = nullptr;
+
+  template <typename FType>
+  friend class TypedPackedFunc;
 };
 
 /*! \brief Derived object class for constructing PackedFuncObj. */
@@ -176,6 +381,10 @@ class PackedFunc : public ObjectRef {
   bool operator!=(std::nullptr_t null) const { return data_ != nullptr; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PackedFunc, ObjectRef, PackedFuncObj);
+
+
+  template <typename FType>
+  friend class TypedPackedFunc;
 };
 
 /*!
@@ -1527,6 +1736,7 @@ inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, std::s
     }
     detail::unpack_call<R, sizeof...(Args)>(&name, flambda, args, rv);
   });
+  static_cast<PackedFuncObj*>(packed_.data_.get())->f_sig_ = SignaturePrinter<FunctionSignature<R(Args...)> >::F;
 }
 
 template <typename R, typename... Args>
@@ -1539,6 +1749,7 @@ inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
     }
     detail::unpack_call<R, sizeof...(Args)>(nullptr, flambda, args, rv);
   });
+  static_cast<PackedFuncObj*>(packed_.data_.get())->f_sig_ = SignaturePrinter<FunctionSignature<R(Args...)> >::F;
 }
 
 template <typename R, typename... Args>
