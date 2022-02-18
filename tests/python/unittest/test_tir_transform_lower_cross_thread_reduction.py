@@ -25,14 +25,7 @@ from tvm.script import tir as T
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original)
     mod = tvm.tir.transform.LowerCrossThreadReduction()(mod)
-    try:
-        tvm.ir.assert_structural_equal(mod["main"], transformed, True)
-    except ValueError:
-        with open("temp_expected.txt", "w") as f:
-            f.write(transformed.script())
-        with open("temp_observed.txt", "w") as f:
-            f.write(mod["main"].script())
-        raise
+    tvm.ir.assert_structural_equal(mod["main"], transformed, True)
 
 
 def _check_fail(original):
