@@ -1160,8 +1160,14 @@ class Parser {
           ICHECK(vid.as<VirtualDeviceNode>())
               << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
               << vid->GetTypeKey();
-          raw_attrs.erase(kVirtualDevice);
-          Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+
+          DictAttrs attrs;
+          // 
+          if (raw_attrs.size() > 1) {
+            raw_attrs.erase(kVirtualDevice);
+            attrs = DictAttrs(raw_attrs);
+          }
+          Function func = relay::Function(params, body, ret_type, generics, attrs);
           func->virtual_device_ = vid;
           return func;
         } else {

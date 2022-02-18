@@ -367,7 +367,7 @@ class VirtualDeviceCache {
  *
  * Type: VirtualDevice
  */
-constexpr const char* kVirtualDevice = "result_virtual_device";
+constexpr const char* kVirtualDevice = "virtual_device";
 
 }  // namespace tvm
 

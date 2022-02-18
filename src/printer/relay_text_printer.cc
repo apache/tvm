@@ -223,6 +223,10 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
+  if (var->virtual_device() != VirtualDevice::FullyUnconstrained()) {
+    VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
+    val << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device());
+  }
   val << PrintOptionalInfo(var);
   return val;
 }
