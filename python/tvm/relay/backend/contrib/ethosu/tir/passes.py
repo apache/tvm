@@ -409,7 +409,6 @@ def EncodeConstants(const_dict):
             # For extern calls, we need to rewrite pairs of arguments corresponding to
             # base address load and the length of the load.
             new_args = [stmt.args[0]]
-            new_buffers = rewrite_buffer.values()
             for i in range(1, len(stmt.args)):
                 # If the previous argument was a load, the current should be a length
                 if isinstance(stmt.args[i - 1], tvm.tir.BufferLoad):
