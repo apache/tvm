@@ -511,6 +511,12 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
     ret =
         MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
+    VLOG(4) << "Expr:\n" << expr;
+    VLOG(4) << "Ret:\n" << ret;
+    // For the conditional test that's failing, the parameter y that is inside
+    // the nested let is getting bound and then is no longer free? which is confusing.
+    //
+
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
   } else {

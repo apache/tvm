@@ -223,9 +223,9 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
-  if (var->virtual_device() != VirtualDevice::FullyUnconstrained()) {
-    VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
-    val << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device());
+  if (!var->virtual_device()->IsFullyUnconstrained()) {
+    //VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
+    val << " {" << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device()) << "}";
   }
   val << PrintOptionalInfo(var);
   return val;
@@ -333,7 +333,15 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
 
 // Should only be triggered when op is a free variable being visited for the
 // first time.
-Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { return AllocVar(GetRef<Var>(op)); }
+Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { 
+  Doc var_doc = AllocVar(GetRef<Var>(op));
+  /*if (op->virtual_device()->IsFullyUnconstrained()) {
+    return var_doc;
+  } else {
+    return var_doc << " {" << kVirtualDevice << "=" << PrettyPrint(op->virtual_device()) << "}";
+  }*/
+  return var_doc;
+  }
 
 /*!
  * \brief special method to print out const scalar
@@ -449,7 +457,7 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   for (const Doc& d : PrintDictAttrs(fn->attrs)) {
     params.push_back(d);
   }
-  if (fn->virtual_device() != VirtualDevice::FullyUnconstrained()) {
+  if (!fn->virtual_device()->IsFullyUnconstrained()) {
     Doc vid_doc;
     vid_doc << kVirtualDevice << "=" << PrintAttributeValue(fn->virtual_device());
     params.push_back(vid_doc);

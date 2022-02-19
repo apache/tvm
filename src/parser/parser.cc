@@ -1162,7 +1162,7 @@ class Parser {
               << vid->GetTypeKey();
 
           DictAttrs attrs;
-          // 
+          // Don't fill the raw_attrs in if there's nothing other than kVirtualDevice in the attributes
           if (raw_attrs.size() > 1) {
             raw_attrs.erase(kVirtualDevice);
             attrs = DictAttrs(raw_attrs);

@@ -101,10 +101,10 @@ def rands(shape, n):
 def exercise(in_mod: tvm.IRModule, expected_mod: tvm.IRModule, reference_func, args):
     """Test in_mod against expected_mod and reference_func using args."""
     # Correctness
+    
     print("in mod main: ", in_mod["main"])
-    print("in mod main attrs: ", in_mod["main"].attrs)
     print("expected main: ", expected_mod["main"])
-    print("expected main attrs: ", expected_mod["main"].attrs)
+    
     rewrite_and_assert(in_mod, expected_mod)
     print("correctness succeeded")
     # Idempotence
@@ -1324,7 +1324,7 @@ def test_conditional():
             #[version = "0.0.5"]
             def @main(%x {virtual_device=meta[VirtualDevice][0]}: bool, %y {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32], %z {virtual_device=meta[VirtualDevice][0]}: Tensor[(5, 7), float32],
                       virtual_device=meta[VirtualDevice][0]) {
-              let %f = fn (%a {virtual_device=meta[VirtualDevice][0]} virtual_device=meta[VirtualDevice][0]) {
+              let %f = fn (%a {virtual_device=meta[VirtualDevice][0]}, virtual_device=meta[VirtualDevice][0]) {
                 add(%a, %y)
               };
               let %g = fn (%a1 {virtual_device=meta[VirtualDevice][0]}, virtual_device=meta[VirtualDevice][0]) {
