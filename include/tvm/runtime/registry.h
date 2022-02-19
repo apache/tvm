@@ -167,11 +167,12 @@ class Registry {
    */
   template <typename T, typename R, typename... Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
-    auto fwrap = [f](T target, Args... params) -> R {
+    using R_ = typename std::remove_reference<R>::type;
+    auto fwrap = [f](T target, Args... params) -> R_ {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(T, Args...)>(fwrap, name_));
+    return set_body(TypedPackedFunc<R_(T, Args...)>(fwrap, name_));
   }
 
   /*!
