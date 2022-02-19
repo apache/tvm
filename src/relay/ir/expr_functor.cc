@@ -472,15 +472,23 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
+// I need to make Bind not call function on device.
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
+    Array<Var> subbed_params;
     std::vector<VirtualDevice> new_param_virtual_devices;
     for (size_t i = 0; i < func->params.size(); ++i) {
-      if (!args_map.count(func->params[i])) {
+      if (!args_map.count(func->params[i])) { // I think in higher order cases we do want to replace the parameter as well?
         new_params.push_back(func->params[i]);
         new_param_virtual_devices.push_back(GetFunctionParamVirtualDevice(func, i));
+      } else {
+        // If we're mapping a variable to a variable and not a normal expr, then we want to
+        // put the substitution in the new parameters.
+        if(const auto var = args_map[func->params[i]].as<VarNode>()) {
+          new_params.push_back(GetRef<Var>(var));
+        }
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
@@ -509,6 +517,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     }
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+    // MaybeFunctionOnDevice now calls Bind so I think this check doesn't work anymore?
     ret =
         MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
     VLOG(4) << "Expr:\n" << expr;

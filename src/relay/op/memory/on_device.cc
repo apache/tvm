@@ -154,11 +154,14 @@ Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_
     Var annotated_param = WithFields(function->params[i], {}, {}, param_virtual_devices[i]);
     annotated_params.push_back(annotated_param);
     // We are creating new parameters so we need to substitute uses of the old parameters with the new ones
-    free_var_bind_map.Set(function->params[i], annotated_param);
+    if (!annotated_param.same_as(function->params[i])) {
+      free_var_bind_map.Set(function->params[i], annotated_param);
+      VLOG(1) << "Bind map has: " << function->params[i] << " with VID " << function->params[i]->virtual_device() << " with value " << annotated_param << " with VID " << annotated_param->virtual_device();
+    }
   }
-  VLOG(1) << "Original Body:\n" << function->body;
-  Expr bound_body = Bind(function->body, free_var_bind_map);
-  VLOG(1) << "Bound body:\n" << bound_body;
+  //VLOG(1) << "Original Body:\n" << function->body;
+  //Expr bound_body = Bind(function->body, free_var_bind_map);
+  //VLOG(1) << "Bound body:\n" << bound_body;
 
   // TODO(@electriclilies): deal with CF & higher order fns
   auto func = WithFields(function, annotated_params, Bind(function->body, free_var_bind_map), {}, {}, {}, std::move(result_virtual_device));
