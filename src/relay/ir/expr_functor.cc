@@ -477,18 +477,13 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
-    Array<Var> subbed_params;
-    std::vector<VirtualDevice> new_param_virtual_devices;
     for (size_t i = 0; i < func->params.size(); ++i) {
       if (!args_map.count(func->params[i])) { // I think in higher order cases we do want to replace the parameter as well?
         new_params.push_back(func->params[i]);
-        new_param_virtual_devices.push_back(GetFunctionParamVirtualDevice(func, i));
-      } else {
+      } else if(const auto var = args_map[func->params[i]].as<VarNode>()) {
         // If we're mapping a variable to a variable and not a normal expr, then we want to
         // put the substitution in the new parameters.
-        if(const auto var = args_map[func->params[i]].as<VarNode>()) {
           new_params.push_back(GetRef<Var>(var));
-        }
       }
     }
     if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
@@ -496,30 +491,11 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     }
     auto ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret =
-        MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> set;
-    for (const auto& v : FreeVars(expr)) {
-      set.insert(v);
-    }
-    for (const auto& v : FreeVars(ret)) {
-      if (set.count(v) == 0) {
-        new_params.push_back(v);
-        if (!GetFunctionResultVirtualDevice(func)->IsFullyUnconstrained()) {
-          // TODO(mbs): The function has been annotated with a device, which means we are supposed
-          // to be preserving device annotations on every transformation. However there's no
-          // such context for the free vars in args_map.
-          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                       << "' into function body but no device is known for it";
-        }
-        new_param_virtual_devices.push_back(VirtualDevice::FullyUnconstrained());
-      }
-    }
+    ret->virtual_device_ = GetFunctionResultVirtualDevice(func);
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    // MaybeFunctionOnDevice now calls Bind so I think this check doesn't work anymore?
-    ret =
-        MaybeFunctionOnDevice(ret, new_param_virtual_devices, GetFunctionResultVirtualDevice(func));
+    ret->virtual_device_ = GetFunctionResultVirtualDevice(func);
+
     VLOG(4) << "Expr:\n" << expr;
     VLOG(4) << "Ret:\n" << ret;
     // For the conditional test that's failing, the parameter y that is inside
