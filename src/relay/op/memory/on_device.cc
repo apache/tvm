@@ -144,9 +144,11 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
 
 Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
                           VirtualDevice result_virtual_device) {
-  return WithAttrs(std::move(function),
-                   {{tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices)},
-                    {tvm::attr::kResultVirtualDevice, std::move(result_virtual_device)}});
+  auto func = WithAttr(
+      WithFields(std::move(function), {}, {}, {}, {}, {}, std::move(result_virtual_device)),
+      tvm::attr::kParamVirtualDevice, std::move(param_virtual_devices));
+  VLOG(1) << "Annotated func: " << PrettyPrint(func);
+  return func;
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
@@ -166,8 +168,7 @@ Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_vir
 }
 
 VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node) {
-  auto opt_virtual_device = function_node->GetAttr<VirtualDevice>(tvm::attr::kResultVirtualDevice);
-  return opt_virtual_device.value_or(VirtualDevice::FullyUnconstrained());
+  return function_node->virtual_device();
 }
 
 VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i) {

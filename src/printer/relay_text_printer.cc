@@ -445,10 +445,16 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   for (const Doc& d : PrintDictAttrs(fn->attrs)) {
     params.push_back(d);
   }
+  if (fn->virtual_device() != VirtualDevice::FullyUnconstrained()) {
+    Doc vid_doc;
+    vid_doc << kVirtualDevice << "=" << PrintAttributeValue(fn->virtual_device());
+    params.push_back(vid_doc);
+  }
   doc << Doc::Concat(params) << ") ";
   if (fn->ret_type.defined()) {
     doc << "-> " << Print(fn->ret_type) << " ";
   }
+
   doc << PrintBody(fn->body);
   return doc;
 }
