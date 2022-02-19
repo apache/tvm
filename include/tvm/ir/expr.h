@@ -178,6 +178,11 @@ class RelayExprNode : public BaseExprNode {
    *
    * For expressions that have the function type, the virtual device describes where the result of
    * the call to the function or closure is stored (instead of where the function itself is stored).
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body. For more details, see the documentation in
+   * src/relay/transforms/device_planner.cc.
+   *
    * The VirtualDevice's Target field describes how the body of the function should be compiled.
    *
    * Set to VirtualDevice::FullyUnconstrained by default.
@@ -190,6 +195,13 @@ class RelayExprNode : public BaseExprNode {
   /*!
    * \return The virtual device (VirtualDevice).
    * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
+   * Note that for function types, the virtual device is the device where the result of a
+   * call to the function is stored, not where the function itself lives.
+   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
+   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
+   * device of body.
+   *
+   * See the documentation of the virtual_device_ field (above) for more details.
    */
   VirtualDevice virtual_device() const;
 
