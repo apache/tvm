@@ -762,7 +762,7 @@ class TVMMovableArgValueWithContext_ {
    */
   TVMMovableArgValueWithContext_(TVMValue value, int type_code, int arg_index,
                                  const std::string* optional_name, FSig* f_sig)
-      : value_(value, type_code), arg_index_(arg_index), optional_name_(optional_name), 
+      : value_(value, type_code), arg_index_(arg_index), optional_name_(optional_name),
         f_sig_(f_sig) {}
 
   template <typename T>
@@ -1321,21 +1321,17 @@ using Enumerate = typename EnumerateImpl<Args...>::T;
 
 template <typename ...Args>
 struct ParamPack {
-
   template <
     template <size_t i, typename TArgument> class Functor,
     typename... ExtraParams
   >
   static void InvokeWithoutArg(ExtraParams&&... extra_params) {
-    Enumerate<Args...>::                              //
-      Invoke::                                       //
-      template F<Functor, ExtraParams...>(            //
-          std::forward<ExtraParams>(extra_params)...  //
-      );
+    Enumerate<Args...>::Invoke::
+      template F<Functor, ExtraParams...>(std::forward<ExtraParams>(extra_params)...);
   }
 };
 
-} // namespace parameter_pack
+}  // namespace parameter_pack
 
 /*!
  * \brief Template class to get function signature of a function or functor.
@@ -1403,25 +1399,29 @@ template <typename T> struct Type2Str {
 };
 template <> struct Type2Str<int> { static std::string v() {return "int";} };
 template <> struct Type2Str<double> { static std::string v() {return "double";} };
-template <> struct Type2Str<long int> { static std::string v() {return "long int";} };
-template <> struct Type2Str<long unsigned int> { static std::string v() {return "long unsigned int";} };
+template <> struct Type2Str<int64_t> { static std::string v() {return "int64_t";} };
+template <> struct Type2Str<uint64_t> { static std::string v() {return "uint64_t";} };
 template <> struct Type2Str<bool> { static std::string v() {return "bool";} };
 template <> struct Type2Str<void> { static std::string v() {return "void";} };
-template <> struct Type2Str<std::basic_string<char>> { static std::string v() {return "basic_string<char>";} };
+template <> struct Type2Str<std::basic_string<char>> {
+  static std::string v() {return "basic_string<char>";}
+};
 template <typename K, typename V> struct Type2Str<Map<K, V>> {
-  static std::string v() {return "Map<" + TypeSimplifier<K>::v() + ", " + TypeSimplifier<V>::v() + ">";}
+  static std::string v() {
+    return "Map<" + TypeSimplifier<K>::v() + ", " + TypeSimplifier<V>::v() + ">";
+  }
 };
 template <> struct Type2Str<DLDevice> { static std::string v() {return "DLDevice";} };
 template <> struct Type2Str<DLTensor> { static std::string v() {return "DLTensor";} };
 template <> struct Type2Str<DataType> { static std::string v() {return "DataType";} };
 template <> struct Type2Str<TVMRetValue> { static std::string v() {return "TVMRetValue";} };
 template <> struct Type2Str<TVMArgValue> { static std::string v() {return "TVMArgValue";} };
-template <typename FType> struct Type2Str<TypedPackedFunc<FType>> { 
-  static std::string v() {return SignaturePrinter<function_signature<FType>>::F();} 
+template <typename FType> struct Type2Str<TypedPackedFunc<FType>> {
+  static std::string v() {return SignaturePrinter<function_signature<FType>>::F();}
 };
-template <typename T> 
-struct Type2Str<Array<T>> { 
-  static std::string v() {return "Array<" + TypeSimplifier<T>::v() + ">";} 
+template <typename T>
+struct Type2Str<Array<T>> {
+  static std::string v() {return "Array<" + TypeSimplifier<T>::v() + ">";}
 };
 
 /*!
@@ -1437,7 +1437,7 @@ template <typename T> struct TypeSimplifier {
   }
 };
 
-} // namespace type2str
+}  // namespace type2str
 
 /*!
  * \brief Template class to generate static function outputting signature of a function or functor.
@@ -1593,7 +1593,7 @@ struct unpack_call_dispatcher {
 template <typename R, int index, typename F>
 struct unpack_call_dispatcher<R, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig, 
+  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig,
                                     const F& f, const TVMArgs& args_pack, TVMRetValue* rv,
                                     Args&&... unpacked_args) {
     using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
@@ -1608,7 +1608,7 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig, 
+  TVM_ALWAYS_INLINE static void run(const std::string* optional_name, FSig* f_sig,
                                     const F& f, const TVMArgs& args_pack, TVMRetValue* rv,
                                     Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
@@ -1681,7 +1681,7 @@ inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda, std::s
   FSig* f_sig = detail::SignaturePrinter<detail::function_signature<FType>>::F;
   packed_ = PackedFunc([flambda, name, f_sig](const TVMArgs& args, TVMRetValue* rv) {
     if (args.size() != sizeof...(Args)) {
-      LOG(FATAL) << "Function " << name << (f_sig == nullptr ? "" : (*f_sig)()) 
+      LOG(FATAL) << "Function " << name << (f_sig == nullptr ? "" : (*f_sig)())
                  << " expects " << sizeof...(Args) << " arguments, but "
                  << args.size() << " were provided.";
     }
@@ -1695,7 +1695,7 @@ inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
   FSig* f_sig = detail::SignaturePrinter<detail::function_signature<FType>>::F;
   packed_ = PackedFunc([flambda, f_sig](const TVMArgs& args, TVMRetValue* rv) {
     if (args.size() != sizeof...(Args)) {
-      LOG(FATAL) << "Function <anonymous> " << (*f_sig)() << " expects " << sizeof...(Args) 
+      LOG(FATAL) << "Function <anonymous> " << (*f_sig)() << " expects " << sizeof...(Args)
                  << " arguments, but " << args.size() << " were provided.";
     }
     detail::unpack_call<R, sizeof...(Args)>(nullptr, flambda, args, rv);
