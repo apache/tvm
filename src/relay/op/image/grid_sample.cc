@@ -115,8 +115,7 @@ bool GridSampleRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // assign output type
     reporter->Assign(types[2], TensorType(layout_converter.BackwardShape(oshape), data->dtype));
     return true;
-  }
-  else if (data->shape.size() == 5) {
+  } else if (data->shape.size() == 5) {
     static const Layout kNDCHW("NCDHW");
     auto layout_converter = tir::BijectiveLayout(in_layout, kNDCHW);
     auto oshape = layout_converter.ForwardShape(data->shape);
