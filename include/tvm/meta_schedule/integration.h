@@ -21,6 +21,7 @@
 
 #include <tvm/meta_schedule/database.h>
 #include <tvm/support/with.h>
+#include <tvm/target/target.h>
 
 #include <unordered_set>
 
@@ -38,12 +39,15 @@ class ExtractedTaskNode : public runtime::Object {
   String task_name;
   /*! \brief The high-level IR */
   IRModule mod;
+  /*! \brief Target */
+  Target target;
   /*! \brief A list of low-level IRs that the high-level IR could potentially dispatch to */
   Array<IRModule> dispatched;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("task_name", &task_name);
     v->Visit("mod", &mod);
+    v->Visit("target", &target);
     v->Visit("dispatched", &dispatched);
   }
 
@@ -62,7 +66,7 @@ class ExtractedTask : public runtime::ObjectRef {
    * \brief The high-level IR
    * \brief A list of low-level IRs that the high-level IR could potentially dispatch to
    */
-  explicit ExtractedTask(String task_name, IRModule mod, Array<IRModule> dispatched);
+  explicit ExtractedTask(String task_name, IRModule mod, Target target, Array<IRModule> dispatched);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ExtractedTask, runtime::ObjectRef, ExtractedTaskNode);
 };
 
@@ -79,6 +83,7 @@ class MetaScheduleContextNode : public runtime::Object {
    * \brief The entry point of the integration
    * \param task_name The name of the task
    * \param mod The high-level IR
+   * \param target Target info
    * \param dispatched A list of low-level IRs that the high-level IR could potentially dispatch to.
    *                   NullOpt means the dispatch needs to be done in the context.
    * \return There are different types of the output
@@ -87,7 +92,7 @@ class MetaScheduleContextNode : public runtime::Object {
    *         3) relay::Function if `mod` should be dispatched to BYOC workflow
    *         4) IRModule for unified dispatch
    */
-  virtual Optional<ObjectRef> Query(runtime::String task_name, IRModule mod,
+  virtual Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                                     Optional<Array<IRModule>> dispatched) = 0;
 
   static constexpr const char* _type_key = "meta_schedule.MetaScheduleContext";
@@ -116,6 +121,7 @@ class MetaScheduleContext : public runtime::ObjectRef {
    * IR should call this method for task extraction and for feedback hints
    * \param task_name The name of the task
    * \param mod The high-level IR
+   * \param target Target info
    * \param dispatched A list of low-level IRs that the high-level IR could potentially dispatch to
    * \return There are different types of the output
    *         1) NullOpt if there is no feedback hint
@@ -124,6 +130,7 @@ class MetaScheduleContext : public runtime::ObjectRef {
    *         4) IRModule for unified dispatch
    */
   static Optional<ObjectRef> QueryInsideWithScope(runtime::String task_name, IRModule mod,
+                                                  Target target,
                                                   Optional<Array<IRModule>> dispatched);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(MetaScheduleContext, runtime::ObjectRef,
@@ -151,7 +158,7 @@ class TaskExtractionNode : public MetaScheduleContextNode {
   void VisitAttrs(AttrVisitor* v) { v->Visit("tasks", &tasks); }
 
   // Inherited from base class
-  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod,
+  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                             Optional<Array<IRModule>> dispatched) final;
 
   static constexpr const char* _type_key = "meta_schedule.TaskExtraction";
@@ -186,7 +193,7 @@ class ApplyHistoryBestNode : public MetaScheduleContextNode {
   }
 
   // Inherited from base class
-  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod,
+  Optional<ObjectRef> Query(runtime::String task_name, IRModule mod, Target target,
                             Optional<Array<IRModule>> dispatched) final;
 
   static constexpr const char* _type_key = "meta_schedule.ApplyHistoryBest";

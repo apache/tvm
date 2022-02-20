@@ -886,7 +886,6 @@ def test_conv2d_transpose_nchw_run():
 def test_conv2d_transpose_nhwc_run():
     dshape_nhwc = (1, 18, 18, 3)
     kshape_hwoi = (3, 3, 10, 3)
-    oshape_nhwc = (1, 36, 36, 10)
     x = relay.var("x", shape=dshape_nhwc)
     w = relay.var("w")
 
@@ -915,6 +914,43 @@ def test_conv2d_transpose_nhwc_run():
             data, kernel
         )
         tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.uses_gpu
+def test_conv2d_transpose_nhwc_cudnn():
+    if not cudnn.exists():
+        return
+
+    dshape_nhwc = (1, 18, 18, 3)
+    kshape_ihwo = (3, 3, 3, 10)
+    x = relay.var("x", shape=dshape_nhwc)
+    w = relay.var("w", shape=kshape_ihwo)
+
+    y = relay.nn.conv2d_transpose(
+        x,
+        w,
+        channels=10,
+        kernel_size=(3, 3),
+        strides=(2, 2),
+        padding=(1, 1),
+        output_padding=(1, 1),
+        data_layout="NHWC",
+        kernel_layout="IHWO",
+    )
+    func = relay.Function([x, w], y)
+    dtype = "float32"
+    data = np.random.uniform(size=dshape_nhwc).astype(dtype)
+    kernel = np.random.uniform(size=kshape_ihwo).astype(dtype)
+
+    ref_res = tvm.topi.testing.conv2d_transpose_nhwc_python(
+        data, np.transpose(kernel, [1, 2, 3, 0]), "HWOI", 2, 1, output_padding=(1, 1)
+    )
+
+    target = "cuda -libs=cudnn"
+    dev = tvm.cuda(0)
+
+    op_res1 = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data, kernel)
+    tvm.testing.assert_allclose(op_res1.numpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.uses_gpu

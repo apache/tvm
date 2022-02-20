@@ -43,10 +43,35 @@ class PipelineScheduler {
    */
   std::vector<std::shared_ptr<BackendRuntime>> PipelineInit(
       const std::vector<Module>& modules, const ConfigPipelineExecution& pipeline_config);
+  /*!
+   * \brief Running the pipeline logic.
+   * \param runtimes A list of backend runtime modules.
+   * \param pipeline_config The dependency configuration of each runtime module.
+   * \param sequential_mode Whether the execution is in a sequential mode.
+   */
+  void PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                   ConfigPipelineExecution pipeline_config, bool sequential_mode = false);
+  /*!
+   * \brief Running the pipeline logic in the sequential mode.
+   * \param runtimes A list of backend runtime modules.
+   * \param pipeline_config The dependent configuration of each runtime module.
+   */
+  void PipelineRunSequential(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
+                             ConfigPipelineExecution pipeline_config);
+  /*!
+   * \brief Stop the pipeline exection.
+   */
+  void PipelineStop();
+  /*!
+   * \brief Get a list of outputs.
+   */
+  Array<NDArray> PipelineGetOutput();
 
  private:
   /*!\brief The list of graph executors.*/
   std::vector<Module> graph_modules_;
+  /*!\brief A list of NDArray used to storage outputs.*/
+  Array<NDArray> output_arrays_;
 };
 }  // namespace runtime
 }  // namespace tvm

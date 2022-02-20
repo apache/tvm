@@ -103,6 +103,67 @@ def test_cpu_get_graph_json():
     assert json.find("tvmgen_default_fused_nn_softmax_add") > -1
 
 
+@tvm.testing.requires_llvm
+def test_cpu_get_graph_params_run():
+    mod, params = relay.testing.synthetic.get_workload()
+    with tvm.transform.PassContext(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+    data = np.random.uniform(-1, 1, size=input_shape(mod)).astype("float32")
+    dev = tvm.cpu()
+    from tvm.contrib import utils
+
+    temp = utils.tempdir()
+    file_name = "deploy_lib.so"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib)
+
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    loaded_params = loaded_lib["get_graph_params"]()
+
+    gmod = graph_executor.GraphModule(loaded_lib["default"](dev))
+    gmod.set_input(key="data", value=data, **loaded_params)
+    gmod.run()
+    out = gmod.get_output(0).numpy()
+    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
+
+
+@tvm.testing.requires_llvm
+def test_cpu_get_graph_params_compare():
+    # Create sample net
+    from tvm.relay.testing.init import create_workload, Constant
+
+    inp_shape = (1, 3, 24, 12)
+    dtype = "float32"
+    data = relay.var("data", shape=inp_shape, dtype=dtype)
+    conv_shape = [inp_shape[1], inp_shape[1], 3, 3]
+    conv = relay.nn.conv2d(
+        data,
+        relay.var("conv_weight", shape=conv_shape, dtype=dtype),
+        padding=1,
+        kernel_size=3,
+    )
+    args = relay.analysis.free_vars(conv)
+    func = relay.Function(args, conv)
+
+    mod, params = create_workload(func, initializer=Constant())
+
+    with tvm.transform.PassContext(opt_level=3):
+        complied_graph_lib = relay.build_module.build(mod, "llvm", params=params)
+    from tvm.contrib import utils
+
+    temp = utils.tempdir()
+    file_name = "deploy_lib.so"
+    path_lib = temp.relpath(file_name)
+    complied_graph_lib.export_library(path_lib)
+
+    loaded_lib = tvm.runtime.load_module(path_lib)
+    loaded_params = loaded_lib["get_graph_params"]()
+
+    tvm.testing.assert_allclose(
+        params["conv_weight"].numpy(), loaded_params["p0"].numpy()[0][0], atol=1e-5
+    )
+
+
 @tvm.testing.requires_cuda
 @tvm.testing.requires_gpu
 def test_gpu():
@@ -622,3 +683,5 @@ if __name__ == "__main__":
     test_debug_graph_executor()
     test_multiple_imported_modules()
     test_cpu_get_graph_json()
+    test_cpu_get_graph_params_run()
+    test_cpu_get_graph_params_compare()

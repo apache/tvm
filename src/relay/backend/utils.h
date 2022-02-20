@@ -64,7 +64,7 @@ class ExecutorCodegenMetadataNode : public Object {
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
   /*! \brief number of outputs of the main function */
-  unsigned int num_outputs = 1;
+  Integer num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -78,7 +78,16 @@ class ExecutorCodegenMetadataNode : public Object {
 
   String mod_name = "";
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("pools", &pools);
+    v->Visit("num_outputs", &num_outputs);
+    v->Visit("devices", &devices);
+    v->Visit("executor", &executor);
+    v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("pool_inputs", &pool_inputs);
+  }
+
   static constexpr const char* _type_key = "MetadataObj";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
 };
@@ -89,26 +98,14 @@ class ExecutorCodegenMetadataNode : public Object {
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
   TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, int num_outputs, String executor,
+                                  Array<String> devices, Integer num_outputs, String executor,
                                   String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
-                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>()) {
-    auto n = make_object<ExecutorCodegenMetadataNode>();
-    n->inputs = inputs;
-    n->pools = pools;
-    n->devices = devices;
-    n->num_outputs = num_outputs;
-    n->executor = executor;
-    n->interface_api = interface_api;
-    n->unpacked_api = unpacked_api;
-    n->mod_name = mod_name;
-    n->pool_inputs = pool_inputs;
-    data_ = std::move(n);
-  }
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>());
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef, ExecutorCodegenMetadataNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecutorCodegenMetadataNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
+                                        ExecutorCodegenMetadataNode);
 };
 
 /*!

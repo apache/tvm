@@ -34,7 +34,7 @@ logger = logging.getLogger("autotvm")
 
 
 # TODO(moreau89) find a more elegant way to lower for VTAs
-def _lower(mod, target, params):
+def _lower(mod, target, params, opt_level=3):
     """Helper to lower VTA properly."""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
@@ -43,16 +43,19 @@ def _lower(mod, target, params):
     if hasattr(target, "device_name") and target.device_name == "vta":
         import vta
 
-        with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+        with vta.build_config(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
             mod, _ = relay.optimize(mod, target, params)
             grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
             grc.codegen(mod, mod["main"])
             return
 
-    compiler = relay.vm.VMCompiler()
-    if params:
-        compiler.set_params(params)
-    compiler.lower(mod, target=target)
+    # Alter op layout code has been written expecting that tuning is applied
+    # without it, so we disable AlterOpLayout to maintain that behavior.
+    with tvm.transform.PassContext(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):

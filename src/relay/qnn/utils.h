@@ -131,6 +131,7 @@ static inline Expr Dequantize(const Expr& data, const Expr& input_scale,
 
   return DequantizeLower(data, input_scale, input_zero_point, types, attrs.operator->());
 }
+Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point, int axis);
 
 Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,
                    const Expr& output_zero_point, const Array<tvm::relay::Type>& types,
@@ -145,6 +146,8 @@ static inline Expr Quantize(const Expr& data, const Expr& output_scale,
 
   return QuantizeLower(data, output_scale, output_zero_point, types, attrs.operator->());
 }
+Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, int axis,
+                  DataType out_dtype);
 
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
   auto* value_ptr = tir::as_const_int(x);

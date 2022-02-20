@@ -90,6 +90,7 @@ def lower_ethosu(sch, args, const_dict, name="main"):
         mod = tvm.tir.transform.StorageRewrite()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
         mod = ethosu_passes.AnnotateAllocates()(mod)
+        mod, const_dict = ethosu_passes.CreatePrimFuncWithoutConstants(const_dict)(mod)
     return mod, const_dict
 
 

@@ -392,19 +392,32 @@ Doc TIRTextPrinter::VisitExpr_(const LetNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   Doc doc;
+  std::vector<Doc> func_args;
   if (auto* ptr_op = op->op.as<OpNode>()) {
     doc << "@" << Doc::Text(ptr_op->name) << "(";
+    if (ptr_op->name == "tir.call_llvm_pure_intrin") {
+      auto f = tvm::runtime::Registry::Get("target.llvm_get_intrinsic_name");
+      ICHECK(f != nullptr)
+          << "Cannot find target.llvm_get_intrinsic_name. Compile with USE_LLVM=On";
+      func_args.push_back(Print((*f)(Downcast<IntImm>(op->args[0])->value)));
+      for (size_t i = 1; i < op->args.size(); i++) {
+        func_args.push_back(Print(op->args[i]));
+      }
+    } else {
+      for (const auto& arg : op->args) {
+        func_args.push_back(Print(arg));
+      }
+    }
   } else {
     // TODO(bohan): Print out the name by he global var in the module.
     auto* op_gvar = op->op.as<GlobalVarNode>();
     ICHECK(op_gvar != nullptr);
     doc << "@" << Doc::Text(op_gvar->name_hint) << "(";
+    for (const auto& arg : op->args) {
+      func_args.push_back(Print(arg));
+    }
   }
-  std::vector<Doc> args;
-  for (const auto& arg : op->args) {
-    args.push_back(Print(arg));
-  }
-  doc << PrintSep(args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype) << ")";
+  doc << PrintSep(func_args, Doc::Text(", ")) << ", dtype=" << PrintDType(op->dtype) << ")";
   return doc;
 }
 

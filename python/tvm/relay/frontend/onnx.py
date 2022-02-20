@@ -1763,7 +1763,7 @@ class LRN(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         """LRN support only NCHW format
-        https://github.com/onnx/onnx/blob/master/docs/Operators.md#LRN
+        https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN
         """
         axis = 1
         alpha = attr.get("alpha", 0.0001)
@@ -2206,28 +2206,7 @@ class Where(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        condition_rank = len(infer_shape(inputs[0]))
-        x_rank = len(infer_shape(inputs[1]))
-        y_rank = len(infer_shape(inputs[2]))
-        ranks = [condition_rank, x_rank, y_rank]
-
-        # If one rank is longer than others, then we can broadcast
-        # to that shape.
-        max_rank = max(ranks)
-        max_rank_idxs = [i for i, x in enumerate(ranks) if x == max_rank]
-        broadcast_shape = shape_of(inputs[max_rank_idxs[0]])
-        # If two or more inputs have the same rank, compute the broadcast
-        # shape by taking the maximum value of each dimensions.
-        if len(max_rank_idxs) > 1:
-            for idx in max_rank_idxs:
-                broadcast_shape = _op.maximum(broadcast_shape, shape_of(inputs[idx]))
-
-        broadcast_shape = fold_constant(broadcast_shape)
-
-        condition = _op.broadcast_to(inputs[0], broadcast_shape)
-        x = _op.broadcast_to(inputs[1], broadcast_shape)
-        y = _op.broadcast_to(inputs[2], broadcast_shape)
-        return _op.where(condition, x, y)
+        return _op.where(*inputs)
 
 
 class Or(Elemwise):
@@ -2252,7 +2231,7 @@ class Expand(OnnxOpConverter):
         # However, ONNX Expand supports multi-directional broadcasting, which allows
         # above pattern and also some extent of 'shape' can be smaller than the corresponding
         # extent of 'input'. In this case, the extent of 'shape' must be 1.
-        # https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
+        # https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md
         # In above cases, we cannot directorly apply 'op.broadcast_to' instead of 'expand'
         # so, here we solved this problem by expanding the given 'shape' itself.
         def expand_shape(in_shape, shape):
@@ -4769,7 +4748,7 @@ def _get_convert_map(opset):
 
 class GraphProto:
     """A helper class for handling Relay expression copying from pb2.GraphProto.
-    Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
+    Definition: https://github.com/onnx/onnx/blob/main/onnx/onnx.proto
 
         Parameters
     ----------

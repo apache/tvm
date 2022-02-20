@@ -205,7 +205,10 @@ def match_ethosu_unary_elementwise(output_tensor, device_config):
     pad = unary_elementwise.op.input_tensors[0]
     if pad.op.name != "ethosu_pad":
         return None
-    convert_to_nhwc = pad.op.input_tensors[0]
+    upscale = pad.op.input_tensors[0]
+    if upscale.op.name != "ethosu_upscale":
+        return None
+    convert_to_nhwc = upscale.op.input_tensors[0]
     if convert_to_nhwc.op.name != "ethosu_convert_to_nhwc":
         return None
     read = convert_to_nhwc.op.input_tensors[0]

@@ -678,9 +678,9 @@ void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_k
   TVM_TIR_SCHEDULE_END("annotate", this->error_render_level_);
 }
 
-void ConcreteScheduleNode::Unannotate(const BlockRV& loop_rv, const String& ann_key) {
+void ConcreteScheduleNode::Unannotate(const BlockRV& block_rv, const String& ann_key) {
   TVM_TIR_SCHEDULE_BEGIN();
-  tir::Unannotate(state_, this->GetSRef(loop_rv), ann_key);
+  tir::Unannotate(state_, this->GetSRef(block_rv), ann_key);
   this->state_->DebugVerify();
   TVM_TIR_SCHEDULE_END("unannotate", this->error_render_level_);
 }

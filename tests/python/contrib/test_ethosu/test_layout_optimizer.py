@@ -538,6 +538,91 @@ def test_multiple_unary_elementwise():
     _assert_structural_equal(a, b)
 
 
+def test_op_without_ethosu_consumer():
+    """Test the layout optimization pass works as expected when
+    there is a case that the output layout should not be altered
+    since not all consumers are NPU operations (in this case conv).
+
+    depthwise
+        |
+      conv
+      /  \
+     |  pool
+     \   /
+    (concat)
+    """
+
+    def get_graph(get_expected=False):
+        exp_layout = "NHCWB16" if get_expected else "NHWC"
+
+        x = relay.var("x", shape=(1, 2, 2, 2), dtype="int8")
+        depthwise = infra.make_ethosu_depthwise_conv2d(
+            x, 2, (1, 1), (0, 0), (1, 1), (0, 0), ofm_layout=exp_layout
+        )
+        conv = infra.make_ethosu_conv2d(
+            depthwise,
+            2,
+            2,
+            (1, 1),
+            (0, 0),
+            (1, 1),
+            (0, 0),
+            ifm_layout=exp_layout,
+        )
+        pool = infra.make_ethosu_pooling(conv, "MAX", (1, 1), 2, (1, 1), (0, 0))
+        concat = relay.concatenate([conv, pool], axis=0)
+        return relay.Function(relay.analysis.free_vars(concat), concat)
+
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
+    _assert_structural_equal(a, b)
+
+
+def test_diamond_graph():
+    """
+    Test the layout optimizer pass works as expected on a diamond graph
+    with a case where the operation dominating the output operation
+    cannot be altered, but operations within the diamond can.
+
+      pool_1
+        |
+      pool_2
+      /   \
+     |  pool_3
+     |     |
+     |  pool_4
+     |     |
+     |  pool_5
+     \    /
+    (concat)
+    """
+
+    def get_graph(get_expected=False):
+        exp_layout = "NHCWB16" if get_expected else "NHWC"
+        x = relay.var("x", shape=(1, 2, 2, 2), dtype="int8")
+        pool_1 = infra.make_ethosu_pooling(
+            x, "MAX", (1, 1), 2, (1, 1), (0, 0), ofm_layout=exp_layout
+        )
+        pool_2 = infra.make_ethosu_pooling(
+            pool_1, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout
+        )
+        pool_3 = infra.make_ethosu_pooling(
+            pool_2, "MAX", (1, 1), 2, (1, 1), (0, 0), ofm_layout=exp_layout
+        )
+        pool_4 = infra.make_ethosu_pooling(
+            pool_3, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout, ofm_layout=exp_layout
+        )
+        pool_5 = infra.make_ethosu_pooling(
+            pool_4, "MAX", (1, 1), 2, (1, 1), (0, 0), ifm_layout=exp_layout
+        )
+        concat = relay.concatenate([pool_2, pool_5], axis=0)
+        return relay.Function(relay.analysis.free_vars(concat), concat)
+
+    a = _optimize(get_graph())
+    b = _optimize(get_graph(get_expected=True), optimize=False)
+    _assert_structural_equal(a, b)
+
+
 def test_same_output_multiple_convolutions():
     """Test running the layout optimization pass with multiple convolutions
     gives same output as TFLite."""

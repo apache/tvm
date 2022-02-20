@@ -27,6 +27,7 @@ import typing
 
 import tvm
 from tvm.ir.type import TupleType
+from tvm.micro import get_standalone_crt_dir
 from .._ffi import get_global_func
 from ..contrib import utils
 from ..driver import build_module
@@ -38,6 +39,7 @@ from ..tir import expr
 
 # This should be kept identical to runtime::symbol::tvm_module_main
 MAIN_FUNC_NAME_STR = "__tvm_main__"
+STANDALONE_CRT_URL = "./runtime"
 
 
 class UnsupportedInModelLibraryFormatError(Exception):
@@ -45,14 +47,16 @@ class UnsupportedInModelLibraryFormatError(Exception):
 
 
 def generate_c_interface_header(
-    module_name, inputs, outputs, devices, workspace_size, include_path
+    module_name, inputs, outputs, pools, devices, workspace_size, include_path
 ):
     """Generate C Interface header to be included in MLF"""
     mangled_name = to_c_variable_style(prefix_generated_name(module_name))
     metadata_header = os.path.join(include_path, f"{mangled_name}.h")
 
     interface_c_create = tvm._ffi.get_global_func("runtime.InterfaceCCreate")
-    interface_c_module = interface_c_create(module_name, inputs, outputs, devices, workspace_size)
+    interface_c_module = interface_c_create(
+        module_name, inputs, outputs, pools, devices, workspace_size
+    )
 
     with open(metadata_header, "w") as header_file:
         header_file.write(interface_c_module.get_source())
@@ -273,11 +277,15 @@ def _get_inputs_and_outputs_from_module(mod):
     return inputs, outputs
 
 
+def _get_pools_from_module(mod):
+    return list(dict(mod.executor_codegen_metadata.pool_inputs).values())
+
+
 def _should_generate_interface_header(mod):
     return "interface-api" in mod.executor and mod.executor["interface-api"] == "c"
 
 
-def _make_tar(source_dir, tar_file_path):
+def _make_tar(source_dir, tar_file_path, mod):
     """Build a tar file from source_dir."""
     with tarfile.open(tar_file_path, "w") as tar_f:
 
@@ -287,6 +295,9 @@ def _make_tar(source_dir, tar_file_path):
             return tarinfo
 
         tar_f.add(str(source_dir), arcname=".", filter=reset)
+        is_aot = isinstance(mod, executor_factory.AOTExecutorFactoryModule)
+        if is_aot and str(mod.runtime) == "crt":
+            tar_f.add(get_standalone_crt_dir(), arcname=STANDALONE_CRT_URL)
 
 
 _GENERATED_VERSION = 5
@@ -317,6 +328,16 @@ def _export_graph_model_library_format(
         "style": "full-model",
     }
 
+    if is_aot and (str(mod.runtime) == "crt"):
+        standalone_crt = {
+            "short_name": "tvm_standalone_crt",
+            "url": f"{STANDALONE_CRT_URL}",
+            "url_type": "mlf_path",
+            "version_spec": f"{tvm.__version__}",
+        }
+        external_dependencies = [standalone_crt]
+        metadata["external_dependencies"] = external_dependencies
+
     with open(tempdir / "metadata.json", "w") as json_f:
         json.dump(metadata, json_f, indent=2, sort_keys=True)
 
@@ -329,9 +350,10 @@ def _export_graph_model_library_format(
         include_path.mkdir()
         inputs, outputs = _get_inputs_and_outputs_from_module(mod)
         devices = mod.get_devices()
+        pools = _get_pools_from_module(mod)
         workspace_size = int(metadata["memory"]["functions"]["main"][0]["workspace_size_bytes"])
         generate_c_interface_header(
-            mod.libmod_name, inputs, outputs, devices, workspace_size, include_path
+            mod.libmod_name, inputs, outputs, pools, devices, workspace_size, include_path
         )
 
     parameters_dir = tempdir / "parameters"
@@ -488,6 +510,6 @@ def export_model_library_format(mod: ExportableModule, file_name: typing.Union[s
     else:
         raise NotImplementedError(f"Don't know how to export module of type {mod.__class__!r}")
 
-    _make_tar(tempdir.path, file_name)
+    _make_tar(tempdir.path, file_name, mod)
 
     return file_name

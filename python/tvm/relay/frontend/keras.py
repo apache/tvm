@@ -967,7 +967,8 @@ def _convert_lstm(
     in_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     time_steps = in_shape[1]
     in_data = _op.squeeze(in_data, axis=[0])
@@ -976,7 +977,9 @@ def _convert_lstm(
     out_list = []  # store h outputs in case return_sequences is True
     for data in in_data:
         ixh1 = _op.nn.dense(data, kernel_weight, units=units)
-        ixh2 = _op.nn.bias_add(_op.nn.dense(next_h, recurrent_weight, units=units), bias=in_bias)
+        ixh2 = _op.nn.dense(next_h, recurrent_weight, units=units)
+        if keras_layer.use_bias:
+            ixh2 = _op.nn.bias_add(ixh2, bias=in_bias)
         gate = ixh1 + ixh2
         gates = _op.split(gate, indices_or_sections=4, axis=1)
         in_gate = _convert_recurrent_activation(gates[0], keras_layer)
@@ -1007,10 +1010,13 @@ def _convert_simple_rnn(
     weightList = keras_layer.get_weights()
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     in_data = _op.nn.batch_flatten(in_data)
-    ixh = _op.nn.bias_add(_op.nn.dense(in_data, kernel_weight, units=units), bias=in_bias)
+    ixh = _op.nn.dense(in_data, kernel_weight, units=units)
+    if keras_layer.use_bias:
+        ixh = _op.nn.bias_add(ixh, bias=in_bias)
     prev_op = _op.nn.batch_flatten(prev_op)
     ixh2 = _op.nn.dense(prev_op, recurrent_weight, units=units)
     output = ixh + ixh2
@@ -1033,10 +1039,13 @@ def _convert_gru(
     weightList = keras_layer.get_weights()
     kernel_weight = etab.new_const(weightList[0].transpose([1, 0]))
     recurrent_weight = etab.new_const(weightList[1].transpose([1, 0]))
-    in_bias = etab.new_const(weightList[2])
+    if keras_layer.use_bias:
+        in_bias = etab.new_const(weightList[2])
     units = list(weightList[0].shape)[1]
     in_data = _op.nn.batch_flatten(in_data)
-    matrix_x = _op.nn.bias_add(_op.nn.dense(in_data, kernel_weight, units=units), in_bias)
+    matrix_x = _op.nn.dense(in_data, kernel_weight, units=units)
+    if keras_layer.use_bias:
+        matrix_x = _op.nn.bias_add(matrix_x, in_bias)
     # inputs projected by all gate matrices at once
     split_indices = [keras_layer.units, 2 * keras_layer.units]
     gates = _op.split(matrix_x, indices_or_sections=split_indices, axis=1)

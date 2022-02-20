@@ -1107,6 +1107,7 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
         padding=attrs.padding,
         dilation=attrs.strides,
         groups=in_channel * batch,
+        out_dtype=attrs.out_dtype,
     )
 
     # infer shape of backward_weight
@@ -1141,6 +1142,40 @@ def legalize_conv2d_backward_weight(attrs, inputs, types):
         )
 
     return backward_weight
+
+
+@reg.register_convert_op_layout("nn.conv2d_backward_weight")
+def convert_conv2d_backward_weight(attrs, inputs, _, desired_layouts):
+    """Convert Layout pass registration for conv2d_backward_weight op.
+    Note that `desired_layouts` must be a pair [`data_layout`, `kernel_layouts`],
+    where `kernel_layouts` affects the output of this op (since the output of this op
+    is the weight gradient). The layout of the output gradient (the second input to this op)
+    is assumed to be the same as `data_layout`.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current op
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of data and gradient."
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["grad_layout"] = desired_data_layout
+    new_attrs["data_layout"] = desired_data_layout
+    new_attrs["kernel_layout"] = desired_kernel_layout
+    new_attrs.pop("out_layout")
+    return relay.nn.conv2d_backward_weight(inputs[0], inputs[1], **new_attrs)
 
 
 #####################

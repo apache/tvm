@@ -31,6 +31,17 @@
 #include <vector>
 namespace tvm {
 namespace runtime {
+#define GLOBAL_MODULE_INDEX -1
+/*!
+ *\brief The pair includes the module output index and the global output index.
+ * The first 'int' is the module output index, and the second 'int' is the global output index.
+ */
+using GlobalOutputPair = std::pair<int, int>;
+/*!
+ *\brief The pair includes the module index and the module output index.
+ * The first 'int' is the module index, and the second 'int' is the module output index.
+ */
+using ModuleOutputPair = std::pair<int, int>;
 /*!
  * \brief All binding information of a output interface.
  */
@@ -38,7 +49,10 @@ class ConfigBindings {
  public:
   /*!\brief Whether this binding is bound to the PipelineExecutor output interface.*/
   bool IsGlobalOutput() const { return global_output_index_ > -1; }
-
+  /*!\brief Getting the global output index in the current binding.*/
+  int GetGlobalOutputIndex() const { return global_output_index_; }
+  /*!\brief Returning the binding configuration.*/
+  std::unordered_map<int, std::string>& Get() { return bindings_; }
   /*!
    * \brief Create a module interface map from JSONReader.
    * \param reader JSON reader.
@@ -124,6 +138,19 @@ class ConfigOutputBindings {
     return num_output;
   }
   /*!
+   *\brief Getting the map which includes the global outputs and the current module outputs.
+   *\return A list of "GlobalOutputPair".
+   */
+  std::vector<GlobalOutputPair> GetGlobalConfigOutputBindings(void) const {
+    std::vector<GlobalOutputPair> ret;
+    for (auto bindings : output_binding_map_) {
+      if (bindings.second.IsGlobalOutput()) {
+        ret.push_back(GlobalOutputPair(bindings.first, bindings.second.GetGlobalOutputIndex()));
+      }
+    }
+    return ret;
+  }
+  /*!
    * \brief Create a output binding map from JSONReader.
    * \param reader Json reader.
    */
@@ -158,11 +185,19 @@ class ConfigOutputBindings {
  */
 class ConfigPipelineExecution {
  public:
+  ConfigOutputBindings& operator[](int key) {
+    ICHECK(config_.find(key) != config_.end());
+    return config_[key];
+  }
   /*
    *!\brief This function is used to verify whether config is loaded successfully.
    * \return Return "true" to indicate that this class has not been successfully loaded.
    */
   bool Empty() { return config_.empty(); }
+  /*!
+   *\brief Check if the module index existing in the "config".
+   */
+  bool FindModuleInConfig(int mod_idx) { return config_.find(mod_idx) != config_.end(); }
   /*!
    * \brief Getting the number of global outputs.
    * \return The number of outputs in the entire pipeline.
@@ -173,6 +208,31 @@ class ConfigPipelineExecution {
       num_output += mod_output.second.GetGlobalOutputNum();
     }
     return num_output;
+  }
+  /*
+   *!\brief Get the map of global outputs and module outputs.
+   */
+  std::unordered_map<int, ModuleOutputPair> GetGlobalConfigOutputBindings(void) const {
+    return global_output_map_;
+  }
+  /*
+   *!\brief Parsing the configuration.
+   */
+  void ParseConfiguration(const std::unordered_map<int, ConfigOutputBindings>& config) {
+    if (config.empty()) {
+      LOG(FATAL) << "The Configuration loading not finish yet.";
+    }
+    for (auto mod_output : config) {
+      // Using the global output index as the key to create a map including global index and
+      // module output index.
+      const std::vector<GlobalOutputPair>& global_output =
+          mod_output.second.GetGlobalConfigOutputBindings();
+
+      for (auto output : global_output) {
+        global_output_map_[output.second] = ModuleOutputPair(mod_output.first, output.first);
+      }
+    }
+    return;
   }
   /*!
    * \brief Create a pipeline config from JSONReader.
@@ -203,6 +263,8 @@ class ConfigPipelineExecution {
       // Build the mapping of mod_idx and "ConfigOutputBindings".
       config_[mod_idx] = output;
     }
+    // Doing the configuration parsing after the loading finished.
+    ParseConfiguration(config_);
   }
 
  private:
@@ -211,6 +273,11 @@ class ConfigPipelineExecution {
    * information.
    */
   std::unordered_map<int, ConfigOutputBindings> config_;
+  /*
+   *\brief The key is the global output index, and the map is including global outputs index and
+   * the module outputs pair.
+   */
+  std::unordered_map<int, ModuleOutputPair> global_output_map_;
 };
 
 struct InputConnectionConfig {
@@ -314,9 +381,11 @@ class BackendRuntime {
   /*!\brief The packed functions.*/
   tvm::runtime::PackedFunc set_input_;
   tvm::runtime::PackedFunc get_input_;
+  tvm::runtime::PackedFunc get_output_;
   tvm::runtime::PackedFunc get_num_output_;
   tvm::runtime::PackedFunc get_num_inputs_;
   tvm::runtime::PackedFunc get_input_index_;
+  tvm::runtime::PackedFunc run_;
   /*!
    * \brief Copying from a given tensor and using 'CPU' as the device.
    */
@@ -367,12 +436,19 @@ class BackendRuntime {
     get_num_inputs_ = module_.GetFunction("get_num_inputs");
     set_input_ = module_.GetFunction("set_input");
     get_input_ = module_.GetFunction("get_input");
+    get_output_ = module_.GetFunction("get_output");
+    run_ = module_.GetFunction("run");
   }
   BackendRuntime(void) {}
   ~BackendRuntime() {
     for (auto data : input_tensor_local_copy_) {
       TVMArrayFree(data.second);
     }
+  }
+  /*!\brief Creating a NDArray containing same shape and data type with a module output. */
+  NDArray CreateFromOutput(int idx) {
+    NDArray data = get_output_(idx);
+    return CreateNDArrayFromDLTensor(const_cast<DLTensor*>(data.operator->()));
   }
   /*!\brief Return the index of the current module.*/
   int GetModuleIndex() { return runtime_idx_; }
@@ -395,6 +471,10 @@ class BackendRuntime {
   NDArray GetInput(int index) const { return get_input_(index); }
   /*!\bief Getting the input data via the input name.*/
   int GetInputIndex(const std::string& name) { return get_input_index_(name); }
+  /*!\brief Using the output index to get the module output.*/
+  NDArray GetOutput(int index) { return get_output_(index); }
+  /*!\brief Running the runtime.*/
+  void Run() { run_(); }
 };
 /*!
  * \brief The information used to initialize the graph executor module, the information

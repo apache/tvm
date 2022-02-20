@@ -22,6 +22,23 @@ try:
 except ImportError:
     ethosu_enabled = False
 
+import tvm.contrib.ethosu.cascader as cs
+
+
+@pytest.fixture
+def FLASH():
+    return cs.MemoryRegion(name="FLASH", size=10 ** 7, read_bandwidth=4, write_bandwidth=4)
+
+
+@pytest.fixture
+def DRAM():
+    return cs.MemoryRegion(name="DRAM", size=10 ** 9, read_bandwidth=8, write_bandwidth=8)
+
+
+@pytest.fixture
+def SRAM():
+    return cs.MemoryRegion(name="SRAM", size=10 ** 6, read_bandwidth=16, write_bandwidth=16)
+
 
 if ethosu_enabled:
     import tvm
@@ -34,6 +51,52 @@ if ethosu_enabled:
         make_ethosu_depthwise_conv2d,
         make_ethosu_binary_elementwise,
     )
+
+    def make_TwoConv2DTE():
+        def _get_func():
+            ifm = relay.var("ifm", shape=(1, 12, 12, 8), dtype="int8")
+            conv1 = make_ethosu_conv2d(
+                ifm=ifm,
+                ifm_channels=8,
+                ofm_channels=32,
+                kernel_shape=(1, 1),
+                padding=(0, 0),
+                strides=(1, 1),
+                dilation=(1, 1),
+                activation="NONE",
+                ifm_layout="NHWC",
+                ofm_layout="NHCWB16",
+            )
+            conv2 = make_ethosu_conv2d(
+                ifm=conv1,
+                ifm_channels=32,
+                ofm_channels=16,
+                kernel_shape=(3, 3),
+                padding=(1, 1),
+                strides=(1, 1),
+                dilation=(1, 1),
+                activation="NONE",
+                ifm_layout="NHCWB16",
+                ofm_layout="NHWC",
+            )
+            func = relay.Function(relay.analysis.free_vars(conv2), conv2)
+            func = run_opt_pass(func, relay.transform.InferType())
+            return func
+
+        func = _get_func()
+        te_graph, const_dict = create_te_graph(func)
+        sch = tvm.te.create_schedule([t.op for t in te_graph.outputs])
+        return sch, te_graph, const_dict
+
+    @pytest.fixture
+    def TwoConv2DTE():
+        return make_TwoConv2DTE()
+
+    @pytest.fixture
+    def TwoConv2DGraph():
+        _, te_graph, const_dict = make_TwoConv2DTE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)
 
     def make_TwoConv2DWithSliceTE():
         def _get_func():
@@ -75,6 +138,12 @@ if ethosu_enabled:
     @pytest.fixture
     def TwoConv2DWithSliceTE():
         return make_TwoConv2DWithSliceTE()
+
+    @pytest.fixture
+    def TwoConv2DWithSliceGraph():
+        _, te_graph, const_dict = make_TwoConv2DWithSliceTE()
+        device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+        return cs.create_cascader_graph(te_graph, const_dict, device_config)
 
     def make_MobileNetv2DiamondTE():
         def _get_func():

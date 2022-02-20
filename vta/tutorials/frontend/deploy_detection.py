@@ -232,7 +232,7 @@ with autotvm.tophub.context(target):
         mod = mod["main"]
 
     # Compile Relay program with AlterOpLayout disabled
-    with vta.build_config(disabled_pass={"AlterOpLayout"}):
+    with vta.build_config(disabled_pass={"AlterOpLayout", "tir.CommonSubexprElimTIR"}):
         lib = relay.build(
             mod, target=tvm.target.Target(target, host=env.target_host), params=params
         )

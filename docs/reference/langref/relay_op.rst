@@ -245,4 +245,3 @@ This level supports dialect operators.
    tvm.relay.qnn.op.simulated_dequantize
    tvm.relay.qnn.op.simulated_quantize
    tvm.relay.qnn.op.subtract
-   tvm.relay.qnn.op.transpose_conv2d

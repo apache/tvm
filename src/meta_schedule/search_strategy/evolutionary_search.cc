@@ -313,8 +313,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   /*** Configuration: the initial population ***/
   /*! \brief The ratio of measured states used in the initial population */
   double init_measured_ratio;
-  /*! \brief The maximum number to fail trace replaying. */
-  int init_max_fail_count;
+  /*! \brief The minimal size of unmeasured population in the initial sampling.*/
+  int init_min_unmeasured;
   /*** Configuration: evolution ***/
   /*! \brief The number of iterations performed by generic algorithm. */
   int genetic_num_iters;
@@ -345,7 +345,7 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     v->Visit("population_size", &population_size);
     /*** Configuration: the initial population ***/
     v->Visit("init_measured_ratio", &init_measured_ratio);
-    v->Visit("init_max_fail_count", &init_max_fail_count);
+    v->Visit("init_min_unmeasured", &init_min_unmeasured);
     /*** Configuration: evolution ***/
     v->Visit("genetic_num_iters", &genetic_num_iters);
     v->Visit("genetic_mutate_prob", &genetic_mutate_prob);
@@ -444,29 +444,30 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickBestFromDatabase(int nu
 
 std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int num) {
   ThreadedTraceApply pp(self->postprocs_);
-  std::vector<Schedule> results(num, Schedule{nullptr});
-  auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
-    PerThreadData& data = self->per_thread_data_.at(thread_id);
-    TRandState* rand_state = &data.rand_state;
-    const IRModule& mod = data.mod;
-    Schedule& result = results.at(trace_id);
-    ICHECK(!result.defined());
-    for (int fail_count = 0; fail_count <= self->init_max_fail_count; ++fail_count) {
+  std::vector<Schedule> out_schs;
+  while (static_cast<int>(out_schs.size()) < self->init_min_unmeasured) {
+    std::vector<Schedule> results(num, Schedule{nullptr});
+    auto f_proc_unmeasured = [this, &results, &pp](int thread_id, int trace_id) -> void {
+      PerThreadData& data = self->per_thread_data_.at(thread_id);
+      TRandState* rand_state = &data.rand_state;
+      const IRModule& mod = data.mod;
+      Schedule& result = results.at(trace_id);
+      ICHECK(!result.defined());
       int design_space_index = tir::SampleInt(rand_state, 0, design_spaces.size());
       tir::Trace trace(design_spaces[design_space_index]->insts, {});
       if (Optional<Schedule> sch = pp.Apply(mod, trace, rand_state)) {
         result = sch.value();
-        break;
+      }
+    };
+    support::parallel_for_dynamic(0, num, self->num_threads_, f_proc_unmeasured);
+    for (int i = 0; i < num; i++) {
+      if (results[i].defined()) {
+        out_schs.push_back(results[i]);
       }
     }
-    if (!result.defined()) {
-      LOG(FATAL) << "Sample-Init-Population failed over the maximum limit! Summary:\n"
-                 << pp.SummarizeFailures();
-    }
-  };
-  support::parallel_for_dynamic(0, num, self->num_threads_, f_proc_unmeasured);
-  LOG(INFO) << "Sample-Init-Population summary:\n" << pp.SummarizeFailures();
-  return results;
+    LOG(INFO) << "Sample-Init-Population summary:\n" << pp.SummarizeFailures();
+  }
+  return out_schs;
 }
 
 std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
@@ -625,7 +626,6 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   LOG(INFO) << "Sampled " << unmeasured.size() << " candidate(s)";
   inits.insert(inits.end(), measured.begin(), measured.end());
   inits.insert(inits.end(), unmeasured.begin(), unmeasured.end());
-  ICHECK_EQ(inits.size(), self->population_size);
   std::vector<Schedule> bests = EvolveWithCostModel(inits, sample_num);
   LOG(INFO) << "Got " << bests.size() << " candidate(s) with evolutionary search";
   std::vector<Schedule> picks = PickWithEpsGreedy(unmeasured, bests, sample_num);
@@ -644,7 +644,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
                                                   int num_trials_total,        //
                                                   int population_size,         //
                                                   double init_measured_ratio,  //
-                                                  int init_max_fail_count,     //
+                                                  int init_min_unmeasured,     //
                                                   int genetic_num_iters,       //
                                                   double genetic_mutate_prob,  //
                                                   int genetic_max_fail_count,  //
@@ -657,7 +657,7 @@ SearchStrategy SearchStrategy::EvolutionarySearch(int num_trials_per_iter,     /
   n->num_trials_total = num_trials_total;
   n->population_size = population_size;
   n->init_measured_ratio = init_measured_ratio;
-  n->init_max_fail_count = init_max_fail_count;
+  n->init_min_unmeasured = init_min_unmeasured;
   n->genetic_num_iters = genetic_num_iters;
   n->genetic_max_fail_count = genetic_max_fail_count;
   n->genetic_mutate_prob = genetic_mutate_prob;

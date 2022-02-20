@@ -311,6 +311,17 @@ def BF16TypeLowering():
     return _ffi_api.BF16TypeLowering()  # type: ignore
 
 
+def CommonSubexprElimTIR(enable_cse_tir: bool = True):
+    """Replace redundant computations by new variables.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CommonSubexprElimTIR(enable_cse_tir)  # type: ignore
+
+
 def RewriteUnsafeSelect():
     """Detect and rewrite unsafe select that contains memory access.
 
@@ -749,3 +760,14 @@ def ConvertForLoopsToSerial():
         The result pass
     """
     return _ffi_api.ConvertForLoopsToSerial()  # type: ignore
+
+
+def InjectSoftwarePipeline():
+    """Transform annotated loops into pipelined one that parallelize producers and consumers
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectSoftwarePipeline()  # type: ignore

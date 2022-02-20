@@ -826,10 +826,20 @@ def conv_backward_filter(
         x.shape[0], tvm.tir.expr.IntImm
     ), "Dynamic batch is not supported for cudnn conv2d backwad filter yet."
 
-    if tensor_format == 0:
-        dw_shape = [dy.shape[1], x_shape[1], filter_h, filter_w]
+    ic_ind = 1 if tensor_format == 0 else 3
+
+    if groups > 1:
+        assert (
+            x_shape[ic_ind] == dy.shape[ic_ind] and x_shape[ic_ind] == groups
+        ), "Only depthwise wgrad supported for groups > 1."
+        ic = 1
     else:
-        dw_shape = [dy.shape[3], filter_h, filter_w, x_shape[3]]
+        ic = x_shape[ic_ind]
+
+    if tensor_format == 0:
+        dw_shape = [dy.shape[1], ic, filter_h, filter_w]
+    else:
+        dw_shape = [dy.shape[3], filter_h, filter_w, ic]
 
     algo = conv_backward_filter_find_algo(
         tensor_format,

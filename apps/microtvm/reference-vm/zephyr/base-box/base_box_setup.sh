@@ -38,7 +38,7 @@ sudo apt update
 # NOTE: latest cmake cannot be installed due to
 # https://github.com/zephyrproject-rtos/zephyr/issues/30232
 sudo apt install -y --no-install-recommends git \
-     cmake=3.18.4-0kitware1 cmake-data=3.18.4-0kitware1 \
+     cmake=3.22.2-0kitware1ubuntu18.04.1 cmake-data=3.22.2-0kitware1ubuntu18.04.1 \
      ninja-build gperf ccache dfu-util device-tree-compiler wget \
      python3-dev python3-pip python3-setuptools python3-tk python3-wheel xz-utils file \
      make gcc gcc-multilib g++-multilib libsdl2-dev
@@ -85,13 +85,8 @@ echo PATH=$PATH
 
 cd ~
 echo "Downloading zephyr SDK..."
-ZEPHYR_SDK_VERSION=0.12.3
-ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
-wget --no-verbose -O $ZEPHYR_SDK_FILE \
-    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-x86_64-linux-setup.run
-chmod +x $ZEPHYR_SDK_FILE
-"./$ZEPHYR_SDK_FILE" -- -d ~/zephyr-sdk -y
-rm -rf "${ZEPHYR_SDK_FILE}"
+~/ubuntu_install_zephyr_sdk.sh ~/zephyr-sdk
+rm -f ubuntu_install_zephyr_sdk.sh
 
 # GDB for Zephyr SDK depends on python3.8
 sudo add-apt-repository ppa:deadsnakes/ppa

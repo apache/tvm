@@ -34,11 +34,12 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
-    count_num_calls,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
+    assert_partitioned_function,
+    assert_no_external_function,
 )
 
 
@@ -192,21 +193,7 @@ def test_conv2d_symmetric_padding_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -226,6 +213,7 @@ def test_conv2d_symmetric_padding_int8(
     )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
 @pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
@@ -295,21 +283,7 @@ def test_conv2d_asymmetric_padding_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -329,6 +303,7 @@ def test_conv2d_asymmetric_padding_int8(
     )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize("kernel_size", [(3, 3)])
@@ -413,21 +388,7 @@ def test_depthwise_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -513,14 +474,7 @@ def test_invalid_parameters(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
-    # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert not any(attrs), "No function should have an external attribute."
+    assert_no_external_function(cmsisnn_mod)
 
 
 if __name__ == "__main__":

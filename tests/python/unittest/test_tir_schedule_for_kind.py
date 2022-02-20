@@ -277,6 +277,59 @@ def thread_bound_block_inside_init(a: T.handle, b: T.handle) -> None:
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
+@T.prim_func
+def decomposed_gemm(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+):
+    local = T.alloc_buffer((16, 16), "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                local[vi, vj] += A[vi, vk] * B[vj, vk]
+        for ii, jj in T.grid(4, 4):
+            with T.block("C"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                C[vi, vj] = local[vi, vj]
+
+
+@T.prim_func
+def decomposed_gemm_after_vectorize(
+    A: T.Buffer[(16, 16), "float32"],
+    B: T.Buffer[(16, 16), "float32"],
+    C: T.Buffer[(16, 16), "float32"],
+):
+    local = T.alloc_buffer((16, 16), "float32")
+    for i, j in T.grid(4, 4):
+        for ii, jj in T.grid(4, 4):
+            with T.block("init"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                local[vi, vj] = 0
+        for k, ii, jj in T.grid(16, 4, 4):
+            with T.block("update"):
+                vi = T.axis.S(16, i * 4 + ii)
+                vj = T.axis.S(16, j * 4 + jj)
+                vk = T.axis.R(16, k)
+                local[vi, vj] += A[vi, vk] * B[vj, vk]
+        for ii in range(4):
+            for jj in T.vectorized(4):
+                with T.block("C"):
+                    vi = T.axis.S(16, i * 4 + ii)
+                    vj = T.axis.S(16, j * 4 + jj)
+                    C[vi, vj] = local[vi, vj]
+
+
 # pylint: enable=no-member,invalid-name,unused-variable
 
 
@@ -405,6 +458,14 @@ def test_block_inside_init():
     s.bind(i, "threadIdx.x")
     tvm.ir.assert_structural_equal(s.mod["main"], thread_bound_block_inside_init)
     verify_trace_roundtrip(s, mod=block_inside_init)
+
+
+def test_vectorize_after_decompose():
+    s = tir.Schedule(decomposed_gemm, debug_mask="all")
+    jj = s.get_loops(s.get_block("C"))[-1]
+    s.vectorize(jj)
+    tvm.ir.assert_structural_equal(s.mod["main"], decomposed_gemm_after_vectorize)
+    verify_trace_roundtrip(s, mod=decomposed_gemm)
 
 
 if __name__ == "__main__":

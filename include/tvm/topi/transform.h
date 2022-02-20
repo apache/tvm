@@ -1321,7 +1321,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
     size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
     ICHECK_GE(indices_dim_i, 1);
   }
-  ICHECK(indices->dtype.is_int());
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint());
 
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < ndim_i; ++i) {
@@ -1388,7 +1388,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
           indices_position.Set(0, make_const(DataType::Int(32), i));
-          if (indices->dtype.is_int()) {
+          if (indices->dtype.is_int() || indices->dtype.is_uint()) {
             real_indices.push_back(indices(indices_position));
           } else {
             real_indices.push_back(tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
@@ -1902,43 +1902,23 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
 inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
                         const std::string name = "advanced_index",
                         const std::string tag = kInjective) {
+  ICHECK_LE(indices.size(), data->shape.size()) << "too many indices for data!";
   Array<PrimExpr> oshape;
   Array<PrimExpr> broadcast_shape;
   Array<Tensor> bindices;
-  std::vector<int64_t> flatten_shape_lens;
-  int64_t num_picked_elems = 1;
-  bool has_dyn_shape = false;
 
+  broadcast_shape = indices[0]->shape;
+  for (size_t i = 1; i < indices.size(); ++i) {
+    auto bh = detail::BroadcastShape(broadcast_shape, indices[i]->shape);
+    broadcast_shape = Array<PrimExpr>(bh.common_shape.begin(), bh.common_shape.end());
+  }
   if (indices.size() == 1) {
-    broadcast_shape = indices[0]->shape;
+    // quick path
     bindices = indices;
   } else {
-    for (const auto& index : indices) {
-      int64_t flatten_len = 1;
-      for (const auto& dim : index->shape) {
-        const IntImmNode* axis_len = dim.as<IntImmNode>();
-        if (!axis_len) {
-          broadcast_shape = index->shape;
-          has_dyn_shape = true;
-          break;
-        }
-        flatten_len *= axis_len->value;
-      }
-      if (has_dyn_shape) break;
-      flatten_shape_lens.push_back(flatten_len);
-      if (flatten_len > num_picked_elems) {
-        num_picked_elems = flatten_len;
-        broadcast_shape = index->shape;
-      }
-    }
-
     // Do broadcast for indices
     for (size_t i = 0; i < indices.size(); ++i) {
-      if (!has_dyn_shape && flatten_shape_lens[i] < num_picked_elems) {
-        bindices.push_back(broadcast_to(indices[i], broadcast_shape));
-      } else {
-        bindices.push_back(indices[i]);
-      }
+      bindices.push_back(broadcast_to(indices[i], broadcast_shape));
     }
   }
 

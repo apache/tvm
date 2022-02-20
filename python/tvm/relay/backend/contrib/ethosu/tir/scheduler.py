@@ -304,7 +304,8 @@ class Convolution2DCompute:
         convert_to_nhcwb16 = write.op.input_tensors[0]
         conv2d = convert_to_nhcwb16.op.input_tensors[0]
         pad = conv2d.op.input_tensors[0]
-        convert_to_nhwc = pad.op.input_tensors[0]
+        upscale = pad.op.input_tensors[0]
+        convert_to_nhwc = upscale.op.input_tensors[0]
         read = convert_to_nhwc.op.input_tensors[0]
         return cls(read, convert_to_nhwc, pad, conv2d, convert_to_nhcwb16, write)
 

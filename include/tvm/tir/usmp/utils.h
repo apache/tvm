@@ -26,6 +26,7 @@
 #define TVM_TIR_USMP_UTILS_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt.h>
@@ -43,73 +44,6 @@ constexpr const char* kUSMPAlgorithmOption = "tir.usmp.algorithm";
 
 namespace tir {
 namespace usmp {
-
-/*!
- * \brief The string parameter to indicate read and write access to a pool
- * This needs to be kept in sync with PoolInfo.READ_WRITE_ACCESS in
- * python/tvm/tir/usmp/utils.py
- */
-static constexpr const char* kTargetPoolReadWriteAccess = "rw";
-/*!
- * \brief The string parameter to indicate read only access to a pool
- * This needs to be kept in sync with PoolInfo.READ_ONLY_ACCESS in
- * python/tvm/tir/usmp/utils.py
- */
-static constexpr const char* kTargetPoolReadOnlyAccess = "ro";
-
-/*!
- * \brief Describes a pool of memory accessible by one or more targets.
- */
-struct PoolInfoNode : public Object {
-  /*! \brief The name of the memory pool */
-  String pool_name;
-  /*! \brief The expected size hint to be used by the allocator.
-   * The size_hint_bytes is defaulted to kUnrestrictedPoolSizeHint
-   * to indicate the pool is not size restricted.
-   */
-  Integer size_hint_bytes;
-  /*! \brief The accessibility from each Target*/
-  Map<Target, String> target_access;  // 'rw' or 'ro'
-  /*! \brief Whether pool is internally generated.
-   * The internal pools will be generated as part of
-   * the entry point code generation of the executor*/
-  bool is_internal = false;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pool_name", &pool_name);
-    v->Visit("size_hint_bytes", &size_hint_bytes);
-    v->Visit("target_access", &target_access);
-    v->Visit("is_internal", &is_internal);
-  }
-
-  bool SEqualReduce(const PoolInfoNode* other, SEqualReducer equal) const {
-    return equal(pool_name, other->pool_name) && equal(size_hint_bytes, other->size_hint_bytes) &&
-           equal(target_access, other->target_access) && equal(is_internal, other->is_internal);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(pool_name);
-    hash_reduce(size_hint_bytes);
-    hash_reduce(target_access);
-    hash_reduce(is_internal);
-  }
-
-  static constexpr const char* _type_key = "tir.usmp.PoolInfo";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PoolInfoNode, Object);
-};
-
-/*!
- * \brief The PoolSize is unrestricted for the memory planner
- */
-static const int kUnrestrictedPoolSizeHint = -1;
-
-class PoolInfo : public ObjectRef {
- public:
-  TVM_DLL PoolInfo(String pool_name, Map<Target, String> target_access,
-                   Integer size_hint_bytes = kUnrestrictedPoolSizeHint,
-                   Bool is_internal = Bool(false));
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PoolInfo, ObjectRef, PoolInfoNode);
-};
 
 /*!
  * \brief Describes an abstract memory buffer that will get allocated inside a pool.

@@ -84,7 +84,7 @@ def test_skip_ci(tmpdir_factory):
             git.run(*command)
         pr_number = "1234"
         proc = subprocess.run(
-            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title], cwd=git.cwd  # dir
+            [str(skip_ci_script), "--pr", pr_number, "--pr-title", pr_title], cwd=git.cwd
         )
         expected = 0 if should_skip else 1
         assert proc.returncode == expected, why
@@ -158,6 +158,138 @@ def test_skip_ci(tmpdir_factory):
         should_skip=False,
         pr_title="[skip ci] test",
         why="ci should not be skipped on a branch without [skip ci] in the last commit",
+    )
+
+
+def test_ping_reviewers(tmpdir_factory):
+    reviewers_script = REPO_ROOT / "tests" / "scripts" / "ping_reviewers.py"
+
+    def run(pr, check):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        # Jenkins git is too old and doesn't have 'git init --initial-branch'
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+
+        data = {
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [pr],
+                        "edges": [],
+                    }
+                }
+            }
+        }
+        proc = subprocess.run(
+            [
+                str(reviewers_script),
+                "--dry-run",
+                "--wait-time-minutes",
+                "1",
+                "--cutoff-pr-number",
+                "5",
+                "--allowlist",
+                "user",
+                "--pr-json",
+                json.dumps(data),
+                "--now",
+                "2022-01-26T17:54:19Z",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            cwd=git.cwd,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process failed:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}")
+
+        assert check in proc.stdout
+
+    run(
+        {
+            "isDraft": True,
+        },
+        "Checking 0 PRs",
+    )
+
+    run(
+        {
+            "isDraft": False,
+            "number": 2,
+        },
+        "Checking 0 PRs",
+    )
+
+    run(
+        {
+            "number": 123,
+            "url": "https://github.com/apache/tvm/pull/123",
+            "body": "cc @someone",
+            "isDraft": False,
+            "author": {"login": "user"},
+            "reviews": {"nodes": []},
+            "publishedAt": "2022-01-18T17:54:19Z",
+            "comments": {"nodes": []},
+        },
+        "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
+    )
+
+    # Check allowlist functionality
+    run(
+        {
+            "number": 123,
+            "url": "https://github.com/apache/tvm/pull/123",
+            "body": "cc @someone",
+            "isDraft": False,
+            "author": {"login": "user2"},
+            "reviews": {"nodes": []},
+            "publishedAt": "2022-01-18T17:54:19Z",
+            "comments": {
+                "nodes": [
+                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                ]
+            },
+        },
+        "Checking 0 PRs",
+    )
+
+    # Old comment, ping
+    run(
+        {
+            "number": 123,
+            "url": "https://github.com/apache/tvm/pull/123",
+            "body": "cc @someone",
+            "isDraft": False,
+            "author": {"login": "user"},
+            "reviews": {"nodes": []},
+            "publishedAt": "2022-01-18T17:54:19Z",
+            "comments": {
+                "nodes": [
+                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                ]
+            },
+        },
+        "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
+    )
+
+    # New comment, don't ping
+    run(
+        {
+            "number": 123,
+            "url": "https://github.com/apache/tvm/pull/123",
+            "body": "cc @someone",
+            "isDraft": False,
+            "author": {"login": "user"},
+            "reviews": {"nodes": []},
+            "publishedAt": "2022-01-18T17:54:19Z",
+            "comments": {
+                "nodes": [
+                    {"updatedAt": "2022-01-27T17:54:19Z", "bodyText": "abc"},
+                ]
+            },
+        },
+        "Not pinging PR 123",
     )
 
 

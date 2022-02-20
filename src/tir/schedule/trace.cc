@@ -34,18 +34,13 @@ Trace::Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions) {
 
 /**************** Utilities  ****************/
 
-bool IsPostproc(const InstructionKind& inst_kind) {
-  static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
-  return inst_kind.same_as(inst_enter_postproc);
-}
-
 int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postproc) {
   if (!remove_postproc) {
     return insts.size();
   }
   int n_insts = 0;
   for (const Instruction& inst : insts) {
-    if (!IsPostproc(inst->kind)) {
+    if (!inst->kind->IsPostproc()) {
       ++n_insts;
     } else {
       break;
@@ -250,7 +245,7 @@ void TraceNode::ApplyToSchedule(
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
@@ -274,7 +269,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
   int i = 0;
   for (const Instruction& inst : this->insts) {
     const InstructionKind& kind = inst->kind;
-    if (remove_postproc && IsPostproc(kind)) {
+    if (remove_postproc && kind->IsPostproc()) {
       break;
     }
     json_insts.push_back(Array<ObjectRef>{
@@ -303,7 +298,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
   Array<String> py_trace;
   py_trace.reserve(this->insts.size());
   for (const Instruction& inst : this->insts) {
-    if (remove_postproc && IsPostproc(inst->kind)) {
+    if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
     Array<ObjectRef> attrs;

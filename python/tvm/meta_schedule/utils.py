@@ -33,7 +33,35 @@ from tvm.tir import FloatImm, IntImm
 
 @register_func("meta_schedule.cpu_count")
 def _cpu_count_impl(logical: bool = True) -> int:
+    """Return the number of logical or physical CPUs in the system
+    Parameters
+    ----------
+    logical : bool = True
+        If True, return the number of logical CPUs, otherwise return the number of physical CPUs
+    Returns
+    -------
+    cpu_count : int
+        The number of logical or physical CPUs in the system
+    Note
+    ----
+    The meta schedule search infra intentionally does not adopt the following convention in TVM:
+    - C++ API `tvm::runtime::threading::MaxConcurrency()`
+    - Environment variable `TVM_NUM_THREADS` or
+    - Environment variable `OMP_NUM_THREADS`
+    This is because these variables are dedicated to controlling
+    the runtime behavior of generated kernels, instead of the host-side search.
+    Setting these variables may interfere the host-side search with profiling of generated kernels
+    when measuring locally.
+    """
     return psutil.cpu_count(logical=logical) or 1
+
+
+@register_func("meta_schedule._process_error_message")
+def _process_error_message(error_msg: str) -> str:
+    error_msg_lines = str(error_msg).splitlines()
+    if len(error_msg_lines) >= 50:
+        return "\n".join(error_msg_lines[:25] + ["..."] + error_msg_lines[-25:])
+    return error_msg
 
 
 def cpu_count(logical: bool = True) -> int:

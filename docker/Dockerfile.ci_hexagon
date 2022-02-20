@@ -1,0 +1,54 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# CI docker Hexagon env
+# tag: v0.01
+FROM tvmcihexagon/ci-hexagon-base:v0.01_SDK4.2.0.2
+
+RUN apt-get update --fix-missing
+RUN apt-get install -y ca-certificates gnupg2 libxml2-dev
+
+COPY install/ubuntu_install_core.sh /install/ubuntu_install_core.sh
+RUN bash /install/ubuntu_install_core.sh
+
+COPY install/ubuntu1804_install_python.sh /install/ubuntu1804_install_python.sh
+RUN bash /install/ubuntu1804_install_python.sh
+
+# Globally disable pip cache
+RUN pip config set global.cache-dir false
+
+COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
+RUN bash /install/ubuntu_install_python_package.sh
+
+# ANTLR deps
+COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
+RUN bash /install/ubuntu_install_java.sh
+
+# Android SDK
+COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
+RUN bash /install/ubuntu_install_androidsdk.sh
+ENV ANDROID_HOME=/opt/android-sdk-linux
+ENV ANDROID_NDK_HOME=/opt/android-sdk-linux/ndk/21.3.6528147
+ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
+
+# Hexagon
+# HEXAGON_SDK_PATH is and env variable in tvmcihexagon/ci-hexagon-base
+COPY install/ubuntu_install_hexagon.sh /install/ubuntu_install_hexagon.sh
+RUN bash /install/ubuntu_install_hexagon.sh
+ENV CLANG_LLVM_HOME /opt/clang-llvm
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/opt/clang-llvm/lib
+ENV HEXAGON_TOOLCHAIN "${HEXAGON_SDK_PATH}/tools/HEXAGON_Tools/8.4.09/Tools"

@@ -119,6 +119,18 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   void Stop();
   /*!
+   * \brief Get a list output data.
+   * \return A list of output data.
+   */
+  Array<NDArray> GetOutput();
+  /*!
+   * \brief A pipeline params with a specific name correspond with the params of a specific
+   *  backend module, this function return the module index for the params name.
+   * \param name The parameters group name.
+   * \return Return backend runtime module index.
+   */
+  int GetParamModuleIndex(const std::string& name);
+  /*!
    * \brief A pipeline input with a specific name correspond with a input of a specific
    *  backend module, this function return a module index and a input index in "pair"
    *  form for a input name.

@@ -89,7 +89,7 @@ def get_pooling_params(
             padding=serial_padding,
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
-            upscale="NONE",
+            upscale=attrs["upscale"],
         ),
         output_pointer,
         replace_pointer,

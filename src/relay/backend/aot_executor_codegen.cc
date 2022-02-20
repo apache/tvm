@@ -1021,7 +1021,7 @@ class AOTExecutorCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->codegen_->ListDevices();
       });
-    } else if (name == "get_metadata") {
+    } else if (name == "get_executor_codegen_metadata") {
       return PackedFunc(
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = output_.metadata; });
     } else {

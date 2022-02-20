@@ -19,6 +19,10 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+
+# import to register canonicalization funcs for fq2i
+# pylint: disable=unused-import
+from tvm.relay.qnn.op import canonicalizations
 from tvm.tir import bijective_layout
 
 from ..op import register_fake_quantization_to_integer
@@ -126,20 +130,14 @@ def global_avgpool2d(expr, type_map):
     return [out, t]
 
 
-@register_fake_quantization_to_integer("rsqrt")
-def rsqrt(expr, type_map):
-    """Rewrite a rsqrt op"""
+@register_fake_quantization_to_integer("broadcast_to")
+def broadcast_to(expr, type_map):
+    """Rewrite a broadcast_to op"""
     arg = expr.args[0]
-    x_t = type_map[arg]
-    out_t = type_map[expr]
-    out = relay.qnn.op.rsqrt(
-        arg,
-        x_t.scale,
-        x_t.zero_point,
-        out_t.scale,
-        out_t.zero_point,
-    )
-    return [out, x_t]
+    t = type_map[arg]
+    shape = expr.attrs.shape
+    out = relay.op.broadcast_to(arg, shape)
+    return [out, t]
 
 
 @register_fake_quantization_to_integer("nn.bias_add")
@@ -255,6 +253,16 @@ def concat(expr, type_map):
         **expr.attrs,
     )
     return [out, out_type]
+
+
+@register_fake_quantization_to_integer("topk")
+def topk(expr, type_map):
+    """Rewrite a topk op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+    attrs = {**expr.attrs}
+    assert "ret_type" in attrs and attrs["ret_type"] == "values"
+    return [expr, t]
 
 
 @register_fake_quantization_to_integer("split")
@@ -457,3 +465,30 @@ def register_binary_identity(op_name, op):
 
 register_binary_identity("minimum", relay.op.minimum)
 register_binary_identity("maximum", relay.op.maximum)
+
+
+def register_unary_qnn(op_name, op):
+    """Rewrite a unary op"""
+
+    def unary(expr, type_map):
+        arg = expr.args[0]
+        x_t = type_map[arg]
+        out_t = type_map[expr]
+        out = op(
+            arg,
+            x_t.scale,
+            x_t.zero_point,
+            out_t.scale,
+            out_t.zero_point,
+        )
+        return [out, x_t]
+
+    return register_fake_quantization_to_integer(op_name, unary)
+
+
+register_unary_qnn("sqrt", relay.qnn.op.sqrt)
+register_unary_qnn("rsqrt", relay.qnn.op.rsqrt)
+register_unary_qnn("exp", relay.qnn.op.exp)
+register_unary_qnn("erf", relay.qnn.op.erf)
+register_unary_qnn("sigmoid", relay.qnn.op.sigmoid)
+register_unary_qnn("tanh", relay.qnn.op.tanh)

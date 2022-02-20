@@ -515,8 +515,7 @@ StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref) {
 
   // Step 8: Update the cached flags
   StmtSRef outer_block_sref = self->stmt2ref.at(outer_realize->block.get());
-  StmtSRef scope_root = tir::GetScopeRoot(self, outer_block_sref, /*require_stage_pipeline=*/false,
-                                          /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root = tir::GetScopeRoot(self, outer_block_sref, /*require_stage_pipeline=*/false);
   bool scope_block_affine_binding = self->IsAffineBlockBinding(scope_root);
   self->UpdateScopeBlockInfo(tir::GetBlockRealize(self, scope_root));
   self->block_info[scope_root].affine_binding = scope_block_affine_binding;
@@ -629,8 +628,7 @@ void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
   self->Replace(block_sref, new_block, {{block_realize->block, new_block}});
 
   // Step 6: Update the cached flags.
-  StmtSRef scope_root = tir::GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
-                                          /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root = tir::GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   self->UpdateScopeBlockInfo(static_cast<const BlockNode*>(scope_root->stmt)->body);
 }
 

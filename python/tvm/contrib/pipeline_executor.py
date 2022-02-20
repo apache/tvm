@@ -121,6 +121,7 @@ class PipelineModule(object):
         self._set_param = self.module["set_param"]
         self._set_input = self.module["set_input"]
         self._get_input = self.module["get_input"]
+        self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
 
@@ -202,6 +203,15 @@ class PipelineModule(object):
             The input data.
         """
         return self._get_input(key)
+
+    def get_output(self):
+        """Get the output.
+        Returns
+        -------
+        data : Array[NDArray]
+            A list of output data.
+        """
+        return self._get_output()
 
     @property
     def num_outputs(self):

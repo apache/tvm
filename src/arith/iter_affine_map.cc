@@ -503,6 +503,7 @@ class IterMapRewriter : public ExprMutator {
       if (predicate_induced_min.defined()) predicate_induced_min = predicate_induced_min - base;
       if (predicate_induced_max.defined()) predicate_induced_max = predicate_induced_max - base;
     }
+    if (expr->args.size() < 1) return expr;
     Optional<IterSumExpr> opt = TryFuseIters(expr);
     ICHECK(!opt.defined() || opt.value()->args.size() == 1);
     // scale should be 1

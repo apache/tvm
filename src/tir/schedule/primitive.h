@@ -30,6 +30,7 @@ namespace tir {
 /******** Schedule: Sampling ********/
 /*!
  * \brief Sample a random integer from a given range.
+ * \param rand_state The pointer to schedule's random state.
  * \param min_inclusive The minimum value of the range, inclusive.
  * \param max_exclusive The maximum value of the range, exclusive.
  * \return The random integer sampled in the given range.

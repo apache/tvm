@@ -63,8 +63,7 @@ BOARDS = API_SERVER_DIR / "boards.json"
 
 # Used to check Zephyr version installed on the host.
 # We only check two levels of the version.
-ZEPHYR_VERSION = 2.5
-
+ZEPHYR_VERSION = 2.7
 
 WEST_CMD = default = sys.executable + " -m west" if sys.executable else None
 
@@ -373,7 +372,12 @@ class Handler(server.ProjectAPIHandler):
             f.write("# For TVMPlatformAbort().\n" "CONFIG_REBOOT=y\n" "\n")
 
             if options["project_type"] == "host_driven":
-                f.write("# For RPC server C++ bindings.\n" "CONFIG_CPLUSPLUS=y\n" "\n")
+                f.write(
+                    "# For RPC server C++ bindings.\n"
+                    "CONFIG_CPLUSPLUS=y\n"
+                    "CONFIG_LIB_CPLUSPLUS=y\n"
+                    "\n"
+                )
 
             f.write("# For math routines\n" "CONFIG_NEWLIB_LIBC=y\n" "\n")
 
@@ -586,7 +590,14 @@ def _set_nonblock(fd):
 class ZephyrSerialTransport:
     @classmethod
     def _lookup_baud_rate(cls, options):
-        sys.path.insert(0, os.path.join(get_zephyr_base(options), "scripts", "dts"))
+        # TODO(mehrdadh): remove this hack once dtlib.py is a standalone project
+        # https://github.com/zephyrproject-rtos/zephyr/blob/v2.7-branch/scripts/dts/README.txt
+        sys.path.insert(
+            0,
+            os.path.join(
+                get_zephyr_base(options), "scripts", "dts", "python-devicetree", "src", "devicetree"
+            ),
+        )
         try:
             import dtlib  # pylint: disable=import-outside-toplevel
         finally:

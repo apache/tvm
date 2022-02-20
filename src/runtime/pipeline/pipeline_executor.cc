@@ -74,6 +74,9 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
         LOG(FATAL) << "Function only support the input name value in the form of string";
       }
     });
+  } else if (name == "get_output") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
   } else if (name == "stop") {
@@ -112,6 +115,14 @@ NDArray PipelineExecutor::GetInput(std::string input_name) {
   return runtimes_[indexs.first]->GetInput(indexs.second);
 }
 /*!
+ * \brief Getting a module index via a input parameters group name.
+ * \param name The parameters group name.
+ * \return int The module index.
+ */
+int PipelineExecutor::GetParamModuleIndex(const std::string& name) {
+  return param_connection_config[name];
+}
+/*!
  * \brief Using the global input name to get the index, and also get the input interface name
    of corresponding subgraph from the input connection configuration.
  * \param The global input name.
@@ -136,14 +147,16 @@ int PipelineExecutor::GetParamsGroupPipelineMap(const std::string& name) {
  * \param serialized_mode Whether run the pipeline executor in serialized mode.
  */
 void PipelineExecutor::Run(bool serialized_mode) {
-  // TODO(huajsj): Run the pipeline executor.
+  pipeline_scheduler_.PipelineRun(runtimes_, pipeline_config_, serialized_mode);
 }
+/*!
+ * \brief return A list of global output data.
+ */
+Array<NDArray> PipelineExecutor::GetOutput(void) { return pipeline_scheduler_.PipelineGetOutput(); }
 /*!
  * \brief Stop the pipeline executor.
  */
-void PipelineExecutor::Stop() {
-  // TODO(huajsj): Stop the pipeline executor.
-}
+void PipelineExecutor::Stop() { pipeline_scheduler_.PipelineStop(); }
 
 /*!
  * \brief Use the mod_config information to create a graph runtime list.
@@ -208,9 +221,16 @@ std::vector<Module> PipelineExecutor::CreateGraphModules(const ModuleConfig& mod
  */
 void PipelineExecutor::SetParam(std::string param_group_name, std::string param_key_name,
                                 DLTensor* data_in) {
-  // Get the module index from the param name.
-  int module_index = this->GetParamsGroupPipelineMap(param_group_name);
-  // TODO(huajsj): set the parameters into runtime module.
+  // Get the module index via the parameters group name.
+  int module_index = this->GetParamModuleIndex(param_group_name);
+  ICHECK(module_index >= 0 && module_index < static_cast<int>(runtimes_.size()))
+      << "Parameter group name " << param_group_name << " does not exist.";
+  auto runtime = runtimes_[module_index];
+  // Get the parameter index via the param key name
+  int index = runtime->GetInputIndex(param_key_name);
+  ICHECK(index >= 0) << "Parameter name " << param_key_name << " does not exist in module "
+                     << module_index;
+  runtime->SetInput(index, data_in);
 }
 /*!
  * \brief Return the input index and module index for a given input name.
