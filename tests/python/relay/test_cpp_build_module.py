@@ -95,18 +95,18 @@ def test_fp16_build():
 
 @tvm.testing.requires_llvm
 def test_bf16_build():
-    data = relay.var("data", shape=(1, 3, 224, 224), dtype="flaot32")
-    weight = relay.var("weight", shape=(64, 3, 7, 7), dtype="flaot32")
-    bn_gamma = relay.var("gamma", shape=(64,), dtype="flaot32")
-    bn_beta = relay.var("beta", shape=(64,), dtype="flaot32")
-    bn_mean = relay.var("mean", shape=(64,), dtype="flaot32")
-    bn_var = relay.var("var", shape=(64,), dtype="flaot32")
+    data = relay.var("data", shape=(1, 3, 224, 224), dtype="float32")
+    weight = relay.var("weight", shape=(64, 3, 7, 7), dtype="float32")
+    bn_gamma = relay.var("gamma", shape=(64,), dtype="float32")
+    bn_beta = relay.var("beta", shape=(64,), dtype="float32")
+    bn_mean = relay.var("mean", shape=(64,), dtype="float32")
+    bn_var = relay.var("var", shape=(64,), dtype="float32")
     params = {
-        "weight": np.random.uniform(-1, 1, size=(64, 3, 7, 7)).astype("flaot32"),
-        "gamma": np.random.uniform(-1, 1, size=(64,)).astype("flaot32"),
-        "beta": np.random.uniform(-1, 1, size=(64,)).astype("flaot32"),
-        "mean": np.random.uniform(-1, 1, size=(64,)).astype("flaot32"),
-        "var": np.random.uniform(-1, 1, size=(64,)).astype("flaot32"),
+        "weight": np.random.uniform(-1, 1, size=(64, 3, 7, 7)).astype("float32"),
+        "gamma": np.random.uniform(-1, 1, size=(64,)).astype("float32"),
+        "beta": np.random.uniform(-1, 1, size=(64,)).astype("float32"),
+        "mean": np.random.uniform(-1, 1, size=(64,)).astype("float32"),
+        "var": np.random.uniform(-1, 1, size=(64,)).astype("float32"),
     }
     conv_bf16 = relay.nn.conv2d(
         relay.cast(data, "bfloat16"),
