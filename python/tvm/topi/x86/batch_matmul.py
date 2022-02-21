@@ -26,6 +26,7 @@ from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 from .utils import target_has_vnni
 from .dense import dense_vnni_schedule
+from .injective import schedule_injective_from_existing
 
 
 def batch_matmul_vnni_compute(cfg, x, y):
@@ -50,6 +51,7 @@ def batch_matmul_vnni_compute(cfg, x, y):
 
     _, a_y, _ = z.op.axis
     cfg.define_split("tile_y", a_y, num_outputs=2)
+    cfg.define_knob("layout_trans_compute_root", [0, 1])
 
     return z
 
@@ -65,10 +67,14 @@ def batch_matmul_vnni_schedule(cfg, s, C, O, layout_trans):
     fused = s[O].fuse(O.op.axis[0], fused_inner)
     s[O].parallel(fused)
 
-    s[layout_trans].compute_at(s[O], fused)
-    _, _, _, ni, ki = s[layout_trans].op.axis
-    s[layout_trans].vectorize(ki)
-    s[layout_trans].unroll(ni)
+    if cfg["layout_trans_compute_root"].val:
+        s[layout_trans].compute_root()
+        schedule_injective_from_existing(s, layout_trans)
+    else:
+        s[layout_trans].compute_at(s[O], fused)
+        _, _, _, ni, ki = s[layout_trans].op.axis
+        s[layout_trans].vectorize(ki)
+        s[layout_trans].unroll(ni)
 
     return s
 
