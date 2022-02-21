@@ -228,10 +228,10 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 
 void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   const auto& vm_func = checkAndGetVMFunction(func_name);
-  const auto& param_names = vm_func.params;
-  ICHECK_EQ(args.size() - offset, param_names.size())
+  size_t params_num = vm_func.params.size();
+  ICHECK_EQ(args.size() - offset, params_num)
       << "The number of provided parameters doesn't match the number of arguments";
-  std::vector<ObjectRef> func_args(param_names.size());
+  std::vector<ObjectRef> func_args(params_num);
   for (int i = offset; i < args.size(); ++i) {
     int index = i - offset;
     Device dev = GetDevice(vm_func.param_device_indexes[index]);
@@ -243,21 +243,14 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
 
 void VirtualMachine::SetInputWithIndex(std::string func_name, TVMArgs args) {
   const auto& vm_func = checkAndGetVMFunction(func_name);
-  const auto& param_names = vm_func.params;
+  size_t params_num = vm_func.params.size();
   ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index, tensor)";
-  if (inputs_.count(func_name)) {
-    ICHECK_EQ(inputs_[func_name].size(), param_names.size())
-        << "The size of function" << func_name
-        << " doesn't match the number of provided parameters";
-  } else {
-    std::vector<ObjectRef> func_args(param_names.size());
-    inputs_.emplace(func_name, func_args);
-  }
   ICHECK_EQ(args[1].type_code(), kTVMArgInt) << "The second argument doesn't match integer";
   int inp_index = args[1];
-  ICHECK_LT(inp_index, param_names.size());
-  Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
+  ICHECK_LT(inp_index, params_num);
 
+  createInputsOrCheckSize(func_name, params_num);
+  Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
   SetInputTensorWithIndex(inputs_[func_name], args[2], inp_index, dev);
 }
 
@@ -276,6 +269,17 @@ int64_t VirtualMachine::getInputIndexFromName(const std::string& input_name,
 const VMFunction& VirtualMachine::checkAndGetVMFunction(const std::string& func_name) const {
   ICHECK(exec_) << "The executable is not created yet.";
   return exec_->GetVMFunctionWithName(func_name);
+}
+
+void VirtualMachine::createInputsOrCheckSize(const std::string& func_name, size_t size) {
+  if (inputs_.count(func_name)) {
+    ICHECK_EQ(inputs_[func_name].size(), size)
+        << "The size of function" << func_name
+        << " doesn't match the number of provided parameters";
+  } else {
+    std::vector<ObjectRef> func_args(size);
+    inputs_.emplace(func_name, func_args);
+  }
 }
 
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,

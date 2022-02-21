@@ -313,6 +313,13 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   const VMFunction& checkAndGetVMFunction(const std::string& func_name) const;
   /*!
+   * \brief Creats inputs_ field, if it exists check its size.
+   * \param func_name The function's name.
+   * \param size inputs_ field size.
+   * \return VM function.
+   */
+  void createInputsOrCheckSize(const std::string& func_name, size_t size);
+  /*!
    * \brief Set one input tensor with given index to set of input tensors if need copy to given
    * device. \param tensors the input tensors set (destination) \param tensor some tensor (not
    * neccessary DLTensor). \param index The input tensor index. \param dev device to copy if need.
