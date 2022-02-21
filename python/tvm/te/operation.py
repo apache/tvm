@@ -375,7 +375,6 @@ def var(name="tindex", dtype="int32", span=None):
     return tvm.tir.Var(name, dtype, span)
 
 
-# def const(name="tindex", dtype="int32", span=None):
 def const(dtype="int32", span=None):
     """Create a new constant with specified name and dtype
 
