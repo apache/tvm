@@ -719,10 +719,11 @@ Array<Range> Substitute(const Array<Range>& region, const Map<Var, PrimExpr>& vm
 }
 
 void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                   const std::function<bool(const ObjectRef&)>& fvisit) {
+                   const std::function<bool(const ObjectRef&)>& fvisit, bool visit_init_block) {
   class PreOrderVisitor : public StmtExprVisitor {
    public:
-    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f) : f_(f) {}
+    explicit PreOrderVisitor(const std::function<bool(const ObjectRef&)>& f, bool visit_init_block)
+        : f_(f), visit_init_block_(visit_init_block) {}
 
    private:
     void VisitExpr(const PrimExpr& expr) final {
@@ -745,11 +746,35 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
       }
     }
 
+    void VisitStmt_(const BlockNode* op) final {
+      auto fvisit_buffer_region = [this](const BufferRegion& s) {
+        for (const auto& range : s->region) {
+          this->VisitExpr(range->min);
+          this->VisitExpr(range->extent);
+        }
+      };
+      VisitArray(op->iter_vars, [this](const IterVar& iter_var) {
+        this->VisitExpr(iter_var->dom->min);
+        this->VisitExpr(iter_var->dom->extent);
+      });
+      VisitArray(op->reads, fvisit_buffer_region);
+      VisitArray(op->writes, fvisit_buffer_region);
+      VisitArray(op->match_buffers,
+                 [fvisit_buffer_region](const MatchBufferRegion& match_buffer_region) {
+                   fvisit_buffer_region(match_buffer_region->source);
+                 });
+      if (visit_init_block_ && op->init.defined()) {
+        this->VisitStmt(op->init.value());
+      }
+      this->VisitStmt(op->body);
+    }
+
     const std::function<bool(const ObjectRef&)>& f_;
+    bool visit_init_block_;
     std::unordered_set<const Object*> visited_;
   };
 
-  PreOrderVisitor visitor(fvisit);
+  PreOrderVisitor visitor(fvisit, visit_init_block);
   if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
     visitor(GetRef<Stmt>(stmt));
   } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {

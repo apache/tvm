@@ -410,9 +410,11 @@ inline T Substitute(T input, const std::unordered_map<const VarNode*, PrimExpr>&
  * \param stmt_or_expr The ir to be visited.
  * \param fvisit The visitor function to be applied. If fvisit returns false, it won't visit the
  * children of the node
+ * \param visit_init_block Whether or not to visit the init blocks in the sub-AST of the input
  */
 TVM_DLL void PreOrderVisit(const ObjectRef& stmt_or_expr,
-                           const std::function<bool(const ObjectRef&)>& fvisit);
+                           const std::function<bool(const ObjectRef&)>& fvisit,
+                           bool visit_init_block = true);
 }  // namespace tir
 }  // namespace tvm
 
