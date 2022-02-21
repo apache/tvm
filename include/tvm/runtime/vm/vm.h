@@ -94,9 +94,9 @@ struct VMFunction {
         instructions(std::move(instructions)),
         register_file_size(register_file_size),
         param_device_indexes(std::move(param_device_indexes)) {
-          ICHECK_EQ(params.size(), param_device_indexes.size())
-            << "The number of provided parameters doesn't match the number of assigned devices";
-        }
+    ICHECK_EQ(params.size(), param_device_indexes.size())
+        << "The number of provided parameters doesn't match the number of assigned devices";
+  }
 
   VMFunction() = default;
 
@@ -280,7 +280,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * function. If the tensor is not of the correct device for the function,
    * they will be copied to the device.
    */
-  void SetOneInputTensor(std::string func_name, TVMArgs args);
+  void SetOneInputTensor(std::string name, TVMArgs args);
 
   /*!
    * \brief Internal hook for profiling the start of an op.
@@ -305,7 +305,8 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param input_name The input tensor name.
    * \return The input tensor index.
    */
-  int64_t getInputIndexFromVMFunction(const std::string& func_name, const std::string& input_name) const;
+  int64_t getInputIndexFromVMFunction(const std::string& func_name,
+                                      const std::string& input_name) const;
 
   /*!
    * \brief Get index of input tensor from its name.
@@ -313,7 +314,8 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param input_name The input tensor name.
    * \return The input tensor index.
    */
-  int64_t getInputIndexFromName(const std::vector<std::string>& params, const std::string& input_name) const;
+  int64_t getInputIndexFromName(const std::vector<std::string>& params,
+                                const std::string& input_name) const;
 
   /*!
    * \brief Check executable exists and get VM function from it.

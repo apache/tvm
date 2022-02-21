@@ -242,7 +242,8 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
 }
 
 void VirtualMachine::SetOneInputTensor(std::string func_name, TVMArgs args) {
-  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index or name, tensor)";
+  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 "
+                            << "(func_name, index or name, tensor)";
   const auto& vm_func = checkAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
 
@@ -250,9 +251,10 @@ void VirtualMachine::SetOneInputTensor(std::string func_name, TVMArgs args) {
   if (args[1].type_code() == kTVMArgInt) {
     inp_index = args[1];
   } else if (args[1].type_code() == kTVMStr) {
-    inp_index = int(getInputIndexFromName(vm_func.params, args[1]));
+    inp_index = static_cast<int>(getInputIndexFromName(vm_func.params, args[1]));
   } else {
-    LOG(FATAL) << "The second argument type (" << args[1].type_code() << ") doesn't match integer or string";
+    LOG(FATAL) << "The second argument type (" << args[1].type_code()
+               << ") doesn't match integer or string";
   }
   ICHECK_LT(inp_index, params_num);
 
