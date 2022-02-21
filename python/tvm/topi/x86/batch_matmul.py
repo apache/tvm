@@ -25,6 +25,7 @@ from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
 from .utils import target_has_vnni
+from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
 
 
 def batch_matmul_vnni_compute(cfg, x, y):
@@ -57,11 +58,9 @@ def batch_matmul_vnni_schedule(cfg, s, C, O):
     """Schedule batch_matmul compute using VNNI vpdpbusd instruction"""
     # C: The output of GEMM
     # O: The output of the fused op
-    return s
-
     def split_y(out):
         default_y_split_factor = 32
-        a_y = out.op.axis[0]
+        a_y = out.op.axis[1]
 
         if cfg.is_fallback:
             return s[out].split(a_y, factor=default_y_split_factor)
@@ -71,25 +70,28 @@ def batch_matmul_vnni_schedule(cfg, s, C, O):
     (a_k,) = C.op.reduce_axis
 
     a_yo, a_yi = split_y(C)
-    a_xo, a_xi = s[C].split(C.op.axis[1], factor=16)
+    a_xo, a_xi = s[C].split(C.op.axis[2], factor=16)
     a_ko, a_ki = s[C].split(a_k, factor=4)
 
-    s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
+    batch = C.op.axis[0]
+
+    s[C].reorder(batch, a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
 
     pc = dot_16x1x16_uint8_int8_int32_cascadelake()
     s[C].tensorize(a_xi, pc)
 
     if C == O:
-        fused = s[O].fuse(a_yo, a_xo)
+        fused = s[O].fuse(batch, a_yo, a_xo)
     else:
         a_yo, a_yi = split_y(O)
-        a_xo, a_xi = s[O].split(O.op.axis[1], factor=16)
+        a_xo, a_xi = s[O].split(O.op.axis[2], factor=16)
+        batch = O.op.axis[0]
 
-        s[O].reorder(a_yo, a_xo, a_yi, a_xi)
+        s[O].reorder(batch, a_yo, a_xo, a_yi, a_xi)
         s[O].vectorize(a_xi)
         s[C].compute_at(s[O], a_yi)
 
-        fused = s[O].fuse(a_yo, a_xo)
+        fused = s[O].fuse(batch, a_yo, a_xo)
 
     s[O].parallel(fused)
 
