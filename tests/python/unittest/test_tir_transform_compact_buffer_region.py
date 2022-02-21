@@ -515,8 +515,7 @@ def sparse_read_cache(
     for i in T.serial(128):
         with T.block("rowsum_outer"):
             T.reads(
-                A_indptr[i],
-                A_indptr[i + 1],
+                A_indptr[i : i + 1],
                 A_data[A_indptr[i] + 0 : A_indptr[i] + (A_indptr[i + 1] - A_indptr[i])],
             )
             T.writes(B[i])
@@ -549,8 +548,7 @@ def compacted_sparse_read_cache(
     for i in T.serial(128):
         with T.block("rowsum_outer"):
             T.reads(
-                A_indptr[i],
-                A_indptr[i + 1],
+                A_indptr[i : i + 1],
                 A_data[A_indptr[i] + 0 : A_indptr[i] + 0 + (A_indptr[i + 1] - A_indptr[i])],
             )
             T.writes(B[i])
