@@ -163,6 +163,52 @@ def test_alter_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_alter_layout_multi():
+    """Test alternating the layout of a conv2d.
+    The layout of broadcast operators and the weight should be changed accordingly.
+    """
+
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight")
+        y = relay.nn.conv2d(x, weight, channels=128, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def alter_conv2d(attrs, inputs, tinfos, out_type):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs["data_layout"] = "NCHW16c"
+        new_attrs["kernel_layout"] = "OHWI16i64o2i"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        weight = relay.var("weight", shape=(128, 64, 3, 3))
+
+        y = relay.layout_transform(x, "NCHW", "NCHW16c")
+        w = relay.layout_transform(weight, "OIHW", "OHWI16i64o2i")
+        y = relay.nn.conv2d(
+            y,
+            w,
+            channels=128,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            kernel_layout="OHWI16i64o2i",
+            data_layout="NCHW16c",
+        )
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv2d):
+        a = before()
+        a = run_opt_pass(a, [transform.CanonicalizeOps(), transform.AlterOpLayout()])
+        b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 def test_alter_layout_lrn():
     """Test alternating the layout of a conv2d.
     The layout of broadcast operators and the weight should be changed accordingly.

@@ -48,10 +48,7 @@ class PoolInfoAssigner : public StmtExprMutator {
     ICHECK(target_host) << "main function does not have a target attr";
     WorkspaceMemoryPools workspace_pools =
         module->GetAttr<WorkspaceMemoryPools>(tvm::attr::kWorkspaceMemoryPools)
-            .value_or(WorkspaceMemoryPools(
-                {PoolInfo("global_workspace", {{target_host.value(), kTargetPoolReadWriteAccess}},
-                          kUnrestrictedPoolSizeHint, kUnknownClockFrequency, kUnknownReadBandwidth,
-                          kUnknownWriteBandwidth, 0, 0, {{target_host.value(), 1}}, Bool(true))}));
+            .value_or(WorkspaceMemoryPools({CreateDefaultMemoryPool(module)}));
     Array<PoolInfo> pool_infos = workspace_pools->pools;
     for (const PoolInfo& pool_info : pool_infos) {
       for (const auto& kv : pool_info->target_access) {
@@ -76,7 +73,23 @@ class PoolInfoAssigner : public StmtExprMutator {
   IRModule mod_;
   Map<String, Array<PoolInfo>> target_pool_infos_;
   PrimFunc func_;
+  PoolInfo CreateDefaultMemoryPool(const IRModule& module);
 };
+
+PoolInfo PoolInfoAssigner::CreateDefaultMemoryPool(const tvm::IRModule& module) {
+  Map<Target, String> target_access;
+  tir::PrimFunc tir_main_func =
+      Downcast<tir::PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+  Target target_host = tir_main_func->GetAttr<Target>(tvm::attr::kTarget).value();
+  for (const auto& kv : module->functions) {
+    BaseFunc func = kv.second;
+    Optional<Target> target = func->GetAttr<Target>(tvm::attr::kTarget);
+    target_access.Set(target.value_or(target_host), kTargetPoolReadWriteAccess);
+  }
+  return PoolInfo("global_workspace", target_access, kUnrestrictedPoolSizeHint,
+                  kUnknownClockFrequency, kUnknownReadBandwidth, kUnknownWriteBandwidth, 0, 0, {},
+                  Bool(true));
+}
 
 Stmt PoolInfoAssigner::VisitStmt_(const AllocateNode* op) {
   Optional<Target> tgt = func_->GetAttr<Target>(tvm::attr::kTarget).value();

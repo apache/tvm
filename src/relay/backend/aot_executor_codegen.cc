@@ -948,8 +948,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         tir_main_func->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
     if (allocated_pool_infos) {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
-        pool_vars.push_back(allocated_pool_info->pool_var.value());
-        pool_var_info.Set(allocated_pool_info->pool_var.value(), allocated_pool_info);
+        int pool_var_index = allocated_pool_info->pool_var_idx.value()->value;
+        pool_vars.push_back(tir_main_func->params[pool_var_index]);
+        pool_var_info.Set(tir_main_func->params[pool_var_index], allocated_pool_info);
       }
     }
     Array<String> devices = ListDevices();
@@ -957,7 +958,27 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         Array<tir::Var>(tir_main_func->params.begin(),
                         tir_main_func->params.begin() + tir_main_func->params.size() -
                             return_sid_.size() - pool_vars.size() - devices.size());
-    ret.metadata = ExecutorCodegenMetadata(inputs, pool_vars, devices, return_sid_.size(),
+
+    std::vector<String> output_var_names;
+    if (auto opt = func->GetAttr<Array<String>>("output_tensor_names")) {
+      Array<String> output_tensor_names = opt.value();
+      for (size_t i = 0; i < output_tensor_names.size(); ++i) {
+        output_var_names.push_back(output_tensor_names[i]);
+      }
+    }
+
+    // If output names have not been specified then generate default output names
+    if (output_var_names.size() == 0) {
+      if (return_sid_.size() == 1) {
+        output_var_names.push_back(String("output"));
+      } else {
+        for (size_t i = 0; i < return_sid_.size(); ++i) {
+          output_var_names.push_back(String("output" + std::to_string(i)));
+        }
+      }
+    }
+
+    ret.metadata = ExecutorCodegenMetadata(inputs, pool_vars, devices, output_var_names,
                                            runtime::kTvmExecutorAot, mod_name, interface_api,
                                            use_unpacked_api_, pool_var_info);
     return ret;

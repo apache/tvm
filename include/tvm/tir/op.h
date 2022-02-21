@@ -496,6 +496,22 @@ TVM_DLL PrimExpr truncmod(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr indexdiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
+ * \brief compute ceil(a / b) where a and b are non-negative.
+ *
+ * Use this function for shape split calculation.
+ *
+ * This function might take advantage of the fact
+ * that a and b are non-negative.
+ *
+ * \param a left operand
+ * \param b right operand
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       shape types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr shapediv(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
  * \brief compute the remainder floor(a / b) where a and b are non-negative.
  *
  * Use this function for index split calculation.
@@ -521,6 +537,17 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
  *       index types(int32, int64) when possible.
  */
 TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
+ * \brief compute ceil(a / b)
+ *
+ * \param a left operand
+ * \param b right operand
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ * \note this function does eager constant folding for
+ *       index types(int32, int64) when possible.
+ */
+TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
  * \brief compute the remainder of floordiv
  *
