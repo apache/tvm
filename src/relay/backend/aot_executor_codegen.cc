@@ -948,8 +948,9 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         tir_main_func->GetAttr<Array<tir::usmp::AllocatedPoolInfo>>(tvm::attr::kPoolArgs);
     if (allocated_pool_infos) {
       for (const tir::usmp::AllocatedPoolInfo& allocated_pool_info : allocated_pool_infos.value()) {
-        pool_vars.push_back(allocated_pool_info->pool_var.value());
-        pool_var_info.Set(allocated_pool_info->pool_var.value(), allocated_pool_info);
+        int pool_var_index = allocated_pool_info->pool_var_idx.value()->value;
+        pool_vars.push_back(tir_main_func->params[pool_var_index]);
+        pool_var_info.Set(tir_main_func->params[pool_var_index], allocated_pool_info);
       }
     }
     Array<String> devices = ListDevices();

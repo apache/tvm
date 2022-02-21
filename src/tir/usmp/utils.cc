@@ -114,12 +114,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                                     Integer pool_var_idx) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
-  if (pool_var.defined()) {
-    allocated_poolinfo_node->pool_var = pool_var;
+  if (pool_var_idx.defined()) {
+    allocated_poolinfo_node->pool_var_idx = pool_var_idx;
   }
   data_ = std::move(allocated_poolinfo_node);
 }

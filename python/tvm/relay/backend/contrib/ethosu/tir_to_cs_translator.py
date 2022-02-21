@@ -42,15 +42,6 @@ class BufferType(Enum):
     shram = auto()
 
 
-_REGION_MAP = {
-    BufferType.constant: 0,
-    BufferType.scratch: 1,
-    BufferType.input: 3,
-    BufferType.output: 4,
-    BufferType.shram: int((1 << 8) | (3 << 0)),
-}
-
-
 class BufferInfo(NamedTuple):
     """A data structure to hold metadata of the buffer."""
 
@@ -81,6 +72,111 @@ def get_accelerator_arch_config(accel_type):
     return accel_config_str_map[accel_type]
 
 
+class RegionOffset(NamedTuple):
+    """A data structure to hold region and address offset corresponding to a tensor"""
+
+    region: int
+    offset: int
+
+
+def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scratch: List[int]):
+    """
+    This function analyzes the IRModule for intermediary tensors that can be resulting
+    from a offset of pool variables (via Let nodes) and/or allocate nodes. The allocate
+    nodes will be folded into a single TVMBackendallocWorkspace call with offsets. Ultimately
+    this will produce a mapping from each such node to a RegionOffset named tuple that
+    has the region and the obtained offset, as mentioned above.
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+        The TIR module containing ethosu extern calls
+    candidate_regions_for_scratch: List[int]
+        A list of region integers that could be used for scratch regions
+
+    Returns
+    -------
+    scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
+        A map between buffer vars to scratch regions they are assigned
+    tvm_backend_alloc_workspace_size : int
+        The size of tvm_backend_alloc_workspace call required to service
+        remaining allocate nodes if any
+    tvm_backend_alloc_workspace_region : int
+        The region associated with the tvm_backend_alloc_workspace
+    """
+    scratch_region_map = dict()
+    pool_var_region_map = dict()
+    # There should only be a single function
+    assert len(mod.functions.items()) == 1
+    primfunc = mod.functions.items()[0][1]
+    if "pool_args" in primfunc.attrs.keys():
+        pool_args = primfunc.attrs["pool_args"]
+        for pool_arg in pool_args:
+            pool_param = primfunc.params[int(pool_arg.pool_var_idx)]
+            pool_var_region_map[pool_param] = candidate_regions_for_scratch.pop()
+            scratch_region_map[pool_param] = RegionOffset(
+                region=pool_var_region_map[pool_param], offset=None
+            )
+
+    def analyze_pool_access(stmt):
+        if isinstance(stmt, tvm.tir.stmt.LetStmt):
+            call_address_of = stmt.value
+            load = call_address_of.args[0]
+            pool_var = load.buffer_var
+            scratch_region_map[stmt.var] = RegionOffset(
+                region=pool_var_region_map[pool_var], offset=int(load.index)
+            )
+
+    tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_pool_access)
+
+    tvmbaw_region = None
+    if len(candidate_regions_for_scratch) > 0:
+        tvmbaw_region = candidate_regions_for_scratch.pop()
+        tvmbaw_size = 0
+
+        # If there are tir.Allocate remaining by now, they need to be serviced via
+        # TVMBAW calls.
+        def analyze_remaining_allocates(stmt):
+            nonlocal tvmbaw_size
+            if isinstance(stmt, tvm.tir.stmt.Allocate):
+                allocate = stmt
+                pointer_type = allocate.buffer_var.type_annotation
+                storage_scope = pointer_type.storage_scope
+                if storage_scope == "global":
+                    dtype_bytes = np.iinfo(np.dtype(allocate.dtype)).bits // 8
+                    size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
+                    # Every memory address the NPU access have to be 16 byte aligned
+                    size_in_bytes = util.round_up(size_in_bytes, 16)
+                    address = tvmbaw_size
+                    tvmbaw_size += size_in_bytes
+                    scratch_region_map[allocate.buffer_var] = RegionOffset(
+                        region=tvmbaw_region, offset=address
+                    )
+
+        tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_remaining_allocates)
+
+    return (
+        scratch_region_map,
+        tvmbaw_size,
+        tvmbaw_region,
+    )
+
+
+def _get_region(buffer_type, var=None, scratch_region_map=None):
+    """A helper to obtain regions for buffer_types and buffer vars"""
+    static_regions = {
+        BufferType.constant: 0,
+        BufferType.input: 3,
+        BufferType.output: 4,
+        BufferType.shram: int((1 << 8) | (3 << 0)),
+    }
+    if buffer_type in static_regions.keys():
+        return static_regions[buffer_type]
+    assert buffer_type == BufferType.scratch
+    assert var in scratch_region_map.keys(), f"{var} is not analyzed for scratch regions"
+    return scratch_region_map[var].region
+
+
 def translate(tir_module, params):
     """This will take an tir module for the NPU
     and compile to command stream
@@ -106,21 +202,31 @@ def translate(tir_module, params):
         base addresses to be used by the driver
     """
 
+    # The NPU has 6 usable regions ranging from 0-6
+    # The regions 0, 3, and 4 is already used for input,
+    # output and constant, respectively (See _get_regions()).
+    # Thus, for scratch we are left with 5, 2 and 1.
+    candidate_regions_for_scratch = [5, 2, 1]
+    (
+        scratch_region_map,
+        tvmbaw_workspace_size,
+        tvmbaw_region,
+    ) = analyze_scratch_memory_acesses(tir_module, candidate_regions_for_scratch)
     buffer_info = extract_buffer_info(tir_module, params)
     call_extern_list = extract_call_extern_list(tir_module)
     _npu_ops = list()
     for call_extern in call_extern_list:
         _npu_ops.append(translate_ethosu_tir_call_extern(call_extern))
-    _npu_ops, constant_data, scratch_size = assign_addresses(buffer_info, _npu_ops)
-    base_addresses = extract_param_base_addresses(tir_module, buffer_info)
-    if scratch_size > 0:
+    _npu_ops, constant_data = assign_addresses(buffer_info, _npu_ops, scratch_region_map)
+    base_addresses = extract_param_base_addresses(tir_module, buffer_info, scratch_region_map)
+    if tvmbaw_workspace_size:
         base_addresses.append(
             util.BaseAddress(
-                "scratch",
-                None,
-                _REGION_MAP[BufferType.scratch],
-                scratch_size,
-                True,
+                name="tvmbaw",
+                primfunc_param_idx=None,
+                region=tvmbaw_region,
+                size=tvmbaw_workspace_size,
+                is_runtime_allocation=True,
             )
         )
     target_accel_config = vela_api.get_accelerator_config()
@@ -129,7 +235,7 @@ def translate(tir_module, params):
     return payload.hex(), constant_data, base_addresses
 
 
-def extract_param_base_addresses(mod, buffer_info) -> List[util.BaseAddress]:
+def extract_param_base_addresses(mod, buffer_info, scratch_region_map) -> List[util.BaseAddress]:
     """This function extracts base addresses to be used by the driver
 
     Parameters
@@ -161,7 +267,12 @@ def extract_param_base_addresses(mod, buffer_info) -> List[util.BaseAddress]:
         element_size_bytes = np.iinfo(dtype).bits // 8
         size_bytes = element_size_bytes * np.prod(list(buffer.shape))
         base_addresses.append(
-            util.BaseAddress(param.name, idx, _REGION_MAP[buffer_info[param].btype], size_bytes)
+            util.BaseAddress(
+                param.name,
+                idx,
+                _get_region(buffer_info[param].btype, param, scratch_region_map),
+                size_bytes,
+            )
         )
         idx += 1
 
@@ -227,39 +338,42 @@ def extract_buffer_info(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )
 
-    for param in primfunc.params:
+    pool_param_indices = list()
+    if "pool_args" in primfunc.attrs.keys():
+        pool_args = primfunc.attrs["pool_args"]
+        pool_param_indices = [allocated_pool_info.pool_var_idx for allocated_pool_info in pool_args]
+
+    for idx, param in enumerate(primfunc.params):
         if param not in buffer_info.keys():
+            if idx in pool_param_indices:
+                btype = BufferType.scratch
+            else:
+                btype = BufferType.input_or_output
             buffer_info[param] = BufferInfo(
                 None,
                 None,
                 None,
-                BufferType.input_or_output,
+                btype,
             )
 
     def populate_allocate_buffer_info(stmt):
         if isinstance(stmt, tvm.tir.stmt.Allocate):
             allocate = stmt
-            if "placeholder" in allocate.buffer_var.name:
-                storage_scope = allocate.buffer_var.name.split(".")[-1]
-            else:
-                storage_scope = "global"
-
+            pointer_type = allocate.buffer_var.type_annotation
+            storage_scope = pointer_type.storage_scope
             if storage_scope == "local":
-                buffer_type = BufferType.shram
-            else:
-                buffer_type = BufferType.scratch
-            buffer_info[allocate.buffer_var] = BufferInfo(
-                None,
-                allocate.extents,
-                allocate.dtype,
-                buffer_type,
-            )
+                buffer_info[allocate.buffer_var] = BufferInfo(
+                    None,
+                    allocate.extents,
+                    allocate.dtype,
+                    BufferType.shram,
+                )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, populate_allocate_buffer_info)
     return buffer_info
 
 
-def assign_addresses(buffer_info, npu_ops):
+def assign_addresses(buffer_info, npu_ops, scratch_region_map):
     """This function will assign addresses to tensors
     within two buffers : scratch and constants.
     The scratch is the buffer created to hold all intermediary data
@@ -272,14 +386,14 @@ def assign_addresses(buffer_info, npu_ops):
         The key is the buffer name to BufferInfo
     npu_ops : list
         A list of Vela NpuOps with tir.Loads for addresses
+    scratch_region_map : Dict[tvm.tir.Var, RegionOffset]
+        A buffer_var to region and offset map.
     Returns
     -------
     npu_ops : list
         A list of Vela NpuOps with addesses within scratch and constant buffers
     constant_tensor : NDArray
         A unified constant data array of uint8 as the constant buffer
-    scratch_size : int
-        The size of the scratch tensor.
     """
 
     def replace_npu_fm_with_address(npu_fm):
@@ -290,21 +404,34 @@ def assign_addresses(buffer_info, npu_ops):
         assert npu_fm.tiles.addresses[1:] == [0, 0, 0]
         npu_fm.tiles.addresses[1:] = [0, 0, 0]
         buffer = npu_fm.tiles.addresses[0].buffer_var
-        assert buffer in buffer_addresses.keys()
-        address, buffer_type = buffer_addresses[buffer]
+
+        if buffer in scratch_region_map.keys():
+            address = scratch_region_map[buffer].offset
+            region = scratch_region_map[buffer].region
+        else:
+            assert buffer in buffer_addresses.keys()
+            address, buffer_type = buffer_addresses[buffer]
+            region = _get_region(buffer_type)
+
         index = npu_fm.tiles.addresses[0].index * (
             np.iinfo(np.dtype(npu_fm.tiles.addresses[0])).bits // 8
         )
         npu_fm.tiles.addresses[0] = address + int(index)
-        npu_fm.region = _REGION_MAP[buffer_type]
+        npu_fm.region = region
         return npu_fm
 
     def replace_npu_address_range_with_address(npu_addr_range):
         assert isinstance(npu_addr_range.address, tvm.tir.Load)
         buffer = npu_addr_range.address.buffer_var
+        if buffer in scratch_region_map.keys():
+            return vapi.NpuAddressRange(
+                scratch_region_map[buffer].region,
+                scratch_region_map[buffer].offset,
+                npu_addr_range.length,
+            )
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
         address, buffer_type = buffer_addresses[buffer]
-        return vapi.NpuAddressRange(_REGION_MAP[buffer_type], address, npu_addr_range.length)
+        return vapi.NpuAddressRange(_get_region(buffer_type), address, npu_addr_range.length)
 
     def replace_tir_loads(npu_object):
         if isinstance(npu_object, vapi.NpuFeatureMap):
@@ -325,7 +452,6 @@ def assign_addresses(buffer_info, npu_ops):
 
         raise ValueError(f"Unused IO : {buffer} in tir module.")
 
-    scratch_size = 0
     constant_hex_data = []
     total_constant_len = 0
     buffer_addresses = dict()
@@ -345,8 +471,10 @@ def assign_addresses(buffer_info, npu_ops):
             constant_hex_data.append(constant_tensor)
             total_constant_len += len(constant_tensor) // 2
         else:
-            if info.btype == BufferType.input_or_output:
-                buffer_type = classify_io(_buffer)
+            if info.btype == BufferType.input_or_output or info.btype == BufferType.input:
+                buffer_type = info.btype
+                if info.btype == BufferType.input_or_output:
+                    buffer_type = classify_io(_buffer)
                 assert buffer_type in (BufferType.input, BufferType.output)
                 address = 0
                 buffer_addresses[_buffer] = (address, buffer_type)
@@ -359,14 +487,8 @@ def assign_addresses(buffer_info, npu_ops):
                 address = arch_config.lut_start_address
                 buffer_addresses[_buffer] = (address, info.btype)
             else:
-                dtype_bytes = np.iinfo(np.dtype(info.dtype)).bits // 8
-                size_in_bytes = int(dtype_bytes * np.prod(list(info.shape)))
-                # Every memory address the NPU access have to be 16 byte aligned
-                size_in_bytes = util.round_up(size_in_bytes, 16)
+                # These buffer_vars are already updated in scratch_region_map
                 assert info.btype == BufferType.scratch
-                address = scratch_size
-                scratch_size += size_in_bytes
-                buffer_addresses[_buffer] = (address, info.btype)
 
     for npu_op in npu_ops:
         for attr_name, attr in npu_op.__dict__.items():
@@ -379,11 +501,7 @@ def assign_addresses(buffer_info, npu_ops):
                 setattr(npu_op, attr_name, replace_tir_loads(attr))
 
     constant_data = "".join(constant_hex_data)
-    return (
-        npu_ops,
-        constant_data,
-        scratch_size,
-    )
+    return (npu_ops, constant_data)
 
 
 def translate_ethosu_tir_call_extern(tir_call_extern):
@@ -733,17 +851,18 @@ def _create_npu_rounding_mode(
 def _create_npu_dma_op(serial_copy):
     """This is a helper function to capture the list of arguments
     to create a NpuDmaOperation object"""
+    data_type_bytes = np.iinfo(np.dtype(serial_copy.read_address.dtype)).bits // 8
     src = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.read_address,
-        length=int(serial_copy.length.value),
+        length=int(serial_copy.length.value) * data_type_bytes,
     )
     dest = vapi.NpuAddressRange(
         # region will be updated later
         region=0,
         address=serial_copy.write_address,
-        length=int(serial_copy.length.value),
+        length=int(serial_copy.length.value) * data_type_bytes,
     )
     return vapi.NpuDmaOperation(src, dest)
 
