@@ -307,7 +307,7 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   int64_t getInputIndexFromName(const std::string& input_name, const std::string& func_name) const;
   /*!
-   * \brief Check executable exists and function name is in global map, get VM function.
+   * \brief Check executable exists and get VM function from it.
    * \param func_name The function's name.
    * \return VM function.
    */

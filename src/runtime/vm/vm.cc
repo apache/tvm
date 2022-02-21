@@ -275,10 +275,7 @@ int64_t VirtualMachine::getInputIndexFromName(const std::string& input_name,
 
 const VMFunction& VirtualMachine::checkAndGetVMFunction(const std::string& func_name) const {
   ICHECK(exec_) << "The executable is not created yet.";
-  auto gvit = exec_->global_map.find(func_name);
-  ICHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
-  auto func_index = gvit->second;
-  return exec_->functions[func_index];
+  return exec_->GetVMFunctionWithName(func_name);
 }
 
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
