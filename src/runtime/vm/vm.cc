@@ -211,12 +211,9 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "set_input") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
-  } else if (name == "set_input_with_index") {
+  } else if (name == "set_one_input") {
     return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInputWithIndex(args[0], args); });
-  } else if (name == "set_input_with_name") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInputWithName(args[0], args); });
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetOneInputTensor(args[0], args); });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
@@ -244,25 +241,19 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   inputs_.emplace(func_name, func_args);
 }
 
-void VirtualMachine::SetInputWithIndex(std::string func_name, TVMArgs args) {
+void VirtualMachine::SetOneInputTensor(std::string func_name, TVMArgs args) {
+  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index or name, tensor)";
   const auto& vm_func = checkAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
-  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index, tensor)";
-  ICHECK_EQ(args[1].type_code(), kTVMArgInt) << "The second argument type doesn't match integer";
-  int inp_index = args[1];
-  ICHECK_LT(inp_index, params_num);
 
-  createInputsOrCheckSize(func_name, params_num);
-  Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
-  SetInputTensorWithIndex(inputs_[func_name], args[2], inp_index, dev);
-}
-
-void VirtualMachine::SetInputWithName(std::string func_name, TVMArgs args) {
-  const auto& vm_func = checkAndGetVMFunction(func_name);
-  size_t params_num = vm_func.params.size();
-  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, name, tensor)";
-  ICHECK_EQ(args[1].type_code(), kTVMStr) << "The second argument type doesn't match string";
-  int inp_index = int(getInputIndexFromName(vm_func.params, args[1]));
+  int inp_index;
+  if (args[1].type_code() == kTVMArgInt) {
+    inp_index = args[1];
+  } else if (args[1].type_code() == kTVMStr) {
+    inp_index = int(getInputIndexFromName(vm_func.params, args[1]));
+  } else {
+    LOG(FATAL) << "The second argument type (" << args[1].type_code() << ") doesn't match integer or string";
+  }
   ICHECK_LT(inp_index, params_num);
 
   createInputsOrCheckSize(func_name, params_num);
