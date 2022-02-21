@@ -51,6 +51,10 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON_SDK)
   list(APPEND TVM_RPC_LINKER_LIBS cdsprpc log)
 endif()
 
-list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
+if(BUILD_STATIC_RUNTIME)
+  list(APPEND TVM_RPC_LINKER_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+else()
+  list(APPEND TVM_RPC_LINKER_LIBS tvm_runtime)
+endif()
  
 target_link_libraries(tvm_rpc ${TVM_RPC_LINKER_LIBS})

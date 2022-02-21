@@ -104,6 +104,12 @@ def add_run_parser(subparsers, main_parser):
         "making it take longer to be generated. (non-micro devices only)",
     )
     parser.add_argument(
+        "--end-to-end",
+        action="store_true",
+        help="Measure data transfers as well as model execution. This can provide a "
+        "more realistic performance measurement in many cases.",
+    )
+    parser.add_argument(
         "--repeat", metavar="N", type=int, default=1, help="run the model n times. Defaults to '1'"
     )
     parser.add_argument(
@@ -262,6 +268,7 @@ def drive_run(args):
         repeat=args.repeat,
         number=args.number,
         profile=args.profile,
+        end_to_end=args.end_to_end,
         options=options,
     )
 
@@ -400,6 +407,7 @@ def run_module(
     repeat: int = 10,
     number: int = 10,
     profile: bool = False,
+    end_to_end: bool = False,
     options: dict = None,
 ):
     """Run a compiled graph executor module locally or remotely with
@@ -435,6 +443,10 @@ def run_module(
         The number of runs to measure within each repeat.
     profile : bool
         Whether to profile the run with the debug runtime.
+    end_to_end : bool
+        Whether to measure the time of memory copies as well as model
+        execution. Turning this on can provide a more realistic estimate
+        of how long running the model in production would take.
 
     Returns
     -------
@@ -557,8 +569,13 @@ def run_module(
             module.run()
             times = []
         else:
-            # call the benchmarking function of the executor
-            times = module.benchmark(dev, number=number, repeat=repeat)
+            # Call the benchmarking function of the executor.
+            # Optionally measure e2e data transfers from the
+            # CPU to device memory overheads (e.g. PCIE
+            # overheads if the device is a discrete GPU).
+            if end_to_end:
+                dev = session.cpu()
+            times = module.benchmark(dev, number=number, repeat=repeat, end_to_end=end_to_end)
 
         logger.debug("Collecting the output tensors.")
         num_outputs = module.get_num_outputs()

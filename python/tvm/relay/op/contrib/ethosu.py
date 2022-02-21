@@ -1074,8 +1074,28 @@ class LutActivationParams:
     """
 
     def __init__(self, func_body: Call):
-        self.ofm = TensorParams(func_body)
-        self.ifm = TensorParams(func_body.args[0].args[0].args[0])
+        from tvm.relay.backend.contrib.ethosu.util import QuantizeArgs
+        from tvm.relay.backend.contrib.ethosu.util import DequantizeArgs
+
+        layout = "NHWC"
+
+        quantize = func_body
+        activation = quantize.args[0]
+        dequantize = activation.args[0]
+        in_var = dequantize.args[0]
+
+        self.ifm = TensorParams(
+            in_var,
+            layout=layout,
+            scale=dequantize.args[DequantizeArgs.IFM_SCALE.value],
+            zero_point=dequantize.args[DequantizeArgs.IFM_ZERO_POINT.value],
+        )
+        self.ofm = TensorParams(
+            quantize,
+            layout=layout,
+            scale=quantize.args[QuantizeArgs.OFM_SCALE.value],
+            zero_point=quantize.args[QuantizeArgs.OFM_ZERO_POINT.value],
+        )
 
     def is_valid(self):
         """
@@ -1114,6 +1134,28 @@ def sigmoid_pattern():
     sigmoid = is_op("sigmoid")(dequant)
     quant = is_op("qnn.quantize")(sigmoid, is_constant(), is_constant())
     return quant
+
+
+class LeakyReLUParams(LutActivationParams):
+    """
+    This class will parse a call to ethos-u.leaky_relu composite function
+    and extract the parameter information.
+    """
+
+    composite_name = "ethos-u.leaky_relu"
+
+    def __init__(self, func_body: Call):
+        super().__init__(func_body)
+        self.alpha = func_body.args[0].attrs.alpha
+
+
+def leaky_relu_pattern() -> tvm.relay.dataflow_pattern.DFPattern:
+    """
+    This function creates the pattern for leaky relu.
+    """
+    dequantize = is_op("qnn.dequantize")(wildcard(), is_constant(), is_constant())
+    leaky_relu = is_op("nn.leaky_relu")(dequantize)
+    return is_op("qnn.quantize")(leaky_relu, is_constant(), is_constant())
 
 
 class MeanParams:
@@ -1573,6 +1615,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             MeanParams.composite_name,
             mean_pattern(),
             lambda pat: MeanParams(pat).is_valid(),
+        ),
+        (
+            LeakyReLUParams.composite_name,
+            leaky_relu_pattern(),
+            lambda pat: LeakyReLUParams(pat).is_valid(),
         ),
         (ConcatParams.composite_name, concat_pattern(), lambda pat: ConcatParams(pat).is_valid()),
         (

@@ -33,6 +33,7 @@ from . import infra
 ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10300")
 @pytest.mark.parametrize("accel_type", ACCEL_TYPES)
 def test_tflite_lut_activations(accel_type):
 

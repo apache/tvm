@@ -500,6 +500,107 @@ TVM_DLL Pass ConvertForLoopsToSerial();
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
+/*!
+ * \brief This pass transforms annotated loops into pipelined ones where producers and consumers
+ * are overlapped with the information provided in loop annotations, which enables optimization
+ * techniques like prefetching and pipeline parallelism.
+ *
+ * The pipeline scope consists of the direct children of the annotated loop (ignoring BlockRealize,
+ * Block, SeqStmt), and the number of children is denoted by `n` in the documentation.
+ *
+ * The following annotations are used to guide the loop transformation:
+ *
+ * 1) Loop annotation `software_pipeline_stage` defines the pipeline stage.
+ * An array of `n` integers, and each element should be in range [0, max_stage],
+ * where max_stage is the maximum (inclusive) stage.
+ * 2) Loop annotation `software_pipeline_order` defines the pipeline order.
+ * An array of `n` integers, a permutation of [0, 1, ..., num_components - 1];
+ * 3) Block annotation `double_buffer_scope` controls certain buffer sizes to allow decoupling of
+ * read/write dependency. It's an integer index of the write regions of the block.
+ *
+ * Every annotated loop is transformed into a loop with three blocks as its direct children:
+ *
+ * 1) Prologue block, where components whose stage is less than `max_stage` is executed;
+ *
+ * 2) Body block, where all the components are executed;
+ *
+ * 3) Epilogue block, where only components whose stage is greater than 0 will be executed.
+ * The execution order is controlled by the annotation `software_pipeline_order`,
+ * and thus could be different than the original order.
+ *
+ * Note: For nested software pipelines, the inner software pipeline will be generated first,
+ * which may affect the number of the direct children of the outer loop.
+ * In this case, the annotations for the outer software
+ * pipeline should include the result of the inner software pipeline,
+ * which is the three blocks as discussed above.
+ * Example:
+ *
+ * Before this pass, the TIR is:
+ *
+ * \code{.py}
+ * @T.prim_func
+ * def before_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+ *         for i in T.serial(0, 16,
+ *                           annotations={"software_pipeline_stage": [0, 1],
+ *                                        "software_pipeline_order": [0, 1]}
+ *                          ):
+ *             with T.block():
+ *                 T.reads(A[tx, i])
+ *                 T.writes(C[tx, i])
+ *                 B = T.alloc_buffer((16, 1), dtype="float32", scope="shared")
+ *                 with T.block("B"):
+ *                     T.reads(A[tx, i])
+ *                     T.writes(B[tx, 0])
+ *                     B[tx, 0] = A[tx, i] * T.float32(2)
+ *                 with T.block("C"):
+ *                     T.reads(B[tx, 0])
+ *                     T.writes(C[tx, i])
+ *                     C[tx, i] = B[tx, 0] + T.float32(1)
+ * \endcode
+ *
+ * The TIR above annotates the loop as a two-stage pipeline with no reordering.
+ * After applying this pass, the TIR is transformed into:
+ *
+ * \code{.py}
+ * @T.prim_func
+ * def after_transform(A: T.Buffer[(16, 16), "float32"], C: T.Buffer[(16, 16), "float32"]) -> None:
+ *     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
+ *         with T.block():
+ *             T.reads([A[tx, 0:16]])
+ *             T.writes([C[tx, 0:16]])
+ *             B = T.alloc_buffer([2, 16, 1], dtype="float32", scope="shared")
+ *             with T.block("prologue"):
+ *                 T.reads([A[tx, 0]])
+ *                 T.writes([B[0, tx, 0]])
+ *                 B[0, tx, 0] = A[tx, 0] * T.float32(2)
+ *             with T.block("body"):
+ *                 T.reads([A[tx, 1:16], B[0:2, tx, 0]])
+ *                 T.writes([B[0:2, tx, 0], C[tx, 0:15]])
+ *                 for i in T.serial(0, 15):
+ *                     with T.block("B"):
+ *                         T.reads([A[tx, i + 1]])
+ *                         T.writes([B[(i + 1) % 2, tx, 0]])
+ *                         B[(i + 1) % 2, tx, 0] = A[tx, i + 1] * T.float32(2)
+ *                     with T.block("C"):
+ *                         T.reads([B[i % 2, tx, 0]])
+ *                         T.writes([C[tx, i]])
+ *                         C[tx, i] = B[i % 2, tx, 0] + T.float32(1)
+ *             with T.block("epilogue"):
+ *                 T.reads([B[1, tx, 0]])
+ *                 T.writes([C[tx, 15]])
+ *                 C[tx, 15] = B[1, tx, 0] + T.float32(1)
+ * \endcode
+ *
+ * The original loop has two blocks, B and C, as its direct children. The loop annotations indicate
+ * that block B has stage == 0, order == 0, block C has stage == 1, order == 1. Therefore, block B
+ * should be executed in advance of block C by one iteration. The order 0 and 1 specifies the order
+ * of block B and C inside the body block inside the result TIR.
+ *
+ * \return The IR transform pass.
+ */
+TVM_DLL Pass InjectSoftwarePipeline();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

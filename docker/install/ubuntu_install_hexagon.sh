@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -6,9 +6,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-#
+# 
 #   http://www.apache.org/licenses/LICENSE-2.0
-#
+# 
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -16,20 +16,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
+set -o errexit -o nounset
+set -o pipefail
 
-mkdir -p build
-cd build
-cp ../cmake/config.cmake .
-
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_CMSISNN ON\) >> config.cmake
-echo set\(USE_ETHOSU ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-10\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+# Install LLVM/clang
+CLANG_LLVM_HOME=/opt/clang-llvm
+CLANG_LLVM_VERSION=13.0.0
+CLANG_LLVM_FILENAME=clang_llvm.tar.xz
+wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-${CLANG_LLVM_VERSION}/clang+llvm-${CLANG_LLVM_VERSION}-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O ${CLANG_LLVM_FILENAME}
+mkdir ${CLANG_LLVM_HOME}
+tar -xvf ${CLANG_LLVM_FILENAME} -C ${CLANG_LLVM_HOME} --strip-components=1
+rm ${CLANG_LLVM_FILENAME}

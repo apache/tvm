@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -23,13 +23,9 @@ mkdir -p build
 cd build
 cp ../cmake/config.cmake .
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_CMSISNN ON\) >> config.cmake
-echo set\(USE_ETHOSU ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config-10\) >> config.cmake
-echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+echo set\(USE_LLVM "${CLANG_LLVM_HOME}/bin/llvm-config"\) >> config.cmake
+echo set\(USE_CPP_RPC ON\) >> config.cmake
+echo set\(CMAKE_CXX_COMPILER "${CLANG_LLVM_HOME}/bin/clang++"\) >> config.cmake
+echo set\(USE_HEXAGON_SDK "${HEXAGON_SDK_PATH}"\) >> config.cmake
+echo set\(USE_HEXAGON_ARCH "v68"\) >> config.cmake
+echo set\(USE_HEXAGON_DEVICE "sim"\) >> config.cmake

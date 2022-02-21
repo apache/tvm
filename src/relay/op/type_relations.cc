@@ -107,7 +107,7 @@ bool BroadcastRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       if (t0->dtype != t1->dtype) {
         reporter->GetDiagCtx().Emit(Diagnostic::Error(t0->span)
                                     << "data types " << t0->dtype << " and " << t1->dtype
-                                    << "do not match in BroadcastRel");
+                                    << " do not match in BroadcastRel");
       }
       reporter->Assign(
           types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1), t0->dtype));
@@ -127,7 +127,7 @@ bool BroadcastCompRel(const Array<Type>& types, int num_inputs, const Attrs& att
       if (t0->dtype != t1->dtype) {
         reporter->GetDiagCtx().Emit(Diagnostic::Error(t0->span)
                                     << "data types " << t0->dtype << " and " << t1->dtype
-                                    << "do not match in BroadcastCompRel");
+                                    << " do not match in BroadcastCompRel");
       }
       reporter->Assign(types[2], ConcreteBroadcast(GetRef<TensorType>(t0), GetRef<TensorType>(t1),
                                                    DataType::Bool()));
