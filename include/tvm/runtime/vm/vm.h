@@ -302,25 +302,20 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param func_name The function's name.
    * \return The input tensor index.
    */
-  int64_t getInputIndexFromName(const std::string& input_name,
-                                const std::string& func_name) const;
+  int64_t getInputIndexFromName(const std::string& input_name, const std::string& func_name) const;
   /*!
    * \brief Check executable exists and function name is in global map, get VM function.
    * \param func_name The function's name.
    * \return VM function.
    */
   const VMFunction& checkAndGetVMFunction(const std::string& func_name) const;
-    /*!
-   * \brief Set one input tensor with given index to set of input tensors if need copy to given device.
-   * \param tensors the input tensors set (destination)
-   * \param tensor some tensor (not neccessary DLTensor)
-   * \param index The input tensor index.
-   * \param dev device to copy if need.
+  /*!
+   * \brief Set one input tensor with given index to set of input tensors if need copy to given
+   * device. \param tensors the input tensors set (destination) \param tensor some tensor (not
+   * neccessary DLTensor). \param index The input tensor index. \param dev device to copy if need.
    */
-  void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors, // NOLINT(*)
-                               const TVMArgValue& tensor,
-                               int index,
-                               Device dev);
+  void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,  // NOLINT(*)
+                               const TVMArgValue& tensor, int index, Device dev);
 
  protected:
   /*! \brief The virtual machine's packed function table. */

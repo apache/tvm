@@ -288,9 +288,7 @@ const VMFunction& VirtualMachine::checkAndGetVMFunction(const std::string& func_
 }
 
 void VirtualMachine::SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
-                                             const TVMArgValue& inp_tensor,
-                                             int index,
-                                             Device dev) {
+                                             const TVMArgValue& inp_tensor, int index, Device dev) {
   if (inp_tensor.type_code() == kTVMDLTensorHandle) {
     // Automatically convert input DLTensors to NDArray
     DLTensor* tensor = inp_tensor;
