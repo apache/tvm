@@ -93,7 +93,10 @@ struct VMFunction {
         params(std::move(params)),
         instructions(std::move(instructions)),
         register_file_size(register_file_size),
-        param_device_indexes(std::move(param_device_indexes)) {}
+        param_device_indexes(std::move(param_device_indexes)) {
+          ICHECK_EQ(params.size(), param_device_indexes.size())
+            << "The number of provided parameters doesn't match the number of assigned devices";
+        }
 
   VMFunction() = default;
 

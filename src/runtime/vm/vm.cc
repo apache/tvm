@@ -231,9 +231,6 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   const auto& param_names = vm_func.params;
   ICHECK_EQ(args.size() - offset, param_names.size())
       << "The number of provided parameters doesn't match the number of arguments";
-  // TODO(vvchernov): Looks like it should be checked earlier and in other place
-  ICHECK_EQ(param_names.size(), vm_func.param_device_indexes.size())
-      << "The number of provided parameters doesn't match the number of assigned devices";
   std::vector<ObjectRef> func_args(param_names.size());
   for (int i = offset; i < args.size(); ++i) {
     int index = i - offset;
@@ -248,9 +245,6 @@ void VirtualMachine::SetInputWithIndex(std::string func_name, TVMArgs args) {
   const auto& vm_func = checkAndGetVMFunction(func_name);
   const auto& param_names = vm_func.params;
   ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 (func_name, index, tensor)";
-  // TODO(vvchernov): Looks like it should be checked earlier and in other place
-  ICHECK_EQ(param_names.size(), vm_func.param_device_indexes.size())
-      << "The number of provided parameters doesn't match the number of assigned devices";
   if (inputs_.count(func_name)) {
     ICHECK_EQ(inputs_[func_name].size(), param_names.size())
         << "The size of function" << func_name
