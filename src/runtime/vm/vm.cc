@@ -190,17 +190,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "get_input_index") {
     return TypedPackedFunc<int64_t(std::string, std::string)>(
         [this](std::string input_name, std::string func_name) {
-          auto gvit = exec_->global_map.find(func_name);
-          ICHECK(gvit != exec_->global_map.end()) << "Cannot find function " << func_name;
-          auto func_index = gvit->second;
-          const auto& vm_func = exec_->functions[func_index];
-          const auto& param_names = vm_func.params;
-          for (uint64_t i = 0; i < param_names.size(); i++) {
-            if (input_name == param_names[i]) {
-              return static_cast<int64_t>(i);
-            }
-          }
-          return static_cast<int64_t>(-1);
+          return getInputIndexFromName(input_name, func_name);
         });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -275,6 +265,18 @@ void VirtualMachine::SetInputWithIndex(std::string func_name, TVMArgs args) {
   Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
 
   SetInputTensorWithIndex(inputs_[func_name], args[2], inp_index, dev);
+}
+
+int64_t VirtualMachine::getInputIndexFromName(const std::string& input_name,
+                                              const std::string& func_name) const {
+  const auto& vm_func = checkAndGetVMFunction(func_name);
+  const auto& param_names = vm_func.params;
+  for (uint64_t i = 0; i < param_names.size(); i++) {
+    if (input_name == param_names[i]) {
+      return static_cast<int64_t>(i);
+    }
+  }
+  return static_cast<int64_t>(-1);
 }
 
 const VMFunction& VirtualMachine::checkAndGetVMFunction(const std::string& func_name) const {
