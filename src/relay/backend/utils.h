@@ -61,10 +61,10 @@ class ExecutorCodegenMetadataNode : public Object {
  public:
   /*! \brief input information for the main function */
   Array<tir::Var> inputs;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
   /*! \brief pool information for the main function */
   Array<tir::Var> pools;
-  /*! \brief number of outputs of the main function */
-  Integer num_outputs = 1;
   /*! \brief device contexts information for the main function */
   Array<String> devices;
   /*! \brief the executor to be used to run the model */
@@ -81,7 +81,7 @@ class ExecutorCodegenMetadataNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("inputs", &inputs);
     v->Visit("pools", &pools);
-    v->Visit("num_outputs", &num_outputs);
+    v->Visit("outputs", &outputs);
     v->Visit("devices", &devices);
     v->Visit("executor", &executor);
     v->Visit("unpacked_api", &unpacked_api);
@@ -98,7 +98,7 @@ class ExecutorCodegenMetadataNode : public Object {
 class ExecutorCodegenMetadata : public ObjectRef {
  public:
   TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
-                                  Array<String> devices, Integer num_outputs, String executor,
+                                  Array<String> devices, Array<String> outputs, String executor,
                                   String mod_name, String interface_api = "packed",
                                   bool unpacked_api = false,
                                   Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =

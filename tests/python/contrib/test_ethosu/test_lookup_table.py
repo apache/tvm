@@ -155,7 +155,7 @@ def test_random_lut(accel_type):
     compiled_models = infra.build_source(
         mod,
         {"ifm": in_data},
-        out_data,
+        {"output": out_data},
         accel_type,
     )
 

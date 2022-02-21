@@ -270,9 +270,13 @@ def _get_inputs_and_outputs_from_module(mod):
     main_func = _get_main_relay_func(mod)
     inputs = [argument.name_hint for argument in main_func.params]
 
-    outputs = ["output"]
-    if isinstance(main_func.ret_type, TupleType):
-        outputs = _convert_tuple_to_outputs(main_func.ret_type)
+    if "output_tensor_names" in main_func.attrs:
+        outputs = main_func.attrs["output_tensor_names"]
+    else:
+        if isinstance(main_func.ret_type, TupleType):
+            outputs = _convert_tuple_to_outputs(main_func.ret_type)
+        else:
+            outputs = ["output"]
 
     return inputs, outputs
 

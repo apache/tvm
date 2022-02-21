@@ -306,9 +306,10 @@ def generate_ref_data_tflite(model):
         interpreter.set_tensor(index, value)
     interpreter.invoke()
 
-    expected_output_data = [
-        interpreter.get_tensor(output_detail["index"]) for output_detail in output_details
-    ]
+    expected_output_data = {
+        output_detail["name"]: interpreter.get_tensor(output_detail["index"])
+        for output_detail in output_details
+    }
 
     return input_data, expected_output_data
 
