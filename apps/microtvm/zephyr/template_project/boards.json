@@ -4,8 +4,8 @@
         "model": "imxrt10xx",
         "is_qemu": false,
         "fpu": true,
-        "vid_hex": "",
-        "pid_hex": ""
+        "vid_hex": "1366",
+        "pid_hex": "0105"
     },
     "mps2_an521": {
         "board": "mps2_an521",

@@ -166,38 +166,47 @@ def _get_device_args(options):
     )
 
 
-# kwargs passed to usb.core.find to find attached boards for the openocd flash runner.
-BOARD_USB_FIND_KW = {
-    "nucleo_l4r5zi": {"idVendor": 0x0483, "idProduct": 0x374B},
-    "nucleo_f746zg": {"idVendor": 0x0483, "idProduct": 0x374B},
-    "stm32f746g_disco": {"idVendor": 0x0483, "idProduct": 0x374B},
-    "mimxrt1050_evk": {"idVendor": 0x1366, "idProduct": 0x0105},
-}
+def generic_find_serial_port(serial_number=None):
+    """Find a USB serial port based on its serial number or its VID:PID.
 
+    This method finds a USB serial port device path based on the port's serial number (if given) or
+    based on the board's idVendor and idProduct ids.
 
-def openocd_serial(options):
-    """Find the serial port to use for a board with OpenOCD flash strategy."""
-    if "openocd_serial" in options:
-        return options["openocd_serial"]
+    Parameters
+    ----------
+    serial_number : str
+        The serial number associated to the USB serial port which the board is attached to. This is
+        the same number as shown by 'lsusb -v' in the iSerial field.
 
-    find_kw = BOARD_USB_FIND_KW[CMAKE_CACHE["BOARD"]]
-    boards = usb.core.find(find_all=True, **find_kw)
-    serials = []
-    for b in boards:
-        serials.append(b.serial_number)
+    Returns
+    -------
+    Path to the USB serial port device, for example /dev/ttyACM1.
+    """
+    if serial_number:
+        regex = serial_number
+    else:
+        prop = BOARD_PROPERTIES[CMAKE_CACHE["BOARD"]]
+        device_id = ":".join([prop["vid_hex"], prop["pid_hex"]])
+        regex = device_id
 
-    if len(serials) == 0:
-        raise BoardAutodetectFailed(f"No attached USB devices matching: {find_kw!r}")
-    serials.sort()
+    serial_ports = list(serial.tools.list_ports.grep(regex))
 
-    autodetected_openocd_serial = serials[0]
-    _LOG.debug("zephyr openocd driver: autodetected serial %s", serials[0])
+    if len(serial_ports) == 0:
+        raise Exception(f"No serial port found for board {prop['board']}!")
 
-    return autodetected_openocd_serial
+    if len(serial_ports) != 1:
+        ports_lst = ""
+        for port in serial_ports:
+            ports_lst += f"Serial port: {port.device}, serial number: {port.serial_number}\n"
+
+        raise Exception("Expected 1 serial port, found multiple ports:\n {ports_lst}")
+
+    return serial_ports[0].device
 
 
 def _get_openocd_device_args(options):
-    return ["--serial", openocd_serial(options)]
+    serial_number = options.get("openocd_serial")
+    return ["--serial", generic_find_serial_port(serial_number)]
 
 
 def _get_nrf_device_args(options):
@@ -645,19 +654,12 @@ class ZephyrSerialTransport:
 
     @classmethod
     def _find_openocd_serial_port(cls, options):
-        serial_number = openocd_serial(options)
-        ports = [p for p in serial.tools.list_ports.grep(serial_number)]
-        if len(ports) != 1:
-            raise Exception(
-                f"_find_openocd_serial_port: expected 1 port to match {serial_number}, "
-                f"found: {ports!r}"
-            )
-
-        return ports[0].device
+        serial_number = options.get("openocd_serial")
+        return generic_find_serial_port(serial_number)
 
     @classmethod
     def _find_jlink_serial_port(cls, options):
-        return cls._find_openocd_serial_port(options)
+        return generic_find_serial_port()
 
     @classmethod
     def _find_serial_port(cls, options):
