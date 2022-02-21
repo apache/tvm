@@ -120,7 +120,9 @@ def batch_matmul(
     mcpu = tvm.target.Target.current().mcpu
 
     if (
-        target_has_vnni(mcpu)
+        not transpose_a
+        and transpose_b
+        and target_has_vnni(mcpu)
         and tensor_a.dtype == "uint8"
         and tensor_b.dtype == "int8"
         and tensor_b.shape[-2] % 16 == 0
