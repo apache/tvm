@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file ptx_mma.h
- * \brief MMA code generation with inlined PTX code.
+ * \file ptx_mma_sp.h
+ * \brief Sparse MMA code generation with inlined PTX code.
  */
-#ifndef TVM_TARGET_SOURCE_PTX_MMA_H_
-#define TVM_TARGET_SOURCE_PTX_MMA_H_
+#ifndef TVM_TARGET_SOURCE_PTX_MMA_SP_H_
+#define TVM_TARGET_SOURCE_PTX_MMA_SP_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -32,12 +32,14 @@
 namespace tvm {
 namespace codegen {
 
-std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
-                             const std::string& B_layout, const std::string& A_dtype,
-                             const std::string& B_dtype, const std::string& C_dtype,
-                             const std::string& a_ref, const std::string& a_bias,
-                             const std::string& b_ref, const std::string& b_bias,
-                             const std::string& c_ref, const std::string& c_bias, bool saturate);
+std::string PrintMMASparseAssembly(const std::string& shape, const std::string& A_layout,
+                                   const std::string& B_layout, const std::string& A_dtype,
+                                   const std::string& B_dtype, const std::string& C_dtype,
+                                   const std::string& a_ref, const std::string& a_offset,
+                                   const std::string& b_ref, const std::string& b_offset,
+                                   const std::string& c_ref, const std::string& c_offset,
+                                   const std::string& metadata,
+                                   const std::string& sparsity_selector, bool saturate);
 
 }  // namespace codegen
 }  // namespace tvm

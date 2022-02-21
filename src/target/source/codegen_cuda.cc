@@ -34,6 +34,7 @@
 
 #include "literal/cuda_half_t.h"
 #include "ptx_mma.h"
+#include "ptx_mma_sp.h"
 
 namespace tvm {
 namespace codegen {
@@ -764,8 +765,39 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     this->stream << asm_code;
   } else if (op->op.same_as(builtin::ptx_mma_sp())) {
     // arg 0: shape: mXnXkX
-    // arg 1: 
-    std::string asm_code = PrintMMASparseAssembly();
+    // arg 1: A layout: row/col
+    // arg 2: B layout: row/col
+    // arg 3: A precision: fp16, fp32, ...
+    // arg 4: B precision: fp16, fp32, ...
+    // arg 5: C precision: fp16, fp32, ...
+    // arg 6: A multiplicand
+    // arg 7: A multiplicand index
+    // arg 8: B multiplicand
+    // arg 9: B multiplicand index
+    // arg 10: C accumulator
+    // arg 11: C accumulator index
+    // arg 12: metadata
+    // arg 13: sparse_selector
+    // arg 14: saturate
+    ICHECK_EQ(op->args.size(), 15U);
+    std::string shape = Downcast<StringImm>(op->args[0])->value;
+    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
+    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
+    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
+    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
+    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string a_ref = this->PrintExpr(op->args[6]);
+    std::string a_offset = this->PrintExpr(op->args[7]);
+    std::string b_ref = this->PrintExpr(op->args[8]);
+    std::string b_offset = this->PrintExpr(op->args[9]);
+    std::string c_ref = this->PrintExpr(op->args[10]);
+    std::string c_offset = this->PrintExpr(op->args[11]);
+    std::string metadata = this->PrintExpr(op->args[12]);
+    std::string sparse_selector = this->PrintExpr(op->args[13]);
+    bool saturate = (Downcast<IntImm>(op->args[14])->value != 0);
+    std::string asm_code = PrintMMASparseAssembly(shape, A_layout, B_layout, A_dtype, B_dtype,
+                                                  C_dtype, a_ref, a_offset, b_ref, b_offset, c_ref,
+                                                  c_offset, metadata, sparse_selector, saturate);
     this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);
