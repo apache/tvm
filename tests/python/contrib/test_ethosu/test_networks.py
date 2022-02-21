@@ -19,8 +19,8 @@ import pytest
 
 pytest.importorskip("ethosu.vela")
 from tests.python.relay.aot.aot_test_utils import (
-    convert_to_relay,
     generate_ref_data,
+    get_relay_module_and_inputs_from_tflite_file,
 )
 import numpy as np
 
@@ -34,37 +34,35 @@ import tvm.relay.testing.tf as tf_testing
 
 from . import infra
 
+MOBILENET_V1_URL = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
+    "mobilenet_v1_1.0_224_quant.tflite",
+)
+MOBILENET_V2_URL = (
+    "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
+    "mobilenet_v2_1.0_224_quant.tflite",
+)
+
 
 @pytest.mark.parametrize(
-    "accel_type, enable_usmp",
+    "accel_type, enable_usmp, model_url",
     [
-        ("ethos-u55-256", True),
-        ("ethos-u55-256", False),
-        ("ethos-u65-256", True),
-        ("ethos-u65-256", False),
-        ("ethos-u55-128", True),
-        ("ethos-u55-64", True),
-        ("ethos-u55-32", True),
+        ("ethos-u55-256", True, MOBILENET_V1_URL),
+        ("ethos-u55-256", False, MOBILENET_V1_URL),
+        ("ethos-u65-256", True, MOBILENET_V1_URL),
+        ("ethos-u65-256", False, MOBILENET_V1_URL),
+        ("ethos-u55-128", True, MOBILENET_V1_URL),
+        ("ethos-u55-64", True, MOBILENET_V1_URL),
+        ("ethos-u55-32", True, MOBILENET_V1_URL),
+        ("ethos-u55-256", False, MOBILENET_V2_URL),
     ],
 )
-def test_forward_mobilenet_v1(accel_type, enable_usmp):
+def test_forward_mobilenet(accel_type, enable_usmp, model_url):
     """Test the Mobilenet V1 TF Lite model."""
     np.random.seed(23)
-    tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/"
-        "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
-        "mobilenet_v1_1.0_224_quant.tflite",
-    )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    input_tensor = "input"
-    input_dtype = "uint8"
-    input_shape = (1, 224, 224, 3)
-    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
-    input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
+    tflite_model_file = tf_testing.get_workload_official(*model_url)
+    relay_mod, input_data, params = get_relay_module_and_inputs_from_tflite_file(tflite_model_file)
 
-    relay_mod, params = convert_to_relay(tflite_model_buf)
-    input_data = {input_tensor: input_data}
     output_data = generate_ref_data(relay_mod, input_data)
 
     mod = partition_for_ethosu(relay_mod, params)
@@ -72,33 +70,3 @@ def test_forward_mobilenet_v1(accel_type, enable_usmp):
         mod, input_data, output_data, accel_type, output_tolerance=10, enable_usmp=enable_usmp
     )
     infra.verify_source(compiled_models, accel_type)
-
-
-def test_forward_mobilenet_v2(accel_type="ethos-u55-256"):
-    """Test the Mobilenet V2 TF Lite model."""
-    np.random.seed(23)
-    tflite_model_file = tf_testing.get_workload_official(
-        "https://storage.googleapis.com/download.tensorflow.org/models/"
-        "tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
-        "mobilenet_v2_1.0_224_quant.tflite",
-    )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    input_tensor = "input"
-    input_dtype = "uint8"
-    input_shape = (1, 224, 224, 3)
-    in_min, in_max = util.get_range_for_dtype_str(input_dtype)
-    input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
-    relay_mod, params = convert_to_relay(tflite_model_buf)
-    input_data = {input_tensor: input_data}
-    output_data = generate_ref_data(relay_mod, input_data)
-
-    mod = partition_for_ethosu(relay_mod, params)
-    compiled_models = infra.build_source(
-        mod, input_data, output_data, accel_type, output_tolerance=10
-    )
-    infra.verify_source(compiled_models, accel_type)
-
-
-if __name__ == "__main__":
-    test_forward_mobilenet_v1(ACCEL_TYPES[0])

@@ -180,6 +180,23 @@ def convert_to_relay(
     return mod, params
 
 
+def get_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    mod, params = convert_to_relay(tflite_model_buf)
+
+    inputs = dict()
+    for param in mod["main"].params:
+        name = str(param.name_hint)
+        data_shape = [int(i) for i in param.type_annotation.shape]
+        dtype = str(param.type_annotation.dtype)
+        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        inputs[name] = data
+
+    return mod, inputs, params
+
+
 def parametrize_aot_options(test):
     """Parametrize over valid option combinations"""
 
