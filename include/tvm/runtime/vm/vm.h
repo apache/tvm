@@ -295,6 +295,13 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   virtual void OpStopHook();
 
+ private:
+  const VMFunction& checkAndGetVMFunction(const std::string& func_name) const;
+  void SetInputTensorWithIndex(std::vector<ObjectRef>& tensors,
+                               const TVMArgValue& tensor,
+                               int index,
+                               Device dev);
+
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
