@@ -474,7 +474,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
   }
 
   void GenerateAOTDescriptor() {
-    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_run_func_suffix;
+    const std::string run_func_suffix = ::tvm::runtime::symbol::tvm_module_main;
     const std::string tvm_entrypoint_suffix = ::tvm::runtime::symbol::tvm_entrypoint_suffix;
     const std::string run_func_mangled =
         runtime::get_name_mangled(metadata_->mod_name, run_func_suffix);
