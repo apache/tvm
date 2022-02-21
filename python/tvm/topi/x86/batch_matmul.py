@@ -24,8 +24,9 @@ from tvm.contrib import cblas, mkl
 from .. import generic, nn
 from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
+from .injective import schedule_injective_from_existing
 from .utils import target_has_vnni
-from .tensor_intrin import dot_16x1x16_uint8_int8_int32_cascadelake
+from .dense import dense_vnni_schedule
 
 
 def batch_matmul_vnni_compute(cfg, x, y):
@@ -48,53 +49,22 @@ def batch_matmul_vnni_compute(cfg, x, y):
         tag="batch_matmul_vnni",
     )
 
-    # a_y, _ = Z.op.axis
-    # cfg.define_split("tile_y", a_y, num_outputs=2)
+    _, a_y, _ = z.op.axis
+    cfg.define_split("tile_y", a_y, num_outputs=2)
 
     return z
 
 
 def batch_matmul_vnni_schedule(cfg, s, C, O):
     """Schedule batch_matmul compute using VNNI vpdpbusd instruction"""
-    # C: The output of GEMM
+    # C: The output of batched GEMM
     # O: The output of the fused op
-    def split_y(out):
-        default_y_split_factor = 32
-        a_y = out.op.axis[1]
 
-        if cfg.is_fallback:
-            return s[out].split(a_y, factor=default_y_split_factor)
-
-        return cfg["tile_y"].apply(s, out, a_y)
-
-    (a_k,) = C.op.reduce_axis
-
-    a_yo, a_yi = split_y(C)
-    a_xo, a_xi = s[C].split(C.op.axis[2], factor=16)
-    a_ko, a_ki = s[C].split(a_k, factor=4)
-
-    batch = C.op.axis[0]
-
-    s[C].reorder(batch, a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
-
-    pc = dot_16x1x16_uint8_int8_int32_cascadelake()
-    s[C].tensorize(a_xi, pc)
-
-    if C == O:
-        fused = s[O].fuse(batch, a_yo, a_xo)
-    else:
-        a_yo, a_yi = split_y(O)
-        a_xo, a_xi = s[O].split(O.op.axis[2], factor=16)
-        batch = O.op.axis[0]
-
-        s[O].reorder(batch, a_yo, a_xo, a_yi, a_xi)
-        s[O].vectorize(a_xi)
-        s[C].compute_at(s[O], a_yi)
-
-        fused = s[O].fuse(batch, a_yo, a_xo)
-
+    # Schedule the GEMM part
+    s, fused_inner = dense_vnni_schedule(cfg, s, C, O, do_parallel=False)
+    # Parallelize over batch
+    fused = s[O].fuse(O.op.axis[0], fused_inner)
     s[O].parallel(fused)
-
     return s
 
 
@@ -137,6 +107,7 @@ def batch_matmul(
         3-D with shape [batch, M, N]
     """
     mcpu = tvm.target.Target.current().mcpu
+
     if (
         target_has_vnni(mcpu)
         and tensor_a.dtype == "uint8"
@@ -187,6 +158,11 @@ def schedule_batch_matmul(cfg, outs):
 
     def _callback(op):
         if "batch_matmul_vnni" in op.tag:
+            # Schedule layout transform
+            layout_trans = op.input_tensors[1]
+            s[layout_trans].compute_root()
+            schedule_injective_from_existing(s, layout_trans)
+            # Schedule batch matmul
             batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0])
         elif "batch_matmul" in op.tag:
             C = op.output(0)

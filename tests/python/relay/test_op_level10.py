@@ -424,7 +424,6 @@ def test_batch_matmul_vnni():
     ref = tvm.topi.testing.batch_matmul(x_np, y_np, out_dtype="int32") + z_np
 
     np.testing.assert_equal(out, ref)
-    print("ok")
 
 
 @tvm.testing.uses_gpu
@@ -662,5 +661,4 @@ def test_nll_loss(dev, target):
 
 
 if __name__ == "__main__":
-    # sys.exit(pytest.main([__file__] + sys.argv[1:]))
-    test_batch_matmul_vnni()
+    sys.exit(pytest.main([__file__] + sys.argv[1:]))
