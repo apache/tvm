@@ -16,12 +16,84 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 batch_matmul operators"""
+import tvm
 from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas, mkl
 from .. import generic, nn
+from ..transform import layout_transform
 from ..utils import traverse_inline, get_const_tuple, get_max_power2_factor
+from .utils import target_has_vnni
+
+
+def batch_matmul_vnni_compute(cfg, x, y):
+    """Compute for uint8 x int8 -> int32 batch_matmul"""
+    batch, m, k = x.shape
+    packed_y_layout = "BNK16n4k"
+    packed_y = layout_transform(y, "BNK", packed_y_layout)
+    _, n_o, _, n_i, _ = packed_y.shape
+    ak = te.reduce_axis((0, k), name="k")
+
+    z = te.compute(
+        (batch, m, n_o * n_i),
+        lambda b, i, j: te.sum(
+            x[b, i, ak].astype("int32")
+            * packed_y[b, tvm.tir.indexdiv(j, 16), tvm.tir.indexdiv(ak, 4), j % 16, ak % 4].astype(
+                "int32"
+            ),
+            axis=ak,
+        ),
+        tag="batch_matmul_vnni",
+    )
+
+    # a_y, _ = Z.op.axis
+    # cfg.define_split("tile_y", a_y, num_outputs=2)
+
+    return z
+
+
+def batch_matmul_vnni_schedule(cfg, s, C, O):
+    """Schedule batch_matmul compute using VNNI vpdpbusd instruction"""
+    # C: The output of GEMM
+    # O: The output of the fused op
+    return s
+
+    def split_y(out):
+        default_y_split_factor = 32
+        a_y = out.op.axis[0]
+
+        if cfg.is_fallback:
+            return s[out].split(a_y, factor=default_y_split_factor)
+
+        return cfg["tile_y"].apply(s, out, a_y)
+
+    (a_k,) = C.op.reduce_axis
+
+    a_yo, a_yi = split_y(C)
+    a_xo, a_xi = s[C].split(C.op.axis[1], factor=16)
+    a_ko, a_ki = s[C].split(a_k, factor=4)
+
+    s[C].reorder(a_yo, a_xo, a_yi, a_ko, a_xi, a_ki)
+
+    pc = dot_16x1x16_uint8_int8_int32_cascadelake()
+    s[C].tensorize(a_xi, pc)
+
+    if C == O:
+        fused = s[O].fuse(a_yo, a_xo)
+    else:
+        a_yo, a_yi = split_y(O)
+        a_xo, a_xi = s[O].split(O.op.axis[1], factor=16)
+
+        s[O].reorder(a_yo, a_xo, a_yi, a_xi)
+        s[O].vectorize(a_xi)
+        s[C].compute_at(s[O], a_yi)
+
+        fused = s[O].fuse(a_yo, a_xo)
+
+    s[O].parallel(fused)
+
+    return s
 
 
 @autotvm.register_topi_compute("batch_matmul.x86")
@@ -62,6 +134,16 @@ def batch_matmul(
     output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
+    mcpu = tvm.target.Target.current().mcpu
+    if (
+        target_has_vnni(mcpu)
+        and tensor_a.dtype == "uint8"
+        and tensor_b.dtype == "int8"
+        and tensor_b.shape[-2] % 16 == 0
+        and tensor_b.shape[-1] % 4 == 0
+    ):
+        return batch_matmul_vnni_compute(cfg, tensor_a, tensor_b)
+
     if cfg.is_fallback:
         if transpose_a:
             _, K, M = get_const_tuple(tensor_a.shape)
@@ -102,7 +184,9 @@ def schedule_batch_matmul(cfg, outs):
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if "batch_matmul" in op.tag:
+        if "batch_matmul_vnni" in op.tag:
+            batch_matmul_vnni_schedule(cfg, s, op.output(0), outs[0])
+        elif "batch_matmul" in op.tag:
             C = op.output(0)
             A, B = op.input_tensors
             if len(B.op.input_tensors) == 1 and B.op.input_tensors[0] == A:
