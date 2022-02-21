@@ -982,9 +982,13 @@ SplitExpr CanonicalSimplifier::Impl::SplitModConst(SplitExpr lhs, int64_t cval, 
     return lhs;
   }
   if (cval % lhs->scale == 0) {
-    // (x * c1) % (c2 * c1) => (x % c2) * c1
+    // The rationale:
+    //   (index % upper) / lower * scale % cval, given cval = scaled_cval * scale
+    //   by the rule (x * c1) % (c2 * c1) => (x % c2) * c1,
+    // = (index % upper) / lower % scaled_cval * scale
+    //   by the rule (x / c1) % c2  =>  (x % (c1 * c2)) / c1,
+    // = (index % upper) % (new_upper_factor) / lower * scale
     int64_t scaled_cval = cval / lhs->scale;
-    //  (x / c1) % c2  =>  (x % (c1 * c2)) / c2
     int64_t new_upper_factor = lhs->lower_factor * scaled_cval;
     // try to see if we can reduce the existing upper modular.
     if (lhs->upper_factor == SplitExprNode::kPosInf || lhs->upper_factor % new_upper_factor == 0) {
