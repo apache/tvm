@@ -315,178 +315,219 @@ def EncodeConstants(const_dict):
     new_const_dict = {}
     buffer_to_const = {}
     pointer_to_buffer = {}
-    encoded_buffers = set()
     rewrite_buffer = {}
     rewrite_pointer = {}
-    accel_config = vela_api.get_accelerator_config()
 
-    def _align_scale_bias(tir_extern_call, bias):
-        """Align the scale_bias to 16 bytes."""
-        value_bytes = bytearray()
-        value_bytes.extend(bias.tobytes())
-        # Align to 16
-        remainder = (len(value_bytes)) % 16
-        if remainder > 0:
-            value_bytes.extend(bytearray(16 - remainder))
-        value = np.frombuffer(value_bytes, dtype="uint8")
-        return value
+    def collect_encoding_definitions(stmt, unencoded_buffer_constants):
+        # Map from copy destination to copy source.
+        copy_map = {}
+        # List of buffer copies that occurred
+        copied_buffers = []
+        # List of encoded buffer information
+        constant_buffer_replacements = []
 
-    def _encode_weights(tir_extern_call, weights):
-        """Encode the weights for a TIR extern call."""
-        value_bytes = vela_api.encode_weights(tir_extern_call, weights, accel_config)
-        value = np.frombuffer(value_bytes, dtype="uint8")
-        return value
+        def _align_scale_bias(tir_extern_call, bias):
+            """Align the scale_bias to 16 bytes."""
+            value_bytes = bytearray()
+            value_bytes.extend(bias.tobytes())
+            # Align to 16
+            remainder = (len(value_bytes)) % 16
+            if remainder > 0:
+                value_bytes.extend(bytearray(16 - remainder))
+            value = np.frombuffer(value_bytes, dtype="uint8")
+            return value
 
-    def _new_buffer(old_buffer, new_value):
-        """Create a new buffer and add the old buffer and its pointer to the
-        rewriting maps."""
-        if old_buffer in rewrite_buffer:
-            new_buffer = rewrite_buffer[old_buffer]
-        else:
-            new_buffer = tvm.tir.decl_buffer((len(new_value),), str(new_value.dtype))
-            pointer_to_buffer[new_buffer.data] = new_buffer
-            buffer_to_const[new_buffer] = new_value
+        accel_config = vela_api.get_accelerator_config()
 
-        rewrite_buffer[old_buffer] = new_buffer
-        rewrite_pointer[old_buffer.data] = new_buffer.data
-        encoded_buffers.add(new_buffer)
+        def _encode_weights(tir_extern_call, weights):
+            """Encode the weights for a TIR extern call."""
+            value_bytes = vela_api.encode_weights(tir_extern_call, weights, accel_config)
+            value = np.frombuffer(value_bytes, dtype="uint8")
+            return value
 
-    def _visit_encode_pre(stmt):
-        if isinstance(stmt, tvm.tir.Call):
-            # Handle copies as a special-case by propagating the buffer information
-            # from the read to the write pointer.
-            if stmt.args[0] == "ethosu_copy":
-                read_pointer = stmt.args[1].buffer.data
-                if read_pointer in pointer_to_buffer:
-                    write_pointer = stmt.args[3].buffer.data
+        def _declare_constant_buffer(old_buffer, encoded_constants):
+            """Create a new buffer and add the old buffer and its pointer to the
+            rewriting maps."""
+            new_buffer = tvm.tir.decl_buffer(
+                shape=[len(encoded_constants)],
+                dtype=str(encoded_constants.dtype),
+                name=old_buffer.name + "_encoded",
+            )
+
+            constant_buffer_replacements.append(
+                {
+                    "old_buffer": old_buffer,
+                    "new_buffer": new_buffer,
+                    "encoded_constants": encoded_constants,
+                }
+            )
+
+        def _visit(stmt):
+            if isinstance(stmt, tvm.tir.Call):
+                # Handle copies as a special-case by propagating the buffer information
+                # from the read to the write pointer.
+                if stmt.args[0] == "ethosu_copy":
+                    read_buffer = stmt.args[1].buffer
+                    write_buffer = stmt.args[3].buffer
                     # Assert writing to the base of the write_var (pre-StorageRewrite)
                     assert list(stmt.args[3].indices) == [0]
                     assert list(stmt.args[1].indices) == [0]
-                    pointer_to_buffer[write_pointer] = pointer_to_buffer[read_pointer]
-                    rewrite_buffer[stmt.args[3].buffer] = stmt.args[1].buffer
-            else:
-                # Encode the weights
-                old_weights_buffer = get_weights_buffer(stmt)
-                if old_weights_buffer is not None:
-                    assert old_weights_buffer.data in pointer_to_buffer
-                    new_weights_buffer = pointer_to_buffer[old_weights_buffer.data]
-                    weights_value = buffer_to_const[new_weights_buffer]
-                    new_weights_value = _encode_weights(stmt, weights_value)
-                    _new_buffer(new_weights_buffer, new_weights_value)
-                # Align the scale_bias to 16 bytes
-                old_scale_bias_buffer = get_scale_bias_buffer(stmt)
-                if old_scale_bias_buffer is not None:
-                    assert old_scale_bias_buffer.data in pointer_to_buffer
-                    new_scale_bias_buffer = pointer_to_buffer[old_scale_bias_buffer.data]
-                    scale_bias_value = buffer_to_const[new_scale_bias_buffer]
-                    new_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
-                    _new_buffer(new_scale_bias_buffer, new_scale_bias_value)
+                    copied_buffers.append({"source": read_buffer, "dest": write_buffer})
+                    copy_map[write_buffer] = read_buffer
 
-    def _visit_encode_post(stmt):
-        # Because encoding may change the data type (e.g. bias to uint8) and type information
-        # is stored in pointer vars, it's necessary to rewrite all the pointers which point
-        # to encoded data.
-        if isinstance(stmt, tvm.tir.Allocate):
-            allocate_pointer = stmt.buffer_var
-            if allocate_pointer in pointer_to_buffer:
-                buffer = pointer_to_buffer[allocate_pointer]
-                if buffer in rewrite_buffer:  # If the pointer needs rewriting
-                    # Create a new pointer var with the type of the new buffer
-                    new_buffer = rewrite_buffer[buffer]
-                    storage_type = tvm.ir.PrimType(new_buffer.dtype)
-                    new_pointer = tvm.tir.Var(
-                        allocate_pointer.name,
-                        tvm.ir.PointerType(storage_type, buffer.scope()),
-                        allocate_pointer.span,
-                    )
-                    # Set the new pointer to resolve to the new buffer
-                    pointer_to_buffer[new_pointer] = new_buffer
-                    # Add the old pointer to the pointer rewriting dict
-                    rewrite_pointer[allocate_pointer] = new_pointer
+                else:
+                    # Encode the weights
+                    weights_buffer = get_weights_buffer(stmt)
+                    if weights_buffer is not None:
+                        weights_buffer = copy_map[weights_buffer]
+                        unencoded_weights_value = unencoded_buffer_constants[weights_buffer]
+                        encoded_weights_value = _encode_weights(stmt, unencoded_weights_value)
+                        _declare_constant_buffer(weights_buffer, encoded_weights_value)
 
-    def _visit_rewrite(stmt):
-        if isinstance(stmt, tvm.tir.Call):
-            # For extern calls, we need to rewrite pairs of arguments corresponding to
-            # base address load and the length of the load.
-            new_args = [stmt.args[0]]
-            for i in range(1, len(stmt.args)):
-                # If the previous argument was a load, the current should be a length
-                if isinstance(stmt.args[i - 1], tvm.tir.BufferLoad):
-                    load = stmt.args[i - 1]
-                    old_buffer = load.buffer
-                    if old_buffer.data in pointer_to_buffer:
-                        new_buffer = pointer_to_buffer[old_buffer.data]
-                        # Only rewrite the arguments of buffers that have been encoded
-                        if new_buffer in encoded_buffers:
-                            new_arg = np.prod(list(new_buffer.shape))
-                            new_args.append(new_arg)
-                            continue
-                new_args.append(stmt.args[i])
+                    # Align the scale_bias to 16 bytes
+                    scale_bias_buffer = get_scale_bias_buffer(stmt)
+                    if scale_bias_buffer is not None:
+                        scale_bias_buffer = copy_map[scale_bias_buffer]
+                        scale_bias_value = unencoded_buffer_constants[scale_bias_buffer]
+                        aligned_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
+                        _declare_constant_buffer(scale_bias_buffer, aligned_scale_bias_value)
 
-            return tvm.tir.Call(stmt.dtype, stmt.op, new_args, stmt.span)
-        if isinstance(stmt, tvm.tir.Allocate):
-            # Where a pointer needs rewriting, the allocate for it must be rewritten
-            allocate_pointer = stmt.buffer_var
-            if allocate_pointer in pointer_to_buffer:
-                if pointer_to_buffer[allocate_pointer] in rewrite_buffer:
-                    new_buffer = rewrite_buffer[pointer_to_buffer[allocate_pointer]]
-                    new_pointer = rewrite_pointer[allocate_pointer]
+        tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+
+        return {
+            "copied_buffers": copied_buffers,
+            "constant_buffer_replacements": constant_buffer_replacements,
+        }
+
+    def transform_stmt(stmt, buf_remap, var_remap, pointer_to_buffer, encoded_buffers):
+        def _visit_rewrite(stmt):
+            if isinstance(stmt, tvm.tir.Call):
+                # For extern calls, we need to rewrite pairs of arguments corresponding to
+                # base address load and the length of the load.
+                old_args = list(stmt.args)
+
+                new_args = [stmt.args[0]]
+                for prev_arg, arg in zip(old_args[:-1], old_args[1:]):
+                    # If the previous argument was a load from an
+                    # encoded buffer, the current should be a length.
+                    if (
+                        isinstance(prev_arg, tvm.tir.BufferLoad)
+                        and prev_arg.buffer in encoded_buffers
+                    ):
+                        arg = np.prod(list(prev_arg.buffer.shape))
+
+                    new_args.append(arg)
+
+                return tvm.tir.Call(stmt.dtype, stmt.op, new_args, stmt.span)
+
+            if isinstance(stmt, tvm.tir.Allocate):
+                # Where a pointer needs rewriting, the allocate for it must be rewritten
+                allocate_pointer = stmt.buffer_var
+                if allocate_pointer in var_remap:
+                    new_allocate_pointer = var_remap[allocate_pointer]
+                    new_buffer = pointer_to_buffer[new_allocate_pointer]
+
                     return tvm.tir.Allocate(
-                        new_pointer,
+                        new_buffer.data,
                         new_buffer.dtype,
                         new_buffer.shape,
                         stmt.condition,
                         stmt.body,
                         stmt.span,
                     )
-        # The following rewrites would be better expressed by just rewriting the Vars, however
-        # ir_transform doesn't seem to visit Vars. So instead we do the next best thing and rewrite
-        # the nodes which contain the Vars.
-        if isinstance(stmt, tvm.tir.BufferLoad):
-            if stmt.buffer.data in pointer_to_buffer:
-                load_buffer = pointer_to_buffer[stmt.buffer.data]
-                if load_buffer in rewrite_buffer:
-                    new_buffer = rewrite_buffer[load_buffer]
-                    return tvm.tir.BufferLoad(new_buffer, stmt.indices, stmt.span)
-        if isinstance(stmt, tvm.tir.AttrStmt):
-            node_pointer = stmt.node
-            if node_pointer in rewrite_pointer:
-                return tvm.tir.AttrStmt(
-                    rewrite_pointer[node_pointer], stmt.attr_key, stmt.value, stmt.body, stmt.span
-                )
-        return None
 
-    def _ftransform(f, mod, ctx):
-        for i, param in enumerate(f.params):
-            if i in const_dict:
-                buffer_to_const[f.buffer_map[param]] = const_dict[i].flatten()
-                pointer_to_buffer[f.buffer_map[param].data] = f.buffer_map[param]
+            # The following rewrites would be better expressed by just
+            # rewriting the Buffers. However ir_transform doesn't
+            # visit Buffers, so instead we do the next best thing and
+            # rewrite the nodes which contain the Buffers.
+            if isinstance(stmt, tvm.tir.BufferLoad):
+                if stmt.buffer in buf_remap:
+                    return tvm.tir.BufferLoad(buf_remap[stmt.buffer], stmt.indices, stmt.span)
 
-        # First analyse what needs to be rewritten
-        new_body = tvm.tir.stmt_functor.ir_transform(
-            f.body, _visit_encode_pre, _visit_encode_post, ["tir.Call", "tir.Allocate"]
-        )
-        # Then perform the rewrites
-        new_body = tvm.tir.stmt_functor.ir_transform(
-            f.body,
+            if isinstance(stmt, tvm.tir.AttrStmt):
+                node_pointer = stmt.node
+                if node_pointer in var_remap:
+                    return tvm.tir.AttrStmt(
+                        var_remap[node_pointer],
+                        stmt.attr_key,
+                        stmt.value,
+                        stmt.body,
+                        stmt.span,
+                    )
+
+            return None
+
+        return tvm.tir.stmt_functor.ir_transform(
+            stmt,
             None,
             _visit_rewrite,
             ["tir.Call", "tir.Allocate", "tir.BufferLoad", "tir.AttrStmt"],
         )
+
+    def _ftransform(f, mod, ctx):
+        # Step 0: Unpack the constant dictionary in terms of the
+        # functions buffers.
+        unencoded_buffer_constants = {}
+        for i, param in enumerate(f.params):
+            if i in const_dict:
+                unencoded_buffer_constants[f.buffer_map[param]] = const_dict[i].flatten()
+
+        # Step 1: Collect information on the buffers that will be
+        # replaced by encodings.
+        buffer_information = collect_encoding_definitions(f.body, unencoded_buffer_constants)
+
+        # Step 2: Generate variable/buffer remaps, based on the
+        # collected information.
+        buf_remap = {}
+        encoded_buffers = []
+
+        # Any encoded buffers must be replaced
+        for info in buffer_information["constant_buffer_replacements"]:
+            buf_remap[info["old_buffer"]] = info["new_buffer"]
+            encoded_buffers.append(info["new_buffer"])
+
+        # Any buffers that are copied into from an encoded buffer must
+        # be replaced.
+        for info in buffer_information["copied_buffers"]:
+            copy_source = info["source"]
+            while copy_source in buf_remap:
+                copy_source = buf_remap[copy_source]
+
+            copy_dest = info["dest"]
+
+            if copy_source.shape != copy_dest.shape or copy_source.dtype != copy_dest.dtype:
+                new_dest = tvm.tir.decl_buffer(
+                    shape=copy_source.shape,
+                    dtype=copy_source.dtype,
+                    name=copy_dest.name + "_encoded",
+                )
+                buf_remap[copy_dest] = new_dest
+                encoded_buffers.append(new_dest)
+
+        # Define additional dependent lookup tables.
+        var_remap = {old.data: new.data for (old, new) in buf_remap.items()}
+        pointer_to_buffer = {
+            buf.data: buf for (old, new) in buf_remap.items() for buf in [old, new]
+        }
+        buffer_to_const = {
+            info["new_buffer"]: info["encoded_constants"]
+            for info in buffer_information["constant_buffer_replacements"]
+        }
+
+        # Step 3: Then perform the rewrites
+        new_body = transform_stmt(f.body, buf_remap, var_remap, pointer_to_buffer, encoded_buffers)
+
+        # Step 4: Rewrite the buffer map and const dict to instead use the encoded versions
         new_buffer_map = {}
-        # Rewrite the buffer map and const dict to instead use the encoded versions
         for i, param in enumerate(f.params):
             buffer = f.buffer_map[param]
-            if buffer in rewrite_buffer:
-                new_buffer = rewrite_buffer[buffer]
-                new_buffer_map[param] = new_buffer
-                new_value = buffer_to_const[new_buffer]
-                new_const_dict[i] = new_value
-            elif buffer in buffer_to_const:
+            if buffer in buf_remap:
+                buffer = buf_remap[buffer]
+
+            if buffer in buffer_to_const:
                 new_const_dict[i] = buffer_to_const[buffer]
-                new_buffer_map[param] = buffer
-            else:
-                new_buffer_map[param] = buffer
+
+            new_buffer_map[param] = buffer
 
         new_f = tvm.tir.PrimFunc(
             f.params,
