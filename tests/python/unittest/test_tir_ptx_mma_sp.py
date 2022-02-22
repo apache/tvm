@@ -68,7 +68,7 @@ def get_meta_m16n8k32_half(mask):
                 for j in range(8):
                     ret[i, k] |= int(mask[blk * 8 + i, k, j]) * base
                     base = base << 2
-    
+
     return ret.reshape(16)
 
 
