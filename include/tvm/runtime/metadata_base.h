@@ -36,14 +36,21 @@ namespace tvm {
 namespace runtime {
 namespace metadata {
 
-class MetadataBaseNode : public ::tvm::runtime::Object {
- public:
-  virtual std::string get_name() = 0;
+/*!
+ * \brief Common base class for all Metadata.
+ *
+ * This class is used in the visitor classes as a internal check to ensure that verify that all
+ * parts of the Metadata struct used in codegen are Metadata objects.
+ */
+ class MetadataBaseNode : public ::tvm::runtime::Object {
+  public:
+   virtual std::string get_name() = 0;
 
   static constexpr const char* _type_key = "metadata.MetadataBaseNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataBaseNode, ::tvm::runtime::Object);
 };
 
+/*! \brief Reference class for the common MetadataBaseNode class. */
 class MetadataBase : public ::tvm::runtime::ObjectRef {
  public:
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(MetadataBase, ::tvm::runtime::ObjectRef, MetadataBaseNode);
@@ -52,6 +59,7 @@ class MetadataBase : public ::tvm::runtime::ObjectRef {
 template <typename C, class Ref>
 class ArrayAccessor;
 
+/*! \brief An iterator implementation that lazily instantiates the C++ wrapping Metadata class. */
 template <typename C, class Ref>
 class ArrayIterator {
  public:
@@ -74,11 +82,15 @@ class ArrayIterator {
 
   inline bool operator!=(const ArrayIterator<C, Ref>& other) const { return !operator==(other); }
 
-  // private:
+ private:
   size_t index_;
   const ArrayAccessor<C, Ref>* parent_;
 };
 
+/*! \brief A span-like class which permits access to Array fields with complex elements.
+ * These array fields should be accessed from C++ using the Metadata wrapper classes. This class
+ * lazily instantiates those wrappers as they are accessed.
+ */
 template <typename C, class Ref>
 class ArrayAccessor {
  public:
@@ -108,6 +120,10 @@ class ArrayAccessor {
   size_t num_data_;
 };
 
+/*! \brief A specialization of ArrayAccessor for String.
+ * This class is needed because the String constructor signature is different from the typical
+ * Metadata subclass.
+ */
 template <>
 class ArrayAccessor<const char*, ::tvm::runtime::String> {
  public:
@@ -139,6 +155,10 @@ class ArrayAccessor<const char*, ::tvm::runtime::String> {
   size_t num_data_;
 };
 
+/*! \brief Enumerates the primitive types which can be part of a Metadata instance.
+ *
+ * These are separate from TIR DataType because TIR does not model structs.
+ */
 enum MetadataTypeIndex : uint8_t {
   kUint64 = 0,
   kInt64 = 1,
@@ -148,6 +168,11 @@ enum MetadataTypeIndex : uint8_t {
   kMetadata = 5,
 };
 
+/*! \brief Container for arrays in the metadata.
+ *
+ * Type information is needed when emitting arrays. This container augments the data field with
+ * the necessary typing information.
+ */
 class MetadataArrayNode : public MetadataBaseNode {
  public:
   MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name)
@@ -162,6 +187,7 @@ class MetadataArrayNode : public MetadataBaseNode {
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataArrayNode, MetadataBaseNode);
 };
 
+/*! \brief Reference class for MetadataArray. */
 class MetadataArray : public MetadataBase {
  public:
   MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name);

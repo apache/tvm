@@ -38,24 +38,61 @@
 
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
+
+namespace tvm {
+namespace runtime {
+namespace metadata {
+/*!
+ * \brief Version of metadata emitted and understood by this compiler/runtime.
+ * Should be populated into the `version` field of all TVMMetadata.
+ */
 static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
+}  // namespace metadata
+}  // namespace runtime
+}  // namespace tvm
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/*!
+ * \brief Top-level metadata structure. Holds all other metadata types.
+ */
 struct TVMMetadata {
+  /*! \brief Version identifier for this metadata. */
   int64_t version;
+  /*! \brief Inputs to the AOT run_model function.
+   * The order of the elements is the same as in the arguments to run_model. That is to say,
+   * this array specifies the first `num_inputs` arguments to run_model.
+   */
   const struct TVMTensorInfo* inputs;
+  /*! \brief Number of elements in `inputs` array. */
   int64_t num_inputs;
+  /*! \brief Outputs of the AOT run_model function.
+   * The order of the elements is the same as in the arguments to run_model. That is to say,
+   * this array specifies the last `num_outputs` arguments to run_model.
+   */
   const struct TVMTensorInfo* outputs;
+  /*! \brief Number of elements in `outputs` array. */
   int64_t num_outputs;
+  /*! \brief Name of the model, as passed to tvm.relay.build. */
   const char* mod_name;
 };
 
+/*!
+ * \brief Describes one tensor argument to `run_model`.
+ * NOTE: while TIR allows for other types of arguments, such as scalars, the AOT run_model
+ * function does not currently accept these. Therefore it's not possible to express those
+ * in this metadata. A future patch may modify this.
+ */
 struct TVMTensorInfo {
+  /*! \brief Name of the tensor, as specified in the Relay program. */
   const char* name;
+  /*! \brief Shape of the tensor. */
   const int64_t* shape;
+  /*! \brief Rank of this tensor. */
   int64_t num_shape;
+  /*! \brief Data type of one element of this tensor. */
   DLDataType dtype;
 };
 #ifdef __cplusplus

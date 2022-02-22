@@ -34,6 +34,13 @@ namespace tvm {
 namespace target {
 namespace metadata {
 
+/*!
+ * \brief Subclass of MetadataNode that implements the VisitAttrs reflection method.
+ *
+ * This implementation (and other such Visitable subclasses) is compiled into libtvm.so, but not
+ * libtvm_runtime.so, because reflection is not supported in libtvm_runtime.so over code size
+ * concerns. It is used during compilation by the generic metadata code-generators.
+ */
 class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
  public:
   explicit VisitableMetadataNode(const struct ::TVMMetadata* data) : MetadataNode{data} {}
@@ -69,6 +76,13 @@ class VisitableMetadataNode : public ::tvm::runtime::metadata::MetadataNode {
   }
 };
 
+/*!
+ * \brief Subclass of MetadataNode which also owns the backing C structures.
+ *
+ * This class (and other InMemory subclasses) are used during compilation to instantiate Metadata
+ * instances whose storage lives outside of .rodata. This class exists because the Module returned
+ * from tvm.relay.build must also be ready to run inference.
+ */
 class InMemoryMetadataNode : public ::tvm::target::metadata::VisitableMetadataNode {
  public:
   InMemoryMetadataNode()

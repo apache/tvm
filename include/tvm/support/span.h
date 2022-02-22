@@ -33,6 +33,11 @@
 namespace tvm {
 namespace support {
 
+/*!
+ * \brief A partial implementation of the C++20 std::span.
+ *
+ * At the time of writing, TVM must compile against C++14.
+ */
 template <class T, class W>
 class Span {
  public:
