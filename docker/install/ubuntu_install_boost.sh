@@ -24,8 +24,8 @@ cleanup() {
 
 trap cleanup 0
 
-curl -O https://boostorg.jfrog.io/artifactory/main/release/1.67.0/source/boost_1_67_0.tar.gz
-BOOST_HASH=cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e
+curl -LO https://boostorg.jfrog.io/artifactory/main/release/1.67.0/source/boost_1_67_0.tar.gz
+BOOST_HASH=8c247e040303a97895cee9c9407ef205e2c3ab09f0b8320997835ad6221dff23a87231629498ccfd0acca473f74e9ec27b8bd774707b062228df1e5f72d44c92
 echo "$BOOST_HASH" boost_1_67_0.tar.gz | sha512sum -c
 tar -xf boost_1_67_0.tar.gz
 
