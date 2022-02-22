@@ -80,7 +80,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       buf = AllocateSharedMemory(op->dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      int32_t constant_size = op->constant_allocation_size();
+      size_t constant_size = op->ConstantAllocationSize();
       ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {

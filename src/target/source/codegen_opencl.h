@@ -83,7 +83,7 @@ class CodeGenOpenCL final : public CodeGenC {
   bool need_texture_ssa_{true};
   // Mapping from buffer to allocation size.
   // Useful to track when a scalar store of a vectorized texture load is required.
-  std::unordered_map<const Object*, int32_t> allocation_size_;
+  std::unordered_map<const Object*, size_t> allocation_size_;
 };
 
 }  // namespace codegen

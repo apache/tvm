@@ -771,3 +771,14 @@ def InjectSoftwarePipeline():
         The result pass
     """
     return _ffi_api.InjectSoftwarePipeline()  # type: ignore
+
+
+def ExtractPrimFuncConstants():
+    """Collects and unificates tir non-scalar constants to module's attr 'Constants' array.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ExtractPrimFuncConstants()  # type: ignore

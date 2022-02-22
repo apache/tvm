@@ -40,7 +40,44 @@
 #include <vector>
 
 namespace tvm {
+/*!
+ * \brief Describes one parameter that should be linked into the generated module.
+ *
+ * When parameters are to be linked in with generated code (i.e. on target_host-compatible
+ * backends), Relay attaches instances of this object to a global TIR function. Code-generators
+ * use the information contained in this node to include the parameter data in the generated
+ * module.
+ */
+class LinkedParamNode : public Object {
+ public:
+  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
+  int64_t id;
+
+  /*! \brief Parameter data which should get linked into the final module. */
+  ::tvm::runtime::NDArray param;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("id", &id);
+    v->Visit("param", &param);
+  }
+
+  static constexpr const char* _type_key = "tir.LinkedParam";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
+};
+
+/*!
+ * \brief Managed reference to LinkedParamNode.
+ */
+class LinkedParam : public ObjectRef {
+ public:
+  TVM_DLL LinkedParam(int64_t id, tvm::runtime::NDArray param);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
+};
+
 class IRModule;
+
 /*!
  * \brief IRModule that holds functions and type definitions.
  *
@@ -503,6 +540,11 @@ constexpr const char* kRuntime = "runtime";
  * \sa tvm::WorkspaceMemoryPools
  */
 constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
+
+/*
+ * \brief Module attribute for tir constants
+ */
+constexpr const char* kConstantsArray = "Constants";
 
 }  // namespace attr
 }  // namespace tvm

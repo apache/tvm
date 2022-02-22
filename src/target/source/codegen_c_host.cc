@@ -73,56 +73,6 @@ void CodeGenCHost::AddFunction(const PrimFunc& f) {
   }
 }
 
-void CodeGenCHost::DeclareParameters(Map<String, LinkedParam> params,
-                                     const Integer& constants_byte_alignment) {
-  for (auto kv : params) {
-    decl_stream << "\n"
-                << "#ifdef __cplusplus\n"
-                << "extern \"C\" {\n"
-                << "#endif\n"
-                << "static const ";
-    int64_t num_elements = 1;
-    for (int64_t dim : kv.second->param.Shape()) {
-      num_elements *= dim;
-    }
-    PrintType(kv.second->param.DataType(), decl_stream);
-    decl_stream << " __attribute__((section(\".rodata.tvm\"), "
-                << "aligned(" << constants_byte_alignment->value << "))) "
-                << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << "[" << num_elements
-                << "] = {\n";
-    NDArrayDataToC(kv.second->param, 4, decl_stream);
-    decl_stream << "};\n"
-                << "#ifdef __cplusplus\n"
-                << "}  // extern \"C\"\n"
-                << "#endif\n";
-  }
-}
-
-void CodeGenCHost::LinkParameters(Map<String, LinkedParam> params) {
-  PrintFuncPrefix();
-  stream << " " << tvm::runtime::symbol::tvm_lookup_linked_param
-         << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
-         << "int* out_ret_tcode, void* resource_handle) {\n";
-  ICHECK_EQ(GetUniqueName(tvm::runtime::symbol::tvm_lookup_linked_param),
-            tvm::runtime::symbol::tvm_lookup_linked_param)
-      << "builtin PackedFunc name already taken: " << tvm::runtime::symbol::tvm_lookup_linked_param;
-  stream << "    switch (((int64_t*) args)[0]) {\n"
-         << "    default:\n"
-         << "        out_ret_tcode[0] = " << kTVMNullptr << ";\n"
-         << "        return 0;\n";
-
-  function_names_.push_back(tvm::runtime::symbol::tvm_lookup_linked_param);
-  for (auto kv : params) {
-    stream << "    case " << kv.second->id << ":\n"
-           << "        ((uint64_t*)out_ret_value)[0] = (uint64_t) (uintptr_t) "
-           << ::tvm::runtime::symbol::tvm_param_prefix << kv.first << ";\n"
-           << "        out_ret_tcode[0] = " << kTVMOpaqueHandle << ";\n"
-           << "        return 0;\n";
-  }
-  stream << "    }\n"
-         << "}\n";
-}
-
 void CodeGenCHost::PrintFuncPrefix() {  // NOLINT(*)
   stream << "#ifdef __cplusplus\n"
          << "extern \"C\"\n"
@@ -392,23 +342,11 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   bool emit_asserts = false;
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts, target->str());
-
+  cg.SetConstantsByteAlignment(target->GetAttr<Integer>("constants-byte-alignment").value_or(16));
   Map<String, LinkedParam> linked_params;
-  bool found_linked_params = false;
-  bool could_have_linked_params = mod->ShouldLinkParameters();
   PrimFunc aot_executor_fn;
 
   for (auto kv : mod->functions) {
-    if (could_have_linked_params &&
-        kv.first->name_hint == ::tvm::runtime::symbol::tvm_lookup_linked_param) {
-      Map<String, ObjectRef> attrs_dict = Downcast<Map<String, ObjectRef>>(kv.second->attrs->dict);
-      CHECK(attrs_dict.find(::tvm::tir::attr::kLinkedParams) != attrs_dict.end())
-          << "no " << ::tvm::tir::attr::kLinkedParams << " attribute found!";
-      linked_params =
-          Downcast<Map<String, LinkedParam>>(attrs_dict[::tvm::tir::attr::kLinkedParams]);
-      found_linked_params = true;
-      continue;
-    }
     // Make sure that the executor function is the last one to be code generated so that all the
     // symbols are available to tvm_run_func
     auto fun_name = std::string(kv.first->name_hint);
@@ -424,16 +362,7 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(f);
   }
 
-  auto constants_byte_alignment = target->GetAttr<Integer>("constants-byte-alignment").value_or(16);
-
-  if (could_have_linked_params && !aot_executor_fn.defined()) {
-    ICHECK(found_linked_params) << "-link-params given but none found";
-    cg.DeclareParameters(linked_params, constants_byte_alignment);
-    cg.LinkParameters(linked_params);
-  }
-
-  if (could_have_linked_params && aot_executor_fn.defined()) {
-    cg.DeclareParameters(linked_params, constants_byte_alignment);
+  if (aot_executor_fn.defined()) {
     cg.AddFunction(aot_executor_fn);
   }
 
