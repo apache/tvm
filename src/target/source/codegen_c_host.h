@@ -44,10 +44,6 @@ class CodeGenCHost : public CodeGenC {
 
   void DefineModuleName();
 
-  /*! \brief Add linked parameters, if they are present. */
-  void DeclareParameters(Map<String, LinkedParam> params, const Integer& constants_byte_alignment);
-  void LinkParameters(Map<String, LinkedParam> params);
-
   void PrintType(DataType t, std::ostream& os) final;  // NOLINT(*)
   void PrintFuncPrefix() final;                        // NOLINT(*)
   void PrintFinalReturn() final;                       // NOLINT(*)

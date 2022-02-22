@@ -559,16 +559,18 @@ class AllocateNode : public StmtNode {
    *        Otherwise return 0.
    * \return The result.
    */
-  int32_t constant_allocation_size() const { return constant_allocation_size(extents); }
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
   /*!
    * \brief If the buffer size is constant, return the size.
    *        Otherwise return 0.
    * \param extents The extents of the buffer.
    * \return The result.
    */
-  TVM_DLL static int32_t constant_allocation_size(const Array<PrimExpr>& extents);
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -583,6 +585,96 @@ class Allocate : public Stmt {
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
+};
+
+/*!
+ * \brief Allocate a buffer that can be used in body.
+ */
+class AllocateConstNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Var buffer_var;
+  /*! \brief The optional data associated to the constant.
+   */
+  Optional<runtime::NDArray> data;
+  /*! \brief If the PrimFunc containing the Stmt is added to IRModule,
+       this is an optional index to indicate the index within
+       "Constants" attribute, that is a Array<NDArray> of IRModule.
+   */
+  Optional<Integer> irmod_storage_idx;
+  /*! \brief The type of the buffer. */
+  DataType dtype;
+  /*! \brief The extents of the buffer. */
+  Array<PrimExpr> extents;
+  /*! \brief The body to be executed. */
+  Stmt body;
+  /*!
+   * \brief Additional annotations about the allocation.
+   *
+   *  These annotations can be used as auxiliary hint
+   *  to future transformations.
+   */
+  Map<String, ObjectRef> annotations;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer_var", &buffer_var);
+    v->Visit("data", &data);
+    v->Visit("irmod_storage_idx", &irmod_storage_idx);
+    v->Visit("dtype", &dtype);
+    v->Visit("extents", &extents);
+    v->Visit("body", &body);
+    v->Visit("annotations", &annotations);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
+           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
+           equal(annotations, other->annotations);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(buffer_var);
+    hash_reduce(dtype);
+    hash_reduce(extents);
+    hash_reduce(body);
+    hash_reduce(annotations);
+    hash_reduce(data);
+  }
+
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \return The result.
+   */
+  int64_t ConstantAllocationSize() const { return ConstantAllocationSize(extents); }
+  /*!
+   * \brief If the buffer size is constant, return the size.
+   *        Otherwise return 0.
+   * \param extents The extents of the buffer.
+   * \return The result.
+   */
+  TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
+
+  static constexpr const char* _type_key = "tir.AllocateConst";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
+  TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to AllocateConstNode.
+ * \sa AllocateConstNode
+ */
+class AllocateConst : public Stmt {
+ public:
+  /* The constructor to create a IRNode with constant data
+   * depending on the type of ObjectRef, it will either
+   * create AllocateConstNode with irmod_storage_idx or data
+   */
+  TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                        ObjectRef data_or_idx, Stmt body, Span span = Span());
+  TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
 };
 
 /*!

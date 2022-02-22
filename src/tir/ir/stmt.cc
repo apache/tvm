@@ -366,19 +366,19 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   data_ = std::move(node);
 }
 
-int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
+int64_t AllocateNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
     if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
       result *= int_size->value;
-      if (result > std::numeric_limits<int32_t>::max()) {
+      if (result > std::numeric_limits<int64_t>::max()) {
         return 0;
       }
     } else {
       return 0;
     }
   }
-  return static_cast<int32_t>(result);
+  return static_cast<int64_t>(result);
 }
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
@@ -405,6 +405,79 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << " if ";
         p->Print(op->condition);
       }
+      p->stream << "\n";
+      p->Print(op->body);
+    });
+
+// Const
+// The constructor to create a IRNode with constant data
+// depending on the type of ObjectRef, it will either
+// create AllocateConstNode with irmod_storage_idx or data
+AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                             ObjectRef data_or_idx, Stmt body, Span span) {
+  ICHECK(IsPointerType(buffer_var->type_annotation, dtype))
+      << "The allocated data type (" << dtype
+      << ") does not match the type annotation of the buffer " << buffer_var << " ("
+      << buffer_var->type_annotation
+      << "). The data type should be an element of the pointer type.";
+
+  for (size_t i = 0; i < extents.size(); ++i) {
+    ICHECK(extents[i].defined());
+    ICHECK(extents[i].dtype().is_scalar());
+  }
+  ICHECK(body.defined());
+  ICHECK(data_or_idx.defined());
+
+  ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
+  node->buffer_var = std::move(buffer_var);
+  node->dtype = dtype;
+  node->extents = std::move(extents);
+  node->body = std::move(body);
+  node->span = std::move(span);
+  if (data_or_idx->IsInstance<runtime::NDArray::ContainerType>()) {
+    node->data = Optional<tvm::runtime::NDArray>(Downcast<runtime::NDArray>(data_or_idx));
+    node->irmod_storage_idx = Optional<Integer>();
+  } else if (data_or_idx->IsInstance<IntImmNode>()) {
+    node->data = Optional<tvm::runtime::NDArray>();
+    node->irmod_storage_idx = Optional<Integer>(Downcast<Integer>(data_or_idx));
+  } else {
+    LOG(FATAL) << "Data type not supported: " << data_or_idx->GetTypeKey();
+  }
+  data_ = std::move(node);
+}
+
+int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
+  int64_t result = 1;
+  for (size_t i = 0; i < extents.size(); ++i) {
+    if (const IntImmNode* int_size = extents[i].as<IntImmNode>()) {
+      result *= int_size->value;
+      if (result > std::numeric_limits<int64_t>::max()) {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+  }
+  return static_cast<int64_t>(result);
+}
+TVM_REGISTER_GLOBAL("tir.AllocateConst")
+    .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
+                       ObjectRef data_or_idx, Stmt body, Span span) {
+      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, span);
+    });
+
+TVM_REGISTER_NODE_TYPE(AllocateConstNode);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<AllocateConstNode>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const AllocateConstNode*>(node.get());
+      p->PrintIndent();
+      p->stream << "constant " << op->buffer_var << "[" << op->dtype;
+      for (size_t i = 0; i < op->extents.size(); ++i) {
+        p->stream << " * ";
+        p->Print(op->extents[i]);
+      }
+      p->stream << "]";
       p->stream << "\n";
       p->Print(op->body);
     });

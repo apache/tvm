@@ -28,6 +28,7 @@
 #include <iomanip>
 
 #include "../../arith/pattern_match.h"
+#include "codegen_params.h"
 
 namespace tvm {
 namespace codegen {
@@ -648,6 +649,37 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs,
   }
 }
 
+void CodeGenC::VisitStmt_(const AllocateConstNode* op) {
+  std::string symbol_name = op->buffer_var->name_hint;
+  int64_t num_elements = 1;
+  const auto& data = op->data.value();
+
+  for (int64_t dim : data.Shape()) {
+    num_elements *= dim;
+  }
+
+  decl_stream << "\n"
+              << "#ifdef __cplusplus\n"
+              << "extern \"C\" {\n"
+              << "#endif\n"
+              << "static const ";
+
+  PrintType(data.DataType(), decl_stream);
+
+  // Allocate the global static variable
+  decl_stream << " __attribute__((section(\".rodata.tvm\"), "
+              << "aligned(" << constants_byte_alignment_->value << "))) " << symbol_name << "["
+              << num_elements << "] = {\n";
+  NDArrayDataToC(data, 4, decl_stream);
+
+  decl_stream << "};\n"
+              << "#ifdef __cplusplus\n"
+              << "}  // extern \"C\"\n"
+              << "#endif\n";
+  var_idmap_[op->buffer_var.operator->()] = symbol_name;
+  this->PrintStmt(op->body);
+}
+
 void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->dtype.lanes();
   // delcare type.
@@ -820,7 +852,7 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
   std::string vid = AllocVarID(op->buffer_var.get());
 
   this->PrintIndent();
-  int32_t constant_size = op->constant_allocation_size();
+  size_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
   auto scope = GetPtrStorageScope(op->buffer_var);

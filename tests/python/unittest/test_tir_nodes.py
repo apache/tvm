@@ -22,7 +22,12 @@ import numpy as np
 
 def test_const():
     x = tvm.tir.const(1, "int32")
-    print(x.dtype)
+    assert x.dtype == "int32"
+    assert isinstance(x, tvm.tir.IntImm)
+
+
+def test_te_const():
+    x = tvm.te.const(1, "int32")
     assert x.dtype == "int32"
     assert isinstance(x, tvm.tir.IntImm)
 
