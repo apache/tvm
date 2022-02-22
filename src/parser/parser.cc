@@ -31,6 +31,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/virtual_device.h>
 
 #include <fstream>
 
@@ -1137,7 +1138,19 @@ class Parser {
 
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
-        return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        // Promote kVirtualDevice to first-class
+        if (raw_attrs.count(kVirtualDevice)) {
+          ObjectRef vid = raw_attrs.at(kVirtualDevice);
+          ICHECK(vid.as<VirtualDeviceNode>())
+              << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
+              << vid->GetTypeKey();
+          raw_attrs.erase(kVirtualDevice);
+          Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+          func->virtual_device_ = vid;
+          return func;
+        } else {
+          return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        }
       } else {
         return relay::Function(params, body, ret_type, generics, tvm::DictAttrs());
       }

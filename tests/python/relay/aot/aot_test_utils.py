@@ -59,7 +59,7 @@ class AOTTestModel(NamedTuple):
     inputs: Dict[str, np.array]
         Dict of input names to value arrays
     outputs: List[np.array]
-        Ordered list of output value arrays
+        Dict of output names to value arrays
     output_tolerance: Optional[Union[int, float]]
         Allowed tolerance of the output
     name: str
@@ -72,7 +72,7 @@ class AOTTestModel(NamedTuple):
 
     module: tvm.IRModule
     inputs: Dict[str, np.array]
-    outputs: List[np.array]
+    outputs: Dict[str, np.array]
     output_tolerance: Optional[Union[int, float]] = None
     name: str = "default"
     params: Optional[Dict[str, np.array]] = None
@@ -304,16 +304,19 @@ int main(){\n
     main_file.write(custom_prologue)
 
 
-def emit_main_data(main_file, input_map, output_list, mod_name):
+def emit_main_data(main_file, input_map, output_map, mod_name):
     for key in input_map:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         main_file.write(
             f'#include "{mangle_name(mod_name,"input_data")}_{sanitized_tensor_name}.h"\n'
         )
 
-    for i in range(0, len(output_list)):
-        main_file.write(f'#include "{mangle_name(mod_name,"expected_output_data")}{i}.h"\n')
-        main_file.write(f'#include "{mangle_name(mod_name,"output_data")}{i}.h"\n')
+    for key in output_map:
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f'#include "{mangle_name(mod_name,"expected_output_data")}_{sanitized_tensor_name}.h"\n'
+            f'#include "{mangle_name(mod_name,"output_data")}_{sanitized_tensor_name}.h"\n'
+        )
 
 
 def emit_main_device_structs(main_file, devices, mod_name):
@@ -336,7 +339,7 @@ def emit_main_workspace_pool_structs(main_file, workspace_pool_names, mod_name):
         main_file.write("};\n")
 
 
-def emit_main_data_structs(main_file, input_map, output_list, mod_name):
+def emit_main_data_structs(main_file, input_map, output_map, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'inputs')} {mangle_name(mod_name, 'inputs')} = {{"
     )
@@ -350,17 +353,16 @@ def emit_main_data_structs(main_file, input_map, output_list, mod_name):
     main_file.write(
         f"struct {mangle_name(mod_name, 'outputs')} {mangle_name(mod_name, 'outputs')} = {{"
     )
-    num_outputs = len(output_list)
-    if num_outputs == 1:
-        main_file.write(f"\t.output = {mangle_name(mod_name, 'output_data')}0,\n")
-    else:
-        for i in range(0, num_outputs):
-            main_file.write(f"\t.output{i} = {mangle_name(mod_name, 'output_data')}{i},\n")
+    for key in output_map:
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(
+            f"\t.{sanitized_tensor_name} = {mangle_name(mod_name, 'output_data')}_{sanitized_tensor_name},\n"
+        )
     main_file.write("};\n")
 
 
-def emit_main_data_setup(main_file, input_map, output_list, mod_name):
-    num_outputs = len(output_list)
+def emit_main_data_setup(main_file, input_map, output_map, mod_name):
+    num_outputs = len(output_map)
     num_inputs = len(input_map)
 
     main_file.write(f'void* {mangle_name(mod_name,"inputs")}[{num_inputs}] = {{ ')
@@ -370,8 +372,9 @@ def emit_main_data_setup(main_file, input_map, output_list, mod_name):
     main_file.write("};\n")
 
     main_file.write(f'void* {mangle_name(mod_name,"outputs")}[{num_outputs}]  = {{ ')
-    for i in range(0, num_outputs):
-        main_file.write(f'{mangle_name(mod_name,"output_data")}{i}, ')
+    for key in output_map:
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        main_file.write(f'{mangle_name(mod_name, "output_data")}_{sanitized_tensor_name}, ')
     main_file.write("};\n")
 
 
@@ -446,13 +449,12 @@ def emit_main_packed_call(main_file, input_map, output_list, mod_name):
     main_file.write("\n")
 
 
-def emit_main_compare(main_file, output_list, output_tolerance, mod_name):
-    num_outputs = len(output_list)
-    actual_data_name = mangle_name(mod_name, "output_data")
-    expected_data_name = mangle_name(mod_name, "expected_output_data")
-
-    for i in range(0, num_outputs):
-        is_float_dtype = output_list[i].dtype == "float32"
+def emit_main_compare(main_file, outputs, output_tolerance, mod_name):
+    for key in outputs:
+        sanitized_tensor_name = re.sub(r"\W", "_", key)
+        actual_data_name = mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
+        expected_data_name = mangle_name(mod_name, f"expected_output_data_{sanitized_tensor_name}")
+        is_float_dtype = outputs[key].dtype == "float32"
 
         comparison_function = "abs"
         tolerance = output_tolerance or 0
@@ -462,8 +464,8 @@ def emit_main_compare(main_file, output_list, output_tolerance, mod_name):
 
         main_file.write(
             f"""
-            for (int i = 0; i<{actual_data_name}{i}_len; i++) {{
-                if ({comparison_function}({actual_data_name}{i}[i]-{expected_data_name}{i}[i]) > {tolerance}) {{
+            for (int i = 0; i<{actual_data_name}_len; i++) {{
+                if ({comparison_function}({actual_data_name}[i]-{expected_data_name}[i]) > {tolerance}) {{
                     printf("{AOT_FAILURE_TOKEN}\\n");
                     return -1;
                 }}
@@ -721,16 +723,17 @@ def run_and_check(
                 data_linkage,
             )
 
-        for i in range(len(model.outputs)):
+        for key in model.outputs:
+            sanitized_tensor_name = re.sub(r"\W", "_", key)
             create_header_file(
-                (f'{mangle_name(model.name,"output_data")}{i}'),
-                np.zeros(model.outputs[i].shape, model.outputs[i].dtype),
+                f'{mangle_name(model.name, "output_data")}_{sanitized_tensor_name}',
+                np.zeros(model.outputs[key].shape, model.outputs[key].dtype),
                 include_path,
                 data_linkage,
             )
             create_header_file(
-                (f'{mangle_name(model.name, "expected_output_data")}{i}'),
-                model.outputs[i],
+                f'{mangle_name(model.name, "expected_output_data")}_{sanitized_tensor_name}',
+                model.outputs[key],
                 include_path,
                 data_linkage,
             )
@@ -852,4 +855,16 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
     grt_mod.run()
     output_count = grt_mod.get_num_outputs()
     out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
-    return out
+    if isinstance(mod, tvm.relay.Function):
+        main = mod
+    else:
+        main = mod["main"]
+    if main.attrs == None or main.attrs["output_tensor_names"] == None:
+        if output_count == 1:
+            output_tensor_names = ["output"]
+        else:
+            output_tensor_names = [f"output{i}" for i in range(output_count)]
+    else:
+        output_tensor_names = main.attrs["output_tensor_names"]
+
+    return dict(zip(output_tensor_names, out))

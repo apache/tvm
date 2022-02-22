@@ -34,7 +34,7 @@ extern float output_storage[12];
 
 extern const size_t output_len;
 
-static uint8_t g_crt_workspace[TVMGEN_DEFAULT_WORKSPACE_SIZE + 256];
+static uint8_t g_crt_workspace[TVMGEN_DEFAULT_WORKSPACE_SIZE + 512];
 tvm_workspace_t app_workspace;
 
 void TVMLogf(const char* msg, ...) {
@@ -62,7 +62,7 @@ void main(void) {
   StackMemoryManager_Init(&app_workspace, g_crt_workspace, TVMGEN_DEFAULT_WORKSPACE_SIZE);
 
   struct tvmgen_default_inputs inputs = {.input = input_storage};
-  struct tvmgen_default_outputs outputs = {.output = output_storage};
+  struct tvmgen_default_outputs outputs = {.Identity = output_storage};
 
   if (tvmgen_default_run(&inputs, &outputs) != 0) {
     printk("Model run failed\n");

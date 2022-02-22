@@ -36,6 +36,8 @@
 
 #include <stack>
 
+#include "../../../runtime/thread_storage_scope.h"
+
 namespace tvm {
 namespace tir {
 namespace usmp {
@@ -257,18 +259,20 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   ScopeInfo& current_scope_info = scope_stack_.top();
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
-  const auto& storage_scope = type->storage_scope;
+  const auto& storage_scope = runtime::StorageScope::Create(type->storage_scope);
 
   // If the allocate is in a for loop, USMP currently only looks at serial for loops.
   // If its not a serial for loop, then memory planner will omit them in the current memory planning
   // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
   // with buffers that have global storage_scope
 
-  if (!current_scope_info.for_loop.defined()) {
-    RecordAllocateNodeInfo(op);
-  } else if (current_scope_info.for_loop.defined() &&
-             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
-    RecordAllocateNodeInfo(op);
+  if (storage_scope.rank == runtime::StorageRank::kGlobal) {
+    if (!current_scope_info.for_loop.defined()) {
+      RecordAllocateNodeInfo(op);
+    } else if (current_scope_info.for_loop.defined() &&
+               current_scope_info.for_loop->kind == ForKind::kSerial) {
+      RecordAllocateNodeInfo(op);
+    }
   }
   StmtExprVisitor::VisitStmt(op->body);
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));

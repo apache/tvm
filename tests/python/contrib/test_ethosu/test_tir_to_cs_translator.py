@@ -645,7 +645,7 @@ def test_translate_ethosu_copy():
                 {
                     "src": "placeholder_5",
                     "dest": "placeholder_d_global",
-                    "length": 8,
+                    "length": 32,
                 },
             ],
         },
@@ -851,23 +851,44 @@ def test_assign_addresses():
                 length, dtype=buffer_dtype
             )
         elif buffer_type == tir_to_cs_translator.BufferType.scratch:
-            shape = list(buffer_info[buffer_var].shape)
-            assert length == np.prod(shape)
-            assert address < scratch_size
+            assert address < tvmbaw_workspace_size
 
-            size_in_bytes = int(np.prod(shape)) * dtype_bytes
+            size_in_bytes = allocate_node_sizes[buffer_var]
             # Every buffer is adjusted to align to 16 bytes
             size_in_bytes = util.round_up(size_in_bytes, 16)
-            assert address + size_in_bytes <= scratch_size
+            assert address + size_in_bytes <= tvmbaw_workspace_size
             # The scratch area should not be used by any other buffer
-            assert not scratch_mask[address : address + size_in_bytes].any()
+            assert not tvmbaw_workspace_mask[address : address + size_in_bytes].any()
             # The scratch area is marked as used
-            scratch_mask[address : address + size_in_bytes] = np.ones(size_in_bytes, dtype="uint8")
+            tvmbaw_workspace_mask[address : address + size_in_bytes] = np.ones(
+                size_in_bytes, dtype="uint8"
+            )
         elif buffer_type == tir_to_cs_translator.BufferType.input:
             assert address == 0
         else:
             assert buffer_type == tir_to_cs_translator.BufferType.output
             assert address == 0
+
+    def _get_allocate_node_sizes(mod):
+        # There should only be a single function
+        assert len(mod.functions.items()) == 1
+        primfunc = mod.functions.items()[0][1]
+        _allocate_node_sizes = dict()
+
+        def analyze_remaining_allocates(stmt):
+            if isinstance(stmt, tvm.tir.stmt.Allocate):
+                allocate = stmt
+                pointer_type = allocate.buffer_var.type_annotation
+                storage_scope = pointer_type.storage_scope
+                if storage_scope == "global":
+                    dtype_bytes = np.iinfo(np.dtype(allocate.dtype)).bits // 8
+                    size_in_bytes = int(dtype_bytes * np.prod(list(allocate.extents)))
+                    # Every memory address the NPU access have to be 16 byte aligned
+                    size_in_bytes = util.round_up(size_in_bytes, 16)
+                    _allocate_node_sizes[allocate.buffer_var] = size_in_bytes
+
+        tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_remaining_allocates)
+        return _allocate_node_sizes
 
     def verify(npu_ops):
         """This wrapper verifies the allocated addresses matches with original tir buffers"""
@@ -933,22 +954,29 @@ def test_assign_addresses():
         tir_mod = test_case["tir_module"]
         tir_mod["main"] = tir_mod["main"].with_attr("target", tvm.target.Target("ethos-u"))
         tir_mod = tvm.tir.transform.MakeUnpackedAPI()(tir_mod)
+        candidate_regions_for_scratch = [5, 2, 1]
+        (
+            scratch_region_map,
+            tvmbaw_workspace_size,
+            _,
+        ) = tir_to_cs_translator.analyze_scratch_memory_acesses(
+            tir_mod, candidate_regions_for_scratch
+        )
+        allocate_node_sizes = _get_allocate_node_sizes(tir_mod)
         buffer_info = tir_to_cs_translator.extract_buffer_info(tir_mod, test_case["param_dict"])
         extern_calls = extract_call_extern_list(tir_mod)
         _npu_ops = list()
         for extern_call in extern_calls:
             _npu_ops.append(tir_to_cs_translator.translate_ethosu_tir_call_extern(extern_call))
         npu_op_tir_buffers = collect_tir_buffer_info(_npu_ops)
-        (
-            _npu_ops,
-            constant_hex_string,
-            scratch_size,
-        ) = tir_to_cs_translator.assign_addresses(buffer_info, _npu_ops)
-        scratch_mask = np.zeros(scratch_size, dtype="uint8")
+        (_npu_ops, constant_hex_string) = tir_to_cs_translator.assign_addresses(
+            buffer_info, _npu_ops, scratch_region_map
+        )
+        tvmbaw_workspace_mask = np.zeros(tvmbaw_workspace_size, dtype="uint8")
         constant_tensor_read_mask = np.zeros(len(constant_hex_string) // 2, dtype="uint8")
         verify(_npu_ops)
         # This will be only 1 if all allocated scratch is used.
-        assert np.prod(scratch_mask) == 1
+        assert np.prod(tvmbaw_workspace_mask) == 1
         # This will be only 1 if all constant tensors is read at least once.
         assert np.prod(constant_tensor_read_mask) == 1
 

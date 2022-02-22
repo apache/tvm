@@ -7,3 +7,9 @@
 /build
 /captures
 .externalNativeBuild
+
+/app/src/main/jni/jni_helper_func.h
+/app/src/main/jni/org_apache_tvm_native_c_api.cc
+/app/src/main/jni/org_apache_tvm_native_c_api.h
+/app/src/main/obj/
+dev_tools/tvmrpc.keystore

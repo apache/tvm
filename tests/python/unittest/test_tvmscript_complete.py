@@ -210,7 +210,7 @@ def expected_bufferslice_indices(data: T.handle, index: T.handle) -> None:
         for i0, i1 in T.grid(16, 16):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i0, i1])
-                T.reads([data_buf[vi, 0:16], index_buf[0]])
+                T.reads([data_buf[vi, index_buf[0]], index_buf[0]])
                 T.writes([out_buf[vi, vj]])
                 out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
@@ -238,7 +238,12 @@ def expected_recursive_bufferslice_indices(data: T.handle, index: T.handle) -> N
         for i0, i1 in T.grid(16, 16):
             with T.block():
                 vi, vj = T.axis.remap("SS", [i0, i1])
-                T.reads([data_buf[0:16, 0:16], index_buf[0]])
+                T.reads(
+                    [
+                        data_buf[index_buf[index_buf[0]], index_buf[0]],
+                        index_buf[T.min(index_buf[0], 0) : T.max(index_buf[0], 0) + 1],
+                    ]
+                )
                 T.writes([out_buf[vi, vj]])
                 out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
 

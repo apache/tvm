@@ -27,7 +27,7 @@ def lower_stmt(params, stmt, target_bits):
     return stmt
 
 
-def lower_sch(sch, args, target_bits):
+def lower_sch(sch, args, target_bits, extra_passes=None):
     binds = {}
     arg_list = []
     for x in args:
@@ -42,6 +42,9 @@ def lower_sch(sch, args, target_bits):
 
     mod = schedule_to_module(sch, args)
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    if extra_passes:
+        for p in extra_passes:
+            mod = p(mod)
     return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 
 
@@ -255,6 +258,25 @@ def test_relay_take():
     )
 
 
+def test_ramp_dtype_consistency():
+    """
+    for (i :int64, (int64)0, (int64)4) {
+        A[ramp(i*(int64)2, (int64)1, 2)] = cast(int64, 2 ** 31 - 1) * i;
+    }
+    The infer result:
+        base:   int64 -> int64 (since i is involved in another int64 expr)
+        stride: int64 -> int32
+
+    Thus ramp should still use int64 for both stride and base after rewrite.
+    """
+    n = tvm.tir.IntImm("int64", 4)
+    m = tvm.tir.IntImm("int64", 2)
+    A = te.compute((n, m), lambda i, j: tvm.tir.Cast("int64", 2 ** 31 - 1) * i, name="A")
+    s = te.create_schedule(A.op)
+    s[A].vectorize(A.op.axis[1])
+    lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])
+
+
 if __name__ == "__main__":
     test_basic()
     test_thread_axis()
@@ -263,3 +285,4 @@ if __name__ == "__main__":
     test_slice()
     test_relay_basic()
     test_relay_take()
+    test_ramp_dtype_consistency()

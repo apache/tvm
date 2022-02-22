@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -19,7 +19,8 @@
 set -euxo pipefail
 
 pushd apps/microtvm/zephyr_cmsisnn
-./run_demo.sh
+# Demo tests are disabled here due to https://github.com/apache/tvm/issues/10312
+# timeout 5m ./run_demo.sh
 popd
 
 pushd apps/microtvm/ethosu
@@ -27,6 +28,6 @@ FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 CMAKE_PATH="/opt/arm/cmake/bin/cmake"
 FREERTOS_PATH="/opt/freertos/FreeRTOSv202112.00"
 
-./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH
-./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH
+# timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH
+# timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH
 popd

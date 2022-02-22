@@ -565,6 +565,7 @@ def _test_convolution(
             )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 @tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
@@ -3769,6 +3770,7 @@ def test_forward_where():
 #######################################################################
 # Inception V3
 # ------------
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 def test_forward_inception_v3():
     """test inception V3 model"""
     with tf.Graph().as_default():

@@ -56,6 +56,11 @@ function lookup_image_spec() {
 }
 
 function run_docker() {
+    docker_bash_args=( )
+    while [ "x${1:0:1}" == "x-" ]; do
+        docker_bash_args=( "${docker_bash_args[@]}" "$1" )
+        shift
+    done
     image_name="$1"  # Name of the Jenkinsfile var to find
     shift
 
@@ -65,5 +70,6 @@ function run_docker() {
         exit 2
     fi
 
-    "${GIT_TOPLEVEL}/docker/bash.sh" "${image_spec}" "$@"
+    docker_bash_args=( "${docker_bash_args[@]}" "${image_spec}" "$@" )
+    "${GIT_TOPLEVEL}/docker/bash.sh" "${docker_bash_args[@]}"
 }

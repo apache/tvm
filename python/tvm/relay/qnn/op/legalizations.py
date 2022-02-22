@@ -18,6 +18,7 @@
 """Backend QNN related feature registration"""
 import numpy as np
 import tvm
+from scipy import special
 from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
@@ -47,19 +48,30 @@ def legalize_qnn_dense(attrs, inputs, types):
     return qnn_dense_legalize(attrs, inputs, types)
 
 
-# Registering QNN dense legalization function.
-@reg.register_qnn_legalize("qnn.rsqrt")
-def legalize_qnn_rsqrt(attrs, inputs, types):
-    return create_integer_lookup_op(
-        input_arg=inputs[0],
-        floating_point_func=lambda arr: 1 / np.sqrt(arr),
-        in_scale=inputs[1],
-        in_zero_point=inputs[2],
-        out_scale=inputs[3],
-        out_zero_point=inputs[4],
-        in_dtype=types[0].dtype,
-        out_dtype=types[0].dtype,
-    )
+def register_qnn_unary_op_legalize(op_name, floating_point_func):
+    """Register unary qnn op for legalization via table lookup op."""
+
+    def legalize_qnn_unary_op(attrs, inputs, types):
+        return create_integer_lookup_op(
+            input_arg=inputs[0],
+            floating_point_func=floating_point_func,
+            in_scale=inputs[1],
+            in_zero_point=inputs[2],
+            out_scale=inputs[3],
+            out_zero_point=inputs[4],
+            in_dtype=types[0].dtype,
+            out_dtype=types[0].dtype,
+        )
+
+    return reg.register_qnn_legalize(op_name, legalize_qnn_unary_op)
+
+
+register_qnn_unary_op_legalize("qnn.sqrt", np.sqrt)
+register_qnn_unary_op_legalize("qnn.rsqrt", lambda arr: 1 / np.sqrt(arr))
+register_qnn_unary_op_legalize("qnn.exp", np.exp)
+register_qnn_unary_op_legalize("qnn.erf", special.erf)
+register_qnn_unary_op_legalize("qnn.sigmoid", lambda arr: 1 / (1 + np.exp(-arr)))
+register_qnn_unary_op_legalize("qnn.tanh", np.tanh)
 
 
 # Default to None. If overridden by target, this will not be run.

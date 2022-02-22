@@ -616,7 +616,7 @@ void InjectInline(ScheduleNode* sch, bool feature_extraction_mode) {
       const HybridOpNode* hybrid = sch->stages[i]->op.as<HybridOpNode>();
       ICHECK(hybrid);
       Operation op = HybridOp(hybrid->name, hybrid->tag, hybrid->attrs, hybrid->inputs,
-                              hybrid->outputs, new_hybrid_body[i]);
+                              hybrid->symbolic_outputs, new_hybrid_body[i]);
       op = op->ReplaceInputs(op, repl);
       for (int idx = 0; idx < s->op->num_outputs(); ++idx) {
         repl[s->op.output(idx)] = op.output(idx);

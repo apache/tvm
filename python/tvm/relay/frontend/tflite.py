@@ -30,6 +30,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
+from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .common import to_int_list
@@ -1666,7 +1667,7 @@ class OperatorConverter(object):
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -2704,9 +2705,9 @@ class OperatorConverter(object):
         unpack_axis = unpack_options.Axis()
 
         # Relay doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
-        # We have to do 'squeeze' along the split axis but Relay expects
-        # squeeze_axis to be either None or List.
-        squeeze_axis = None if unpack_axis == 0 else [unpack_axis]
+        # We have to do 'squeeze' along the split axis.
+        # Relay expects squeeze_axis to be List.
+        squeeze_axis = [unpack_axis]
 
         # Relay doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
         # a tensor by an axis with len(axis) == 1. For reference see convert_split().
@@ -3769,6 +3770,15 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
     params = {k: _nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _function.Function(analysis.free_vars(outputs), outputs)
+    attrs = tvm.ir.make_node(
+        "DictAttrs",
+        **{
+            "output_tensor_names": [
+                sanitize_name(get_tensor_name(subgraph, model_output))
+                for model_output in model_outputs
+            ]
+        },
+    )
+    func = _function.Function(analysis.free_vars(outputs), outputs, attrs=attrs)
     mod = IRModule.from_expr(func)
     return mod, params

@@ -306,6 +306,10 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
+# This test uses mma instructions that are not available on NVCC 10.1.
+# Failure occurs during the external call to nvcc, when attempting to
+# generate the .fatbin file.
+@tvm.testing.requires_nvcc_version(11)
 @tvm.testing.requires_cuda
 def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8s8s32)
@@ -378,6 +382,10 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
+# This test uses mma instructions that are not available on NVCC 10.1.
+# Failure occurs during the external call to nvcc, when attempting to
+# generate the .fatbin file.
+@tvm.testing.requires_nvcc_version(11)
 @tvm.testing.requires_cuda
 def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k16_row_col_s8u8s32)
@@ -450,6 +458,10 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
+# This test uses mma instructions that are not available on NVCC 10.1.
+# Failure occurs during the external call to nvcc, when attempting to
+# generate the .fatbin file.
+@tvm.testing.requires_nvcc_version(11)
 @tvm.testing.requires_cuda
 def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
@@ -514,6 +526,10 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
         C[(tx % 32) // 4, (tx % 32) % 4 * 2 + mma_accum_c_id] = Accum[mma_accum_c_id]
 
 
+# This test uses mma instructions that are not available on NVCC 10.1.
+# Failure occurs during the external call to nvcc, when attempting to
+# generate the .fatbin file.
+@tvm.testing.requires_nvcc_version(11)
 @tvm.testing.requires_cuda
 def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     sch = tvm.tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
