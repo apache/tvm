@@ -180,12 +180,15 @@ def test_schedule_cache_reads():
 @tvm.script.ir_module
 class DiamondGraphTir:
     @T.prim_func
-    def main(input_buffer: T.Buffer[(1, 56, 56, 96), "int8"], output_buffer: T.Buffer[(1, 56, 56, 24), "int8"]) -> None:
+    def main(input_buffer: T.Buffer[(301056,), "int8"], output_buffer: T.Buffer[(75264,), "int8"]) -> None:
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
-        weight_buffer = T.buffer_decl([], "uint8")
-        bias_buffer = T.buffer_decl([], "uint8")
-        weight_buffer2 = T.buffer_decl([], "uint8")
-        bias_buffer2 = T.buffer_decl([], "uint8")
+        T.preflattened_buffer(input_buffer, [1, 56, 56, 96], dtype='int8', data=input_buffer.data)
+        T.preflattened_buffer(output_buffer, [1, 56, 56, 24], dtype='int8', data=output_buffer.data)
+
+        weight_buffer = T.buffer_decl([2608], "uint8")
+        bias_buffer = T.buffer_decl([240], "uint8")
+        weight_buffer2 = T.buffer_decl([736], "uint8")
+        bias_buffer2 = T.buffer_decl([240], "uint8")
 
         placeholder_global = T.allocate([2608], "uint8", "global", annotations={"disable_lower_builtin":True})
         placeholder_d_global = T.allocate([240], "uint8", "global", annotations={"disable_lower_builtin":True})
