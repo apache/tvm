@@ -608,7 +608,6 @@ TVM_DLL const Op& ptx_mma();
  */
 TVM_DLL const Op& ptx_mma_sp();
 
-
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
  * \brief Get the high level half of the vector
