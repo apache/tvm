@@ -31,6 +31,12 @@ else
     HAS_SCCACHE=0
 fi
 
+# TODO: Remove testing code
+if which sccache; then
+    HAS_SCCACHE=1
+fi
+export SCCACHE_BUCKET="tvm-sccache-prod"
+
 if [ "$HAS_SCCACHE" -eq "1" ]; then
     echo "Running with sccache enabled"
     export CC=/opt/sccache/cc
