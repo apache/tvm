@@ -15,5 +15,41 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-cd $1 && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make $2 && cd ..
+set -eux
+
+VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
+export VTA_HW_PATH
+
+pushd "$1"
+
+# Set up sccache to use S3
+if [ -n "${3+x}" ] && which sccache; then
+    export SCCACHE_BUCKET=$3
+    HAS_SCCACHE=1
+else
+    export SCCACHE_BUCKET="no-bucket-configured"
+    HAS_SCCACHE=0
+fi
+
+if [ "$HAS_SCCACHE" -eq "1" ]; then
+    echo "Running with sccache enabled"
+    export CC=/opt/sccache/cc
+    export CXX=/opt/sccache/c++
+fi
+
+# Send this out through a side channel, the bucket name is not actually secret
+# so it's OK to leak it in this way
+echo "$SCCACHE_BUCKET" | base64
+
+if [ "$HAS_SCCACHE" -eq "1" ]; then
+    sccache --start-server || echo failed
+    sccache --show-stats
+fi
+
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+cmake --build . -- VERBOSE=1 "$2"
+
+if [ "$HAS_SCCACHE" -eq "1" ]; then
+    sccache --show-stats
+fi
+popd

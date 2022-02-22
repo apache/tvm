@@ -45,13 +45,13 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.68"
-ci_gpu = "tlcpack/ci-gpu:v0.81"
-ci_cpu = "tlcpack/ci-cpu:v0.81"
-ci_wasm = "tlcpack/ci-wasm:v0.71"
-ci_i386 = "tlcpack/ci-i386:v0.74"
-ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.07"
+ci_lint = 'tlcpack/ci-lint:v0.68'
+ci_gpu = 'tlcpack/ci-gpu:v0.81'
+ci_cpu = 'tlcpack/ci-cpu:v0.81'
+ci_wasm = 'tlcpack/ci-wasm:v0.71'
+ci_i386 = 'tlcpack/ci-i386:v0.74'
+ci_qemu = 'tlcpack/ci-qemu:v0.10'
+ci_arm = 'tlcpack/ci-arm:v0.07'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -242,10 +242,17 @@ def fsim_test(image) {
 }
 
 def cmake_build(image, path, make_flag) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag}",
-    label: 'Run cmake build',
-  )
+  // Note: This isn't really a secret, but its stored as a Jenkins credential
+  // so it can be easily configured
+  withCredentials([string(
+    credentialsId: 's3-sccache-bucket',
+    variable: 'SCCACHE_BUCKET',
+    )]) {
+    sh (
+      script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag} ${SCCACHE_BUCKET}",
+      label: 'Run cmake build',
+    )
+    }
 }
 
 def cpp_unittest(image) {
@@ -286,7 +293,7 @@ stage('Build') {
             ci_setup(ci_cpu)
             // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
             // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: "Rust build and test")
+            sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           }
         }
       }
@@ -442,7 +449,7 @@ stage('Test') {
   'unittest: CPU': {
     if (!skip_ci && is_docs_only_build != 1) {
       node('CPU') {
-        ws(per_exec_ws("tvm/ut-python-cpu")) {
+        ws(per_exec_ws('tvm/ut-python-cpu')) {
           try {
             init_git()
             unpack_lib('cpu', tvm_multilib_tsim)
@@ -452,7 +459,7 @@ stage('Test') {
               fsim_test(ci_cpu)
               sh (
                 script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: "Run VTA tests in TSIM",
+                label: 'Run VTA tests in TSIM',
               )
             }
           } finally {
