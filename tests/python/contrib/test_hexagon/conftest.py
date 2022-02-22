@@ -50,7 +50,7 @@ def requires_hexagon_toolchain(*args):
     _requires_hexagon_toolchain = [
         pytest.mark.skipif(
             os.environ.get(HEXAGON_TOOLCHAIN) == None,
-            reason=f"Missing environment variable, {HEXAGON_TOOLCHAIN}.",
+            reason=f"Missing environment variable {HEXAGON_TOOLCHAIN}.",
         ),
     ]
 
