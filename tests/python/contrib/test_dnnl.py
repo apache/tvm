@@ -881,7 +881,6 @@ def test_model(run_module, dtype="float32"):
     run_and_verify_model("VGG11_bn", run_module, dtype=dtype)
     run_and_verify_model("InceptionV3", run_module, input_shape=(1, 3, 300, 300), dtype=dtype)
     run_and_verify_model("MobileNet1.0", run_module, dtype=dtype)
-    run_and_verify_model("ResNext50_32x4d", run_module, dtype=dtype)
 
 
 if __name__ == "__main__":
