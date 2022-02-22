@@ -21,6 +21,8 @@ import pytest
 import numpy as np
 from typing import Tuple, List
 
+import torch
+
 import tvm
 from tvm import relay
 from tvm.ir import IRModule
