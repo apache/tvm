@@ -114,6 +114,6 @@ def _dense_legalize(attrs, inputs, arg_types):
 @nn.batch_matmul_legalize.register("cpu")
 def _batch_matmul_legalize(attrs, inputs, arg_types):
     """Legalizes s8, s8 -> s32 batch_matmul for VNNI."""
-    if attrs["transpose_a"] == True or attrs["transpose_b"] == False:
+    if attrs["transpose_a"] or not attrs["transpose_b"]:
         return None
     return vnni_legalize(inputs, arg_types, relay.nn.batch_matmul, attrs, need_expand=True)
