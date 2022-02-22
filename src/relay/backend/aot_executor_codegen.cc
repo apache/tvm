@@ -327,7 +327,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     std::string func_name = call_lowered_props.lowered_func->name_hint;
     tvm::Array<PrimExpr> args{tvm::tir::StringImm(func_name)};
     std::vector<tir::Stmt> create_func_call_stmts;
-
     // Pack the inputs
     for (const Expr& arg : call_lowered_props.arguments) {
       if (params_by_expr_.find(arg) != params_by_expr_.end()) {
@@ -545,22 +544,24 @@ class AOTExecutorCodegen : public MixedModeVisitor {
 
   void VisitExpr_(const ConstantNode* op) override {
     Expr expr = GetRef<Expr>(op);
-    size_t index = params_.size();
-    std::string name = "p" + std::to_string(index);
     StorageInfo& sinfo = storage_device_map_[expr];
-    param_storage_ids_[name] = sinfo->storage_ids[0];
-    params_[name] = op->data;
-    params_by_expr_.Set(expr, name);
+    std::stringstream ss;
+    ss << "constant_" << constant_map_.size();
+
+    tir::Var constant(ss.str(), PointerType(PrimType(DataType(op->data->dtype))));
+    constant_map_[constant] = op;
+    auto sid = sinfo->storage_ids[0];
+    sids_table_[sid] = constant;
 
     // If the Constant node is an output node we need to copy the content of the parameter to the
-    // output A Var node can only produce a single output
-    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sinfo->storage_ids[0]);
+    // output. A node can only produce a single output
+    auto output_iter = std::find(return_sid_.begin(), return_sid_.end(), sid);
     if (output_iter != return_sid_.end()) {
       int output_index = std::distance(return_sid_.begin(), output_iter);
       auto param_handle = tvm::tir::Call(DataType::Handle(), tvm::tir::builtin::lookup_param(),
-                                         {tir::StringImm(params_by_expr_[expr])});
-      CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), param_handle, false,
-                   sinfo->storage_sizes_in_bytes[0]);
+                                         {tir::StringImm(ss.str())});
+      CopyToOutput(GetBufferVarForIO(input_vars_.size() + output_index), constant,
+                   /* pack_input */ false, sinfo->storage_sizes_in_bytes[0]);
     }
   }
 
@@ -608,7 +609,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   // runner function needs to be legalized by the LegalizePackedCalls pass.
   tir::PrimFunc CreateMainFunc(String mod_name, unsigned int relay_params) {
     tir::Stmt body = tir::SeqStmt(stmts_);
-
     // Allocate the sids
     std::unordered_map<int, bool> allocated;
 
@@ -629,6 +629,8 @@ class AOTExecutorCodegen : public MixedModeVisitor {
           continue;
         }
 
+        allocated[sid] = constant_map_.count(sids_table_[sid]);
+
         // TODO(giuseros): we should allocate this once outside the PrimFunc
         // so we don't pay the price of allocation for every inference
         if (!allocated[sid]) {
@@ -638,6 +640,20 @@ class AOTExecutorCodegen : public MixedModeVisitor {
         }
         allocated[sid] = true;
       }
+    }
+
+    for (auto kv : constant_map_) {
+      auto buffer_var = kv.first;
+      auto dtype = DataType(kv.second->data->dtype);
+
+      int ndim = kv.second->data->ndim;
+      Array<PrimExpr> extents;
+
+      for (int i = 0; i < ndim; i++) {
+        int shape = kv.second->data->shape[i];
+        extents.push_back(tir::make_const(DataType::Int(32), shape));
+      }
+      body = tir::AllocateConst(buffer_var, dtype, extents, kv.second->data, body);
     }
 
     // Define the PrimFunc attributes
@@ -795,11 +811,13 @@ class AOTExecutorCodegen : public MixedModeVisitor {
   Map<Expr, String> params_by_expr_;
   /*! \brief mapping between parameter names ("p0", "p1", etc..) and storage identifiers*/
   std::unordered_map<std::string, int64_t> param_storage_ids_;
+  std::unordered_map<const tir::Var, const ConstantNode*, ObjectPtrHash, ObjectPtrEqual>
+      constant_map_;
 
   /*! \brief plan memory of device result */
   StorageMap storage_device_map_;
   /*! \brief mapping sid -> tir::Var */
-  std::unordered_map<int, te::Var> sids_table_;
+  std::unordered_map<int, tir::Var> sids_table_;
   /*! \brief lowered funcs */
   Map<String, FunctionInfo> function_metadata_;
   /*! \brief the set of statements that make the program */
@@ -891,7 +909,6 @@ class AOTExecutorCodegen : public MixedModeVisitor {
     // because the packed calls arguments are not wrapped in TVMValues. To make this happen we need
     // to run the LegalizePackedCalls pass.
     LoweredOutput ret;
-
     ret.params = std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>>();
     for (auto param : params_) {
       ret.params.emplace(std::make_pair(

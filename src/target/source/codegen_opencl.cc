@@ -364,8 +364,7 @@ void CodeGenOpenCL::VisitExpr_(const CastNode* op, std::ostream& os) {
 }
 
 void CodeGenOpenCL::VisitStmt_(const AllocateNode* op) {
-  allocation_size_.insert(
-      {op->buffer_var.get(), op->constant_allocation_size() * op->dtype.lanes()});
+  allocation_size_.insert({op->buffer_var.get(), op->ConstantAllocationSize() * op->dtype.lanes()});
   CodeGenC::VisitStmt_(op);
 }
 

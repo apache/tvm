@@ -33,6 +33,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -330,12 +331,18 @@ class TECompilerImpl : public TECompilerNode {
       for (te::Tensor arg : value->cached_func->outputs) {
         all_args.push_back(arg);
       }
+      Array<runtime::NDArray> all_consts;
+      for (auto kv : value->cached_func->constant_tensors) {
+        all_args.push_back(kv.second);
+        all_consts.push_back(kv.first->data);
+      }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";
       IRModule scheduled_module =
           tvm::LowerSchedule(value->cached_func->schedule, all_args, func_name, binds);
+      scheduled_module->Update(tir::transform::BindParams(all_consts)(scheduled_module));
       // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
       // GlobalVar we established above. Fix this before the confusion spreads any further.
       // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
@@ -1179,7 +1186,8 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
+       tvm::tir::transform::ExtractPrimFuncConstants()});
 }
 }  // namespace tec
 }  // namespace relay

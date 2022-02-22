@@ -163,6 +163,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
+  void VisitStmt_(const AllocateConstNode* op) override;
 
   /*!
    * \brief Print expr representing the thread tag
@@ -191,6 +192,10 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
   // Print restrict keyword for a given Var if applicable
   virtual void PrintRestrict(const Var& v, std::ostream& os);
+
+  virtual void SetConstantsByteAlignment(Integer constants_byte_alignment) {
+    constants_byte_alignment_ = constants_byte_alignment;
+  }
 
  protected:
   // Print reference to struct location
@@ -262,6 +267,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   // cache commonly used ops
   const Op& builtin_call_extern_ = builtin::call_extern();
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  Integer constants_byte_alignment_ = 16;
 
  private:
   /*! \brief whether to print in SSA form */

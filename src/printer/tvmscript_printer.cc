@@ -241,6 +241,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
   Doc VisitStmt_(const BufferStoreNode* op) override;
   Doc VisitStmt_(const BufferRealizeNode* op) override;
   Doc VisitStmt_(const AllocateNode* op) override;
+  Doc VisitStmt_(const AllocateConstNode* op) override;
   Doc VisitStmt_(const IfThenElseNode* op) override;
   Doc VisitStmt_(const SeqStmtNode* op) override;
   Doc VisitStmt_(const ForNode* op) override;
@@ -409,6 +410,26 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
     return header;
   }
 };
+
+/*!
+ * \brief special method to print NDArray in TIR
+ * \param arr the NDArray to be printed
+ * \param os the output stream where the NDArray will be printed to
+ */
+template <typename T>
+void NDArrayToTIR(::tvm::runtime::NDArray arr, std::ostream& os) {
+  int ndim = arr->ndim;
+  int tot_dim = 1;
+  for (int i = 0; i < ndim; i++) {
+    tot_dim *= arr->shape[i];
+  }
+  T* data_ptr = reinterpret_cast<T*>(arr->data);
+  os << "[";
+  for (int i = 0; i < tot_dim; i++) {
+    os << (i != 0 ? ", " : "") << data_ptr[i];
+  }
+  os << "]";
+}
 
 Doc TVMScriptPrinter::GetUniqueName(std::string prefix) {
   std::replace(prefix.begin(), prefix.end(), '.', '_');
@@ -1012,6 +1033,50 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
     doc << PrintNonHeaderBufferDeclarations(op->buffer_var, op->body) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
+  return doc;
+}
+
+Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
+  std::stringstream ss;
+  ICHECK(alloc->data) << "Should be presented";
+  const auto& data = alloc->data.value();
+
+  if (alloc->dtype.is_int()) {
+    if (alloc->dtype.bits() == 8) {
+      NDArrayToTIR<int8_t>(data, ss);
+    } else if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<int16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<int32_t>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else if (alloc->dtype.is_float()) {
+    if (alloc->dtype.bits() == 16) {
+      NDArrayToTIR<int16_t>(data, ss);
+    } else if (alloc->dtype.bits() == 32) {
+      NDArrayToTIR<float>(data, ss);
+    } else if (alloc->dtype.bits() == 64) {
+      NDArrayToTIR<double>(data, ss);
+    } else {
+      LOG(FATAL) << "DataType not supported";
+    }
+  } else {
+    LOG(FATAL) << "DataType not supported";
+  }
+  auto ndarray_str = ss.str();
+
+  Doc doc;
+  var_not_in_headers_.insert(alloc->buffer_var.get());
+  if (current_num_ != num_child_ - 1) {
+    doc << "with tir.allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype) << ", "
+        << Print(alloc->extents) << ")";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(alloc->body));
+  } else {
+    doc << Print(alloc->buffer_var) << " = tir.allocate_const(" << ndarray_str << ", "
+        << PrintDType(alloc->dtype) << ", " << Print(alloc->extents);
+    doc << ")" << Doc::NewLine() << PrintBody(alloc->body);
+  }
   return doc;
 }
 

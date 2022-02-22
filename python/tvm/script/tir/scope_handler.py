@@ -19,6 +19,7 @@
 from typing import Tuple, Any, Callable, Optional, List, Union, Mapping
 
 import synr
+import numpy as np
 import tvm.tir
 from tvm.runtime import Object
 from tvm.ir import Span, Range
@@ -151,6 +152,56 @@ class Allocate(WithScopeHandler):
         ):
             """Setup buffer var for a given type."""
             buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype), scope)
+            self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
+
+        setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
+        context.update_symbol(name, self.buffer_var, node)
+
+
+@register
+class AllocateConst(WithScopeHandler):
+    """With scope handler T.allocate_const(data, extents, dtype, condition)
+
+    TIR constant node to represent non-scalar constant
+    """
+
+    def __init__(self):
+        def allocate_const(raw_data, dtype, shape, span=None):
+            list_data = []
+            for i in raw_data:
+                list_data.append(i.value)
+            nd_data = tvm.nd.array(np.asarray(list_data, dtype=dtype))
+            n = tvm.tir.AllocateConst(self.buffer_var, dtype, shape, nd_data, self.body, span=span)
+            return n
+
+        super().__init__(allocate_const, concise_scope=True, def_symbol=True)
+        self.buffer_var = None
+
+    def enter_scope(
+        self,
+        node: synr.ast.Node,
+        context: ContextMaintainer,
+        arg_list: List[Any],
+        span: synr.ast.Span,
+    ):
+        # define buffer vars in symbol table
+        if isinstance(node, synr.ast.With):
+            vars = WithScopeHandler.get_optional_vars(node, context)
+            if len(vars) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(vars)}", node.span)
+            name = vars[0].id.name
+            var_span = vars[0].id.span
+        elif isinstance(node, synr.ast.Assign):
+            if len(node.lhs) != 1:
+                context.report_error(f"Unexpected number of vars: 1 vs. {len(node.lhs)}", node.span)
+            name = node.lhs[0].id.name
+            var_span = node.lhs[0].id.span
+        else:
+            raise Exception("Internal Bug")
+
+        def setup_buffer_var(data, dtype, shape, span: Span = None):
+            """Setup buffer var for a given type."""
+            buffer_ptr_type = tvm.ir.PointerType(tvm.ir.PrimType(dtype))
             self.buffer_var = tvm.tir.Var(name, buffer_ptr_type, span)
 
         setup_buffer_var(*arg_list, span=tvm_span_from_synr(var_span))
