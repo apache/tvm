@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=invalid-name
 
 """CMSIS-NN integration tests: scalar_to_tensor_constant pass"""
-import itertools
-import math
+import sys
 import numpy as np
 import pytest
+
 import tvm
 from tvm import relay
 
@@ -180,6 +181,41 @@ def test_two_tensor_constants():
     check_for_constants.visit_call(mod[ev].body)
     assert (
         check_for_constants.num_constants_ == 2
+    ), "Scalar constant wasn't converted into tensor constant"
+
+
+@tvm.testing.requires_cmsisnn
+def test_final_call_with_tuple_type():
+    x0 = relay.var("x0", shape=None)
+    x1 = relay.var("x1", shape=(8, 8))
+    z1 = x0 + x1
+    lf = relay.Function([x0, x1], z1, relay.TensorType((8, 8), "float32"))
+    lf = set_composite_func_attr(lf, "cmsis-nn.qnn_add")
+
+    y0 = relay.expr.const(3, "float32")
+    y1 = relay.var("y1", shape=(8, 8))
+    c0 = relay.Call(lf, [y0, y1])
+    ef = relay.Function([y1], c0, relay.TensorType((8, 8), "float32"))
+
+    x = relay.var("x", shape=(8, 4))
+    y = relay.var("y", shape=(8, 4))
+    concat = relay.concatenate([x, y], axis=1)
+    ev = relay.GlobalVar("external_function")
+    ef = set_external_func_attr(ef, "cmsis-nn", ev.name_hint)
+    c = relay.Call(ev, [concat])
+    mf = relay.Function([x, y], c, relay.TensorType((8, 8), "float32"))
+    mv = relay.GlobalVar("main")
+
+    mod = tvm.IRModule()
+    mod[ev] = ef
+    mod[mv] = mf
+
+    mod = relay.transform.InferType()(mod)
+    mod = ScalarToTensorConstants()(mod)
+    check_for_constants = CheckFunctionsForConstants()
+    check_for_constants.visit_call(mod[ev].body)
+    assert (
+        check_for_constants.num_constants_ == 1
     ), "Scalar constant wasn't converted into tensor constant"
 
 
