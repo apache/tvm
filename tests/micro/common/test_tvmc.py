@@ -66,6 +66,7 @@ def test_tvmc_exist(board):
     assert cmd_result == 0
 
 
+@pytest.mark.skip(reason="https://github.com/apache/tvm/issues/10349")
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
     "output_dir,",
@@ -131,6 +132,7 @@ def test_tvmc_model_build_only(board, output_dir):
     shutil.rmtree(output_dir)
 
 
+@pytest.mark.skip(reason="https://github.com/apache/tvm/issues/10349")
 @pytest.mark.requires_hardware
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
