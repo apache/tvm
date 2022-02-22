@@ -1667,7 +1667,7 @@ class OperatorConverter(object):
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -2705,9 +2705,9 @@ class OperatorConverter(object):
         unpack_axis = unpack_options.Axis()
 
         # Relay doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
-        # We have to do 'squeeze' along the split axis but Relay expects
-        # squeeze_axis to be either None or List.
-        squeeze_axis = None if unpack_axis == 0 else [unpack_axis]
+        # We have to do 'squeeze' along the split axis.
+        # Relay expects squeeze_axis to be List.
+        squeeze_axis = [unpack_axis]
 
         # Relay doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
         # a tensor by an axis with len(axis) == 1. For reference see convert_split().
