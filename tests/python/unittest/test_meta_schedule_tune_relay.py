@@ -21,7 +21,10 @@ import pytest
 import numpy as np
 from typing import Tuple, List
 
-import torch
+try:
+    import torch
+except ModuleNotFoundError:
+    pass
 
 import tvm
 from tvm import relay
