@@ -45,14 +45,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = "tlcpack/ci-lint:v0.68"
-ci_gpu = "tlcpack/ci-gpu:v0.81"
-ci_cpu = "tlcpack/ci-cpu:v0.81"
-ci_wasm = "tlcpack/ci-wasm:v0.71"
-ci_i386 = "tlcpack/ci-i386:v0.74"
-ci_qemu = "tlcpack/ci-qemu:v0.10"
-ci_arm = "tlcpack/ci-arm:v0.07"
-ci_hexagon = "tlcpack/ci-hexagon:v0.01"
+ci_lint = 'tlcpack/ci-lint:v0.68'
+ci_gpu = 'tlcpack/ci-gpu:v0.81'
+ci_cpu = 'tlcpack/ci-cpu:v0.81'
+ci_wasm = 'tlcpack/ci-wasm:v0.71'
+ci_i386 = 'tlcpack/ci-i386:v0.74'
+ci_qemu = 'tlcpack/ci-qemu:v0.10'
+ci_arm = 'tlcpack/ci-arm:v0.07'
+ci_hexagon = 'tlcpack/ci-hexagon:v0.01'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -254,15 +254,22 @@ def python_unittest(image) {
 def fsim_test(image) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM ',
+    label: 'Run VTA tests in FSIM',
   )
 }
 
 def cmake_build(image, path, make_flag) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag}",
-    label: 'Run cmake build',
-  )
+  // Note: This isn't really a secret, but its stored as a Jenkins credential
+  // so it can be easily configured
+  withCredentials([string(
+    credentialsId: 'tvm-sccache-bucket',
+    variable: 'SCCACHE_BUCKET',
+    )]) {
+    sh (
+      script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag} $SCCACHE_BUCKET",
+      label: 'Run cmake build',
+    )
+  }
 }
 
 def cpp_unittest(image) {
