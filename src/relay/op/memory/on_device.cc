@@ -27,9 +27,9 @@
 
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
+#include <tvm/relay/transform.h>
 
 #include "../../transforms/infer_layout_utils.h"
 #include "../type_relations.h"

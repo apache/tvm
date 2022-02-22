@@ -278,8 +278,7 @@ class VMFunctionCompiler : DeviceAwareExprFunctor<void(const Expr& n)> {
     } else {
       param_device_indexes.reserve(func->params.size());
       for (size_t i = 0; i < func->params.size(); ++i) {
-        param_device_indexes.push_back(
-            GetDeviceIndex(func->params[i]->virtual_device()));
+        param_device_indexes.push_back(GetDeviceIndex(func->params[i]->virtual_device()));
       }
       VisitExpr(func);
     }
