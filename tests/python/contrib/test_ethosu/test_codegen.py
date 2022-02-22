@@ -1167,5 +1167,24 @@ def test_tflite_leaky_relu(accel_type, ifm_shape, alpha):
     _compare_tvm_with_tflite(leaky_relu_func, [ifm_shape], accel_type)
 
 
+@pytest.mark.parametrize("accel_type", ACCEL_TYPES)
+@pytest.mark.parametrize("units", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    accel_type,
+    units,
+    use_bias,
+    activation_function,
+):
+    @tf.function
+    def fully_connected():
+        return tf.keras.layers.Dense(
+            units=units, activation=activation_function, use_bias=use_bias,
+        )
+
+    _compare_tvm_with_tflite(fully_connected, (1, 3, units, 1), accel_type)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

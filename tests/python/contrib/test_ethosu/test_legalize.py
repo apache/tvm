@@ -2346,5 +2346,84 @@ def test_tflite_leaky_relu(ifm_shape, alpha):
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize("units", [32, 64])
+@pytest.mark.parametrize("use_bias", [True, False])
+@pytest.mark.parametrize("activation_function", ["RELU", "NONE"])
+def test_tflite_fully_connected(
+    units,
+    use_bias,
+    activation_function,
+):
+    dtype = "int8"
+
+    def create_tflite_graph():
+        class Model(tf.Module):
+            @tf.function
+            def fully_connected(self, x):
+                return tf.keras.layers.Dense(
+                    units=units, activation=activation_function, use_bias=use_bias,
+                    )(x)
+
+        model = Model()
+        concrete_func = model.fully_connected.get_concrete_function(
+            tf.TensorSpec([1, 3, units, 1], dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple([1, 3, units, 1]))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    def verify(ext_func):
+        op = ext_func.body
+        ofm_channels = op.attrs.ofm_channels
+
+        # check IFM
+        ifm = op.args[0].checked_type
+        assert list([1, 3, units, 1]) == list([1, 3, units, 1])
+        assert str(ifm.dtype) == dtype
+        assert ifm.shape[3] == ofm_channels
+
+        # Check that scale_bias matches weight tensor
+        assert list(op.args[2].checked_type.shape)[0] == ofm_channels
+
+        if activation_function == "RELU":
+            assert str(op.attrs.activation) == "CLIP"
+
+    dense_pattern_table = [
+        (
+            ethosu.FullyConnectedParams.composite_name,
+            ethosu.qnn_fc_pattern(),
+            lambda pat: ethosu.FullyConnectedParams(pat).is_valid(),
+        )
+    ]
+
+    tflite_graph = create_tflite_graph()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": [1, 3, units, 1]},
+        dtype_dict={"input": dtype},
+    )
+
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = partition_ethosu_by_table(mod, dense_pattern_table)
+
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.FullyConnectedRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    verify(mod["tvmgen_default_ethos_u_main_0"])
+
 if __name__ == "__main__":
     pytest.main([__file__])
