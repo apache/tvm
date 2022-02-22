@@ -125,7 +125,7 @@ std::tuple<int, int, int> ParseMMAShape(const std::string& str) {
       << "Cannot parse MMA shape " << str;
   int m = std::stoi(str.substr(pos_m + 1, pos_n - pos_m - 1)),
       n = std::stoi(str.substr(pos_n + 1, pos_k - pos_n - 1)), k = std::stoi(str.substr(pos_k + 1));
-  return {m, n, k};
+  return std::make_tuple(m, n, k);
 }
 
 /*!
@@ -142,16 +142,16 @@ inline std::tuple<char, int, std::string> FragmentAttrs(DataType dtype) {
     case DataType::kFloat16:  // .f16x2 register
     case DataType::kBFloat16:
     case DataType::kTensorFloat32:
-      return {'r', 32, "(unsigned *)"};
+      return std::make_tuple('r', 32, "(unsigned *)");
     case DataType::kInt32:
-      return {'r', 32, "(int *)"};
+      return std::make_tuple('r', 32, "(int *)");
     case DataType::kFloat32:
-      return {'f', 32, "(float *)"};
+      return std::make_tuple('f', 32, "(float *)");
     case DataType::kFloat64:
-      return {'d', 64, "(double *)"};
+      return std::make_tuple('d', 64, "(double *)");
     default:
       LOG(FATAL) << DTypeToString(dtype) << " is not matrix data type in MMA.";
-      return {'\0', 0, ""};
+      return std::make_tuple('\0', 0, "");
   }
 }
 
@@ -250,7 +250,7 @@ inline std::tuple<std::string, std::string, std::string> get_mma_sp_operands(
     outputs << " \"=" << std::get<0>(frag_attr_c) << "\"((" << std::get<2>(frag_attr_c) << "(D))["
             << i << "])";
   }
-  return {templates.str(), inputs.str(), outputs.str()};
+  return std::make_tuple(templates.str(), inputs.str(), outputs.str());
 }
 
 std::string PrintMMASparseAssembly(const std::string& shape, const std::string& A_layout,
