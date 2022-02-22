@@ -44,4 +44,4 @@ std::string PrintMMASparseAssembly(const std::string& shape, const std::string& 
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TARGET_SOURCE_PTX_MMA_H_
+#endif  // TVM_TARGET_SOURCE_PTX_MMA_SP_H_

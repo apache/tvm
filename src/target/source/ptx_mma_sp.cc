@@ -100,9 +100,9 @@ inline DataType DTypeFromString(const std::string str) {
   }
 }
 
-inline std::string DTypeToString(DataType dtype) { return dtype_str[int(dtype)]; }
+inline std::string DTypeToString(DataType dtype) { return dtype_str[static_cast<int>(dtype)]; }
 
-inline uint32_t DTypeToBits(DataType dtype) { return num_bits[int(dtype)]; }
+inline uint32_t DTypeToBits(DataType dtype) { return num_bits[static_cast<int>(dtype)]; }
 
 std::tuple<int, int, int> ParseMMAShape(const std::string& str) {
   size_t pos_m = str.find("m"), pos_n = str.find("n"), pos_k = str.find("k");
@@ -140,7 +140,6 @@ inline std::tuple<char, int, std::string> FragmentAttrs(DataType dtype) {
 
 class Replacer {
  public:
-  explicit Replacer() {}
   void register_rule(const std::string& pattern, const std::string& replacement) {
     _rules.emplace_back(pattern, replacement);
   }
