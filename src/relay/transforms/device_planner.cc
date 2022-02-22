@@ -583,7 +583,7 @@ class DeviceAnalyzer : public MixedModeVisitor {
 
     // If the function already has VirtualDevice attributes then we can further constrain the
     // function's domain to match them.
-    if (!GetFunctionResultVirtualDevice(function_node)->IsFullyUnconstrained()) {
+    if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
       for (size_t i = 0; i < function_node->params.size(); ++i) {
         args_and_result.emplace_back(
@@ -591,7 +591,7 @@ class DeviceAnalyzer : public MixedModeVisitor {
                                        GetFunctionParamVirtualDevice(function_node, i)));
       }
       args_and_result.emplace_back(domains_->ForVirtualDevice(
-          function_node->body->checked_type(), GetFunctionResultVirtualDevice(function_node)));
+          function_node->body->checked_type(), function_node->virtual_device()));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.

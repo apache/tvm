@@ -143,10 +143,6 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
   return {};
 }
 
-VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node) {
-  return function_node->virtual_device();
-}
-
 VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i) {
   ICHECK_LT(i, function_node->params.size())
       << "param index " << i << " out of range for function of arity "

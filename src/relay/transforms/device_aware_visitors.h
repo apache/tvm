@@ -149,7 +149,7 @@ class DeviceAwareExprFunctor<void(const Expr& n)> : public ExprFunctor<void(cons
         PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
       }
       // Entering scope of function body.
-      VirtualDevice virtual_device = GetFunctionResultVirtualDevice(function_node);
+      VirtualDevice virtual_device = function_node->virtual_device();
       VLOG(2) << "entering " << virtual_device << " for function:" << std::endl
               << PrettyPrint(GetRef<Function>(function_node));
       PushVirtualDevice(virtual_device);

@@ -490,10 +490,10 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     }
     auto ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret->virtual_device_ = GetFunctionResultVirtualDevice(func);
+    ret->virtual_device_ = func->virtual_device();
     ret =
         Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
-    ret->virtual_device_ = GetFunctionResultVirtualDevice(func);
+    ret->virtual_device_ = func->virtual_device();
 
     VLOG(4) << "Expr:\n" << expr;
     VLOG(4) << "Ret:\n" << ret;

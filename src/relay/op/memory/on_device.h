@@ -155,12 +155,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
 }
 
 /*!
- * \brief Returns the \p VirtualDevice for the resut of \p function_node, or the unconstrained
- * \p VirtualDevice if function does not have the "result_virtual_device" annotation.
- */
-VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node);
-
-/*!
  * \brief Returns the \p VirtualDevice for the \p i'th parameter of \p function_node, or
  * the unconstrained \p VirtualDevice if function does not have the "param_virtual_devices"
  * annotation.
