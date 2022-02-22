@@ -143,48 +143,6 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
   return {};
 }
 
-Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                          VirtualDevice result_virtual_device) {
-  // TODO(@electriclilies): I think we can get rid of FunctionOnDevice eventually.
-  ICHECK_EQ(param_virtual_devices.size(), function->params.size())
-  << "There should be one virtual device per function parameter.";
-  Array<Var> annotated_params;
-  Map<Var, Expr> free_var_bind_map;
-  for (size_t i = 0; i < function->params.size(); i++) {
-    Var annotated_param = WithFields(function->params[i], {}, {}, param_virtual_devices[i]);
-    annotated_params.push_back(annotated_param);
-    // We are creating new parameters so we need to substitute uses of the old parameters with the new ones
-    if (!annotated_param.same_as(function->params[i])) {
-      free_var_bind_map.Set(function->params[i], annotated_param);
-      VLOG(1) << "Bind map has: " << function->params[i] << " with VID " << function->params[i]->virtual_device() << " with value " << annotated_param << " with VID " << annotated_param->virtual_device();
-    }
-  }
-  //VLOG(1) << "Original Body:\n" << function->body;
-  //Expr bound_body = Bind(function->body, free_var_bind_map);
-  //VLOG(1) << "Bound body:\n" << bound_body;
-
-  // TODO(@electriclilies): deal with CF & higher order fns
-  auto func = WithFields(function, annotated_params, Bind(function->body, free_var_bind_map), {}, {}, {}, std::move(result_virtual_device));
-  VLOG(1) << "Annotated func: " << PrettyPrint(func);
-  return func;
-}
-
-TVM_REGISTER_GLOBAL("relay.op.annotation._make.FunctionOnDevice").set_body_typed(FunctionOnDevice);
-
-Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                               VirtualDevice result_virtual_device) {
-  if (std::all_of(param_virtual_devices.begin(), param_virtual_devices.end(),
-                  [](const VirtualDevice& virtual_device) {
-                    return virtual_device->IsFullyUnconstrained();
-                  }) &&
-      result_virtual_device->IsFullyUnconstrained()) {
-    // Nothing to annotate.
-    return function;
-  }
-  return FunctionOnDevice(function, std::move(param_virtual_devices),
-                          std::move(result_virtual_device));
-}
-
 VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node) {
   return function_node->virtual_device();
 }
