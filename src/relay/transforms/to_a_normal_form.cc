@@ -305,7 +305,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)>, private transform::Lexi
       // Keep track of expression and bound variable device types for lexically enclosing
       // sub-expressions.
       PushVirtualDevice(f->virtual_device());
-      for (auto param: f->params) {
+      for (auto param : f->params) {
         PushBoundVar(param, param->virtual_device());
       }
       EnterFunctionBody();

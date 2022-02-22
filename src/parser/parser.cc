@@ -452,7 +452,8 @@ class Parser {
    * to unique variable nodes.
    * If a virtual device is specified, sets the virtual device of the variable.
    */
-  Var BindVar(const std::string& name, const relay::Type& type_annotation, Optional<VirtualDevice> virtual_device = Optional<VirtualDevice>()) {
+  Var BindVar(const std::string& name, const relay::Type& type_annotation,
+              Optional<VirtualDevice> virtual_device = Optional<VirtualDevice>()) {
     auto var = Var(name, type_annotation);
     var->virtual_device_ = virtual_device.value_or(VirtualDevice::FullyUnconstrained());
     VLOG(1) << "Binding var named " << name << " to variable node " << PrettyPrint(var);
@@ -1118,7 +1119,9 @@ class Parser {
               VLOG(1) << "Fake attributes for function parameter: " << fake_attrs;
               Match(TokenType::kRCurly);
               if (fake_attrs.size() == 1 && fake_attrs.count(kVirtualDevice)) {
-                ICHECK(fake_attrs[kVirtualDevice].as<VirtualDeviceNode>()) << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got " << virtual_device->GetTypeKey();
+                ICHECK(fake_attrs[kVirtualDevice].as<VirtualDeviceNode>())
+                    << "Expected the " << kVirtualDevice
+                    << " to have type VirtualDeviceNode, but got " << virtual_device->GetTypeKey();
                 virtual_device = Downcast<VirtualDevice>(fake_attrs[kVirtualDevice]);
               }
             }
@@ -1162,7 +1165,8 @@ class Parser {
               << vid->GetTypeKey();
 
           DictAttrs attrs;
-          // Don't fill the raw_attrs in if there's nothing other than kVirtualDevice in the attributes
+          // Don't fill the raw_attrs in if there's nothing other than kVirtualDevice in the
+          // attributes
           if (raw_attrs.size() > 1) {
             raw_attrs.erase(kVirtualDevice);
             attrs = DictAttrs(raw_attrs);

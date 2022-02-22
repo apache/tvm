@@ -585,12 +585,12 @@ class DeviceAnalyzer : public MixedModeVisitor {
     // function's domain to match them.
     if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
-      for (auto param: function_node->params) {
+      for (auto param : function_node->params) {
         args_and_result.emplace_back(
             domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
       }
-      args_and_result.emplace_back(domains_->ForVirtualDevice(
-          function_node->body->checked_type(), function_node->virtual_device()));
+      args_and_result.emplace_back(domains_->ForVirtualDevice(function_node->body->checked_type(),
+                                                              function_node->virtual_device()));
       auto annotation_domain = domains_->MakeHigherOrderDomain(std::move(args_and_result));
       if (domains_->UnifyOrNull(func_domain, annotation_domain) == nullptr) {  // higher-order
         // TODO(mbs): Proper diagnostics.
@@ -1014,9 +1014,9 @@ class DeviceCapturer : public ExprMutator {
       annotated_bind_map.Set(function_node->params[i], annotated_var);
     }
 
-    // Eventually we probably want to bind before visiting, but for now this is causing an issue with the GetVirtualDevice
-    // utility, so leaving as is for now.
-    // Function func = Downcast<Function>(Bind(GetRef<Function>(function_node), annotated_bind_map));
+    // Eventually we probably want to bind before visiting, but for now this is causing an issue
+    // with the GetVirtualDevice utility, so leaving as is for now. Function func =
+    // Downcast<Function>(Bind(GetRef<Function>(function_node), annotated_bind_map));
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".

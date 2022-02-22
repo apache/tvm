@@ -224,7 +224,7 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
     val << ": " << Print(var->type_annotation);
   }
   if (!var->virtual_device()->IsFullyUnconstrained()) {
-    //VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
+    // VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
     val << " {" << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device()) << "}";
   }
   val << PrintOptionalInfo(var);
@@ -333,7 +333,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
 
 // Should only be triggered when op is a free variable being visited for the
 // first time.
-Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { 
+Doc RelayTextPrinter::VisitExpr_(const VarNode* op) {
   Doc var_doc = AllocVar(GetRef<Var>(op));
   /*if (op->virtual_device()->IsFullyUnconstrained()) {
     return var_doc;
@@ -341,7 +341,7 @@ Doc RelayTextPrinter::VisitExpr_(const VarNode* op) {
     return var_doc << " {" << kVirtualDevice << "=" << PrettyPrint(op->virtual_device()) << "}";
   }*/
   return var_doc;
-  }
+}
 
 /*!
  * \brief special method to print out const scalar
