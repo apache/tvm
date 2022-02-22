@@ -68,7 +68,19 @@ def create(graph_json_str, libmod, device, dump_root=None):
             "Please set '(USE_PROFILER ON)' in " "config.cmake and rebuild TVM to enable debug mode"
         )
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
-    return GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
+    gmod = GraphModuleDebug(func_obj, dev, graph_json_str, dump_root)
+
+    # Automatically set params if they can be extracted from the libmod
+    try:
+        params = libmod["get_graph_params"]()
+    except (AttributeError, tvm.error.RPCError):
+        # Params can not be extracted from the libmod and must be set somewhere else manually
+        # Do not set params during RPC communication
+        pass
+    else:
+        gmod.set_input(**params)
+
+    return gmod
 
 
 class GraphModuleDebug(graph_executor.GraphModule):

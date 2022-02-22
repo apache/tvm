@@ -101,6 +101,7 @@ class BuildModule(object):
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
         self._get_function_metadata = self.mod["get_function_metadata"]
+        self._get_executor_codegen_metadata = self.mod["get_executor_codegen_metadata"]
         self._get_devices = self.mod["get_devices"]
         self._get_irmodule = self.mod["get_irmodule"]
 
@@ -111,6 +112,7 @@ class BuildModule(object):
         target_host=None,
         executor=Executor("graph"),
         runtime=Runtime("cpp"),
+        workspace_memory_pools=None,
         params=None,
         mod_name=None,
     ):
@@ -141,6 +143,11 @@ class BuildModule(object):
         runtime : Optional[Runtime]
             Runtime configuration to use when building the model.
             Defaults to "cpp" if no runtime specified.
+
+        workspace_memory_pools : Optional[WorkspaceMemoryPools]
+            The object that contains an Array of PoolInfo objects
+            that hold properties of workspace pools that could be
+            used by the inference.
 
         params : dict of str to NDArray
             Input parameters to the graph that do not change
@@ -186,7 +193,7 @@ class BuildModule(object):
 
         mod_name = mangle_module_name(mod_name)
 
-        self._build(mod, target, target_host, executor, runtime, mod_name)
+        self._build(mod, target, target_host, executor, runtime, workspace_memory_pools, mod_name)
         autotvm.GLOBAL_SCOPE.silent = old_autotvm_silent
 
         # Get artifacts
@@ -247,6 +254,12 @@ class BuildModule(object):
         Currently, the metadata contains workspace size required by
         each PrimFunc"""
         return self._get_function_metadata()
+
+    def get_executor_codegen_metadata(self):
+        """Return the metadata produced after executor
+        codegen
+        """
+        return self._get_executor_codegen_metadata()
 
     def get_devices(self):
         """Returns a list of devices configured in this module"""
@@ -349,6 +362,7 @@ def build(
     target_host=None,
     executor=Executor("graph"),
     runtime=Runtime("cpp"),
+    workspace_memory_pools=None,
     params=None,
     mod_name="default",
 ):
@@ -381,6 +395,11 @@ def build(
     runtime : Optional[Runtime]
         Runtime configuration to use when building the model.
         Defaults to "cpp" if no runtime specified.
+
+    workspace_memory_pools : Optional[WorkspaceMemoryPools]
+        The object that contains an Array of PoolInfo objects
+        that hold properties of workspace pools that could be
+        used by the inference.
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
@@ -452,11 +471,13 @@ def build(
             params=params,
             executor=executor,
             runtime=runtime,
+            workspace_memory_pools=workspace_memory_pools,
             mod_name=mod_name,
         )
         func_metadata = bld_mod.get_function_metadata()
         devices = bld_mod.get_devices()
         lowered_ir_mods = bld_mod.get_irmodule()
+        executor_codegen_metadata = bld_mod.get_executor_codegen_metadata()
 
         if str(executor) == "aot":
             executor_factory = _executor_factory.AOTExecutorFactoryModule(
@@ -469,6 +490,7 @@ def build(
                 mod_name,
                 params,
                 func_metadata,
+                executor_codegen_metadata,
                 devices,
             )
         elif str(executor) == "graph":

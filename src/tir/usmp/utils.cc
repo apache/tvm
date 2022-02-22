@@ -22,6 +22,7 @@
  * \brief Utilities for Unified Static Memory Planner
  */
 
+#include <tvm/ir/memory_pools.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
@@ -92,34 +93,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  memory_pressure=" << node->memory_pressure << ")";
     });
 
-PoolInfo::PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes,
-                   Bool is_internal) {
-  auto poolinfo_node = make_object<PoolInfoNode>();
-  poolinfo_node->pool_name = pool_name;
-  poolinfo_node->size_hint_bytes = size_hint_bytes;
-  poolinfo_node->target_access = target_access;
-  poolinfo_node->is_internal = is_internal;
-  data_ = std::move(poolinfo_node);
-}
-
-TVM_REGISTER_NODE_TYPE(PoolInfoNode);
-TVM_REGISTER_GLOBAL("tir.usmp.PoolInfo")
-    .set_body_typed([](String pool_name, Map<Target, String> target_access,
-                       Integer size_hint_bytes) {
-      if (size_hint_bytes.defined()) {
-        return PoolInfo(pool_name, target_access, size_hint_bytes);
-      }
-      return PoolInfo(pool_name, target_access);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PoolInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PoolInfoNode*>(ref.get());
-      p->stream << "PoolInfoNode(\n"
-                << "pool_name=" << node->pool_name << ",\n  target_access=" << node->target_access
-                << ",\n  size_hint_bytes=" << node->size_hint_bytes << ")";
-    });
-
 PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
   auto pool_allocation_node = make_object<PoolAllocationNode>();
   pool_allocation_node->pool_info = pool_info;
@@ -141,12 +114,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                                     Integer pool_var_idx) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
-  if (pool_var.defined()) {
-    allocated_poolinfo_node->pool_var = pool_var;
+  if (pool_var_idx.defined()) {
+    allocated_poolinfo_node->pool_var_idx = pool_var_idx;
   }
   data_ = std::move(allocated_poolinfo_node);
 }

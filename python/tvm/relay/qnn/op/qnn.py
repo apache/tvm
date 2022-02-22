@@ -22,16 +22,16 @@ from __future__ import absolute_import as _abs
 import tvm
 import tvm.ir
 from tvm import relay
-from tvm.runtime import Object
 from tvm.relay.expr import Tuple, TupleWrapper
 from tvm.relay.op.nn.utils import get_pad_tuple2d
-from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
+from tvm.runtime import Object
 from tvm.target import Target
+from tvm.topi.nn.qnn import SQNN_DTYPE_TO_CODE
 from tvm.topi.x86.utils import target_has_sse41
+
 from ... import op as reg
 from ...op import OpPattern
-from . import _make
-from . import _requantize
+from . import _make, _requantize
 
 
 @tvm._ffi.register_object("relay.qnn.op.RequantizeConfig")
@@ -750,6 +750,111 @@ def mul(
     )
 
 
+def tanh(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized tanh.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.tanh(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
+def exp(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized exponential function.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.exp(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
+def sqrt(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized square root.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.sqrt(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
 def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
     """Quantized reciprocal square root.
 
@@ -777,6 +882,76 @@ def rsqrt(x, scale, zero_point, output_scale, output_zero_point):
 
     """
     return _make.rsqrt(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
+def erf(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized error function.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.erf(
+        x,
+        scale,
+        zero_point,
+        output_scale,
+        output_zero_point,
+    )
+
+
+def sigmoid(x, scale, zero_point, output_scale, output_zero_point):
+    """Quantized sigmoid.
+
+    Parameters
+    ----------
+    x : relay.Expr
+        The quantized input tensor.
+
+    scale: relay.Expr
+        The scale of the quantized expr.
+
+    zero_point: relay.Expr
+       The zero point of quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.sigmoid(
         x,
         scale,
         zero_point,

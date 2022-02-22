@@ -505,6 +505,72 @@ def compacted_opaque_access_annotated_func(a: T.handle) -> None:
                 T.store(C.data, i, T.load("float32", B.data, i))
 
 
+@T.prim_func
+def sparse_read_cache(
+    A_data: T.Buffer[(819,), "float32"],
+    B: T.Buffer[(128,), "float32"],
+    A_indptr: T.Buffer[(129,), "int32"],
+    A_indices: T.Buffer[(819,), "int32"],
+) -> None:
+    for i in T.serial(128):
+        with T.block("rowsum_outer"):
+            T.reads(
+                A_indptr[i : i + 1],
+                A_data[A_indptr[i] + 0 : A_indptr[i] + (A_indptr[i + 1] - A_indptr[i])],
+            )
+            T.writes(B[i])
+            with T.block("rowsum_init"):
+                T.reads()
+                T.writes(B[i])
+                B[i] = T.float32(0)
+            for k in T.serial(A_indptr[i + 1] - A_indptr[i]):
+                with T.block():
+                    T.reads(A_indptr[i], A_data[A_indptr[i] + k], B[i])
+                    T.writes(B[i])
+                    A_data_local = T.alloc_buffer([819], dtype="float32", scope="local")
+                    with T.block("A_data_cache_read"):
+                        T.reads(A_indptr[i], A_data[A_indptr[i] + k])
+                        T.writes(A_data_local[A_indptr[i] + k])
+                        A_data_local[A_indptr[i] + k] = A_data[A_indptr[i] + k]
+                    with T.block("rowsum_inner"):
+                        T.reads(B[i], A_indptr[i], A_data[A_indptr[i] + k])
+                        T.writes(B[i])
+                        B[i] = B[i] + A_data_local[A_indptr[i] + k]
+
+
+@T.prim_func
+def compacted_sparse_read_cache(
+    A_data: T.Buffer[(819,), "float32"],
+    B: T.Buffer[(128,), "float32"],
+    A_indptr: T.Buffer[(129,), "int32"],
+    A_indices: T.Buffer[(819,), "int32"],
+) -> None:
+    for i in T.serial(128):
+        with T.block("rowsum_outer"):
+            T.reads(
+                A_indptr[i : i + 1],
+                A_data[A_indptr[i] + 0 : A_indptr[i] + 0 + (A_indptr[i + 1] - A_indptr[i])],
+            )
+            T.writes(B[i])
+            with T.block("rowsum_init"):
+                T.reads()
+                T.writes(B[i])
+                B[i] = T.float32(0)
+            for k in T.serial(A_indptr[i + 1] - A_indptr[i]):
+                with T.block():
+                    T.reads(A_indptr[i], A_data[A_indptr[i] + k], B[i])
+                    T.writes(B[i])
+                    A_data_local = T.alloc_buffer([1], dtype="float32", scope="local")
+                    with T.block("A_data_cache_read"):
+                        T.reads(A_indptr[i], A_data[A_indptr[i] + k])
+                        T.writes(A_data_local[A_indptr[i] + k - (A_indptr[i] + k)])
+                        A_data_local[A_indptr[i] + k - (A_indptr[i] + k)] = A_data[A_indptr[i] + k]
+                    with T.block("rowsum_inner"):
+                        T.reads(B[i], A_indptr[i], A_data[A_indptr[i] + k])
+                        T.writes(B[i])
+                        B[i] = B[i] + A_data_local[A_indptr[i] + k - (A_indptr[i] + k)]
+
+
 def test_elementwise():
     _check(elementwise_func, compacted_elementwise_func)
 
@@ -562,6 +628,10 @@ def test_opaque_access_annotated_func():
     _check(opaque_access_annotated_func, compacted_opaque_access_annotated_func)
 
 
+def test_sparse_read_cache():
+    _check(sparse_read_cache, compacted_sparse_read_cache)
+
+
 if __name__ == "__main__":
     test_elementwise()
     test_unschedulable_block()
@@ -576,3 +646,4 @@ if __name__ == "__main__":
     test_padding_pattern()
     test_mem_access_in_branch_func()
     test_opaque_access_annotated_func()
+    test_sparse_read_cache()

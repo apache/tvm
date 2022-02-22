@@ -1009,7 +1009,9 @@ bool ReshapeLikeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   auto output_type = TensorType(shape_like, data->dtype);
   if (is_static_shape) {
     ICHECK(reporter->AssertEQ(data->Size(), output_type->Size()))
-        << "Reshape inputs size should be compatible.";
+        << "Reshape inputs size should be compatible, "
+        << "but found data_shape " << data->shape << " not same as output_shape "
+        << output_type->shape;
   }
   reporter->Assign(types[2], output_type);
   return true;
@@ -3322,8 +3324,7 @@ bool GatherRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         << "Gather: expect indices type to be TensorType but get " << types[1];
     return false;
   }
-  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint())
-      << "indices of gather must be tensor of integer";
+  ICHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<GatherAttrs>();
   ICHECK(param != nullptr);
   ICHECK(param->axis.defined());

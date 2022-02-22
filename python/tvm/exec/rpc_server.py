@@ -42,6 +42,7 @@ def main(args):
         args.host,
         args.port,
         args.port_end,
+        is_proxy=args.through_proxy,
         key=args.key,
         tracker_addr=tracker_addr,
         load_library=args.load_library,
@@ -58,6 +59,15 @@ if __name__ == "__main__":
         "--host", type=str, default="0.0.0.0", help="The host IP address the tracker binds to"
     )
     parser.add_argument("--port", type=int, default=9090, help="The port of the RPC")
+    parser.add_argument(
+        "--through-proxy",
+        dest="through_proxy",
+        action="store_true",
+        help=(
+            "Whether this server provide service through a proxy. If this is true, the host and"
+            "port actually is the address of the proxy."
+        ),
+    )
     parser.add_argument("--port-end", type=int, default=9199, help="The end search port of the RPC")
     parser.add_argument(
         "--tracker",

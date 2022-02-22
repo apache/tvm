@@ -27,4 +27,4 @@ rustup component add rustfmt
 rustup component add clippy
 
 # make rust usable by all users after install during container build
-chmod -R a+w /opt/rust
+chmod -R a+rw /opt/rust

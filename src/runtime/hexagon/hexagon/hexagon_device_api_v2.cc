@@ -90,7 +90,8 @@ void HexagonDeviceAPIv2::FreeDataSpace(Device dev, void* ptr) {
 
 // WorkSpace: runtime allocations for Hexagon
 struct HexagonWorkspacePool : public WorkspacePool {
-  HexagonWorkspacePool() : WorkspacePool(kDLCPU, HexagonDeviceAPIv2::Global()) {}
+  HexagonWorkspacePool()
+      : WorkspacePool(static_cast<DLDeviceType>(kDLHexagon), HexagonDeviceAPIv2::Global()) {}
 };
 
 void* HexagonDeviceAPIv2::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {

@@ -84,7 +84,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
   Array<Type> tensor_types = {types[0], types[1], types[6]};
-  return Conv2DRel<Conv2DAttrs>(tensor_types, 3, attrs, reporter);
+  return Conv2DRel(tensor_types, 3, attrs, reporter);
 }
 
 InferCorrectLayoutOutput QnnConvInferCorrectLayout(const Attrs& attrs,

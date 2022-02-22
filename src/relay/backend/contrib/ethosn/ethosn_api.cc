@@ -382,6 +382,26 @@ EthosnError EthosnAPI::Sigmoid(const Expr& expr, SigmoidParams* params) {
                                       sl::QuantizationInfo(input_zp, input_sc));
   return err;
 }
+EthosnError EthosnAPI::Mean(const Expr& expr, MeanParams* params) {
+  Call requantize = Downcast<Call>(expr);
+  Call mean = Downcast<Call>(requantize->args[0]);
+  Call cast_0 = Downcast<Call>(mean->args[0]);
+
+  // Create input info
+  const auto* input_dtype = cast_0->args[0]->checked_type().as<TensorTypeNode>();
+  sl::TensorShape input_tensor_shape = {1, 1, 1, 1};
+  sl::DataType input_tensor_dtype;
+  EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
+  err += Tvm2Npu(input_dtype->dtype, &input_tensor_dtype);
+  float input_sc;
+  int input_zp;
+  err += AsConstant(requantize->args[2], &input_zp);
+  err += AsConstant(requantize->args[1], &input_sc);
+  params->input_info = sl::TensorInfo(input_tensor_shape, input_tensor_dtype, sl::DataFormat::NHWC,
+                                      sl::QuantizationInfo(input_zp, input_sc));
+
+  return err;
+}
 
 EthosnError EthosnAPI::Concatenate(const Expr& expr, ConcatenateParams* params) {
   Call call = Downcast<Call>(expr);

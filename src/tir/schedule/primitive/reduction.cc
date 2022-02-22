@@ -203,8 +203,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   // Cond 1. Check block is reduction
   StmtSRef scope_root_sref = GetScopeRoot(self, block_sref,
-                                          /*require_stage_pipeline=*/false,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/false);
   CheckReductionBlock(self, block_sref, scope_root_sref);
   // Cond 2. Check 'loop' is higher than all the loops related to block var of type reduction
   LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
@@ -1009,8 +1008,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
   const StmtSRef& block_sref = self->stmt2ref.at(block_realize->block.get());
   const Block& block = block_realize->block;
   StmtSRef scope_root = GetScopeRoot(self, block_sref,  //
-                                     /*require_stage_pipeline=*/true,
-                                     /*require_subtree_compact_dataflow=*/false);
+                                     /*require_stage_pipeline=*/true);
   CheckReductionBlock(self, block_sref, scope_root);
   const ForNode* rf_loop = TVM_SREF_TO_FOR(rf_loop, rf_loop_sref);
   if (rf_loop->kind != ForKind::kSerial) {

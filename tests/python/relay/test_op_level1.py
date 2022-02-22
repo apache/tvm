@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 import scipy
 from tvm import relay
-from tvm.relay import transform
+import pytest
 from tvm.relay.testing import run_infer_type
 import tvm.topi.testing
 from tvm.contrib.nvcc import have_fp16
@@ -65,18 +65,16 @@ class TestUnaryOp:
 
     def test_unary_op(self, target, dev, relay_op, ref_func, dtype):
         target = tvm.target.Target(target)
-        if (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not have_fp16(tvm.cuda(0).compute_version)
-        ):
-            pytest.xfail("No float16 support on local cuda device")
-        elif (
-            dtype == "float16"
-            and target.kind.name == "cuda"
-            and not target.attrs.get("supports_float16", False)
-        ):
-            pytest.xfail("No float16 support on vulkan target")
+        if dtype == "float16":
+            if target.kind.name == "cuda":
+                if not have_fp16(tvm.cuda(0).compute_version):
+                    pytest.xfail(
+                        "No float16 support on local cuda device (compute_version != 5.3 and < 6.0)"
+                    )
+            elif target.kind.name == "vulkan" and not target.attrs.get("supports_float16", False):
+                pytest.xfail("No float16 support on vulkan target (supports_float16=False)")
+            else:
+                pytest.xfail(f"No float16 support on {target.kind.name} target")
 
         if target.kind.name == "vulkan" and relay_op in [
             tvm.relay.erf,
@@ -87,8 +85,8 @@ class TestUnaryOp:
 
         shape = (10, 4)
         dtype = dtype
-        tp = relay.TensorType(shape)
-        x = relay.var("x", tp, dtype=dtype)
+        tp = relay.TensorType(shape, dtype=dtype)
+        x = relay.var("x", type_annotation=tp)
         y = relay_op(x)
         # test printer
         assert ("{}(%x)".format(y.op.name)) in y.astext()
@@ -98,12 +96,12 @@ class TestUnaryOp:
 
         if ref_func is not None:
             data = np.random.rand(*shape).astype(dtype)
-            ref_res = ref_func(data)
+            ref_res = ref_func(data).astype(dtype)
             func = relay.Function([x], y)
             # use graph by execuor default for testing, as we need
             # create function explicitly to avoid constant-folding.
             op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(data)
-            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=0.01)
+            np.testing.assert_allclose(op_res.numpy(), ref_res, rtol=1e-5)
 
 
 @tvm.testing.uses_gpu
@@ -636,19 +634,39 @@ def test_bitserial_dense():
     assert yy.checked_type == relay.TensorType((m, 32), "int16")
 
 
+@pytest.mark.skip("Requires cascadelake")
+def test_dense_vnni():
+    data_shape = (32, 96)
+    weight_shape = (128, 96)
+
+    data = relay.var("data", shape=data_shape, dtype="uint8")
+    weight = relay.var("weight", shape=weight_shape, dtype="int8")
+    bias = relay.var("bias", shape=(weight_shape[0],), dtype="int32")
+    dense = relay.nn.dense(data, weight, out_dtype="int32")
+    out = relay.nn.bias_add(dense, bias)
+    mod = tvm.IRModule.from_expr(out)
+
+    target = "llvm -mcpu=cascadelake"
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target)
+
+    dev = tvm.device(target, 0)
+    runtime = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+
+    a = np.random.uniform(1, 10, size=data_shape).astype("uint8")
+    b = np.random.uniform(1, 10, size=weight_shape).astype("int8")
+    c = np.random.uniform(1, 10, size=(weight_shape[0],)).astype("int32")
+
+    runtime.set_input("data", a)
+    runtime.set_input("weight", b)
+    runtime.set_input("bias", c)
+    runtime.run()
+
+    out = runtime.get_output(0).numpy()
+    ref = np.dot(a, b.transpose()) + c
+
+    np.testing.assert_equal(out, ref)
+
+
 if __name__ == "__main__":
-    test_concatenate()
-    test_bias_add()
-    test_bias_add_type_failure()
-    test_unary_op()
-    test_binary_op()
-    test_expand_dims_infer_type()
-    test_expand_dims()
-    test_softmax()
-    test_log_softmax()
-    test_dropout()
-    test_batch_norm()
-    test_matmul()
-    test_dense()
-    test_bitserial_dense()
-    test_dense_dtype()
+    pytest.main([__file__])

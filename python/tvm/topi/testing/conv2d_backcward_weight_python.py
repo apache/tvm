@@ -20,7 +20,9 @@ import numpy as np
 
 
 # Reference: cutlass/tools/util/include/cutlass/util/reference/host/convolution.h
-def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding):
+def conv2d_backward_weight_nchw_python(
+    dy_np, x_np, kernel_size, stride, padding, groups=1, channels=None
+):
     """Gradient of the conv2d op with respect to weight, in NCHW layout.
 
     Parameters
@@ -51,17 +53,34 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding
     R, S = kernel_size
     pad_h, pad_w = padding
     stride_h, stride_w = stride
-    dw = np.zeros((K, C, R, S)).astype(dy_np.dtype)
+    is_depth_wise = C == K and C == groups
+
+    if is_depth_wise:
+        assert channels == groups, "Only channel_mult == 1 supported for now."
+        dw = np.zeros((K, 1, R, S)).astype(dy_np.dtype)
+    else:
+        assert groups == 1, "General grouped conv2d not supported for now."
+        dw = np.zeros((K, C, R, S)).astype(dy_np.dtype)
 
     for k in range(K):
         for r in range(R):
             for s in range(S):
-                for c in range(C):
+                for c in range(dw.shape[1]):
                     acc = 0
                     for n in range(N):
                         for p in range(P):
                             for q in range(Q):
-                                coord = (n, c, p * stride_h - pad_h + r, q * stride_w - pad_w + s)
+                                if not is_depth_wise:
+                                    in_c = c
+                                else:
+                                    in_c = k
+
+                                coord = (
+                                    n,
+                                    in_c,
+                                    p * stride_h - pad_h + r,
+                                    q * stride_w - pad_w + s,
+                                )
 
                                 if (
                                     coord[2] < H
@@ -76,7 +95,9 @@ def conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding
     return dw
 
 
-def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, layout="NCHW"):
+def conv2d_backward_weight_python(
+    dy_np, x_np, kernel_size, stride, padding, layout="NCHW", groups=1, channels=None
+):
     """Gradient of the conv2d op with respect to weight, in NCHW or NHWC layout.
 
     Parameters
@@ -99,6 +120,12 @@ def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, lay
     layout: string
         Layout of dy_np and x_np
 
+    groups: int
+        Number of groups for grouped convolution.
+
+    channels : int
+        Number of output channels of this convolution.
+
     Returns
     -------
     dw_np : np.ndarray
@@ -106,7 +133,9 @@ def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, lay
         [num_filter, filter_height, filter_width, in_channel] for NHWC layout.
     """
     if layout == "NCHW":
-        return conv2d_backward_weight_nchw_python(dy_np, x_np, kernel_size, stride, padding)
+        return conv2d_backward_weight_nchw_python(
+            dy_np, x_np, kernel_size, stride, padding, groups, channels
+        )
 
     dw_np_oihw = conv2d_backward_weight_nchw_python(
         np.transpose(dy_np, [0, 3, 1, 2]),
@@ -114,5 +143,7 @@ def conv2d_backward_weight_python(dy_np, x_np, kernel_size, stride, padding, lay
         kernel_size,
         stride,
         padding,
+        groups,
+        channels,
     )
     return np.transpose(dw_np_oihw, [0, 2, 3, 1])

@@ -88,8 +88,10 @@ def parse_remote(remote: str) -> Tuple[str, str]:
         return m.groups()
 
 
-def git(command):
+def git(command, **kwargs):
     command = ["git"] + command
     print("Running", command)
-    proc = subprocess.run(command, stdout=subprocess.PIPE, check=True)
-    return proc.stdout.decode().strip()
+    proc = subprocess.run(command, stdout=subprocess.PIPE, encoding="utf-8", **kwargs)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Command failed {command}:\nstdout:\n{proc.stdout}")
+    return proc.stdout.strip()

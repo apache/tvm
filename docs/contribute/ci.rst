@@ -117,7 +117,7 @@ disabling PR.
 
 .. code:: python
 
-    @pytest.mark.xfail(strict=False, reason="Flaky test: https://github.com/apache/tvm/issues/1234
+    @pytest.mark.xfail(strict=False, reason="Flaky test: https://github.com/apache/tvm/issues/1234")
     def test_something_flaky():
         pass
 

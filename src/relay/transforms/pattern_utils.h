@@ -500,6 +500,11 @@ inline Expr Exp(Expr e) {
   return Call(op, {e});
 }
 
+inline Expr Erf(Expr e) {
+  static const Op& op = Op::Get("erf");
+  return Call(op, {e});
+}
+
 inline Expr FastExp(Expr e) {
   static const Op& op = Op::Get("fast_exp");
   return Call(op, {e});
@@ -522,6 +527,11 @@ inline Expr FastSoftmax(Expr e, tvm::Attrs attr) {
 
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
+  return Call(op, {e});
+}
+
+inline Expr Tanh(Expr e) {
+  static const Op& op = Op::Get("tanh");
   return Call(op, {e});
 }
 /*!
@@ -547,6 +557,11 @@ inline Expr Negative(Expr x) {
 
 inline Expr Sqrt(Expr x) {
   static const Op& op = Op::Get("sqrt");
+  return Call(op, {x}, Attrs(), {});
+}
+
+inline Expr Sigmoid(Expr x) {
+  static const Op& op = Op::Get("sigmoid");
   return Call(op, {x}, Attrs(), {});
 }
 

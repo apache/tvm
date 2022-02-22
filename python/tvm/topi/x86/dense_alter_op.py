@@ -24,6 +24,7 @@ from tvm import autotvm
 from .dense import _default_dense_pack_config
 from ..utils import get_const_tuple
 from ..nn import dense_alter_layout
+from .utils import target_has_vnni
 
 
 @dense_alter_layout.register(["cpu", "arm_cpu"])
@@ -34,8 +35,20 @@ def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     out_dtype = out_type.dtype
     M, K = get_const_tuple(data_tensor.shape)
     N, _ = get_const_tuple(weight_tensor.shape)
+    mcpu = tvm.target.Target.current().mcpu
 
-    impl, outs = relay.backend.te_compiler.select_implementation(
+    if (
+        target_has_vnni(mcpu)
+        and data_tensor.dtype == "uint8"
+        and weight_tensor.dtype == "int8"
+        and weight_tensor.shape[0] % 16 == 0
+        and weight_tensor.shape[1] % 4 == 0
+    ):
+        # TODO(masahi): Support int8 x int8 case
+        weight_layout = "NC16n4c"
+        return relay.nn.contrib_dense_pack(inputs[0], inputs[1], weight_layout, None, out_dtype)
+
+    _, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.dense"), attrs, tinfos, out_type, target
     )
     workload = autotvm.task.get_workload(outs)

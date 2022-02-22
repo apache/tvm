@@ -211,12 +211,13 @@ def run_group_conv2d(env, remote, wl, target, check_correctness=True, print_ir=F
 
     # Build
     if "vta" in target.keys:
-        mod = vta.build(
-            s,
-            [data, kernel, bias, res],
-            target=tvm.target.Target(target, host=env.target_host),
-            name="conv2d",
-        )
+        with vta.build_config(disabled_pass={"tir.CommonSubexprElimTIR"}):
+            mod = vta.build(
+                s,
+                [data, kernel, bias, res],
+                target=tvm.target.Target(target, host=env.target_host),
+                name="conv2d",
+            )
     else:
         mod = tvm.build(
             s,

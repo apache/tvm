@@ -157,9 +157,9 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
    * parallelized/vectorized/bound.
    */
   // Step 1. Check whether the subtree rooted from the `loop` in sref tree has compact data flow.
-  GetScopeRoot(self, loop_sref,  //
-               /*require_stage_pipeline=*/true,
-               /*require_subtree_compact_dataflow=*/true);
+  StmtSRef scope_root_sref = GetScopeRoot(self, loop_sref,
+                                          /*require_stage_pipeline=*/true);
+  CheckSubtreeCompactDataflow(self, loop_sref, scope_root_sref);
 
   // Step 2. Check whether the loop can be parallelized/vectorized/bound with regard to each
   // underlying block.

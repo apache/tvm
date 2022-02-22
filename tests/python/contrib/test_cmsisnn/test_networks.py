@@ -79,16 +79,19 @@ def convert_to_relay(
 @tvm.testing.requires_cmsisnn
 def test_cnn_small():
     # download the model
-    base_url = "https://github.com/ARM-software/ML-zoo/raw/ee35139af86bdace5e502b09fe8b9da9cb1f06bb/models/keyword_spotting/cnn_small/tflite_int8"
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
     file_to_download = "cnn_s_quantized.tflite"
-    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_to_download)
+    file_saved = "cnn_s_quantized_15Dec2021.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
 
     with open(model_file, "rb") as f:
         tflite_model_buf = f.read()
 
     input_shape = (1, 490)
+    dtype = "int8"
+    in_min, in_max = get_range_for_dtype_str(dtype)
     rng = np.random.default_rng(12345)
-    input_data = rng.random(input_shape, dtype=np.float32)
+    input_data = rng.integers(in_min, high=in_max, size=input_shape, dtype=dtype)
 
     orig_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)

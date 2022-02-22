@@ -69,7 +69,7 @@ clean:
 	# propagated.
 
 	# Remove folders that have since been relocated into
-	# $(STAGINGDIR).  This allows `task_sphinx_precheck.sh` to
+	# $(STAGINGDIR).  This allows `task_python_docs.sh` to
 	# run, even if a commit that predates $(STAGINGDIR) was
 	# previously run on that node.
 	rm -rf gen_modules

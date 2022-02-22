@@ -70,7 +70,7 @@ def test_meta_schedule_integration_task_extraction_query():
         dtype="float32",
     )
     env = TaskExtraction()
-    env.query(task_name="mock-task", mod=mod, dispatched=[MockModule])
+    env.query(task_name="mock-task", mod=mod, target=Target("llvm"), dispatched=[MockModule])
     _check_mock_task(env.tasks, mod)
 
 
@@ -104,6 +104,7 @@ def test_meta_schedule_integration_query_inside_with_scope():
         MetaScheduleContext.query_inside_with_scope(
             task_name="mock-task",
             mod=mod,
+            target=Target("llvm"),
             dispatched=[MockModule],
         )
     _check_mock_task(env.tasks, mod)
@@ -166,11 +167,12 @@ def test_meta_schedule_integration_apply_history_best():
     )
     database = DummyDatabase()
     env = ApplyHistoryBest(database)
+    target = Target("llvm")
     workload = database.commit_workload(MockModule)
     database.commit_tuning_record(
-        TuningRecord(Schedule(MockModule).trace, [1.0], workload, Target("llvm"), [])
+        TuningRecord(Schedule(MockModule).trace, [1.0], workload, target, [])
     )
-    mod = env.query(task_name="mock-task", mod=mod, dispatched=[MockModule])
+    mod = env.query(task_name="mock-task", mod=mod, target=target, dispatched=[MockModule])
     assert tvm.ir.structural_equal(mod, workload.mod)
 
 

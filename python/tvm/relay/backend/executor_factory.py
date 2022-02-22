@@ -106,6 +106,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         libmod_name,
         params,
         function_metadata,
+        executor_codegen_metadata,
         devices,
     ):
         self.ir_mod = ir_mod
@@ -118,6 +119,7 @@ class AOTExecutorFactoryModule(ExecutorFactoryModule):
         self.params = params
         self.iter_cnt = 0
         self.function_metadata = function_metadata
+        self.executor_codegen_metadata = executor_codegen_metadata
         self.devices = devices
 
     def get_devices(self):

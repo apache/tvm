@@ -34,10 +34,20 @@ import tvm.relay.testing.tf as tf_testing
 
 from . import infra
 
-ACCEL_TYPES = ["ethos-u55-256", "ethos-u55-128", "ethos-u55-64", "ethos-u55-32"]
 
-
-def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
+@pytest.mark.parametrize(
+    "accel_type, enable_usmp",
+    [
+        ("ethos-u55-256", True),
+        ("ethos-u55-256", False),
+        ("ethos-u65-256", True),
+        ("ethos-u65-256", False),
+        ("ethos-u55-128", True),
+        ("ethos-u55-64", True),
+        ("ethos-u55-32", True),
+    ],
+)
+def test_forward_mobilenet_v1(accel_type, enable_usmp):
     """Test the Mobilenet V1 TF Lite model."""
     np.random.seed(23)
     tflite_model_file = tf_testing.get_workload_official(
@@ -53,13 +63,13 @@ def test_forward_mobilenet_v1(accel_type="ethos-u55-256"):
     in_min, in_max = util.get_range_for_dtype_str(input_dtype)
     input_data = np.random.randint(in_min, high=in_max, size=input_shape, dtype=input_dtype)
 
-    relay_mod, params = convert_to_relay(tflite_model_buf, input_data, "input")
+    relay_mod, params = convert_to_relay(tflite_model_buf)
     input_data = {input_tensor: input_data}
     output_data = generate_ref_data(relay_mod, input_data)
 
     mod = partition_for_ethosu(relay_mod, params)
     compiled_models = infra.build_source(
-        mod, input_data, output_data, accel_type, output_tolerance=10
+        mod, input_data, output_data, accel_type, output_tolerance=10, enable_usmp=enable_usmp
     )
     infra.verify_source(compiled_models, accel_type)
 

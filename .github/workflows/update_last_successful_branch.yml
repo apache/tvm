@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,7 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Intentionally do nothing, see https://github.com/apache/tvm/pull/9971. This
-# file cannot be deleted from the Jenkinsfile and deleted from the repo in the
-# same PR (since it wouldn't be able to pass CI). Once that PR is merged, this
-# file can be safely deleted.
+# GH actions.
+# We use it to cover windows and mac builds
+# Jenkins is still the primary CI
+
+name: Update last-successful branch
+
+on:
+  schedule:
+    - cron: "0/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-last-successful-branch
+  cancel-in-progress: true
+
+jobs:
+  update-last-successful-branch:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update last-successful branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eux
+          python tests/scripts/update_branch.py || echo step failed

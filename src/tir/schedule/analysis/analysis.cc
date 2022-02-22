@@ -47,9 +47,8 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
 
 /******** Scope ********/
 
-StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,  //
-                      bool require_stage_pipeline,                      //
-                      bool require_subtree_compact_dataflow) {
+StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
+                      bool require_stage_pipeline) {
   class RootBlockError : public ScheduleError {
    public:
     explicit RootBlockError(IRModule mod) : mod_(mod) {}
@@ -85,31 +84,6 @@ Definition of a scope that is a stage pipeline:
     Block block_;
   };
 
-  class NotCompactDataFlowError : public ScheduleError {
-   public:
-    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
-        : mod_(std::move(mod)),
-          subtree_root_(std::move(subtree_root)),
-          violate_block_(std::move(violate_block)) {
-      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
-    }
-    String FastErrorString() const final {
-      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
-             "because some of its child block on SRef tree is neither a complete block nor a "
-             "reduction block";
-    }
-    String DetailRenderTemplate() const final {
-      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
-             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
-
-    IRModule mod_;
-    Stmt subtree_root_;
-    Block violate_block_;
-  };
-
   StmtSRef scope_root_sref{nullptr};
   StmtSRef scope_root_subtree{nullptr};
   // Step 1. Find the scope root and the subtree that the given sref is in
@@ -133,18 +107,6 @@ Definition of a scope that is a stage pipeline:
     if (stage_pipeline == false) {
       const BlockNode* block = TVM_SREF_TO_BLOCK(block, scope_root_sref);
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
-    }
-  }
-  // Step 3. Handle `require_subtree_compact_dataflow`
-  if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
-    for (const StmtSRef& block_sref : child_block_srefs) {
-      if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
-          !IsReductionBlock(self, block_sref, scope_root_sref)) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-        throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(scope_root_subtree->stmt),
-                                      GetRef<Block>(block));
-      }
     }
   }
   return scope_root_sref;
@@ -399,6 +361,44 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   throw NotCompleteOrReductionBlockError(self->mod, GetRef<Block>(block), complete_block_error_code,
                                          reduction_block_error_code);
+}
+
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
+                                 const StmtSRef& scope_root_sref) {
+  class NotCompactDataFlowError : public ScheduleError {
+   public:
+    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
+        : mod_(std::move(mod)),
+          subtree_root_(std::move(subtree_root)),
+          violate_block_(std::move(violate_block)) {
+      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
+    }
+    String FastErrorString() const final {
+      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
+             "because some of its child block on SRef tree is neither a complete block nor a "
+             "reduction block";
+    }
+    String DetailRenderTemplate() const final {
+      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
+             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
+    }
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
+
+    IRModule mod_;
+    Stmt subtree_root_;
+    Block violate_block_;
+  };
+
+  Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, subtree_root);
+  for (const StmtSRef& block_sref : child_block_srefs) {
+    if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
+        !IsReductionBlock(self, block_sref, scope_root_sref)) {
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
+                                    GetRef<Block>(block));
+    }
+  }
 }
 
 bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -1843,9 +1843,8 @@ bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
   }
 
   // Cond 2. The block is a reduction block and has trivial binding.
-  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,                  //
-                                            /*require_stage_pipeline=*/false,  //
-                                            /*require_subtree_compact_dataflow=*/false);
+  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,
+                                            /*require_stage_pipeline=*/false);
   if (!IsReductionBlock(self, block_sref, scope_sref)  //
       || !IsTrivialBinding(self, block_sref)           //
       || HasBeenMultiLevelTiled(block_sref)) {

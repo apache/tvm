@@ -40,6 +40,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
+
 Array<IterVar> ScanOpNode::root_iter_vars() const {
   Array<IterVar> ret{scan_axis};
   for (IterVar iv : spatial_axis_) {
@@ -143,6 +144,7 @@ Operation ScanOpNode::ReplaceInputs(const Operation& self,
                                     const std::unordered_map<Tensor, Tensor>& rmap) const {
   ICHECK_EQ(self.operator->(), this);
   auto n = make_object<ScanOpNode>(*this);
+  n->outputs = Array<Tensor>();
   for (size_t i = 0; i < n->init.size(); ++i) {
     if (rmap.count(n->init[i])) {
       n->init.Set(i, rmap.at(n->init[i]));

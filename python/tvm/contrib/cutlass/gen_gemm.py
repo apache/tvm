@@ -164,6 +164,8 @@ class CutlassGemmProfiler:
             lambda align: align == 1,  # Only request align1 kernels
             use_3xtf32,
             profile_all_alignments=True,  # To include all align1 kernels
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
 
         default_kernel_name = DEFAULT_KERNELS[self.sm][(arg0_dtype, out_dtype)]
@@ -220,6 +222,8 @@ class CutlassGemmProfiler:
             lambda align: all([dim % align == 0 for dim in [M, N, K]]),
             use_3xtf32,
             profile_all_alignments=profile_all_alignments,
+            # TODO(masahi): Invesitigate when fp32 accumulation is needed for gemm
+            accumlator_dtype=out_dtype,
         )
 
         if not find_first_valid:

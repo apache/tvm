@@ -189,10 +189,10 @@ def verify(ref_func, qnn_func, data_shape, data_dtype, kernel_shape, kernel_dtyp
         with tvm.transform.PassContext(opt_level=2):
             golden_data, golden_weight = golden_inputs
             params = {"kernel": golden_weight}
-            graph, lib, params = relay.build(func, "llvm", params=params)
-            mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+            libs = relay.build(func, "llvm", params=params)
+            mod = graph_executor.create(libs.graph_json, libs.lib, device=tvm.cpu(0))
             mod.set_input("data", golden_data)
-            mod.set_input(**params)
+            mod.set_input(**libs.params)
             mod.run()
             res = mod.get_output(0).numpy()
             return res

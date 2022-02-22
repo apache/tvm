@@ -56,7 +56,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
     return _ffi_api.Placeholder(shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute", tag="", attrs=None):
+def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -78,6 +78,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     attrs: dict, optional
         The additional auxiliary attributes about the compute.
 
+    varargs_names: list, optional
+        The names to use for each of the varargs. If not supplied, the varargs
+        will be called i1, i2, ...
+
     Returns
     -------
     tensor: Tensor
@@ -97,7 +101,16 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         arg_names = ["i%d" % i for i in range(out_ndim)]
     elif argspec.varargs is not None:
         # if there is a varargs, it takes the remaining dimensions of out_ndim
-        arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
+        num_remaining_args = out_ndim - len(argspec.args)
+        if varargs_names is not None:
+            if len(varargs_names) != num_remaining_args:
+                raise RuntimeError(
+                    f"Number of varargs ({num_remaining_args}) does not match number"
+                    f"of varargs_names ({len(varargs_names)})"
+                )
+            arg_names = argspec.args + varargs_names
+        else:
+            arg_names = argspec.args + [f"i{i}" for i in range(out_ndim - len(argspec.args))]
     else:
         arg_names = argspec.args
         # if there are fewer args than out dimensions, the remaining dimensions

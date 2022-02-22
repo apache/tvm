@@ -37,6 +37,8 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
+int hexagon_user_dma_1d_sync(void* src, void* dst, uint32_t length);
+
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)
       : allocation_nbytes_(allocation_nbytes), alignment_(alignment) {}
@@ -198,8 +200,10 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
     size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(data) + copied,
-           static_cast<const char*>(managed_allocations_[i]->data_), bytes_to_copy);
+    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
+    int status =
+        hexagon_user_dma_1d_sync(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -215,8 +219,10 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
     size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-           static_cast<const char*>(data) + copied, bytes_to_copy);
+    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
+    int status =
+        hexagon_user_dma_1d_sync(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -239,8 +245,9 @@ void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
       CHECK_LE(other.managed_allocations_[i]->allocation_nbytes_,
                managed_allocations_[i]->allocation_nbytes_);
 
-      memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-             static_cast<const char*>(other.managed_allocations_[i]->data_), bytes_to_copy);
+      int status = hexagon_user_dma_1d_sync(managed_allocations_[i]->data_,
+                                            other.managed_allocations_[i]->data_, bytes_to_copy);
+      CHECK_EQ(status, 0);
 
       copied += bytes_to_copy;
     }

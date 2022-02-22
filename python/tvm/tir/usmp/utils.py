@@ -17,64 +17,18 @@
 """USMP Utilities and Data Structures"""
 # pylint: disable=invalid-name
 
-from typing import Dict, Optional, List
+from typing import Optional, List
 
 from tvm._ffi import register_object
 from tvm.runtime import Object
-from tvm.target import Target
 from . import _ffi_api
+from ...ir.memory_pools import PoolInfo
 
 
 # The allocate node attribute to indicate candidate memory pools.
 # This needs to be kept in sync with CANDIDATE_MEMORY_POOL_ATTR in
 # include/tvm/tir/usmp/utils.h
 CANDIDATE_MEMORY_POOL_ATTR = "candidate_memory_pools"
-
-
-@register_object("tir.usmp.PoolInfo")
-class PoolInfo(Object):
-    """PoolInfo object holds information related to memory pools
-    where the statically sized allocate nodes will pooled into.
-
-    Parameters
-    ----------
-    pool_name : str
-        The name of the memory pool
-
-    target_access : Dict[Target, str]
-        A dictionary where keys describe which targets could
-        access the pool where value could take the values :
-        a) "rw" : read-write access
-        b) "ro" : write-only acesss
-
-    size_hint_bytes : Optional[int]
-        The expected size hint to be used by the allocator.
-        The default value would be -1 which means the pool
-        is not size restricted.
-
-    """
-
-    # The string parameter to indicate read and write access to a pool
-    # This needs to be kept in sync with kTargetPoolReadWriteAccess in
-    # include/tvm/tir/usmp/utils.h
-    READ_WRITE_ACCESS = "rw"
-    # The string parameter to indicate read only access to a pool
-    # This needs to be kept in sync with kTargetPoolReadOnlyAccess in
-    # include/tvm/tir/usmp/utils.h
-    READ_ONLY_ACCESS = "ro"
-
-    def __init__(
-        self,
-        pool_name: str,
-        target_access: Dict[Target, str],
-        size_hint_bytes: Optional[int] = None,
-    ):
-        self.__init_handle_by_constructor__(
-            _ffi_api.PoolInfo,  # type: ignore # pylint: disable=no-member
-            pool_name,
-            target_access,
-            size_hint_bytes,
-        )
 
 
 @register_object("tir.usmp.BufferInfo")

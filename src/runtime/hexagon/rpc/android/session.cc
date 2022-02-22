@@ -51,7 +51,7 @@ class HexagonTransportChannel : public RPCChannel {
     enable_unsigned_pd(true);
     set_remote_stack_size(remote_stack_size_bytes);
     AEEResult rc = hexagon_rpc_open(uri.c_str(), &_handle);
-    ICHECK(rc == AEE_SUCCESS) << "Hexagon RPC Open failed. URI: " << uri.c_str();
+    ICHECK(rc == AEE_SUCCESS) << "hexagon_rpc_open failed. URI: " << uri.c_str();
   }
 
   size_t Send(const void* data, size_t size) override {

@@ -78,8 +78,7 @@ Array<StmtSRef> GetChildBlocks(const ScheduleState& self, const StmtSRef& parent
 }
 
 Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sref) {
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
-                                     /*require_stage_pipeline=*/false);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsByDst(block_sref);
   Array<StmtSRef> results;
   results.reserve(edges.size());
@@ -92,8 +91,7 @@ Array<StmtSRef> GetProducers(const ScheduleState& self, const StmtSRef& block_sr
 }
 
 Array<StmtSRef> GetConsumers(const ScheduleState& self, const StmtSRef& block_sref) {
-  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false,
-                                     /*require_stage_pipeline=*/false);
+  StmtSRef scope_root = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   Array<Dependency> edges = self->GetBlockScope(scope_root)->GetDepsBySrc(block_sref);
   Array<StmtSRef> results;
   results.reserve(edges.size());

@@ -104,30 +104,22 @@ bool EthosuUnaryElementwiseRel(const Array<Type>& types, int num_inputs, const A
   const auto* param = attrs.as<EthosuUnaryElementwiseAttrs>();
   CHECK(param != nullptr) << "EthosuUnaryElementwiseAttrs cannot be nullptr.";
 
-  String operator_type = param->operator_type;
+  const String operator_name = "ethosu_unary_elementwise";
+  const String operator_type = param->operator_type;
   if (operator_type != "ABS" && operator_type != "CLZ") {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_unary_elementwise 'ABS' "
-                                        "or 'CLZ' for operator_type but was"
+                                     << "Invalid operator: expected << " << operator_name
+                                     << "  'ABS' or 'CLZ' for operator_type but was"
                                      << operator_type);
     return false;
   }
 
-  auto ifm_dtype = ifm->dtype;
-  if (ifm_dtype != DataType::UInt(8) && ifm_dtype != DataType::Int(8) && operator_type == "ABS") {
-    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
-                                     << "Invalid operator: expected ethosu_unary_elementwise "
-                                     << operator_type << "input data type "
-                                     << "of type(uint8) or type(int8) but was " << ifm_dtype);
-    return false;
-  }
-
-  if (ifm_dtype != DataType::Int(32) && operator_type == "CLZ") {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected ethosu_unary_elementwise CLZ input data type "
-        << "of type(int32) but was " << ifm_dtype);
-    return false;
+  const DataType ifm_dtype = ifm->dtype;
+  if (operator_type == "CLZ") {
+    CheckDataType(reporter, ifm_dtype, {DataType::Int(32)}, operator_name, "ifm", operator_type);
+  } else {
+    CheckDataType(reporter, ifm_dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm",
+                  operator_type);
   }
 
   // Assign ofm type

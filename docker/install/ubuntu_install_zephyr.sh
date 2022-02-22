@@ -44,13 +44,8 @@ sudo apt-get install -y cmake
 pip3 install west
 
 # Init ZephyrProject
-# To keep in sync with the version 
-# defined in apps/microtvm/zephyr/template_project/microtvm_api_server.py
-# We use `-branch` tag since it tracks the same version with extra patches for bugs.
-ZEPHYR_VERSION="v2.7-branch"
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
-ZEPHYR_INIT_SCRIPT=$(find -name "ubuntu_init_zephyr_project.sh")
-bash ${ZEPHYR_INIT_SCRIPT} ${ZEPHYR_PROJECT_PATH} ${ZEPHYR_VERSION}
+bash /install/ubuntu_init_zephyr_project.sh ${ZEPHYR_PROJECT_PATH}
 cd ${ZEPHYR_PROJECT_PATH}
 
 # As part of the build process, Zephyr needs to touch some symlinks in zephyr/misc/generated/syscalls_links (this path is relative to the
@@ -69,10 +64,4 @@ chmod o+rwx zephyr/.cache
 #/opt/west/bin/pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 pip3 install -r /opt/zephyrproject/zephyr/scripts/requirements.txt
 
-ZEPHYR_SDK_VERSION=0.13.2
-ZEPHYR_SDK_FILE=zephyr-sdk-linux-setup.run
-wget --no-verbose -O $ZEPHYR_SDK_FILE \
-    https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v${ZEPHYR_SDK_VERSION}/zephyr-sdk-${ZEPHYR_SDK_VERSION}-linux-x86_64-setup.run
-chmod +x $ZEPHYR_SDK_FILE
-"./$ZEPHYR_SDK_FILE" -- -d /opt/zephyr-sdk
-rm "$ZEPHYR_SDK_FILE"
+bash /install/ubuntu_install_zephyr_sdk.sh /opt/zephyr-sdk

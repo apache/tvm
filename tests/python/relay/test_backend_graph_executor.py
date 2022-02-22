@@ -292,6 +292,14 @@ def test_compile_nested_tuples():
         ref = ref + 1
 
 
+def test_compile_return_empty_tuple():
+    x = relay.var("x", shape=[16], dtype="float32")
+    mod = tvm.IRModule.from_expr(relay.Function([x], relay.Tuple([])))
+    graph, lib, _ = relay.build(mod, "llvm")
+    mod = graph_executor.create(graph, lib, device=tvm.cpu(0))
+    mod.run()
+
+
 def test_graph_executor_nested_tuples():
     x, y, z, w = [relay.var(c, shape=(2, 3), dtype="float32") for c in "xyzw"]
     out = relay.Tuple([x, relay.Tuple([y, relay.Tuple([z, w])])])

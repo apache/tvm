@@ -59,30 +59,33 @@ class HexagonIOHandler {
  public:
   explicit HexagonIOHandler(uint8_t* read_buffer, size_t read_buffer_size_bytes)
       : read_buffer_{read_buffer},
+        read_buffer_index_{0},
         read_buffer_size_bytes_{read_buffer_size_bytes},
-        read_buffer_index_{0} {}
+        write_buffer_available_length_{0} {}
 
   void MessageStart(size_t message_size_bytes) {}
 
   ssize_t PosixWrite(const uint8_t* buf, size_t write_len_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler PosixWrite called, write_len_bytes: %d",
+    HEXAGON_PRINT(ALWAYS, "INFO: HexagonIOHandler PosixWrite called, write_len_bytes(%d)",
                   write_len_bytes);
-    size_t written_size = static_cast<size_t>(
-        write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes));
+    int32_t written_size = write_buffer_.sputn(reinterpret_cast<const char*>(buf), write_len_bytes);
     if (written_size != write_len_bytes) {
-      HEXAGON_PRINT(ALWAYS, "HexagonIOHandler written_size failed");
+      HEXAGON_PRINT(ALWAYS, "ERROR: written_size(%lld) != write_len_bytes(%d)");
     }
+    write_buffer_available_length_ += written_size;
     return (ssize_t)written_size;
   }
 
-  void MessageDone() {}
+  void MessageDone() { HEXAGON_PRINT(HIGH, "INFO: Message Done."); }
 
   ssize_t PosixRead(uint8_t* buf, size_t read_len_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler PosixRead called, %d, %d", read_len_bytes,
-                  read_buffer_index_);
+    HEXAGON_PRINT(
+        ALWAYS,
+        "INFO: HexagonIOHandler PosixRead called, read_len_bytes(%d), read_buffer_index_(%d)",
+        read_len_bytes, read_buffer_index_);
 
     uint32_t bytes_to_read = 0;
-    if ((read_buffer_index_ - read_len_bytes) < 0) {
+    if (read_buffer_index_ < read_len_bytes) {
       bytes_to_read = read_buffer_index_;
     } else {
       bytes_to_read = read_len_bytes;
@@ -91,10 +94,6 @@ class HexagonIOHandler {
     std::memcpy(buf, read_buffer_, bytes_to_read);
     read_buffer_ += bytes_to_read;
     read_buffer_index_ -= bytes_to_read;
-    if (bytes_to_read != read_len_bytes) {
-      HEXAGON_PRINT(ERROR, "Error bytes_to_read (%d) < read_len_bytes (%d).", bytes_to_read,
-                    read_len_bytes);
-    }
     return (ssize_t)bytes_to_read;
   }
 
@@ -106,39 +105,51 @@ class HexagonIOHandler {
    * \return The status
    */
   AEEResult SetReadBuffer(const uint8_t* data, size_t data_size_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler SetReadBuffer called: %d, prev read_buffer_index_: ",
-                  data_size_bytes, read_buffer_index_);
+    HEXAGON_PRINT(ALWAYS,
+                  "INFO: HexagonIOHandler SetReadBuffer: data_size_bytes(%d), "
+                  "read_buffer_index_(%d), read_buffer_size_bytes_(%d)",
+                  data_size_bytes, read_buffer_index_, read_buffer_size_bytes_);
     if (data_size_bytes > read_buffer_size_bytes_) {
+      HEXAGON_PRINT(ERROR, "ERROR: data_size_bytes(%d) > read_buffer_size_bytes_(%d)");
       return AEE_EFAILED;
     }
-    read_buffer_ = data;
+    std::memcpy(reinterpret_cast<void*>(read_buffer_), reinterpret_cast<const void*>(data),
+                data_size_bytes);
     read_buffer_index_ = data_size_bytes;
     return AEE_SUCCESS;
   }
 
   /*!
-   * \brief Get pointer to the buffer that a packet has been written to.
+   * \brief Read from the write buffer that a packet has been written to.
    * \param buf The data pointer.
    * \param read_size_bytes The size of read in bytes.
    *
    * \return The size of data that is read in bytes.
    */
-  int64_t GetWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
-    HEXAGON_PRINT(ALWAYS, "HexagonIOHandler GetWriteBuffer called, read_len_bytes: %d",
+  int64_t ReadFromWriteBuffer(uint8_t* buf, size_t read_size_bytes) {
+    HEXAGON_PRINT(ALWAYS, "INFO: HexagonIOHandler ReadFromWriteBuffer called, read_size_bytes: %d",
                   read_size_bytes);
-    return write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
+    int64_t size = (int64_t)write_buffer_.sgetn(reinterpret_cast<char*>(buf), read_size_bytes);
+    write_buffer_available_length_ -= size;
+
+    // Clear buffer
+    if (write_buffer_available_length_ == 0) {
+      write_buffer_.str("");
+    }
+    return size;
   }
 
-  void Close() { HEXAGON_PRINT(ALWAYS, "HexagonIOHandler Close called"); }
+  void Close() { HEXAGON_PRINT(ALWAYS, "INFO: HexagonIOHandler Close called"); }
 
   void Exit(int code) { exit(code); }
 
  private:
-  const uint8_t* read_buffer_;
+  uint8_t* read_buffer_;
   uint32_t read_buffer_index_;
   size_t read_buffer_size_bytes_;
 
   std::stringbuf write_buffer_;
+  uint32_t write_buffer_available_length_;
 };
 
 class HexagonRPCServer {
@@ -169,7 +180,7 @@ class HexagonRPCServer {
    * \return The size of data that is read in bytes.
    */
   int64_t Read(uint8_t* buf, size_t read_size_bytes) {
-    return io_.GetWriteBuffer(buf, read_size_bytes);
+    return io_.ReadFromWriteBuffer(buf, read_size_bytes);
   }
 
  private:
@@ -209,6 +220,7 @@ int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
   }
   reset_device_api();
   get_hexagon_rpc_server();
+
   return AEE_SUCCESS;
 }
 
@@ -233,8 +245,8 @@ AEEResult __QAIC_HEADER(hexagon_rpc_send)(remote_handle64 _handle, const unsigne
   int64_t written_size = get_hexagon_rpc_server()->Write(reinterpret_cast<const uint8_t*>(data),
                                                          static_cast<size_t>(dataLen));
   if (written_size != dataLen) {
-    HEXAGON_PRINT(ERROR, "RPC Server Write failed, written_size (%d) != dataLen (%d)", written_size,
-                  dataLen);
+    HEXAGON_PRINT(ERROR, "ERROR: hexagon_rpc_send failed, written_size (%d) != dataLen (%d)",
+                  written_size, dataLen);
     return AEE_EFAILED;
   }
   return AEE_SUCCESS;
@@ -254,11 +266,11 @@ AEEResult __QAIC_HEADER(hexagon_rpc_receive)(remote_handle64 _handle, unsigned c
   int64_t read_size =
       get_hexagon_rpc_server()->Read(reinterpret_cast<uint8_t*>(buf), static_cast<size_t>(bufLen));
   *buf_written_size = read_size;
-  if (read_size == bufLen) {
+  if (read_size == static_cast<int64_t>(bufLen)) {
     return AEE_SUCCESS;
   } else {
-    HEXAGON_PRINT(ALWAYS, "RPC Server Read failed, read_size (%d) != dataLen (%d)", read_size,
-                  bufLen);
+    HEXAGON_PRINT(ERROR, "ERROR: RPC Server Read failed, read_size (%lld) != bufLen (%lld)",
+                  read_size, static_cast<int64_t>(bufLen));
     return AEE_EFAILED;
   }
 }
