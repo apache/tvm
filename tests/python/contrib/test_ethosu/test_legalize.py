@@ -2361,8 +2361,10 @@ def test_tflite_fully_connected(
             @tf.function
             def fully_connected(self, x):
                 return tf.keras.layers.Dense(
-                    units=units, activation=activation_function, use_bias=use_bias,
-                    )(x)
+                    units=units,
+                    activation=activation_function,
+                    use_bias=use_bias,
+                )(x)
 
         model = Model()
         concrete_func = model.fully_connected.get_concrete_function(
@@ -2424,6 +2426,7 @@ def test_tflite_fully_connected(
         legalize.FullyConnectedRewriter(), mod["tvmgen_default_ethos_u_main_0"]
     )
     verify(mod["tvmgen_default_ethos_u_main_0"])
+
 
 if __name__ == "__main__":
     pytest.main([__file__])

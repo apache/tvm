@@ -1180,7 +1180,9 @@ def test_tflite_fully_connected(
     @tf.function
     def fully_connected():
         return tf.keras.layers.Dense(
-            units=units, activation=activation_function, use_bias=use_bias,
+            units=units,
+            activation=activation_function,
+            use_bias=use_bias,
         )
 
     _compare_tvm_with_tflite(fully_connected, (1, 3, units, 1), accel_type)

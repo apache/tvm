@@ -1561,7 +1561,7 @@ class FullyConnectedParams:
 
         bias_add = requantize_op.args[0]
         qnn_dense = bias_add.args[0]
-        
+
         # We consider the weights & biases as params as they should be constant
         self.weights = TensorParams(
             qnn_dense.args[QDenseArgs.weights.value],
@@ -1623,6 +1623,7 @@ class FullyConnectedParams:
             # all except the last dims need to be 1.
             return False
         return True
+
 
 def qnn_fc_pattern():
     dense = is_op("qnn.dense")(
