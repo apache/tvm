@@ -585,10 +585,9 @@ class DeviceAnalyzer : public MixedModeVisitor {
     // function's domain to match them.
     if (!function_node->virtual_device()->IsFullyUnconstrained()) {
       std::vector<DeviceDomainPtr> args_and_result;
-      for (size_t i = 0; i < function_node->params.size(); ++i) {
+      for (auto param: function_node->params) {
         args_and_result.emplace_back(
-            domains_->ForVirtualDevice(function_node->params[i]->checked_type(),
-                                       GetFunctionParamVirtualDevice(function_node, i)));
+            domains_->ForVirtualDevice(param->checked_type(), param->virtual_device()));
       }
       args_and_result.emplace_back(domains_->ForVirtualDevice(
           function_node->body->checked_type(), function_node->virtual_device()));

@@ -132,8 +132,8 @@ void DeviceAwareExprVisitor::VisitExpr_(const FunctionNode* function_node) {
     DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
+    for (auto param: function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
     PushVirtualDevice(function_node->virtual_device());
@@ -218,8 +218,8 @@ Expr DeviceAwareExprMutator::VisitExpr_(const FunctionNode* function_node) {
     return DeviceAwareVisitExpr_(function_node);
   } else {
     // Function parameters come into scope.
-    for (size_t i = 0; i < function_node->params.size(); ++i) {
-      PushBoundVar(function_node->params[i], GetFunctionParamVirtualDevice(function_node, i));
+    for (auto param: function_node->params) {
+      PushBoundVar(param, param->virtual_device());
     }
     // Entering scope of function body.
     PushVirtualDevice(function_node->virtual_device());

@@ -143,12 +143,5 @@ OnDeviceProps GetOnDeviceProps(const Expr& expr) {
   return {};
 }
 
-VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i) {
-  ICHECK_LT(i, function_node->params.size())
-      << "param index " << i << " out of range for function of arity "
-      << function_node->params.size();
-  return function_node->params[i]->virtual_device();
-}
-
 }  // namespace relay
 }  // namespace tvm

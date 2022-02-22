@@ -154,13 +154,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
   return props.body.as<NodeType>();
 }
 
-/*!
- * \brief Returns the \p VirtualDevice for the \p i'th parameter of \p function_node, or
- * the unconstrained \p VirtualDevice if function does not have the "param_virtual_devices"
- * annotation.
- */
-VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i);
-
 }  // namespace relay
 }  // namespace tvm
 
