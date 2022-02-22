@@ -101,15 +101,9 @@ def rands(shape, n):
 def exercise(in_mod: tvm.IRModule, expected_mod: tvm.IRModule, reference_func, args):
     """Test in_mod against expected_mod and reference_func using args."""
     # Correctness
-    
-    print("in mod main: ", in_mod["main"])
-    print("expected main: ", expected_mod["main"])
-    
     rewrite_and_assert(in_mod, expected_mod)
-    print("correctness succeeded")
     # Idempotence
     rewrite_and_assert(expected_mod, expected_mod)
-    print("idempotence succeeded")
     # The VM can compile and possibly even run the module
     if not (reference_func is None) and not (args is None):
         eval_and_assert(in_mod, reference_func, args)
