@@ -34,6 +34,9 @@ namespace codegen {
 
 namespace ptx {
 
+/*!
+ * \brief PTX data type.
+ */
 enum class DataType : int {
   kInt4 = 0,
   kUInt4 = 1,
@@ -59,6 +62,9 @@ static const char* dtype_str[] = {".s4",    ".u4",  ".s8",   ".u8",  ".s16", ".u
                                   ".f16x2", ".f32", ".tf32", ".f64", ".b1"};
 static uint32_t num_bits[] = {4, 4, 8, 8, 16, 16, 32, 32, 64, 64, 16, 16, 32, 32, 32, 64, 1};
 
+/*!
+ * \brief Create PTX data type from string.
+ */
 inline DataType DTypeFromString(const std::string str) {
   if (str == "int4" || str == ".s4") {
     return DataType::kInt4;
@@ -100,10 +106,19 @@ inline DataType DTypeFromString(const std::string str) {
   }
 }
 
+/*!
+ * \brief Get the string representation of given PTX data type.
+ */
 inline std::string DTypeToString(DataType dtype) { return dtype_str[static_cast<int>(dtype)]; }
 
-inline uint32_t DTypeToBits(DataType dtype) { return num_bits[static_cast<int>(dtype)]; }
+/*!
+ * \brief Get the number of bits of given PTX data type.
+ */
+inline uint32_t DTypeBits(DataType dtype) { return num_bits[static_cast<int>(dtype)]; }
 
+/*!
+ * \brief Extract the value m, n, k from string m*n*k*
+ */
 std::tuple<int, int, int> ParseMMAShape(const std::string& str) {
   size_t pos_m = str.find("m"), pos_n = str.find("n"), pos_k = str.find("k");
   CHECK(pos_m != str.npos && pos_n != str.npos && pos_k != str.npos)
@@ -113,6 +128,10 @@ std::tuple<int, int, int> ParseMMAShape(const std::string& str) {
   return {m, n, k};
 }
 
+/*!
+ * \brief Fragment attributes of given data type.
+ * \return the register type in ptx, fragment size, fragment pointer string.
+ */
 inline std::tuple<char, int, std::string> FragmentAttrs(DataType dtype) {
   switch (dtype) {
     case DataType::kBit1:
@@ -138,6 +157,10 @@ inline std::tuple<char, int, std::string> FragmentAttrs(DataType dtype) {
 
 };  // namespace ptx
 
+/*!
+ * \brief Replace patterns with replacement strings.
+ * \note should use std::format instead when codebase is ported to C++20.
+ */
 class Replacer {
  public:
   void register_rule(const std::string& pattern, const std::string& replacement) {
@@ -163,6 +186,9 @@ class Replacer {
   std::vector<std::pair<std::string, std::string>> _rules;
 };
 
+/*!
+ * \brief Return template string, input operands string and output operands string.
+ */
 inline std::tuple<std::string, std::string, std::string> get_mma_sp_operands(
     int m, int n, int k, ptx::DataType dtype_a, ptx::DataType dtype_b, ptx::DataType dtype_c) {
   std::stringstream templates, inputs, outputs;
@@ -170,9 +196,9 @@ inline std::tuple<std::string, std::string, std::string> get_mma_sp_operands(
        frag_attr_c = ptx::FragmentAttrs(dtype_c);
   constexpr int warp_size = 32;
   int num_operands_a, num_operands_b, num_operands_c;
-  num_operands_a = (m * k / 2) * ptx::DTypeToBits(dtype_a) / std::get<1>(frag_attr_a) / warp_size;
-  num_operands_b = (k * n) * ptx::DTypeToBits(dtype_b) / std::get<1>(frag_attr_b) / warp_size;
-  num_operands_c = (m * n) * ptx::DTypeToBits(dtype_c) / std::get<1>(frag_attr_c) / warp_size;
+  num_operands_a = (m * k / 2) * ptx::DTypeBits(dtype_a) / std::get<1>(frag_attr_a) / warp_size;
+  num_operands_b = (k * n) * ptx::DTypeBits(dtype_b) / std::get<1>(frag_attr_b) / warp_size;
+  num_operands_c = (m * n) * ptx::DTypeBits(dtype_c) / std::get<1>(frag_attr_c) / warp_size;
 
   // generate templates;
   int arg_counter = 0;

@@ -26,7 +26,9 @@ import tvm.testing
 
 def gen_2in4_mask(m: int, n: int):
     assert n % 4 == 0
-    return np.array([[np.sort(np.random.choice(4, 2, replace=False)) for _ in range(n // 4)] for _ in range(m)]).astype("uint8")
+    return np.array(
+        [[np.sort(np.random.choice(4, 2, replace=False)) for _ in range(n // 4)] for _ in range(m)]
+    ).astype("uint8")
 
 
 def get_dense_mat_by_mask(val, mask):
@@ -44,7 +46,7 @@ def get_meta_m16n8k16_half(mask):
     assert mask.shape == (16, 4, 2)
     mask = mask.reshape(16, 8)
     ret = np.zeros((8,)).astype("uint32")
-    
+
     for i in range(8):
         base = 1
         for k in range(2):
@@ -75,16 +77,10 @@ def mma_sp_m16n8k16_fp16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.han
         accum[i] = T.float16(0)
 
     for i in range(4):
-        multi_a[i] = A[
-            tx // 4 + i // 2 * 8,
-            tx % 4 * 2 + i % 2
-        ]
+        multi_a[i] = A[tx // 4 + i // 2 * 8, tx % 4 * 2 + i % 2]
 
     for i in range(4):
-        multi_b[i] = B[
-            tx % 4 * 2 + i % 2 + i // 2 * 8,
-            tx // 4
-        ]
+        multi_b[i] = B[tx % 4 * 2 + i % 2 + i // 2 * 8, tx // 4]
 
     meta_local[0] = metadata[tx // 4]
 
@@ -105,7 +101,7 @@ def mma_sp_m16n8k16_fp16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.han
             meta_local,
             0,
             False,
-            dtype="float16"
+            dtype="float16",
         )
     )
 
