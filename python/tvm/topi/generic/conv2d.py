@@ -19,8 +19,10 @@
 """Generic convolution schedules"""
 from tvm import te
 from tvm import autotvm
+from tvm import relay
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..utils import get_const_tuple, traverse_inline
+from ..nn.utils import get_pad_tuple
 
 
 def fallback_schedule_cpu_common_int8(cfg, wkl, int32_lanes, num_int8_elements):
@@ -410,3 +412,171 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
+
+
+def conv2d_alter_int8_common(
+    data,
+    data_tensor,
+    kernel,
+    kernel_tensor,
+    output_tensor,
+    attrs,
+    data_dtype: str,
+    in_channel_vector_length: int,
+    out_channel_vector_length: int,
+):
+    """
+    Convert TE inputs/outputs so that they are suitable for fast Int8 instructions.
+
+    Int8 instructions require input channels and output channels to be a
+    multiple of the vector length. For input channels, we pad both the inputs
+    and weights channels. For output channels, we pad the weight and
+    stride_slice the output.
+
+    Arguments
+    ---------
+    data: Expr
+        Data Expr
+    data_tensor: Tensor
+        Data tensor
+    kernel: Expr
+        Kernel Expr
+    kernel_tensor: Tensor
+        Kernel tensor
+    output_tensor: Tensor
+        Output tensor
+    attrs: Conv2dAttrs
+        Attributes of the computation
+    data_dtype: "int8" or "uint8"
+        Desired dtype of data. Data will be converted to this dtype before the main computation.
+    in_channel_vector_length: int
+        Length of vector units on target hardware. Input channels are padded to this length.
+    out_channel_vector_length: int
+        Output size of vector instruction. Output channels are padded to this length.
+
+    Returns
+    -------
+    out : Tensor
+        Conv2d computation with inputs in the correct order for tensorization.
+    """
+    # Dilation not supported yet. Return None if dilation is not (1, 1)
+    dilation = attrs.get_int_tuple("dilation")
+    if not (dilation[0] == 1 and dilation[1] == 1):
+        return None
+
+    # No legalization for depthwise convolutions yet.
+    groups = attrs.get_int("groups")
+    if groups != 1:
+        return None
+
+    # Get the conv attrs
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    padding = attrs.get_int_tuple("padding")
+    kh, kw = attrs.get_int_tuple("kernel_size")
+    pt, pl, pb, pr = get_pad_tuple(padding, (kh, kw))
+
+    if data_tensor.dtype != data_dtype:
+        # How to convert data to int8
+        # Original --> C = A (conv) B
+        # A and B are int8
+        #   C = (A + 128 - 128) (conv) B
+        #   C = (A' conv B) - 128 (conv) B
+        # where A' = A + 128
+        # and 128 (conv) B is basically a reduce on CRS axis for weights.
+        #
+        # How to convert data to uint8
+        #   C = (A - 128 + 128) (conv) B
+        #   C = (A' conv B) + 128 (conv) B
+        # where A' = A - 128
+        if data_dtype == "int8":
+            # shift data to int8
+            before_shift = relay.add
+            after_shift = relay.subtract
+        else:
+            # shift data to uint8
+            before_shift = relay.subtract
+            after_shift = relay.add
+
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            adjust_shift = relay.sum(relay.cast(kernel, dtype="int32"), axis=(0, 1, 2))
+            pad_width = ((0, 0), (pt, pb), (pl, pr), (0, 0))
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            pad_width = ((0, 0), (0, 0), (pt, pb), (pl, pr))
+            adjust_shift = relay.sum(relay.cast(kernel, dtype="int32"), axis=(1, 2, 3))
+            adjust_shift = relay.expand_dims(adjust_shift, axis=1, num_newaxis=2)
+        else:
+            return None
+
+        data = relay.cast(data, "int32")
+        data = before_shift(data, relay.const(128, "int32"))
+        data = relay.cast(data, data_dtype)
+
+        # Do external padding as pad value has to be 128.
+        if any(padding):
+            data = relay.nn.pad(data, pad_width=pad_width, pad_value=128)
+        new_attrs["padding"] = (0, 0)
+
+        # Multiply 128 to adjust shift.
+        adjust_shift = relay.multiply(adjust_shift, relay.const(128, "int32"))
+
+    # Flags to remember if the expr is modified
+    ic_modified = False
+    oc_modified = False
+
+    # Find the value of input and output channel.
+    in_channel = -1
+    out_channel = -1
+    if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+        in_channel = data_tensor.shape[3].value
+        out_channel = kernel_tensor.shape[3].value
+    elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+        in_channel = data_tensor.shape[1].value
+        out_channel = kernel_tensor.shape[0].value
+    else:
+        return None
+
+    if in_channel % in_channel_vector_length != 0:
+        new_in_channel = (
+            (in_channel + in_channel_vector_length) // in_channel_vector_length
+        ) * in_channel_vector_length
+        diff = new_in_channel - in_channel
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            data = relay.nn.pad(data, pad_width=((0, 0), (0, 0), (0, 0), (0, diff)))
+            kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, diff), (0, 0)))
+            ic_modified = True
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+            data = relay.nn.pad(data, pad_width=pad_width)
+            kernel = relay.nn.pad(kernel, pad_width=pad_width)
+            ic_modified = True
+        else:
+            return None
+
+    new_out_channel = out_channel
+    if out_channel % out_channel_vector_length != 0:
+        new_out_channel = (
+            (out_channel + out_channel_vector_length) // out_channel_vector_length
+        ) * out_channel_vector_length
+        diff = new_out_channel - out_channel
+        if attrs["data_layout"] == "NHWC" and attrs["kernel_layout"] == "HWIO":
+            kernel = relay.nn.pad(kernel, pad_width=((0, 0), (0, 0), (0, 0), (0, diff)))
+            oc_modified = True
+        elif attrs["data_layout"] == "NCHW" and attrs["kernel_layout"] == "OIHW":
+            kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+            oc_modified = True
+        else:
+            return None
+
+    if oc_modified:
+        new_attrs["channels"] = new_out_channel
+        out = relay.nn.conv2d(data, kernel, **new_attrs)
+        original_out_shape = [x.value for x in output_tensor.shape]
+        out = relay.strided_slice(out, begin=[0, 0, 0, 0], end=original_out_shape)
+    else:
+        out = relay.nn.conv2d(data, kernel, **new_attrs)
+
+    if data_tensor.dtype != data_dtype:
+        out = after_shift(out, adjust_shift)
+
+    return out
