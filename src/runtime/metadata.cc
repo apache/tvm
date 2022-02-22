@@ -41,17 +41,14 @@ MetadataArray::MetadataArray(Array<ObjectRef> array, MetadataTypeIndex type_inde
                              const char* struct_name)
     : MetadataBase{make_object<MetadataArrayNode>(array, type_index, struct_name)} {}
 
-std::string MetadataArrayNode::get_name() { return "MetadataArray"; }
 TVM_REGISTER_OBJECT_TYPE(MetadataArrayNode);
 
 Metadata::Metadata(const struct ::TVMMetadata* data)
     : MetadataBase{make_object<MetadataNode>(data)} {}
-std::string MetadataNode::get_name() { return std::string{"Metadata"}; }
 TVM_REGISTER_OBJECT_TYPE(MetadataNode);
 
 TensorInfo::TensorInfo(const struct ::TVMTensorInfo* data)
     : MetadataBase{make_object<TensorInfoNode>(data)} {}
-std::string TensorInfoNode::get_name() { return std::string{"TensorInfo"}; }
 TVM_REGISTER_OBJECT_TYPE(TensorInfoNode);
 
 }  // namespace metadata

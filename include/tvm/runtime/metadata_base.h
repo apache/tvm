@@ -44,8 +44,6 @@ namespace metadata {
  */
  class MetadataBaseNode : public ::tvm::runtime::Object {
   public:
-   virtual std::string get_name() = 0;
-
   static constexpr const char* _type_key = "metadata.MetadataBaseNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataBaseNode, ::tvm::runtime::Object);
 };
@@ -177,8 +175,6 @@ class MetadataArrayNode : public MetadataBaseNode {
  public:
   MetadataArrayNode(Array<ObjectRef> array, MetadataTypeIndex type_index, const char* struct_name)
       : array(::std::move(array)), type_index{type_index}, struct_name{struct_name} {}
-
-  std::string get_name() override;
 
   Array<ObjectRef> array;
   MetadataTypeIndex type_index;
