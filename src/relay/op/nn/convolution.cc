@@ -209,11 +209,10 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
   if (!trans_kernel_layout.defined()) {
-    reporter->GetDiagCtx().Emit(
-      Diagnostic::Error(reporter->GetSpan())
-      << "conv2d only support kernel layouts that are convertible from "
-      << kOIHW << "."
-      << " The provided layout is: " << kernel_layout);
+    reporter->GetDiagCtx().Emit(Diagnostic::Error(reporter->GetSpan())
+                                << "conv2d only support kernel layouts that are convertible from "
+                                << kOIHW << "."
+                                << " The provided layout is: " << kernel_layout);
     return false;
   }
 
@@ -766,10 +765,9 @@ bool Conv2DTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
 
   const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kIOHW);
   ICHECK(trans_kernel_layout.defined())
-      << "Conv2DTransposed only support kernel layouts that are convertible from "
-      << kIOHW << "."
+      << "Conv2DTransposed only support kernel layouts that are convertible from " << kIOHW << "."
       << " But got " << kernel_layout << " " << kIOHW;
-  
+
   Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
   ICHECK(trans_out_layout.defined())

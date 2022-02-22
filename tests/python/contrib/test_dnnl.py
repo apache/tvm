@@ -65,7 +65,6 @@ def run_and_verify(mod, input, params, target, run_module):
     for mode in ["graph", "vm"]:
         for use_dnnl, alter_layout in [(False, False), (True, False), (True, True)]:
             result_key = mode + ("_dnnl" if use_dnnl else "") + ("_layout" if alter_layout else "")
-            print(result_key)
             if use_dnnl:
                 processed_mod = dnnl.partition_for_dnnl(mod, params, alter_layout)
                 check_dnnl_used(processed_mod)

@@ -96,12 +96,12 @@ _register_external_op_helper("multiply")
 
 
 def make_conv_pattern(conv_name, with_bias=True, with_eltwise=None):
-    """Create patterns related to conv and deconv.
+    """Create patterns related to conv and conv_transpose.
 
     Parameters
     ----------
     with_bias : bool
-        Whether attach `bias_add` to `conv / deconv`.
+        Whether attach `bias_add` to `conv / conv_transpose`.
     with_eltwise : str
         The attached elementwise post-op name.
     Returns
@@ -149,12 +149,12 @@ def make_dense_pattern(with_bias=True, with_eltwise=None):
     return dense_out
 
 
-def make_dnnl_pattern(op, with_bias, with_eltwise):
+def make_dnnl_pattern(op_name, with_bias, with_eltwise):
     """Create dnnl patterns.
 
     Parameters
     ----------
-    op : str
+    op_name : str
         The first call node's op name.
     with_bias : bool
         Whether attach `bias_add` to `nn.dense`.
@@ -165,18 +165,20 @@ def make_dnnl_pattern(op, with_bias, with_eltwise):
     pattern : Tuple(pattern_name, CallPattern)
         Created pattern name, along with its CallPattern.
     """
-    pat_name = op.replace("nn", "dnnl")
+    pat_name = op_name.replace("nn", "dnnl")
+    if "_transpose" in op_name:
+        pat_name = "dnnl.deconv" + op_name.split("_")[0][-2::]
     pat_name += "_bias" if with_bias else ""
     pat_name += ("_" + with_eltwise.split(".")[-1]) if with_eltwise else ""
-    if "conv" in op:
-        dnnl_pattern = (pat_name, make_conv_pattern(op, with_bias, with_eltwise))
-    elif op == "nn.dense":
+    if "conv" in op_name:
+        dnnl_pattern = (pat_name, make_conv_pattern(op_name, with_bias, with_eltwise))
+    elif op_name == "nn.dense":
         dnnl_pattern = (pat_name, make_dense_pattern(with_bias, with_eltwise))
     else:
         logger.warning(
             "Currently, only conv1d, conv2d, conv2d_transpose, conv3d_transpose and "
             "dense op are supported, but got %s.",
-            op,
+            op_name,
         )
         dnnl_pattern = ()
     return dnnl_pattern
@@ -277,7 +279,9 @@ def get_shape(tensor):
         raise TypeError("Unsupport data type: %s" % type(tensor))
 
 
-def trans_data(input_data, is_weight=False, conv_type=1):
+def validate_layout_for_tvm(input_data, is_weight=False, conv_type=1):
+    """Transfer layout, denoted with `a, b, c, d, e`,
+    into valid layout (NCHW / OIHW) of TVM."""
     if conv_type == 1:
         data_dic = {"a": "N", "b": "C", "c": "W"}
         weight_dic = {"a": "O", "b": "I", "c": "W", "d": "G"}
@@ -352,9 +356,11 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         len(get_shape(out_type)), weight_shape, out_shape, paddings, strides, dilates, G
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = trans_data(src_df, is_weight=False, conv_type=conv_type)
-    new_attrs["kernel_layout"] = trans_data(weight_df, is_weight=True, conv_type=conv_type)
-    new_attrs["out_layout"] = trans_data(dst_df, is_weight=False, conv_type=conv_type)
+    new_attrs["data_layout"] = validate_layout_for_tvm(src_df, is_weight=False, conv_type=conv_type)
+    new_attrs["kernel_layout"] = validate_layout_for_tvm(
+        weight_df, is_weight=True, conv_type=conv_type
+    )
+    new_attrs["out_layout"] = validate_layout_for_tvm(dst_df, is_weight=False, conv_type=conv_type)
     if new_attrs["kernel_layout"] == "HWOIG16g":
         new_attrs["kernel_layout"] = "HWIOG16g"
 
@@ -391,9 +397,11 @@ def alter_deconv(attrs, inputs, tinfos, out_type):
         G,
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = trans_data(src_df, is_weight=False, conv_type=conv_type)
-    new_attrs["kernel_layout"] = trans_data(weight_df, is_weight=True, conv_type=conv_type)
-    new_attrs["out_layout"] = trans_data(dst_df, is_weight=False, conv_type=conv_type)
+    new_attrs["data_layout"] = validate_layout_for_tvm(src_df, is_weight=False, conv_type=conv_type)
+    new_attrs["kernel_layout"] = validate_layout_for_tvm(
+        weight_df, is_weight=True, conv_type=conv_type
+    )
+    new_attrs["out_layout"] = validate_layout_for_tvm(dst_df, is_weight=False, conv_type=conv_type)
 
     if conv_type == 1:
         return relay.nn.conv1d_transpose(data, weight, **new_attrs)

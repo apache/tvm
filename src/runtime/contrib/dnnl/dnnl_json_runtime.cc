@@ -233,7 +233,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     stream_ = dnnl::stream(engine_);
 
     std::regex conv_pat(".*conv[1-3]d.*");
-    std::regex conv_tranpose_pat(".*conv[1-3]d_transpose.*");
+    std::regex deconv_pat(".*deconv[1-3]d.*");
+    std::regex conv_transpose_pat(".*conv[1-3]d_transpose.*");
     std::regex dense_pat(".*dense.*");
     std::regex max_pool_pat(".*max_pool[1-3]d");
     std::regex avg_pool_pat(".*avg_pool[1-3]d");
@@ -244,7 +245,8 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       if (node.GetOpType() == "kernel") {
         ICHECK_EQ(node.GetOpType(), "kernel");
         auto op_name = node.GetOpName();
-        if (std::regex_match(op_name, conv_tranpose_pat)) {
+        if (std::regex_match(op_name, deconv_pat) ||
+            std::regex_match(op_name, conv_transpose_pat)) {
           Deconvolution(nid);
         } else if (std::regex_match(op_name, conv_pat)) {
           Convolution(nid);
@@ -365,6 +367,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     if (groups > 1) {
       weights_dims = {groups, channels / groups, src_dims[1] / groups};
       weights_dims.insert(weights_dims.end(), weights_dims_.begin() + 2, weights_dims_.end());
+      if (kernel_layout == "OIHW") {
+        kernel_layout.insert(0, "G");
+      }
     }
 
     // Memory descriptions.
