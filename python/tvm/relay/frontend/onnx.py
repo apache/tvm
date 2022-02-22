@@ -286,9 +286,9 @@ def matmul_out_dtype(inputs, out_dtype):
                 )
             )
             if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
-                a = _op.transform.broadcast_to(a, fold_constant(a_broadcasted_shape))
-            if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
-                b = _op.transform.broadcast_to(a, fold_constant(b_broadcasted_shape))
+                a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(b_shape, b_broadcasted_shape):
+                b = _op.transform.broadcast_to(b, b_broadcasted_shape)
             # Convert a and b into 3 dimensional tensors.
             a = flatten_to_nd(a, shape_of(a), 3)
             b = flatten_to_nd(b, shape_of(b), 3)
