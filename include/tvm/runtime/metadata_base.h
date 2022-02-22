@@ -42,8 +42,8 @@ namespace metadata {
  * This class is used in the visitor classes as a internal check to ensure that verify that all
  * parts of the Metadata struct used in codegen are Metadata objects.
  */
- class MetadataBaseNode : public ::tvm::runtime::Object {
-  public:
+class MetadataBaseNode : public ::tvm::runtime::Object {
+ public:
   static constexpr const char* _type_key = "metadata.MetadataBaseNode";
   TVM_DECLARE_BASE_OBJECT_INFO(MetadataBaseNode, ::tvm::runtime::Object);
 };
