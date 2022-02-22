@@ -253,6 +253,23 @@ class DataTypeRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const RampNode* op) final {
+    PrimExpr base = VisitExpr(op->base);
+    PrimExpr stride = VisitExpr(op->stride);
+    if (base.same_as(op->base) && stride.same_as(op->stride)) {
+      return GetRef<PrimExpr>(op);
+    } else {
+      if (base.dtype().is_int()) {
+        ICHECK(stride.dtype().is_int()) << "Ramp base is int but stride is " << stride.dtype();
+        int bits = std::max(base.dtype().bits(), stride.dtype().bits());
+        DataType dtype = base.dtype().with_bits(bits);
+        if (base.dtype() != dtype) base = cast(dtype, base);
+        if (stride.dtype() != dtype) stride = cast(dtype, stride);
+      }
+      return Ramp(base, stride, op->lanes);
+    }
+  }
+
   PrimExpr VisitExpr_(const SizeVarNode* op) final {
     if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
       if (vmap_.find(op) == vmap_.end()) {

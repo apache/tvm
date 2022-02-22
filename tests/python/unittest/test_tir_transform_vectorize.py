@@ -205,6 +205,14 @@ def test_vectorize_while_fail():
         assert expected in error_msg
 
 
+def test_vectorize_dtype_mismatch():
+    n = tvm.tir.IntImm("int64", 4)
+    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2 ** 31 - 1) + i, name="A")
+    s = te.create_schedule(A.op)
+    s[A].vectorize(A.op.axis[0])
+    tvm.lower(s, [A], "llvm", simple_mode=True)
+
+
 if __name__ == "__main__":
     test_vectorize_vector()
     test_vectorize_with_if()
@@ -214,3 +222,4 @@ if __name__ == "__main__":
     test_vectorize_with_ge_cond()
     test_vectorize_let()
     test_vectorize_while_fail()
+    test_vectorize_dtype_mismatch()
