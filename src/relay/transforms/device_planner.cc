@@ -1003,14 +1003,21 @@ class DeviceCapturer : public ExprMutator {
     ICHECK_EQ(func_domain->function_arity(), function_node->params.size());
     VirtualDevice result_virtual_device = domains_->ResultVirtualDevice(func_domain);
     ICHECK(!result_virtual_device->IsFullyUnconstrained());
-    Array<VirtualDevice> param_virtual_devices;
-    param_virtual_devices.reserve(function_node->params.size());
+
+    // Map the function parameters to a new variable annotated with a virtual device so
+    // we can substitute them later.
+    Map<Var, Expr> annotated_bind_map;
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       VirtualDevice param_virtual_device =
           domains_->ResultVirtualDevice(func_domain->function_param(i));
+      Var annotated_var = WithFields(function_node->params[i], {}, {}, param_virtual_device);
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
-      param_virtual_devices.push_back(param_virtual_device);
+      annotated_bind_map.Set(function_node->params[i], annotated_var);
     }
+
+    // Eventually we probably want to bind before visiting, but for now this is causing an issue with the GetVirtualDevice
+    // utility, so leaving as is for now.
+    // Function func = Downcast<Function>(Bind(GetRef<Function>(function_node), annotated_bind_map));
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
@@ -1020,8 +1027,10 @@ class DeviceCapturer : public ExprMutator {
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
 
     Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
-    return FunctionOnDevice(func, std::move(param_virtual_devices),
-                            std::move(result_virtual_device));
+    func = Downcast<Function>(Bind(func, annotated_bind_map));
+
+    func->virtual_device_ = result_virtual_device;
+    return func;
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {

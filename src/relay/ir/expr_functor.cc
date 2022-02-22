@@ -472,7 +472,6 @@ class ExprBinder : public MixedModeMutator, PatternMutator {
   const tvm::Map<Var, Expr>& args_map_;
 };
 
-// I need to make Bind not call function on device.
 Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
@@ -498,9 +497,6 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
 
     VLOG(4) << "Expr:\n" << expr;
     VLOG(4) << "Ret:\n" << ret;
-    // For the conditional test that's failing, the parameter y that is inside
-    // the nested let is getting bound and then is no longer free? which is confusing.
-    //
 
     ICHECK_EQ(FreeVars(expr).size(), FreeVars(ret).size());
     return std::move(ret);
