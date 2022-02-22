@@ -1537,6 +1537,105 @@ def squeeze_pattern():
     return is_op("squeeze")(wildcard())
 
 
+class FullyConnectedParams:
+    """
+    This class will parse a call to an ethos-u.fully_connected composite
+    function and extract the parameter information.
+    """
+
+    composite_name = "ethosu.fully_connected"
+    activation_map = {"clip": "CLIP"}
+
+    @requires_vela
+    def __init__(self, func_body):
+        from tvm.relay.backend.contrib.ethosu.util import QDenseArgs  # type: ignore
+        from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
+        from tvm.relay.backend.contrib.ethosu.util import RequantArgs
+
+        activation = None
+        if str(func_body.op) in self.activation_map.keys():
+            activation = func_body
+            requantize_op = activation.args[0]
+        else:
+            requantize_op = func_body
+
+        bias_add = requantize_op.args[0]
+        qnn_dense = bias_add.args[0]
+        
+        # We consider the weights & biases as params as they should be constant
+        self.weights = TensorParams(
+            qnn_dense.args[QDenseArgs.weights.value],
+            "OI",
+            qnn_dense.args[QDenseArgs.weights_scale.value],
+            qnn_dense.args[QDenseArgs.weights_zero_point.value],
+        )
+        self.biases = TensorParams(
+            bias_add.args[BiasAddArgs.BIASES.value],
+            None,
+            requantize_op.args[RequantArgs.IFM_SCALE.value],
+            requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
+        )
+        self.ifm = TensorParams(
+            qnn_dense.args[QDenseArgs.ifm.value],
+            None,
+            qnn_dense.args[QDenseArgs.ifm_scale.value],
+            qnn_dense.args[QDenseArgs.ifm_zero_point.value],
+        )
+        self.ofm = TensorParams(
+            func_body,
+            None,
+            requantize_op.args[RequantArgs.OFM_SCALE.value],
+            requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
+        )
+
+        self.activation = activation
+
+    def is_valid(self):
+        """
+        Checks whether Fully Connected has compatible attributes with HW
+        """
+
+        def check_weights_fc(weights):
+            """Checks whether weight tensor is compatible with HW"""
+            weights_limit = 127 * 65536
+            # A saturation upper bound check for accumulators
+            weights.values = weights.values - weights.q_params.zero_point
+            axis = 1
+            sum_weights = np.amax(np.sum(np.absolute(weights.values), axis=axis))
+            if not sum_weights <= weights_limit:
+                return False
+            return True
+
+        if not check_valid_dtypes([self.input, self.output], supported_dtypes=[np.int8]):
+            return False
+        if not check_weights_fc(self.weights):
+            return False
+        if not check_bias(self.biases):
+            return False
+        if not check_batch_size(self.ifm):
+            return False
+        # Check input shape
+        if len(self.ifm.shape) < 2:
+            return False
+        if not np.all(np.array(self.ifm.shape[:-1]) == 1):
+            # As we reshape the ifm from
+            # [n0, n1, ... , n_m] to [n0 * n1 * ... * n_{m-1}, n_m]
+            # all except the last dims need to be 1.
+            return False
+        return True
+
+def qnn_fc_pattern():
+    dense = is_op("qnn.dense")(
+        wildcard(), is_constant(), is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    bias_add = is_op("nn.bias_add")(dense, is_constant())
+    req = is_op("qnn.requantize")(
+        dense | bias_add, is_constant(), is_constant(), is_constant(), is_constant()
+    )
+    optional_clip = req.optional(is_op("clip"))
+    return optional_clip
+
+
 @register_pattern_table("ethos-u")
 def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Callable]]:
     return [
@@ -1651,6 +1750,11 @@ def pattern_table() -> List[Tuple[str, tvm.relay.dataflow_pattern.DFPattern, Cal
             SqueezeParams.composite_name,
             squeeze_pattern(),
             lambda pat: SqueezeParams(pat).is_valid(),
+        ),
+        (
+            FullyConnectedParams.composite_name,
+            qnn_fc_pattern(),
+            lambda pat: FullyConnectedParams(pat).is_valid(),
         ),
     ]
 
