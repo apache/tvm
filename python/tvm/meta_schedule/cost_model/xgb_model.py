@@ -133,7 +133,7 @@ class PackSum:
         # Making prediction
         ys_pred = self.predict_with_score(ys_pred)
         # Propagate prediction to each block
-        ys_pred = ys_pred[self.ids]
+        ys_pred = ys_pred[self.ids]  # pylint: disable=invalid-sequence-index
         # The gradient and hessian
         ys = self.dmatrix.get_label()  # type: ignore # pylint: disable=invalid-name
         gradient = ys_pred - ys
@@ -158,7 +158,7 @@ class PackSum:
         # Making prediction
         ys_pred = self.predict_with_score(ys_pred)
         # Propagate prediction to each block
-        ys_pred = ys_pred[self.ids]
+        ys_pred = ys_pred[self.ids]  # pylint: disable=invalid-sequence-index
         # The RMSE
         ys = self.dmatrix.get_label()  # type: ignore # pylint: disable=invalid-name
         square_error = np.square(ys_pred - ys)
