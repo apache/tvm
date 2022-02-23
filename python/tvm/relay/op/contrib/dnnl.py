@@ -235,10 +235,10 @@ def get_optimal_layout_for_conv(input_size, weight_shape, out_shape, paddings, s
     )
 
 
-def get_optimal_layout_for_deconv(
+def get_optimal_layout_for_conv_transpose(
     input_size, weight_shape, out_shape, paddings, output_paddings, strides, dilates, G
 ):
-    """Get the optimal layout of dnnl, given shape of tranpose conv2d.
+    """Get the optimal layout of dnnl, given shape of tranposed conv2d.
 
     Parameters
     ----------
@@ -251,7 +251,7 @@ def get_optimal_layout_for_deconv(
     layouts : string
               The result.
     """
-    return _ffi_api.get_optimal_layout_for_deconv(
+    return _ffi_api.get_optimal_layout_for_conv_transpose(
         input_size,
         weight_shape,
         out_shape,
@@ -325,8 +325,8 @@ def legalize_group_conv(attrs, inputs, types):
     return relay.nn.conv2d(data, weight, **new_attrs)
 
 
-def legalize_group_deconv(attrs, inputs, types):
-    """Legalize group deconv's calculation.
+def legalize_group_conv_transpose(attrs, inputs, types):
+    """Legalize group conv_transpose's calculation.
     Alter weight layout from IOHW to GIOHW"""
     G = attrs.groups
     if G == 1:
@@ -370,8 +370,8 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         return relay.nn.conv3d(data, weight, **new_attrs)
 
 
-def alter_deconv(attrs, inputs, tinfos, out_type):
-    """The transpose convolution's layout auto-query func for dnnl."""
+def alter_conv_transpose(attrs, inputs, tinfos, out_type):
+    """The transposed convolution's layout auto-query func for dnnl."""
 
     data, weight = inputs
     weight_shape = ",".join([str(x) for x in get_shape(weight)])
@@ -384,7 +384,7 @@ def alter_deconv(attrs, inputs, tinfos, out_type):
     new_attrs = dict(attrs)
     conv_type = len(get_shape(out_type)) - 2
 
-    res = get_optimal_layout_for_deconv(
+    res = get_optimal_layout_for_conv_transpose(
         len(get_shape(out_type)),
         weight_shape,
         out_shape,
@@ -429,7 +429,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
     from tvm.relay.testing.temp_op_attr import TempOpAttr
 
     with TempOpAttr("nn.conv2d", "FTVMLegalize", legalize_group_conv):
-        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", legalize_group_deconv):
+        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", legalize_group_conv_transpose):
             seq = tvm.transform.Sequential(
                 [
                     transform.CanonicalizeOps(),
@@ -440,7 +440,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
                     # fold consecutive add ops to simplify pattern `conv2d-bias_add-bn-relu`
                     transform.SimplifyExpr(),
                     transform.FoldConstant(),
-                    # alter group conv /deconv layout to `GOIHW` / `GIOHW`
+                    # alter group conv /conv_transpose layout to `GOIHW` / `GIOHW`
                     transform.Legalize(),
                     transform.FoldConstant(),
                 ]
@@ -453,8 +453,12 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
         with TempOpAttr("nn.conv1d", "FTVMAlterOpLayout", alter_conv):
             with TempOpAttr("nn.conv2d", "FTVMAlterOpLayout", alter_conv):
                 with TempOpAttr("nn.conv3d", "FTVMAlterOpLayout", alter_conv):
-                    with TempOpAttr("nn.conv2d_transpose", "FTVMAlterOpLayout", alter_deconv):
-                        with TempOpAttr("nn.conv3d_transpose", "FTVMAlterOpLayout", alter_deconv):
+                    with TempOpAttr(
+                        "nn.conv2d_transpose", "FTVMAlterOpLayout", alter_conv_transpose
+                    ):
+                        with TempOpAttr(
+                            "nn.conv3d_transpose", "FTVMAlterOpLayout", alter_conv_transpose
+                        ):
                             alter_layout_seq = tvm.transform.Sequential(
                                 [
                                     transform.AlterOpLayout(),

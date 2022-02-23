@@ -238,10 +238,10 @@ std::string get_optimal_layout_for_conv(int input_size, std::string weight_shape
   return res;
 }
 
-std::string get_optimal_layout_for_deconv(int input_size, std::string weight_shape,
-                                          std::string out_shape, std::string paddings,
-                                          std::string output_paddings, std::string strides,
-                                          std::string dilates, std::string G) {
+std::string get_optimal_layout_for_conv_transpose(int input_size, std::string weight_shape,
+                                                  std::string out_shape, std::string paddings,
+                                                  std::string output_paddings, std::string strides,
+                                                  std::string dilates, std::string G) {
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
@@ -329,10 +329,10 @@ TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv")
                                         args[6]);
     });
 
-TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_deconv")
+TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv_transpose")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      *rv = get_optimal_layout_for_deconv(args[0], args[1], args[2], args[3], args[4], args[5],
-                                          args[6], args[7]);
+      *rv = get_optimal_layout_for_conv_transpose(args[0], args[1], args[2], args[3], args[4],
+                                                  args[5], args[6], args[7]);
     });
 
 }  // namespace contrib
