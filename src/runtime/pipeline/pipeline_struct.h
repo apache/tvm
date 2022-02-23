@@ -125,7 +125,7 @@ class DataNotify {
     std::unique_lock<std::mutex> lock(mutex_);
     notify_cv_.wait(lock, [&] { return this->data_ready_; });
     data_ready_ = false;
-    return !exit_state_;
+    return !GetExitState();
   }
   /*!brief Sending the notification in which the related data is ready.*/
   void Notify(void) {
