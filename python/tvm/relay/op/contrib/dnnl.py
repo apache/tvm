@@ -361,8 +361,6 @@ def alter_conv(attrs, inputs, tinfos, out_type):
         weight_df, is_weight=True, conv_type=conv_type
     )
     new_attrs["out_layout"] = validate_layout_for_tvm(dst_df, is_weight=False, conv_type=conv_type)
-    if new_attrs["kernel_layout"] == "HWOIG16g":
-        new_attrs["kernel_layout"] = "HWIOG16g"
 
     if conv_type == 1:
         return relay.nn.conv1d(data, weight, **new_attrs)
