@@ -215,7 +215,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // warp memory to local memory.
   Stmt Rewrite(const AllocateNode* op) {
     buffer_ = op->buffer_var.get();
-    int alloc_size = op->constant_allocation_size();
+    int alloc_size = op->ConstantAllocationSize();
     ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);

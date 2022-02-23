@@ -52,6 +52,7 @@ ci_wasm = "tlcpack/ci-wasm:v0.71"
 ci_i386 = "tlcpack/ci-i386:v0.74"
 ci_qemu = "tlcpack/ci-qemu:v0.10"
 ci_arm = "tlcpack/ci-arm:v0.07"
+ci_hexagon = "tlcpack/ci-hexagon:v0.01"
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -380,6 +381,34 @@ stage('Build') {
       }
      } else {
       Utils.markStageSkippedForConditional('BUILD: QEMU')
+    }
+  },
+  'BUILD: Hexagon': {
+    if (!skip_ci && is_docs_only_build != 1) {
+      node('CPU') {
+        ws(per_exec_ws('tvm/build-hexagon')) {
+          init_git()
+          sh (
+            script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh",
+            label: 'Create Hexagon cmake config',
+          )
+          try {
+            make(ci_hexagon, 'build', '-j2')
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
+              label: 'Build Hexagon API',
+            )
+            sh (
+              script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
+              label: 'Run Hexagon tests',
+            )
+          } finally {
+            junit 'build/pytest-results/*.xml'
+          }
+        }
+      }
+     } else {
+      Utils.markStageSkippedForConditional('BUILD: Hexagon')
     }
   }
 }

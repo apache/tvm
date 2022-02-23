@@ -922,7 +922,7 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_batch_matmul(topi.cuda.batch_matmul_cublas),
             wrap_topi_schedule(topi.generic.schedule_extern),
             name="batch_matmul_cublas.cuda",
-            plevel=15,
+            plevel=30,
         )
     if (
         target.kind.name == "cuda"

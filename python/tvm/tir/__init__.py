@@ -28,7 +28,16 @@ from .expr import Select, BufferLoad, ProducerLoad, Load, Ramp, Broadcast, Shuff
 from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
-from .stmt import BufferStore, BufferRealize, Store, ProducerStore, Allocate, AttrStmt
+from .stmt import (
+    BufferStore,
+    BufferRealize,
+    Store,
+    ProducerStore,
+    Allocate,
+    AllocateConst,
+    AttrStmt,
+)
+
 from .stmt import ProducerRealize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize

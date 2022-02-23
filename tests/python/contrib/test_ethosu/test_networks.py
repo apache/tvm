@@ -71,7 +71,7 @@ def test_forward_mobilenet_v1(accel_type, enable_usmp):
     compiled_models = infra.build_source(
         mod, input_data, output_data, accel_type, output_tolerance=10, enable_usmp=enable_usmp
     )
-    infra.verify_source(compiled_models, accel_type)
+    infra.verify_source(compiled_models, accel_type, enable_usmp=enable_usmp)
 
 
 if __name__ == "__main__":

@@ -375,6 +375,28 @@ def var(name="tindex", dtype="int32", span=None):
     return tvm.tir.Var(name, dtype, span)
 
 
+def const(dtype="int32", span=None):
+    """Create a new constant with specified name and dtype
+
+    Parameters
+    ----------
+    name : str
+        The name
+
+    dtype : str
+        The data type
+
+    span : Optional[Span]
+        The location of this variable in the source.
+
+    Returns
+    -------
+    var : Var
+        The result symbolic variable.
+    """
+    return tvm.tir.const(dtype, span)
+
+
 def size_var(name="size", dtype="int32", span=None):
     """Create a new variable represents a tensor shape size, which is non-negative.
 

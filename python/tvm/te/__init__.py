@@ -31,7 +31,7 @@ from .schedule import Schedule, Stage, create_schedule, SpecializedCondition
 from .tensor import TensorSlice, Tensor
 from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
-from .operation import placeholder, compute, scan, extern, var, size_var
+from .operation import placeholder, compute, scan, extern, var, size_var, const
 from .operation import thread_axis, reduce_axis
 from .operation import create_prim_func, create_prim_func_from_outputs
 

@@ -93,7 +93,7 @@ def device_api_main_func():
             pass_config=test_runner.pass_config,
         )
         main_ir_module = compiled_models[0].executor_factory.lowered_ir_mods.items()[0][1]
-        main_func = main_ir_module["run_model"]
+        main_func = main_ir_module["__tvm_main__"]
         return main_func
 
     return compile_to_main_func
@@ -124,7 +124,7 @@ def non_device_api_main_func():
             pass_config=test_runner.pass_config,
         )
         main_ir_module = list(compiled_models[0].executor_factory.lowered_ir_mods.values())[0]
-        main_func = main_ir_module["run_model"]
+        main_func = main_ir_module["__tvm_main__"]
         return main_func
 
     return compile_to_main_func

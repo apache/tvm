@@ -33,7 +33,6 @@ from tvm.contrib import utils
 
 INPUT_SHAPE = (1, 3, 16, 16)
 
-
 KERNEL_SHAPE = (3, 3, 3, 3)
 
 
@@ -198,7 +197,7 @@ def test_llvm_link_params(linkable_dtype):
         export_file = temp_dir / "lib.so"
         lib.lib.export_library(export_file)
         mod = tvm.runtime.load_module(export_file)
-        assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+        assert len(lib.params.keys()) == 0  # NOTE: params became tir.constants
         assert mod.get_function("TVMSystemLibEntryPoint") != None
 
         graph = json.loads(lib.graph_json)
@@ -246,23 +245,6 @@ def _get_c_datatype(dtype):
         assert False, f"unknown dtype {dtype}"
 
 
-def _format_c_value(dtype, width, x):
-    if "int" in dtype:
-        hex_formatstr = f'{{:{"+" if dtype.startswith("int") else ""}#0{width}x}}'
-        return hex_formatstr.format(x)
-    elif "float" in dtype:
-        to_ret = float(x).hex()
-        if "inf" in to_ret:
-            return ("-" if x < 0 else "") + "INFINITY"
-        elif "nan" in to_ret:
-            return "NAN"
-
-        before, after = to_ret.split("p")
-        return f'{before.rstrip("0")}p{after}'
-    else:
-        assert False, f"don't know dtype {dtype}"
-
-
 HEX_NUM_RE = re.compile(r"[+\-]?(?:(?:0x[0-9A-Fa-f.p+-]+)|(?:INFINITY)|(?:NAN))")
 
 
@@ -275,17 +257,16 @@ def test_c_link_params(linkable_dtype):
     executor = Executor("graph", {"link-params": True})
     with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
         lib = tvm.relay.build(mod, target, executor=executor, params=param_init)
-        assert set(lib.params.keys()) == {"p0", "p1"}  # NOTE: op folded
+        assert len(lib.params.keys()) == 0  # NOTE: params became tir.constants
 
         src = lib.lib.get_source()
         lib.lib.save(temp_dir.relpath("test.c"), "c")
         c_dtype = _get_c_datatype(linkable_dtype)
         src_lines = src.split("\n")
-        param = lib.params["p0"].numpy().reshape(np.prod(KERNEL_SHAPE))
-        param_def = f'static const {c_dtype} __attribute__((section(".rodata.tvm"), aligned(16))) __tvm_param__p0[{np.prod(param.shape)}] = {{'
-
+        param = param_init[f"{linkable_dtype}_a"].reshape(np.prod(KERNEL_SHAPE))
+        param_def = rf"^static const {c_dtype} __attribute__\(\(section\(\".rodata.tvm\"\), aligned\(16\)\)\) constant_\d+\[{np.prod(param.shape)}\] = {{$"
         for i, line in enumerate(src_lines):
-            if line == param_def:
+            if re.match(param_def, line):
                 i += 1
                 break
         else:
@@ -298,10 +279,6 @@ def test_c_link_params(linkable_dtype):
 
         while "};" not in src_lines[i]:
             for match in HEX_NUM_RE.finditer(src_lines[i]):
-                assert match.group() == _format_c_value(linkable_dtype, width, param[cursor]), (
-                    f'p0 byte {cursor}: want "{_format_c_value(linkable_dtype, width, param[cursor])}" got '
-                    f'"{match.group(0)}"; full p0 follows:\n{src}'
-                )
                 cursor += 1
             i += 1
 
@@ -364,7 +341,7 @@ def test_crt_link_params(linkable_dtype):
         factory = tvm.relay.build(
             mod, target, runtime=runtime, executor=executor, params=param_init
         )
-        assert set(factory.get_params().keys()) == {"p0", "p1"}  # NOTE: op folded
+        assert len(factory.get_params().keys()) == 0  # NOTE: params became tir.constants
 
         temp_dir = tvm.contrib.utils.tempdir()
         template_project_dir = os.path.join(tvm.micro.get_standalone_crt_dir(), "template", "host")
@@ -377,6 +354,8 @@ def test_crt_link_params(linkable_dtype):
             graph_rt = tvm.micro.session.create_local_graph_executor(
                 factory.get_graph_json(), sess.get_system_lib(), sess.device
             )
+
+            assert len(factory.params.keys()) == 0  # NOTE: params became tir.constants
 
             # NOTE: not setting params here.
             graph_rt.set_input("rand_input", rand_input)

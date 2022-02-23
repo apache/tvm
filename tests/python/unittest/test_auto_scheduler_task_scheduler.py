@@ -101,7 +101,7 @@ def test_task_scheduler_gradient():
         )
 
     def objective_func(costs):
-        return costs[0]
+        return 1e5 * costs[0]
 
     with tempfile.NamedTemporaryFile() as fp:
         log_file = fp.name

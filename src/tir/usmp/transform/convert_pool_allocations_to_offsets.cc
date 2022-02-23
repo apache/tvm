@@ -331,7 +331,7 @@ PrimExpr PoolAllocationToOffsetConverter::VisitExpr_(const LoadNode* op) {
 }
 
 IRModule PoolAllocationToOffsetConverter::operator()() {
-  GlobalVar gv = module_->GetGlobalVar(::tvm::runtime::symbol::tvm_run_func_suffix);
+  GlobalVar gv = module_->GetGlobalVar(::tvm::runtime::symbol::tvm_module_main);
   PrimFunc main_func = Downcast<PrimFunc>(module_->Lookup(gv));
   ScopeInfo si = UpdateFunctionScopeInfo(main_func);
   this->scope_stack.push(si);
