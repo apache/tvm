@@ -265,21 +265,29 @@ def emit_data_linkage(output_file, data_linkage):
 
 
 def emit_main_prologue(
-    main_file, custom_prologue, workspace_bytes, data_linkage, compiled_models, interface_api
+    main_file,
+    custom_prologue,
+    workspace_bytes,
+    data_linkage,
+    compiled_models,
+    interface_api,
+    use_stack_allocator=True,
 ):
-    # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
-    workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
-    if interface_api == "c":
-        for compiled_model in compiled_models:
-            model = compiled_model.model
-            workspace_define += f" + TVMGEN_{model.name.upper()}_WORKSPACE_SIZE"
-    workspace_define += " + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
-    main_file.write(workspace_define)
-    emit_data_linkage(main_file, data_linkage)
-    main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
-    main_file.write("tvm_workspace_t app_workspace;\n")
-    main_file.write(
-        """
+    if use_stack_allocator:
+        workspace_define = f"#define WORKSPACE_SIZE ({workspace_bytes}"
+        if interface_api == "c":
+            for compiled_model in compiled_models:
+                model = compiled_model.model
+                workspace_define += f" + TVMGEN_{model.name.upper()}_WORKSPACE_SIZE"
+        # Add TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES because of memory alignment.
+        workspace_define += " + TVM_RUNTIME_ALLOC_ALIGNMENT_BYTES)\n"
+        main_file.write(workspace_define)
+        emit_data_linkage(main_file, data_linkage)
+        main_file.write("static uint8_t g_aot_memory[WORKSPACE_SIZE];\n")
+        main_file.write("tvm_workspace_t app_workspace;\n")
+        main_file.write(
+            """
+            
 tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
     return StackMemoryManager_Allocate(&app_workspace, num_bytes, out_ptr);
 }
@@ -287,7 +295,26 @@ tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void**
 tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
     return StackMemoryManager_Free(&app_workspace,ptr);
 }
+        """
+        )
+    else:
+        # An implementation is not needed for these if the stack allocator is not used
+        main_file.write(
+            """
+            
+tvm_crt_error_t TVMPlatformMemoryAllocate(size_t num_bytes, DLDevice dev, void** out_ptr) {
+    return kTvmErrorFunctionCallNotImplemented;
+}
 
+tvm_crt_error_t TVMPlatformMemoryFree(void* ptr, DLDevice dev) {
+    return kTvmErrorFunctionCallNotImplemented;
+}
+
+            """
+        )
+    main_file.write(
+        """
+    
 void TVMPlatformAbort(tvm_crt_error_t code) { exit(-1); }
 
 void TVMLogf(const char* msg, ...) {
@@ -296,10 +323,10 @@ void TVMLogf(const char* msg, ...) {
   vfprintf(stdout, msg, args);
   va_end(args);
 }
-
+    
 TVM_DLL int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {}
 int main(){\n
-"""
+    """
     )
     main_file.write(custom_prologue)
 
@@ -511,6 +538,7 @@ def create_main(
     data_linkage,
     interface_api,
     workspace_bytes,
+    use_stack_allocator=True,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
@@ -533,8 +561,10 @@ def create_main(
             data_linkage,
             compiled_models,
             interface_api,
+            use_stack_allocator,
         )
-        emit_main_init_memory_manager(main_file)
+        if use_stack_allocator:
+            emit_main_init_memory_manager(main_file)
 
         if interface_api == "c":
             for compiled_model in compiled_models:
@@ -709,11 +739,14 @@ def run_and_check(
         t = tarfile.open(tar_file)
         t.extractall(base_path)
 
-        workspace_bytes = model.extra_memory_in_bytes
-        use_usmp = runner.pass_config.get("tir.usmp.enable", False)
-        if interface_api == "packed" and not use_usmp:
+        # Interface C APIs does not need compiler generated
+        # workspace to generate the test application, because
+        # workspace size is codegen'd as a macro to
+        # tvmgen_<model_name>.h.
+        if interface_api != "c":
             workspace_bytes += mlf_extract_workspace_size_bytes(tar_file)
 
+        workspace_bytes += model.extra_memory_in_bytes
         for key in model.inputs:
             sanitized_tensor_name = re.sub(r"\W", "_", key)
             create_header_file(
@@ -738,6 +771,10 @@ def run_and_check(
                 data_linkage,
             )
 
+    use_usmp = runner.pass_config.get("tir.usmp.enable", False)
+    # We only need the stack allocator if USMP is not used
+    use_stack_allocator = not use_usmp
+
     create_main(
         "test.c",
         models,
@@ -748,6 +785,7 @@ def run_and_check(
         data_linkage,
         interface_api,
         workspace_bytes,
+        use_stack_allocator,
     )
 
     # Verify that compiles fine
@@ -868,3 +906,22 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         output_tensor_names = main.attrs["output_tensor_names"]
 
     return dict(zip(output_tensor_names, out))
+
+
+def create_relay_module_and_inputs_from_tflite_file(tflite_model_file):
+    """A helper function to create a Relay IRModule with inputs
+    and params from a tflite file"""
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    mod, params = convert_to_relay(tflite_model_buf)
+
+    inputs = dict()
+    for param in mod["main"].params:
+        name = str(param.name_hint)
+        data_shape = [int(i) for i in param.type_annotation.shape]
+        dtype = str(param.type_annotation.dtype)
+        in_min, in_max = (np.iinfo(dtype).min, np.iinfo(dtype).max)
+        data = np.random.randint(in_min, high=in_max, size=data_shape, dtype=dtype)
+        inputs[name] = data
+
+    return mod, inputs, params

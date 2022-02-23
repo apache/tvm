@@ -28,6 +28,7 @@ from tvm.relay import testing, transform
 from tvm.relay.testing import byoc
 from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.backend import Executor, Runtime
+from tvm.micro import model_library_format as mlf
 from aot_test_utils import (
     AOTTestModel,
     AOT_DEFAULT_RUNNER,
@@ -36,6 +37,7 @@ from aot_test_utils import (
     compile_and_run,
     compile_models,
     parametrize_aot_options,
+    create_relay_module_and_inputs_from_tflite_file,
 )
 
 
@@ -541,13 +543,7 @@ def test_quant_mobilenet_tfl():
         "models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz",
         "mobilenet_v1_1.0_224_quant.tflite",
     )
-    with open(tflite_model_file, "rb") as f:
-        tflite_model_buf = f.read()
-    data_shape = (1, 224, 224, 3)
-    in_min, in_max = (0, 255)
-    data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
-    mod, params = convert_to_relay(tflite_model_buf)
-    inputs = {"input": data}
+    mod, inputs, params = create_relay_module_and_inputs_from_tflite_file(tflite_model_file)
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
@@ -841,6 +837,76 @@ def test_output_tensor_names():
     source = compiled_test_mods[0].executor_factory.lib.get_source()
     for output_name in output_list.keys():
         assert output_name in source
+
+
+@pytest.mark.parametrize(
+    "workspace_byte_alignment,main_workspace_size",
+    [
+        (8, 14880),
+        (16, 14880),
+        (256, 15616),
+    ],
+)
+def test_workspace_calculation(workspace_byte_alignment, main_workspace_size):
+    mod, params = tvm.relay.testing.synthetic.get_workload()
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": workspace_byte_alignment,
+        },
+    )
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+        },
+    ):
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+
+    mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == main_workspace_size
+
+
+@tvm.testing.requires_package("tflite")
+@tvm.testing.requires_cmsisnn
+def test_workspace_calculation_cmsis_nn():
+    """This tests cmsis_nn codegen for workspace calculation.
+    This is tested specially because cmsis-nn codegen creates
+    multiple PrimFuncs per offloaded relay function in a non
+    -hierarchical manner."""
+    pytest.importorskip("tflite")
+
+    from tvm.relay.op.contrib import cmsisnn
+    from tvm.contrib.download import download_testdata
+
+    target = "c"
+    runtime = Runtime("crt")
+    executor = Executor(
+        "aot",
+        {
+            "workspace-byte-alignment": 16,
+            "interface-api": "c",
+            "unpacked-api": True,
+        },
+    )
+
+    base_url = "https://github.com/ARM-software/ML-zoo/raw/48a22ee22325d15d2371a6df24eb7d67e21dcc97/models/keyword_spotting/cnn_small/tflite_int8"
+    file_to_download = "cnn_s_quantized.tflite"
+    file_saved = "cnn_s_quantized_15Dec2021.tflite"
+    model_file = download_testdata("{}/{}".format(base_url, file_to_download), file_saved)
+    mod, _, params = create_relay_module_and_inputs_from_tflite_file(model_file)
+    mod = cmsisnn.partition_for_cmsisnn(mod, params)
+    with tvm.transform.PassContext(
+        opt_level=3,
+        config={
+            "tir.disable_vectorize": True,
+        },
+    ):
+        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
+    mlf_memory_map = mlf._build_function_memory_map(lib.function_metadata)
+    assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 9904
 
 
 if __name__ == "__main__":

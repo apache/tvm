@@ -86,7 +86,7 @@ tvm_crt_error_t TVMPlatformGenerateRandom(uint8_t* buffer, size_t num_bytes) {
 void TVMInitialize() { StackMemoryManager_Init(&app_workspace, g_aot_memory, WORKSPACE_SIZE); }
 
 void TVMExecute(void* input_data, void* output_data) {
-  int ret_val = tvmgen_default_run_model(input_data, output_data);
+  int ret_val = tvmgen_default___tvm_main__(input_data, output_data);
   if (ret_val != 0) {
     TVMPlatformAbort(kTvmErrorPlatformCheckFailure);
   }
