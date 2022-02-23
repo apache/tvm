@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import te
 from tvm.relay.backend import Runtime
 from tvm.contrib import utils, clang
+from tvm.target.codegen import llvm_lookup_intrinsic_id, llvm_get_intrinsic_name
 import tvm.script.tir as T
 import numpy as np
 
@@ -55,6 +56,14 @@ def test_llvm_void_intrin():
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
     fcode = tvm.build(mod, None, "llvm")
+
+
+@tvm.testing.requires_llvm
+def test_llvm_intrinsic_id():
+    orig_name = "llvm.x86.sse2.pmadd.wd"
+    intrin_id = llvm_lookup_intrinsic_id(orig_name)
+    name = llvm_get_intrinsic_name(intrin_id)
+    assert orig_name == name
 
 
 @tvm.testing.requires_llvm

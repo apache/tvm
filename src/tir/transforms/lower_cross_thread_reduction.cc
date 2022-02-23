@@ -582,10 +582,12 @@ class CrossThreadReductionTransformer : public StmtMutator {
     PrimExpr combiner_rhs{nullptr};
     std::tie(n_bound_reduction_loops, reducer, combiner_rhs) =
         CheckCanApplyCrossThreadReduction(block, reduction_loops);
-    // Step 3. When not all the reduction-related loops are bound to thread axes, in-thread
-    // reduction is needed in this cross-thread reduction.
+    // Step 3. Before doing the cross-thread reduction, in-thread reduction is needed when
+    //  - not all the reduction-related loops are bound to thread axes, or
+    //  - the block-realize has a non-constant-true predicate.
     bool need_in_thread_reduction =
-        n_bound_reduction_loops < static_cast<int>(reduction_loops.size());
+        n_bound_reduction_loops < static_cast<int>(reduction_loops.size()) ||
+        !is_one(realize->predicate);
     // Step 4. Create intermediate buffers, storing them in `ct_buffer` and
     // `it_buffer`. Let the scope block allocate these new buffers.
     std::vector<Buffer>& new_buffers = block2new_buffers_[block_stack_.back()];

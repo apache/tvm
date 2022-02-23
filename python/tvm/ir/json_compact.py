@@ -86,6 +86,7 @@ def create_updater_08_to_09():
         "relay.RefRead": _initialize_virtual_device,
         "relay.RefWrite": _initialize_virtual_device,
         "relay.Match": _initialize_virtual_device,
+        "relay.Constant": _initialize_virtual_device,
     }
 
     return create_updater(node_map, "0.8", "0.9")

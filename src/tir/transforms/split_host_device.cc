@@ -106,6 +106,11 @@ class VarUseDefAnalysis : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    this->HandleDef(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const StoreNode* op) final {
     this->HandleUse(op->buffer_var);
     return StmtExprMutator::VisitStmt_(op);

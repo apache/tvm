@@ -22,6 +22,8 @@ import tvm
 from tvm import tir
 from tvm.script import tir as T
 
+import numpy as np
+
 
 @tvm.script.ir_module
 class Module1:
@@ -2918,6 +2920,76 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
+@tvm.script.ir_module
+class Module4:
+    # There is an ongoing (python)dict->(c++)Map->(python)dict issue which potentially
+    # changes order of the items in dict after roundtrip due to map not support order
+    # of insertion while dict does. Hence func 'def A(a: T.handle, c: T.handle) -> None'
+    # is commented
+    #
+    #  test:
+    #  d = {"B": 1, "A": 2}
+    #  m = tvm.runtime.convert(d)
+    #  assert d.keys() == m.keys(), f"Order changed from {list(d.keys())} to {list(m.keys())}"
+
+    """
+    @T.prim_func
+    def A(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (10), "int32")
+        C = T.match_buffer(c, (10), "int32")
+        B = T.alloc_buffer((10), "int32")
+
+        K1 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        for x in T.serial(0, 10):
+            B[x] = A[x] + T.load("int32", K1, x)
+
+        for x in T.serial(0, 10):
+            C[x] = B[x]
+    """
+
+    @T.prim_func
+    def B(a: T.handle, c: T.handle) -> None:
+        A = T.match_buffer(a, (10), "int32")
+        C = T.match_buffer(c, (10), "int32")
+        B = T.alloc_buffer((10), "int32")
+
+        K1 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        for x in T.serial(0, 10):
+            B[x] = A[x] + T.load("int32", K1, x)
+
+        K2 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+        for x in T.serial(0, 10):
+            B[x] = B[x] + T.load("int32", K2, x)
+
+        for x in T.serial(0, 10):
+            C[x] = B[x]
+
+
+def test_module_const():
+    func = Module4
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
+@T.prim_func
+def constant(a: T.handle, c: T.handle) -> None:
+    A = T.match_buffer(a, (10), "int32")
+    C = T.match_buffer(c, (10), "int32")
+    B = T.alloc_buffer((10), "int32")
+    K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
+    for x in T.serial(0, 10):
+        B[x] = A[x] + T.load("int32", K, x)
+
+    for x in T.serial(0, 10):
+        C[x] = B[x]
+
+
+def test_const():
+    func = constant
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func)
+
+
 @T.prim_func
 def rank0(a: T.handle) -> None:
     A = T.match_buffer(a, (), "float32")
@@ -3251,6 +3323,53 @@ def func_root_attr():
 
 def test_root_attr():
     func = func_root_attr
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_T_ptr_let_statement(
+    args: T.handle, arg_type_ids_handle: T.Ptr[T.int32], num_args: T.int32
+) -> None:
+    # The T.Ptr declaration in the parameter list should parse
+    # correctly, and should be usable as the data pointer in a buffer.
+    arg_type_ids = T.buffer_decl([2], dtype="int32", data=arg_type_ids_handle)
+
+    arg0: T.handle = T.tvm_struct_get(args, 0, 12, dtype="handle")
+    arg1: T.handle = T.tvm_struct_get(args, 1, 12, dtype="handle")
+
+    # Functions that return a "handle" can be assigned to a T.Ptr
+    # variable.  A variable annotated with T.Ptr still has dtype of
+    # T.handle, but has type annotation as a pointer type.
+    A_data: T.Ptr[T.float32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
+
+    # The buffer declaration has a data pointer defined earlier in
+    # this function.  It should only be defined after the data pointer
+    # has been defined, and should not be hoisted into the header of
+    # the function as other buffer_decl statements can be.
+    A = T.buffer_decl([1024], dtype="float32", data=A_data)
+    B_data: T.Ptr[T.float32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
+    B = T.buffer_decl([1024], dtype="float32", data=B_data)
+
+    B[0] = A[0]
+
+
+def test_T_ptr_let_statement():
+    func = func_T_ptr_let_statement
+    rt_func = tvm.script.from_source(func.script(show_meta=True))
+    tvm.ir.assert_structural_equal(func, rt_func, True)
+
+
+@T.prim_func
+def func_T_ptr_allocate() -> None:
+    A_data: T.Ptr[T.float32] = T.allocate([1024], "float32", "global")
+    A = T.buffer_decl([1024], dtype="float32", data=A_data)
+
+    A[0] = 0.0
+
+
+def test_T_ptr_allocate():
+    func = func_T_ptr_allocate
     rt_func = tvm.script.from_source(func.script(show_meta=True))
     tvm.ir.assert_structural_equal(func, rt_func, True)
 

@@ -235,12 +235,14 @@ BufferRegion RelaxBufferRegion(ScheduleState self, const BufferRegion& buffer_re
   BlockRealize realize = GetBlockRealize(self, block_sref);
   Map<Var, PrimExpr> binding = GetBindings(realize);
   const Buffer& buffer = buffer_region->buffer;
-  Array<arith::IntSet> int_sets =
-      arith::EvalSet(Substitute(buffer_region->region, binding),
-                     AsIntSet(LoopDomainOfSRefTreePath(
-                         /*low_inclusive=*/dom_low_inclusive,
-                         /*high_exclusive=*/dom_high_exclusive,
-                         /*extra_relax_scope=*/runtime::StorageScope::Create(buffer.scope()))));
+  arith::Analyzer analyzer;
+  BufferRegion subst_region = BufferRegion(buffer, Substitute(buffer_region->region, binding));
+  Array<arith::IntSet> int_sets = AnalyzeRegionUpperBound(
+      /*region=*/subst_region,
+      /*predicate=*/realize->predicate,
+      /*dom_low_inclusive=*/dom_low_inclusive,
+      /*dom_high_exclusive=*/dom_high_exclusive,
+      /*analyzer=*/&analyzer);
   ICHECK_EQ(buffer_region->region.size(), int_sets.size());
 
   Region region;
@@ -631,11 +633,10 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer read_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), read_buffer_index, /*is_write=*/false);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true,
-                                     /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_block, scope_sref);
 
-  // Step 2. Creat CacheStageInfo
+  // Step 2. Create CacheStageInfo
   CacheStageInfo info;
   info.read_buffer = read_buffer;
   // Create the corresponding buffer to be written, i.e. result of cache_read
@@ -703,8 +704,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
   Buffer write_buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), write_buffer_index, /*is_write=*/true);
-  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true,
-                                     /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
   // Step 2. Creating CacheStageInfo
   CacheStageInfo info;

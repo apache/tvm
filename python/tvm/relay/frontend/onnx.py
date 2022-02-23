@@ -38,9 +38,9 @@ from .. import random as _random
 from .. import ty as _ty
 from .. import vision as _vision
 from .common import (
-    autopad,
     AttrCvt,
     Renamer,
+    autopad,
     ensure_scalar_shape,
     fold_constant,
     get_name,
@@ -238,18 +238,6 @@ def matmul_out_dtype(inputs, out_dtype):
             out = _op.reshape(x, fold_constant(newshape))
             return out
 
-        b_type = infer_type(inputs[1])
-        # Convert to dense if the second matrix is 2d and non-dynamic
-        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
-            a = flatten_to_nd(inputs[0], a_shape, 2)
-            b = _op.transpose(inputs[1])
-            output = _op.nn.dense(a, b, out_dtype=out_dtype)
-        else:
-            # Convert a and b into 3 dimensional tensors.
-            a = flatten_to_nd(inputs[0], a_shape, 3)
-            b = flatten_to_nd(inputs[1], b_shape, 3)
-            # Perform a NN batch matmul.
-            output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
         # Determine the output batch dimension.
         if a_rank > b_rank:
             out_batch = _op.strided_slice(a_shape, [0], [a_rank - 2])
@@ -268,6 +256,50 @@ def matmul_out_dtype(inputs, out_dtype):
                 ],
                 0,
             )
+
+        b_type = infer_type(inputs[1])
+        # Convert to dense if the second matrix is 2d and non-dynamic
+        if b_rank == 2 and not _ty.is_dynamic(b_type.checked_type):
+            a = flatten_to_nd(inputs[0], a_shape, 2)
+            b = _op.transpose(inputs[1])
+            output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        else:
+            a = inputs[0]
+            b = inputs[1]
+            # broadcast a and b
+            a_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
+                    ],
+                    0,
+                )
+            )
+            b_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
+                    ],
+                    0,
+                )
+            )
+            if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
+                a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(b_shape, b_broadcasted_shape):
+                b = _op.transform.broadcast_to(b, b_broadcasted_shape)
+            # Convert a and b into 3 dimensional tensors.
+            a = flatten_to_nd(a, shape_of(a), 3)
+            b = flatten_to_nd(b, shape_of(b), 3)
+            if ONNX_DEFAULT_CONFIGS["use_nt_batch_matmul"]:
+                # Transpose matrix dimensions of b.
+                bt = _op.transpose(b, [0, 2, 1])
+                # Perform a NT batch matmul.
+                output = _op.nn.batch_matmul(a, bt, out_dtype=out_dtype)
+            else:
+                # Perform a NN batch matmul.
+                output = _op.nn.batch_matmul(a, b, out_dtype=out_dtype, transpose_b=False)
         # Reshape output to original dimensions.
         final_shape = _op.concatenate(
             [
@@ -551,13 +583,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
@@ -606,13 +638,13 @@ class ConvTranspose(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
         # get number of channels
         out_type = infer_type(inputs[1])
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-        channels = out_shapes[0][1]
-        attr["channels"] = channels
+        kernel_shape = [get_const_tuple(out_type.checked_type.shape)]
+        out_channels = kernel_shape[0][1] * attr.get("group", 1)
+        attr["channels"] = out_channels
         groups = attr.get("group", 1)
 
         if "kernel_shape" not in attr:
-            attr["kernel_shape"] = out_shapes[0][2:]
+            attr["kernel_shape"] = kernel_shape[0][2:]
 
         attr["groups"] = groups
         # infer pads for auto_pad
@@ -1739,7 +1771,7 @@ class LRN(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         """LRN support only NCHW format
-        https://github.com/onnx/onnx/blob/master/docs/Operators.md#LRN
+        https://github.com/onnx/onnx/blob/main/docs/Operators.md#LRN
         """
         axis = 1
         alpha = attr.get("alpha", 0.0001)
@@ -2182,28 +2214,7 @@ class Where(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, inputs, attr, params):
-        condition_rank = len(infer_shape(inputs[0]))
-        x_rank = len(infer_shape(inputs[1]))
-        y_rank = len(infer_shape(inputs[2]))
-        ranks = [condition_rank, x_rank, y_rank]
-
-        # If one rank is longer than others, then we can broadcast
-        # to that shape.
-        max_rank = max(ranks)
-        max_rank_idxs = [i for i, x in enumerate(ranks) if x == max_rank]
-        broadcast_shape = shape_of(inputs[max_rank_idxs[0]])
-        # If two or more inputs have the same rank, compute the broadcast
-        # shape by taking the maximum value of each dimensions.
-        if len(max_rank_idxs) > 1:
-            for idx in max_rank_idxs:
-                broadcast_shape = _op.maximum(broadcast_shape, shape_of(inputs[idx]))
-
-        broadcast_shape = fold_constant(broadcast_shape)
-
-        condition = _op.broadcast_to(inputs[0], broadcast_shape)
-        x = _op.broadcast_to(inputs[1], broadcast_shape)
-        y = _op.broadcast_to(inputs[2], broadcast_shape)
-        return _op.where(condition, x, y)
+        return _op.where(*inputs)
 
 
 class Or(Elemwise):
@@ -2228,7 +2239,7 @@ class Expand(OnnxOpConverter):
         # However, ONNX Expand supports multi-directional broadcasting, which allows
         # above pattern and also some extent of 'shape' can be smaller than the corresponding
         # extent of 'input'. In this case, the extent of 'shape' must be 1.
-        # https://github.com/onnx/onnx/blob/master/docs/Broadcasting.md
+        # https://github.com/onnx/onnx/blob/main/docs/Broadcasting.md
         # In above cases, we cannot directorly apply 'op.broadcast_to' instead of 'expand'
         # so, here we solved this problem by expanding the given 'shape' itself.
         def expand_shape(in_shape, shape):
@@ -3780,18 +3791,16 @@ class QLinearMatMul(OnnxOpConverter):
         #
         # This function attempts to present 'x' in a form that meets both of those
         # requirements.
-        def try_resolve_to_const_scalar(x, dtype_override=None):
+        def try_resolve_to_const(x, dtype_override=None):
             x2 = try_resolve_var_to_const(x, params)
-            x3 = ensure_scalar_shape(x2)
-
+            num_elem = np.prod(infer_shape(x))
+            if num_elem == 1:
+                x2 = ensure_scalar_shape(x2)
             x_dtype = infer_type(x).checked_type.dtype
             if (dtype_override is not None) and (dtype_override != x_dtype):
-                x4 = _op.cast(x3, dtype_override)
-            else:
-                x4 = x3
-
-            x5 = fold_constant(x4)
-            return x5
+                x2 = _op.cast(x2, dtype_override)
+            x3 = fold_constant(x2)
+            return x3
 
         # Unpack the inputs and obtain some type info...
         a, a_scale, a_zp, b, b_scale, b_zp, y_scale, y_zp = inputs
@@ -3831,14 +3840,14 @@ class QLinearMatMul(OnnxOpConverter):
         )
 
         # _qnn.op.dense requires the zero-point values to have dtype int32.
-        a_scale_scalar = try_resolve_to_const_scalar(a_scale)
-        a_zp_scalar = try_resolve_to_const_scalar(a_zp, "int32")
+        a_scale_scalar = try_resolve_to_const(a_scale)
+        a_zp_scalar = try_resolve_to_const(a_zp, "int32")
 
-        b_scale_scalar = try_resolve_to_const_scalar(b_scale)
-        b_zp_scalar = try_resolve_to_const_scalar(b_zp, "int32")
+        b_scale_scalar = try_resolve_to_const(b_scale)
+        b_zp_scalar = try_resolve_to_const(b_zp, "int32")
 
-        y_scale_scalar = try_resolve_to_const_scalar(y_scale)
-        y_zp_scalar = try_resolve_to_const_scalar(y_zp, "int32")
+        y_scale_scalar = try_resolve_to_const(y_scale)
+        y_zp_scalar = try_resolve_to_const(y_zp, "int32")
 
         # TODO: Confirm that we're using 'num_hidden_units' correctly / as intended with
         # the '_qnn.op.dense' instance below.
@@ -4747,7 +4756,7 @@ def _get_convert_map(opset):
 
 class GraphProto:
     """A helper class for handling Relay expression copying from pb2.GraphProto.
-    Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
+    Definition: https://github.com/onnx/onnx/blob/main/onnx/onnx.proto
 
         Parameters
     ----------

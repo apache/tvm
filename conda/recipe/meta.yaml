@@ -61,11 +61,11 @@ outputs:
         - zlib
         - llvmdev ==10.0.0
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
-        - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
+        - cudnn >=7.6.0  # [cuda]
       run:
         - llvmdev ==10.0.0
         - {{ pin_compatible('cudatoolkit', lower_bound=cuda_version, max_pin='x.x') }}  # [cuda]
-        - {{ pin_compatible('cudnn', lower_bound='7.6.0', max_pin='x') }}  # [cuda]
+        - cudnn >=7.6.0  # [cuda]
 
   - name: {{ pkg_name }}
     script: install_tvm_python.sh  # [not win]

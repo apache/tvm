@@ -162,6 +162,7 @@ using MemoryScope = String;
  *
  * These operations are needed during device planning.
  */
+
 class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
  private:
   /*!
@@ -360,6 +361,13 @@ class VirtualDeviceCache {
   /*! \brief Already constructed VirtualDevices. */
   std::unordered_set<VirtualDevice, StructuralHash, StructuralEqual> cache_;
 };
+
+/*! brief The attribute key for the virtual device. This key will be promoted to first class on
+ * functions. For use in the parser and printer only.
+ *
+ * Type: VirtualDevice
+ */
+constexpr const char* kVirtualDevice = "result_virtual_device";
 
 }  // namespace tvm
 

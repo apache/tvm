@@ -69,6 +69,22 @@ inline Array<Integer> make_array(const std::vector<size_t>& vec) {
 }
 
 /*!
+ * \brief Make a tvm::Array<IntImm> from an int64_t vector.
+ * \param vec The int64_t vector.
+ * \return The IntImm Array.
+ * \note Array<IntImm>(std::vector<int64_t>) doesn't work as this implicit
+ * type conversion fails. This is why this helper is required.
+ */
+inline Array<IntImm> make_array(const std::vector<int64_t>& vec) {
+  Array<IntImm> arr;
+  arr.resize(vec.size());
+  for (unsigned int i = 0; i < vec.size(); ++i) {
+    arr.Set(i, IntImm(DataType::Int(64), vec[i]));
+  }
+  return arr;
+}
+
+/*!
  * \brief Make a tvm::Array<FloatImm> from an float vector.
  * \param vec The float vector.
  * \return The FloatImm Array.
@@ -80,6 +96,16 @@ inline Array<FloatImm> make_array(const std::vector<float>& vec) {
     arr.Set(i, FloatImm(DataType::Float(32), static_cast<double>(vec[i])));
   }
   return arr;
+}
+
+/*!
+ * \brief Calculate the ceil of an Integer division
+ * \param dividend The dividend of the division
+ * \param divisor The divisor of the division
+ * \return The quotient
+ */
+inline int round_up_divide(int dividend, int divisor) {
+  return dividend / divisor + (dividend % divisor != 0);
 }
 
 /*!

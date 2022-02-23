@@ -278,7 +278,7 @@ class StorageScopeMutator : StmtExprMutator {
       ptr->buffer = it->second;
       return PrimExpr(ptr);
     } else {
-      return res;
+      return std::move(res);
     }
   }
 
@@ -291,7 +291,7 @@ class StorageScopeMutator : StmtExprMutator {
       ptr->buffer = it->second;
       return Stmt(ptr);
     } else {
-      return res;
+      return std::move(res);
     }
   }
 
@@ -348,7 +348,7 @@ class StorageScopeMutator : StmtExprMutator {
 
       Block new_block(n);
       block_sref_reuse_->Set(GetRef<Block>(block), new_block);
-      return new_block;
+      return std::move(new_block);
     }
   }
 

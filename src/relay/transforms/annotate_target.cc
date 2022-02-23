@@ -270,7 +270,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     auto tuple = Downcast<Tuple>(post);
 
     auto target_n_args = AnnotateArgs(tuple->fields);
-    auto new_expr = WithFields(std::move(tuple), std::move(std::get<1>(target_n_args)));
+    auto new_expr = WithFields(tuple, std::get<1>(target_n_args));
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return std::move(new_expr);
   }
@@ -295,7 +295,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
       func = Downcast<Function>(post);
       new_body = InsertCompilerEndAndPropogateTarget(func->body);
     }
-    return Function(func->params, new_body, func->ret_type, func->type_params, func->attrs);
+    return WithFields(func, func->params, new_body);
   }
 
   Expr Rewrite_(const LetNode* op, const Expr& post) override {
@@ -378,7 +378,7 @@ class CallOpsTargetRewriter : public AnnotateTargetRewriter {
     for (auto f : tuple->fields) {
       new_fields.push_back(InsertCompilerEndAndPropogateTarget(f));
     }
-    return WithFields(std::move(tuple), std::move(new_fields));
+    return WithFields(tuple, new_fields);
   }
 
   Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) override {

@@ -216,9 +216,8 @@ def verify_model(
             if not tvm.runtime.enabled(target):
                 continue
             dev = tvm.device(target, 0)
-            relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
-            relay_model = graph_executor.create(relay_graph, relay_lib, dev)
-            relay_model.set_input(**relay_params)
+            lib = relay.build(mod, target=target, params=params)
+            relay_model = graph_executor.GraphModule(lib["default"](dev))
             for name, inp in compiled_input.items():
                 relay_model.set_input(name, inp)
             relay_model.run()
@@ -245,53 +244,6 @@ def verify_model(
     del model_name
     del baseline_model
     torch.cuda.empty_cache()
-
-
-def verify_span(model_name, input_data=[], custom_convert_map={}):
-    if isinstance(model_name, str):
-        baseline_model, baseline_input = load_model(model_name)
-    elif isinstance(input_data, list):
-        baseline_model = model_name
-        baseline_input = input_data
-    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
-        baseline_model = model_name
-        baseline_input = [input_data]
-    else:
-        assert False, "Unexpected input format"
-
-    trace = torch.jit.trace(baseline_model, [input.clone() for input in baseline_input])
-    if isinstance(baseline_model, torch.nn.Module):
-        trace = trace.float().eval()
-
-        if torch.cuda.is_available():
-            trace = trace.cuda()
-        else:
-            trace = trace.cpu()
-
-    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
-    input_shapes = list(zip(input_names, [inp.shape for inp in baseline_input]))
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-
-    # collect fail cases for the convenience of further improvement
-    fail_cases = []
-    mod_main_start = False
-    for line in str(mod.__str__).split("\n"):
-        if "@main" in line:
-            mod_main_start = True
-            continue
-
-        if mod_main_start == True:
-            if "}" == line:
-                break
-            elif not ("/*" in line and "*/" in line):
-                fail_cases.append(line)
-
-    print(fail_cases)
-    assert len(fail_cases) == 0
-
-
-def test_span():
-    verify_span("resnet18")
 
 
 # Single operator tests
@@ -943,6 +895,15 @@ def test_forward_avgpool2d():
         torch.nn.AvgPool2d(kernel_size=5, stride=2, padding=2).eval(), input_data=input_data
     )
 
+    input_shape = [1, 1, 1, 9]
+    input_data = torch.rand(input_shape).float()
+    verify_model(
+        torch.nn.AvgPool2d(
+            kernel_size=[1, 2], stride=[1, 2], ceil_mode=True, count_include_pad=True
+        ).eval(),
+        input_data=input_data,
+    )
+
 
 @tvm.testing.uses_gpu
 def test_forward_avgpool3d():
@@ -1104,6 +1065,32 @@ def test_forward_conv_transpose(
         bias=bias,
     ).eval()
     verify_model(conv1d_transpose, conv1d_input_data)
+
+
+def test_forward_conv2d_transpose_group():
+    # https://github.com/apache/tvm/issues/10223
+
+    class ModulatedConvTranspose2D(torch.nn.Module):
+        def forward(self, x, w, s):
+            B, C, H, W = x.shape
+            I, O, KH, KW = w.shape
+
+            # weight is different for each input in batch (this is why we want grouped conv transpose)
+            w = w.unsqueeze(0) * s.reshape(B, 1, 1, 1, 1)
+            w = w.reshape(B * I, O, KH, KW)
+            x = x.reshape(1, B * C, H, W)
+            x = torch.nn.functional.conv_transpose2d(
+                x, w, stride=(2, 2), padding=(1, 1), output_padding=(1, 1), groups=B
+            )
+            return x.reshape(B, O, H * 2, W * 2)
+
+    b, c, h, w, k = 4, 512, 8, 16, 3
+    inputs = torch.rand(b, c, h, w)
+    weights = torch.rand(c, c // 2, k, k)
+    styles = torch.rand(b)
+
+    # cuda not supported for group > 1 conv2d_transpose
+    verify_trace_model(ModulatedConvTranspose2D().eval(), [inputs, weights, styles], ["llvm"])
 
 
 def test_forward_deform_conv():
@@ -2657,6 +2644,59 @@ def test_forward_std():
 
 
 @tvm.testing.uses_gpu
+def test_forward_var_mean():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class VarMean1(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], 1, unbiased=False)
+
+    class VarMean2(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=1, keepdim=False, unbiased=False)
+
+    class VarMean3(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=2, keepdim=True, unbiased=False)
+
+    class VarMean4(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=(2, 3), keepdim=True, unbiased=False)
+
+    class VarMean5(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=(2, 3), keepdim=False, unbiased=False)
+
+    class VarMean6(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], unbiased=False)
+
+    class VarMean7(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=1, keepdim=False, unbiased=True)
+
+    class VarMean8(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], dim=(2, 3), keepdim=True, unbiased=True)
+
+    class VarMean9(Module):
+        def forward(self, *args):
+            return torch.var_mean(args[0], unbiased=True)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(VarMean1().float().eval(), input_data=input_data)
+    verify_model(VarMean2().float().eval(), input_data=input_data)
+    verify_model(VarMean3().float().eval(), input_data=input_data)
+    verify_model(VarMean4().float().eval(), input_data=input_data)
+    verify_model(VarMean5().float().eval(), input_data=input_data)
+    verify_model(VarMean6().float().eval(), input_data=input_data)
+    verify_model(VarMean7().float().eval(), input_data=input_data)
+    verify_model(VarMean8().float().eval(), input_data=input_data)
+    verify_model(VarMean9().float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_variance():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -2728,6 +2768,13 @@ def test_forward_rsub():
     verify_model(Rsub1().float().eval(), input_data=[d1, d3])
     verify_model(Rsub2().float().eval(), input_data=[d1, d2])
     verify_model(Rsub2().float().eval(), input_data=[d1, d3])
+
+    d1 = torch.rand([1, 3]).half()
+    d2 = torch.rand([1, 3]).half()
+    verify_model(Rsub1().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub1().half().eval(), input_data=[d1, d3])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d2])
+    verify_model(Rsub2().half().eval(), input_data=[d1, d3])
 
 
 @tvm.testing.uses_gpu
@@ -2827,6 +2874,10 @@ def test_forward_clamp():
     verify_model(Clamp2().float().eval(), input_data=input_data)
     verify_model(Clamp3().float().eval(), input_data=input_data)
     verify_model(Clamp_MinExpr_MaxConstant().float().eval(), input_data=input_data)
+
+    verify_model(lambda inp: torch.clamp_min(inp, 0.5), input_data)
+    inp_uint8 = torch.randint(low=0, high=256, size=(100, 100), dtype=torch.uint8)
+    verify_model(lambda inp: torch.clamp_max(inp, 125), inp_uint8)
 
 
 @tvm.testing.uses_gpu
@@ -4094,6 +4145,56 @@ def test_dot():
 
     x = torch.randn([4])
     verify_model(test_fn, [x])
+
+
+@tvm.testing.uses_gpu
+def test_mv():
+    def test_fn(m, v):
+        return m.mv(v)
+
+    verify_model(test_fn, [torch.randn(4, 4), torch.randn(4)])
+    verify_model(test_fn, [torch.randn(2, 2), torch.randn(2)])
+    verify_model(test_fn, [torch.randn(3, 8), torch.randn(8)])
+
+
+def test_grid_sample():
+    class Grid_sample_zeros(Module):
+        def forward(self, x, y):
+            return torch.nn.functional.grid_sample(
+                input=x, grid=y, mode="bilinear", padding_mode="zeros", align_corners=True
+            )
+
+    class Grid_sample_border(Module):
+        def forward(self, x, y):
+            return torch.nn.functional.grid_sample(
+                input=x, grid=y, mode="bilinear", padding_mode="border", align_corners=True
+            )
+
+    data = torch.rand([4, 4, 16, 32]).float()
+    grid = torch.rand([4, 8, 8, 2]).float()
+    verify_model(Grid_sample_zeros(), input_data=[data, grid])
+    verify_model(Grid_sample_border(), input_data=[data, grid])
+
+
+def test_list_tuple():
+    """test compilation error for a Python list followed by a prim::TupleConstruct."""
+
+    class List_tuple(Module):
+        def forward(self, x):
+            merged = []
+            mask_list = []
+            for i in range(3):
+                w0 = torch.sigmoid(x)
+                merged.append((w0, w0))
+                mask_list.append(x)
+
+            for i in range(3):
+                merged[i] = merged[i][0] + merged[i][1]
+            return mask_list[2], merged
+
+    x = torch.rand([4, 4, 16, 32]).float()
+    script_module = torch.jit.trace(List_tuple(), x, strict=False).eval()
+    relay.frontend.from_pytorch(script_module, [("x", x.shape)])
 
 
 if __name__ == "__main__":

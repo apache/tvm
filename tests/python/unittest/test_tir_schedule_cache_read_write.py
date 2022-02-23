@@ -191,6 +191,22 @@ def func_multi_producer() -> None:
             B[vi] = A[vi]
 
 
+@T.prim_func
+def func_with_block_predicate() -> None:
+    A = T.alloc_buffer((120))
+    B = T.alloc_buffer((120))
+    for i, j in T.grid(16, 8):
+        with T.block("producer"):
+            T.where(i * 8 + j < 120)
+            ax = T.axis.S(120, i * 8 + j)
+            A[ax] = 0.0
+    for i, j in T.grid(16, 8):
+        with T.block("consumer"):
+            T.where(i * 8 + j < 120)
+            ax = T.axis.S(120, i * 8 + j)
+            B[ax] = A[ax] + 1.0
+
+
 ########## Expected function after cache_read ##########
 
 
@@ -394,6 +410,27 @@ def continuous_cache_read(a: T.handle, c: T.handle) -> None:
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B_local[vi, vj] + 1.0
+
+
+@T.prim_func
+def block_predicate_cache_read() -> None:
+    A = T.alloc_buffer([120], dtype="float32")
+    B = T.alloc_buffer([120], dtype="float32")
+    A_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    for i, j in T.grid(16, 8):
+        with T.block("producer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            A[ax] = T.float32(0)
+    for ax0 in T.serial(120):
+        with T.block("A_shared"):
+            v0 = T.axis.spatial(120, ax0)
+            A_shared[v0] = A[v0]
+    for i, j in T.grid(16, 8):
+        with T.block("consumer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            B[ax] = A_shared[ax] + T.float32(1)
 
 
 ########## Expected function after cache_write ##########
@@ -618,6 +655,48 @@ def continuous_cache_write(a: T.handle, c: T.handle) -> None:
             C[vi, vj] = B[vi, vj] + 1.0
 
 
+@T.prim_func
+def block_predicate_cache_write_intermediate_buf() -> None:
+    A = T.alloc_buffer([120], dtype="float32")
+    B = T.alloc_buffer([120], dtype="float32")
+    A_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    for i, j in T.grid(16, 8):
+        with T.block("producer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            A_shared[ax] = T.float32(0)
+    for ax0 in T.serial(120):
+        with T.block("A_shared"):
+            v0 = T.axis.spatial(120, ax0)
+            A[v0] = A_shared[v0]
+    for i, j in T.grid(16, 8):
+        with T.block("consumer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            B[ax] = A[ax] + 1.0
+
+
+@T.prim_func
+def block_predicate_cache_write_output_buf() -> None:
+    A = T.alloc_buffer([120], dtype="float32")
+    B = T.alloc_buffer([120], dtype="float32")
+    B_shared = T.alloc_buffer([120], dtype="float32", scope="shared")
+    for i, j in T.grid(16, 8):
+        with T.block("producer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            A[ax] = T.float32(0)
+    for i, j in T.grid(16, 8):
+        with T.block("consumer"):
+            ax = T.axis.spatial(120, i * 8 + j)
+            T.where(i * 8 + j < 120)
+            B_shared[ax] = A[ax] + T.float32(1)
+    for ax0 in T.serial(120):
+        with T.block("B_shared"):
+            v0 = T.axis.spatial(120, ax0)
+            B[v0] = B_shared[v0]
+
+
 ########## Testcases for cache_read ##########
 
 
@@ -668,6 +747,14 @@ def test_continuous_cache_read():
     sch.cache_read(block_c, 0, "local")
     tvm.ir.assert_structural_equal(continuous_cache_read, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_cache_read_with_block_predicate():
+    sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
+    block = sch.get_block("consumer")
+    sch.cache_read(block, 0, "shared")
+    tvm.ir.assert_structural_equal(block_predicate_cache_read, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
 
 
 def test_cache_read_fail_multi_producer():
@@ -747,6 +834,21 @@ def test_continuous_cache_write():
     sch.cache_write(block_b, 0, "local")
     tvm.ir.assert_structural_equal(continuous_cache_write, sch.mod["main"])
     verify_trace_roundtrip(sch=sch, mod=elementwise)
+
+
+def test_cache_write_with_block_predicate():
+    # cache write for intermediate buffer
+    sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
+    block = sch.get_block("producer")
+    sch.cache_write(block, 0, "shared")
+    tvm.ir.assert_structural_equal(block_predicate_cache_write_intermediate_buf, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
+    # cache write for external buffer
+    sch = tir.Schedule(func_with_block_predicate, debug_mask="all")
+    block = sch.get_block("consumer")
+    sch.cache_write(block, 0, "shared")
+    tvm.ir.assert_structural_equal(block_predicate_cache_write_output_buf, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=func_with_block_predicate)
 
 
 def test_cache_write_fail_multi_producer():

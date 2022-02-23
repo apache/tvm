@@ -123,12 +123,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr(op->condition);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, true);
+      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
       StmtExprVisitor::VisitStmt(op->then_case);
     }
     if (op->else_case.defined()) {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, false);
+      With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
       StmtExprVisitor::VisitStmt(op->else_case);
     }
   }
@@ -139,12 +139,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       StmtExprVisitor::VisitExpr(op->args[0]);
       {
         // Visit then branch
-        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, true);
+        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
         StmtExprVisitor::VisitExpr(op->args[1]);
       }
       {
         // Visit else branch
-        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, false);
+        With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
         StmtExprVisitor::VisitExpr(op->args[2]);
       }
       return;
@@ -282,6 +282,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
+  /*! \brief Extra map from free vars to their iter range hints. */
+  std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
   /*! \brief The analyzer aware of loop domains. */
   arith::Analyzer dom_analyzer_;
   /*! \brief The map from Buffer to it's relaxed access set. */

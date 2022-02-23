@@ -122,7 +122,7 @@ class ForwardRewriter : private MixedModeMutator {
       fields.push_back(this->GetTempExpr(tuple_node->fields[i], post_tuple_node->fields[i]));
     }
 
-    return WithFields(GetRef<Tuple>(tuple_node), std::move(fields));
+    return WithFields(GetRef<Tuple>(tuple_node), fields);
   }
 
   Expr Rewrite_(const CallNode* call_node, const Expr& post) final {

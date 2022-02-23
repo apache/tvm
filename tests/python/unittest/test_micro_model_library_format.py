@@ -108,14 +108,21 @@ def validate_graph_json(extract_dir, factory):
 
 @tvm.testing.requires_micro
 @pytest.mark.parametrize(
-    "executor,runtime,should_generate_interface",
+    "executor,runtime,should_generate_interface,json_constants_size_bytes",
     [
-        (Executor("graph"), Runtime("crt", {"system-lib": True}), False),
-        (Executor("aot"), Runtime("crt"), False),
-        (Executor("aot", {"unpacked-api": True, "interface-api": "c"}), Runtime("crt"), True),
+        (Executor("graph"), Runtime("crt", {"system-lib": True}), False, 8),
+        (Executor("aot", {"link-params": True}), Runtime("crt"), False, 0),
+        (
+            Executor("aot", {"unpacked-api": True, "interface-api": "c"}),
+            Runtime("crt"),
+            True,
+            0,
+        ),
     ],
 )
-def test_export_model_library_format_c(executor, runtime, should_generate_interface):
+def test_export_model_library_format_c(
+    executor, runtime, should_generate_interface, json_constants_size_bytes
+):
     target = tvm.target.target.micro("host")
     with utils.TempDirectory.set_keep_for_debug(True):
         with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
@@ -165,7 +172,7 @@ def test_export_model_library_format_c(executor, runtime, should_generate_interf
                 ]
             assert metadata["memory"]["functions"]["main"] == [
                 {
-                    "constants_size_bytes": 8,
+                    "constants_size_bytes": json_constants_size_bytes,
                     "device": 1,
                     "io_size_bytes": 18,
                     "workspace_size_bytes": 0,
@@ -193,7 +200,10 @@ def test_export_model_library_format_c(executor, runtime, should_generate_interf
 
         with open(os.path.join(extract_dir, "parameters", "add.params"), "rb") as params_f:
             params = tvm.relay.load_param_dict(params_f.read())
-            assert "p0" in params
+            if json_constants_size_bytes != 0:
+                assert "p0" in params
+            else:
+                assert len(params) == 0
 
 
 @tvm.testing.requires_micro

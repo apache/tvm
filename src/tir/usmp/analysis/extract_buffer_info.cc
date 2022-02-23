@@ -31,9 +31,12 @@
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/usmp/analysis.h>
 #include <tvm/tir/usmp/utils.h>
 
 #include <stack>
+
+#include "../../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace tir {
@@ -58,7 +61,9 @@ class BufferInfoExtractor : public StmtExprVisitor {
  public:
   explicit BufferInfoExtractor(const IRModule& module) : module_(module) {
     for (const auto& gv_func : module_->functions) {
-      functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      if (gv_func.second->IsInstance<PrimFuncNode>()) {
+        functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+      }
     }
     // Pushing a scope info for the initial body of the main function
     scope_stack_.push(ScopeInfo());
@@ -254,18 +259,20 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
 void BufferInfoExtractor::VisitStmt_(const AllocateNode* op) {
   ScopeInfo& current_scope_info = scope_stack_.top();
   const auto& type = Downcast<PointerType>(op->buffer_var->type_annotation);
-  const auto& storage_scope = type->storage_scope;
+  const auto& storage_scope = runtime::StorageScope::Create(type->storage_scope);
 
   // If the allocate is in a for loop, USMP currently only looks at serial for loops.
   // If its not a serial for loop, then memory planner will omit them in the current memory planning
   // process leaving them to as tir.allocate nodes for codegen. Additionally, the USMP can only work
   // with buffers that have global storage_scope
 
-  if (!current_scope_info.for_loop.defined()) {
-    RecordAllocateNodeInfo(op);
-  } else if (current_scope_info.for_loop.defined() &&
-             current_scope_info.for_loop->kind == ForKind::kSerial && storage_scope == "global") {
-    RecordAllocateNodeInfo(op);
+  if (storage_scope.rank == runtime::StorageRank::kGlobal) {
+    if (!current_scope_info.for_loop.defined()) {
+      RecordAllocateNodeInfo(op);
+    } else if (current_scope_info.for_loop.defined() &&
+               current_scope_info.for_loop->kind == ForKind::kSerial) {
+      RecordAllocateNodeInfo(op);
+    }
   }
   StmtExprVisitor::VisitStmt(op->body);
   current_scope_info.allocate_nodes.erase(GetRef<Allocate>(op));
@@ -342,16 +349,24 @@ void BufferInfoExtractor::VisitExpr_(const VarNode* op) {
 
 Array<Var> static GetMatchedBuffers(const PrimFunc& func) {
   Array<Var> buffer_vars;
-  for (const auto& param : func->params) {
+  for (unsigned int i = 0; i < func->params.size() - 1; i++) {
+    Var param = func->params[i];
     buffer_vars.push_back(func->buffer_map[param]->data);
+  }
+  Var last_param = func->params.back();
+  // Checks whether last var is present in the buffer map
+  // because it could be the resource handle
+  if (func->buffer_map.find(last_param) != func->buffer_map.end()) {
+    buffer_vars.push_back(func->buffer_map[last_param]->data);
   }
   return buffer_vars;
 }
 
 void BufferInfoExtractor::UpdateAliases(const Array<PrimExpr>& args, const PrimFunc& func) {
   auto param_buffers = GetMatchedBuffers(func);
-  ICHECK(args.size() == param_buffers.size());
-  for (size_t i = 0; i < args.size(); i++) {
+  // Last var could be a resource handle that does not have a Buffer
+  ICHECK(args.size() == param_buffers.size() || args.size() - 1 == param_buffers.size());
+  for (size_t i = 0; i < param_buffers.size(); i++) {
     auto arg = args[i];
     auto param_buf = param_buffers[i];
     // If tir.allocates are passed in to functions

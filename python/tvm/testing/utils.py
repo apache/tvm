@@ -433,9 +433,7 @@ def _get_targets(target_str=None):
 
 DEFAULT_TEST_TARGETS = [
     "llvm",
-    "llvm -device=arm_cpu",
     "cuda",
-    "cuda -model=unknown -libs=cudnn",
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
@@ -635,6 +633,49 @@ def requires_nvptx(*args):
         *requires_gpu(),
     ]
     return _compose(args, _requires_nvptx)
+
+
+def requires_nvcc_version(major_version, minor_version=0, release_version=0):
+    """Mark a test as requiring at least a specific version of nvcc.
+
+    Unit test marked with this decorator will run only if the
+    installed version of NVCC is at least `(major_version,
+    minor_version, release_version)`.
+
+    This also marks the test as requiring a cuda support.
+
+    Parameters
+    ----------
+    major_version: int
+
+        The major version of the (major,minor,release) version tuple.
+
+    minor_version: int
+
+        The minor version of the (major,minor,release) version tuple.
+
+    release_version: int
+
+        The release version of the (major,minor,release) version tuple.
+
+    """
+
+    try:
+        nvcc_version = nvcc.get_cuda_version()
+    except RuntimeError:
+        nvcc_version = (0, 0, 0)
+
+    min_version = (major_version, minor_version, release_version)
+    version_str = ".".join(str(v) for v in min_version)
+    requires = [
+        pytest.mark.skipif(nvcc_version < min_version, reason=f"Requires NVCC >= {version_str}"),
+        *requires_cuda(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
 
 
 def requires_cudagraph(*args):

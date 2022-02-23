@@ -26,29 +26,50 @@ Here are the steps that are taken to prepare a runtime on a Hexagon device to te
 - Build TVM library with Hexagon support for host machine.
 - Build TVMRuntime library and C++ RPC server for host machine.
 
-To build these pieces, you can use a cmake command as follow.
+Note: First, ensure to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`:
 
 ```bash
-cmake -DUSE_HEXAGON_RPC=ON \
-        -DUSE_ANDROID_TOOLCHAIN=/path/to/android-ndk/build/cmake/android.toolchain.cmake \
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"path to `llvm-clang/lib` sub-directory"
+
+export HEXAGON_TOOLCHAIN="Path to Hexagon toolchain. It can be the Hexagon toolchain included in the SDK, for example `HEXAGON_SDK_PATH/tools/HEXAGON_Tools/x.y.z/Tools`.  The `x.y.z` in the path is the toolchain version number, which is specific to the version of the SDK."
+```
+
+To build these pieces, first build Hexagon API application under `apps/hexagon_api`.
+
+```bash
+cd apps/hexagon_api
+mkdir build
+cd build
+cmake -DUSE_ANDROID_TOOLCHAIN="path to `android-ndk/build/cmake/android.toolchain.cmake` file" \
         -DANDROID_PLATFORM=android-28 \
         -DANDROID_ABI=arm64-v8a \
         -DUSE_HEXAGON_ARCH=v65|v66|v68 \
-        -DUSE_HEXAGON_SDK=/path/to/Hexagon/SDK \
-        -DUSE_HEXAGON_TOOLCHAIN=/path/to/Hexagon/toolchain/ \
-        -DUSE_LLVM=/path/to/llvm/bin/llvm-config \
+        -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
+        -DUSE_HEXAGON_TOOLCHAIN="path to Hexagon toolchain `Tools` sub-directory which explained above" \
+        -DUSE_OUTPUT_BINARY_DIR="path to `build/hexagon_api_output` which is a sub-directory of `tvm`" ..
+```
+
+This command generates `tvm_rpc_android` and `libtvm_runtime.so` to run on Android. Also, it generates `libtvm_runtime.a` and `libhexagon_rpc_skel.so` to run on Hexagon device. Now we have TVM artifacts which are used to run on the remote device.
+
+Next, we need to build TVM on host with RPC and Hexagon dependencies. To do that follow these commands.
+
+```bash
+cd tvm
+mkdir build
+cd build
+cmake -DUSE_LLVM="path to `llvm/bin/llvm-config`" \
         -DUSE_CPP_RPC=ON \
-        -DCMAKE_CXX_COMPILER=/path/to/clang++ \    
-        -DCMAKE_CXX_FLAGS='-stdlib=libc++' ..
+        -DCMAKE_CXX_COMPILER="path to `clang++` executable" \
+        -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
+        -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
+        -DUSE_HEXAGON_ARCH="choose from v65|v66|v68" \
+        -DUSE_HEXAGON_DEVICE=sim ..
 ```
 
 ## Testing Using HexagonLauncher
-Before starting a test you need to run an RPC tracker on your local machine and export HOST and PORT as environment variables. Also, you need to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`.
+Before starting a test you need to run an RPC tracker on your local machine and export HOST and PORT as environment variables. Also, you need to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN` as explained above.
 
 ```bash
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/path/to/clang++/lib"
-export HEXAGON_TOOLCHAIN="/path/to/Hexagon/toolchain/"
-
 export TVM_TRACKER_HOST="0.0.0.0"
 export TVM_TRACKER_PORT=9192
 python -m tvm.exec.rpc_tracker --host $TVM_TRACKER_HOST --port $TVM_TRACKER_PORT

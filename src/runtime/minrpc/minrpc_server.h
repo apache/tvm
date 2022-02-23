@@ -52,6 +52,11 @@
 namespace tvm {
 namespace runtime {
 
+namespace detail {
+template <typename TIOHandler>
+class PageAllocator;
+}
+
 /*!
  * \brief A minimum RPC server that only depends on the tvm C runtime..
  *
@@ -63,9 +68,11 @@ namespace runtime {
  *         - MessageStart(num_bytes), MessageDone(): framing APIs.
  *         - Exit: exit with status code.
  */
-template <typename TIOHandler>
+template <typename TIOHandler, template <typename> class Allocator = detail::PageAllocator>
 class MinRPCServer {
  public:
+  using PageAllocator = Allocator<TIOHandler>;
+
   /*!
    * \brief Constructor.
    * \param io The IO handler.
@@ -562,41 +569,6 @@ class MinRPCServer {
   void MessageDone() { io_->MessageDone(); }
 
  private:
-  // Internal allocator that redirects alloc to TVM's C API.
-  class PageAllocator {
-   public:
-    using ArenaPageHeader = tvm::support::ArenaPageHeader;
-
-    explicit PageAllocator(TIOHandler* io) : io_(io) {}
-
-    ArenaPageHeader* allocate(size_t min_size) {
-      size_t npages = ((min_size + kPageSize - 1) / kPageSize);
-      void* data;
-
-      if (TVMDeviceAllocDataSpace(DLDevice{kDLCPU, 0}, npages * kPageSize, kPageAlign,
-                                  DLDataType{kDLInt, 1, 1}, &data) != 0) {
-        io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
-      }
-
-      ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
-      header->size = npages * kPageSize;
-      header->offset = sizeof(ArenaPageHeader);
-      return header;
-    }
-
-    void deallocate(ArenaPageHeader* page) {
-      if (TVMDeviceFreeDataSpace(DLDevice{kDLCPU, 0}, page) != 0) {
-        io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
-      }
-    }
-
-    static const constexpr int kPageSize = 2 << 10;
-    static const constexpr int kPageAlign = 8;
-
-   private:
-    TIOHandler* io_;
-  };
-
   void RecvPackedSeq(TVMValue** out_values, int** out_tcodes, int* out_num_args) {
     RPCReference::RecvPackedSeq(out_values, out_tcodes, out_num_args, this);
   }
@@ -683,6 +655,44 @@ class MinRPCServer {
   bool allow_clean_shutdown_{true};
   static_assert(DMLC_LITTLE_ENDIAN, "MinRPC only works on little endian.");
 };
+
+namespace detail {
+// Internal allocator that redirects alloc to TVM's C API.
+template <typename TIOHandler>
+class PageAllocator {
+ public:
+  using ArenaPageHeader = tvm::support::ArenaPageHeader;
+
+  explicit PageAllocator(TIOHandler* io) : io_(io) {}
+
+  ArenaPageHeader* allocate(size_t min_size) {
+    size_t npages = ((min_size + kPageSize - 1) / kPageSize);
+    void* data;
+
+    if (TVMDeviceAllocDataSpace(DLDevice{kDLCPU, 0}, npages * kPageSize, kPageAlign,
+                                DLDataType{kDLInt, 1, 1}, &data) != 0) {
+      io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
+    }
+
+    ArenaPageHeader* header = static_cast<ArenaPageHeader*>(data);
+    header->size = npages * kPageSize;
+    header->offset = sizeof(ArenaPageHeader);
+    return header;
+  }
+
+  void deallocate(ArenaPageHeader* page) {
+    if (TVMDeviceFreeDataSpace(DLDevice{kDLCPU, 0}, page) != 0) {
+      io_->Exit(static_cast<int>(RPCServerStatus::kAllocError));
+    }
+  }
+
+  static const constexpr int kPageSize = 2 << 10;
+  static const constexpr int kPageAlign = 8;
+
+ private:
+  TIOHandler* io_;
+};
+}  // namespace detail
 
 }  // namespace runtime
 }  // namespace tvm

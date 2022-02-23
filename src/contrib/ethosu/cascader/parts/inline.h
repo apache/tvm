@@ -45,7 +45,7 @@ class InlinePartNode : public PartNode {
    * \return The performance information containing the compute cycles and read/write bytes.
    */
   const PerformanceInfo GetPerformanceInfo(const StripeConfig& output_stripe_config,
-                                           bool is_rolling) final;
+                                           BufferMode buffer_mode) final;
 
   static constexpr const char* _type_key = "contrib.ethosu.cascader.InlinePart";
   TVM_DECLARE_FINAL_OBJECT_INFO(InlinePartNode, PartNode);

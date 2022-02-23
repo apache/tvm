@@ -54,7 +54,7 @@ def test_inline_part():
     assert len(part.propagators) == 1
     assert part.in_line == True
     assert part.get_stripe_align_hint() == [1, 1]
-    performance_info = part.get_performance_info(output_stripe_config, is_rolling=False)
+    performance_info = part.get_performance_info(output_stripe_config, cs.BufferMode.RECOMPUTE)
     assert performance_info.compute_cycles == 0
     assert performance_info.read_bytes == [0]
     assert performance_info.write_bytes == 0
@@ -127,7 +127,8 @@ def test_small_graph():
 
 def test_create_cascader_graph(TwoConv2DWithSliceTE):
     _, te_graph, const_dict = TwoConv2DWithSliceTE
-    graph = cs.create_cascader_graph(te_graph, const_dict)
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    graph = cs.create_cascader_graph(te_graph, const_dict, device_config)
 
     output_tensor = graph.output_tensors[0]
     assert output_tensor.shape == [1, 6, 1, 6, 16]
@@ -173,6 +174,30 @@ def test_create_cascader_graph(TwoConv2DWithSliceTE):
     assert conv1_part.input_tensors[2].shape == [64, 10]
     assert len(conv1_part.input_tensors[2].producers) == 0
     assert conv1_part.input_tensors[2].is_constant
+
+
+def test_create_diamond_graph(MobileNetv2DiamondTE):
+    _, te_graph, const_dict = MobileNetv2DiamondTE
+    device_config = cs.EthosuDeviceConfig("ethos-u55-256")
+    graph = cs.create_cascader_graph(te_graph, const_dict, device_config)
+
+    output_tensor = graph.output_tensors[0]
+    assert output_tensor.shape == [1, 56, 56, 24]
+    assert len(output_tensor.producers) == 1
+    assert not output_tensor.is_constant
+
+    add1_part = output_tensor.producers[0]
+    assert isinstance(add1_part, cs.EthosuPart)
+    assert len(add1_part.input_tensors) == 2
+    assert graph.get_part_id(add1_part) == 0
+
+    assert add1_part.input_tensors[0].shape == [1, 56, 56, 24]
+    assert len(add1_part.input_tensors[0].producers) == 1
+    assert not add1_part.input_tensors[0].is_constant
+
+    assert add1_part.input_tensors[1].shape == [1, 56, 56, 24]
+    assert len(add1_part.input_tensors[0].producers) == 1
+    assert not add1_part.input_tensors[0].is_constant
 
 
 if __name__ == "__main__":

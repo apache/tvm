@@ -93,8 +93,9 @@ def test_lower_build_te_schedule():
     B = te.placeholder((k, n), name="B")
     C = te.compute((m, n), lambda x, y: te.sum(A[x, axis_k] * B[y, axis_k], axis=axis_k), name="C")
     s = te.create_schedule(C.op)
-    # check lowering
-    ir_mod = tvm.lower(s, [A, B, C])
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(s, [A, B, C])
     tvm.ir.assert_structural_equal(ir_mod, LoweredModule)
     # check building
     mod = tvm.build(s, [A, B, C], target="llvm")
@@ -102,8 +103,9 @@ def test_lower_build_te_schedule():
 
 
 def test_lower_build_tir_func():
-    # check lowering
-    ir_mod = tvm.lower(matmul)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(matmul)
     tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(matmul, target="llvm")
@@ -114,8 +116,9 @@ def test_lower_build_tir_module():
     func = matmul.with_attr("global_symbol", "main")
     func = func.with_attr("tir.noalias", True)
     ir_mod = IRModule({"main": func})
-    # check lowering
-    lowered_mod = tvm.lower(ir_mod)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        lowered_mod = tvm.lower(ir_mod)
     tvm.ir.assert_structural_equal(lowered_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")
@@ -123,8 +126,9 @@ def test_lower_build_tir_module():
 
 
 def test_lower_build_lowered_module():
-    # check lowering
-    ir_mod = tvm.lower(LoweredTIRModule)
+    # check lowering with the CSE pass disabled as otherwise it would do some commoning
+    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
+        ir_mod = tvm.lower(LoweredTIRModule)
     tvm.ir.assert_structural_equal(ir_mod, LoweredTIRModule)
     # check building
     mod = tvm.build(ir_mod, target="llvm")

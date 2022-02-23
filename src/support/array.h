@@ -100,6 +100,29 @@ inline Array<Integer> AsArray(const ShapeTuple& shape) {
   return result;
 }
 
+/*!
+ * \brief Concatenate a list of arrays into a single array
+ * \tparam T The type of elements in the arrays
+ * \tparam Iterator The type of the iterator into the list of arrays
+ * \param begin The begin iterator to the array list
+ * \param end The end iterator to the array list
+ * \return The concatenated array
+ */
+template <class T, class Iterator>
+inline Array<T> ConcatArrayList(Iterator begin, Iterator end) {
+  int size = 0;
+  for (Iterator it = begin; it != end; ++it) {
+    size += (*it).size();
+  }
+  Array<T> result;
+  result.reserve(size);
+  for (Iterator it = begin; it != end; ++it) {
+    const auto& item = *it;
+    result.insert(result.end(), item.begin(), item.end());
+  }
+  return result;
+}
+
 /********** Implementation details of AsVector<TSrc, TDst> **********/
 
 namespace details {

@@ -46,6 +46,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -108,7 +109,11 @@ class Registry {
    * \brief set the body of the function to be f
    * \param f The body of the function.
    */
-  Registry& set_body(PackedFunc::FType f) {  // NOLINT(*)
+  template <typename TCallable,
+            typename = typename std::enable_if_t<
+                std::is_convertible<TCallable, std::function<void(TVMArgs, TVMRetValue*)>>::value &&
+                !std::is_base_of<PackedFunc, TCallable>::value>>
+  Registry& set_body(TCallable f) {  // NOLINT(*)
     return set_body(PackedFunc(f));
   }
   /*!

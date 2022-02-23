@@ -35,7 +35,7 @@ namespace te {
 
 using namespace tir;
 
-// Detect the region of input and output to be tensrized.
+// Detect the region of input and output to be tensorized.
 // out_dom: the domain of root iter vars in output op
 // in_region: region of each input tensor.
 // return The location of the tensorized scope start.

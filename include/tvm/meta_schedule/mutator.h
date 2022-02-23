@@ -111,7 +111,7 @@ class PyMutatorNode : public MutatorNode {
  */
 class Mutator : public runtime::ObjectRef {
  public:
-  /*! \brief Create a Mutator that mutates the tile size. */
+  /*! \brief Create a Mutator that mutates the decision of instruction Sample-Perfect-Tile */
   TVM_DLL static Mutator MutateTileSize();
   /*!
    * \brief Create a Mutator that mutates the parallel extent

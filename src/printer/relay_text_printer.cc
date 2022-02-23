@@ -389,21 +389,12 @@ Doc RelayTextPrinter::VisitExpr_(const TupleNode* op) {
   if (op->fields.size() == 1) {
     doc << ",";
   }
-  doc << ")";
-  if (op->span.defined()) {
-    doc << " /* " << PrintSpan(op->span) << " */";
-  }
-  return doc;
+  return doc << ")";
 }
 
 Doc RelayTextPrinter::VisitExpr_(const TupleGetItemNode* op) {
   Doc doc;
-  doc << Print(op->tuple) << "." << op->index;
-
-  if (op->span.defined()) {
-    doc << " /* " << PrintSpan(op->span) << " */";
-  }
-  return doc;
+  return doc << Print(op->tuple) << "." << op->index;
 }
 
 Doc RelayTextPrinter::VisitExpr_(const IfNode* op) {
@@ -454,10 +445,16 @@ Doc RelayTextPrinter::PrintFunc(const Doc& prefix, const relay::Function& fn) {
   for (const Doc& d : PrintDictAttrs(fn->attrs)) {
     params.push_back(d);
   }
+  if (fn->virtual_device() != VirtualDevice::FullyUnconstrained()) {
+    Doc vid_doc;
+    vid_doc << kVirtualDevice << "=" << PrintAttributeValue(fn->virtual_device());
+    params.push_back(vid_doc);
+  }
   doc << Doc::Concat(params) << ") ";
   if (fn->ret_type.defined()) {
     doc << "-> " << Print(fn->ret_type) << " ";
   }
+
   doc << PrintBody(fn->body);
   return doc;
 }
@@ -524,11 +521,7 @@ Doc RelayTextPrinter::VisitExpr_(const CallNode* op) {
   for (const Expr& arg : op->args) {
     args.push_back(Print(arg));
   }
-#if TVM_LOG_DEBUG
-  for (const Type& type_arg : op->type_args) {
-    args.push_back(Print(type_arg));
-  }
-#endif
+
   for (const Doc& d : PrintCallAttrs(op->attrs, op->op)) {
     args.push_back(d);
   }
@@ -977,13 +970,11 @@ Doc RelayTextPrinter::PrintMapAsAttributeValue(const Map<ObjectRef, ObjectRef>& 
   return doc;
 }
 
-Doc RelayTextPrinter::PrintSpan(const Span& span, bool include_spans) {
+Doc RelayTextPrinter::PrintSpan(const Span& span) {
   Doc doc;
-  if (include_spans) {
-    const auto* span_node = span.as<SpanNode>();
-    ICHECK(span_node);
-    doc << span_node->source_name->name;
-  }
+  const auto* span_node = span.as<SpanNode>();
+  ICHECK(span_node);
+  doc << span_node->source_name->name;
   return doc;
 }
 

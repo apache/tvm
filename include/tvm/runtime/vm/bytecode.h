@@ -68,6 +68,7 @@ enum class Opcode {
   ShapeOf = 17U,
   ReshapeTensor = 18U,
   DeviceCopy = 19U,
+  KillRegister = 20U,
 };
 
 /*! \brief A single virtual machine instruction.
@@ -385,6 +386,8 @@ struct Instruction {
    */
   static Instruction DeviceCopy(RegName src, Index src_device_index, Index dst_device_index,
                                 RegName dst);
+
+  static Instruction KillRegister(RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);

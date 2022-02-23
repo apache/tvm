@@ -43,13 +43,8 @@ class ConvertAddToSubtract : public MixedModeMutator {
 
   IRModule Mutate() {
     GlobalVar main_global_var = ir_module_->GetGlobalVar("main");
-    BaseFunc main = ir_module_->Lookup(main_global_var);
-    Function main_func = GetRef<Function>(main.as<FunctionNode>());
-
-    // Copy everything across and mutate the body
-    Function mutated_main =
-        Function(main_func->params, VisitExpr(main_func->body), main_func->ret_type,
-                 main_func->type_params, main_func->attrs, main_func->span);
+    Function main = GetRef<Function>(ir_module_->Lookup(main_global_var).as<FunctionNode>());
+    Function mutated_main = WithFields(main, main->params, VisitExpr(main->body));
 
     ir_module_->Update(main_global_var, mutated_main);
 

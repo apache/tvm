@@ -130,6 +130,19 @@ def test_parse_hybrid_target():
     assert targets[1]["is_tvm_target"]
 
 
+def test_parse_multiple_hybrid_target():
+    """Hybrid Target and multiple external codegen"""
+    targets = parse_target("ethos-u,cmsis-nn,c")
+
+    assert len(targets) == 3
+    assert "ethos-u" == targets[0]["name"]
+    assert not targets[0]["is_tvm_target"]
+    assert "cmsis-nn" == targets[1]["name"]
+    assert not targets[1]["is_tvm_target"]
+    assert "c" == targets[2]["name"]
+    assert targets[2]["is_tvm_target"]
+
+
 def test_parse_quotes_and_separators_on_options():
     targets_no_quote = parse_target("foo -option1=+v1.0x,+value,+bar")
     targets_single_quote = parse_target("foo -option1='+v1.0x,+value'")

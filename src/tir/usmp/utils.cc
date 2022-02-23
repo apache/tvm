@@ -22,9 +22,14 @@
  * \brief Utilities for Unified Static Memory Planner
  */
 
+#include <tvm/ir/memory_pools.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/builtin.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/usmp/utils.h>
 
 namespace tvm {
@@ -88,32 +93,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ",\n  memory_pressure=" << node->memory_pressure << ")";
     });
 
-PoolInfo::PoolInfo(String pool_name, Map<Target, String> target_access, Integer size_hint_bytes) {
-  auto poolinfo_node = make_object<PoolInfoNode>();
-  poolinfo_node->pool_name = pool_name;
-  poolinfo_node->size_hint_bytes = size_hint_bytes;
-  poolinfo_node->target_access = target_access;
-  data_ = std::move(poolinfo_node);
-}
-
-TVM_REGISTER_NODE_TYPE(PoolInfoNode);
-TVM_REGISTER_GLOBAL("tir.usmp.PoolInfo")
-    .set_body_typed([](String pool_name, Map<Target, String> target_access,
-                       Integer size_hint_bytes) {
-      if (size_hint_bytes.defined()) {
-        return PoolInfo(pool_name, target_access, size_hint_bytes);
-      }
-      return PoolInfo(pool_name, target_access);
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<PoolInfoNode>([](const ObjectRef& ref, ReprPrinter* p) {
-      auto* node = static_cast<const PoolInfoNode*>(ref.get());
-      p->stream << "PoolInfoNode(\n"
-                << "pool_name=" << node->pool_name << ",\n  target_access=" << node->target_access
-                << ",\n  size_hint_bytes=" << node->size_hint_bytes << ")";
-    });
-
 PoolAllocation::PoolAllocation(PoolInfo pool_info, Integer byte_offset) {
   auto pool_allocation_node = make_object<PoolAllocationNode>();
   pool_allocation_node->pool_info = pool_info;
@@ -135,12 +114,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                                     Integer pool_var_idx) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
-  if (pool_var.defined()) {
-    allocated_poolinfo_node->pool_var = pool_var;
+  if (pool_var_idx.defined()) {
+    allocated_poolinfo_node->pool_var_idx = pool_var_idx;
   }
   data_ = std::move(allocated_poolinfo_node);
 }
@@ -193,6 +173,66 @@ Integer CalculateExtentsSize(const AllocateNode* op) {
     }
   }
   return Integer(num_elements * element_size_bytes);
+}
+
+class ModuleWorkspaceSizeCalculator : public StmtExprVisitor {
+ public:
+  explicit ModuleWorkspaceSizeCalculator(const IRModule& module) : mod_(module) {
+    for (const auto& gv_func : mod_->functions) {
+      functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
+    }
+    main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    ICHECK(main_func_.defined()) << "main function is not in the module";
+    Optional<Target> target_host = main_func_->GetAttr<Target>(tvm::attr::kTarget);
+    ICHECK(target_host) << "main function does not have a target attr";
+    target_host_ = target_host.value();
+  }
+
+  Integer operator()() {
+    UpdateWorkspaceData(main_func_);
+    return Integer(max_workspace_size);
+  }
+
+ private:
+  void UpdateWorkspaceData(const PrimFunc& func) {
+    Target tgt = func->GetAttr<Target>(tvm::attr::kTarget).value_or(target_host_);
+    Integer workspace_byte_alignment =
+        tgt->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
+    Integer workspace_req = CalculateWorkspaceBytes(func, workspace_byte_alignment);
+    if (workspace_req) {
+      current_workspace_size_ += workspace_req->value;
+    }
+    if (max_workspace_size < current_workspace_size_) {
+      max_workspace_size = current_workspace_size_;
+    }
+    this->VisitStmt(func->body);
+    if (workspace_req) {
+      current_workspace_size_ -= workspace_req->value;
+    }
+  }
+
+  void VisitExpr_(const CallNode* op) override {
+    if (op->op.same_as(builtin::call_extern())) {
+      PrimFunc func = functions_.at(Downcast<StringImm>(op->args[0])->value);
+      UpdateWorkspaceData(func);
+    } else if (op->op->IsInstance<PrimFuncNode>()) {
+      PrimFunc func = Downcast<PrimFunc>(op->op);
+      UpdateWorkspaceData(func);
+    } else {
+      StmtExprVisitor::VisitExpr_(op);
+    }
+  }
+
+  IRModule mod_;
+  Target target_host_;
+  PrimFunc main_func_;
+  Map<String, PrimFunc> functions_;
+  size_t current_workspace_size_ = 0;
+  size_t max_workspace_size = 0;
+};
+
+Integer CalculateModuleWorkspaceSize(const IRModule& mod) {
+  return ModuleWorkspaceSizeCalculator(mod)();
 }
 
 TVM_REGISTER_GLOBAL("tir.usmp.CreateArrayBufferInfo")

@@ -51,6 +51,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                            Optional<Integer> decision = NullOpt) final;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) final;
+  LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const String& func_name = "main") final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
@@ -86,11 +87,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
                     int offset) final;
   void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) final;
   /******** Schedule: Blockize & Tensorize ********/
+  BlockRV Blockize(const LoopRV& loop_rv) final;
+  void Tensorize(const BlockRV& block_rv, const String& intrin) final;
+  void Tensorize(const LoopRV& loop_rv, const String& intrin) final;
   /******** Schedule: Annotation ********/
   void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
-  void Unannotate(const BlockRV& loop_rv, const String& ann_key) override;
+  void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Misc ********/
   void EnterPostproc() final;
 };

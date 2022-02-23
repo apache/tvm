@@ -92,7 +92,7 @@ def device_api_main_func():
             workspace_byte_alignment=16,
             pass_config=test_runner.pass_config,
         )
-        main_ir_module = compiled_models[0].executor_factory.lowered_ir_mods.items()[1][1]
+        main_ir_module = compiled_models[0].executor_factory.lowered_ir_mods.items()[0][1]
         main_func = main_ir_module["run_model"]
         return main_func
 
@@ -136,44 +136,28 @@ def test_device_api_hooks_unpacked_api(device_api_main_func):
 
     # Activate Device
     assert (
-        str(main_func.body[0][0].value)
-        == "@tir.call_extern("
-        + '"TVMDeviceEthosUActivate",'
-        + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        str(main_func.body[0])
+        == "tir.call_extern(" + '"TVMDeviceEthosUActivate",' + " device_context_ethos_u)\n"
     )
     # Open Device
     assert (
-        str(main_func.body[1].body.body[0][0][0].value)
-        == "@tir.call_extern("
-        + '"TVMDeviceEthosUOpen",'
-        + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        str(main_func.body[1][0][0][0])
+        == "tir.call_extern(" + '"TVMDeviceEthosUOpen",' + " device_context_ethos_u)\n"
     )
     # Device Call
     assert (
-        str(main_func.body[1].body.body[0][0][1].value)
-        == "@tir.call_extern("
-        + '"tvmgen_default_ethos_u_main_0",'
-        + " input: handle, output: handle,"
-        + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        str(main_func.body[1][0][0][1])
+        == 'tir.call_extern("tvmgen_default_ethos_u_main_0", x_int8_buffer_var, output_buffer_var, device_context_ethos_u)\n'
     )
     # Close Device
     assert (
-        str(main_func.body[1].body.body[0][0][2].value)
-        == "@tir.call_extern("
-        + '"TVMDeviceEthosUClose",'
-        + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        str(main_func.body[1][0][0][2])
+        == "tir.call_extern(" + '"TVMDeviceEthosUClose",' + " device_context_ethos_u)\n"
     )
     # Deactivate Device
     assert (
-        str(main_func.body[2][0].value)
-        == "@tir.call_extern("
-        + '"TVMDeviceEthosUDeactivate",'
-        + " device_context_ethos_u: handle,"
-        + " dtype=int32)"
+        str(str(main_func.body[2]))
+        == "tir.call_extern(" + '"TVMDeviceEthosUDeactivate",' + " device_context_ethos_u)\n"
     )
 
 
@@ -231,13 +215,9 @@ def test_without_device_api_unpacked_api(non_device_api_main_func):
     """Test a graph without the Device API with the unpacked internal calls"""
 
     main_func = non_device_api_main_func(interface_api="c", use_unpacked_api=True)
-
     assert (
-        str(main_func.body[1].body.body[0][0].value)
-        == "@tir.call_extern("
-        + '"tvmgen_default_fused_multiply",'
-        + " input: handle, input_1: handle, output: handle,"
-        + " dtype=int32)"
+        str(main_func.body)
+        == 'tir.call_extern("tvmgen_default_fused_multiply", x_buffer_var, y_buffer_var, output_buffer_var)\n'
     )
 
 
@@ -245,12 +225,17 @@ def test_without_device_api_packed_api(non_device_api_main_func):
     """Test a graph without the Device API with the packed internal calls"""
 
     main_func = non_device_api_main_func(interface_api="packed", use_unpacked_api=False)
-
     assert (
-        str(main_func.body[1].body.body[0][0])
-        == 'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
-        + "tir.tvm_struct_set(tvm_value_0, 0, 1, tir.reinterpret((uint64)0))\n"
-        + 'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", input, input, output, tvm_value_0)\n'
+        str(main_func.body)
+        == 'let tvm_value_3 = tir.tvm_stack_alloca("array", 1)\n'
+        + 'let tvm_value_2 = tir.tvm_stack_alloca("array", 1)\n'
+        + 'let tvm_value_1 = tir.tvm_stack_alloca("array", 1)\n'
+        + 'let tvm_value_0 = tir.tvm_stack_alloca("array", 1)\n'
+        + "tir.tvm_struct_set(tvm_value_0, 0, 1, x_buffer_var)\n"
+        + "tir.tvm_struct_set(tvm_value_1, 0, 1, y_buffer_var)\n"
+        + "tir.tvm_struct_set(tvm_value_2, 0, 1, output_buffer_var)\n"
+        + "tir.tvm_struct_set(tvm_value_3, 0, 1, tir.reinterpret((uint64)0))\n"
+        + 'tir.tvm_call_cpacked("tvmgen_default_fused_multiply", tvm_value_0, tvm_value_1, tvm_value_2, tvm_value_3)\n'
     )
 
 

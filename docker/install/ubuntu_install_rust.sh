@@ -16,10 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
-
+set -euxo pipefail
 
 export RUSTUP_HOME=/opt/rust
 export CARGO_HOME=/opt/rust
@@ -29,12 +26,5 @@ export PATH=$CARGO_HOME/bin:$PATH
 rustup component add rustfmt
 rustup component add clippy
 
-# install wasmtime
-apt-get install -y --no-install-recommends libc6-dev-i386
-export WASMTIME_HOME=/opt/wasmtime
-curl https://wasmtime.dev/install.sh -sSf | bash
-export PATH="${WASMTIME_HOME}/bin:${PATH}"
-rustup target add wasm32-wasi
-
-# make rust usable by all users
-chmod -R a+w /opt/rust
+# make rust usable by all users after install during container build
+chmod -R a+rw /opt/rust

@@ -165,7 +165,7 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
     s[BF].reorder(i, o, i_ii, o_ii)
 
     # Schedule for A's(B's) shared memory load
-    def shared_shedule(stage, strides):
+    def shared_schedule(stage, strides):
         s[stage].compute_at(s[CF], ko)
         _, _, xo, yo = stage.op.axis
         s[stage].storage_align(xo, strides - 1, strides)
@@ -179,8 +179,8 @@ def schedule_bgemm_tensorcore(cfg, s, bgemm, data_pack, kernel_pack):
         s[stage].bind(tx, thread_x)
         s[stage].vectorize(vi)
 
-    shared_shedule(AS, AS_align)
-    shared_shedule(BS, BS_align)
+    shared_schedule(AS, AS_align)
+    shared_schedule(BS, BS_align)
 
     shape = (wmma_m, wmma_n, wmma_k)
     in_dtype = "float16"

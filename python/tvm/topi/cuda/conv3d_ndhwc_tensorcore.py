@@ -335,8 +335,9 @@ def schedule_ndhwc_tensorcore_cuda(cfg, s, Conv):
 
 
 @autotvm.register_topi_compute("conv3d_ndhwc_tensorcore.cuda")
-def conv3d_ndhwc_tensorcore(cfg, data, kernel, strides, padding, dilation, out_dtype):
+def conv3d_ndhwc_tensorcore(cfg, data, kernel, strides, padding, dilation, groups, out_dtype):
     """Compute conv3d with tensorcore for NDHWC layout"""
+    assert groups == 1, "tensorcore conv3d does not support groups"
     return ndhwc_tensorcore_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype)
 
 

@@ -37,8 +37,11 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
+int hexagon_user_dma_1d_sync(void* src, void* dst, uint32_t length);
+
 struct Allocation {
-  Allocation(size_t nbytes, size_t alignment) : nbytes_(nbytes), alignment_(alignment) {}
+  Allocation(size_t allocation_nbytes, size_t alignment)
+      : allocation_nbytes_(allocation_nbytes), alignment_(alignment) {}
   virtual ~Allocation() {}
   Allocation(const Allocation&) = delete;
   Allocation& operator=(const Allocation&) = delete;
@@ -46,7 +49,7 @@ struct Allocation {
   Allocation& operator=(Allocation&&) = delete;
 
   void* data_{nullptr};
-  size_t nbytes_;
+  size_t allocation_nbytes_;
   size_t alignment_;
 };
 
@@ -190,13 +193,17 @@ void HexagonBuffer::SetStorageScope(Optional<String> scope) {
 
 void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
   CHECK_LE(nbytes, nbytes_);
+  CHECK(managed_allocations_.size() && "CopyTo not supported on unmanaged `external` allocations");
+
   size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(data) + copied,
-           static_cast<const char*>(managed_allocations_[i]->data_), bytes_to_copy);
+    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
+    int status =
+        hexagon_user_dma_1d_sync(data_plus_copied, managed_allocations_[i]->data_, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -204,13 +211,18 @@ void HexagonBuffer::CopyTo(void* data, size_t nbytes) const {
 
 void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
   CHECK_LE(nbytes, nbytes_);
+  CHECK(managed_allocations_.size() &&
+        "CopyFrom not supported on unmanaged `external` allocations");
+
   size_t copied = 0;
   for (size_t i = 0; i < nallocs_; ++i) {
-    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+    size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
     if (bytes_to_copy == 0) break;
 
-    memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-           static_cast<const char*>(data) + copied, bytes_to_copy);
+    void* data_plus_copied = static_cast<void*>((static_cast<char*>(data) + copied));
+    int status =
+        hexagon_user_dma_1d_sync(managed_allocations_[i]->data_, data_plus_copied, bytes_to_copy);
+    CHECK_EQ(status, 0);
 
     copied += bytes_to_copy;
   }
@@ -219,17 +231,23 @@ void HexagonBuffer::CopyFrom(void* data, size_t nbytes) {
 void HexagonBuffer::CopyFrom(const HexagonBuffer& other, size_t nbytes) {
   CHECK_LE(nbytes, nbytes_);
   CHECK_LE(nbytes, other.nbytes_);
+  CHECK(managed_allocations_.size() &&
+        "CopyFrom not supported on unmanaged `external` allocations");
+  CHECK(other.managed_allocations_.size() &&
+        "CopyFrom not supported on unmanaged `external` allocations");
 
   if (nallocs_ == other.nallocs_) {
     size_t copied = 0;
     for (size_t i = 0; i < nallocs_; ++i) {
-      size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->nbytes_);
+      size_t bytes_to_copy = std::min(nbytes - copied, managed_allocations_[i]->allocation_nbytes_);
       if (bytes_to_copy == 0) break;
 
-      CHECK_LE(other.managed_allocations_[i]->nbytes_, managed_allocations_[i]->nbytes_);
+      CHECK_LE(other.managed_allocations_[i]->allocation_nbytes_,
+               managed_allocations_[i]->allocation_nbytes_);
 
-      memcpy(static_cast<char*>(managed_allocations_[i]->data_),
-             static_cast<const char*>(other.managed_allocations_[i]->data_), bytes_to_copy);
+      int status = hexagon_user_dma_1d_sync(managed_allocations_[i]->data_,
+                                            other.managed_allocations_[i]->data_, bytes_to_copy);
+      CHECK_EQ(status, 0);
 
       copied += bytes_to_copy;
     }

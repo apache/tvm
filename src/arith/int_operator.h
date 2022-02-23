@@ -78,7 +78,7 @@ inline bool WillOverflow<tir::ModNode>(int64_t x, int64_t y, int64_t min_value, 
 }
 
 /*!
- * \brief Peform trunc division of two integers.
+ * \brief Perform trunc division of two integers.
  * \param x The left operand.
  * \param y The right operand.
  * \return the result.
@@ -94,7 +94,7 @@ inline int64_t truncdiv(int64_t x, int64_t y) { return x / y; }
 inline int64_t truncmod(int64_t x, int64_t y) { return x % y; }
 
 /*!
- * \brief Peform floor division of two integers.
+ * \brief Perform floor division of two integers.
  * \param x The left operand.
  * \param y The right operand.
  * \return the result.

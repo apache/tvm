@@ -26,6 +26,7 @@ from tvm import relay
 from tvm.script import tir as T
 import tvm.testing
 import numpy as np
+import os
 
 HOST_DEVICE = tvm.device("cpu")
 HOST_TARGET = tvm.target.Target("llvm")
@@ -588,7 +589,7 @@ def test_function_in_tuple():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
                       param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][0]) {
               let %f = fn (%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
@@ -619,7 +620,7 @@ def test_device_copy():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32]) {
               %0 = device_copy(%x, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               add(%0, meta[relay.Constant][0])
@@ -633,7 +634,7 @@ def test_device_copy():
     def expected():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(5, 7), float32],
                       param_virtual_devices=[meta[VirtualDevice][0]], result_virtual_device=meta[VirtualDevice][1]) {
               %0 = device_copy(%x, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
@@ -660,7 +661,7 @@ def test_shape_of():
     def input():
         return tvm.parser.parse(
             """
-            #[version = "0.0.5"] 
+            #[version = "0.0.5"]
             def @main(%x: Tensor[(?, ?), float32]) {
               %0 = on_device(%x, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               vm.shape_of(%0, dtype="int64")
@@ -1373,7 +1374,7 @@ def test_global():
               %0 = on_device(%b, virtual_device=meta[VirtualDevice][0]);
               add(%a, %0)
             }
-            
+
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32]) -> Tensor[(5, 7), float32] {
               @f(%y, %x)
             }
@@ -1393,7 +1394,7 @@ def test_global():
               %0 = device_copy(%b, src_virtual_device=meta[VirtualDevice][0], dst_virtual_device=meta[VirtualDevice][1]);
               add(%a, %0)
             }
-            
+
             def @main(%x: Tensor[(5, 7), float32], %y: Tensor[(5, 7), float32],
                       param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][1]],
                       result_virtual_device=meta[VirtualDevice][1]) -> Tensor[(5, 7), float32] {
@@ -1537,8 +1538,8 @@ def test_free_on_device():
             def @on_scope_b(%x: Tensor[(5, 7), float32],
                             param_virtual_devices=[meta[VirtualDevice][2]],
                             result_virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
+              %x
+            }
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
                       param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][1], meta[VirtualDevice][2]],
                       result_virtual_device=meta[VirtualDevice][1]) {
@@ -1565,8 +1566,8 @@ def test_free_on_device():
             def @on_scope_b(%x: Tensor[(5, 7), float32],
                             param_virtual_devices=[meta[VirtualDevice][2]],
                             result_virtual_device=meta[VirtualDevice][2]) -> Tensor[(5, 7), float32] {
-              %x                
-            }                 
+              %x
+            }
             def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32], %c: Tensor[(5, 7), float32],
                       param_virtual_devices=[meta[VirtualDevice][2], meta[VirtualDevice][1], meta[VirtualDevice][2]],
                       result_virtual_device=meta[VirtualDevice][1]) {
@@ -1575,7 +1576,7 @@ def test_free_on_device():
               %2 = @on_scope_b(%1);
               %3 = @on_scope_b(%c);
               %4 = add(add(%0, %2), %3);
-              %5 = on_device(%4, virtual_device=meta[VirtualDevice][2], constrain_result=True); 
+              %5 = on_device(%4, virtual_device=meta[VirtualDevice][2], constrain_result=True);
               device_copy(%5, src_virtual_device=meta[VirtualDevice][2], dst_virtual_device=meta[VirtualDevice][1])
             }
         """,
@@ -1653,7 +1654,7 @@ def test_lowered():
                       %z : Tensor[(128, 128), float32],
                       param_virtual_devices=[meta[VirtualDevice][0], meta[VirtualDevice][2], meta[VirtualDevice][1]],
                       result_virtual_device=meta[VirtualDevice][2]) {
-              call_lowered(@gem, (%x, %y, %z))          
+              call_lowered(@gem, (%x, %y, %z))
             }
             """,
             "from_string",
@@ -1673,11 +1674,11 @@ def test_lowered():
             #[version = "0.0.5"]
             def @main(%x : Tensor[(128, 128), float32],
                       %y : Tensor[(128, 128), float32],
-                      %z : Tensor[(128, 128), float32], 
+                      %z : Tensor[(128, 128), float32],
                       param_virtual_devices=[meta[VirtualDevice][1], meta[VirtualDevice][2], meta[VirtualDevice][1]],
                       result_virtual_device=meta[VirtualDevice][2]) {
               %0 = device_copy(%z, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][2]);
-              %1 = on_device(%0, virtual_device=meta[VirtualDevice][2], constrain_result=True);      
+              %1 = on_device(%0, virtual_device=meta[VirtualDevice][2], constrain_result=True);
               %2 = call_lowered(@gem, (%x, %y, %1));
               %3 = on_device(%2, virtual_device=meta[VirtualDevice][1], constrain_result=True);
               device_copy(%3, src_virtual_device=meta[VirtualDevice][1], dst_virtual_device=meta[VirtualDevice][2])
@@ -1689,6 +1690,40 @@ def test_lowered():
         )
 
     exercise(input(), expected(), None, None)
+
+
+def test_stack_overflow():
+    metatable = {"VirtualDevice": [CPU, GPU]}
+
+    # Everything defaults to GPU
+    def input():
+        tmp = "test_stack_overflow_input.txt"
+        mod = """
+            #[version = "0.0.5"]
+            def @main(%a: Tensor[(5, 7), float32], %b: Tensor[(5, 7), float32],
+                      %c: Tensor[(5, 7), float32], %d: Tensor[(5, 7), float32]) {
+            %0 = add(%a, %b);
+            %1 = add(%c, %d);
+            """
+
+        end = 1555
+        for i in range(2, end):
+            s1 = "\n\t" + "%" + str(i) + " = add(%" + str(i - 1) + ", %" + str(i - 2) + ");"
+            mod += s1
+        mod += "\n\t" + "add(%" + str(end - 1) + ", %" + str(end - 2) + ")"
+        mod += "\n\t}"
+
+        return tvm.parser.parse(
+            mod,
+            "from_string",
+            None,
+            metatable,
+        )
+
+    config = tvm.target.make_compilation_config(CTXT, TARGETS, HOST_TARGET)
+    actual_mod = relay.transform.InferType()(input())
+    actual_mod = relay.transform.PlanDevices(config)(actual_mod)
+    relay.transform.InferType()(actual_mod)
 
 
 if __name__ == "__main__":

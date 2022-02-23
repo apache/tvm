@@ -56,6 +56,8 @@ class BlockReadWriteDetector : public StmtExprVisitor {
  private:
   /*! \brief Iteration range for loop_vars */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
+  /*! \brief Extra iteration range hint for free vars */
+  std::unordered_map<const VarNode*, arith::IntSet> hint_map_;
   /*! \brief The buffers that the current block reads */
   std::vector<Buffer> read_buffers_;
   /*! \brief The buffers that the current block writes */
@@ -95,6 +97,9 @@ class BlockReadWriteDetector : public StmtExprVisitor {
 
   /*! \brief Helper function to update a opaque access. */
   void UpdateOpaque(const Var& buffer_var);
+
+  /*! \brief Helper function to relax the buffer indices */
+  arith::IntSet RelaxAccessIndex(const PrimExpr& index);
 
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const IfThenElseNode* op) override;
@@ -160,12 +165,12 @@ void BlockReadWriteDetector::VisitStmt_(const IfThenElseNode* op) {
   VisitExpr(op->condition);
   {
     // Visit then branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, true);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, true);
     StmtExprVisitor::VisitStmt(op->then_case);
   }
   if (op->else_case.defined()) {
     // Visit else branch
-    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, false);
+    With<ConditionalBoundsContext> ctx(op->condition, &dom_map_, &hint_map_, false);
     StmtExprVisitor::VisitStmt(op->else_case);
   }
 }
@@ -175,12 +180,12 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
     VisitExpr(op->args[0]);
     {
       // Visit then branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, true);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, true);
       StmtExprVisitor::VisitExpr(op->args[1]);
     }
     {
       // Visit else branch
-      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, false);
+      With<ConditionalBoundsContext> ctx(op->args[0], &dom_map_, &hint_map_, false);
       StmtExprVisitor::VisitExpr(op->args[2]);
     }
     return;

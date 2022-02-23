@@ -27,6 +27,8 @@ import pytest
 
 try:
     import tensorflow.compat.v1 as tf
+
+    tf.disable_v2_behavior()
 except ImportError:
     import tensorflow as tf
 
@@ -298,60 +300,6 @@ def is_gpu_available():
         return False
 
 
-def verify_span(mod):
-    # collect fail cases for the convenience of further improvement
-    fail_cases = []
-    mod_main_start = False
-    for line in str(mod.__str__).split("\n"):
-        if "@main" in line:
-            mod_main_start = True
-            continue
-
-        if mod_main_start == True:
-            if "}" == line:
-                break
-            elif not ("/*" in line and "*/" in line):
-                fail_cases.append(line)
-
-    print(fail_cases)
-    assert len(fail_cases) == 0
-
-
-def simple_model():
-    input_node = tf.placeholder(shape=[None, None, 3, 1], dtype=np.float32, name="input")
-
-    shape = tf.shape(input_node)
-    stack = tf.stack([shape[0], 3, 3], axis=0)
-    output_node = tf.reshape(input_node, stack, name="output")
-    return output_node
-
-
-#######################################################################
-# Span fill up
-# -------
-def test_span_complement_simple_model():
-    with tf.Graph().as_default() as graph:
-        model_graph = simple_model()
-        graph_def = graph.as_graph_def()
-
-        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
-
-        mod, params = relay.frontend.from_tensorflow(graph_def, shape={"input:0", (1, 3, 3, 1)})
-        verify_span(mod)
-
-
-def test_span_complement_big_model():
-    with tf.Graph().as_default() as graph:
-        graph_def = tf_testing.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
-        # Call the utility to import the graph definition into default graph.
-        graph_def = tf_testing.ProcessGraphDefParam(graph_def)
-
-        mod, params = relay.frontend.from_tensorflow(
-            graph_def, shape={"input_tensor:0", (128, 224, 224, 3)}
-        )
-        verify_span(mod)
-
-
 #######################################################################
 # Pooling
 # -------
@@ -617,6 +565,7 @@ def _test_convolution(
             )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 @tvm.testing.uses_gpu
 def test_forward_convolution():
     if is_gpu_available():
@@ -1537,19 +1486,29 @@ def test_tensor_array_scatter():
                 element_shape = tf.TensorShape([tf.Dimension(None)])
             else:
                 element_shape = None
-            t = tf.constant(np.array([[1.0], [2.0], [3.0]]).astype(dtype_str), dtype=dtype)
-            indices = tf.constant([2, 1, 0])
-            ta1 = tf.TensorArray(
-                dtype=dtype, size=3, infer_shape=infer_shape, element_shape=element_shape
-            )
-            ta2 = ta1.scatter(indices, t)
-            out0 = ta2.read(0)
-            out1 = ta2.read(1)
-            out2 = ta2.read(2)
+            ta0 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 3)
+            out0 = ta0.read(0)
+            out1 = ta0.read(1)
+            out2 = ta0.read(2)
+            ta1 = _construct_scatter(dtype, dtype_str, element_shape, infer_shape, 4)
+            out4 = ta1.read(0)
             g = tf.get_default_graph()
             compare_tf_with_tvm([], [], ["TensorArrayReadV3:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_1:0"], mode="vm")
             compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0"], mode="vm")
+            compare_tf_with_tvm([], [], ["TensorArrayReadV3_2:0", out4.name], mode="vm")
+
+    def _construct_scatter(dtype, dtype_str, element_shape, infer_shape, size):
+        arr = [[float(i)] for i in range(size)]
+        indices_arr = [i for i in range(size - 1, -1, -1)]
+
+        t = tf.constant(np.array(arr).astype(dtype_str), dtype=dtype)
+        indices = tf.constant(indices_arr)
+        ta1 = tf.TensorArray(
+            dtype=dtype, size=size, infer_shape=infer_shape, element_shape=element_shape
+        )
+        ta2 = ta1.scatter(indices, t)
+        return ta2
 
     for dtype in ["float32", "int8"]:
         run(dtype, False)
@@ -3811,6 +3770,7 @@ def test_forward_where():
 #######################################################################
 # Inception V3
 # ------------
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10275")
 def test_forward_inception_v3():
     """test inception V3 model"""
     with tf.Graph().as_default():
@@ -3976,6 +3936,9 @@ def _test_ssd_impl():
                     tvm.testing.assert_allclose(tvm_output[i], tf_output[i], rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.skip(
+    reason="Use of threading module here hides errors, see https://github.com/apache/tvm/pull/10231"
+)
 def test_forward_ssd():
     run_thread = threading.Thread(target=_test_ssd_impl, args=())
     old_stack_size = threading.stack_size(100 * 1024 * 1024)
@@ -5435,7 +5398,12 @@ def _test_spop_resource_variables():
 def test_forward_spop():
     _test_spop_stateful()
     _test_spop_device_assignment()
-    _test_spop_resource_variables()
+    # tensorflow version upgrade support
+    # This test is expected to fail in TF version >= 2.6
+    # as the generated graph will be considered frozen, hence
+    # not passing the criteria for the test below.
+    if tf.__version__ < LooseVersion("2.6.1"):
+        _test_spop_resource_variables()
 
     # Placeholder test cases
     _test_spop_placeholder_without_shape_info()

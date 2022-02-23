@@ -102,7 +102,7 @@ def get_conv2d_params(stmt, producers, consumers):
             padding=serial_padding,
             activation=serial_activation,
             rounding_mode=attrs["rounding_mode"],
-            upscale="NONE",
+            upscale=attrs["upscale"],
         ),
         output_pointer,
         replace_pointer,

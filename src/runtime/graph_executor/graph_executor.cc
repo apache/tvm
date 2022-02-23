@@ -24,6 +24,7 @@
 
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -97,6 +98,7 @@ void GraphExecutor::Init(const std::string& graph_json, tvm::runtime::Module mod
     output_map_[name] = i;
   }
 }
+
 /*!
  * \brief Get the input index given the name of input.
  * \param name The name of the input.
@@ -109,6 +111,29 @@ int GraphExecutor::GetInputIndex(const std::string& name) {
   }
   return -1;
 }
+
+/*!
+ * \brief Get the input info of Graph by parsing the input nodes.
+ * \return The shape and dtype tuple.
+ */
+std::tuple<GraphExecutor::ShapeInfo, GraphExecutor::DtypeInfo> GraphExecutor::GetInputInfo() const {
+  GraphExecutor::ShapeInfo shape_dict;
+  GraphExecutor::DtypeInfo dtype_dict;
+  for (uint32_t nid : input_nodes_) {
+    CHECK_LE(nid, nodes_.size());
+    std::string name = nodes_[nid].name;
+    if (param_names_.find(name) == param_names_.end()) {
+      CHECK_LE(nid, attrs_.shape.size());
+      auto shape = attrs_.shape[nid];
+      shape_dict.Set(name, ShapeTuple(shape));
+      CHECK_LE(nid, attrs_.dltype.size());
+      auto dtype = attrs_.dltype[nid];
+      dtype_dict.Set(name, String(dtype));
+    }
+  }
+  return std::make_tuple(shape_dict, dtype_dict);
+}
+
 /*!
  * \brief Get the output index given the name of output.
  * \param name The name of the output.
@@ -252,6 +277,7 @@ void GraphExecutor::LoadParams(const std::string& param_blob) {
 void GraphExecutor::LoadParams(dmlc::Stream* strm) {
   Map<String, NDArray> params = ::tvm::runtime::LoadParams(strm);
   for (auto& p : params) {
+    param_names_.insert(p.first);
     int in_idx = GetInputIndex(p.first);
     if (in_idx < 0) continue;
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
@@ -613,6 +639,16 @@ PackedFunc GraphExecutor::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
       *rv = this->GetInputIndex(args[0].operator String());
+    });
+  } else if (name == "get_input_info") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      GraphExecutor::ShapeInfo shape_info;
+      GraphExecutor::DtypeInfo dtype_info;
+      std::tie(shape_info, dtype_info) = this->GetInputInfo();
+      Map<String, ObjectRef> input_info;
+      input_info.Set("shape", shape_info);
+      input_info.Set("dtype", dtype_info);
+      *rv = input_info;
     });
   } else {
     return PackedFunc();

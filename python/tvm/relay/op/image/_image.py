@@ -365,7 +365,8 @@ def affine_grid_func(attrs, inputs, _):
 def compute_grid_sample(attrs, inputs, out_dtype):
     method = attrs.method
     layout = attrs.layout
-    return [topi.image.grid_sample(inputs[0], inputs[1], method, layout)]
+    padding_mode = attrs.padding_mode
+    return [topi.image.grid_sample(inputs[0], inputs[1], method, layout, padding_mode)]
 
 
 reg.register_injective_schedule("image.grid_sample")

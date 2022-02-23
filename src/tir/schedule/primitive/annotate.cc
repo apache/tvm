@@ -112,18 +112,7 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
     PythonAPICall py("annotate");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("ann_key", ann_key);
-    if (const auto* int_imm = ann_val.as<IntImmNode>()) {
-      py.Input("ann_val", std::to_string(int_imm->value));
-    } else if (const auto* str_imm = ann_val.as<StringObj>()) {
-      py.Input("ann_val", GetRef<String>(str_imm));
-    } else if (const auto* expr = ann_val.as<PrimExprNode>()) {
-      std::ostringstream os;
-      os << GetRef<PrimExpr>(expr);
-      py.Input("ann_val", os.str());
-    } else {
-      LOG(FATAL) << "TypeError: Cannot handle type: " << ann_val->GetTypeKey();
-      throw;
-    }
+    py.Input("ann_val", ann_val);
     return py.Str();
   }
 

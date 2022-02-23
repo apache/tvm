@@ -199,7 +199,9 @@ if [[ -n ${COMMAND} ]]; then
     echo ${DOCKER_BINARY}
     ${DOCKER_BINARY} run --rm --pid=host \
         -v ${WORKSPACE}:/workspace \
+        ${SSH_AUTH_SOCK:+-v $SSH_AUTH_SOCK:/ssh-agent} \
         -w /workspace \
+        ${SSH_AUTH_SOCK:+-e "SSH_AUTH_SOCK=/ssh-agent"} \
         -e "CI_BUILD_HOME=/workspace" \
         -e "CI_BUILD_USER=$(id -u -n)" \
         -e "CI_BUILD_UID=$(id -u)" \

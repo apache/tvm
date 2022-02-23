@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -20,9 +20,9 @@
 set +u
 
 if [[ ! -z $CI_PYTEST_ADD_OPTIONS ]]; then
-    export PYTEST_ADDOPTS="-s -v $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -vv $CI_PYTEST_ADD_OPTIONS $PYTEST_ADDOPTS"
 else
-    export PYTEST_ADDOPTS="-s -v $PYTEST_ADDOPTS"
+    export PYTEST_ADDOPTS="-s -vv $PYTEST_ADDOPTS"
 fi
 set -u
 

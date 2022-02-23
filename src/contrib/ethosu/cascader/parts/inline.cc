@@ -31,8 +31,8 @@ namespace ethosu {
 namespace cascader {
 
 const PerformanceInfo InlinePartNode::GetPerformanceInfo(const StripeConfig& output_stripe_config,
-                                                         bool is_rolling) {
-  std::vector<size_t> read_bytes(input_tensors_.size());
+                                                         BufferMode buffer_mode) {
+  std::vector<int64_t> read_bytes(input_tensors_.size());
   PerformanceInfo info(0, read_bytes, 0);
   return info;
 }

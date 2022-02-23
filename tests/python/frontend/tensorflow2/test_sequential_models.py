@@ -26,25 +26,6 @@ from tensorflow.python.framework.convert_to_constants import convert_variables_t
 
 from common import compare_tf_tvm
 from common import run_tf_code
-from tvm.relay.frontend.tensorflow2 import from_tensorflow
-
-
-def verify_span(mod):
-    fail_cases = []
-    mod_main_start = False
-    for line in str(mod.__str__).split("\n"):
-        if "@main" in line:
-            mod_main_start = True
-            continue
-
-        if mod_main_start == True:
-            if "}" == line:
-                break
-            elif not ("/*" in line and "*/" in line):
-                fail_cases.append(line)
-
-    print(fail_cases)
-    assert len(fail_cases) == 0
 
 
 def run_sequential_model(model_fn, input_shape):
@@ -67,10 +48,7 @@ def run_sequential_model(model_fn, input_shape):
         gdef = f.graph.as_graph_def(add_shapes=True)
         return gdef, _input, _output
 
-    gdef, _input, _output = model_graph(model_fn, input_shape)
-    mod, _ = from_tensorflow(gdef)
-    compare_tf_tvm(gdef, _input, _output, runtime="vm")
-    verify_span(mod)
+    compare_tf_tvm(*model_graph(model_fn, input_shape), runtime="vm")
 
 
 def test_dense_model():

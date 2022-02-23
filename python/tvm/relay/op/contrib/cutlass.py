@@ -90,6 +90,14 @@ def make_conv2d_pattern(with_bias=False, with_act=None):
     return conv2d_out
 
 
+def make_conv2d_transpose_pattern():
+    return is_op("nn.conv2d_transpose")(wildcard(), wildcard())
+
+
+def make_conv2d_backward_weight_pattern():
+    return is_op("nn.conv2d_backward_weight")(wildcard(), wildcard())
+
+
 def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu"):
     """Add pattern for residual blocks."""
     residual_input = wildcard()
@@ -105,8 +113,11 @@ def make_residual_block_pattern(tensor_op_out, binary_op="add", with_act="relu")
 
 def check_dtype(lhs, rhs):
     """Check if dtypes in the given workload are supported by CUTLASS."""
-    # Only fp16 inputs are supported for now.
-    return lhs.dtype == rhs.dtype and lhs.dtype == "float16" and rhs.dtype == "float16"
+    return (
+        (lhs.dtype == "float16" and rhs.dtype == "float16")
+        or (lhs.dtype == "float32" and rhs.dtype == "float32")
+        or (lhs.dtype in ["int8", "uint8"] and rhs.dtype in ["int8", "uint8"])
+    )
 
 
 def get_root_call(call, root_op_name):
@@ -139,18 +150,35 @@ def is_depthwise_conv2d(ic, oc, groups):
     return ic == oc == groups
 
 
-def check_conv2d(call):
+def check_conv2d_common(op_name, expected_kernel_layout, call):
     """Check if the given conv2d workload can be offloaded to CUTLASS."""
-    conv2d = get_root_call(call, "nn.conv2d")
+    conv2d = get_root_call(call, op_name)
     data_layout = conv2d.attrs.data_layout
     kernel_layout = conv2d.attrs.kernel_layout
     data = conv2d.args[0].checked_type
     weight = conv2d.args[1].checked_type
-    if data_layout != "NHWC" or kernel_layout != "OHWI" or not check_dtype(data, weight):
+    if (
+        data_layout != "NHWC"
+        or kernel_layout != expected_kernel_layout
+        or not check_dtype(data, weight)
+    ):
         return False
     IC = data.shape[3]
     OC = weight.shape[0]
     return not is_depthwise_conv2d(IC, OC, conv2d.attrs.groups)
+
+
+def check_conv2d(call):
+    return check_conv2d_common("nn.conv2d", "OHWI", call)
+
+
+def check_conv2d_transpose(call):
+    # conv2d_transpose is implemented as dgrad, needs to swap the roles of C and K
+    return check_conv2d_common("nn.conv2d_transpose", "IHWO", call)
+
+
+def check_conv2d_backward_weight(call):
+    return check_conv2d_common("nn.conv2d_backward_weight", "NHWC", call)
 
 
 def check_conv2d_residual(call, binary_op):
@@ -222,6 +250,16 @@ def partition_for_cutlass(mod, params=None):
         ("cutlass.conv2d", make_conv2d_pattern(), check_conv2d),
     ]
 
+    # For now, no fusion for grad kernels
+    conv2d_grad_patterns = [
+        ("cutlass.conv2d_transpose", make_conv2d_transpose_pattern(), check_conv2d_transpose),
+        (
+            "cutlass.conv2d_backward_weight",
+            make_conv2d_backward_weight_pattern(),
+            check_conv2d_backward_weight,
+        ),
+    ]
+
     residual_block_patterns = []
 
     for with_act, postfix in [("relu", "_relu"), (None, "")]:
@@ -235,7 +273,9 @@ def partition_for_cutlass(mod, params=None):
                     )
                 )
 
-    cutlass_patterns = residual_block_patterns + dense_patterns + conv2d_patterns
+    cutlass_patterns = (
+        residual_block_patterns + dense_patterns + conv2d_patterns + conv2d_grad_patterns
+    )
 
     if params is not None:
         mod["main"] = bind_params_by_name(mod["main"], params)
