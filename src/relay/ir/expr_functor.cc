@@ -476,17 +476,18 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   if (const FunctionNode* func = expr.as<FunctionNode>()) {
     Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
     Array<Var> new_params;
+    bool params_unchanged = true;
     for (size_t i = 0; i < func->params.size(); ++i) {
-      if (!args_map.count(func->params[i])) {  // I think in higher order cases we do want to
-                                               // replace the parameter as well?
+      if (!args_map.count(func->params[i])) {
         new_params.push_back(func->params[i]);
       } else if (const auto var = args_map[func->params[i]].as<VarNode>()) {
         // If we're mapping a variable to a variable and not a normal expr, then we want to
         // put the substitution in the new parameters.
+        params_unchanged = false;
         new_params.push_back(GetRef<Var>(var));
       }
     }
-    if (new_body.same_as(func->body) && new_params.size() == func->params.size()) {
+    if (new_body.same_as(func->body) && new_params.size() == func->params.size() && params_unchanged) {
       return expr;
     }
     auto ret =

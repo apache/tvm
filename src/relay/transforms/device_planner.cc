@@ -1009,9 +1009,17 @@ class DeviceCapturer : public ExprMutator {
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       VirtualDevice param_virtual_device =
           domains_->ResultVirtualDevice(func_domain->function_param(i));
+      VLOG(4) << "Param: " << function_node->params[i];
       Var annotated_var = WithFields(function_node->params[i], {}, {}, param_virtual_device);
+      VLOG(4) << "Annotated param: " << annotated_var;
+      VLOG(4) << "VirtualDevice: " << annotated_var->virtual_device();
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
       annotated_bind_map.Set(function_node->params[i], annotated_var);
+    }
+    for (auto kv : annotated_bind_map){
+      VLOG(4) << "Var: " << kv.first;
+      VLOG(4) << "Value: " << kv.second;
+      VLOG(4) << "Value VID: " << kv.second->virtual_device();
     }
 
     // Eventually we probably want to bind before visiting, but for now this is causing an issue
@@ -1025,10 +1033,13 @@ class DeviceCapturer : public ExprMutator {
         /*expected_virtual_device=*/result_virtual_device,
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
 
+    VLOG(4) << "Body: " << body;
     Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
+    VLOG(4) << "Func: " << func;
     func = Downcast<Function>(Bind(func, annotated_bind_map));
-
+    VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
+    VLOG(4) << "Func with bound params & result vid set: " << func;
     return func;
   }
 
