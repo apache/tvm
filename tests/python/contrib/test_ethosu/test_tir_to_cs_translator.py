@@ -73,7 +73,7 @@ class MultiEthosUCopy:
     def main(placeholder_3: T.Buffer[(8192,), "int8"], ethosu_conv2d_1: T.Buffer[(2048,), "int8"]) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
-        placeholder_5 = T.buffer_decl([1], "uint8")
+        placeholder_5 = T.buffer_decl([1], "int32")
         placeholder_4 = T.buffer_decl([1], "uint8")
         # body
         placeholder_global = T.allocate([256], "uint8", "global")
@@ -655,8 +655,8 @@ def test_translate_ethosu_copy():
         ethosu_copy_calls = extract_ethosu_copy_extern_calls(test_case["tir_module"])
         for idx, ethosu_copy_call in enumerate(ethosu_copy_calls):
             npu_dma_op = tir_to_cs_translator.translate_ethosu_tir_call_extern(ethosu_copy_call)
-            assert npu_dma_op.src.address.buffer_var.name == test_case["ref"][idx]["src"]
-            assert npu_dma_op.dest.address.buffer_var.name == test_case["ref"][idx]["dest"]
+            assert npu_dma_op.src.address.buffer.name == test_case["ref"][idx]["src"]
+            assert npu_dma_op.dest.address.buffer.name == test_case["ref"][idx]["dest"]
             assert npu_dma_op.src.length == test_case["ref"][idx]["length"]
             assert npu_dma_op.dest.length == test_case["ref"][idx]["length"]
 
@@ -901,11 +901,11 @@ def test_assign_addresses():
 
         for npu_op in npu_ops:
             if isinstance(npu_op, vapi.NpuDmaOperation):
-                src_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer_var
+                src_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer.data
                 check_buffer(
                     npu_op.src.address, npu_op.src.region, npu_op.src.length, src_tir_buffer_var
                 )
-                dest_tir_load = npu_op_tir_buffers[npu_op][1].buffer_var
+                dest_tir_load = npu_op_tir_buffers[npu_op][1].buffer.data
                 check_buffer(
                     npu_op.dest.address,
                     npu_op.dest.region,
@@ -913,7 +913,7 @@ def test_assign_addresses():
                     dest_tir_load,
                 )
             elif issubclass(type(npu_op), vapi.NpuBlockOperation):
-                ifm_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer_var
+                ifm_tir_buffer_var = npu_op_tir_buffers[npu_op][0].buffer.data
                 ifm_length = (
                     npu_op.ifm.shape.height * npu_op.ifm.shape.width * npu_op.ifm.shape.depth
                 )
@@ -923,7 +923,7 @@ def test_assign_addresses():
                     ifm_length,
                     ifm_tir_buffer_var,
                 )
-                ofm_tir_buffer_var = npu_op_tir_buffers[npu_op][1].buffer_var
+                ofm_tir_buffer_var = npu_op_tir_buffers[npu_op][1].buffer.data
                 ofm_length = (
                     npu_op.ofm.shape.height * npu_op.ofm.shape.width * npu_op.ofm.shape.depth
                 )
@@ -939,7 +939,7 @@ def test_assign_addresses():
                         npu_op.weights[idx].address,
                         npu_op.weights[idx].region,
                         npu_op.weights[idx].length,
-                        weight.address.buffer_var,
+                        weight.address.buffer.data,
                     )
                 for idx, bias in enumerate(npu_op_tir_buffers[npu_op][3]):
                     assert isinstance(bias, vapi.NpuAddressRange)
@@ -947,7 +947,7 @@ def test_assign_addresses():
                         npu_op.biases[idx].address,
                         npu_op.biases[idx].region,
                         npu_op.biases[idx].length,
-                        bias.address.buffer_var,
+                        bias.address.buffer.data,
                     )
 
     for test_case in test_cases:

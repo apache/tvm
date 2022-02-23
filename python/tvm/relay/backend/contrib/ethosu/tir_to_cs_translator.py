@@ -334,6 +334,8 @@ def extract_buffer_info(
     primfunc = mod.functions.items()[0][1]
 
     for param, const_data in param_dict.items():
+        if isinstance(param, tvm.tir.Buffer):
+            param = param.data
         buffer_info[param] = BufferInfo(
             const_data, const_data.shape, const_data.dtype, BufferType.constant
         )

@@ -245,7 +245,9 @@ def DivideConstants(const_dict):
                     # If it's anything other than a full read, create a new buffer
                     if offset != 0 or len(const) != length:
                         new_consts.append(const[offset : offset + length])
-                        new_buffer = tvm.tir.decl_buffer((length,), arg.dtype)
+                        new_buffer = tvm.tir.decl_buffer(
+                            (length,), arg.dtype, scope=arg.buffer.scope()
+                        )
                         new_buffers.append(new_buffer)
                         new_args.append(tvm.tir.expr.BufferLoad(new_buffer, [0]))
                         continue
@@ -313,12 +315,11 @@ def EncodeConstants(const_dict):
 
     """
     new_const_dict = {}
-    buffer_to_const = {}
     pointer_to_buffer = {}
     rewrite_buffer = {}
     rewrite_pointer = {}
 
-    def collect_encoding_definitions(stmt, unencoded_buffer_constants):
+    def collect_encoding_definitions(stmt, old_buffer_to_const):
         # Map from copy destination to copy source.
         copy_map = {}
         # List of buffer copies that occurred
@@ -352,6 +353,7 @@ def EncodeConstants(const_dict):
                 shape=[len(encoded_constants)],
                 dtype=str(encoded_constants.dtype),
                 name=old_buffer.name + "_encoded",
+                scope=old_buffer.scope(),
             )
 
             constant_buffer_replacements.append(
@@ -379,16 +381,18 @@ def EncodeConstants(const_dict):
                     # Encode the weights
                     weights_buffer = get_weights_buffer(stmt)
                     if weights_buffer is not None:
-                        weights_buffer = copy_map[weights_buffer]
-                        unencoded_weights_value = unencoded_buffer_constants[weights_buffer]
+                        if weights_buffer in copy_map:
+                            weights_buffer = copy_map[weights_buffer]
+                        unencoded_weights_value = old_buffer_to_const[weights_buffer]
                         encoded_weights_value = _encode_weights(stmt, unencoded_weights_value)
                         _declare_constant_buffer(weights_buffer, encoded_weights_value)
 
                     # Align the scale_bias to 16 bytes
                     scale_bias_buffer = get_scale_bias_buffer(stmt)
                     if scale_bias_buffer is not None:
-                        scale_bias_buffer = copy_map[scale_bias_buffer]
-                        scale_bias_value = unencoded_buffer_constants[scale_bias_buffer]
+                        if scale_bias_buffer in copy_map:
+                            scale_bias_buffer = copy_map[scale_bias_buffer]
+                        scale_bias_value = old_buffer_to_const[scale_bias_buffer]
                         aligned_scale_bias_value = _align_scale_bias(stmt, scale_bias_value)
                         _declare_constant_buffer(scale_bias_buffer, aligned_scale_bias_value)
 
@@ -399,7 +403,7 @@ def EncodeConstants(const_dict):
             "constant_buffer_replacements": constant_buffer_replacements,
         }
 
-    def transform_stmt(stmt, buf_remap, var_remap, pointer_to_buffer, encoded_buffers):
+    def transform_stmt(stmt, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const):
         def _visit_rewrite(stmt):
             if isinstance(stmt, tvm.tir.Call):
                 # For extern calls, we need to rewrite pairs of arguments corresponding to
@@ -412,7 +416,7 @@ def EncodeConstants(const_dict):
                     # encoded buffer, the current should be a length.
                     if (
                         isinstance(prev_arg, tvm.tir.BufferLoad)
-                        and prev_arg.buffer in encoded_buffers
+                        and prev_arg.buffer in new_buffer_to_const
                     ):
                         arg = np.prod(list(prev_arg.buffer.shape))
 
@@ -467,24 +471,24 @@ def EncodeConstants(const_dict):
     def _ftransform(f, mod, ctx):
         # Step 0: Unpack the constant dictionary in terms of the
         # functions buffers.
-        unencoded_buffer_constants = {}
+        old_buffer_to_const = {}
         for i, param in enumerate(f.params):
             if i in const_dict:
-                unencoded_buffer_constants[f.buffer_map[param]] = const_dict[i].flatten()
+                old_buffer_to_const[f.buffer_map[param]] = const_dict[i].flatten()
 
         # Step 1: Collect information on the buffers that will be
         # replaced by encodings.
-        buffer_information = collect_encoding_definitions(f.body, unencoded_buffer_constants)
+        buffer_information = collect_encoding_definitions(f.body, old_buffer_to_const)
 
         # Step 2: Generate variable/buffer remaps, based on the
         # collected information.
         buf_remap = {}
-        encoded_buffers = []
+        new_buffer_to_const = {}
 
         # Any encoded buffers must be replaced
         for info in buffer_information["constant_buffer_replacements"]:
             buf_remap[info["old_buffer"]] = info["new_buffer"]
-            encoded_buffers.append(info["new_buffer"])
+            new_buffer_to_const[info["new_buffer"]] = info["encoded_constants"]
 
         # Any buffers that are copied into from an encoded buffer must
         # be replaced.
@@ -499,23 +503,23 @@ def EncodeConstants(const_dict):
                 new_dest = tvm.tir.decl_buffer(
                     shape=copy_source.shape,
                     dtype=copy_source.dtype,
-                    name=copy_dest.name + "_encoded",
+                    name=copy_dest.name,
+                    scope=copy_dest.scope(),
                 )
                 buf_remap[copy_dest] = new_dest
-                encoded_buffers.append(new_dest)
+                if copy_source in new_buffer_to_const:
+                    new_buffer_to_const[new_dest] = new_buffer_to_const[copy_source]
 
         # Define additional dependent lookup tables.
         var_remap = {old.data: new.data for (old, new) in buf_remap.items()}
         pointer_to_buffer = {
             buf.data: buf for (old, new) in buf_remap.items() for buf in [old, new]
         }
-        buffer_to_const = {
-            info["new_buffer"]: info["encoded_constants"]
-            for info in buffer_information["constant_buffer_replacements"]
-        }
 
         # Step 3: Then perform the rewrites
-        new_body = transform_stmt(f.body, buf_remap, var_remap, pointer_to_buffer, encoded_buffers)
+        new_body = transform_stmt(
+            f.body, buf_remap, var_remap, pointer_to_buffer, new_buffer_to_const
+        )
 
         # Step 4: Rewrite the buffer map and const dict to instead use the encoded versions
         new_buffer_map = {}
@@ -524,8 +528,10 @@ def EncodeConstants(const_dict):
             if buffer in buf_remap:
                 buffer = buf_remap[buffer]
 
-            if buffer in buffer_to_const:
-                new_const_dict[i] = buffer_to_const[buffer]
+            if buffer in new_buffer_to_const:
+                new_const_dict[i] = new_buffer_to_const[buffer]
+            elif buffer in old_buffer_to_const:
+                new_const_dict[i] = old_buffer_to_const[buffer]
 
             new_buffer_map[param] = buffer
 
@@ -774,11 +780,12 @@ def CreatePrimFuncWithoutConstants(const_dict):
             # We are using buffer_var to key the constants as
             # PrimFunc params of constants will be removed.
             new_const_dict[f.buffer_map[f.params[param_idx]].data] = const_dict[param_idx]
-        for i in range(len(f.params)):
+        for i, param in enumerate(f.params):
             if i not in const_dict.keys():
-                new_params.append(f.params[i])
-                new_buffer_map[f.params[i]] = f.buffer_map[f.params[i]]
-                new_preflattened_buffer_map[f.params[i]] = f.preflattened_buffer_map[f.params[i]]
+                new_params.append(param)
+                new_buffer_map[param] = f.buffer_map[param]
+                if param in f.preflattened_buffer_map:
+                    new_preflattened_buffer_map[param] = f.preflattened_buffer_map[param]
         return tvm.tir.PrimFunc(
             new_params,
             f.body,
