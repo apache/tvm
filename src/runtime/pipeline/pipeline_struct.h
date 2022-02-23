@@ -89,7 +89,7 @@ struct ModuleInterfaceID {
 class DataNotify {
  private:
   /*!\brief The 'contitional variable' is used to wait for notification.*/
-  std::condition_variable notify_cv;
+  std::condition_variable notify_cv_;
   /*!\brief The mutex is used to protect the 'conditional variable'.*/
   std::mutex mutex_;
   /*!\brief Whether a data is ready or not.*/
@@ -123,7 +123,7 @@ class DataNotify {
    */
   bool Wait(void) {
     std::unique_lock<std::mutex> lock(mutex_);
-    notify_cv.wait(lock, [&] { return this->data_ready_; });
+    notify_cv_.wait(lock, [&] { return this->data_ready_; });
     data_ready_ = false;
     return !exit_state_;
   }
@@ -133,7 +133,7 @@ class DataNotify {
       std::lock_guard<std::mutex> lock(mutex_);
       data_ready_ = true;
     }
-    notify_cv.notify_one();
+    notify_cv_.notify_one();
   }
   /*!brief Sending the notification when the notification state changes into 'exit'.*/
   void ExitNotify(void) {
@@ -538,8 +538,8 @@ class BackendRuntime {
     } else {
       // Only launching the worker thread for the runtimes after the first runtime.
       thread_ = std::thread([&]() {
-        while (!this->WaitAndLoadPipeLineData()) {
-          this->RunPipeLine();
+        while (!this->WaitAndLoadPipelineData()) {
+          this->RunPipeline();
         }
         VLOG(1) << "Runtime " << this->runtime_idx_ << " exit.";
       });
@@ -559,7 +559,7 @@ class BackendRuntime {
    * \brief Waiting for the internal forwarding data.
    * \return Returning 'true' when getting a 'exit' notification otherwise returning 'false'.
    */
-  bool WaitAndLoadPipeLineData() {
+  bool WaitAndLoadPipelineData() {
     std::unordered_map<int, std::shared_ptr<DataNotify>> notifys = parents_notify_;
     bool exit_notify = false;
     while (!notifys.empty() && !exit_notify) {
@@ -691,7 +691,7 @@ class BackendRuntime {
    * \brief Getting the times of using pipeline function.
    * \return The times of using pipeline function.
    */
-  int GetStatisticPipelineExecuteNumber() const { return statistic_pipeline_execute_times_; }
+  int GetExecutionCount() const { return statistic_pipeline_execute_times_; }
   /*!
    * \brief Initializing data structures for the pipeline execution.
    * \param config The pipeline configueration.
@@ -765,7 +765,7 @@ class BackendRuntime {
   /*!\brief Running the runtime.*/
   void Run() { run_(); }
   /*!\brief Running the runtime in the pipeline mode.*/
-  void RunPipeLine() {
+  void RunPipeline() {
     Run();
     ForwardingOutputDataToChildren();
     statistic_pipeline_execute_times_++;

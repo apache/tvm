@@ -98,7 +98,7 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
   /*!
    * \brief Getting the count of running pipeline.
    */
-  int PipelineStatisticPipeExecuterCount();
+  int GetExecutionCount();
   /*!
    * \brief Use the parameters group name to get the specific backend runtime then use
    *  the param_key_name to set param data for the said backend runtime.

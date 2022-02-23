@@ -34,8 +34,8 @@ std::vector<std::shared_ptr<BackendRuntime>> PipelineScheduler::PipelineInit(
   graph_modules_ = modules;
   // Creating a list of runtimes.
   for (size_t i = 0; i < graph_modules_.size(); i++) {
-    auto runItem = std::make_shared<BackendRuntime>(graph_modules_[i], i);
-    runtimes.push_back(runItem);
+    auto run_item = std::make_shared<BackendRuntime>(graph_modules_[i], i);
+    runtimes.push_back(run_item);
   }
   // Creating a list of NDArray in order to storage the outputs data.
   auto global_output_map = pipeline_config.GetGlobalConfigOutputBindings();
@@ -106,7 +106,7 @@ void PipelineScheduler::PipelineRunSequential(
 void PipelineScheduler::PipelineRun(const std::vector<std::shared_ptr<BackendRuntime>>& runtimes,
                                     ConfigPipelineExecution pipeline_config, bool sequential_mode) {
   if (!sequential_mode) {
-    runtimes.front()->RunPipeLine();
+    runtimes.front()->RunPipeline();
   } else {
     PipelineRunSequential(runtimes, pipeline_config);
   }

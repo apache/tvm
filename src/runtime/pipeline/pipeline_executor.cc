@@ -79,10 +79,9 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
-  } else if (name == "get_statistic_pipe_execute_count") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->PipelineStatisticPipeExecuterCount();
-    });
+  } else if (name == "get_execute_count") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetExecutionCount(); });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc();
@@ -240,9 +239,7 @@ std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
 /*!
  * \brief Getting the count of running pipeline.
  */
-int PipelineExecutor::PipelineStatisticPipeExecuterCount() {
-  return runtimes_.back()->GetStatisticPipelineExecuteNumber();
-}
+int PipelineExecutor::GetExecutionCount() { return runtimes_.back()->GetExecutionCount(); }
 /*!
  * \brief Initialize the pipeline executor with a list of modules to be pipelined
  *  and config in JSON format.
