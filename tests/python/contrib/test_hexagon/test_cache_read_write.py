@@ -1,12 +1,30 @@
-import numpy as np
-import tvm
-from tvm import te
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 
-from tvm.contrib import utils, ndk
+import pytest
+import numpy as np
+
+import tvm.testing
+from tvm import te
+from tvm.contrib import utils
 from tvm.contrib.hexagon.build import HexagonLauncher
 import tvm.contrib.hexagon.hexagon as hexagon
 
-from ..conftest import requires_rpc_tracker, requires_hexagon_toolchain
+from .conftest import requires_hexagon_toolchain
 
 
 def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
@@ -44,9 +62,8 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
     return te.decl_tensor_intrin(dst.op, intrin_func, binds={src: src_buffer, dst: dst_buffer})
 
 
-@requires_rpc_tracker
 @requires_hexagon_toolchain
-def test_hexagon(tvm_tracker_host, tvm_tracker_port, android_serial_number):
+def test_hexagon(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     size = 128
     outer_shape = (size,)
     factor = 16
@@ -90,6 +107,9 @@ def test_hexagon(tvm_tracker_host, tvm_tracker_port, android_serial_number):
     dso_binary = "test_binary.so"
     dso_binary_path = temp.relpath(dso_binary)
     func.save(dso_binary_path)
+
+    if not android_serial_number:
+        pytest.skip("Skip hardware test since ANDROID_SERIAL_NUMBER is not set.")
 
     launcher = HexagonLauncher(serial_number=android_serial_number)
     launcher.android_run_rpc(rpc_tracker_host=tvm_tracker_host, rpc_tracker_port=tvm_tracker_port)
