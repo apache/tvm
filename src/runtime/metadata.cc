@@ -34,6 +34,9 @@ ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::inputs() {
 ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::outputs() {
   return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->outputs, data_->num_outputs);
 }
+ArrayAccessor<struct TVMTensorInfo, TensorInfo> MetadataNode::pools() {
+  return ArrayAccessor<struct TVMTensorInfo, TensorInfo>(data_->pools, data_->num_pools);
+}
 
 TVM_REGISTER_OBJECT_TYPE(MetadataBaseNode);
 

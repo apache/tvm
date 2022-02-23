@@ -37,8 +37,11 @@ const int64_t kNormalOutput1Shape[3] = {3, 8, 8};
 const struct TVMTensorInfo kNormalOutputs[1] = {
     {"output1", kNormalOutput1Shape, 3, DLDataType{3, 4, 5}}};
 
+const int64_t kNormalPool1Shape[3] = {3, 8, 8};
+const struct TVMTensorInfo kNormalPools[1] = {{"pool1", kNormalPool1Shape, 3, DLDataType{3, 4, 7}}};
+
 const struct TVMMetadata kNormal = {
-    TVM_METADATA_VERSION, kNormalInputs, 2, kNormalOutputs, 1, "default",
+    TVM_METADATA_VERSION, kNormalInputs, 2, kNormalOutputs, 1, kNormalPools, 1, "default",
 };
 }  // namespace
 
@@ -73,6 +76,14 @@ TEST(Metadata, ParseStruct) {
   EXPECT_THAT(output1->name(), Eq("output1"));
   EXPECT_THAT(output1->shape(), ElementsAre(3, 8, 8));
   EXPECT_THAT(output1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 5})));
+
+  auto pools = md->pools();
+  EXPECT_THAT(pools.size(), Eq(1));
+
+  auto pool1 = pools[0];
+  EXPECT_THAT(pool1->name(), Eq("pool1"));
+  EXPECT_THAT(pool1->shape(), ElementsAre(3, 8, 8));
+  EXPECT_THAT(pool1->dtype(), Eq(tvm::runtime::DataType(DLDataType{3, 4, 7})));
 
   EXPECT_THAT(md->mod_name(), Eq("default"));
 }
@@ -131,7 +142,8 @@ TEST(Metadata, Visitor) {
   ::tvm::ReflectionVTable::Global()->VisitAttrs(md.operator->(), &v);
 
   EXPECT_THAT(v.keys, ElementsAre(StrEq("version"), StrEq("inputs"), StrEq("num_inputs"),
-                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("mod_name")));
+                                  StrEq("outputs"), StrEq("num_outputs"), StrEq("pools"),
+                                  StrEq("num_pools"), StrEq("mod_name")));
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
 
   EXPECT_THAT(Downcast<tvm::IntImm>(v.values[0])->value, Eq(TVM_METADATA_VERSION));
@@ -164,6 +176,19 @@ TEST(Metadata, Visitor) {
 
   auto num_outputs = Downcast<tvm::IntImm>(v.values[4]);
   EXPECT_THAT(num_outputs->value, Eq(1));
+
+  auto pool_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[5]);
+  EXPECT_THAT(pool_array->type_index, Eq(tvm::runtime::metadata::MetadataTypeIndex::kMetadata));
+  EXPECT_THAT(pool_array->struct_name, StrEq("TVMTensorInfo"));
+  auto pool1 = Downcast<tvm::runtime::metadata::TensorInfo>(pool_array->array[0]);
+
+  EXPECT_THAT(pool1->name(), Eq("pool1"));
+
+  auto num_pools = Downcast<tvm::IntImm>(v.values[6]);
+  EXPECT_THAT(num_pools->value, Eq(1));
+
+  auto mod_name = Downcast<tvm::String>(v.values[7]);
+  EXPECT_THAT(mod_name, Eq("default"));
 }
 
 using ::tvm::runtime::make_object;
@@ -184,6 +209,10 @@ TEST(Metadata, InMemory) {
               make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
                   tvm::String("Output1"), std::vector<int64_t>{3, 8, 8},
                   tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
+          std::vector<tvm::runtime::metadata::TensorInfo>({tvm::runtime::metadata::TensorInfo(
+              make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
+                  tvm::String("Pool1"), std::vector<int64_t>{5, 10, 10},
+                  tvm::runtime::DataType(DLDataType{3, 4, 7})))}),
           "default"));
 
   auto md_data = md->data();
@@ -211,6 +240,13 @@ TEST(Metadata, InMemory) {
   EXPECT_THAT(tvm::runtime::DataType(output0->dtype),
               Eq(tvm::runtime::DataType(DLDataType({3, 4, 5}))));
 
+  auto pool0 = &md_data->pools[0];
+  EXPECT_THAT(pool0->name, StrEq("Pool1"));
+  EXPECT_THAT(std::vector<int64_t>(pool0->shape, pool0->shape + pool0->num_shape),
+              ElementsAre(5, 10, 10));
+  EXPECT_THAT(tvm::runtime::DataType(pool0->dtype),
+              Eq(tvm::runtime::DataType(DLDataType({3, 4, 7}))));
+
   EXPECT_THAT(md_data->mod_name, StrEq("default"));
 }
 
@@ -222,7 +258,7 @@ TEST(Metadata, ZeroElementLists) {
               make_object<tvm::target::metadata::InMemoryTensorInfoNode>(
                   tvm::String("Output1"), std::vector<int64_t>{},
                   tvm::runtime::DataType(DLDataType{3, 4, 5})))}),
-          "default"));
+          std::vector<tvm::runtime::metadata::TensorInfo>({}), "default"));
 
   EXPECT_THAT(md->data()->num_inputs, Eq(0));
   EXPECT_THAT(md->inputs().size(), Eq(0));
@@ -233,4 +269,8 @@ TEST(Metadata, ZeroElementLists) {
   EXPECT_THAT(output0.num_shape, Eq(0));
   EXPECT_THAT(md->outputs()[0]->shape().size(), Eq(0));
   EXPECT_THAT(md->outputs()[0]->shape(), ElementsAre());
+
+  EXPECT_THAT(md->pools().size(), Eq(0));
+  EXPECT_THAT(md->num_pools(), Eq(0));
+  EXPECT_THAT(md->pools(), ElementsAre());
 }
