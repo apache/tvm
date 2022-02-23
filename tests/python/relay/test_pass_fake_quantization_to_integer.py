@@ -70,12 +70,12 @@ def test_fake_quantize_conv_per_channel():
         x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
         w = relay.var("w", shape=[16, 3, 5, 5], dtype="int8")
         one = relay.const([1.0] * 16)
-        zero = relay.const([0] * 16)
+        zero_point = relay.const([np.random.randint(0, 255)] * 16)
 
         op = relay.op.nn.conv2d(
             relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(0)),
             relay.qnn.op.dequantize(
-                w, relay.const(np.random.random([16]).astype("float32")), zero, axis=0
+                w, relay.const(np.random.random([16]).astype("float32")), zero_point, axis=0
             ),
             kernel_size=[5, 5],
             channels=16,

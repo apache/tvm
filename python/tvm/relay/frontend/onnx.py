@@ -216,6 +216,15 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def get_scalar_or_1d_tensor(x, params, dtype="float32"):
+    """Helper to get a scalar value or 1D tensor for Quantized operators."""
+    if isinstance(x, _expr.Var) and x.name_hint in params:
+        return _op.const(params[x.name_hint].numpy(), dtype)
+    rank = len(infer_shape(x))
+    assert rank <= 1, "scale and zero_point input must be scalars or 1D tensors"
+    return _op.cast(x, dtype)
+
+
 def matmul_out_dtype(inputs, out_dtype):
     """Common function to handle MatMul and MatMulInteger16"""
     a_shape = shape_of(inputs[0])
@@ -3654,10 +3663,20 @@ class QLinearConv(OnnxOpConverter):
         x_scale = get_scalar(inputs[1], params)
         x_zero_point = get_scalar(inputs[2], params, "int32")
         weight = inputs[3]
-        w_scale = get_scalar(inputs[4], params)
-        w_zero_point = get_scalar(inputs[5], params, "int32")
+        w_scale = get_scalar_or_1d_tensor(inputs[4], params)
+        w_zero_point = get_scalar_or_1d_tensor(inputs[5], params, "int32")
         y_scale = fold_constant(get_scalar(inputs[6], params))
         y_zero_point = get_scalar(inputs[7], params, "int32")
+
+        # Check shapes for per channel quantization
+        w_scale_shape = infer_shape(w_scale)
+        w_zero_point_shape = infer_shape(w_zero_point)
+        if len(w_scale_shape) == 1 or len(w_zero_point_shape) == 1:
+            m = infer_shape(weight)[0]
+            if m != w_scale_shape[0] or m != w_zero_point_shape[0]:
+                raise tvm.error.OpAttributeInvalid(
+                    "The number of elements should be equal to the number of output channels"
+                )
 
         input_shape = infer_shape(data)
 
@@ -3731,11 +3750,11 @@ class QLinearConv(OnnxOpConverter):
                 y_scale,
                 y_zero_point,
                 out_dtype=out_dtype,
-                axis=0,
+                axis=1,
             )
         else:
-            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=0)
-            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=0, out_dtype=out_dtype)
+            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=1)
+            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=1, out_dtype=out_dtype)
         return out
 
 
