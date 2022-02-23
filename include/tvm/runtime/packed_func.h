@@ -1492,7 +1492,7 @@ struct SignaturePrinter {
   template <size_t i, typename TArgument>
   struct PrintParamType {
     static void F(std::ostream& os) {
-      os << (i == 0 ? "" : ", ") << type2str::TypeSimplifier<TArgument>::v();
+      os << (i == 0 ? "" : ", ") << i << ": " << type2str::TypeSimplifier<TArgument>::v();
     }
   };
 
