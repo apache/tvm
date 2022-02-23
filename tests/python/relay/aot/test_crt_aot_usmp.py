@@ -60,9 +60,9 @@ def check_for_no_tvm_backendallocworkspace_calls(mod: tvm.runtime.module):
 @pytest.mark.parametrize(
     "workspace_byte_alignment,main_workspace_size",
     [
-        (8, 11424),
-        (16, 11424),
-        (256, 11920),
+        (8, 17280),
+        (16, 17280),
+        (256, 17792),
     ],
 )
 def test_memory_planning(workspace_byte_alignment, main_workspace_size):
@@ -81,7 +81,7 @@ def test_memory_planning(workspace_byte_alignment, main_workspace_size):
             "tir.disable_vectorize": True,
             "tir.disable_storage_rewrite": True,
             "tir.usmp.enable": True,
-            "tir.usmp.algorithm": "hill_climb",
+            "tir.usmp.algorithm": "greedy_by_conflicts",
         },
     ):
         lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
