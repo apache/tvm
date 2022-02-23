@@ -208,7 +208,7 @@ with flow.no_grad():
 
 for mode in ["oneflow", "tvm"]:
     if mode == "oneflow":
-        out_a = out[0].data.to("cpu") * 255
+        out_a = out[0] * 255
         out_b = out_a.squeeze(0).permute(1, 2, 0)
         _img = out_b.numpy().astype(np.uint8)
     elif mode == "tvm":

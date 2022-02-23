@@ -114,7 +114,7 @@ def _dtype_shape_promotion(inputs):
     return inputs
 
 def parse_attr(attr):
-    # Parse attribute of user op in oneflow.
+    """Parse attribute of user op in oneflow."""
     attrs = {}
     for a in attr:
         attr_str = str(attr[a])
@@ -199,12 +199,7 @@ class Pool(OneFlowOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
         data = inputs[0]
-        input_shape = infer_shape(data)
-        input_dtype = infer_type(data).checked_type.dtype
-        ndim = len(input_shape)
-
         attrs.pop("data_format")
-
         out = AttrCvt(
             op_name=cls.name,
             transforms={
@@ -354,8 +349,6 @@ class ConvTranspose(OneFlowOpConverter):
                 data = i
 
         # get number of channels
-        out_type = infer_type(kernel)
-        out_shapes = [get_const_tuple(out_type.checked_type.shape)]
         attrs["channels"] = attrs.get("filters", 1)
         attrs["groups"] = attrs.get("group", 1)
 
@@ -394,17 +387,7 @@ class Upsample(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        in_names = ["-input_"]
-        kernel_names = [".weight"]
-        for i in inputs:
-            IN_NAMES = any(x in str(i) for x in in_names)
-            KERNEL_NAMES = any(x in str(i) for x in kernel_names)
-            if IN_NAMES:
-                data = i
-            elif KERNEL_NAMES:
-                kernel = i
-            else:
-                data = i
+        data = inputs[0]
         input_shape = infer_shape(data)
         dims = len(input_shape)
 
@@ -501,7 +484,6 @@ class BatchNorm(OneFlowOpConverter):
             elif 'var' in str(i) and not IN_NAMES:
                 sorted_inputs[4] = i
 
-        axis = attrs.get("axis", 3)
         if "data_format" in attrs:
             if attrs["data_format"] == "channel_first":
                 attrs["axis"] = 1
@@ -809,9 +791,9 @@ class ScalarAdd(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         assert len(inputs) == 1, "add_scalar take == 1 inputs, but {} given.".format(len(inputs))
 
-        if attrs.get("has_int_operand", False):
+        if attrs.get("has_int_operand", True):
             return inputs[0] + _expr.const(attrs["int_operand"])
-        elif attrs.get("has_float_operand", False):
+        if attrs.get("has_float_operand", True):
             return inputs[0] + _expr.const(attrs["float_operand"])
         else:
             raise AttributeError(
@@ -826,9 +808,9 @@ class ScalarMul(OneFlowOpConverter):
     def _impl_v1(cls, inputs, attrs, params):
         assert len(inputs) == 1, "add_scalar take == 1 inputs, but {} given.".format(len(inputs))
 
-        if attrs.get("has_int_operand", False):
+        if attrs.get("has_int_operand", True):
             return inputs[0] * _expr.const(attrs["int_operand"], dtype="float32")
-        elif attrs.get("has_float_operand", False):
+        if attrs.get("has_float_operand", True):
             return inputs[0] * _expr.const(attrs["float_operand"])
         else:
             raise AttributeError(
@@ -1487,7 +1469,6 @@ class OneflowGraph(object):
                 if "FreeEagerTensor" in node.name:
                     shape = tuple(node.variable_conf.shape.dim)
                     dtype = FLOW_2_STR_DTYPE[node.variable_conf.data_type]
-                    initializer = node.variable_conf.initializer
                     self._shape[node.name] = shape
                     self._dtype[node.name] = dtype
                     self._init_variable_node.append(node.name)
@@ -1766,7 +1747,7 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
     see OneflowGraph.from_oneflow
     """
     try:
-        import oneflow
+        import oneflow as flow
     except ImportError:
         raise ImportError("please check that OneFlow is installed")
 
@@ -1774,9 +1755,6 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
         raise ValueError("if you want to specify graph input, please give the 'user_input'")
     if freeze_params and user_input is not None:
         warnings.warn("'user_input' will not work, please check the 'freeze_params'")
-    
-    if not graph._is_compiled:
-        graph._compile(flow.rand(shape_input))
 
     # get info of nodes
     shape = {}
@@ -1821,6 +1799,8 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
             )[0].replace("size=", "")[1:-1].split(", ")
         )
     )
+    if not graph._is_compiled:
+        graph._compile(flow.rand(shape_input))
     graph_proto = graph._graph_proto
 
     # get all nodes
