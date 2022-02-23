@@ -171,6 +171,8 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)
+    if len(all_impls) == 0:
+        raise RuntimeError(f"No valid {op} implementations for {target}")
     best_plevel_impl = max(all_impls, key=lambda x: x.plevel)
 
     # Disable autotvm if auto_scheduler is enabled.

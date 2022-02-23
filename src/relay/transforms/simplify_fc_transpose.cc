@@ -128,12 +128,12 @@ Pass SimplifyFCTranspose(const Array<ObjectRef>& target_weights) {
         // Remove FreeVar warning
         auto f0 = Downcast<Function>(SimplifyFCTranspose(f, target_weights));
         Array<Var> wt_params = FreeVars(f0);
-        auto f1 = Function(wt_params, f0->body, f0->ret_type, f0->type_params, f0->attrs);
+        auto f1 = WithFields(f0, wt_params);
         Array<Var> params = FreeVars(f1);
         for (const auto& var : wt_params) {
           params.push_back(var);
         }
-        return Function(params, f1->body, f1->ret_type, f1->type_params, f1->attrs);
+        return WithFields(f1, params);
       };
   return CreateFunctionPass(pass_func, 4, "SimplifyFCTranspose", {"DeadCodeElimination"});
 }

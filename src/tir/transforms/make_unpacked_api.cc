@@ -57,35 +57,33 @@ PrimFunc MakeUnpackedAPI(PrimFunc&& func) {
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 
-  // Create arg to buffer binder
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  ArgBinder binder(&vmap);
 
   // Collect variables and buffers to map between
   Array<Var> args;
-  std::vector<std::pair<Var, Var>> var_def;
-  bool buffer_map_found = false;
-
-  for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
-    Var param = func_ptr->params[i];
-
-    auto it = func_ptr->buffer_map.find(param);
-    if (it != func_ptr->buffer_map.end()) {
-      args.push_back((*it).second->data);
-      buffer_map_found = true;
+  Map<Var, Buffer> new_buffer_map;
+  for (const Var& param : func->params) {
+    // Ideally all func params should have Buffers defined in the buffer_map
+    // We should look to insert buffer_maps for all PrimFuncs that are returned
+    // to the core compiler.
+    if (func->buffer_map.find(param) != func->buffer_map.end()) {
+      args.push_back(func->buffer_map[param]->data);
+      // Rewiring the buffer_var to map to Buffers for low-level passes
+      // retain information about the buffer.
+      new_buffer_map.Set(func->buffer_map[param]->data, func->buffer_map[param]);
     } else {
       args.push_back(param);
     }
   }
 
-  if (buffer_map_found) {
+  if (func->buffer_map.size()) {
     device_init.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     device_init.push_back(AttrStmt(node, attr::device_type, device_type, nop));
   }
 
-  func_ptr->body = MergeNest({device_init, binder.init_nest(), binder.asserts()}, func_ptr->body);
+  func_ptr->body = MergeNest(device_init, func_ptr->body);
   func_ptr->params = args;
   func_ptr->ret_type = PrimType(DataType::Int(32));
+  func_ptr->buffer_map = new_buffer_map;
 
   // return the function.
   return std::move(func);

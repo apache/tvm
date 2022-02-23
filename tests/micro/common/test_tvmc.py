@@ -80,7 +80,7 @@ def test_tvmc_model_build_only(board, output_dir):
             shutil.rmtree(out_dir_temp)
         os.mkdir(out_dir_temp)
 
-    model_path = model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
+    model_path = download_testdata(MODEL_URL, MODEL_FILE, module="data")
     tar_path = str(output_dir / "model.tar")
     project_dir = str(output_dir / "project")
 

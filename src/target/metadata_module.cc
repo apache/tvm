@@ -37,7 +37,7 @@ namespace codegen {
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params,
     tvm::runtime::Module target_module, const Array<runtime::Module>& ext_modules, Target target,
-    tvm::relay::Runtime runtime, runtime::Metadata metadata) {
+    tvm::relay::Runtime runtime, relay::backend::ExecutorCodegenMetadata metadata) {
   // Here we split modules into two groups:
   //  1. Those modules which can be exported to C-runtime. These are DSO-exportable
   //     (i.e. llvm or c) modules which return nothing from get_const_vars().

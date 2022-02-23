@@ -39,31 +39,61 @@ IterVar reduce_axis(Range dom, std::string name) { return IterVar(dom, Var(name)
 Var var(std::string name_hint, DataType t) { return Var(name_hint, t); }
 
 // Tensor
+inline PrimExpr Tensor::IndexTensor(Array<PrimExpr> indices, bool support_negative_indices) const {
+  Array<PrimExpr> shape = (*this)->shape;
+
+  if (shape.size() != 0) {
+    ICHECK_EQ(shape.size(), indices.size())
+        << "Tensor dimension mismatch in read "
+        << "ndim = " << ndim() << ", indices.size=" << indices.size();
+  }
+
+  if (support_negative_indices) {
+    for (size_t i = 0; i < shape.size(); i++) {
+      PrimExpr new_index =
+          Select(indices[i] < make_const(indices[i]->dtype, 0), indices[i] + shape[i], indices[i]);
+      indices.Set(i, new_index);
+    }
+  }
+  return ProducerLoad((*this), indices);
+}
+
 PrimExpr Tensor::operator()(Array<Var> indices) const {
   Array<PrimExpr> arr(indices.begin(), indices.end());
   return operator()(arr);
 }
 
-PrimExpr Tensor::operator()(Array<PrimExpr> indices) const {
-  if (ndim() != 0) {
-    ICHECK_EQ(ndim(), indices.size()) << "Tensor dimension mismatch in read "
-                                      << "ndim = " << ndim() << ", indices.size=" << indices.size();
-  }
+PrimExpr Tensor::operator()(Array<PrimExpr> indices) const { return IndexTensor(indices, false); }
 
-  return ProducerLoad((*this), indices);
+PrimExpr Tensor::IndexWithNegativeIndices(Array<Var> indices) const {
+  Array<PrimExpr> arr(indices.begin(), indices.end());
+  return IndexWithNegativeIndices(arr);
+}
+
+PrimExpr Tensor::IndexWithNegativeIndices(Array<PrimExpr> indices) const {
+  return IndexTensor(indices, true);
 }
 
 String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
-Tensor Operation::output(size_t i) const {
-  auto node = make_object<TensorNode>();
-  node->op = *this;
-  node->value_index = i;
-  node->dtype = (*this)->output_dtype(i);
-  node->shape = (*this)->output_shape(i);
-  return Tensor(node);
+Tensor Operation::output(size_t n) const {
+  // cache the output tensors if empty
+  if ((*this)->outputs.empty()) {
+    auto* ptr = static_cast<OperationNode*>(get_mutable());
+    size_t num = static_cast<size_t>((*this)->num_outputs());
+    for (size_t i = 0; i < num; ++i) {
+      auto node = make_object<TensorNode>();
+      node->op = *this;
+      node->value_index = i;
+      node->dtype = (*this)->output_dtype(i);
+      node->shape = (*this)->output_shape(i);
+      ptr->outputs.push_back(Tensor(node));
+    }
+  }
+  ICHECK_LT(n, (*this)->outputs.size());
+  return (*this)->outputs[n];
 }
 
 Tensor::Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {

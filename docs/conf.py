@@ -203,7 +203,7 @@ latex_documents = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/{.major}".format(sys.version_info), None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy-1.8.0/html-scipyorg/", None),
     "matplotlib": ("https://matplotlib.org/", None),
 }
 
@@ -255,6 +255,7 @@ within_subsection_order = {
         "introduction.py",
         "install.py",
         "tvmc_command_line_driver.py",
+        "tvmc_python.py",
         "autotvm_relay_x86.py",
         "tensor_expr_get_started.py",
         "autotvm_matmul_x86.py",
@@ -315,6 +316,7 @@ within_subsection_order = {
         "micro_reference_vm.py",
         "micro_tflite.py",
         "micro_ethosu.py",
+        "micro_tvmc.py",
     ],
 }
 

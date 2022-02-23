@@ -42,10 +42,11 @@ def _matmul_cublas_common(
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = tensor_a.dtype
-    assert out_dtype == tensor_a.dtype, "Mixed precision not supported."
+    if out_dtype not in [tensor_a.dtype, "int32"]:
+        assert out_dtype == tensor_a.dtype, "Mixed precision other than int8 + int32 not supported."
     batch, in_dim = get_const_tuple(tensor_a.shape)
     out_dim, _ = get_const_tuple(tensor_b.shape)
-    matmul = cublas.matmul(tensor_a, tensor_b, transpose_a, transpose_b)
+    matmul = cublas.matmul(tensor_a, tensor_b, transpose_a, transpose_b, dtype=out_dtype)
     if all(isinstance(d, int) for d in [batch, in_dim, out_dim]):
         cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:

@@ -971,3 +971,33 @@ def invert_permutation(data):
         r_ind = data[ind]
         result[r_ind] = ind
     return result
+
+
+def sliding_window(data, axis, window_shape, strides):
+    """Slide a window over the data tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axis : int
+        What axis the window begins sliding over. Window will be slid over
+        this axis and all following axes. The axis value determines the window
+        shape (and thus, the number of strides): window shape and strides must
+        both be of length `data.ndim-axis`.
+
+    window_shape : List[int]
+        The window shape to form over the input. Window shape must be of length
+        `data.ndim-axis`.
+
+    strides : List[int]
+        How to stride the window along each dimension. Strides must be of length
+        `data.ndim-axis`.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return cpp.sliding_window(data, axis, window_shape, strides)

@@ -33,7 +33,10 @@
 #include <tvm/target/codegen.h>
 #include <tvm/target/virtual_device.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/usmp/utils.h>
 
+#include <iostream>
+#include <sstream>
 #include <string>
 #include <typeinfo>
 #include <unordered_map>
@@ -52,6 +55,60 @@ class TECompiler;
 
 namespace backend {
 using Pass = tvm::transform::Pass;
+
+/*!
+ * \brief Structure that can be optionally used by the executor codegen
+ */
+class ExecutorCodegenMetadataNode : public Object {
+ public:
+  /*! \brief input information for the main function */
+  Array<tir::Var> inputs;
+  /*! \brief output information for the main function */
+  Array<String> outputs;
+  /*! \brief pool information for the main function */
+  Array<tir::Var> pools;
+  /*! \brief device contexts information for the main function */
+  Array<String> devices;
+  /*! \brief the executor to be used to run the model */
+  String executor = runtime::kTvmExecutorGraph;
+  /*! \brief The external API (packed or c) in use */
+  String interface_api;
+  /*! \brief The internal API (packed or unpacked) in use */
+  bool unpacked_api;
+  /*! \brief the input var names that correspond to pool_inputs */
+  Optional<Map<tir::Var, tir::usmp::AllocatedPoolInfo>> pool_inputs;
+
+  String mod_name = "";
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("inputs", &inputs);
+    v->Visit("pools", &pools);
+    v->Visit("outputs", &outputs);
+    v->Visit("devices", &devices);
+    v->Visit("executor", &executor);
+    v->Visit("unpacked_api", &unpacked_api);
+    v->Visit("pool_inputs", &pool_inputs);
+  }
+
+  static constexpr const char* _type_key = "MetadataObj";
+  TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorCodegenMetadataNode, Object);
+};
+
+/*!
+ * \brief Managed reference to ExecutorCodegenMetadataNode.
+ */
+class ExecutorCodegenMetadata : public ObjectRef {
+ public:
+  TVM_DLL ExecutorCodegenMetadata(Array<tir::Var> inputs, Array<tir::Var> pools,
+                                  Array<String> devices, Array<String> outputs, String executor,
+                                  String mod_name, String interface_api = "packed",
+                                  bool unpacked_api = false,
+                                  Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs =
+                                      Map<tir::Var, tir::usmp::AllocatedPoolInfo>());
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(ExecutorCodegenMetadata, ObjectRef,
+                                        ExecutorCodegenMetadataNode);
+};
 
 /*!
  * \brief The static storage information for each Tensor in the result of a Relay expression
@@ -147,7 +204,7 @@ struct LoweredOutput {
   Array<tvm::runtime::Module> external_mods;
   Map<String, FunctionInfo> function_metadata;
   std::unordered_map<std::string, std::pair<int, const tvm::runtime::NDArray>> params;
-  runtime::Metadata metadata;
+  ExecutorCodegenMetadata metadata;
 };
 
 /*!
@@ -467,7 +524,7 @@ Array<Pass> GetPassPrefix(bool is_homogenous, bool is_vm);
 /*! \brief Target hash function */
 struct TargetStrHash {
   /*!
-   * \brief Calculate the hash code of a Target based on the string value of the Target.
+   * \brief Calculate the hash code of a Target based on the string value of the Target KIND.
    Note that this hash should NOT be used in new usecases, equality of targets based on their
    value is not well-defined.
    This will be removed when maps from Targets to IRModules are removed from the codebase.
@@ -475,7 +532,8 @@ struct TargetStrHash {
    * \return String hash of the target
    */
   size_t operator()(const Target& target) const {
-    return String::HashBytes(target->str().c_str(), target->str().size());
+    std::string s(target->kind->name);
+    return String::HashBytes(s.c_str(), s.size());
   }
 };
 

@@ -763,7 +763,7 @@ def test_non_perfect_tiling_cache():
     )
     assert s._get_cached_flags(_get_block(s, "compute")) == CachedFlags(
         affine_binding=True,
-        region_cover=False,
+        region_cover=True,
         stage_pipeline=True,
     )
     # pylint: enable=protected-access

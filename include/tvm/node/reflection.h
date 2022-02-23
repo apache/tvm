@@ -387,8 +387,7 @@ inline ReflectionVTable::Registry ReflectionVTable::Register() {
 inline void ReflectionVTable::VisitAttrs(Object* self, AttrVisitor* visitor) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fvisit_attrs_.size() || fvisit_attrs_[tindex] == nullptr) {
-    LOG(FATAL) << "TypeError: " << self->GetTypeKey()
-               << " is not registered via TVM_REGISTER_NODE_TYPE";
+    return;
   }
   fvisit_attrs_[tindex](self, visitor);
 }

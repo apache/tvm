@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -25,6 +25,8 @@ cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_MICRO ON\) >> config.cmake
+echo set\(USE_CMSISNN ON\) >> config.cmake
+echo set\(USE_ETHOSU ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-10\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake

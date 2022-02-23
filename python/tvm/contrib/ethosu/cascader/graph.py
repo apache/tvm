@@ -16,6 +16,7 @@
 # under the License.
 """Graph objects to define compute graphs for the NPU cascader."""
 from typing import List, Dict
+from enum import IntEnum
 from collections import namedtuple
 import numpy as np
 
@@ -24,6 +25,7 @@ from tvm import te
 from tvm.runtime import Object
 
 from .stripe_config import StripeConfig
+from .device_config import EthosuDeviceConfig
 from . import _ffi_api
 
 
@@ -32,6 +34,11 @@ REGISTERED_MATCHERS = []
 
 
 TESubgraph = namedtuple("TESubgraph", ["input_tensors", "output_tensor"])
+
+
+class BufferMode(IntEnum):
+    RECOMPUTE = 0
+    ROLLING = 1
 
 
 @tvm._ffi.register_object("contrib.ethosu.cascader.PerformanceInfo")
@@ -113,9 +120,9 @@ class Part(Object):
         return list(_ffi_api.PartGetStripeAlignHint(self))
 
     def get_performance_info(
-        self, stripe_config: StripeConfig, is_rolling: bool
+        self, stripe_config: StripeConfig, buffer_mode: BufferMode
     ) -> PerformanceInfo:
-        return _ffi_api.PartGetPerformanceInfo(self, stripe_config, is_rolling)
+        return _ffi_api.PartGetPerformanceInfo(self, stripe_config, buffer_mode)
 
     @property
     def input_tensors(self):
@@ -188,7 +195,9 @@ def register_matcher(matcher):
     return matcher
 
 
-def create_cascader_graph(te_graph: TESubgraph, const_dict: Dict[int, np.ndarray]) -> CascaderGraph:
+def create_cascader_graph(
+    te_graph: TESubgraph, const_dict: Dict[int, np.ndarray], device_config: EthosuDeviceConfig
+) -> CascaderGraph:
     """Create a CascaderGraph from a Tensor Expression graph and constant dictionary.
 
     Parameters
@@ -197,6 +206,8 @@ def create_cascader_graph(te_graph: TESubgraph, const_dict: Dict[int, np.ndarray
         The Tensor Expression graph.
     const_dict : Dict[int, np.ndarray]
         The constant dictionary.
+    device_config : EthosuDeviceConfig
+        Target device configuration.
 
     Returns
     -------
@@ -227,7 +238,7 @@ def create_cascader_graph(te_graph: TESubgraph, const_dict: Dict[int, np.ndarray
             input_tensors = []
             # Check whether any of the registered matchers match the current tensor
             for matcher in REGISTERED_MATCHERS:
-                part = matcher(tensor)
+                part = matcher(tensor, device_config)
                 if part:
                     input_tensors = part.subgraph.input_tensors
                     break

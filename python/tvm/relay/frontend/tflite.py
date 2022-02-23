@@ -30,9 +30,9 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
+from ..backend.name_transforms import sanitize_name
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
-from .common import set_span
 from .common import to_int_list
 from .tflite_flexbuffer import FlexBufferDecoder
 
@@ -240,17 +240,12 @@ class OperatorConverter(object):
 
             if len(output_tensors) == 1:
                 tensor_idx = output_tensors[0].tensor_idx
-                curr_output = get_tensor_name(self.subgraph, tensor_idx)
-                ret = set_span(ret, "location: {}, output_name: {}".format(op_idx, curr_output))
-                self.exp_tab.set_expr(curr_output, ret)
+                self.exp_tab.set_expr(get_tensor_name(self.subgraph, tensor_idx), ret)
             else:
-                out_names = []
-                for output_tensor in output_tensors:
-                    out_names.append(get_tensor_name(self.subgraph, output_tensor.tensor_idx))
-                curr_output = ", ".join(out_names)
-                ret = set_span(ret, "location: {}, output_name: {}".format(op_idx, curr_output))
-                for idx, out_name in enumerate(out_names):
-                    self.exp_tab.set_expr(out_name, ret[idx])
+                for idx, output_tensor in enumerate(output_tensors):
+                    self.exp_tab.set_expr(
+                        get_tensor_name(self.subgraph, output_tensor.tensor_idx), ret[idx]
+                    )
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
@@ -1672,7 +1667,7 @@ class OperatorConverter(object):
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -1898,6 +1893,7 @@ class OperatorConverter(object):
         fully_connected_options = FullyConnectedOptions()
         fully_connected_options.Init(op_options.Bytes, op_options.Pos)
         fused_activation_fn = fully_connected_options.FusedActivationFunction()
+        keep_num_dims = fully_connected_options.KeepNumDims()
 
         # weight tensor type should be INT8/UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
@@ -1974,6 +1970,13 @@ class OperatorConverter(object):
 
         else:
             out = self.convert_fused_activation_function(out, fused_activation_fn)
+
+        # Change the output shape calculation based on keep_dim option
+        if keep_num_dims:
+            input_shape = _infer_shape(self.get_tensor_expr(input_tensor))
+            output_shape = input_shape
+            output_shape[-1] = weight_tensor_shape[0]
+            out = _op.reshape(out, output_shape)
 
         return out
 
@@ -2702,9 +2705,9 @@ class OperatorConverter(object):
         unpack_axis = unpack_options.Axis()
 
         # Relay doesn't support 'unpack' operator so we use 'split' & 'squeeze' instead.
-        # We have to do 'squeeze' along the split axis but Relay expects
-        # squeeze_axis to be either None or List.
-        squeeze_axis = None if unpack_axis == 0 else [unpack_axis]
+        # We have to do 'squeeze' along the split axis.
+        # Relay expects squeeze_axis to be List.
+        squeeze_axis = [unpack_axis]
 
         # Relay doesn't like TupleWrapper of 1 element so we isolate the case of unpacking
         # a tensor by an axis with len(axis) == 1. For reference see convert_split().
@@ -3767,6 +3770,15 @@ def from_tflite(model, shape_dict=None, dtype_dict=None, op_converter=OperatorCo
     params = {k: _nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _function.Function(analysis.free_vars(outputs), outputs)
+    attrs = tvm.ir.make_node(
+        "DictAttrs",
+        **{
+            "output_tensor_names": [
+                sanitize_name(get_tensor_name(subgraph, model_output))
+                for model_output in model_outputs
+            ]
+        },
+    )
+    func = _function.Function(analysis.free_vars(outputs), outputs, attrs=attrs)
     mod = IRModule.from_expr(func)
     return mod, params

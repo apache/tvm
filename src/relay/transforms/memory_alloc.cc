@@ -92,7 +92,7 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
       }
       new_fields.push_back(new_field);
     }
-    return WithFields(GetRef<Tuple>(tuple_node), std::move(new_fields));
+    return WithFields(GetRef<Tuple>(tuple_node), new_fields);
   }
 
   void PreVisitLetBlock_(const LetNode* let_node) final { scopes_.emplace_back(); }

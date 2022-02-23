@@ -189,10 +189,11 @@ def deserialize_command_stream(blob):
     return cmms
 
 
-def create_test_runner(accel="ethos-u55-256"):
+def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
     file_dir = os.path.dirname(os.path.abspath(__file__))
     test_root = os.path.join(file_dir, "reference_system")
-    ethosu_macs = accel[accel.rfind("-") + 1 :]
+    _, ethosu_variant, ethosu_macs = accel.split("-")
+    ethosu_variant = ethosu_variant.upper()
     return AOTTestRunner(
         makefile="corstone300",
         prologue="""
@@ -205,17 +206,24 @@ def create_test_runner(accel="ethos-u55-256"):
         ethosu_release_driver(ethos_u);
         """,
         includes=["uart.h", "ethosu_55.h", "ethosu_mod.h", "hard_fault.h"],
-        parameters={"ETHOSU_TEST_ROOT": test_root, "NPU_VARIANT": ethosu_macs},
+        parameters={
+            "ETHOSU_TEST_ROOT": test_root,
+            "NPU_MACS": ethosu_macs,
+            "NPU_VARIANT": ethosu_variant,
+        },
         pass_config={
             "relay.ext.ethos-u.options": {
                 "accelerator_config": accel,
-            }
+            },
+            "tir.usmp.enable": enable_usmp,
         },
     )
 
 
-def build_source(module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0):
-    test_runner = create_test_runner(accel)
+def build_source(
+    module, inputs, outputs, accel="ethos-u55-256", output_tolerance=0, enable_usmp=True
+):
+    test_runner = create_test_runner(accel, enable_usmp)
     return compile_models(
         models=AOTTestModel(
             module=module,
@@ -301,9 +309,10 @@ def generate_ref_data_tflite(model):
         interpreter.set_tensor(index, value)
     interpreter.invoke()
 
-    expected_output_data = [
-        interpreter.get_tensor(output_detail["index"]) for output_detail in output_details
-    ]
+    expected_output_data = {
+        output_detail["name"]: interpreter.get_tensor(output_detail["index"])
+        for output_detail in output_details
+    }
 
     return input_data, expected_output_data
 
@@ -418,6 +427,7 @@ def make_ethosu_conv2d(
     weight_dtype="int8",
     scale_bias_dtype="uint8",
     rounding_mode="TFL",
+    upscale="NONE",
 ):
     # conv params
     weight_shape = (ofm_channels, kernel_shape[0], kernel_shape[1], ifm_channels)
@@ -446,7 +456,7 @@ def make_ethosu_conv2d(
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
         rounding_mode=rounding_mode,
-        upscale="NONE",
+        upscale=upscale,
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )
@@ -527,6 +537,7 @@ def make_ethosu_pooling(
     ifm_layout="NHWC",
     ofm_layout="NHWC",
     rounding_mode="TFL",
+    upscale="NONE",
 ):
     pooling = ethosu_ops.ethosu_pooling(
         ifm,
@@ -544,7 +555,7 @@ def make_ethosu_pooling(
         clip_min=10 if activation == "CLIP" else 0,
         clip_max=100 if activation == "CLIP" else 0,
         rounding_mode=rounding_mode,
-        upscale="NONE",
+        upscale=upscale,
         ifm_layout=ifm_layout,
         ofm_layout=ofm_layout,
     )

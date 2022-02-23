@@ -29,7 +29,7 @@ def affine_grid_python(data, target_shape):
     return data.reshape(-1, 3).dot(grid).reshape(data.shape[0], 2, *target_shape)
 
 
-def _bilinear_sample_nchw_python(data, grid):
+def _bilinear_sample_nchw_python(data, grid, padding_mode):
     batch, in_channel, in_height, in_width = data.shape
     _, _, out_height, out_width = grid.shape
     out = np.zeros((batch, in_channel, out_height, out_width), dtype=data.dtype)
@@ -37,28 +37,63 @@ def _bilinear_sample_nchw_python(data, grid):
     def _within_bound(y, x):
         return 0 <= y < in_height and 0 <= x < in_width
 
-    for n in range(0, batch):
-        for h in range(0, out_height):
-            for w in range(0, out_width):
-                x, y = grid[n, :, h, w]
-                y = (y + 1) * (in_height - 1) / 2
-                x = (x + 1) * (in_width - 1) / 2
-                y0 = int(math.floor(y))
-                x0 = int(math.floor(x))
-                y1 = y0 + 1
-                x1 = x0 + 1
-                if _within_bound(y0, x0):
-                    out[n, :, h, w] += data[n, :, y0, x0] * (1.0 - (y - y0)) * (1.0 - (x - x0))
-                if _within_bound(y0, x1):
+    def compute_padding_mode_zeros():
+        for n in range(0, batch):
+            for h in range(0, out_height):
+                for w in range(0, out_width):
+                    x, y = grid[n, :, h, w]
+                    y = (y + 1) * (in_height - 1) / 2
+                    x = (x + 1) * (in_width - 1) / 2
+                    y0 = int(math.floor(y))
+                    x0 = int(math.floor(x))
+                    y1 = y0 + 1
+                    x1 = x0 + 1
+                    if _within_bound(y0, x0):
+                        out[n, :, h, w] += data[n, :, y0, x0] * (1.0 - (y - y0)) * (1.0 - (x - x0))
+                    if _within_bound(y0, x1):
+                        out[n, :, h, w] += data[n, :, y0, x1] * (1.0 - (y - y0)) * (x - x0)
+                    if _within_bound(y1, x0):
+                        out[n, :, h, w] += data[n, :, y1, x0] * (y - y0) * (1.0 - (x - x0))
+                    if _within_bound(y1, x1):
+                        out[n, :, h, w] += data[n, :, y1, x1] * (y - y0) * (x - x0)
+
+        return out
+
+    def get_pixel_value(x, x_max):
+        return max(min(x, x_max - 1), 0)
+
+    def compute_padding_mode_border():
+        for n in range(0, batch):
+            for h in range(0, out_height):
+                for w in range(0, out_width):
+                    x, y = grid[n, :, h, w]
+                    y = (y + 1) * (in_height - 1) / 2
+                    x = (x + 1) * (in_width - 1) / 2
+                    y0 = int(math.floor(y))
+                    x0 = int(math.floor(x))
+                    y1 = y0 + 1
+                    x1 = x0 + 1
+                    y0 = get_pixel_value(y0, in_height)
+                    y1 = get_pixel_value(y1, in_height)
+                    x0 = get_pixel_value(x0, in_width)
+                    x1 = get_pixel_value(x1, in_width)
+                    out[n, :, h, w] = data[n, :, y0, x0] * (1.0 - (y - y0)) * (1.0 - (x - x0))
                     out[n, :, h, w] += data[n, :, y0, x1] * (1.0 - (y - y0)) * (x - x0)
-                if _within_bound(y1, x0):
                     out[n, :, h, w] += data[n, :, y1, x0] * (y - y0) * (1.0 - (x - x0))
-                if _within_bound(y1, x1):
                     out[n, :, h, w] += data[n, :, y1, x1] * (y - y0) * (x - x0)
-    return out
+
+        return out
+
+    if padding_mode == "zeros":
+        return compute_padding_mode_zeros()
+    if padding_mode == "border":
+        return compute_padding_mode_border()
+
+    raise ValueError("invalid padding_mode")
 
 
-def grid_sample_nchw_python(data, grid, method="bilinear"):
+def grid_sample_nchw_python(data, grid, method="bilinear", padding_mode="zeros"):
     if method == "bilinear":
-        return _bilinear_sample_nchw_python(data, grid)
+        return _bilinear_sample_nchw_python(data, grid, padding_mode)
+
     raise ValueError("invalid method")

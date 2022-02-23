@@ -111,7 +111,10 @@ def test_add_with_params(interface_api, use_unpacked_api, test_runner):
 
     compile_and_run(
         AOTTestModel(
-            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+            module=IRModule.from_expr(func),
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
         ),
         test_runner,
         interface_api,
@@ -447,7 +450,13 @@ def test_add_name_mangling_with_params(interface_api, use_unpacked_api, test_run
     output_list = generate_ref_data(func, inputs, params)
 
     compile_and_run(
-        AOTTestModel(name="my_mod", module=func, inputs=inputs, outputs=output_list, params=params),
+        AOTTestModel(
+            name="my_mod",
+            module=func,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+        ),
         test_runner,
         interface_api,
         use_unpacked_api,
@@ -495,10 +504,18 @@ def @main(%data : Tensor[(1, 3, 64, 64), uint8], %weight : Tensor[(8, 3, 5, 5), 
     compile_and_run(
         [
             AOTTestModel(
-                name="mod1", module=mod1, inputs=inputs1, outputs=output_list1, params=params1
+                name="mod1",
+                module=mod1,
+                inputs=inputs1,
+                outputs=output_list1,
+                params=params1,
             ),
             AOTTestModel(
-                name="mod2", module=mod2, inputs=inputs2, outputs=output_list2, params=params2
+                name="mod2",
+                module=mod2,
+                inputs=inputs2,
+                outputs=output_list2,
+                params=params2,
             ),
         ],
         test_runner,
@@ -515,8 +532,8 @@ def test_quant_mobilenet_tfl():
 
     import tvm.relay.testing.tf as tf_testing
 
-    interface_api = "packed"
-    use_unpacked_api = False
+    use_unpacked_api = True
+    interface_api = "c"
     test_runner = AOT_DEFAULT_RUNNER
 
     tflite_model_file = tf_testing.get_workload_official(
@@ -529,7 +546,7 @@ def test_quant_mobilenet_tfl():
     data_shape = (1, 224, 224, 3)
     in_min, in_max = (0, 255)
     data = np.random.randint(in_min, high=in_max, size=data_shape, dtype="uint8")
-    mod, params = convert_to_relay(tflite_model_buf, data, "input")
+    mod, params = convert_to_relay(tflite_model_buf)
     inputs = {"input": data}
     output_list = generate_ref_data(mod, inputs, params)
     compile_and_run(
@@ -647,49 +664,16 @@ def test_deprecated_target_arguments(capsys):
 
     compile_and_run(
         AOTTestModel(
-            module=IRModule.from_expr(func), inputs=inputs, outputs=output_list, params=params
+            module=IRModule.from_expr(func),
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
         ),
         test_runner,
         interface_api,
         use_unpacked_api,
         use_runtime_executor=False,
         target="c -executor=aot --link-params -runtime=c -interface-api=c --unpacked-api",
-    )
-
-
-@pytest.mark.parametrize(
-    "workspace_byte_alignment,main_workspace_size,sum_workspace_size",
-    [
-        (8, 10368, 15200),
-        (16, 10368, 15232),
-        (256, 10752, 17408),
-    ],
-)
-def test_memory_planning(workspace_byte_alignment, main_workspace_size, sum_workspace_size):
-    mod, params = tvm.relay.testing.synthetic.get_workload()
-    target = "c"
-    runtime = Runtime("crt")
-    executor = Executor(
-        "aot",
-        {
-            "workspace-byte-alignment": workspace_byte_alignment,
-        },
-    )
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = tvm.relay.build(mod, target, executor=executor, runtime=runtime, params=params)
-
-    assert (
-        sum(lib.function_metadata["__tvm_main__"].workspace_sizes.values()) == main_workspace_size
-    )
-    assert (
-        sum(
-            [
-                size
-                for metadata in lib.function_metadata.values()
-                for size in metadata.workspace_sizes.values()
-            ]
-        )
-        == sum_workspace_size
     )
 
 
@@ -745,15 +729,118 @@ def test_constants_alignment(constants_byte_alignment):
     data = np.random.uniform(size=data_shape).astype("float32")
     inputs = {"data": data}
     output_list = generate_ref_data(mod, inputs, params)
-    target_opts = {"-constants-byte-alignment": constants_byte_alignment}
+    target = f"c -constants-byte-alignment={constants_byte_alignment}"
     compiled_test_mods = compile_models(
         AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
         interface_api,
         use_unpacked_api,
-        target_opts=target_opts,
+        target=tvm.target.Target(target, host=target),
     )
     source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
     assert f'__attribute__((section(".rodata.tvm"), aligned({constants_byte_alignment})))' in source
+
+
+def test_output_tensor_names():
+    """Test that the output names generated match those in the model"""
+    pytest.importorskip("tflite")
+
+    import os
+    import tensorflow as tf
+    import tflite.Model
+
+    ifm_shape = (1, 299, 299, 3)
+    padding = "VALID"
+    strides = (1, 1)
+    dilation = (1, 1)
+    kernel_shape = (3, 2)
+
+    def create_tflite_graph_two_outs():
+        """Create a model with 2 output tensors"""
+
+        class Model(tf.Module):
+            @tf.function
+            def tf_function(self, x):
+                # Use tf.nn API to create the model
+                tf_strides = [1, strides[0], strides[1], 1]
+                op = tf.nn.conv2d(
+                    x,
+                    filters=tf.constant(
+                        np.random.uniform(size=[kernel_shape[0], kernel_shape[1], 3, 3]),
+                        dtype=tf.float32,
+                    ),
+                    strides=tf_strides,
+                    padding=padding,
+                    dilations=dilation,
+                )
+                op = tf.nn.relu(op)
+                # Second convolution
+                op2 = tf.nn.conv2d(
+                    x,
+                    filters=tf.constant(
+                        np.random.uniform(size=(kernel_shape[0], kernel_shape[1], 3, 3)),
+                        dtype=tf.float32,
+                    ),
+                    strides=strides,
+                    padding=padding,
+                    data_format="NHWC",
+                    dilations=dilation,
+                )
+                op2 = tf.nn.relu(op2)
+                return op, op2
+
+        model = Model()
+        concrete_func = model.tf_function.get_concrete_function(
+            tf.TensorSpec(ifm_shape, dtype=tf.float32)
+        )
+
+        # Convert the model
+        def representative_dataset():
+            for _ in range(100):
+                data = np.random.rand(*tuple(ifm_shape))
+                yield [data.astype(np.float32)]
+
+        converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_dataset
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.int8
+        converter.inference_output_type = tf.int8
+        tflite_model = converter.convert()
+        return tflite_model
+
+    tflite_graph = create_tflite_graph_two_outs()
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
+    mod, params = relay.frontend.from_tflite(
+        tflite_model,
+        shape_dict={"input": ifm_shape},
+        dtype_dict={"input": "int8"},
+    )
+
+    use_unpacked_api = True
+    interface_api = "c"
+    test_runner = AOT_DEFAULT_RUNNER
+
+    in_min, in_max = (-128, 127)
+    data = np.random.randint(in_min, high=in_max, size=ifm_shape, dtype="int8")
+    inputs = {"x_int8": data}
+    output_list = generate_ref_data(mod, inputs, params)
+    compile_and_run(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+    compiled_test_mods = compile_models(
+        AOTTestModel(module=mod, inputs=inputs, outputs=output_list, params=params),
+        interface_api,
+        use_unpacked_api,
+    )
+
+    # Check that the names of the output tensors occur in the source code
+    source = compiled_test_mods[0].executor_factory.lib.get_source()
+    for output_name in output_list.keys():
+        assert output_name in source
 
 
 if __name__ == "__main__":

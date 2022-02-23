@@ -548,9 +548,8 @@ void ComputeInlineImpl(ScheduleState self, const StmtSRef& producer_block_sref,
   Block producer_block = GetRef<Block>(_producer_block);
   Buffer inlined_buffer = NotSingleReadWriteBuffer::GetSingleWrite(self, producer_block);
   // Step 1. Get the scope block
-  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+  StmtSRef scope_root_sref = GetScopeRoot(self, producer_block_sref,
+                                          /*require_stage_pipeline=*/true);
   // Step 2. Check completeness
   CheckNotOutputBlock(self, producer_block_sref, scope_root_sref);
   CheckCompleteBlock(self, producer_block_sref, scope_root_sref);
@@ -593,8 +592,7 @@ void ReverseComputeInlineImpl(ScheduleState self, const StmtSRef& consumer_block
   Block consumer_block = GetRef<Block>(_consumer_block);
   // Step 1. Get the scope block
   StmtSRef scope_root_sref = GetScopeRoot(self, consumer_block_sref,  //
-                                          /*require_stage_pipeline=*/true,
-                                          /*require_subtree_compact_dataflow=*/false);
+                                          /*require_stage_pipeline=*/true);
   Buffer inlined_buffer =
       NotSingleReadWriteBuffer::GetSingleRead(self, consumer_block, scope_root_sref);
   // Step 2. Check completeness

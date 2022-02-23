@@ -282,7 +282,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list) {
                  << "Only te.placeholder and te.compute are allowed for now.";
   }
 
-  // Infomations used in CreatePrimFunc and its sub-funtions.
+  // Infomations used in CreatePrimFunc and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   Array<Stmt> root_stmts;

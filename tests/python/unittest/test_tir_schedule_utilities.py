@@ -68,7 +68,7 @@ def matmul_relu_ann1(a: T.handle, b: T.handle, d: T.handle) -> None:
     C = T.alloc_buffer((1024, 1024))
     D = T.match_buffer(d, (1024, 1024))
     for i in T.serial(0, 1024, annotations={"test1": "aaa"}):
-        for j in T.serial(0, 1024, annotations={"test2": 612}):
+        for j in T.serial(0, 1024, annotations={"test2": 612, "test3": ["aa", 1]}):
             for k in T.serial(0, 1024):
                 with T.block("matmul"):
                     vi, vj, vk = T.axis.remap("SSR", [i, j, k])
@@ -97,7 +97,7 @@ def matmul_relu_ann2(a: T.handle, b: T.handle, d: T.handle) -> None:
     for i, j in T.grid(1024, 1024):
         with T.block("relu"):
             vi, vj = T.axis.remap("SS", [i, j])
-            T.block_attr({"test2": 0.22})
+            T.block_attr({"test2": 0.22, "test3": ["aa", 1]})
             D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
@@ -245,10 +245,12 @@ def test_annotate_unannotate_loop():
     relu = sch.get_block("relu")
     sch.annotate(sch.get_loops(matmul)[0], "test1", "aaa")
     sch.annotate(sch.get_loops(matmul)[1], "test2", 612)
+    sch.annotate(sch.get_loops(matmul)[1], "test3", ["aa", 1])
     tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann1)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(sch.get_loops(matmul)[0], "test1")
     sch.unannotate(sch.get_loops(matmul)[1], "test2")
+    sch.unannotate(sch.get_loops(matmul)[1], "test3")
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
 
 
@@ -258,10 +260,12 @@ def test_annotate_unannotate_block():
     relu = sch.get_block("relu")
     sch.annotate(matmul, "test1", "aaa")
     sch.annotate(relu, "test2", 0.22)
+    sch.annotate(relu, "test3", ["aa", 1])
     tvm.ir.assert_structural_equal(sch.mod["main"], matmul_relu_ann2)
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
     sch.unannotate(matmul, "test1")
     sch.unannotate(relu, "test2")
+    sch.unannotate(relu, "test3")
     verify_trace_roundtrip(sch=sch, mod=matmul_relu)
 
 

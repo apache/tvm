@@ -95,7 +95,8 @@ def add_compile_parser(subparsers, _):
         metavar=("name=value"),
         help="configurations to be used at compile time. This option can be provided multiple "
         "times, each one to set one configuration value, "
-        "e.g. '--pass-config relay.backend.use_auto_scheduler=0'.",
+        "e.g. '--pass-config relay.backend.use_auto_scheduler=0', "
+        "e.g. '--pass-config tir.add_lower_pass=opt_level1,pass1,opt_level2,pass2'.",
     )
 
     generate_target_args(parser)

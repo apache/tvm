@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -44,3 +44,13 @@ run_pytest ctypes python-microtvm-stm32 tests/micro/stm32
 # Common Tests
 run_pytest ctypes python-microtvm-common-qemu_x86 tests/micro/common --board=qemu_x86
 run_pytest ctypes python-microtvm-common-due tests/micro/common  --test-build-only --board=due
+
+# # Tutorials running with host CRT
+python3 gallery/how_to/work_with_microtvm/micro_tflite.py
+python3 gallery/how_to/work_with_microtvm/micro_autotune.py
+
+# Tutorials running with Zephyr
+export TVM_MICRO_USE_HW=1
+export TVM_MICRO_BOARD=qemu_x86
+python3 gallery/how_to/work_with_microtvm/micro_tflite.py
+python3 gallery/how_to/work_with_microtvm/micro_autotune.py

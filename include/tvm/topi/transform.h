@@ -48,6 +48,90 @@ using namespace tvm::te;
 using namespace topi::detail;
 
 /*!
+ * \brief Creates an operation to slide a window over the input x.
+ *
+ * \param x The input tensor.
+ * \param axis What axis the window begins sliding over. Window will be slid
+ * over this axis and all following axes. The axis value determines the window
+ * shape (and thus, the number of strides): window shape and strides must both
+ * be of length `data.ndim-axis`.
+ * \param window_shape The window shape to form over the input. Window shape
+ * must be of length `data.ndim-axis`.
+ * \param strides How to stride the window along each dimension. Strides must be
+ * of length `data.ndim-axis`.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the sliding_window operation
+ */
+inline Tensor sliding_window(const Tensor& x, int axis, Array<Integer> window_shape,
+                             Array<Integer> strides, std::string name = "T_sliding_window",
+                             std::string tag = "") {
+  CHECK_GE(axis, 0);
+  auto _axis = size_t(axis);
+  CHECK_LT(_axis, x->shape.size()) << "axis must be a valid dimension index of x.";
+  CHECK_EQ(x->shape.size() - _axis, window_shape.size())
+      << "There must be a window shape for every dimension of x "
+      << "over which we are sliding the window.";
+  CHECK_EQ(strides.size(), window_shape.size()) << "Windows and strides should be the same length.";
+
+  // Compute the new shape.
+  Array<PrimExpr> new_shape;
+  // Dimensions up until `axis` remain the same.
+  for (size_t i = 0; i < _axis; ++i) {
+    new_shape.push_back(x->shape[i]);
+  }
+
+  // New dimensions which result from sliding the window in each dimension. One new dimension per
+  // window dimension.
+  for (size_t i = 0; i < window_shape.size(); ++i) {
+    // Length of the shape along this dimension.
+    auto dim_len = x->shape[_axis + i];
+    // Length of the window along this dimension.
+    auto window_len = window_shape[i];
+    // Strides along this dimension.
+    auto stride = strides[i];
+
+    new_shape.push_back(floordiv(dim_len - (window_len - 1) + stride - 1, stride));
+  }
+
+  // Dimensions comprising the window.
+  for (size_t i = 0; i < window_shape.size(); ++i) {
+    new_shape.push_back(window_shape[i]);
+  }
+
+  ICHECK(new_shape.size() == _axis + 2 * window_shape.size());
+
+  return compute(
+      new_shape,
+      [&](const Array<Var>& indices) {
+        // The index at which to index the old tensor x.
+        Array<PrimExpr> idx;
+
+        // Dimensions up until `axis` remain the same.
+        for (size_t i = 0; i < _axis; ++i) {
+          idx.push_back(indices[i]);
+        }
+
+        for (size_t i = 0; i < window_shape.size(); ++i) {
+          // Which window in this dimension we are indexing.
+          auto window_idx = indices[_axis + i];
+          // Which index within the window we are indexing.
+          auto idx_within_window = indices[_axis + window_shape.size() + i];
+          // Stride value for this dimension.
+          auto stride = strides[i];
+
+          idx.push_back(window_idx * stride + idx_within_window);
+        }
+
+        ICHECK(idx.size() == x->shape.size());
+
+        return x(idx);
+      },
+      name, tag);
+}
+
+/*!
  * \brief Creates an operation to insert new dimensions of length 1
  *
  * \param x The input tensor
@@ -1237,7 +1321,7 @@ inline Tensor gather(const Tensor& data, int axis, const Tensor& indices,
     size_t indices_dim_i = static_cast<size_t>(GetConstInt(indices->shape[axis]));
     ICHECK_GE(indices_dim_i, 1);
   }
-  ICHECK(indices->dtype.is_int());
+  ICHECK(indices->dtype.is_int() || indices->dtype.is_uint());
 
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < ndim_i; ++i) {
@@ -1304,7 +1388,7 @@ inline Tensor gather_nd(const Tensor& data, const Tensor& indices, int batch_dim
         }
         for (size_t i = 0; i < indices_dim0; ++i) {
           indices_position.Set(0, make_const(DataType::Int(32), i));
-          if (indices->dtype.is_int()) {
+          if (indices->dtype.is_int() || indices->dtype.is_uint()) {
             real_indices.push_back(indices(indices_position));
           } else {
             real_indices.push_back(tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
@@ -1524,7 +1608,11 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
       [&](const Array<Var>& dst_indices) {
         Array<PrimExpr> dst_indices_expr(dst_indices.begin(), dst_indices.end());
         Array<PrimExpr> src_indices = layout_converter.BackwardIndex(dst_indices_expr);
-        return src(src_indices);
+        PrimExpr in_range = PrimExpr(1) > PrimExpr(0);  // init with dtype=bool and value=true
+        for (size_t i = 0; i < src.ndim(); ++i) {
+          in_range = in_range && (src_indices[i] < src->shape[i]);
+        }
+        return if_then_else(in_range, src(src_indices), tvm::cast(src->dtype, PrimExpr(0)));
       },
       name, tag);
 }
@@ -1818,43 +1906,23 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
 inline Tensor adv_index(const Tensor& data, const Array<Tensor>& indices,
                         const std::string name = "advanced_index",
                         const std::string tag = kInjective) {
+  ICHECK_LE(indices.size(), data->shape.size()) << "too many indices for data!";
   Array<PrimExpr> oshape;
   Array<PrimExpr> broadcast_shape;
   Array<Tensor> bindices;
-  std::vector<int64_t> flatten_shape_lens;
-  int64_t num_picked_elems = 1;
-  bool has_dyn_shape = false;
 
+  broadcast_shape = indices[0]->shape;
+  for (size_t i = 1; i < indices.size(); ++i) {
+    auto bh = detail::BroadcastShape(broadcast_shape, indices[i]->shape);
+    broadcast_shape = Array<PrimExpr>(bh.common_shape.begin(), bh.common_shape.end());
+  }
   if (indices.size() == 1) {
-    broadcast_shape = indices[0]->shape;
+    // quick path
     bindices = indices;
   } else {
-    for (const auto& index : indices) {
-      int64_t flatten_len = 1;
-      for (const auto& dim : index->shape) {
-        const IntImmNode* axis_len = dim.as<IntImmNode>();
-        if (!axis_len) {
-          broadcast_shape = index->shape;
-          has_dyn_shape = true;
-          break;
-        }
-        flatten_len *= axis_len->value;
-      }
-      if (has_dyn_shape) break;
-      flatten_shape_lens.push_back(flatten_len);
-      if (flatten_len > num_picked_elems) {
-        num_picked_elems = flatten_len;
-        broadcast_shape = index->shape;
-      }
-    }
-
     // Do broadcast for indices
     for (size_t i = 0; i < indices.size(); ++i) {
-      if (!has_dyn_shape && flatten_shape_lens[i] < num_picked_elems) {
-        bindices.push_back(broadcast_to(indices[i], broadcast_shape));
-      } else {
-        bindices.push_back(indices[i]);
-      }
+      bindices.push_back(broadcast_to(indices[i], broadcast_shape));
     }
   }
 

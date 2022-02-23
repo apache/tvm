@@ -47,9 +47,8 @@ const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_bl
 
 /******** Scope ********/
 
-StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,  //
-                      bool require_stage_pipeline,                      //
-                      bool require_subtree_compact_dataflow) {
+StmtSRef GetScopeRoot(const ScheduleState& self, const StmtSRef& sref,
+                      bool require_stage_pipeline) {
   class RootBlockError : public ScheduleError {
    public:
     explicit RootBlockError(IRModule mod) : mod_(mod) {}
@@ -85,31 +84,6 @@ Definition of a scope that is a stage pipeline:
     Block block_;
   };
 
-  class NotCompactDataFlowError : public ScheduleError {
-   public:
-    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
-        : mod_(std::move(mod)),
-          subtree_root_(std::move(subtree_root)),
-          violate_block_(std::move(violate_block)) {
-      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
-    }
-    String FastErrorString() const final {
-      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
-             "because some of its child block on SRef tree is neither a complete block nor a "
-             "reduction block";
-    }
-    String DetailRenderTemplate() const final {
-      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
-             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
-
-    IRModule mod_;
-    Stmt subtree_root_;
-    Block violate_block_;
-  };
-
   StmtSRef scope_root_sref{nullptr};
   StmtSRef scope_root_subtree{nullptr};
   // Step 1. Find the scope root and the subtree that the given sref is in
@@ -135,19 +109,38 @@ Definition of a scope that is a stage pipeline:
       throw NotStagePipelineError(self->mod, GetRef<Block>(block));
     }
   }
-  // Step 3. Handle `require_subtree_compact_dataflow`
-  if (require_subtree_compact_dataflow) {
-    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, scope_root_subtree);
-    for (const StmtSRef& block_sref : child_block_srefs) {
-      if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
-          !IsReductionBlock(self, block_sref, scope_root_sref)) {
-        const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-        throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(scope_root_subtree->stmt),
-                                      GetRef<Block>(block));
+  return scope_root_sref;
+}
+
+ScopeBlockLoopInfo GetScopeBlockLoopInfo(const Block& scope_block) {
+  struct Collector : public StmtVisitor {
+    void VisitStmt_(const BlockRealizeNode* realize) final {
+      result.realizes.push_back(GetRef<BlockRealize>(realize));
+      const Array<IterVar>& iter_vars = realize->block->iter_vars;
+      const Array<PrimExpr>& iter_values = realize->iter_values;
+      ICHECK_EQ(iter_vars.size(), iter_values.size());
+      int n = realize->iter_values.size();
+      for (int i = 0; i < n; ++i) {
+        const IterVar& iter_var = iter_vars[i];
+        const PrimExpr& iter_value = iter_values[i];
+        std::unordered_set<const VarNode*>* vars = nullptr;
+        if (iter_var->iter_type == IterVarType::kDataPar) {
+          vars = &result.spatial_vars;
+        } else {
+          vars = &result.non_spatial_vars;
+        }
+        PostOrderVisit(iter_value, [vars](const ObjectRef& obj) {
+          if (const VarNode* var = obj.as<VarNode>()) {
+            vars->insert(var);
+          }
+        });
       }
     }
-  }
-  return scope_root_sref;
+
+    ScopeBlockLoopInfo result;
+  } visitor;
+  visitor(scope_block->body);
+  return std::move(visitor.result);
 }
 
 /*!
@@ -370,6 +363,44 @@ void CheckCompleteOrReductionBlock(const ScheduleState& self, const StmtSRef& bl
                                          reduction_block_error_code);
 }
 
+void CheckSubtreeCompactDataflow(const ScheduleState& self, const StmtSRef& subtree_root,
+                                 const StmtSRef& scope_root_sref) {
+  class NotCompactDataFlowError : public ScheduleError {
+   public:
+    explicit NotCompactDataFlowError(IRModule mod, Stmt subtree_root, Block violate_block)
+        : mod_(std::move(mod)),
+          subtree_root_(std::move(subtree_root)),
+          violate_block_(std::move(violate_block)) {
+      ICHECK(subtree_root_->IsInstance<BlockNode>() || subtree_root_->IsInstance<ForNode>());
+    }
+    String FastErrorString() const final {
+      return "ScheduleError: The queried subtree root in SRef tree does not have compact dataflow, "
+             "because some of its child block on SRef tree is neither a complete block nor a "
+             "reduction block";
+    }
+    String DetailRenderTemplate() const final {
+      return "The queried subtree root {0} in SRef tree does not have compact dataflow, because "
+             "its child block {1} on SRef tree is neither a complete block nor a reduction block";
+    }
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {subtree_root_, violate_block_}; }
+
+    IRModule mod_;
+    Stmt subtree_root_;
+    Block violate_block_;
+  };
+
+  Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, subtree_root);
+  for (const StmtSRef& block_sref : child_block_srefs) {
+    if (!IsCompleteBlock(self, block_sref, scope_root_sref) &&
+        !IsReductionBlock(self, block_sref, scope_root_sref)) {
+      const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+      throw NotCompactDataFlowError(self->mod, GetRef<Stmt>(subtree_root->stmt),
+                                    GetRef<Block>(block));
+    }
+  }
+}
+
 bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
                    const StmtSRef& scope_root_sref) {
   const BlockNode* scope_root = TVM_SREF_TO_BLOCK(scope_root, scope_root_sref);
@@ -406,6 +437,33 @@ void CheckNotOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
     const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
     throw OutputBlockError(self->mod, GetRef<Block>(block));
   }
+}
+
+std::vector<IterVarType> GetBlockVarTypes(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  std::vector<IterVarType> results;
+  results.reserve(block->iter_vars.size());
+  for (const IterVar& iter_var : block->iter_vars) {
+    results.push_back(iter_var->iter_type);
+  }
+  return results;
+}
+
+bool IsWriteCache(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (block->writes.size() != 1) {
+    return false;
+  }
+  const BufferRegion& write_region = block->writes[0];
+  for (const BufferRegion& read_region : block->reads) {
+    bool exists, surjective, injective, ordered, no_const_read, no_shift_read;
+    std::tie(exists, surjective, injective, ordered, no_const_read, no_shift_read) =
+        AnalyzeReadWritePattern(read_region, write_region);
+    if (!(injective && ordered)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /******** Binding ********/
@@ -644,6 +702,158 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
         << "InternalError: Cannot find the BlockRealize of block " << GetRef<Block>(block);
     return GetRef<BlockRealize>(finder.result);
   }
+}
+
+IterVarType GetLoopIterType(const StmtSRef& loop_sref) {
+  const ForNode* loop = TVM_SREF_TO_FOR(loop, loop_sref);
+  const Var& loop_var = loop->loop_var;
+  int n_spatial = 0;
+  int n_reduce = 0;
+  int n_other = 0;
+  auto f_visit = [&loop_var, &n_spatial, &n_reduce, &n_other](const ObjectRef& obj) -> bool {
+    if (const auto* realize = obj.as<BlockRealizeNode>()) {
+      const BlockNode* block = realize->block.get();
+      // Number of block vars and their bindings
+      ICHECK_EQ(realize->iter_values.size(), block->iter_vars.size());
+      size_t n = realize->iter_values.size();
+      for (size_t i = 0; i < n; ++i) {
+        const IterVar& iter_var = block->iter_vars[i];
+        const PrimExpr& binding = realize->iter_values[i];
+        // Categorize the current block var
+        int* ref = nullptr;
+        if (iter_var->iter_type == IterVarType::kDataPar) {
+          ref = &n_spatial;
+        } else if (iter_var->iter_type == IterVarType::kCommReduce) {
+          ref = &n_reduce;
+        } else {
+          ref = &n_other;
+        }
+        // Visit the binding to see if `loop_var` appears
+        PostOrderVisit(binding, [&ref, &loop_var](const ObjectRef& obj) -> void {
+          if (obj.same_as(loop_var)) {
+            (*ref) += 1;
+          }
+        });
+      }
+      return false;
+    }
+    return true;
+  };
+  PreOrderVisit(loop->body, f_visit);
+  if (n_other) {
+    return IterVarType::kOpaque;
+  } else if (n_spatial && n_reduce) {
+    return IterVarType::kOpaque;
+  } else if (n_reduce) {
+    return IterVarType::kCommReduce;
+  } else {
+    return IterVarType::kDataPar;
+  }
+}
+
+StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs) {
+  CHECK(!srefs.empty()) << "ValueError: The input array is required to have at least one sref";
+
+  std::unordered_map<const StmtSRefNode*, size_t> sref_visited_cnt;
+  for (const StmtSRef& sref : srefs) {
+    const StmtSRefNode* p = sref.get();
+    while (p != nullptr) {
+      ++sref_visited_cnt[p];
+      p = p->parent;
+    }
+  }
+  size_t n_sref = srefs.size();
+  const StmtSRefNode* p = srefs[0].get();
+  while (p != nullptr && sref_visited_cnt[p] != n_sref) {
+    p = p->parent;
+  }
+  ICHECK(p != nullptr);
+  return GetRef<StmtSRef>(p);
+}
+
+bool HasBeenMultiLevelTiled(const StmtSRef& block_sref) {
+  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined();
+}
+
+std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
+                                                                    const StmtSRef& block_sref) {
+  Array<StmtSRef> location_srefs;
+  std::vector<int> location_indices;
+
+  // Step 1. Add the "compute-root" candidate. Add the "compute-inline" candidate if the block can
+  // be inlined.
+  if (CanComputeInline(self, block_sref)) {
+    location_srefs.push_back(StmtSRef::InlineMark());
+    location_indices.push_back(-2);
+  }
+  location_srefs.push_back(StmtSRef::RootMark());
+  location_indices.push_back(-1);
+
+  // Step 2. If the block has no consumer, there is no more candidate.
+  Array<StmtSRef> consumers = GetConsumers(self, block_sref);
+  if (consumers.empty()) {
+    return std::make_pair(location_srefs, location_indices);
+  }
+
+  // Step 3. Get the deepest loop that the input block can be computed at (namely "boundary"). If
+  // such a loop cannot be found, there is no more candidate and we just return.
+  StmtSRef loop_boundary = consumers.size() > 1 ? GetSRefLowestCommonAncestor(consumers)
+                                                : GetRef<StmtSRef>(consumers[0]->parent);
+  if (loop_boundary->StmtAs<ForNode>() == nullptr) {
+    return std::make_pair(location_srefs, location_indices);
+  }
+
+  // Step 4. Collect the loops outside the first consumer and locate the boundary loop. The position
+  // of the boundary loop reveals the number of possible additional candidates.
+  Array<StmtSRef> loop_srefs = GetLoops(consumers[0]);
+  size_t lca_pos =
+      std::find(loop_srefs.begin(), loop_srefs.end(), loop_boundary) - loop_srefs.begin();
+  ICHECK_LT(lca_pos, loop_srefs.size());
+  size_t n_candidate = lca_pos + 1;
+
+  // Step 5. Find the position of the deepest data-parallel loop among the candidate loops. This
+  // position is used for removing the unwanted candidates from the perspective of performance.
+  std::vector<IterVarType> loop_iter_types;
+  loop_iter_types.reserve(n_candidate);
+  int i_last_datapar = -1;
+  for (size_t i = 0; i < n_candidate; ++i) {
+    // TODO(siyuan): improve the performance
+    IterVarType iter_type = GetLoopIterType(loop_srefs[i]);
+    loop_iter_types.push_back(iter_type);
+    if (iter_type == IterVarType::kDataPar) {
+      i_last_datapar = i;
+    }
+  }
+  // Step 6. Check and add the candidates in turn according to the following rules:
+  //  - skip the unit loops (loops with extent 1);
+  //  - do not consider the data-parallel loops after a not-data-parallel loop;
+  //  - do not consider the trailing not-data-parallel loops.
+  location_srefs.reserve(n_candidate + 2);
+  location_indices.reserve(n_candidate + 2);
+  bool visited_reduce = false;
+  for (size_t i = 0; i < n_candidate; ++i) {
+    const int64_t* loop_extent = GetLoopIntExtent(loop_srefs[i]);
+    if (loop_extent != nullptr && *loop_extent == 1) {
+      continue;
+    }
+
+    if (loop_iter_types[i] == IterVarType::kDataPar) {
+      if (visited_reduce) {
+        break;
+      }
+    } else {
+      visited_reduce = true;
+      if (static_cast<int>(i) > i_last_datapar) {
+        break;
+      }
+    }
+    if (CanComputeAt(self, block_sref, loop_srefs[i], true)) {
+      location_srefs.push_back(loop_srefs[i]);
+      location_indices.push_back(i);
+    }
+  }
+
+  return std::make_pair(location_srefs, location_indices);
 }
 
 /******** Producer-consumer relation ********/
@@ -1345,6 +1555,139 @@ StmtSRef GetSRefTreeRoot(const StmtSRef& sref) {
   return GetRef<StmtSRef>(p);
 }
 
+/******** Misc ********/
+
+bool HasOp(const Stmt& stmt, const Array<Op>& ops) {
+  std::unordered_set<const Object*> op_set;
+  op_set.reserve(ops.size());
+  for (const Op& op : ops) {
+    op_set.insert(op.operator->());
+  }
+  bool found = false;
+  PreOrderVisit(stmt, [&found, &op_set](const ObjectRef& obj) -> bool {
+    if (found) {
+      return false;
+    }
+    if (const auto* call = obj.as<CallNode>()) {
+      if (op_set.count(call->op.operator->())) {
+        found = true;
+      }
+    }
+    return !found;
+  });
+  return found;
+}
+
+bool HasIfThenElse(const Stmt& stmt) {
+  bool has_branch = false;
+  auto f_visit = [&has_branch](const ObjectRef& obj) -> bool {
+    if (has_branch) {
+      // stop visiting
+      return false;
+    }
+    if (const auto* realize = obj.as<BlockRealizeNode>()) {
+      // Case 1: BlockRealize
+      if (!is_one(realize->predicate)) {
+        has_branch = true;
+      }
+    } else if (obj->IsInstance<IfThenElseNode>() || obj->IsInstance<SelectNode>()) {
+      // Case 2: IfThenElse / Select
+      has_branch = true;
+    } else if (const auto* call = obj.as<CallNode>()) {
+      // Case 3: Call the `if_then_else` operator
+      static const Op& op_if_then_else = Op::Get("tir.if_then_else");
+      if (call->op.same_as(op_if_then_else)) {
+        has_branch = true;
+      }
+    }
+    return !has_branch;
+  };
+  PreOrderVisit(stmt, f_visit);
+  return has_branch;
+}
+
+std::tuple</*exists=*/bool,
+           /*surjective=*/bool,
+           /*injective=*/bool,
+           /*ordered=*/bool,
+           /*no_const_read=*/bool,
+           /*no_shift_read=*/bool>
+AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& write_region) {
+  static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
+      std::make_tuple(false, false, false, false, false, false);
+  // Step 1. Extract the write indices
+  int w_dim = write_region->buffer->shape.size();
+  std::unordered_map<const VarNode*, int> var2idx;
+  var2idx.reserve(w_dim);
+  for (int i = 0; i < w_dim; ++i) {
+    const Range& dom = write_region->region[i];
+    if (as_const_int(dom->extent) == nullptr) {
+      return kNotExist;
+    }
+    if (const auto* v = dom->min.as<VarNode>()) {
+      var2idx.emplace(v, i);
+    } else {
+      return kNotExist;
+    }
+  }
+  // Step 2. Map each read index to a write index
+  bool no_const_read = true;
+  bool no_shift_read = true;
+  int r_dim = read_region->buffer->shape.size();
+  std::vector<int> mapped(r_dim, -1);
+  for (int i = 0; i < r_dim; ++i) {
+    const Range& dom = read_region->region[i];
+    if (as_const_int(dom->extent) == nullptr) {
+      return kNotExist;
+    }
+    // Case 1. Read index is a constant
+    if (as_const_int(dom->min) != nullptr) {
+      no_const_read = false;
+      continue;
+    }
+    // Case 2. Read index cannot be recognized as `var +/- const`
+    // where `var` is a write index and `const` is an optional constant shift
+    Optional<IntImm> opt_const = NullOpt;
+    const VarNode* var =
+        static_cast<const VarNode*>(AnalyzeVarWithShift(dom->min, &opt_const).get());
+    if (var == nullptr || !var2idx.count(var)) {
+      return kNotExist;
+    }
+    // Case 3. Read index is `var +/- const`
+    mapped[i] = var2idx.at(var);
+    if (opt_const.defined()) {
+      no_shift_read = false;
+    }
+  }
+  // Step 3. Check if the mapping is ordered, and count how many times each var is mapped
+  std::vector<int> mapped_counter(w_dim, 0);
+  bool ordered = true;
+  int last_mapped = -1;
+  for (int i : mapped) {
+    if (i != -1) {
+      ++mapped_counter[i];
+      if (last_mapped != -1 && last_mapped > i) {
+        ordered = false;
+      }
+      last_mapped = i;
+    }
+  }
+  // Step 4. Check if the mapping is surjective or injective
+  // Surjective: each write index is mapped at least once
+  // Injective: each write index is mapped at most once
+  bool surjective = true;
+  bool injective = true;
+  for (int cnt : mapped_counter) {
+    if (cnt == 0) {
+      surjective = false;
+    } else if (cnt >= 2) {
+      injective = false;
+    }
+  }
+  return std::make_tuple(/*exist=*/true, surjective, injective, ordered, no_const_read,
+                         no_shift_read);
+}
+
 /******** Storage Scope ********/
 
 void CheckStorageScope(const ScheduleState& self, String storage_scope) {
@@ -1373,6 +1716,192 @@ void CheckStorageScope(const ScheduleState& self, String storage_scope) {
     runtime::StorageScope::Create(std::string(storage_scope));
   } catch (...) {
     throw InvalidStorageScopeError(self->mod, std::move(storage_scope));
+  }
+}
+
+bool IsSpatial(const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  for (const IterVar& iter_var : block->iter_vars) {
+    if (iter_var->iter_type != IterVarType::kDataPar) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  Array<StmtSRef> loops = GetLoops(block_sref);
+  Array<PrimExpr> binds = GetBlockRealize(self, block_sref)->iter_values;
+  if (loops.size() != binds.size()) {
+    return false;
+  }
+  for (int i = 0, n = loops.size(); i < n; ++i) {
+    const ForNode* loop = TVM_SREF_TO_FOR(loop, loops[i]);
+    if (binds[i].get() != loop->loop_var.get()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  if (block->writes.size() != 1 || block->reads.empty() || IsSpatial(block_sref) ||
+      !IsTrivialBinding(self, block_sref)) {
+    return false;
+  }
+  const BufferNode* write_buffer = block->writes[0]->buffer.get();
+  // Step 1. Sort out spatial block variables
+  std::vector<const VarNode*> spatial_block_vars;
+  spatial_block_vars.reserve(block->iter_vars.size());
+  for (const IterVar& block_var : block->iter_vars) {
+    if (block_var->iter_type == IterVarType::kDataPar) {
+      spatial_block_vars.push_back(block_var->var.get());
+    }
+  }
+  // Step 2. Enumerate each read region, check the number of block vars that are not used
+  // to index the read region
+  int total_unused_block_vars = 0;
+  std::unordered_set<const BufferNode*> read_buffers;
+  read_buffers.reserve(block->reads.size());
+  for (const BufferRegion& buffer_region : block->reads) {
+    const BufferNode* buffer = buffer_region->buffer.get();
+    const Array<Range>& regions = buffer_region->region;
+    // Step 2.1. Duplication of read buffers are not allowed
+    if (read_buffers.insert(buffer).second == false) {
+      return false;
+    }
+    // Step 2.2. Skip the reduction buffer
+    if (buffer == write_buffer) {
+      continue;
+    }
+    // Step 2.3. Collect the block vars that are used to index the read region
+    std::unordered_set<const VarNode*> vars;
+    for (const Range& range : regions) {
+      if (as_const_int(range->extent) == nullptr) {
+        return false;
+      }
+      for (const Var& var : UndefinedVars(range->min)) {
+        vars.insert(var.get());
+      }
+    }
+    // Step 2.4. Check if the block vars are not used to index the read region
+    int n_unused_block_vars = 0;
+    for (const VarNode* block_var : spatial_block_vars) {
+      if (vars.count(block_var) == 0) {
+        ++n_unused_block_vars;
+      }
+    }
+    total_unused_block_vars += n_unused_block_vars;
+  }
+  return total_unused_block_vars >= 1;
+}
+
+std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::ScheduleState& self,
+                                                                 const tir::StmtSRef& block_sref) {
+  Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
+  int64_t cum_space_len = 1, cum_reduce_len = 1;
+  /*
+   * Return (-1, -1) if
+   *   1. there is some loop with type other than kDataPar and kCommReduce;
+   *   2. there is some loop which is dynamic.
+   */
+  for (const tir::StmtSRef& loop_sref : loops) {
+    tir::IterVarType type = GetLoopIterType(loop_sref);
+    if (type == tir::kDataPar) {
+      const int64_t* extent = GetLoopIntExtent(loop_sref);
+      if (*extent != -1) {
+        cum_space_len *= *extent;
+      } else {
+        return std::make_pair(-1, -1);
+      }
+    } else if (type == tir::kCommReduce) {
+      const int64_t* extent = GetLoopIntExtent(loop_sref);
+      if (*extent != -1) {
+        cum_reduce_len *= *extent;
+      } else {
+        return std::make_pair(-1, -1);
+      }
+    } else {
+      return std::make_pair(-1, -1);
+    }
+  }
+  return std::make_pair(cum_space_len, cum_reduce_len);
+}
+
+bool NeedsRFactorOrCrossThreadReduction(const tir::ScheduleState& self,   //
+                                        const tir::StmtSRef& block_sref,  //
+                                        int64_t max_parallel_extent,      //
+                                        int64_t max_parallel_basic) {
+  const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
+  Array<tir::StmtSRef> loops = tir::GetLoops(block_sref);
+
+  // Cond 1. The block has only one write buffer
+  if (block->writes.size() != 1) {
+    return false;
+  }
+
+  // Cond 2. The block is a reduction block and has trivial binding.
+  const StmtSRef& scope_sref = GetScopeRoot(self, block_sref,
+                                            /*require_stage_pipeline=*/false);
+  if (!IsReductionBlock(self, block_sref, scope_sref)  //
+      || !IsTrivialBinding(self, block_sref)           //
+      || HasBeenMultiLevelTiled(block_sref)) {
+    return false;
+  }
+
+  // Cond 3. Every the loop axis must be either spatial axis or reduction axis.
+  for (const tir::StmtSRef& loop_sref : loops) {
+    const tir::IterVarType& type = GetLoopIterType(loop_sref);
+    if (type != tir::kDataPar && type != tir::kCommReduce) {
+      return false;
+    }
+  }
+
+  // Cond 4. Whether there is at least one reduction loop.
+  // Cond 5. The loops are continuous, and the body of the innermost loop is exactly the block.
+  bool has_reduction_loop = false;
+  for (size_t i = 0; i < loops.size(); ++i) {
+    // Cond 4.
+    if (GetLoopIterType(loops[i]) == tir::kCommReduce) {
+      has_reduction_loop = true;
+    }
+
+    // Cond 5.
+    const ForNode* loop_i = TVM_SREF_TO_FOR(loop_i, loops[i]);
+    if (i < loops.size() - 1) {
+      const ForNode* loop_i1 = TVM_SREF_TO_FOR(loop_i1, loops[i + 1]);
+      if (loop_i->body.get() != loop_i1) {
+        return false;
+      }
+    } else {
+      const auto* block_realize = loop_i->body.as<tir::BlockRealizeNode>();
+      if (!block_realize || block_realize->block.get() != block) {
+        return false;
+      }
+    }
+  }
+  if (!has_reduction_loop) {
+    return false;
+  }
+
+  // Cond 6. Can successfully calculating the cumulative loop length.
+  int64_t cum_space_len, cum_reduce_len;
+  std::tie(cum_space_len, cum_reduce_len) = GetCumulativeSpaceAndReductionLength(self, block_sref);
+  if (cum_space_len == -1 || cum_reduce_len == -1) {
+    return false;
+  }
+
+  // Cond 7.
+  if (NeedsMultiLevelTiling(self, block_sref)) {
+    // Do not use rfactor/cross-thread-reduction if we have enough parallelism on spatial loops.
+    return !(cum_space_len >= cum_reduce_len || cum_space_len > max_parallel_extent);
+  } else if (cum_reduce_len > 1) {
+    // Always try rfactor/cross-thread-reduction for other reduction blocks.
+    return cum_reduce_len > max_parallel_basic;
+  } else {
+    return false;
   }
 }
 

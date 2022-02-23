@@ -152,42 +152,58 @@ class PrimFunc : public BaseFunc {
 };
 
 /*!
- * \brief Describes one parameter that should be linked into the generated module.
- *
- * When parameters are to be linked in with generated code (i.e. on target_host-compatible
- * backends), Relay attaches instances of this object to a global TIR function. Code-generators
- * use the information contained in this node to include the parameter data in the generated
- * module.
+ * \brief Tensor intrinsics for tensorization
  */
-class LinkedParamNode : public Object {
+class TensorIntrinNode : public Object {
  public:
-  /*! \brief Unique numeric identifier used by runtimes to lookup this parameter. */
-  int64_t id;
+  /*! \brief The function to describe the computation. */
+  PrimFunc desc;
+  /*! \brief The function of the implementation for the execution. */
+  PrimFunc impl;
 
-  /*! \brief Parameter data which should get linked into the final module. */
-  ::tvm::runtime::NDArray param;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("id", &id);
-    v->Visit("param", &param);
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("desc", &desc);
+    v->Visit("impl", &impl);
   }
 
-  static constexpr const char* _type_key = "tir.LinkedParam";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinkedParamNode, Object);
+  static constexpr const char* _type_key = "tir.TensorIntrin";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);
 };
 
 /*!
- * \brief Managed reference to LinkedParamNode.
+ * \brief Managed reference to TensorIntrinNode.
  */
-class LinkedParam : public ObjectRef {
+class TensorIntrin : public ObjectRef {
  public:
-  TVM_DLL LinkedParam(int64_t id, ::tvm::runtime::NDArray param);
+  /*!
+   * \brief Constructor
+   * \param desc The function to describe the computation.
+   * \param impl The function of the implementation for the execution.
+   */
+  TVM_DLL explicit TensorIntrin(PrimFunc desc, PrimFunc impl);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LinkedParam, ObjectRef, LinkedParamNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LinkedParamNode);
+  /*!
+   * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked
+   * up with its name.
+   * \param name The name of the TensorIntrin to register
+   * \param intrin The TensorIntrin to register.
+   * \throws This method throws an exception if the TensorIntrin with the specified name already
+   *         exists.
+   */
+  TVM_DLL static void Register(String name, TensorIntrin intrin);
+
+  /*!
+   * \brief Look up TensorIntrin by name. Raises an exception if not found.
+   * \param name The name of the TensorIntrin.
+   * \return The TensorIntrin with the specified name.
+   * \throws This method throws an exception if the TensorIntrin does not exist.
+   */
+  TVM_DLL static TensorIntrin Get(String name);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
 };
 
-/*!
+/*
  * \brief Specialize parameters of PrimFunc.
  * \param func The PrimFunc to be specialized.
  * \param param_map The mapping from function params to the instance.

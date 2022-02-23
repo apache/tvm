@@ -81,7 +81,9 @@ def matmul(
         out_dim, red_dim = tensor_b.shape
     else:
         red_dim, out_dim = tensor_b.shape
-    assert in_dim == red_dim
+
+    # cmp should be done by values
+    assert int(in_dim) == int(red_dim)
 
     k = te.reduce_axis((0, in_dim), name="k")
     if (transpose_a, transpose_b) == (True, True):

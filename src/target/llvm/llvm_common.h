@@ -71,7 +71,7 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/MemoryBuffer.h>
-#if TVM_LLVM_VERSION >= 140 && !defined(TVM_USE_HEXAGON_LLVM)
+#if TVM_LLVM_VERSION >= 140
 #include <llvm/MC/TargetRegistry.h>
 #else
 #include <llvm/Support/TargetRegistry.h>

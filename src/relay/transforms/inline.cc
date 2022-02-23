@@ -91,8 +91,7 @@ class Inliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    return Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
-                    func->attrs);
+    return WithFields(func, func->params, VisitExpr(func->body));
   }
 
  private:
@@ -131,6 +130,8 @@ class Inliner : ExprMutator {
     const auto* fn = base_func.as<FunctionNode>();
     ICHECK(fn) << "Expected to work on a Relay function.";
 
+    // There is an inconsistency here, the function itself gets shallow-copied but the body is not
+    // shallow-copied.
     auto func = Function(fn->params, fn->body, fn->ret_type, fn->type_params, fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.

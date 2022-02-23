@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "literal/cuda_half_t.h"
+#include "ptx_mma.h"
 
 namespace tvm {
 namespace codegen {
@@ -723,6 +724,38 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", " : ")");
     }
+  } else if (op->op.same_as(builtin::ptx_mma())) {
+    // arg 0: shape: mXnXkX
+    // arg 1: A layout: row/col
+    // arg 2: B layout: row/col
+    // arg 3: A precision: fp16, fp64, ...
+    // arg 4: B precision: fp16, fp64, ...
+    // arg 5: C precision: fp32, fp64, ...
+    // arg 6: A multiplicand
+    // arg 7: A multiplicand index
+    // arg 8: B multiplicand
+    // arg 9: B multiplicand index
+    // arg 10: C accumulator
+    // arg 11: C accumulator index
+    // arg 12: saturate
+    ICHECK_EQ(op->args.size(), 13U);
+    std::string shape = Downcast<StringImm>(op->args[0])->value;
+    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
+    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
+    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
+    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
+    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string a_ref = this->PrintExpr(op->args[6]);
+    std::string a_bias = this->PrintExpr(op->args[7]);
+    std::string b_ref = this->PrintExpr(op->args[8]);
+    std::string b_bias = this->PrintExpr(op->args[9]);
+    std::string c_ref = this->PrintExpr(op->args[10]);
+    std::string c_bias = this->PrintExpr(op->args[11]);
+    bool saturate = (Downcast<IntImm>(op->args[12])->value != 0);
+    std::string asm_code = PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
+                                            a_ref, a_bias, b_ref, b_bias, c_ref, c_bias, saturate);
+
+    this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -770,7 +803,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
   } else {
-    int32_t constant_size = op->constant_allocation_size();
+    size_t constant_size = op->ConstantAllocationSize();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
     if (scope.find("wmma.") == 0) {
@@ -1015,7 +1048,7 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
                                  std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
-  std::string shape_str = fragment_shapes[variable];
+  std::string shape_str = fragment_shapes.at(variable);
   if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
     type.str(std::string());
     if (t.is_int()) {
@@ -1051,18 +1084,27 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, DataType t, const Var
   }
 }
 
+int stoi(const std::string& str) {
+  try {
+    return std::stoi(str);
+  } catch (std::invalid_argument& e) {
+    LOG(FATAL) << "Cannot convert \"" << str << "\" to int";
+    throw;
+  }
+}
+
 int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
                                          int32_t size) {
-  std::string shape_str = fragment_shapes[variable];
+  std::string shape_str = fragment_shapes.at(variable);
   size_t m, n, k;
   size_t last_pos = 0, pos = 0;
   pos = shape_str.find(", ", last_pos);
-  m = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  m = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
   last_pos = pos + 2;
   pos = shape_str.find(", ", last_pos);
-  n = std::stoi(shape_str.substr(last_pos, pos - last_pos));
+  n = tvm::codegen::stoi(shape_str.substr(last_pos, pos - last_pos));
   last_pos = pos + 2;
-  k = std::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
+  k = tvm::codegen::stoi(shape_str.substr(last_pos, shape_str.length() - last_pos));
   if (scope == "wmma.matrix_a") {
     return size / m / k;
   } else if (scope == "wmma.matrix_b") {

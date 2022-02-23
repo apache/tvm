@@ -147,6 +147,15 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
     """
     check_docker()
 
+    if os.getenv("USE_SCCACHE", "0") == "1":
+        scripts = [
+            "sccache --start-server",
+        ] + scripts
+        # Set the C/C++ compiler so CMake picks them up in the build
+        env["CC"] = "/opt/sccache/cc"
+        env["CXX"] = "/opt/sccache/c++"
+        env["SCCACHE_CACHE_SIZE"] = os.getenv("SCCACHE_CACHE_SIZE", "50G")
+
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
     command = [docker_bash, "--name", name]
     for key, value in env.items():
@@ -174,13 +183,11 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
 def docs(
     tutorial_pattern: Optional[str] = None,
     full: bool = False,
-    precheck: bool = False,
     cpu: bool = False,
 ) -> None:
     """
     Build the documentation from gallery/ and docs/. By default this builds only
-    the Python docs. If you are on a CPU machine, you can skip the tutorials
-    and build the docs with the '--precheck --cpu' options.
+    the Python docs.
 
     arguments:
     full -- Build all language docs, not just Python
@@ -233,9 +240,7 @@ def docs(
         config,
         f"./tests/scripts/task_build.sh build -j{NPROC}",
         "./tests/scripts/task_ci_setup.sh",
-        "./tests/scripts/task_sphinx_precheck.sh"
-        if precheck
-        else "./tests/scripts/task_python_docs.sh",
+        "./tests/scripts/task_python_docs.sh",
     ]
 
     if tutorial_pattern is None:

@@ -255,7 +255,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     if (!new_buffer_var.same_as(new_load->buffer_var)) {
       return Load(load_node->dtype, new_buffer_var, load_node->index, load_node->predicate);
     }
-    return new_load;
+    return std::move(new_load);
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* buffer_load_node) final {
@@ -265,7 +265,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     if (!new_buffer.same_as(new_buffer_load->buffer)) {
       return BufferLoad(new_buffer, new_buffer_load->indices, new_buffer_load->span);
     }
-    return new_buffer_load;
+    return std::move(new_buffer_load);
   }
 
   Stmt VisitStmt_(const LetStmtNode* let_stmt_node) final {
@@ -284,7 +284,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
                         new_attr_stmt->body);
       }
     }
-    return new_attr_stmt;
+    return std::move(new_attr_stmt);
   }
 
   // ForNode default ok since loop_var never of PointerType
@@ -302,7 +302,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     if (!new_buffer_var.same_as(new_store->buffer_var)) {
       Store(new_buffer_var, new_store->value, new_store->index, new_store->predicate);
     }
-    return new_store;
+    return std::move(new_store);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* buffer_store_node) final {
@@ -313,7 +313,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
       return BufferStore(new_buffer, new_buffer_store->value, new_buffer_store->indices,
                          new_buffer_store->span);
     }
-    return new_buffer_store;
+    return std::move(new_buffer_store);
   }
 
   Stmt VisitStmt_(const BufferRealizeNode* buffer_realize_node) final {
@@ -324,7 +324,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
       return BufferRealize(new_buffer, new_buffer_realize->bounds, new_buffer_realize->condition,
                            new_buffer_realize->body, new_buffer_realize->span);
     }
-    return new_buffer_realize;
+    return std::move(new_buffer_realize);
   }
 
   // IfThenElseNode default ok
@@ -338,7 +338,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     if (!new_buffer.same_as(new_prefetch->buffer)) {
       return Prefetch(new_buffer, prefetch_node->bounds, prefetch_node->span);
     }
-    return new_prefetch;
+    return std::move(new_prefetch);
   }
 
   // SeqStmtNode default ok
@@ -390,7 +390,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
                    new_block->name_hint, new_block->body, new_block->init, new_block->alloc_buffers,
                    std::move(new_match_buffers), new_block->annotations, new_block->span);
     }
-    return new_block;
+    return std::move(new_block);
   }
 
   // BlockRealizeNode default ok

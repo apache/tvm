@@ -34,11 +34,12 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
-    count_num_calls,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
+    assert_partitioned_function,
+    assert_no_external_function,
 )
 
 
@@ -69,8 +70,6 @@ def make_model(
     kernel_w = kernel_shape[w_index]
     invar = relay.var("input", shape=shape, dtype=dtype)
     p = (0, 0, 0, 0)
-    if padding == "INVALID":
-        p = [1, 2, 2, 1]
     if padding == "SAME":
         p = get_same_padding((shape[1], shape[2]), (kernel_h, kernel_w), dilation, strides)
         invar = relay.nn.pad(
@@ -126,22 +125,15 @@ def make_model(
 
 
 @tvm.testing.requires_cmsisnn
-@pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
-@pytest.mark.parametrize("kernel_size", [(3, 3)])
 @pytest.mark.parametrize("padding", ["SAME", "VALID"])
-@pytest.mark.parametrize("strides, dilation", [((1, 1), (1, 1))])
 @pytest.mark.parametrize("relu_type", ["RELU"])
 @pytest.mark.parametrize("enable_bias", [True, False])
 @pytest.mark.parametrize(
     "input_zero_point, input_scale, kernel_scale, out_channels",
     [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
 )
-def test_conv2d_int8(
-    ifm_shape,
-    kernel_size,
+def test_conv2d_symmetric_padding_int8(
     padding,
-    strides,
-    dilation,
     enable_bias,
     relu_type,
     input_zero_point,
@@ -153,6 +145,10 @@ def test_conv2d_int8(
     use_unpacked_api = True
     test_runner = AOT_CORSTONE300_RUNNER
 
+    ifm_shape = (1, 64, 100, 4)
+    kernel_size = (3, 3)
+    strides = (1, 1)
+    dilation = (1, 1)
     dtype = "int8"
     groups = 1
     weight_format = "HWIO"
@@ -197,21 +193,7 @@ def test_conv2d_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -231,6 +213,97 @@ def test_conv2d_int8(
     )
 
 
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
+@tvm.testing.requires_cmsisnn
+@pytest.mark.parametrize("padding", ["SAME", "VALID"])
+@pytest.mark.parametrize("relu_type", ["RELU", "NONE"])
+@pytest.mark.parametrize("enable_bias", [True, False])
+@pytest.mark.parametrize(
+    "input_zero_point, input_scale, kernel_scale, out_channels",
+    [(10, 0.0128, [0.11, 0.22], 2), (-64, 1, [1, 0.0256, 1.37], 3)],
+)
+def test_conv2d_asymmetric_padding_int8(
+    padding,
+    enable_bias,
+    relu_type,
+    input_zero_point,
+    input_scale,
+    kernel_scale,
+    out_channels,
+):
+    interface_api = "c"
+    use_unpacked_api = True
+    test_runner = AOT_CORSTONE300_RUNNER
+
+    ifm_shape = (1, 25, 25, 12)
+    kernel_size = (5, 5)
+    strides = (2, 2)
+    dilation = (1, 1)
+    dtype = "int8"
+    groups = 1
+    weight_format = "HWIO"
+    kernel_h = kernel_size[0]
+    kernel_w = kernel_size[1]
+    kernel_shape = (kernel_h, kernel_w, ifm_shape[3] // groups, out_channels)
+    kernel_zero_point = 0
+    in_min, in_max = get_range_for_dtype_str(dtype)
+
+    output_scale, output_zero_point = get_conv2d_qnn_params(
+        kernel_shape,
+        input_scale,
+        input_zero_point,
+        kernel_scale,
+        kernel_zero_point,
+        dtype,
+        dtype,
+        dtype,
+    )
+
+    model, params = make_model(
+        ifm_shape,
+        kernel_shape,
+        input_zero_point,
+        input_scale,
+        kernel_zero_point,
+        kernel_scale,
+        output_zero_point,
+        output_scale,
+        padding,
+        strides,
+        dilation,
+        groups,
+        dtype,
+        dtype,
+        out_channels,
+        weight_format,
+        enable_bias,
+        relu_type,
+    )
+    orig_mod = make_module(model)
+    cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
+
+    # validate pattern matching
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
+
+    # validate the output
+    rng = np.random.default_rng(12345)
+    inputs = {"input": rng.integers(in_min, high=in_max, size=ifm_shape, dtype=dtype)}
+    output_list = generate_ref_data(orig_mod["main"], inputs, params)
+    compile_and_run(
+        AOTTestModel(
+            module=cmsisnn_mod,
+            inputs=inputs,
+            outputs=output_list,
+            params=params,
+            output_tolerance=1,
+        ),
+        test_runner,
+        interface_api,
+        use_unpacked_api,
+    )
+
+
+@pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/10314")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("ifm_shape", [(1, 28, 28, 12), (1, 64, 100, 4)])
 @pytest.mark.parametrize("kernel_size", [(3, 3)])
@@ -315,21 +388,7 @@ def test_depthwise_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsis-nn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     rng = np.random.default_rng(12345)
@@ -353,19 +412,15 @@ def parameterize_for_invalid_model(test):
     in_dtype = ["uint8", "int8"]
     kernel_dtype = ["uint8", "int8"]
     kernel_zero_point = [-33, 10, 0]
-    padding = ["SAME", "INVALID"]
-    all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point, padding)
+    all_combinations = itertools.product(in_dtype, kernel_dtype, kernel_zero_point)
     all_combinations = filter(
         lambda parameters: not (
-            parameters[0] == "int8"
-            and parameters[1] == "int8"
-            and parameters[2] == 0
-            and parameters[3] == "SAME"
+            parameters[0] == "int8" and parameters[1] == "int8" and parameters[2] == 0
         ),
         all_combinations,
     )
     return pytest.mark.parametrize(
-        ["in_dtype", "kernel_dtype", "kernel_zero_point", "padding"],
+        ["in_dtype", "kernel_dtype", "kernel_zero_point"],
         all_combinations,
     )(test)
 
@@ -376,7 +431,6 @@ def test_invalid_parameters(
     in_dtype,
     kernel_dtype,
     kernel_zero_point,
-    padding,
 ):
     ifm_shape = (1, 28, 28, 12)
     out_channels = 2
@@ -407,7 +461,7 @@ def test_invalid_parameters(
         kernel_scale=kernel_scale,
         output_zero_point=output_zero_point,
         output_scale=output_scale,
-        padding=padding,
+        padding="SAME",
         strides=(1, 1),
         dilation=(1, 1),
         groups=1,
@@ -420,14 +474,7 @@ def test_invalid_parameters(
     )
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod, params)
-
-    # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert not any(attrs), "No function should have an external attribute."
+    assert_no_external_function(cmsisnn_mod)
 
 
 if __name__ == "__main__":

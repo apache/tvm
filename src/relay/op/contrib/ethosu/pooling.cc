@@ -123,25 +123,28 @@ bool EthosuPoolingRel(const Array<Type>& types, int num_inputs, const Attrs& att
   const auto* param = attrs.as<EthosuPoolingAttrs>();
   ICHECK(param != nullptr) << "EthosuPoolingAttrs cannot be nullptr.";
 
+  const String operator_name = "ethosu_pooling";
+
   if (param->pooling_type != "AVG" && param->pooling_type != "MAX") {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: expected pooling_type 'AVG' or 'MAX' but was "
-        << param->pooling_type);
+    reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
+                                     << "Invalid operator: expected " << operator_name
+                                     << " type 'AVG' or 'MAX' but was " << param->pooling_type);
     return false;
   }
 
-  if (ifm->dtype != DataType::UInt(8) && ifm->dtype != DataType::Int(8)) {
-    reporter->GetDiagCtx().EmitFatal(
-        Diagnostic::Error(reporter->GetSpan())
-        << "Invalid operator: Expected pool type(uint8) or type(int8) for ifm but was "
-        << ifm->dtype);
-    return false;
+  CheckDataType(reporter, ifm->dtype, {DataType::UInt(8), DataType::Int(8)}, operator_name, "ifm",
+                param->pooling_type);
+
+  CheckUpscaleMethod(reporter, param->upscale, {"NONE", "ZEROS", "NEAREST"}, operator_name);
+
+  Array<IndexExpr> ifm_shape = ifm->shape;
+  if (param->upscale != "NONE") {
+    ifm_shape = EthosuInferUpscaledInput(ifm_shape, param->ifm_layout);
   }
 
-  // Assign ofm type
+  // Assign ofm shape
   auto ofm_shape = EthosuInferKernelOutput(
-      ifm->shape, param->ifm_layout, param->ofm_layout, param->pool_shape, param->ofm_channels,
+      ifm_shape, param->ifm_layout, param->ofm_layout, param->pool_shape, param->ofm_channels,
       Array<IndexExpr>({1, 1}), param->strides, param->padding);
   reporter->Assign(types[result_index], TensorType(ofm_shape, ifm->dtype));
   return true;

@@ -32,8 +32,6 @@ tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_HEXAGON_DEVICE "Build with Hexagon device support in TVM runtime" OFF)
 tvm_option(USE_HEXAGON_SDK "Path to the Hexagon SDK root (required for Hexagon support in TVM runtime or for building TVM runtime for Hexagon)" /path/to/sdk)
 tvm_option(USE_HEXAGON_RPC "Enable Hexagon RPC using minRPC implementation over Android." OFF)
-tvm_option(USE_HEXAGON_LAUNCHER "Build the Hexagon graph launcher application" OFF)
-tvm_option(USE_HEXAGON_PROXY_RPC "Build the Hexagon Proxy RPC server application" OFF)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
@@ -243,12 +241,6 @@ if(NOT BUILD_FOR_HEXAGON)
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
 endif()
 
-if(BUILD_FOR_ANDROID)
-  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
-  # won't load on Android due to missing __emutls_XXX symbols.
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
-endif()
-
 # add source group
 tvm_file_glob(GLOB_RECURSE GROUP_SOURCE "src/*.cc")
 tvm_file_glob(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h")
@@ -323,7 +315,7 @@ if(BUILD_FOR_HEXAGON)
   # runtime, since it would cause multiple definition errors with the
   # static one.
   if(NOT BUILD_STATIC_RUNTIME)
-    list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+    list(APPEND RUNTIME_SRCS src/runtime/hexagon/android/hexagon_posix.cc)
     # Allow undefined symbols (there will be some from libc).
     set(TVM_NO_UNDEFINED_SYMBOLS "")
   endif()
@@ -393,6 +385,7 @@ endif()
 if(USE_PROFILER)
   message(STATUS "Build with profiler...")
 
+  add_definitions(-DUSE_PROFILER=1)
   tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
   set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
@@ -489,6 +482,7 @@ add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
 
 add_library(tvm SHARED $<TARGET_OBJECTS:tvm_objs> $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
+target_include_directories(tvm PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 set_property(TARGET tvm APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 if(BUILD_STATIC_RUNTIME)
@@ -503,6 +497,7 @@ else()
   add_library(tvm_runtime SHARED $<TARGET_OBJECTS:tvm_runtime_objs> $<TARGET_OBJECTS:tvm_libinfo_objs>)
   set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_NO_UNDEFINED_SYMBOLS}")
 endif()
+target_include_directories(tvm_runtime PUBLIC "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 set_property(TARGET tvm_runtime APPEND PROPERTY LINK_OPTIONS "${TVM_VISIBILITY_FLAG}")
 
 target_compile_definitions(tvm_objs PUBLIC DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
@@ -559,12 +554,6 @@ else()
   target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_FALLBACK_STL_MAP=0")
 endif(USE_FALLBACK_STL_MAP)
 
-if(BUILD_FOR_HEXAGON)
-  # Wrap pthread_create to allow setting custom stack size.
-  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
-                        "-Wl,--wrap=pthread_create")
-endif()
-
 if(USE_THREADS AND NOT BUILD_FOR_HEXAGON)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -579,17 +568,6 @@ target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 
 # Set flags for clang
 include(cmake/modules/ClangFlags.cmake)
-
-# Related headers
-target_include_directories(
-  tvm
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_objs
-  PUBLIC "topi/include")
-target_include_directories(
-  tvm_libinfo_objs
-  PUBLIC "topi/include")
 set(CRC16_INCLUDE_PATH "3rdparty/libcrc/include")
 target_include_directorieS(
   tvm_objs
@@ -634,32 +612,55 @@ endif()
 add_custom_target(runtime DEPENDS tvm_runtime)
 
 # Installation rules
-install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
   install(
-    DIRECTORY "include/." DESTINATION "include"
+    DIRECTORY "include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "3rdparty/dlpack/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dlpack/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
   install(
-    DIRECTORY "3rdparty/dmlc-core/include/." DESTINATION "include"
+    DIRECTORY "3rdparty/dmlc-core/include/" DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
 else(INSTALL_DEV)
   install(
-    DIRECTORY "include/tvm/runtime/." DESTINATION "include/tvm/runtime"
+    DIRECTORY "include/tvm/runtime/" DESTINATION "include/tvm/runtime"
     FILES_MATCHING
     PATTERN "*.h"
     )
 endif(INSTALL_DEV)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+set(PROJECT_CONFIG_CONTENT "@PACKAGE_INIT@\n")
+string(APPEND PROJECT_CONFIG_CONTENT "include(CMakeFindDependencyMacro)\n")
+string(APPEND PROJECT_CONFIG_CONTENT "find_dependency(Threads REQUIRED)\n")
+string(APPEND PROJECT_CONFIG_CONTENT
+       "include(\"\${CMAKE_CURRENT_LIST_DIR}/${PROJECT_NAME}Targets.cmake\")")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_CONFIG_CONTENT})
+
+install(EXPORT ${PROJECT_NAME}Targets
+  NAMESPACE ${PROJECT_NAME}::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME})
+
+# Create config for find_package()
+configure_package_config_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/temp_config_file.cmake" ${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+
+install(
+  FILES
+  "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 
 # More target definitions
 if(MSVC)
@@ -697,6 +698,18 @@ if(APPLE AND TVM_IS_DEBUG_BUILD)
       COMMENT "Running dsymutil"
       VERBATIM
 		  )
+endif()
+
+if(BUILD_FOR_HEXAGON)
+  # Wrap pthread_create to allow setting custom stack size.
+  set_property(TARGET tvm_runtime APPEND PROPERTY LINK_FLAGS
+                        "-Wl,--wrap=pthread_create")
+  # Link tvm_runtime into the RPC skel library. Make sure it's built
+  # as a part of the "runtime" target.
+  if(USE_HEXAGON_RPC)
+    target_link_libraries(hexagon_rpc_skel -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+    add_dependencies(runtime hexagon_rpc_skel)
+  endif()
 endif()
 
 #Caches the build.

@@ -210,6 +210,14 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                           Optional<Array<Integer>> decision = NullOpt) = 0;
+  /*!
+   * \brief Sample a compute-at location of the given block
+   * \param block_rv The block whose compute-at location is to be sampled
+   * \param decision The sampling decision
+   * \return The sampled loop where the input block is to be computed at
+   */
+  virtual LoopRV SampleComputeLocation(const BlockRV& block_rv,
+                                       Optional<Integer> decision = NullOpt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
@@ -465,6 +473,25 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void SetScope(const BlockRV& block_rv, int buffer_index, const String& storage_scope) = 0;
   /******** Schedule: Blockize & Tensorize ********/
+  /*!
+   * \brief Convert the subtree rooted at a specific loop into a block.
+   * \param loop_rv the root of the subtree
+   * \return the new block
+   */
+  virtual BlockRV Blockize(const LoopRV& loop_rv) = 0;
+  /*!
+   * \brief Tensorize the computation enclosed by loop with the tensor intrin.
+   * \param loop_rv The loop to be tensorized
+   * \param intrin Name of the tensor intrinsic
+   */
+  virtual void Tensorize(const LoopRV& loop_rv, const String& intrin) = 0;
+  /*!
+   * \brief Tensorize the computation enclosed by loop with the tensor intrin.
+   * \param block_rv The block to be tensorized
+   * \param intrin Name of the tensor intrinsic
+   */
+  virtual void Tensorize(const BlockRV& block_rv, const String& intrin) = 0;
+
   /******** Schedule: Annotation ********/
   /*!
    * \brief Annotate a loop with a key value pair

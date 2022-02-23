@@ -33,6 +33,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/schedule_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/topi/tags.h>
 
 #include <functional>
@@ -100,6 +101,7 @@ class TECompilerImpl : public TECompilerNode {
   }
 
   IRModule GetLoweredFunctions() {
+    VLOG(1) << "GetLoweredFunctions";
     IRModule mod;
     // Extract lowered functions from the cache
     for (const auto& it : cache_) {
@@ -164,8 +166,15 @@ class TECompilerImpl : public TECompilerNode {
         for (const auto& kv2 : kv1.second->cached_func->funcs->functions) {
           if (const auto* function_node = kv2.second.as<FunctionNode>()) {
             // Abandon the existing function annotations.
-            Function function(function_node->params, function_node->body, function_node->ret_type,
-                              function_node->type_params, /*attrs=*/{}, function_node->span);
+
+            // Unfortuantely, Optional<DictAttrs>() is indistinguishable from
+            // NullValue<DictAttrs>(), and DictAttrs() is nullptr, so to erase the attributes, we
+            // need pass in DictAttrs<Map<String, ObjectRef>()), which is a DictAttrs containing no
+            // attributes.
+            Function function =
+                WithFields(GetRef<Function>(function_node), function_node->params,
+                           function_node->body, function_node->ret_type, function_node->type_params,
+                           /* erase attributes */ DictAttrs(Map<String, ObjectRef>()));
             // Mark function as 'extern' using the "ExternalSymbol" attribute.
             function = WithAttr(std::move(function), attr::kExternalSymbol, kv2.first->name_hint);
             module->Add(kv2.first, function);
@@ -322,12 +331,18 @@ class TECompilerImpl : public TECompilerNode {
       for (te::Tensor arg : value->cached_func->outputs) {
         all_args.push_back(arg);
       }
+      Array<runtime::NDArray> all_consts;
+      for (auto kv : value->cached_func->constant_tensors) {
+        all_args.push_back(kv.second);
+        all_consts.push_back(kv.first->data);
+      }
       // lower the function
       std::unordered_map<te::Tensor, tir::Buffer> binds;
       auto func_name = value->cached_func->prim_fn_var->name_hint;
       VLOG(1) << "scheduling";
       IRModule scheduled_module =
           tvm::LowerSchedule(value->cached_func->schedule, all_args, func_name, binds);
+      scheduled_module->Update(tir::transform::BindParams(all_consts)(scheduled_module));
       // Unfortunately the above machinery creates its own GlobalVars instead of using *the*
       // GlobalVar we established above. Fix this before the confusion spreads any further.
       // TODO(mbs): LowerSchedule should be given prim_fn_gvar instead of func_name.
@@ -887,7 +902,7 @@ backend::FunctionInfo UpdateMainWorkspaceSize(const IRModule& mod, tec::TargetMa
         device_consts[device_type] += size_bytes;
       }
     } else if (expr->IsInstance<VarNode>() || expr.same_as(func->body)) {
-      CHECK_GE(virtual_devices.size(), 1) << "must be at least one device";
+      CHECK(size_bytes == 0 || virtual_devices.size() >= 1) << "must be at least one device";
       for (const auto& virtual_device : virtual_devices) {
         DLDeviceType device_type = virtual_device->device_type();
         device_io[device_type] += size_bytes;
@@ -1171,7 +1186,8 @@ Pass LowerTEPass(const String& module_name, ProcessFn process_fn,
 
   return tvm::transform::Sequential(
       {tvm::relay::transform::RelayToTIRTargetHook(),
-       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType()});
+       tvm::transform::CreateModulePass(pass_func, 0, "LowerTE", {"InferType"}), InferType(),
+       tvm::tir::transform::ExtractPrimFuncConstants()});
 }
 }  // namespace tec
 }  // namespace relay

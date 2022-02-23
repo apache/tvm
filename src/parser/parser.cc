@@ -31,6 +31,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/target/virtual_device.h>
 
 #include <fstream>
 
@@ -442,7 +443,13 @@ class Parser {
    */
   Expr LookupGraphBinding(const Token& token) {
     auto graph_no = token.ToNumber();
-    return this->graph_ctx.at(graph_no);
+    auto it = this->graph_ctx.find(graph_no);
+    if (it != this->graph_ctx.end()) {
+      return it->second;
+    } else {
+      LOG(FATAL) << "Local variable %" << graph_no << " has not yet been defined";
+      throw;
+    }
   }
 
   /*! \brief Bind a local variable in the expression scope.
@@ -1137,7 +1144,19 @@ class Parser {
 
       // TODO(@jroesch): attributes should never be null, they should always be empty.
       if (raw_attrs.size()) {
-        return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        // Promote kVirtualDevice to first-class
+        if (raw_attrs.count(kVirtualDevice)) {
+          ObjectRef vid = raw_attrs.at(kVirtualDevice);
+          ICHECK(vid.as<VirtualDeviceNode>())
+              << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
+              << vid->GetTypeKey();
+          raw_attrs.erase(kVirtualDevice);
+          Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+          func->virtual_device_ = vid;
+          return func;
+        } else {
+          return relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+        }
       } else {
         return relay::Function(params, body, ret_type, generics, tvm::DictAttrs());
       }

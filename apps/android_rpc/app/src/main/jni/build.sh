@@ -18,7 +18,8 @@
 PATH="$PATH:/usr/local/bin"
 CURR_DIR=$(cd `dirname $0`; pwd)
 ROOT_DIR="$CURR_DIR/../../../../../.."
-javah -o $CURR_DIR/org_apache_tvm_native_c_api.h -cp "$ROOT_DIR/jvm/core/target/*" org.apache.tvm.LibInfo || exit -1
+javac -h $CURR_DIR -classpath "$ROOT_DIR/jvm/core/target/*" $ROOT_DIR/jvm/core/src/main/java/org/apache/tvm/LibInfo.java || exit -1
+mv $CURR_DIR/org_apache_tvm_LibInfo.h $CURR_DIR/org_apache_tvm_native_c_api.h
 cp -f $ROOT_DIR/jvm/native/src/main/native/org_apache_tvm_native_c_api.cc $CURR_DIR/ || exit -1
 cp -f $ROOT_DIR/jvm/native/src/main/native/jni_helper_func.h $CURR_DIR/ || exit -1
 rm -rf $CURR_DIR/../libs

@@ -52,6 +52,7 @@ Expr DeDup(const Expr& e) {
     Expr DispatchVisitExpr(const Expr& e) final {
       auto ret = ExprMutator::VisitExpr(e);
       ret->checked_type_ = e->checked_type_;
+      ret->virtual_device_ = e->virtual_device_;
       return ret;
     }
 
@@ -81,16 +82,17 @@ Expr DeDup(const Expr& e) {
 
     Type VisitType(const Type& t) final { return t.defined() ? TypeMutator::VisitType(t) : t; }
 
-    Expr VisitExpr_(const FunctionNode* op) final {
+    Expr VisitExpr_(const FunctionNode* func_node) final {
       tvm::Array<TypeVar> type_params;
-      for (const TypeVar& type_param : op->type_params) {
+      for (const TypeVar& type_param : func_node->type_params) {
         type_params.push_back(Fresh(type_param));
       }
       tvm::Array<Var> params;
-      for (const Var& param : op->params) {
+      for (const Var& param : func_node->params) {
         params.push_back(Fresh(param));
       }
-      return Function(params, VisitExpr(op->body), VisitType(op->ret_type), type_params, op->attrs);
+      return WithFields(GetRef<Function>(func_node), params, VisitExpr(func_node->body),
+                        VisitType(func_node->ret_type), type_params);
     }
 
     Pattern VisitPattern(const Pattern& p) final { return PatternFunctor::VisitPattern(p); }

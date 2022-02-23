@@ -101,7 +101,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   using StmtMutator::operator();
 
   Vectorizer(Var var, int var_lanes) : var_(var), var_lanes_(var_lanes) {
-    ramp_ = Ramp(0, 1, var_lanes);
+    ramp_ = Ramp(IntImm(var->dtype, 0), IntImm(var->dtype, 1), var_lanes);
   }
 
   Stmt VisitStmt(const Stmt& stmt) final {

@@ -340,6 +340,40 @@ class Allocate(Stmt):
         )
 
 
+@tvm._ffi.register_object("tir.AllocateConst")
+class AllocateConst(Stmt):
+    """Allocate constant node.
+
+    Parameters
+    ----------
+    buffer_var : Var
+        The buffer variable.
+
+    data : NDarray
+        The data associated with the constant
+
+    dtype : str
+        The data type of the buffer.
+
+    extents : list of Expr
+        The extents of the allocate
+
+    condition : PrimExpr
+        The condition.
+
+    body : Stmt
+        The body statement.
+
+    span : Optional[Span]
+        The location of this itervar in the source code.
+    """
+
+    def __init__(self, buffer_var, dtype, extents, condition, body, span=None):
+        self.__init_handle_by_constructor__(
+            _ffi_api.AllocateConst, buffer_var, dtype, extents, condition, body, span
+        )
+
+
 @tvm._ffi.register_object("tir.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.

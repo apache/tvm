@@ -23,6 +23,7 @@
  */
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/memory_pools.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/executor.h>
 #include <tvm/relay/expr.h>
@@ -103,7 +104,9 @@ struct ExecutorCodegen {
 
   Array<String> ListDevices() { return CallFunc<Array<String>>("get_devices"); }
 
-  runtime::Metadata GetMetadata() { return CallFunc<runtime::Metadata>("get_metadata"); }
+  relay::backend::ExecutorCodegenMetadata GetExecutorCodegenMetadata() {
+    return CallFunc<relay::backend::ExecutorCodegenMetadata>("get_executor_codegen_metadata");
+  }
   virtual ~ExecutorCodegen() {}
 
  protected:
@@ -186,8 +189,8 @@ class RelayBuildModule : public runtime::ModuleNode {
           [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        ICHECK_EQ(args.num_args, 6);
-        this->Build(args[0], args[1], args[2], args[3], args[4], args[5]);
+        ICHECK_EQ(args.num_args, 7);
+        this->Build(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
@@ -217,6 +220,10 @@ class RelayBuildModule : public runtime::ModuleNode {
     } else if (name == "get_function_metadata") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->executor_codegen_->GetFunctionMetadata();
+      });
+    } else if (name == "get_executor_codegen_metadata") {
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->executor_codegen_->GetExecutorCodegenMetadata();
       });
     } else if (name == "optimize") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -295,10 +302,12 @@ class RelayBuildModule : public runtime::ModuleNode {
    * \param mod_name Name of the module
    */
   void Build(IRModule mod, const TargetMap& targets, const tvm::Target& target_host,
-             const Executor& executor, const Runtime& runtime, const String mod_name) {
+             const Executor& executor, const Runtime& runtime,
+             const WorkspaceMemoryPools& workspace_memory_pools, const String mod_name) {
     VLOG_CONTEXT << "Build";
     executor_ = executor;
     runtime_ = runtime;
+    workspace_memory_pools_ = workspace_memory_pools;
     config_ = CompilationConfig(PassContext::Current(), targets, target_host);
     BuildRelay(std::move(mod), mod_name);
   }
@@ -400,14 +409,18 @@ class RelayBuildModule : public runtime::ModuleNode {
    */
   void BuildRelay(IRModule relay_module, const String& mod_name) {
     // Relay IRModule -> IRModule optimizations.
-    relay_module = OptimizeImpl(std::move(relay_module));
+    IRModule module = WithAttrs(
+        relay_module, {{tvm::attr::kExecutor, executor_}, {tvm::attr::kRuntime, runtime_}});
+    relay_module = OptimizeImpl(std::move(module));
 
     // Get the updated function and new IRModule to build.
     // Instead of recreating the IRModule, we should look at the differences between this and the
     // incoming IRModule to see if we can just pass (IRModule, Function) to the code generator.
     Function func = Downcast<Function>(relay_module->Lookup("main"));
-    IRModule func_module = WithAttrs(IRModule::FromExpr(func), {{tvm::attr::kExecutor, executor_},
-                                                                {tvm::attr::kRuntime, runtime_}});
+    IRModule func_module = WithAttrs(IRModule::FromExpr(func),
+                                     {{tvm::attr::kExecutor, executor_},
+                                      {tvm::attr::kRuntime, runtime_},
+                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_}});
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
@@ -426,31 +439,6 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     const Target& host_target = config_->host_virtual_device->target;
     const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
-
-    // Generate a placeholder function that attaches linked params as its arguments.
-    Bool should_link_params = func_module->ShouldLinkParameters();
-    if (should_link_params) {
-      CHECK(pf != nullptr) << "Unable to link-params with no target_host and no llvm codegen.";
-      auto param_ids = executor_codegen_->GetParamIds();
-      auto link_params = Map<String, tir::LinkedParam>();
-      for (auto param : ret_.params) {
-        link_params.Set(param.first, tir::LinkedParam(param_ids[param.first], param.second));
-      }
-
-      Map<String, ObjectRef> dict;
-      dict.Set(tvm::tir::attr::kLinkedParams, link_params);
-      dict.Set(tvm::attr::kGlobalSymbol, String(::tvm::runtime::symbol::tvm_lookup_linked_param));
-      DictAttrs attrs{dict};
-      auto prim = tir::PrimFunc(Array<tir::Var>(), tir::SeqStmt(Array<tir::Stmt>()), VoidType(),
-                                Map<tir::Var, tir::Buffer>(), attrs);
-      if (lowered_funcs.find(host_target) == lowered_funcs.end()) {
-        lowered_funcs.Set(host_target,
-                          IRModule(Map<GlobalVar, BaseFunc>({}), {}, {}, {}, func_module->attrs));
-      }
-      lowered_funcs[host_target]->Add(GlobalVar(::tvm::runtime::symbol::tvm_lookup_linked_param),
-                                      prim);
-    }
-
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
       if (host_target->kind->name == "llvm") {
@@ -468,8 +456,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     auto ext_mods = executor_codegen_->GetExternalModules();
-    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
-                                                  runtime_, executor_codegen_->GetMetadata());
+    ret_.mod =
+        tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target, runtime_,
+                                           executor_codegen_->GetExecutorCodegenMetadata());
     // Remove external params which were stored in metadata module.
     for (tvm::runtime::Module mod : ext_mods) {
       auto pf_var = mod.GetFunction("get_const_vars");
@@ -491,6 +480,8 @@ class RelayBuildModule : public runtime::ModuleNode {
   Executor executor_;
   /*! \brief Runtime to codegen for */
   Runtime runtime_;
+  /*! \brief Workspace memory pools to codegen for */
+  WorkspaceMemoryPools workspace_memory_pools_;
   /*! \brief parameters */
   std::unordered_map<std::string, runtime::NDArray> params_;
   /*! \brief building output */

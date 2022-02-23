@@ -34,11 +34,12 @@ from tests.python.relay.aot.aot_test_utils import (
 from utils import (
     skip_if_no_reference_system,
     make_module,
-    count_num_calls,
     get_range_for_dtype_str,
     get_same_padding,
     get_conv2d_qnn_params,
     make_qnn_relu,
+    assert_partitioned_function,
+    assert_no_external_function,
 )
 
 
@@ -106,21 +107,7 @@ def test_op_int8(
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
 
     # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert any(attrs), "At least one function with external attributes was expected."
-
-    compilers = [
-        key == "Compiler" and value == "cmsis-nn" for attr in attrs for key, value in attr.items()
-    ]
-    assert any(compilers), "Module does not contain function for cmsisnn target."
-
-    assert count_num_calls(orig_mod) == count_num_calls(
-        cmsisnn_mod
-    ), "Number of calls changed during partitioning"
+    assert_partitioned_function(orig_mod, cmsisnn_mod)
 
     # validate the output
     in_min, in_max = get_range_for_dtype_str(dtype)
@@ -159,14 +146,7 @@ def test_invalid_parameters():
 
     orig_mod = make_module(model)
     cmsisnn_mod = cmsisnn.partition_for_cmsisnn(orig_mod)
-
-    # validate pattern matching
-    attrs = [
-        cmsisnn_mod[var.name_hint].attrs
-        for var in cmsisnn_mod.get_global_vars()
-        if cmsisnn_mod[var.name_hint].attrs
-    ]
-    assert not any(attrs), "No function should have an external attribute."
+    assert_no_external_function(cmsisnn_mod)
 
 
 if __name__ == "__main__":

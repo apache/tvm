@@ -34,7 +34,12 @@ namespace runtime {
 RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) {
   if (auto* fp = tvm::runtime::Registry::Get(name)) {
     // return raw handle because the remote need to explicitly manage it.
-    return new PackedFunc(*fp);
+    tvm::runtime::TVMRetValue ret;
+    ret = *fp;
+    TVMValue val;
+    int type_code;
+    ret.MoveToCHost(&val, &type_code);
+    return val.v_handle;
   } else {
     return nullptr;
   }
@@ -81,7 +86,7 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
 void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* arg_values,
                             const int* arg_type_codes, int num_args,
                             const FEncodeReturn& encode_return) {
-  auto* pf = static_cast<PackedFunc*>(func);
+  PackedFuncObj* pf = static_cast<PackedFuncObj*>(func);
   TVMRetValue rv;
   pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
   this->EncodeReturn(std::move(rv), encode_return);
