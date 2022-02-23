@@ -1014,10 +1014,12 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
   // value of T.allocate, and no T.buffer_decl statement is needed.
   Buffer alloc_buf(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0, 0,
                    kDefault);
+  bool found_alloc_buf = false;
   Array<Buffer> aliasing_buffers;
   for (const auto& buf : buffer_usage) {
-    if (is_exact_match(buf, alloc_buf)) {
+    if (!found_alloc_buf && is_exact_match(buf, alloc_buf)) {
       alloc_buf = buf;
+      found_alloc_buf = true;
     } else {
       aliasing_buffers.push_back(buf);
     }
