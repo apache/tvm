@@ -37,7 +37,6 @@
 namespace tvm {
 namespace runtime {
 #define GLOBAL_MODULE_INDEX -1
-#define memory_barrier() std::atomic_thread_fence(std::memory_order_acquire)
 /*!
  *\brief The function is used to build the binding configuration for a runtime. The first
  * 'int' is the output index of the current runtime, the second 'int' is the index of child
@@ -94,9 +93,9 @@ class DataNotify {
   /*!\brief The mutex is used to protect the 'conditional variable'.*/
   std::mutex mutex_;
   /*!\brief Whether a data is ready or not.*/
-  volatile bool data_ready_ = false;
+  bool data_ready_ = false;
   /*!\brief Whether the thread should exit or not.*/
-  volatile bool exit_state_ = false;
+  std::atomic<bool> exit_state_{false};
   /*!
    * \brief The 'ModuleInterfaceID' in which the data was ready and triggered this
    *  notification.
@@ -138,15 +137,14 @@ class DataNotify {
   }
   /*!brief Sending the notification when the notification state changes into 'exit'.*/
   void ExitNotify(void) {
-    exit_state_ = true;
-    memory_barrier();
+    exit_state_.store(true, std::memory_order_release);
     Notify();
   }
   /*!
    *\brief Getting the 'exit state'.
    *\return Returning the value of 'exit_state_'
    */
-  bool GetExitState(void) { return exit_state_; }
+  bool GetExitState(void) { return exit_state_.load(std::memory_order_acquire); }
 };
 /*!
  * \brief All binding information of a output interface.
