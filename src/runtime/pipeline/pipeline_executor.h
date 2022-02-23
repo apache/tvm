@@ -96,9 +96,9 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   NDArray GetInput(std::string input_name);
   /*!
-   * \brief Getting the numbers of running pipeline.
+   * \brief Getting the count of running pipeline.
    */
-  int PipelineStatisticPipeExecuteNumber();
+  int PipelineStatisticPipeExecuterCount();
   /*!
    * \brief Use the parameters group name to get the specific backend runtime then use
    *  the param_key_name to set param data for the said backend runtime.

@@ -397,7 +397,7 @@ def test_pipeline():
             # TODO(huajsj:) Replacing the checking logic with getting output logic.
             # Checking the statistic value of pipeline.
             statistic_time = 0
-            while pipeline_module_test.number_pipe_execute < len(datas):
+            while pipeline_module_test.num_executing_pipeline < len(datas):
                 statistic_time = statistic_time + 1
                 # Setting the timeout to 10 seconds.
                 assert statistic_time < 10

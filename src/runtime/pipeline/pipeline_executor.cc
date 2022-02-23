@@ -79,9 +79,9 @@ PackedFunc PipelineExecutor::GetFunction(const std::string& name,
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(); });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Run(args[0]); });
-  } else if (name == "get_statistic_pipe_execute_number") {
+  } else if (name == "get_statistic_pipe_execute_count") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      *rv = this->PipelineStatisticPipeExecuteNumber();
+      *rv = this->PipelineStatisticPipeExecuterCount();
     });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
@@ -238,9 +238,9 @@ std::pair<int, int> PipelineExecutor::GetInputIndex(const std::string& name) {
   return std::make_pair(index.first, gruntime->GetInputIndex(index.second));
 }
 /*!
- * \brief Getting the numbers of running pipeline.
+ * \brief Getting the count of running pipeline.
  */
-int PipelineExecutor::PipelineStatisticPipeExecuteNumber() {
+int PipelineExecutor::PipelineStatisticPipeExecuterCount() {
   return runtimes_.back()->GetStatisticPipelineExecuteNumber();
 }
 /*!

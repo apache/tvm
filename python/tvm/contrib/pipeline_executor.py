@@ -123,7 +123,7 @@ class PipelineModule(object):
         self._get_output = self.module["get_output"]
         self._get_num_outputs = self.module["get_num_outputs"]
         self._get_input_pipeline_map = self.module["get_input_pipeline_map"]
-        self._get_pipe_execute_number = self.module["get_statistic_pipe_execute_number"]
+        self._get_pipe_execute_count = self.module["get_statistic_pipe_execute_count"]
 
     def run(self, sync=False):
         """Run the pipeline executor."""
@@ -210,14 +210,14 @@ class PipelineModule(object):
         return self._get_output()
 
     @property
-    def number_pipe_execute(self):
-        """Getting the numbers of running pipeline.
+    def num_executing_pipeline(self):
+        """Getting the count of running pipeline.
         Returns
         -------
         count : int
-            The numbers of running pipeline.
+            The count of running pipeline.
         """
-        return self._get_pipe_execute_number()
+        return self._get_pipe_execute_count()
 
     @property
     def num_outputs(self):

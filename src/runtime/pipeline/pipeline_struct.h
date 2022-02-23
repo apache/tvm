@@ -37,6 +37,7 @@
 namespace tvm {
 namespace runtime {
 #define GLOBAL_MODULE_INDEX -1
+#define memory_barrier() std::atomic_thread_fence(std::memory_order_acquire)
 /*!
  *\brief The function is used to build the binding configuration for a runtime. The first
  * 'int' is the output index of the current runtime, the second 'int' is the index of child
@@ -58,11 +59,33 @@ using ModuleOutputPair = std::pair<int, int>;
  * The first 'int' is the module index, and the second 'int' is the module input index.
  */
 using ModuleInputPair = std::pair<int, int>;
+/*!\brief The runtime module interface type.*/
+enum InterfaceType {
+  INPUT = 0,
+  OUTPUT,
+};
 /*!
- *\brief The pair includes the module index and the module output index.
- * The first 'int' is the module index, and the second 'int' is the module output index.
+ *\brief The structure includes the module index and the module output index.
  */
-using ModuleOutputPair = std::pair<int, int>;
+struct ModuleInterfaceID {
+  ModuleInterfaceID() : runtime_idx(0), runtime_interface_idx(0), interface_type(OUTPUT) { ; }
+  ModuleInterfaceID(int runtime_index, int runtime_interface_index, InterfaceType type = OUTPUT) {
+    runtime_idx = runtime_index;
+    runtime_interface_idx = runtime_interface_index;
+    interface_type = type;
+  }
+  int runtime_idx;
+  union {
+    /*!\brief The output interface index.*/
+    int runtime_output_idx;
+    /*!\brief The input interface index.*/
+    int runtime_input_idx;
+    /*!\brief The interface index.*/
+    int runtime_interface_idx;
+  };
+  /*!\brief The interface type*/
+  InterfaceType interface_type;
+};
 /*!\brief The data notification structure.*/
 class DataNotify {
  private:
@@ -75,25 +98,25 @@ class DataNotify {
   /*!\brief Whether the thread should exit or not.*/
   volatile bool exit_state_ = false;
   /*!
-   * \brief The 'ModuleOutputPair' in which the data was ready and triggered this
+   * \brief The 'ModuleInterfaceID' in which the data was ready and triggered this
    *  notification.
    */
-  ModuleOutputPair notification_source_;
+  ModuleInterfaceID notification_source_;
 
  public:
   /*!
    * \brief Constructing the DataNotify class.
-   * \param parent_output_pair The index of runtime which is sending out the data notification
-   *  the data notification.
+   * \param parent_output_id The id of a runtime interface which is sending out the data
+   *  notification.
    */
-  explicit DataNotify(ModuleOutputPair parent_output_pair) {
-    notification_source_ = parent_output_pair;
+  explicit DataNotify(ModuleInterfaceID parent_output_id) {
+    notification_source_ = parent_output_id;
   }
   /*!
    * \brief Getting the notification source.
    * \return The first 'int' is the runtime index, and the second 'int' is the output index.
    */
-  ModuleOutputPair GetNotifySource(void) { return notification_source_; }
+  ModuleInterfaceID GetNotifySource(void) { return notification_source_; }
   /*!
    *\brief Waiting for the notification.
    *\return Returning the value 'false' when the notification is in a 'exit' state, else
@@ -116,6 +139,7 @@ class DataNotify {
   /*!brief Sending the notification when the notification state changes into 'exit'.*/
   void ExitNotify(void) {
     exit_state_ = true;
+    memory_barrier();
     Notify();
   }
   /*!
@@ -547,7 +571,8 @@ class BackendRuntime {
       // Getting the source which sends this notification.
       auto notify_source = notify->second->GetNotifySource();
       // Loading the binding data.
-      while (!this->LoadBindingData(notify->first, notify_source.first, notify_source.second)) {
+      while (!this->LoadBindingData(notify->first, notify_source.runtime_idx,
+                                    notify_source.runtime_output_idx)) {
         // Waiting for the notification.
         if (!notify->second->Wait()) {
           VLOG(1) << "runtime index:" << runtime_idx_ << " receive exit notify.";
@@ -558,8 +583,8 @@ class BackendRuntime {
         break;
       }
       VLOG(1) << "runtime_index.input_index:" << runtime_idx_ << "." << notify->first
-              << "from runtime_index.output_index:" << notify_source.first << "."
-              << notify_source.second;
+              << "from runtime_index.output_index:" << notify_source.runtime_idx << "."
+              << notify_source.runtime_output_idx;
       notifys.erase(notify);
     }
     return exit_notify;
@@ -601,7 +626,7 @@ class BackendRuntime {
       LOG(FATAL) << "Not finding the input index " << input_index << " in runtime " << runtime_idx_;
     }
     parents_notify_[input_index] =
-        std::make_shared<DataNotify>(std::make_pair(parent_idx, parent_output_idx));
+        std::make_shared<DataNotify>(ModuleInterfaceID(parent_idx, parent_output_idx));
   }
   /*!
    * \brief Copying from a given tensor and using 'CPU' as the device.
