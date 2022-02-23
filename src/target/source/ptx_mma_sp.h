@@ -38,7 +38,7 @@ std::string PrintMMASparseAssembly(const std::string& shape, const std::string& 
                                    const std::string& a_ref, const std::string& a_offset,
                                    const std::string& b_ref, const std::string& b_offset,
                                    const std::string& c_ref, const std::string& c_offset,
-                                   const std::string& metadata,
+                                   const std::string& metadata, const std::string& metadata_offset,
                                    const std::string& sparsity_selector, bool saturate);
 
 }  // namespace codegen

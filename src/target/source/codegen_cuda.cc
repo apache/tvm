@@ -777,9 +777,10 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 10: C accumulator
     // arg 11: C accumulator index
     // arg 12: metadata
-    // arg 13: sparse_selector
-    // arg 14: saturate
-    ICHECK_EQ(op->args.size(), 15U);
+    // arg 13: metadata index
+    // arg 14: sparse_selector
+    // arg 15: saturate
+    ICHECK_EQ(op->args.size(), 16U);
     std::string shape = Downcast<StringImm>(op->args[0])->value;
     std::string A_layout = Downcast<StringImm>(op->args[1])->value;
     std::string B_layout = Downcast<StringImm>(op->args[2])->value;
@@ -793,11 +794,12 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_offset = this->PrintExpr(op->args[11]);
     std::string metadata = this->PrintExpr(op->args[12]);
-    std::string sparse_selector = this->PrintExpr(op->args[13]);
-    bool saturate = (Downcast<IntImm>(op->args[14])->value != 0);
-    std::string asm_code = PrintMMASparseAssembly(shape, A_layout, B_layout, A_dtype, B_dtype,
-                                                  C_dtype, a_ref, a_offset, b_ref, b_offset, c_ref,
-                                                  c_offset, metadata, sparse_selector, saturate);
+    std::string metadata_offset = this->PrintExpr(op->args[13]);
+    std::string sparse_selector = this->PrintExpr(op->args[14]);
+    bool saturate = Downcast<Bool>(op->args[15])->value;
+    std::string asm_code = PrintMMASparseAssembly(
+        shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
+        c_ref, c_offset, metadata, metadata_offset, sparse_selector, saturate);
     this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);

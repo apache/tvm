@@ -240,7 +240,7 @@ inline std::tuple<std::string, std::string, std::string> get_mma_sp_operands(
     inputs << ", \"" << std::get<0>(frag_attr_c) << "\"((" << std::get<2>(frag_attr_c) << "(C))["
            << i << "])";
   }
-  inputs << ", \"r\"(E[0])";
+  inputs << ", \"r\"(((unsigned *)(E))[0])";
 
   // generate outputs
   for (int i = 0; i < num_operands_c; ++i) {
@@ -259,7 +259,7 @@ std::string PrintMMASparseAssembly(const std::string& shape, const std::string& 
                                    const std::string& a_ref, const std::string& a_offset,
                                    const std::string& b_ref, const std::string& b_offset,
                                    const std::string& c_ref, const std::string& c_offset,
-                                   const std::string& metadata,
+                                   const std::string& metadata, const std::string& metadata_offset,
                                    const std::string& sparsity_selector, bool saturate) {
   ptx::DataType dtype_a = ptx::DTypeFromString(A_dtype), dtype_b = ptx::DTypeFromString(B_dtype),
                 dtype_c = ptx::DTypeFromString(C_dtype);
@@ -297,7 +297,7 @@ std::string PrintMMASparseAssembly(const std::string& shape, const std::string& 
   replacer.register_rule("B", b_ref + " + " + b_offset);
   replacer.register_rule("C", c_ref + " + " + c_offset);
   replacer.register_rule("D", c_ref + " + " + c_offset);
-  replacer.register_rule("E", metadata);
+  replacer.register_rule("E", metadata + " + " + metadata_offset);
   replacer.register_rule("F", sparsity_selector);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;

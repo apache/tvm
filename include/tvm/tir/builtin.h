@@ -604,7 +604,8 @@ TVM_DLL const Op& ptx_mma();
  *                 Var multiplicand_a, Expr a_index,
  *                 Var multiplicand_b, Expr b_index,
  *                 Var accumulator, Expr c_index,
- *                 Var metadata, Var sparse_selector, bool saturate);
+ *                 Var metadata, Expr meta_index,
+ *                 Var sparse_selector, bool saturate);
  */
 TVM_DLL const Op& ptx_mma_sp();
 
