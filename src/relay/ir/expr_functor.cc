@@ -487,7 +487,8 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.push_back(GetRef<Var>(var));
       }
     }
-    if (new_body.same_as(func->body) && new_params.size() == func->params.size() && params_unchanged) {
+    if (new_body.same_as(func->body) && new_params.size() == func->params.size() &&
+        params_unchanged) {
       return expr;
     }
     auto ret =

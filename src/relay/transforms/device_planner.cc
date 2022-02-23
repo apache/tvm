@@ -1016,7 +1016,7 @@ class DeviceCapturer : public ExprMutator {
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
       annotated_bind_map.Set(function_node->params[i], annotated_var);
     }
-    for (auto kv : annotated_bind_map){
+    for (auto kv : annotated_bind_map) {
       VLOG(4) << "Var: " << kv.first;
       VLOG(4) << "Value: " << kv.second;
       VLOG(4) << "Value VID: " << kv.second->virtual_device();
