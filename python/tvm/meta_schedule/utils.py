@@ -21,7 +21,7 @@ import os
 import shutil
 from typing import Any, Callable, List, Optional, Union
 
-import psutil  # type: ignore
+import psutil
 import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError
@@ -29,6 +29,72 @@ from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
 from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
+
+
+def derived_object(cls) -> type:
+    """A decorator to register derived subclasses for TVM objects.
+    Parameters
+    ----------
+    cls : type
+        The derived class to be registered.
+
+    Returns
+    -------
+    cls : type
+        The decorated TVM object.
+
+    Example
+    -------
+    .. code-block:: python
+
+        @register_object("meta_schedule.PyRunner")
+        class _PyRunner(meta_schedule.Runner):
+            def __init__(self, methods) -> None:
+                self.__init_handle_by_constructor__(_ffi_api.RunnerPyRunner, *methods)
+
+        class PyRunner():
+            _tvm_metadata = {
+                "cls": _PyRunner,
+                "methods": ["run"],
+            }
+            def run(self, runner_inputs):
+                raise NotImplementedError
+
+        @derived_object
+        class LocalRunner(PyRunner):
+            def run(self, runner_inputs):
+                ...
+    """
+
+    import functools  # pylint: disable=import-outside-toplevel
+
+    def _extract(inst, name):
+        def method(*args, **kwargs):
+            return getattr(inst, name)(*args, **kwargs)
+
+        return method
+
+    assert isinstance(cls.__base__, type)
+    assert hasattr(
+        cls, "tvm_metadata"
+    ), "Please use the user-facing method overiding class, i.e., PyRunnerFuture."
+    base = cls.__base__
+    metadata = getattr(base, "tvm_metadata")
+
+    class TVMDerivedObject(metadata["cls"]):  # type: ignore
+        def __init__(self, *args, **kwargs):
+            self.handle = None
+            self._inst = cls(*args, **kwargs)
+            super().__init__([_extract(self._inst, name) for name in metadata["methods"]])
+
+        def __getattr__(self, name):
+            return self._inst.__getattribute__(name)
+
+    functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)
+    TVMDerivedObject.__name__ = cls.__name__
+    TVMDerivedObject.__doc__ = cls.__doc__
+    TVMDerivedObject.__module__ = cls.__module__
+    return TVMDerivedObject
 
 
 @register_func("meta_schedule.cpu_count")

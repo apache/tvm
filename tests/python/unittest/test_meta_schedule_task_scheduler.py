@@ -26,10 +26,17 @@ from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext, measure_callback
 from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
-from tvm.meta_schedule.runner import PyRunner, RunnerFuture, RunnerInput, RunnerResult
+from tvm.meta_schedule.runner import (
+    PyRunner,
+    RunnerFuture,
+    RunnerInput,
+    RunnerResult,
+    PyRunnerFuture,
+)
 from tvm.meta_schedule.search_strategy import ReplayTrace
 from tvm.meta_schedule.space_generator import ScheduleFn
 from tvm.meta_schedule.task_scheduler import PyTaskScheduler, RoundRobin
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir import Schedule
 
@@ -114,7 +121,8 @@ def _schedule_batch_matmul(sch: Schedule):
     sch.reorder(i_0, j_0, i_1, j_1, k_0, i_2, j_2, k_1, i_3, j_3, t_0, t_1)
 
 
-class DummyRunnerFuture(RunnerFuture):
+@derived_object
+class DummyRunnerFuture(PyRunnerFuture):
     def done(self) -> bool:
         return True
 
@@ -127,6 +135,7 @@ class DummyBuilder(PyBuilder):
         return [BuilderResult("test_path", None) for _ in build_inputs]
 
 
+@derived_object
 class DummyRunner(PyRunner):
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
         return [DummyRunnerFuture() for _ in runner_inputs]
@@ -234,7 +243,6 @@ def test_meta_schedule_task_scheduler_multiple():
     )
     round_robin.tune()
     assert len(database) == num_trials_total * len(tasks)
-    print(database.workload_reg)
     for task in tasks:
         assert (
             len(
