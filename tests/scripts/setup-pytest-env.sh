@@ -26,7 +26,8 @@ else
 fi
 set -u
 
-export TVM_PATH=`pwd`
+TVM_PATH=$(pwd)
+export TVM_PATH
 export PYTHONPATH="${TVM_PATH}/python"
 
 export TVM_PYTEST_RESULT_DIR="${TVM_PATH}/build/pytest-results"
@@ -37,7 +38,16 @@ function run_pytest() {
     shift
     local test_suite_name="$1"
     shift
-    if [ -z "${ffi_type}" -o -z "${test_suite_name}" ]; then
+    ENABLE_XDIST=${ENABLE_XDIST:-0}
+
+    if [ "$ENABLE_XDIST" -eq "1" ]; then
+        num_cpus=$(nproc)
+        xdist_arg="-n$num_cpus"
+    else
+        xdist_arg="-n0"
+    fi
+
+    if [ -z "${ffi_type}" ] || [ -z "${test_suite_name}" ]; then
         echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name} $@"
         echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
         exit 2
@@ -46,5 +56,6 @@ function run_pytest() {
            -o "junit_suite_name=${test_suite_name}-${ffi_type}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${test_suite_name}-${ffi_type}.xml" \
            "--junit-prefix=${ffi_type}" \
+           "$xdist_arg" \
            "$@"
 }
