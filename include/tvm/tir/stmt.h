@@ -1316,7 +1316,7 @@ class BlockRealize : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BlockRealizeNode);
 };
 
-/*! \brief namespace of possible attribute sin AttrStmt.attr_key */
+/*! \brief namespace of possible attributes in AttrStmt.attr_key */
 namespace attr {
 // The above attr does not pass to ir stage.
 /*! \brief Mark launching extent of thread, used by device API. */
