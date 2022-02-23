@@ -276,3 +276,22 @@ def dense_alter_layout(attrs, inputs, tinfos, out_type):
     """
     # not to change by default
     return None
+
+
+@tvm.target.generic_func
+def batch_matmul_legalize(attrs, inputs, types):
+    """Legalizes batch_matmul op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current batch_matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+    return None
