@@ -225,9 +225,6 @@ def verify_conv2d_NHWC_gemm_int8(
     check_target("llvm")
 
 
-oc_block_factor = 4
-
-
 def verify_conv2d_NCHWc_int8(
     batch,
     in_channel,
@@ -251,40 +248,12 @@ def verify_conv2d_NCHWc_int8(
 
     A = te.placeholder((batch, in_channel, in_height, in_width), name="A", dtype="int8")
     W = te.placeholder((num_filter, in_channel, kernel, kernel), name="W", dtype="int8")
-    bias = te.placeholder(
-        (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int8"
-    )
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
-    bias_shape = get_const_tuple(bias.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
-    def get_ref_data():
-        a_np = np.random.randint(low=-128, high=127, size=a_shape).astype(dtype)
-        w_np = np.random.randint(low=-128, high=128, size=w_shape).astype(dtype)
-        b_np = np.random.uniform(size=bias_shape).astype(dtype)
-        dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
-        c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype(dtype)
-
-        # convert to NCHWc
-        _, _, out_height, out_width = c_np.shape
-        c_np = c_np.reshape(
-            (batch, num_filter // oc_block_factor, oc_block_factor, out_height, out_width)
-        ).transpose(0, 1, 3, 4, 2)
-
-        if add_bias:
-            b_np = np.random.uniform(size=bias_shape).astype(dtype)
-            c_np += b_np
-        if add_relu:
-            c_np = np.maximum(c_np, 0)
-
-        return a_np, w_np, b_np, c_np
-
-    a_np, w_np, b_np, c_np = get_ref_data()
-
-    def check_target(target):
+    def check_target(target, compute, schedule, oc_block_factor):
         dev = tvm.device(target, 0)
         if not tvm.testing.device_enabled(target):
             print("Skip because %s is not enabled" % target)
@@ -293,20 +262,58 @@ def verify_conv2d_NCHWc_int8(
             print("Skip because int8 intrinsics are not available")
             return
 
+        bias = te.placeholder(
+            (num_filter // oc_block_factor, 1, 1, oc_block_factor), name="bias", dtype="int32"
+        )
+        bias_shape = get_const_tuple(bias.shape)
+
+        @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
+        def get_ref_data():
+            a_np = np.random.randint(low=-128, high=127, size=a_shape).astype("int32")
+            w_np = np.random.randint(low=-128, high=128, size=w_shape).astype("int32")
+            b_np = np.random.uniform(size=bias_shape).astype("int32")
+            dw_np = tvm.topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+            c_np = tvm.topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype("int32")
+
+            # convert to NCHWc
+            _, _, out_height, out_width = c_np.shape
+            c_np = c_np.reshape(
+                (batch, num_filter // oc_block_factor, oc_block_factor, out_height, out_width)
+            ).transpose(0, 1, 3, 4, 2)
+
+            if add_bias:
+                b_np = np.random.uniform(size=bias_shape).astype("int32")
+                c_np += b_np
+            if add_relu:
+                c_np = np.maximum(c_np, 0)
+
+            return a_np, w_np, b_np, c_np
+
+        a_np, w_np, b_np, c_np = get_ref_data()
+
         print("Running on target: %s" % target)
         with tvm.target.Target(target):
-            C = topi.cuda.conv2d_NCHWc_int8(
-                A, W, (stride, stride), padding, (dilation, dilation), "NCHW", dtype
+            C = compute(
+                A,
+                W,
+                (stride, stride),
+                padding,
+                (dilation, dilation),
+                "NCHW",
+                "NCHW",
+                "int32",
             )
+            print(C.shape)
+            print(bias.shape)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.cuda.schedule_conv2d_NCHWc_int8([C])
+            s = schedule([C])
 
-        a = tvm.nd.array(a_np, dev)
-        w = tvm.nd.array(w_np, dev)
-        b = tvm.nd.array(b_np, dev)
+        a = tvm.nd.array(a_np.astype(dtype), dev)
+        w = tvm.nd.array(w_np.astype(dtype), dev)
+        b = tvm.nd.array(b_np.astype("int32"), dev)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), dev)
         if add_bias:
             tvm.build(
@@ -323,7 +330,14 @@ def verify_conv2d_NCHWc_int8(
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
-            func(a, w, b, c)
+            try:
+                func(a, w, b, c)
+            except tvm.TVMError as e:
+                if "architecture mismatch" in str(e):
+                    print(f"Skipping execution because {target} is not supported by this CPU")
+                    return
+                else:
+                    raise
         else:
             func = tvm.build(
                 s,
@@ -332,11 +346,32 @@ def verify_conv2d_NCHWc_int8(
                 name="relu_%d_%d_%d_%d_%d_%d_%d_%d"
                 % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation),
             )
-            func(a, w, c)
+            try:
+                func(a, w, c)
+            except tvm.TVMError as e:
+                if "architecture mismatch" in str(e):
+                    print(f"Skipping execution because {target} is not supported by this CPU")
+                    return
+                else:
+                    raise
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-5)
 
-    for target in ["cuda"]:
-        check_target(target)
+    targets = [
+        (
+            "cuda",
+            lambda a, w, s, p, d, l, ol, o: topi.cuda.conv2d_NCHWc_int8(a, w, s, p, d, l, o),
+            topi.cuda.schedule_conv2d_NCHWc_int8,
+            4,
+        ),
+        (
+            "llvm -device arm_cpu -mtriple aarch64-linux-gnu -mattr=+neon",
+            topi.arm_cpu.conv2d_NCHWc_int8,
+            topi.arm_cpu.schedule_conv2d_NCHWc_int8,
+            8,
+        ),
+    ]
+    for target, compute, schedule, oc_block_factor in targets:
+        check_target(target, compute, schedule, oc_block_factor)
 
 
 def verify_conv2d_nchw_int8(
@@ -489,7 +524,7 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(9, 64, 56, 64, 3, 1, 1)
 
         # weird workloads
-        verify_conv2d_NCHWc_int8(4, 4, 4, 4, 4, 4, 4)
+        verify_conv2d_NCHWc_int8(4, 4, 4, 8, 4, 4, 4)
 
         # inception v3 workloads where channels in / out are multiple of oc_block_factor
         verify_conv2d_NCHWc_int8(1, 32, 149, 32, 3, 1, 0)
@@ -534,7 +569,7 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(1, 2048, 8, 384, 1, 1, 0)
         verify_conv2d_NCHWc_int8(1, 2048, 8, 448, 1, 1, 0)
         verify_conv2d_NCHWc_int8(1, 2048, 8, 192, 1, 1, 0)
-        verify_conv2d_NCHWc_int8(1, 1024, 19, 84, 3, 1, 1)
+        verify_conv2d_NCHWc_int8(1, 1024, 19, 88, 3, 1, 1)
 
         # batch > 1
         verify_conv2d_NCHWc_int8(7, 32, 149, 32, 3, 1, 0)
@@ -549,7 +584,7 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(1, 64, 8, 64, 3, 1, (3, 1))
         verify_conv2d_NCHWc_int8(1, 128, 8, 384, 3, 1, (0, 2))
         verify_conv2d_NCHWc_int8(1, 64, 8, 64, 1, 1, "VALID")
-        verify_conv2d_NCHWc_int8(1, 388, 8, 64, 3, 1, "VALID")
+        verify_conv2d_NCHWc_int8(1, 392, 8, 64, 3, 1, "VALID")
         verify_conv2d_NCHWc_int8(1, 512, 19, 64, 1, 1, "SAME")
         verify_conv2d_NCHWc_int8(1, 64, 16, 32, 2, 1, "SAME")
         verify_conv2d_NCHWc_int8(1, 64, 8, 64, 3, 1, (1, 2, 2, 1), add_relu=True)
