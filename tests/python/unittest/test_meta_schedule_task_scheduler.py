@@ -130,6 +130,7 @@ class DummyRunnerFuture(PyRunnerFuture):
         return RunnerResult([random.uniform(5, 30) for _ in range(random.randint(1, 10))], None)
 
 
+@derived_object
 class DummyBuilder(PyBuilder):
     def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
         return [BuilderResult("test_path", None) for _ in build_inputs]

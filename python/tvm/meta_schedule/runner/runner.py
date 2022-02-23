@@ -210,4 +210,16 @@ class PyRunner:
     }
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
-        raise NotImplementedError()
+        """Run the built artifact and get runner futures.
+
+        Parameters
+        ----------
+        runner_inputs : List[RunnerInput]
+            The inputs to the runner.
+
+        Returns
+        -------
+        runner_futures: List[RunnerFuture]
+            The runner futures.
+        """
+        raise NotImplementedError
