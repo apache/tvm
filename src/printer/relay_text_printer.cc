@@ -220,13 +220,13 @@ Doc RelayTextPrinter::AllocVar(const Var& var) {
   }
   Doc val = GetUniqueName("%" + name);
   memo_[var] = val;
+  if (!var->virtual_device()->IsFullyUnconstrained()) {
+    val << " {" << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device()) << "}";
+  }
   if (var->type_annotation.defined()) {
     val << ": " << Print(var->type_annotation);
   }
-  if (!var->virtual_device()->IsFullyUnconstrained()) {
-    // VLOG(9) << "Virtual device for " << var << " is defined, and is: " << var->virtual_device();
-    val << " {" << kVirtualDevice << "=" << PrintAttributeValue(var->virtual_device()) << "}";
-  }
+
   val << PrintOptionalInfo(var);
   return val;
 }
@@ -335,11 +335,6 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
 // first time.
 Doc RelayTextPrinter::VisitExpr_(const VarNode* op) {
   Doc var_doc = AllocVar(GetRef<Var>(op));
-  /*if (op->virtual_device()->IsFullyUnconstrained()) {
-    return var_doc;
-  } else {
-    return var_doc << " {" << kVirtualDevice << "=" << PrettyPrint(op->virtual_device()) << "}";
-  }*/
   return var_doc;
 }
 
