@@ -143,16 +143,13 @@ class _PyBuilder(Builder):
 
 class PyBuilder:
     """
-    An abstract builder with customized run method on the python-side.
+    An abstract builder with customized build method on the python-side.
     This is the user facing class for function overloading inheritance.
 
     Note: @derived_object is required for proper usage of any inherited class.
     """
 
-    tvm_metadata = {
-        "cls": _PyBuilder,
-        "methods": ["build"],
-    }
+    _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"], "required": {"build"}}
 
     def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
         """Build the given inputs.

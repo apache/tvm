@@ -256,15 +256,8 @@ def test_meta_schedule_task_scheduler_multiple():
         )
 
 
-def test_meta_schedule_task_scheduler_not_implemented_error():  # pylint: disable=invalid-name
-    class MyTaskScheduler(PyTaskScheduler):
-        pass
-
-    with pytest.raises(NotImplementedError):
-        MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
-
-
 def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name
+    @derived_object
     class MyTaskScheduler(PyTaskScheduler):
         done = set()
 
@@ -284,9 +277,9 @@ def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: d
                         If not, it returns the TaskScheduler's vtable, calling
                             TaskScheduler::IsTaskRunning
                     """
-                    if self._is_task_running(x):
+                    if self.is_task_running(x):
                         # Same Here
-                        self._join_running_task(x)
+                        self.join_running_task(x)
                     return x
                 else:
                     self.done.add(x)

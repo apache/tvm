@@ -19,7 +19,7 @@ import ctypes
 import json
 import os
 import shutil
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Set, List, Optional, Union, Callable
 
 import psutil
 import tvm
@@ -68,24 +68,43 @@ def derived_object(cls) -> type:
 
     import functools  # pylint: disable=import-outside-toplevel
 
-    def _extract(inst, name):
+    def _extract(inst: Any, name: str, required: Set[str]):
         def method(*args, **kwargs):
             return getattr(inst, name)(*args, **kwargs)
 
+        if getattr(base, name) is getattr(cls, name):
+            # return nullptr to use default function on the c++ side
+            # for task scheduler use only
+            if name in required:
+                raise NotImplementedError(f"{cls}'s {name} method is not implemented!")
+            return None
         return method
 
     assert isinstance(cls.__base__, type)
     assert hasattr(
-        cls, "tvm_metadata"
-    ), "Please use the user-facing method overiding class, i.e., PyRunnerFuture."
+        cls, "_tvm_metadata"
+    ), "Please use the user-facing method overiding class, i.e., PyRunner."
+
     base = cls.__base__
-    metadata = getattr(base, "tvm_metadata")
+    metadata = getattr(base, "_tvm_metadata")
+    members = metadata.get("members", [])
+    methods = metadata.get("methods", [])
+    required = metadata.get("required", {})
 
     class TVMDerivedObject(metadata["cls"]):  # type: ignore
         def __init__(self, *args, **kwargs):
+
             self.handle = None
             self._inst = cls(*args, **kwargs)
-            super().__init__([_extract(self._inst, name) for name in metadata["methods"]])
+            # make sure the inner class can access the outside
+            # used in task scheduler for hybrid funcs in c++ & python side
+            self._inst._outer = self
+            super().__init__(
+                # the constructor's parameters, builder, runner, etc.
+                *[getattr(self._inst, name) for name in members],
+                # the function methods, init_with_tune_context, build, run, etc.
+                [_extract(self._inst, name, required) for name in methods],
+            )
 
         def __getattr__(self, name):
             return self._inst.__getattribute__(name)
