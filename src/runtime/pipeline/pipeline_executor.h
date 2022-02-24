@@ -96,6 +96,10 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    */
   NDArray GetInput(std::string input_name);
   /*!
+   * \brief Getting the count of running pipeline.
+   */
+  int GetExecutionCount();
+  /*!
    * \brief Use the parameters group name to get the specific backend runtime then use
    *  the param_key_name to set param data for the said backend runtime.
    * \param param_group_name The parameters group name.
@@ -114,10 +118,6 @@ class TVM_DLL PipelineExecutor : public ModuleNode {
    * \param serialized_mode Whether run the pipeline executor in serialized mode.
    */
   void Run(bool serialized_mode);
-  /*!
-   * \brief Stop the pipeline executor.
-   */
-  void Stop();
   /*!
    * \brief Get a list output data.
    * \return A list of output data.
