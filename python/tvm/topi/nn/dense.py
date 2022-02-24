@@ -81,7 +81,9 @@ def matmul(
         out_dim, red_dim = tensor_b.shape
     else:
         red_dim, out_dim = tensor_b.shape
-    assert in_dim == red_dim
+
+    # cmp should be done by values
+    assert int(in_dim) == int(red_dim)
 
     k = te.reduce_axis((0, in_dim), name="k")
     if (transpose_a, transpose_b) == (True, True):
@@ -273,4 +275,23 @@ def dense_alter_layout(attrs, inputs, tinfos, out_type):
     Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
     # not to change by default
+    return None
+
+
+@tvm.target.generic_func
+def batch_matmul_legalize(attrs, inputs, types):
+    """Legalizes batch_matmul op.
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current batch_matmul
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
     return None

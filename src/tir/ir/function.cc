@@ -27,14 +27,6 @@
 
 namespace tvm {
 namespace tir {
-
-LinkedParam::LinkedParam(int64_t id, ::tvm::runtime::NDArray param) {
-  auto n = make_object<LinkedParamNode>();
-  n->id = id;
-  n->param = param;
-  data_ = std::move(n);
-}
-
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
                    Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {

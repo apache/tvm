@@ -71,15 +71,18 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
 CachedFunc::CachedFunc(tvm::Target target, GlobalVar prim_fn_var, tvm::Array<te::Tensor> inputs,
                        tvm::Array<te::Tensor> outputs, te::Schedule schedule,
                        tir::PrimFunc prim_func, tvm::Array<Integer> shape_func_param_states,
-                       IRModule funcs) {
+                       IRModule funcs,
+                       std::unordered_map<const ConstantNode*, te::Tensor> constant_tensors) {
   auto n = make_object<CachedFuncNode>();
   n->target = target;
   n->prim_fn_var = prim_fn_var;
   n->inputs = inputs;
   n->outputs = outputs;
   n->schedule = schedule;
+  n->prim_func = prim_func;
   n->shape_func_param_states = shape_func_param_states;
   n->funcs = funcs;
+  n->constant_tensors = constant_tensors;
   data_ = std::move(n);
 }
 
@@ -206,7 +209,8 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
       }
     }
 
-    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, prim_func, {});
+    return CachedFunc(target_, prim_fn_var, fn_inputs, outputs, schedule, prim_func, {},
+                      IRModule(Map<GlobalVar, BaseFunc>({})), constant_tensors_);
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
@@ -216,30 +220,40 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
 
   Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
-    ICHECK(op->is_scalar());
     void* data = op->data->data;
     DataType dtype = DataType(op->data->dtype);
-    auto value = te::compute(
-        {},
-        [&](const Array<tvm::tir::Var>&) {
-          if (dtype == DataType::Int(32)) {
-            return make_const(dtype, static_cast<const int32_t*>(data)[0]);
-          } else if (dtype == DataType::Int(64)) {
-            return make_const(dtype, static_cast<const int64_t*>(data)[0]);
-          } else if (dtype == DataType::Float(32)) {
-            return make_const(dtype, static_cast<const float*>(data)[0]);
-          } else if (dtype == DataType::Float(64)) {
-            return make_const(dtype, static_cast<const double*>(data)[0]);
-          } else if (dtype == DataType::Bool()) {
-            return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
-          } else {
-            LOG(FATAL) << "not handled";
-            return tvm::PrimExpr();
-          }
-        },
-        "compile_engine_const", topi::kBroadcast);
-    scalars_.push_back(value->op);
-    return {value};
+    if (op->is_scalar()) {
+      auto value = te::compute(
+          {},
+          [&](const Array<tvm::tir::Var>&) {
+            if (dtype == DataType::Int(16)) {
+              return make_const(dtype, static_cast<const int16_t*>(data)[0]);
+            } else if (dtype == DataType::Int(32)) {
+              return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+            } else if (dtype == DataType::Int(64)) {
+              return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+            } else if (dtype == DataType::Float(32)) {
+              return make_const(dtype, static_cast<const float*>(data)[0]);
+            } else if (dtype == DataType::Float(64)) {
+              return make_const(dtype, static_cast<const double*>(data)[0]);
+            } else if (dtype == DataType::Bool()) {
+              return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+            } else {
+              LOG(FATAL) << dtype << " not handled";
+              return tvm::PrimExpr();
+            }
+          },
+          "compile_engine_const", topi::kBroadcast);
+      scalars_.push_back(value->op);
+      return {value};
+    } else {
+      const auto* ttype = op->checked_type().as<TensorTypeNode>();
+      std::stringstream ss;
+      ss << "constant_" << const_index++;
+      tvm::te::Tensor tensor = tvm::te::placeholder(GetShape(ttype->shape), ttype->dtype, ss.str());
+      constant_tensors_[op] = tensor;
+      return {tensor};
+    }
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
@@ -344,13 +358,18 @@ class ScheduleBuilder : public backend::MemoizedExprTranslator<Array<te::Tensor>
   OpImplementation anchor_implementation_;
   std::ostringstream readable_name_stream_;
   Array<te::Operation> scalars_;
+  std::unordered_map<const ConstantNode*, te::Tensor> constant_tensors_;
   bool use_auto_scheduler_;
   bool use_meta_schedule_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
   const Op& device_copy_op_;
   bool create_schedule_;
+  // Index of the global constants
+  static int const_index;
 };
+
+int ScheduleBuilder::const_index = 0;
 
 /*!
  * \brief Create schedule for target.

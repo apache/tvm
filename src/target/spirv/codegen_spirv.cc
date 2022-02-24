@@ -638,7 +638,7 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   ICHECK(!op->dtype.is_handle());
-  int32_t constant_size = op->constant_allocation_size();
+  size_t constant_size = op->ConstantAllocationSize();
   ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;

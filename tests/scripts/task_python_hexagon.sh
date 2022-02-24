@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,17 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+set -e
+set -u
 
+source tests/scripts/setup-pytest-env.sh
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--serial-number",
-        required=True,
-        help=("Android device serial number list from 'adb' command."),
-    )
+make cython3
 
-
-@pytest.fixture
-def android_serial_number(request):
-    return request.config.getoption("--serial-number")
+# unset because hardware does not exist in CI.
+unset ANDROID_SERIAL_NUMBER
+run_pytest ctypes python-contrib-hexagon-no-hwardware tests/python/contrib/test_hexagon/test_launcher.py
