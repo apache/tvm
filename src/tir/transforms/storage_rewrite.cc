@@ -805,7 +805,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                     src_entry->attach_scope_ == thread_scope_ &&
                     src_entry->elem_type == alloc->dtype.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
-                  uint64_t const_nbits = static_cast<uint64_t>(alloc->constant_allocation_size()) *
+                  uint64_t const_nbits = static_cast<uint64_t>(alloc->ConstantAllocationSize()) *
                                          alloc->dtype.bits() * alloc->dtype.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
@@ -877,7 +877,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
     uint64_t op_elem_bits = op->dtype.bits() * op->dtype.lanes();
-    uint64_t const_nbits = static_cast<uint64_t>(op->constant_allocation_size() * op_elem_bits);
+    uint64_t const_nbits = static_cast<uint64_t>(op->ConstantAllocationSize() * op_elem_bits);
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (scope.tag.length() == 0) {
@@ -1114,6 +1114,14 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void VisitStmt_(const AllocateNode* op) final {
     const Array<PrimExpr>& extents = op->extents;
     PrimExpr extent = extents[extents.size() - 1];
+    OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
+
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  void VisitStmt_(const AllocateConstNode* op) final {
+    const Array<PrimExpr>& extents = op->extents;
+    PrimExpr extent = extents.size() ? extents[extents.size() - 1] : NullValue<PrimExpr>();
     OnArrayDeclaration(op->buffer_var, op->dtype, extent, BufferVarInfo::kAllocateNode);
 
     StmtExprVisitor::VisitStmt_(op);
@@ -1474,6 +1482,27 @@ class VectorTypeRewriter : public StmtExprMutator {
     PrimExpr last_extent = extents[extents.size() - 1];
     extents.Set(extents.size() - 1, last_extent / make_const(last_extent.dtype(), info.factor()));
     return Allocate(new_buffer_var, info.new_element_dtype, extents, op->condition, op->body);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+    op = stmt.as<AllocateConstNode>();
+
+    auto it = rewrite_map_.find(op->buffer_var.get());
+    if (it == rewrite_map_.end()) {
+      return stmt;
+    }
+
+    const auto& info = it->second;
+
+    Var new_buffer_var = info.new_buffer_var;
+
+    int factor = info.new_element_dtype.lanes() / op->dtype.lanes();
+
+    Array<PrimExpr> extents = op->extents;
+    extents.Set(extents.size() - 1,
+                extents[extents.size() - 1] / make_const(extents[0].dtype(), factor));
+    return AllocateConst(new_buffer_var, info.new_element_dtype, extents, op->data, op->body);
   }
 
   /* Update the parameters and all remaining variable references

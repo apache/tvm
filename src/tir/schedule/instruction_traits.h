@@ -197,6 +197,8 @@ class PythonAPICall {
   inline void Input(String arg_name, int arg);
   /*! \brief Add an integer input */
   inline void Input(String arg_name, int64_t arg);
+  /*! \brief Add a bool input */
+  inline void Input(String arg_name, bool arg);
   /*! \brief Add a double input */
   inline void Input(String arg_name, double arg);
   /*! \brief Add an input random variable */
@@ -460,6 +462,17 @@ void PythonAPICall::Input(String arg_name, int arg) {
 void PythonAPICall::Input(String arg_name, int64_t arg) {
   arg_names_.emplace_back(std::move(arg_name));
   args_.push_back(std::to_string(arg));
+}
+
+void PythonAPICall::Input(String arg_name, bool arg) {
+  static const char* true_str = "True";
+  static const char* false_str = "False";
+  arg_names_.emplace_back(std::move(arg_name));
+  if (arg) {
+    args_.push_back(true_str);
+  } else {
+    args_.push_back(false_str);
+  }
 }
 
 void PythonAPICall::Input(String arg_name, double arg) {

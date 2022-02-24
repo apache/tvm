@@ -1108,7 +1108,8 @@ TypedPackedFunc<ObjectRef(Array<Expr>)> EvalFunction(IRModule mod, Expr expr, De
 }
 
 ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
-               std::unordered_set<String> import_set, Device device, Target target) {
+               std::unordered_set<String> import_set, Device device, Target target,
+               Map<String, ObjectRef> attrs) {
   ICHECK_EQ(device.device_type, target->kind->device_type);
   TargetMap targets;
   targets.Set(device.device_type, target);
@@ -1118,7 +1119,7 @@ ObjectRef Eval(Expr expr, Map<GlobalTypeVar, TypeData> type_definitions,
   std::pair<IRModule, GlobalVar> mod_and_global =
       IRModule::FromExprInContext(expr, /*global_funcs=*/{}, type_definitions, import_set);
 
-  IRModule mod = Prepare(mod_and_global.first, config);
+  IRModule mod = Prepare(WithAttrs(mod_and_global.first, {attrs}), config);
 
   Interpreter intrp(mod, config, device);
   Expr expr_to_eval = mod->GetGlobalVar(mod_and_global.second->name_hint);

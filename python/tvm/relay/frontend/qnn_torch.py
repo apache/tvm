@@ -526,6 +526,7 @@ def inline_input_quant_params_for_fx(graph, params):
     %2403 : float = prim::Constant[value=1.]()
     %quantize_per_tensor_2 ...  = aten::quantize_per_tensor(..., %2403, %2402, ...)
     """
+    # pylint: disable=c-extension-no-member
     import torch
 
     def get_full_attr_name(current):

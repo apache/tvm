@@ -45,6 +45,14 @@ namespace relay {
 namespace contrib {
 namespace ethosn {
 
+sl::TensorInfo EthosnAPI::DefaultInputTensor(const Expr& expr) {
+  Call call = Downcast<Call>(expr);
+  const auto* dtype = call->args[0]->checked_type().as<TensorTypeNode>();
+  sl::DataType data_type;
+  Tvm2Npu(dtype->dtype, &data_type);
+  return sl::TensorInfo({}, data_type, sl::DataFormat::NHWC, {});
+}
+
 EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   Call requantize = Downcast<Call>(expr);
   Call bias_add = Downcast<Call>(requantize->args[0]);
@@ -108,7 +116,7 @@ EthosnError EthosnAPI::QnnConv2d(const Expr& expr, ConvolutionParams* params) {
   sl::Stride stride;
   err += Tvm2Npu(conv_attr->strides, &stride);
   // Dilation is not supported
-  std::array<uint32_t, 4> dilation = {1, 1, 1, 1};
+  std::array<uint32_t, 2> dilation = {1, 1};
   AsArray(conv_attr->dilation, &dilation);
   if (conv_attr->dilation.size() != 2 || dilation[0] != 1 || dilation[1] != 1) {
     err +=
@@ -485,9 +493,6 @@ EthosnError EthosnAPI::DepthToSpace(const Expr& expr, DepthToSpaceParams* params
   EthosnError err = Tvm2Npu(input_dtype->shape, &input_tensor_shape);
   err += Tvm2Npu(input_dtype->dtype, &input_data_type);
   err += Tvm2Npu(attrs->layout, &input_data_format);
-  if (input_data_format != sl::DataFormat::NHWC) {
-    err += EthosnError(ErrStrm() << "layout=" << attrs->layout << ", layout must = NHWC");
-  }
   params->input_info = sl::TensorInfo(input_tensor_shape, input_data_type, input_data_format,
                                       params->input_info.m_QuantizationInfo);
   return err;
@@ -517,11 +522,11 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& padding, sl::Padding* npu
   }
   switch (padding.size()) {
     case 1:
-      *npu_padding = sl::Padding(dim[0], dim[0], dim[0], dim[0]);
+      *npu_padding = sl::Padding(dim[3], dim[3], dim[3], dim[3]);
       break;
     case 2:
       // Height, width -> top, bottom, left, right
-      *npu_padding = sl::Padding(dim[0], dim[0], dim[1], dim[1]);
+      *npu_padding = sl::Padding(dim[3], dim[3], dim[2], dim[2]);
       break;
     case 4:
       // Top, left, bottom, right -> top, bottom, left, right
@@ -538,7 +543,7 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& strides, sl::Stride* npu_
   if (strides.size() != 2) {
     return EthosnError(ErrStrm() << "stride size=" << strides.size() << ", stride size must = 2");
   }
-  std::array<uint32_t, 4> dim;
+  std::array<uint32_t, 2> dim;
   if (EthosnError err = AsArray<IndexExpr, uint32_t>(strides, &dim)) {
     return err;
   }
@@ -550,7 +555,7 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<IndexExpr>& size, uint32_t* x, uint32
   if (size.size() != 2) {
     return EthosnError(ErrStrm() << "dimensions=" << size.size() << ", dimensions must = 2");
   }
-  std::array<uint32_t, 4> dim;
+  std::array<uint32_t, 2> dim;
   if (EthosnError err = AsArray<IndexExpr, uint32_t>(size, &dim)) {
     return err;
   }
@@ -647,11 +652,12 @@ EthosnError EthosnAPI::Tvm2Npu(const Array<Array<Integer>>& padding, sl::Padding
 // Convert an array of IntImmNodes into ValueT
 // IndexT type of Array indexing variable
 // ValueT type of resulting value
-template <typename IndexT, typename ValueT>
-EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* v) {
-  if (arr.size() > 4)
-    return EthosnError(ErrStrm() << "dimensions=" << arr.size() << ", dimensions must be <= 4");
-  for (size_t i = 0; i < std::min(arr.size(), 4ul); i++) {
+// N The size of the output array
+template <typename IndexT, typename ValueT, size_t N>
+EthosnError EthosnAPI::AsArray(const Array<IndexT>& arr, std::array<ValueT, N>* v) {
+  if (arr.size() > N)
+    return EthosnError(ErrStrm() << "dimensions=" << arr.size() << ", dimensions must be <= " << N);
+  for (size_t i = 0; i < arr.size(); i++) {
     const PrimExpr& a = arr[i];
     const auto* intImm = a.as<IntImmNode>();
     if (intImm->value > std::numeric_limits<ValueT>::max()) {

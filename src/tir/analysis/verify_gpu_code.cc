@@ -63,10 +63,10 @@ class GPUCodeVerifier : public StmtExprVisitor {
     auto scope = GetPtrStorageScope(op->buffer_var);
     // visit an allocation of a buffer in shared memory, record its size
     if (scope == "local") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       local_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     } else if (scope == "shared") {
-      size_t size = static_cast<size_t>(op->constant_allocation_size());
+      size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
     if (op->dtype.lanes() > 1) {

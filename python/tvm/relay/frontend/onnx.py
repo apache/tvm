@@ -216,6 +216,15 @@ def get_scalar(x, params, dtype="float32"):
     return _op.cast(x, dtype)
 
 
+def get_scalar_or_1d_tensor(x, params, dtype="float32"):
+    """Helper to get a scalar value or 1D tensor for Quantized operators."""
+    if isinstance(x, _expr.Var) and x.name_hint in params:
+        return _op.const(params[x.name_hint].numpy(), dtype)
+    rank = len(infer_shape(x))
+    assert rank <= 1, "scale and zero_point input must be scalars or 1D tensors"
+    return _op.cast(x, dtype)
+
+
 def matmul_out_dtype(inputs, out_dtype):
     """Common function to handle MatMul and MatMulInteger16"""
     a_shape = shape_of(inputs[0])
@@ -264,23 +273,31 @@ def matmul_out_dtype(inputs, out_dtype):
             b = _op.transpose(inputs[1])
             output = _op.nn.dense(a, b, out_dtype=out_dtype)
         else:
+            a = inputs[0]
+            b = inputs[1]
             # broadcast a and b
-            a_broadcasted_shape = _op.concatenate(
-                [
-                    out_batch,
-                    _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
-                ],
-                0,
+            a_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(a_shape, [a_rank - 2], [a_rank]),
+                    ],
+                    0,
+                )
             )
-            b_broadcasted_shape = _op.concatenate(
-                [
-                    out_batch,
-                    _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
-                ],
-                0,
+            b_broadcasted_shape = fold_constant(
+                _op.concatenate(
+                    [
+                        out_batch,
+                        _op.strided_slice(b_shape, [b_rank - 2], [b_rank]),
+                    ],
+                    0,
+                )
             )
-            a = _op.transform.broadcast_to(inputs[0], fold_constant(a_broadcasted_shape))
-            b = _op.transform.broadcast_to(inputs[1], fold_constant(b_broadcasted_shape))
+            if not tvm.ir.structural_equal(a_shape, a_broadcasted_shape):
+                a = _op.transform.broadcast_to(a, a_broadcasted_shape)
+            if not tvm.ir.structural_equal(b_shape, b_broadcasted_shape):
+                b = _op.transform.broadcast_to(b, b_broadcasted_shape)
             # Convert a and b into 3 dimensional tensors.
             a = flatten_to_nd(a, shape_of(a), 3)
             b = flatten_to_nd(b, shape_of(b), 3)
@@ -3646,10 +3663,20 @@ class QLinearConv(OnnxOpConverter):
         x_scale = get_scalar(inputs[1], params)
         x_zero_point = get_scalar(inputs[2], params, "int32")
         weight = inputs[3]
-        w_scale = get_scalar(inputs[4], params)
-        w_zero_point = get_scalar(inputs[5], params, "int32")
+        w_scale = get_scalar_or_1d_tensor(inputs[4], params)
+        w_zero_point = get_scalar_or_1d_tensor(inputs[5], params, "int32")
         y_scale = fold_constant(get_scalar(inputs[6], params))
         y_zero_point = get_scalar(inputs[7], params, "int32")
+
+        # Check shapes for per channel quantization
+        w_scale_shape = infer_shape(w_scale)
+        w_zero_point_shape = infer_shape(w_zero_point)
+        if len(w_scale_shape) == 1 or len(w_zero_point_shape) == 1:
+            m = infer_shape(weight)[0]
+            if m != w_scale_shape[0] or m != w_zero_point_shape[0]:
+                raise tvm.error.OpAttributeInvalid(
+                    "The number of elements should be equal to the number of output channels"
+                )
 
         input_shape = infer_shape(data)
 
@@ -3723,11 +3750,11 @@ class QLinearConv(OnnxOpConverter):
                 y_scale,
                 y_zero_point,
                 out_dtype=out_dtype,
-                axis=0,
+                axis=1,
             )
         else:
-            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=0)
-            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=0, out_dtype=out_dtype)
+            out = _qnn.op.dequantize(out, requantize_scale, _op.const(0, dtype="int32"), axis=1)
+            out = _qnn.op.quantize(out, y_scale, y_zero_point, axis=1, out_dtype=out_dtype)
         return out
 
 
@@ -4830,7 +4857,32 @@ class GraphProto:
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
         self.opset = opset
-        # parse network inputs to relay, aka parameters
+        self._parse_graph_initializers(graph)
+        self._parse_graph_input(graph)
+        self._check_user_inputs_in_outermost_graph_scope()
+        self._check_for_unsupported_ops(graph)
+        self._construct_nodes(graph)
+
+        # now return the outputs
+        outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
+        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+        # If requested, directly return the converted expressions.
+        if get_output_expr:
+            return outputs
+        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
+        ## those parameters that are needed to execute the relay graph
+        free_vars = analysis.free_vars(outputs)
+        nodes = {v: k for k, v in self._nodes.items()}
+        free_vars = [nodes[var] for var in free_vars]
+        for i_name in self._params:
+            if i_name in free_vars and i_name not in self._inputs:
+                self._inputs[i_name] = self._nodes[i_name]
+        # Create a function from our output expression and all input variables.
+        func = _function.Function([v for k, v in self._inputs.items()], outputs)
+        return IRModule.from_expr(func), self._params
+
+    def _parse_graph_initializers(self, graph):
+        """Parse network inputs to relay, aka parameters."""
         for init_tensor in graph.initializer:
             if not init_tensor.name.strip():
                 raise ValueError("Tensor's name is required.")
@@ -4844,6 +4896,8 @@ class GraphProto:
                     shape=self._params[init_tensor.name].shape,
                     dtype=self._params[init_tensor.name].dtype,
                 )
+
+    def _parse_graph_input(self, graph):
         for i in graph.input:
             # from onnx v0.2, GraphProto.input has type ValueInfoProto,
             #  and the name is 'i.name'
@@ -4851,7 +4905,6 @@ class GraphProto:
             if i_name in self._params:
                 # i is a param instead of input
                 self._num_param += 1
-                self._params[i_name] = self._params.pop(i_name)
                 self._nodes[i_name] = new_var(
                     i_name, shape=self._params[i_name].shape, dtype=self._params[i_name].dtype
                 )
@@ -4876,15 +4929,18 @@ class GraphProto:
                     dtype = d_type
                 self._nodes[i_name] = new_var(i_name, shape=i_shape, dtype=dtype)
             self._inputs[i_name] = self._nodes[i_name]
-        # Only check user inputs in the outer-most graph scope.
+
+    def _check_user_inputs_in_outermost_graph_scope(self):
+        """Only check user inputs in the outer-most graph scope."""
         if self._old_manager is None:
             assert all(
                 [name in self._input_names for name in self._shape.keys()]
             ), "User specified the shape for inputs that weren't found in the graph: " + str(
                 self._shape
             )
-        # get list of unsupported ops
-        convert_map = _get_convert_map(opset)
+
+    def _check_for_unsupported_ops(self, graph):
+        convert_map = _get_convert_map(self.opset)
         unsupported_ops = set()
         for node in graph.node:
             op_name = node.op_type
@@ -4898,7 +4954,9 @@ class GraphProto:
             msg = "The following operators are not supported for frontend ONNX: "
             msg += ", ".join(unsupported_ops)
             raise tvm.error.OpNotImplemented(msg)
-        # construct nodes, nodes are stored as directed acyclic graph
+
+    def _construct_nodes(self, graph):
+        """Nodes are stored as directed acyclic graph."""
         for node in graph.node:
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
@@ -4915,7 +4973,7 @@ class GraphProto:
             attr["tvm_custom"]["name"] = i_name
             attr["tvm_custom"]["num_outputs"] = len(node_output)
 
-            op = self._convert_operator(op_name, inputs, attr, opset)
+            op = self._convert_operator(op_name, inputs, attr, self.opset)
             if not isinstance(op, _expr.TupleWrapper):
                 outputs_num = 1
             else:
@@ -4963,24 +5021,6 @@ class GraphProto:
             else:
                 for k, i in zip(list(node_output), range(len(node_output))):
                     self._nodes[k] = op[i]
-
-        # now return the outputs
-        outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
-        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        # If requested, directly return the converted expressions.
-        if get_output_expr:
-            return outputs
-        ## Maintain the order of inputs and parameters from the ONNX graph, but only include
-        ## those parameters that are needed to execute the relay graph
-        free_vars = analysis.free_vars(outputs)
-        nodes = {v: k for k, v in self._nodes.items()}
-        free_vars = [nodes[var] for var in free_vars]
-        for i_name in self._params:
-            if i_name in free_vars and i_name not in self._inputs:
-                self._inputs[i_name] = self._nodes[i_name]
-        # Create a function from our output expression and all input variables.
-        func = _function.Function([v for k, v in self._inputs.items()], outputs)
-        return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""

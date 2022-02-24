@@ -29,6 +29,7 @@
 #include <tvm/tir/function.h>
 
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -600,6 +601,15 @@ TVM_DLL Pass UnifiedStaticMemoryPlanner();
  * \return The IR transform pass.
  */
 TVM_DLL Pass InjectSoftwarePipeline();
+
+TVM_DLL Pass BindParams(const Array<runtime::NDArray>& constants);
+
+/*!
+ * \brief Pass to collect tir non-scalar constants into module's 'Constants' attribute.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass ExtractPrimFuncConstants();
 
 }  // namespace transform
 }  // namespace tir
