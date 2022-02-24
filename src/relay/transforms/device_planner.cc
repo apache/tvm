@@ -1028,11 +1028,10 @@ class DeviceCapturer : public ExprMutator {
         /*lexical_virtual_device=*/result_virtual_device,
         /*expected_virtual_device=*/result_virtual_device,
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
-    VLOG(4) << "Body: " << body;
-    // ICHECK(!body.as<FunctionNode>()) << "Body is a function oops";
-    Expr bound_body = SubstituteVars(body, annotated_bind_map);
-    VLOG(4) << "Bound body: " << bound_body;
-    Function func = WithFields(GetRef<Function>(function_node), annotated_params, bound_body);
+    VLOG(4) << "Visited body: " << body;
+    Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
+    VLOG(4) << "New function: " << func;
+    func = Downcast<Function>(SubstituteVars(func, annotated_bind_map));
     VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
     VLOG(4) << "Func with bound params & result vid set: " << func;

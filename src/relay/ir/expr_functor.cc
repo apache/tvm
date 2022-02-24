@@ -496,17 +496,17 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
       set.insert(v);
     }
     for (const auto& v : FreeVars(ret)) {
-          if (set.count(v) == 0) {
-            new_params.push_back(v);
-            if (!v->virtual_device()->IsFullyUnconstrained()) {
-              // TODO(mbs): The function has been annotated with a device, which means we are supposed
-              // to be preserving device annotations on every transformation. However there's no
-              // such context for the free vars in args_map.
-              LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                          << "' into function body but no device is known for it";
-            }
-          }
+      if (set.count(v) == 0) {
+        new_params.push_back(v);
+        if (!v->virtual_device()->IsFullyUnconstrained()) {
+          // TODO(mbs): The function has been annotated with a device, which means we are supposed
+          // to be preserving device annotations on every transformation. However there's no
+          // such context for the free vars in args_map.
+          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
+                       << "' into function body but no device is known for it";
         }
+      }
+    }
 
     VLOG(4) << "Expr:\n" << expr;
     VLOG(4) << "Ret:\n" << ret;
@@ -539,11 +539,13 @@ Expr SubstituteVars(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
           new_params.push_back(GetRef<Var>(var));
         } else {
-          ICHECK(false) << "Expected all values in args_map to be vars, but found " << args_map[func->params[i]]->GetTypeKey();
+          ICHECK(false) << "Expected all values in args_map to be vars, but found "
+                        << args_map[func->params[i]]->GetTypeKey();
         }
       }
     }
-    auto ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+    auto ret =
+        Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
     ret->virtual_device_ = func->virtual_device();
     return ret;
   } else {

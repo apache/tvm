@@ -514,7 +514,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*!
  * \brief Substitute variables with new variables (including function parameters).
- * This is a helper  function usually called by other pass functions to help optimizations.
+ * This is a helper function usually called by other pass functions to help optimizations.
  * Expects all values in the bind map to be Vars.
  *
  * \param expr The input expression.
