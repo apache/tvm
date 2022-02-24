@@ -524,7 +524,7 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
  *
  * \return The updated expression.
  */
-TVM_DLL Expr ExprBinder(const Expr& expr, const tvm::Map<Var, Expr>& binds);
+TVM_DLL Expr ExprBind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This

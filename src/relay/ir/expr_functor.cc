@@ -528,6 +528,10 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
   }
 });
 
+Expr ExprBind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
+  return ExprBinder(args_map).VisitExpr(expr);
+}
+
 void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
                        std::function<void(const LetNode*)> post_visit) {
   std::stack<const LetNode*> stack;

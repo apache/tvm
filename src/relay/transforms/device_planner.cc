@@ -1029,7 +1029,7 @@ class DeviceCapturer : public ExprMutator {
     VLOG(4) << "Body: " << body;
     Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
     VLOG(4) << "Func: " << func;
-    func = Downcast<Function>(ExprBinder(func, annotated_bind_map));
+    func = Downcast<Function>(ExprBind(func, annotated_bind_map));
     VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
     VLOG(4) << "Func with bound params & result vid set: " << func;
