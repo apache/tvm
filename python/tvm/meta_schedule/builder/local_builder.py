@@ -33,8 +33,10 @@ from .builder import BuilderInput, BuilderResult, PyBuilder
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-T_BUILD = Callable[[IRModule, Target, Optional[Dict[str, NDArray]]], Module]
-T_EXPORT = Callable[[Module], str]
+T_BUILD = Callable[  # pylint: disable=invalid-name
+    [IRModule, Target, Optional[Dict[str, NDArray]]], Module
+]
+T_EXPORT = Callable[[Module], str]  # pylint: disable=invalid-name
 
 
 def _serialize_params(params: Optional[Dict[str, NDArray]]) -> Optional[bytearray]:

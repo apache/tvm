@@ -43,11 +43,11 @@ from .utils import (
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-T_CREATE_SESSION = Callable[
+T_CREATE_SESSION = Callable[  # pylint: disable=invalid-name
     [RPCConfig],  # The RPC configuration
     RPCSession,  # The RPC Session
 ]
-T_UPLOAD_MODULE = Callable[
+T_UPLOAD_MODULE = Callable[  # pylint: disable=invalid-name
     [
         RPCSession,  # The RPC Session
         str,  # local path to the artifact
@@ -55,7 +55,7 @@ T_UPLOAD_MODULE = Callable[
     ],
     Module,  # the Module opened on the remote
 ]
-T_ALLOC_ARGUMENT = Callable[
+T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
     [
         RPCSession,  # The RPC Session
         Device,  # The device on the remote
@@ -64,7 +64,7 @@ T_ALLOC_ARGUMENT = Callable[
     ],
     List[T_ARGUMENT_LIST],  # A list of argument lists
 ]
-T_RUN_EVALUATOR = Callable[
+T_RUN_EVALUATOR = Callable[  # pylint: disable=invalid-name
     [
         RPCSession,  # The RPC Session
         Module,  # The Module opened on the remote
@@ -74,7 +74,7 @@ T_RUN_EVALUATOR = Callable[
     ],
     List[float],  # A list of running time
 ]
-T_CLEANUP = Callable[
+T_CLEANUP = Callable[  # pylint: disable=invalid-name
     [
         Optional[RPCSession],  # The RPC Session to be cleaned up
         Optional[str],  # remote path to the artifact

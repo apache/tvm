@@ -22,7 +22,6 @@ from tvm.runtime import Object
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
-from ..utils import check_override, derived_object
 
 
 @register_object("meta_schedule.RunnerInput")
@@ -205,11 +204,7 @@ class PyRunner:
     Note: @derived_object is required for proper usage of any inherited class.
     """
 
-    _tvm_metadata = {
-        "cls": _PyRunner,
-        "methods": ["run"],
-        "required": {"run"}
-    }
+    _tvm_metadata = {"cls": _PyRunner, "methods": ["run"], "required": {"run"}}
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
         """Run the built artifact and get runner futures.

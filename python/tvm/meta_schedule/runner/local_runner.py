@@ -36,7 +36,7 @@ from .utils import (
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-T_ALLOC_ARGUMENT = Callable[
+T_ALLOC_ARGUMENT = Callable[  # pylint: disable=invalid-name
     [
         Device,  # The device on the remote
         T_ARG_INFO_JSON_OBJ_LIST,  # The metadata information of the arguments to be allocated
@@ -44,7 +44,7 @@ T_ALLOC_ARGUMENT = Callable[
     ],
     List[T_ARGUMENT_LIST],  # A list of argument lists
 ]
-T_RUN_EVALUATOR = Callable[
+T_RUN_EVALUATOR = Callable[  # pylint: disable=invalid-name
     [
         Module,  # The Module opened on the remote
         Device,  # The device on the remote
@@ -53,7 +53,7 @@ T_RUN_EVALUATOR = Callable[
     ],
     List[float],  # A list of running time
 ]
-T_CLEANUP = Callable[
+T_CLEANUP = Callable[  # pylint: disable=invalid-name
     [],
     None,
 ]

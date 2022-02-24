@@ -26,7 +26,6 @@ from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
-from ..utils import check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext

@@ -31,7 +31,7 @@ from tvm.runtime import PackedFunc, String
 from tvm.tir import FloatImm, IntImm
 
 
-def derived_object(cls) -> type:
+def derived_object(cls: Any) -> type:
     """A decorator to register derived subclasses for TVM objects.
     Parameters
     ----------
@@ -56,6 +56,7 @@ def derived_object(cls) -> type:
             _tvm_metadata = {
                 "cls": _PyRunner,
                 "methods": ["run"],
+                "required": {"run"}
             }
             def run(self, runner_inputs):
                 raise NotImplementedError
@@ -69,6 +70,8 @@ def derived_object(cls) -> type:
     import functools  # pylint: disable=import-outside-toplevel
 
     def _extract(inst: Any, name: str, required: Set[str]):
+        """Extract function from intrinsic class."""
+
         def method(*args, **kwargs):
             return getattr(inst, name)(*args, **kwargs)
 
@@ -92,8 +95,10 @@ def derived_object(cls) -> type:
     required = metadata.get("required", {})
 
     class TVMDerivedObject(metadata["cls"]):  # type: ignore
-        def __init__(self, *args, **kwargs):
+        """The derived object to avoid cyclic dependency."""
 
+        def __init__(self, *args, **kwargs):
+            """Constructor."""
             self.handle = None
             self._inst = cls(*args, **kwargs)
             # make sure the inner class can access the outside
@@ -106,7 +111,8 @@ def derived_object(cls) -> type:
                 [_extract(self._inst, name, required) for name in methods],
             )
 
-        def __getattr__(self, name):
+        def __getattr__(self, name: str):
+            """Bridge the attribute function."""
             return self._inst.__getattribute__(name)
 
     functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)
