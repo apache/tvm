@@ -19,6 +19,7 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.ir import TensorAffineType, TupleAffineType
+import math
 
 # import to register canonicalization funcs for fq2i
 # pylint: disable=unused-import
@@ -339,6 +340,29 @@ def relu(expr, type_map):
     zero = relay.op.cast(z_p, t.dtype)
     return [relay.op.maximum(arg, fold_constant(zero)), t]
 
+@register_fake_quantization_to_integer("nn.leaky_relu")
+def leaky_relu(expr, type_map):
+    """Rewrite a leaky relu op"""
+    arg = expr.args[0]
+    t = type_map[arg]
+
+    z_p = t.zero_point
+    zero = relay.op.cast(z_p, t.dtype)
+
+    alpha = expr.attrs.alpha
+    q_val, shift = math.frexp(alpha)
+    q_alpha = int(q_val * (1 << 31))
+
+    alpha2 = 1 - alpha
+    q_val2, shift2 = math.frexp(alpha2)
+    q_alpha2 = int(q_val2 * (1 << 31))
+
+    prod = relay.op.fixed_point_multiply(arg, q_alpha, shift)
+    scaled_z = relay.op.fixed_point_multiply(zero, q_alpha2, shift2)
+    val = relay.op.add(prod, scaled_z)
+
+    output = relay.op.where(relay.op.less(arg, fold_constant(zero)), val, arg)
+    return [output, t]
 
 @register_fake_quantization_to_integer("nn.pad")
 def pad(expr, type_map):
