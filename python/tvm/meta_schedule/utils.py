@@ -21,7 +21,7 @@ import os
 import shutil
 from typing import Any, Set, List, Optional, Union, Callable
 
-import psutil
+import psutil  # type: ignore
 import tvm
 from tvm._ffi import get_global_func, register_func
 from tvm.error import TVMError

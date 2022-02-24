@@ -311,7 +311,7 @@ class RPCRunner(PyRunner):
                 ),
                 timeout_sec=self.rpc_config.session_timeout_sec,
             )
-            results.append(future)
+            results.append(future)  # type: ignore
         return results
 
     def _sanity_check(self) -> None:

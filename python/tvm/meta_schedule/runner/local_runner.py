@@ -300,7 +300,7 @@ class LocalRunner(PyRunner):
                 result = None
                 error_message = "LocalRunner: An exception occurred\n" + str(exception)
             local_future = LocalRunnerFuture(res=result, error_message=error_message)
-            results.append(local_future)
+            results.append(local_future)  # type: ignore
         return results
 
     def _sanity_check(self) -> None:
