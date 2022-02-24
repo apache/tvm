@@ -532,6 +532,10 @@ class ForScopeHandler(ScopeHandler):
         for : For
             The constructed For.
         """
+        if isinstance(begin, BufferSlice):
+            begin = begin.asobject()
+        if isinstance(end, BufferSlice):
+            end = end.asobject()
         assert self.context and self.node, "call 'exit_scope' before 'enter_scope'"
         extent = end if begin == 0 else self.context.analyzer.simplify(end - begin)
         self.annotations: Mapping[str, Object] = {}

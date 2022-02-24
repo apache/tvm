@@ -18,6 +18,7 @@
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
 from typing import List, Any
+from tvm.script.tir.node import BufferSlice
 
 import tvm.tir
 from ..registry import register
@@ -169,6 +170,10 @@ def min(a, b, span):  # pylint: disable=redefined-builtin
 
 def get_axis(begin, end, iter_type, span):
     ana = tvm.arith.Analyzer()
+    if isinstance(begin, BufferSlice):
+        begin = begin.asobject()
+    if isinstance(end, BufferSlice):
+        end = end.asobject()
     extent = ana.simplify(end - begin)
     block_var_dom = tvm.ir.Range.from_min_extent(begin, extent)
 
