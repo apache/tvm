@@ -78,10 +78,13 @@ endif()
 #
 # USE_HEXAGON_RPC:
 # - When building for Hexagon, this will build the Hexagon endpoint of the
-#   RPC server: the FastRPC skel library (with TVM runtime built into it).
+#   RPC server: the FastRPC skel library (with TVM runtime built into it),
+#   and the standalone RPC server for simulator.
 # - When building for Android, this will build the (intermediary) RPC server,
 #   including the "stub" code for the FastRPC implementation of the RPC
 #   channel.
+# - When building for x86, this will build the host-side code that instan-
+#   tiates the simulator.
 
 if(NOT BUILD_FOR_HEXAGON AND NOT BUILD_FOR_ANDROID)
   set(BUILD_FOR_HOST TRUE)
@@ -116,6 +119,15 @@ function(add_android_paths)
   link_directories(${HEXAGON_REMOTE_ROOT})
 endfunction()
 
+function(add_hexagon_wrapper_paths)
+  if(NOT DEFINED HEXAGON_TOOLCHAIN)
+    message(FATAL_ERROR "This function must be called after find_hexagon_toolchain")
+  endif()
+  include_directories(SYSTEM
+    "${HEXAGON_TOOLCHAIN}/include/iss"
+  )
+  link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
+endfunction()
 
 # Common sources for TVM runtime with Hexagon support
 file_glob_append(RUNTIME_HEXAGON_COMMON_SRCS
@@ -148,12 +160,11 @@ if(USE_HEXAGON_DEVICE)
       invalid_device_value_for("host")
     endif()
     find_hexagon_toolchain()
+    add_hexagon_wrapper_paths()
     file_glob_append(RUNTIME_HEXAGON_SRCS
       "${TVMRT_SOURCE_DIR}/hexagon/android/*.cc"
       "${TVMRT_SOURCE_DIR}/hexagon/android/sim/*.cc"
     )
-    include_directories(SYSTEM "${HEXAGON_TOOLCHAIN}/include/iss")
-    link_directories("${HEXAGON_TOOLCHAIN}/lib/iss")
     list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
 
     ExternalProject_Add(sim_dev
@@ -245,6 +256,23 @@ if(USE_HEXAGON_RPC)
     target_include_directories(hexagon_rpc_skel
       SYSTEM PRIVATE "${TVMRT_SOURCE_DIR}/hexagon/rpc"
     )
+    # Add the simulator-specific RPC code into a shared library to be
+    # executed via run_main_on_sim.
+    add_library(hexagon_rpc_sim SHARED
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/rpc_server.cc"
+    )
+    target_link_libraries(hexagon_rpc_sim
+      -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive
+    )
+
+  elseif(BUILD_FOR_HOST)
+    find_hexagon_toolchain()
+    add_hexagon_wrapper_paths()
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/host/*.cc"
+      "${TVMRT_SOURCE_DIR}/hexagon/rpc/simulator/session.cc"
+    )
+    list(APPEND TVM_RUNTIME_LINKER_LIBS "-lwrapper")
   endif()
 endif()   # USE_HEXAGON_RPC
 
