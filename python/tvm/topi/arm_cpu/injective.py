@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
-import tvm
 import numpy as np
+import tvm
 from tvm import te
 from ..utils import is_empty_shape
 

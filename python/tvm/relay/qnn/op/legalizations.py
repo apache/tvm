@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
 import numpy as np
-import tvm
 from scipy import special
+import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
