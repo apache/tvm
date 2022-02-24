@@ -315,9 +315,6 @@ def EncodeConstants(const_dict):
 
     """
     new_const_dict = {}
-    pointer_to_buffer = {}
-    rewrite_buffer = {}
-    rewrite_pointer = {}
 
     def collect_encoding_definitions(stmt, old_buffer_to_const):
         # Map from copy destination to copy source.
