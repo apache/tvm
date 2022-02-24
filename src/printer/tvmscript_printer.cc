@@ -1011,7 +1011,20 @@ Doc TVMScriptPrinter::VisitStmt_(const BufferRealizeNode* op) {
   return Doc();
 }
 
-Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
+namespace {
+struct AllocUsage {
+  Buffer alloc_buffer;
+  Array<Buffer> aliasing_buffers;
+};
+
+template <typename AllocNode>
+AllocUsage find_allocate_usage(AllocNode* op, Map<Var, Array<Buffer>>* cache_ptr) {
+  Map<Var, Array<Buffer>>& cache = *cache_ptr;
+  if (!cache.count(op->buffer_var)) {
+    cache = BufferUsageFinder::FindUsage(std::move(cache), op->body);
+  }
+  Array<Buffer> buffer_usage = cache.Get(op->buffer_var).value_or({});
+
   auto is_exact_match = [](Buffer a, Buffer b) {
     if (a->dtype != b->dtype) return false;
     if (a->shape.size() != b->shape.size()) return false;
@@ -1025,28 +1038,32 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
     return true;
   };
 
-  if (!buffer_var_usage_.count(op->buffer_var)) {
-    buffer_var_usage_ = BufferUsageFinder::FindUsage(std::move(buffer_var_usage_), op->body);
-  }
-  Array<Buffer> buffer_usage = buffer_var_usage_.Get(op->buffer_var).value_or({});
-
   // If the buffer allocated via T.allocate is an exact match to the
   // usage of the buffer later on, then that buffer is the return
   // value of T.allocate, and no T.buffer_decl statement is needed.
-  Buffer alloc_buf(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0, 0,
-                   kDefault);
+  Buffer alloc_buffer(op->buffer_var, op->dtype, op->extents, {}, 0, op->buffer_var->name_hint, 0,
+                      0, kDefault);
   bool found_alloc_buf = false;
   Array<Buffer> aliasing_buffers;
   for (const auto& buf : buffer_usage) {
-    if (!found_alloc_buf && is_exact_match(buf, alloc_buf)) {
-      alloc_buf = buf;
+    if (!found_alloc_buf && is_exact_match(buf, alloc_buffer)) {
+      alloc_buffer = buf;
       found_alloc_buf = true;
     } else {
       aliasing_buffers.push_back(buf);
     }
   }
-  buf_not_in_headers_.insert(alloc_buf.get());
-  var_not_in_headers_.insert(alloc_buf->data.get());
+
+  return AllocUsage{alloc_buffer, aliasing_buffers};
+}
+}  // namespace
+
+Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
+  auto usage = find_allocate_usage(op, &buffer_var_usage_);
+  Buffer& alloc_buffer = usage.alloc_buffer;
+  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
+  buf_not_in_headers_.insert(alloc_buffer.get());
+  var_not_in_headers_.insert(alloc_buffer->data.get());
 
   auto storage_scope = GetPtrStorageScope(op->buffer_var);
   Doc func_call;
@@ -1064,11 +1081,11 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateNode* op) {
 
   Doc doc;
   if (current_num_ != num_child_ - 1) {
-    doc << "with " << func_call << " as " << Print(alloc_buf) << ":";
+    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
     doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
                                          << PrintBody(op->body));
   } else {
-    doc << Print(alloc_buf) << " = " << func_call << Doc::NewLine();
+    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
     doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(op->body);
   }
   TryDeallocVar(op->buffer_var);
@@ -1105,16 +1122,25 @@ Doc TVMScriptPrinter::VisitStmt_(const AllocateConstNode* alloc) {
   }
   auto ndarray_str = ss.str();
 
+  auto usage = find_allocate_usage(alloc, &buffer_var_usage_);
+  Buffer& alloc_buffer = usage.alloc_buffer;
+  Array<Buffer>& aliasing_buffers = usage.aliasing_buffers;
+  buf_not_in_headers_.insert(alloc_buffer.get());
+  var_not_in_headers_.insert(alloc_buffer->data.get());
+
+  Doc func_call;
+  func_call << tir_prefix_ << ".allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype)
+            << ", " << Print(alloc->extents) << ")";
+
   Doc doc;
   var_not_in_headers_.insert(alloc->buffer_var.get());
   if (current_num_ != num_child_ - 1) {
-    doc << "with tir.allocate_const(" << ndarray_str << ", " << PrintDType(alloc->dtype) << ", "
-        << Print(alloc->extents) << ")";
-    doc << Doc::Indent(4, Doc::NewLine() << PrintBody(alloc->body));
+    doc << "with " << func_call << " as " << Print(alloc_buffer) << ":";
+    doc << Doc::Indent(4, Doc::NewLine() << PrintNonHeaderBufferDeclarations(aliasing_buffers)
+                                         << PrintBody(alloc->body));
   } else {
-    doc << Print(alloc->buffer_var) << " = tir.allocate_const(" << ndarray_str << ", "
-        << PrintDType(alloc->dtype) << ", " << Print(alloc->extents);
-    doc << ")" << Doc::NewLine() << PrintBody(alloc->body);
+    doc << Print(alloc_buffer) << " = " << func_call << Doc::NewLine();
+    doc << PrintNonHeaderBufferDeclarations(aliasing_buffers) << PrintBody(alloc->body);
   }
   return doc;
 }

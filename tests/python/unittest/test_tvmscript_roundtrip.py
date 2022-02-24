@@ -36,8 +36,8 @@ def opt_gemm_normalize():
             # buffer definition
             C_global = T.buffer_decl([1024, 1024], elem_offset=0, align=128, offset_factor=1)
             packedB = T.buffer_decl([32, 1024, 32], elem_offset=0, align=128, offset_factor=1)
-            A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
-            B_1 = T.match_buffer(B, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
+            A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
+            B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
             C_1 = T.match_buffer(C, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
             # body
             T.realize(packedB[0:32, 0:1024, 0:32], "")
@@ -90,16 +90,14 @@ def opt_gemm_lower():
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "mmult", "tir.noalias": True})
-            A_1 = T.match_buffer(A, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
+            A_1 = T.match_buffer(A, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
             B_1 = T.match_buffer(B, [1024, 1024], elem_offset=0, align=128, offset_factor=1)
             C_1 = T.match_buffer(C, [1024 * 1024], elem_offset=0, align=128, offset_factor=1)
             # body
             packedB = T.allocate([32768], "float32", "global")
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
-                    packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[
-                        T.ramp(((y * 1024) + (x * 32)), 1, 32)
-                    ]
+                    packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
                 C_global = T.allocate([1024], "float32", "global")
                 for y_outer in T.serial(0, 32):
@@ -208,7 +206,7 @@ def opt_gemm_mod_host():
 
             A_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
             T.attr(A_data, "storage_alignment", 128)
-            A: T.Buffer = T.buffer_decl([1024, 1024], dtype="int32", data=A_data)
+            A: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=A_data)
             buf0_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 2, dtype="handle")
             buf0_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf0_shape_data)
             buf0_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg0, 0, 3, dtype="handle")
@@ -218,7 +216,7 @@ def opt_gemm_mod_host():
 
             B_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
             T.attr(B_data, "storage_alignment", 128)
-            B: T.Buffer = T.buffer_decl([1024, 1024], dtype="int32", data=B_data)
+            B: T.Buffer = T.buffer_decl([1024 * 1024], dtype="int32", data=B_data)
             buf1_shape_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 2, dtype="handle")
             buf1_shape: T.Buffer = T.buffer_decl([2], dtype="int32", data=buf1_shape_data)
             buf1_strides_data: T.Ptr[T.int32] = T.tvm_struct_get(arg1, 0, 3, dtype="handle")
@@ -937,19 +935,17 @@ def opt_conv_tensorcore_normalize():
 
 def opt_conv_tensorcore_lower():
     @T.prim_func
-    def func(A: T.handle, W: T.handle, Conv: T.handle) -> None:
+    def func(
+        A: T.Buffer[(16, 14, 14, 16, 16, 16), "float16"],
+        W: T.Buffer[(3, 3, 16, 32, 16, 16), "float16"],
+        Conv: T.Buffer[(16, 14, 14, 32, 16, 16), "float32"],
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
         # body
-        A_1 = T.match_buffer(
-            A, [16, 14, 14, 16, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
-        )
-        W_1 = T.match_buffer(
-            W, [3, 3, 16, 32, 16, 16], dtype="float16", elem_offset=0, align=128, offset_factor=1
-        )
-        Conv_1 = T.match_buffer(
-            Conv, [16, 14, 14, 32, 16, 16], elem_offset=0, align=128, offset_factor=1
-        )
+        A_1 = T.buffer_decl([12845056], dtype="float16", data=A.data)
+        W_1 = T.buffer_decl([1179648], dtype="float16", data=W.data)
+        Conv_1 = T.buffer_decl([25690112], data=Conv.data)
         bx = T.env_thread("blockIdx.x")
         by = T.env_thread("blockIdx.y")
         bz = T.env_thread("blockIdx.z")
@@ -2473,7 +2469,7 @@ def opt_conv_tensorcore_mod_host():
 def vthread_func():
     @T.prim_func
     def vthread_func(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, (16, 16), "float32")
+        A = T.match_buffer(a, [256], "float32")
         C = T.match_buffer(c, [256], "float32")
 
         i0 = T.env_thread("blockIdx.x")
@@ -2704,7 +2700,7 @@ def block_elements():
             D = T.match_buffer(A[0:4, 0], (4, 1))
             with T.init():
                 B[0, 0] = T.float32(0)
-            B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2]
+            B[0, 0] = A[0, 0] + B[0, 0] + C[1, 1] + D[2, 0]
 
     return block_elements
 
@@ -2762,16 +2758,7 @@ def test_opaque_block():
     assert len(root_block.body.body[1].block.iter_vars) == 0
 
 
-def rank0():
-    @T.prim_func
-    def rank0(a: T.handle) -> None:
-        A = T.match_buffer(a, (), "float32")
-        B = T.alloc_buffer((), "float32")
-        A[()] = 2
-        B[()] = A[()]
-
-
-def Module4():
+def module_const():
     @tvm.script.ir_module
     class Module4:
         # There is an ongoing (python)dict->(c++)Map->(python)dict issue which potentially
@@ -2807,22 +2794,16 @@ def Module4():
 
             K1 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
             for x in T.serial(0, 10):
-                B[x] = A[x] + T.load("int32", K1, x)
+                B[x] = A[x] + K1[x]
 
             K2 = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
             for x in T.serial(0, 10):
-                B[x] = B[x] + T.load("int32", K2, x)
+                B[x] = B[x] + K2[x]
 
             for x in T.serial(0, 10):
                 C[x] = B[x]
 
     return Module4
-
-
-def test_module_const():
-    func = Module4()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
-    tvm.ir.assert_structural_equal(func, rt_func)
 
 
 def constant():
@@ -2833,7 +2814,7 @@ def constant():
         B = T.alloc_buffer((10), "int32")
         K = T.allocate_const([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], "int32", [10])
         for x in T.serial(0, 10):
-            B[x] = A[x] + T.load("int32", K, x)
+            B[x] = A[x] + K[x]
 
         for x in T.serial(0, 10):
             C[x] = B[x]
@@ -2841,37 +2822,15 @@ def constant():
     return constant
 
 
-def test_const():
-    func = constant()
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
-    tvm.ir.assert_structural_equal(func, rt_func)
+def rank0():
+    @T.prim_func
+    def rank0(a: T.handle) -> None:
+        A = T.match_buffer(a, (), "float32")
+        B = T.alloc_buffer((), "float32")
+        A[()] = 2
+        B[()] = A[()]
 
-
-@T.prim_func
-def rank0(a: T.handle) -> None:
-    A = T.match_buffer(a, (), "float32")
-    B = T.alloc_buffer((), "float32")
-    A[()] = 2
-    B[()] = A[()]
-
-
-def test_rank0_buffers():
-    func = rank0
-    rt_func = tvm.script.from_source(func.script(show_meta=True))
-    tvm.ir.assert_structural_equal(func, rt_func)
-
-
-@T.prim_func
-def rank0_block(a: T.handle) -> None:
-    A = T.match_buffer(a, (), "float32")
-    B = T.alloc_buffer((), "float32")
-    T.store(B.data, 0, T.load("float32", A.data, 0))
-
-    with T.block("update") as []:
-        T.reads([A[()]])
-        T.writes([B[()]])
-        for i in range(1):
-            B[()] = A[()]
+    return rank0
 
 
 def rank0_block():
@@ -2999,7 +2958,7 @@ def primfunc_with_allocate_annotations():
     def primfunc_with_allocate_annotations(placeholder_28: T.handle, T_cast_6: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "tvmgen_default_fused_nn_max_pool2d_cast", "tir.noalias": True})
-        placeholder_29 = T.match_buffer(placeholder_28, [1, 112, 112, 64], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
+        placeholder_29 = T.match_buffer(placeholder_28, [802816], dtype="uint8", elem_offset=0, align=128, offset_factor=1)
         T_cast_7 = T.match_buffer(T_cast_6, [200704], dtype="int16", elem_offset=0, align=128, offset_factor=1)
         # body
         tensor_2 = T.allocate([200704], "uint8", "global", annotations={"attr1_key": "attr1_value"})
@@ -3025,7 +2984,7 @@ def comm_reducer_single_reduce_group():
     def comm_reducer_single_reduce_group(a: T.handle, b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [128, 128], dtype="float32")
+        A = T.match_buffer(a, [128 * 128], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.allocate([1], "float32", "local")
@@ -3040,7 +2999,7 @@ def comm_reducer_multiple_reduce_groups():
     def comm_reducer_multiple_reduce_groups(a: T.handle, b: T.handle) -> None:
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
-        A = T.match_buffer(a, [128, 128], dtype="float32")
+        A = T.match_buffer(a, [128 * 128], dtype="float32")
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
             reduce_temp0 = T.allocate([1], "float32", "local")
@@ -3206,6 +3165,8 @@ ir_generator = tvm.testing.parameter(
     opt_conv_tensorcore_mod_host,
     vthread_func,
     matmul,
+    module_const,
+    constant,
     rank0,
     rank0_block,
     select,
