@@ -28,21 +28,21 @@ def compare_fq_to_int(expr, args, allow_rounding_error=False):
     mod_int = tvm.relay.transform.FakeQuantizationToInteger()(mod)
     assert not tvm.ir.structural_equal(mod, mod_int)
 
-    # result = (
-    #     relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
-    #     .evaluate()(*args)
-    #     .numpy()
-    # )
+    result = (
+        relay.create_executor("vm", mod=mod, device=tvm.cpu(), target="llvm")
+        .evaluate()(*args)
+        .numpy()
+    )
     result_int = (
         relay.create_executor("vm", mod=mod_int, device=tvm.cpu(), target="llvm")
         .evaluate()(*args)
         .numpy()
     )
 
-    # if allow_rounding_error:
-    #     assert np.all(np.abs(result.astype("int32") - result_int.astype("int32")) <= 1)
-    # else:
-    #     assert np.array_equal(result, result_int)
+    if allow_rounding_error:
+        assert np.all(np.abs(result.astype("int32") - result_int.astype("int32")) <= 1)
+    else:
+        assert np.array_equal(result, result_int)
 
 
 def test_fake_quantize_conv():
