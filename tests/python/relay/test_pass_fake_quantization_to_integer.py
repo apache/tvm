@@ -508,14 +508,12 @@ def test_fake_quantize_relu_per_channel():
 
 def test_fake_quantize_leaky_relu():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="uint8")
-    # x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 
     x = relay.qnn.op.dequantize(x, relay.const(2.0), relay.const(114))
     op = relay.op.nn.leaky_relu(x, 0.1)
     op = relay.qnn.op.quantize(op, relay.const(2.0), relay.const(114), out_dtype="int8")
 
     x_np = np.random.randint(0, 255, size=[1, 3, 224, 224], dtype="uint8")
-    # x_np = np.random.randint(-25, 25, size=[1, 3, 224, 224], dtype="int8")
 
     compare_fq_to_int(op, [x_np], True)
 
@@ -579,7 +577,6 @@ def test_fake_quantize_pad():
     x_np = np.random.randint(-25, 25, size=[1, 383, 128], dtype="int8")
 
     compare_fq_to_int(op, [x_np])
-    assert False
 
 
 def test_fake_quantize_depth_to_space():
