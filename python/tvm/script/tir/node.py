@@ -21,7 +21,7 @@ from typing import Optional, Union, List, Callable
 from numpy import isin
 import synr
 
-from tvm.runtime import ObjectGeneric
+from tvm.runtime import ObjectGeneric, convert
 from tvm.tir import PrimExpr, Buffer, BufferLoad
 from tvm.ir import Span
 
@@ -112,10 +112,7 @@ class BufferSlice(ObjectGeneric):
         slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
-                if isinstance(index.start, BufferSlice):
-                    index.start = index.start.asobject()
-                if isinstance(index.stop, BufferSlice):
-                    index.stop = index.stop.asobject()
+                index.start, index.stop = [convert(_) for _ in [index.start, index.stop]]
                 check_index(index.start)
                 check_index(index.stop)
                 slices.append(index)
