@@ -63,7 +63,7 @@ def intrin_mem_copy(shape, dtype, dst_scope, src_scope):
 
 
 @requires_hexagon_toolchain
-def test_hexagon(android_serial_number, tvm_tracker_host, tvm_tracker_port):
+def test_cache_read_write(android_serial_number, tvm_tracker_host, tvm_tracker_port):
     size = 128
     outer_shape = (size,)
     factor = 16
@@ -130,54 +130,6 @@ def test_hexagon(android_serial_number, tvm_tracker_host, tvm_tracker_port):
         zt = tvm.nd.array(np.random.uniform(size=size).astype(z.dtype), device=sess.device)
         mod["dmacpy"](xt, yt, zt)
     launcher.close()
-
-    ref = xt.numpy() + yt.numpy()
-    np.testing.assert_equal(zt.numpy(), ref)
-
-
-def test_cpu():
-    size = 128
-    outer_shape = (size,)
-    factor = 16
-    inner_shape = (factor,)
-    dtype = "int8"
-
-    x = te.placeholder(shape=outer_shape, dtype=dtype, name="x")
-    y = te.placeholder(shape=outer_shape, dtype=dtype, name="y")
-    z = te.compute(outer_shape, lambda i: x[i] + y[i], name="z")
-    s = te.create_schedule(z.op)
-
-    x_global = s.cache_read(x, "global", [z])
-    y_global = s.cache_read(y, "global", [z])
-    z_global = s.cache_write(z, "global")
-
-    zouter, zinner = s[z_global].split(z_global.op.axis[0], factor=factor)
-
-    s[x_global].compute_at(s[z_global], zouter)
-    s[y_global].compute_at(s[z_global], zouter)
-
-    mem_copy_read = intrin_mem_copy(inner_shape, dtype, "global", "global")
-
-    (cache_read_x,) = s[x_global].op.axis
-    s[x_global].tensorize(cache_read_x, mem_copy_read)
-
-    (cache_read_y,) = s[y_global].op.axis
-    s[y_global].tensorize(cache_read_y, mem_copy_read)
-
-    mem_copy_write = intrin_mem_copy(outer_shape, dtype, "global", "global")
-
-    (cache_write_z,) = s[z].op.axis
-    s[z].tensorize(cache_write_z, mem_copy_write)
-
-    print(tvm.lower(s, [x, y, z]))
-    func = tvm.build(s, [x, y, z], target="llvm")
-
-    dev = tvm.device("llvm", 0)
-
-    xt = tvm.nd.array(np.random.uniform(size=size).astype(x.dtype), dev)
-    yt = tvm.nd.array(np.random.uniform(size=size).astype(y.dtype), dev)
-    zt = tvm.nd.array(np.random.uniform(size=size).astype(z.dtype), dev)
-    func(xt, yt, zt)
 
     ref = xt.numpy() + yt.numpy()
     np.testing.assert_equal(zt.numpy(), ref)

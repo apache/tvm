@@ -100,21 +100,6 @@ void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
   dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
-TVM_REGISTER_GLOBAL("device_api.cpu.mem_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
-  void* dst = args[0];
-  void* src = args[1];
-  int size = args[2];
-
-  const char* src_char = reinterpret_cast<const char*>(src);
-  char* dst_char = reinterpret_cast<char*>(dst);
-
-  for (int i = 0; i < size; ++i) {
-    dst_char[i] = src_char[i];
-  }
-
-  *rv = static_cast<int32_t>(0);
-});
-
 TVM_REGISTER_GLOBAL("device_api.cpu").set_body([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);

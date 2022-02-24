@@ -221,8 +221,8 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr src = op->args[1];
     PrimExpr size = op->args[2];
 
-    std::string fdevapi_prefix = "device_api.";
-    fdevapi_prefix += runtime::DeviceName(device_type_.as<IntImmNode>()->value);
+    std::string fdevapi_prefix =
+        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
 
     Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
                             {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
