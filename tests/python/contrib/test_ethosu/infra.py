@@ -519,8 +519,8 @@ def get_pooling_args(call, include_buffers=False):
     for i, arg in enumerate(args):
         if isinstance(arg, tvm.tir.expr.IntImm) or isinstance(arg, tvm.tir.expr.FloatImm):
             pooling_args.append(arg.value)
-        elif isinstance(arg, tvm.tir.expr.Load) and not include_buffers:
-            pooling_args.append(arg.index)
+        elif isinstance(arg, tvm.tir.expr.BufferLoad) and not include_buffers:
+            pooling_args.append(arg.indices[0])
         else:
             pooling_args.append(arg)
 

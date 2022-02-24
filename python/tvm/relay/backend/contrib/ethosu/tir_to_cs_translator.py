@@ -122,9 +122,9 @@ def analyze_scratch_memory_acesses(mod: tvm.IRModule, candidate_regions_for_scra
         if isinstance(stmt, tvm.tir.stmt.LetStmt):
             call_address_of = stmt.value
             load = call_address_of.args[0]
-            pool_var = load.buffer_var
+            pool_var = load.buffer.data
             scratch_region_map[stmt.var] = RegionOffset(
-                region=pool_var_region_map[pool_var], offset=int(load.index)
+                region=pool_var_region_map[pool_var], offset=int(load.indices[0])
             )
 
     tvm.tir.stmt_functor.post_order_visit(primfunc.body, analyze_pool_access)

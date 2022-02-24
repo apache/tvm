@@ -176,9 +176,6 @@ Optional<Var> PoolAllocationToOffsetConverter::GetResourceHandle(const PrimFunc&
 
 PoolAllocationToOffsetConverter::ScopeInfo PoolAllocationToOffsetConverter::UpdateFunctionScopeInfo(
     const PrimFunc& original_func) {
-  ICHECK_EQ(original_func->preflattened_buffer_map.size(), 0)
-      << "ConvertPoolAllocationsToOffsets pass expects to operate on pre-flattened buffers, prior "
-         "to StorageFlatten (TE schedules) or FlattenBuffers (TIR schedules)";
   ScopeInfo si;
 
   Optional<Var> resource_handle = GetResourceHandle(original_func);
