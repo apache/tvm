@@ -862,10 +862,18 @@ TVM_DLL PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s
                                   Span span = Span());
 
 // Intrinsic operators
-#define TVM_DECLARE_INTRIN_UNARY(OpName)                   \
-  inline PrimExpr OpName(PrimExpr x, Span span = Span()) { \
-    static const Op& op = Op::Get("tir." #OpName);         \
-    return tir::Call(x.dtype(), op, {x}, span);            \
+#define TVM_DECLARE_INTRIN_UNARY(OpName)                       \
+  inline PrimExpr OpName(PrimExpr x, Span span = Span()) {     \
+    static const Op& op = Op::Get("tir." #OpName);             \
+    if (x.dtype().is_bfloat16()) {                             \
+      DataType srcType = x.dtype();                            \
+      DataType dstType(kDLFloat, 32, srcType.lanes());         \
+      PrimExpr castX = tir::Cast(dstType, {x}, span);          \
+      PrimExpr result = tir::Call(dstType, op, {castX}, span); \
+      return tir::Cast(srcType, {result}, span);               \
+    } else {                                                   \
+      return tir::Call(x.dtype(), op, {x}, span);              \
+    }                                                          \
   }
 
 TVM_DECLARE_INTRIN_UNARY(exp);
