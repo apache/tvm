@@ -18,6 +18,7 @@
 """TVM Script nodes."""
 
 from typing import Optional, Union, List, Callable
+from numpy import isin
 import synr
 
 from tvm.runtime import ObjectGeneric
@@ -111,6 +112,10 @@ class BufferSlice(ObjectGeneric):
         slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
+                if isinstance(index.start, BufferSlice):
+                    index.start = index.start.asobject()
+                if isinstance(index.stop, BufferSlice):
+                    index.stop = index.stop.asobject()
                 check_index(index.start)
                 check_index(index.stop)
                 slices.append(index)
