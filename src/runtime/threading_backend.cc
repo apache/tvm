@@ -38,7 +38,6 @@
 #include <algorithm>
 #include <thread>
 #define CURRENT_THREAD_HANDLE (static_cast<std::thread::native_handle_type>(0))
-
 namespace tvm {
 namespace runtime {
 namespace threading {
@@ -118,30 +117,46 @@ class ThreadGroup::Impl {
     }
     // Do not set affinity if there are more workers than found cores and mode is not kSpecify.
     if (sorted_order_.size() < static_cast<unsigned int>(num_workers_)) {
-      if (mode == kSpecify) {
-        // if give a list of cpus and set mode as kSpecify need to restrict the threads
-        // on the said cpu list
-        for (unsigned i = 0; i < threads_.size(); ++i) {
-          SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
-        }
-        if (exclude_worker0) {  // main thread run task
-          SetMasterThreadFullCpuAffinity(mode);
-        }
-      } else {
-        LOG(WARNING) << "The thread affinity cannot be set when the number of workers"
-                     << "is larger than the number of available cores in the system.";
+      switch (mode) {
+        case kSpecifyPerCorePerThread:
+        case kSepcifyAllThreadAllCore:
+          // if give a list of cpus and set mode as kSpecify need to restrict the threads
+          // on the said cpu list
+          for (unsigned i = 0; i < threads_.size(); ++i) {
+            SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
+          }
+          if (exclude_worker0) {  // main thread run task
+            SetMasterThreadFullCpuAffinity(mode);
+          }
+          break;
+        case kLittle:
+        case kBig:
+          LOG(WARNING) << "The thread affinity cannot be set when the number of workers"
+                       << "is larger than the number of available cores in the system.";
+          break;
       }
     } else {
       ICHECK_GE(sorted_order_.size(), num_workers_);
-      for (unsigned i = 0; i < threads_.size(); ++i) {
-        bool reverse = mode == kLittle;
-        unsigned core_id;
-        if (reverse) {
-          core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
-        } else {
-          core_id = sorted_order_[i + exclude_worker0];
-        }
-        SetThreadAffinity(threads_[i].native_handle(), {core_id});
+      switch (mode) {
+        case kSepcifyAllThreadAllCore:
+          for (unsigned i = 0; i < threads_.size(); ++i) {
+            SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
+          }
+          break;
+        case kLittle:
+        case kBig:
+        case kSpecifyPerCorePerThread:
+          for (unsigned i = 0; i < threads_.size(); ++i) {
+            bool reverse = mode == kLittle;
+            unsigned core_id;
+            if (reverse) {
+              core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
+            } else {
+              core_id = sorted_order_[i + exclude_worker0];
+            }
+            SetThreadAffinity(threads_[i].native_handle(), {core_id});
+          }
+          break;
       }
       if (exclude_worker0) {  // main thread run task
         // Master thread will have free migration on needed cores.
@@ -165,19 +180,24 @@ class ThreadGroup::Impl {
     // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
     std::vector<unsigned> ids;
-    if (mode == kSpecify) {
-      for (size_t i = 0; i < sorted_order_.size(); ++i) {
-        ids.push_back(sorted_order_[i]);
-      }
-    } else if (mode == kLittle) {
-      for (int i = 0; i < little_count_; ++i) {
-        ids.push_back(sorted_order_[sorted_order_.size() - i - 1]);
-      }
-    } else {
-      int num_cpu_workers = std::min(MaxConcurrency(), big_count_);
-      for (int i = 0; i < num_cpu_workers; ++i) {
-        ids.push_back(sorted_order_[i]);
-      }
+    switch(mode) {
+      case kSpecifyPerCorePerThread:
+      case kSepcifyAllThreadAllCore:
+        for (size_t i = 0; i < sorted_order_.size(); ++i) {
+          ids.push_back(sorted_order_[i]);
+        }
+        break;
+      case kLittle:
+        for (int i = 0; i < little_count_; ++i) {
+          ids.push_back(sorted_order_[sorted_order_.size() - i - 1]);
+        }
+        break;
+      case kBig:
+        int num_cpu_workers = std::min(MaxConcurrency(), big_count_);
+        for (int i = 0; i < num_cpu_workers; ++i) {
+          ids.push_back(sorted_order_[i]);
+        }
+        break;
     }
     SetThreadAffinity(thread, ids);
   }
@@ -251,6 +271,9 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
 }
 
 void Yield() { std::this_thread::yield(); }
+/*!
+ * \bief Set the maximum number of available cores.
+ */
 void SetMaxConcurrency(int value) {
   if (value > 0) {
     max_concurrency = value;

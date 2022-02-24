@@ -85,13 +85,15 @@ class ThreadGroup {
   enum AffinityMode : int {
     kBig = 1,
     kLittle = -1,
-    kSpecify = -2,
+    /*Different thread will get different affinity.*/
+    kSpecifyPerCorePerThread = -2,
+    /*All threads get same core group affinity.*/
+    kSepcifyAllThreadAllCore = -3,
   };
-
   /*!
    * \brief configure the CPU id affinity
    *
-   * \param mode The preferred CPU type (1 = big, -1 = little).
+   * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify).
    * \param nthreads The number of threads to use (0 = use all).
    * \param exclude_worker0 Whether to use the main thread as a worker.
    *        If  `true`, worker0 will not be launched in a new thread and
@@ -112,14 +114,14 @@ class ThreadGroup {
  * \brief Platform-agnostic no-op.
  */
 void Yield();
-
 /*!
  * \return the maximum number of effective workers for this system.
  */
 int MaxConcurrency();
-
+/*!
+ * \bief Set the maximum number of available cores.
+ */
 void SetMaxConcurrency(int value);
-
 /*!
  * \brief Reset the threads in the pool. All current threads are destroyed and
  * new ones are created.
@@ -128,8 +130,14 @@ void SetMaxConcurrency(int value);
  */
 void ResetThreadPool();
 
+/*!
+ * \brief configure the CPU id affinity
+ * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify).
+ * \param nthreads The number of threads to use (0 = use all).
+ * \param cpus A list of CPU used to set 'cpu affinity'.
+ */
 void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
-               std::vector<unsigned int> cpus, int max_concurrency = 0);
+               std::vector<unsigned int> cpus);
 
 }  // namespace threading
 }  // namespace runtime
