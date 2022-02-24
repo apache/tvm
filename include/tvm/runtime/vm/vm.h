@@ -94,8 +94,7 @@ struct VMFunction {
         instructions(std::move(instructions)),
         register_file_size(register_file_size),
         param_device_indexes(std::move(param_device_indexes)) {
-    ICHECK_EQ(params.size(), param_device_indexes.size())
-        << "The number of provided parameters doesn't match the number of assigned devices";
+    ICHECK_EQ(params.size(), param_device_indexes.size());
   }
 
   VMFunction() = default;
@@ -275,12 +274,12 @@ class VirtualMachine : public runtime::ModuleNode {
 
   /*!
    * \brief Set one input tensor with index or name to a function.
-   * \param name The function name
-   * \param args args[1:] are two arguments (index or name, tensor) to the
-   * function. If the tensor is not of the correct device for the function,
+   * \param name The function name.
+   * \param tag index or name of the input tensor .
+   * \param tensor the input tensor. If the tensor is not of the correct device for the function,
    * they will be copied to the device.
    */
-  void SetOneInputTensor(std::string name, TVMArgs args);
+  void SetOneInput(std::string name, const TVMArgValue& tag, const TVMArgValue& tensor);
 
   /*!
    * \brief Internal hook for profiling the start of an op.
@@ -305,7 +304,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param input_name The input tensor name.
    * \return The input tensor index.
    */
-  int64_t getInputIndexFromVMFunction(const std::string& func_name,
+  int64_t GetInputIndexFromVMFunction(const std::string& func_name,
                                       const std::string& input_name) const;
 
   /*!
@@ -314,7 +313,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param input_name The input tensor name.
    * \return The input tensor index.
    */
-  int64_t getInputIndexFromName(const std::vector<std::string>& params,
+  int64_t GetInputIndexFromName(const std::vector<std::string>& params,
                                 const std::string& input_name) const;
 
   /*!
@@ -322,7 +321,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param func_name The function's name.
    * \return VM function.
    */
-  const VMFunction& checkAndGetVMFunction(const std::string& func_name) const;
+  const VMFunction& CheckAndGetVMFunction(const std::string& func_name) const;
 
   /*!
    * \brief Creats inputs_ field, if it exists check its size.
@@ -330,7 +329,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param size inputs_ field size.
    * \return VM function.
    */
-  void createInputsOrCheckSize(const std::string& func_name, size_t size);
+  void CreateInputsOrCheckSize(const std::string& func_name, size_t size);
 
   /*!
    * \brief Set one input tensor with given index to set of input tensors if need copy to given

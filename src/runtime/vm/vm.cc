@@ -190,7 +190,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
   } else if (name == "get_input_index") {
     return TypedPackedFunc<int64_t(std::string, std::string)>(
         [this](std::string input_name, std::string func_name) {
-          return getInputIndexFromVMFunction(func_name, input_name);
+          return GetInputIndexFromVMFunction(func_name, input_name);
         });
   } else if (name == "init") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -212,8 +212,11 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetInput(args[0], args, 1); });
   } else if (name == "set_one_input") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { SetOneInputTensor(args[0], args); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 "
+                                << "(func_name, index or name, tensor)";
+      SetOneInput(args[0], args[1], args[2]);
+    });
   } else if (name == "load_late_bound_consts") {
     return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
       CHECK_EQ(args.size(), 1);
@@ -227,7 +230,7 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
 }
 
 void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
-  const auto& vm_func = checkAndGetVMFunction(func_name);
+  const auto& vm_func = CheckAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
   ICHECK_EQ(args.size() - offset, params_num)
       << "The number of provided parameters doesn't match the number of arguments";
@@ -241,35 +244,33 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   inputs_.emplace(func_name, func_args);
 }
 
-void VirtualMachine::SetOneInputTensor(std::string func_name, TVMArgs args) {
-  ICHECK_EQ(args.size(), 3) << "The expected number of arguments is 3 "
-                            << "(func_name, index or name, tensor)";
-  const auto& vm_func = checkAndGetVMFunction(func_name);
+void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag, const TVMArgValue& tensor) {
+  const auto& vm_func = CheckAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
 
   int inp_index;
-  if (args[1].type_code() == kTVMArgInt) {
-    inp_index = args[1];
-  } else if (args[1].type_code() == kTVMStr) {
-    inp_index = static_cast<int>(getInputIndexFromName(vm_func.params, args[1]));
+  if (tag.type_code() == kTVMArgInt) {
+    inp_index = tag;
+  } else if (tag.type_code() == kTVMStr) {
+    inp_index = static_cast<int>(GetInputIndexFromName(vm_func.params, tag));
   } else {
-    LOG(FATAL) << "The second argument type (" << args[1].type_code()
+    LOG(FATAL) << "The type of input tensor tag (" << tag.type_code()
                << ") doesn't match integer or string";
   }
   ICHECK_LT(inp_index, params_num);
 
-  createInputsOrCheckSize(func_name, params_num);
+  CreateInputsOrCheckSize(func_name, params_num);
   Device dev = GetDevice(vm_func.param_device_indexes[inp_index]);
-  SetInputTensorWithIndex(inputs_[func_name], args[2], inp_index, dev);
+  SetInputTensorWithIndex(inputs_[func_name], tensor, inp_index, dev);
 }
 
-int64_t VirtualMachine::getInputIndexFromVMFunction(const std::string& func_name,
+int64_t VirtualMachine::GetInputIndexFromVMFunction(const std::string& func_name,
                                                     const std::string& input_name) const {
-  const auto& vm_func = checkAndGetVMFunction(func_name);
-  return getInputIndexFromName(vm_func.params, input_name);
+  const auto& vm_func = CheckAndGetVMFunction(func_name);
+  return GetInputIndexFromName(vm_func.params, input_name);
 }
 
-int64_t VirtualMachine::getInputIndexFromName(const std::vector<std::string>& params,
+int64_t VirtualMachine::GetInputIndexFromName(const std::vector<std::string>& params,
                                               const std::string& input_name) const {
   // TODO(vvchernov): excess integer type?
   for (uint64_t i = 0; i < params.size(); i++) {
@@ -280,12 +281,12 @@ int64_t VirtualMachine::getInputIndexFromName(const std::vector<std::string>& pa
   return static_cast<int64_t>(-1);
 }
 
-const VMFunction& VirtualMachine::checkAndGetVMFunction(const std::string& func_name) const {
+const VMFunction& VirtualMachine::CheckAndGetVMFunction(const std::string& func_name) const {
   ICHECK(exec_) << "The executable is not created yet.";
   return exec_->GetVMFunctionWithName(func_name);
 }
 
-void VirtualMachine::createInputsOrCheckSize(const std::string& func_name, size_t size) {
+void VirtualMachine::CreateInputsOrCheckSize(const std::string& func_name, size_t size) {
   if (inputs_.count(func_name)) {
     ICHECK_EQ(inputs_[func_name].size(), size)
         << "The size of function" << func_name
