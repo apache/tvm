@@ -333,10 +333,7 @@ Doc RelayTextPrinter::PrintExpr(const Expr& expr, bool meta, bool try_inline, bo
 
 // Should only be triggered when op is a free variable being visited for the
 // first time.
-Doc RelayTextPrinter::VisitExpr_(const VarNode* op) {
-  Doc var_doc = AllocVar(GetRef<Var>(op));
-  return var_doc;
-}
+Doc RelayTextPrinter::VisitExpr_(const VarNode* op) { return AllocVar(GetRef<Var>(op)); }
 
 /*!
  * \brief special method to print out const scalar

@@ -1116,7 +1116,7 @@ class Parser {
             VirtualDevice virtual_device;
             if (WhenMatch(TokenType::kLCurly)) {
               Map<String, ObjectRef> fake_attrs = ParseAttrs();
-              VLOG(1) << "Fake attributes for function parameter: " << fake_attrs;
+              VLOG(9) << "Fake attributes for function parameter: " << fake_attrs;
               Match(TokenType::kRCurly);
               if (fake_attrs.size() == 1 && fake_attrs.count(kVirtualDevice)) {
                 ICHECK(fake_attrs[kVirtualDevice].as<VirtualDeviceNode>())
