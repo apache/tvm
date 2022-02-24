@@ -49,6 +49,9 @@ DLDataType String2DLDataType(const char* s) {
   } else if (!strncmp(s, "float", 5)) {
     t.code = kDLFloat;
     scan = s + 5;
+  } else if (!strncmp(s, "bfloat", 6)) {
+    t.code = kDLBfloat;
+    scan = s + 6;
   } else if (!strncmp(s, "handle", 6)) {
     t.code = kTVMOpaqueHandle;
     t.bits = 64;  // handle uses 64 bit by default.
