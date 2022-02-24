@@ -1006,6 +1006,8 @@ class DeviceCapturer : public ExprMutator {
     // Map the function parameters to a new variable annotated with a virtual device so
     // we can substitute them later.
     Map<Var, Expr> annotated_bind_map;
+    Array<Var> annotated_params;
+    annotated_params.reserve(function_node->params.size());
     for (size_t i = 0; i < function_node->params.size(); ++i) {
       VirtualDevice param_virtual_device =
           domains_->ResultVirtualDevice(func_domain->function_param(i));
@@ -1015,6 +1017,7 @@ class DeviceCapturer : public ExprMutator {
       VLOG(4) << "VirtualDevice: " << annotated_var->virtual_device();
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
       annotated_bind_map.Set(function_node->params[i], annotated_var);
+      annotated_params.push_back(annotated_var);
     }
     // Eventually we probably want to bind before visiting, but for now this is causing an issue
     // with the GetVirtualDevice utility, so leaving as is for now.
@@ -1025,11 +1028,11 @@ class DeviceCapturer : public ExprMutator {
         /*lexical_virtual_device=*/result_virtual_device,
         /*expected_virtual_device=*/result_virtual_device,
         /*child_virtual_device=*/GetVirtualDevice(function_node->body), function_node->body);
-
     VLOG(4) << "Body: " << body;
-    Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
-    VLOG(4) << "Func: " << func;
-    func = Downcast<Function>(ExprBind(func, annotated_bind_map));
+    // ICHECK(!body.as<FunctionNode>()) << "Body is a function oops";
+    Expr bound_body = SubstituteVars(body, annotated_bind_map);
+    VLOG(4) << "Bound body: " << bound_body;
+    Function func = WithFields(GetRef<Function>(function_node), annotated_params, bound_body);
     VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
     VLOG(4) << "Func with bound params & result vid set: " << func;

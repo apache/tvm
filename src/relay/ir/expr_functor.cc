@@ -528,8 +528,27 @@ TVM_REGISTER_GLOBAL("relay.ir.Bind").set_body([](TVMArgs args, TVMRetValue* ret)
   }
 });
 
-Expr ExprBind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
-  return ExprBinder(args_map).VisitExpr(expr);
+Expr SubstituteVars(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
+  if (const FunctionNode* func = expr.as<FunctionNode>()) {
+    Expr new_body = ExprBinder(args_map).VisitExpr(func->body);
+    Array<Var> new_params;
+    for (size_t i = 0; i < func->params.size(); i++) {
+      if (!args_map.count(func->params[i])) {
+        new_params.push_back(func->params[i]);
+      } else {
+        if (const VarNode* var = args_map[func->params[i]].as<VarNode>()) {
+          new_params.push_back(GetRef<Var>(var));
+        } else {
+          ICHECK(false) << "Expected all values in args_map to be vars, but found " << args_map[func->params[i]]->GetTypeKey();
+        }
+      }
+    }
+    auto ret = Function(new_params, new_body, func->ret_type, func->type_params, func->attrs, func->span);
+    ret->virtual_device_ = func->virtual_device();
+    return ret;
+  } else {
+    return ExprBinder(args_map).VisitExpr(expr);
+  }
 }
 
 void ExpandANormalForm(const LetNode* op, std::function<void(const LetNode*)> pre_visit,
