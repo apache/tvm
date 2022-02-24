@@ -117,19 +117,18 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     for (uint32_t i = 0; i < call->args.size(); ++i) {
       Expr arg = call->args[i];
       new_args.push_back(arg);
-      const auto* arg_var = arg.as<VarNode>();
+      bool arg_is_var = arg->IsInstance<VarNode>();
       const auto* arg_type = arg->checked_type_.as<TensorTypeNode>();
-      if (!arg_var || !arg_type || arg_type->shape.size() != 0) {
+      if (!arg_is_var || !arg_type || arg_type->shape.size() != 0) {
         continue;
       }
       String arg_name = arg.as<VarNode>()->name_hint();
       int tensor_arg_id = (i + 1) % 2;
       Expr tensor_arg = call->args[tensor_arg_id];
-      const auto* tensor_type = tensor_arg->checked_type_.as<TensorTypeNode>();
-      if (!tensor_type) {
+      if (!tensor_arg->checked_type_.defined()) {
         continue;
       }
-      new_args.Set(i, Var(arg_name, GetRef<TensorType>(tensor_type)));
+      new_args.Set(i, Var(arg_name, tensor_arg->checked_type_));
     }
     return Call(call->op, new_args, call->attrs, {});
   }
@@ -140,18 +139,17 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
     for (uint32_t i = 0; i < call->args.size(); ++i) {
       new_args.push_back(call->args[i]);
       Expr scalar_arg = call->args[i];
-      const auto* scalar_const = scalar_arg.as<ConstantNode>();
+      bool scalar_is_const = scalar_arg->IsInstance<ConstantNode>();
       const auto* scalar_type = scalar_arg->checked_type_.as<TensorTypeNode>();
-      if (!scalar_const || !scalar_type || scalar_type->shape.size() != 0) {
+      if (!scalar_is_const || !scalar_type || scalar_type->shape.size() != 0) {
         continue;
       }
       int tensor_arg_id = (i + 1) % 2;
       Expr tensor_arg = call->args[tensor_arg_id];
-      const auto* tensor_type_node = tensor_arg->checked_type_.as<TensorTypeNode>();
-      if (!tensor_type_node) {
+      const auto* tensor_type = tensor_arg->checked_type_.as<TensorTypeNode>();
+      if (!tensor_type) {
         continue;
       }
-      TensorType tensor_type = GetRef<TensorType>(tensor_type_node);
       std::vector<int64_t> tensor_shape;
       for (auto& dim : tensor_type->shape) {
         tensor_shape.push_back(qnn::get_const_int(dim));
