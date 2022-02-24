@@ -589,6 +589,18 @@ def tune_te(
 def deduplicate_extracted_tasks(
     extracted_tasks: List[ExtractedTask],
 ) -> Tuple[List[ExtractedTask], List[int]]:
+    """Remove duplicate extraced tasks.
+
+    Parameters
+    ----------
+    extracted_tasks : List[ExtractedTask]
+        The list of extraced tasks.
+
+    Returns
+    -------
+    tasks : Tuple[List[ExtractedTask], List[int]]
+        A tuple containing the deduplicated extraced tasks and the count for each task.
+    """
     hash2idx: Dict[int, int] = {}
     dedup: List[ExtractedTask] = []
     count: List[int] = []
@@ -596,11 +608,11 @@ def deduplicate_extracted_tasks(
     for task in extracted_tasks:
         assert len(task.dispatched) == 1, "Only size 1 dispatched task list is supported for now"
         mod = Parse._mod(task.dispatched[0])
-        hash = structural_hash(mod)
-        if hash in hash2idx:
-            count[hash2idx[hash]] += 1
+        shash = structural_hash(mod)
+        if shash in hash2idx:
+            count[hash2idx[shash]] += 1
         else:
-            hash2idx[hash] = len(dedup)
+            hash2idx[shash] = len(dedup)
             dedup.append(task)
             count.append(1)
     return dedup, count
@@ -624,7 +636,47 @@ def tune_extracted_tasks(
     mutator_probs: Optional[FnMutatorProb] = None,
     num_threads: Optional[int] = None,
 ) -> Database:
-    """Tune extracted tasks with a given target."""
+    """Tune extracted tasks with a given target.
+
+    Parameters
+    ----------
+    extracted_tasks : List[ExtractedTask]
+        The list of extraced tasks.
+    target : Union[str, Target]
+        The target to tune for.
+    config : SearchStrategyConfig
+        The search strategy config.
+    work_dir : Optional[str]
+        The working directory to save intermediate results.
+    builder : Optional[Builder]
+        The builder to use.
+    runner : Optional[Runner]
+        The runner to use.
+    database : Optional[Database]
+        The database to use.
+    cost_model : Optional[CostModel]
+        The cost model to use.
+    measure_callbacks : Optional[List[MeasureCallback]]
+        The callbacks used during tuning.
+    task_scheduler : Optional[TaskScheduler]
+        The task scheduler to use.
+    space : Optional[FnSpaceGenerator]
+        The space generator to use.
+    sch_rules : Optional[FnScheduleRule]
+        The search rules to use.
+    postprocs : Optional[FnPostproc]
+        The postprocessors to use.
+    mutator_probs : Optional[FnMutatorProb]
+        The probability distribution to use different mutators.
+    num_threads : Optional[int]
+        The number of threads to use.
+
+    Returns
+    -------
+    database : Database
+        The database containing all the tuning results.
+
+    """
     # deduplication
     logger.info("Before task deduplication: %d tasks", len(extracted_tasks))
     extracted_tasks, _ = deduplicate_extracted_tasks(extracted_tasks)
