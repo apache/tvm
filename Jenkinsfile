@@ -98,6 +98,7 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
+  sh "exit 1"
   retry(5) {
     timeout(time: 2, unit: 'MINUTES') {
       sh (script: 'git submodule update --init -f', label: 'Update git submodules')
