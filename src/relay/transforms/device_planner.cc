@@ -1016,15 +1016,8 @@ class DeviceCapturer : public ExprMutator {
       ICHECK(!param_virtual_device->IsFullyUnconstrained());
       annotated_bind_map.Set(function_node->params[i], annotated_var);
     }
-    for (auto kv : annotated_bind_map) {
-      VLOG(4) << "Var: " << kv.first;
-      VLOG(4) << "Value: " << kv.second;
-      VLOG(4) << "Value VID: " << kv.second->virtual_device();
-    }
-
     // Eventually we probably want to bind before visiting, but for now this is causing an issue
-    // with the GetVirtualDevice utility, so leaving as is for now. Function func =
-    // Downcast<Function>(Bind(GetRef<Function>(function_node), annotated_bind_map));
+    // with the GetVirtualDevice utility, so leaving as is for now.
 
     // Rewrite the body. Note that the body may have begun with an "on_device" so
     // be prepared to insert a "device_copy".
