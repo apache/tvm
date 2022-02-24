@@ -225,7 +225,7 @@ class SimulatorRPCChannel final : public RPCChannel {
 
   // File name templates for mkstemps.
 #define SUFFIX ".cfg"
-  static constexpr int template_length_ = strlen("temp-xxxx-XXXXXX" SUFFIX) + 1;
+  static constexpr int template_length_ = sizeof("temp-xxxx-XXXXXX" SUFFIX);  // == strlen() + 1
   char osam_file_[template_length_] = "temp-osam-XXXXXX" SUFFIX;
   char cosim_file_[template_length_] = "temp-q6ss-XXXXXX" SUFFIX;
   const int suffix_len_ = strlen(SUFFIX);
