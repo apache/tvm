@@ -18,7 +18,6 @@
 # pylint: disable=redefined-builtin, relative-beyond-top-level
 import builtins
 from typing import List, Any
-from tvm.script.tir.node import BufferSlice
 
 import tvm.tir
 from ..registry import register

@@ -18,7 +18,6 @@
 """TVM Script nodes."""
 
 from typing import Optional, Union, List, Callable
-from numpy import isin
 import synr
 
 from tvm.runtime import ObjectGeneric, convert
