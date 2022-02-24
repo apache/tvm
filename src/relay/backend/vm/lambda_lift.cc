@@ -125,7 +125,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
     Map<Var, Expr> rebinding_map;
     for (auto free_var : captured_vars) {
       auto var = Var(free_var->name_hint(), free_var->checked_type());
-      var->virtual_device_ = free_var->virtual_device();
+      var->virtual_device_ = GetVirtualDevice(free_var);
       typed_captured_vars.push_back(var);
       rebinding_map.Set(free_var, var);
     }
@@ -188,8 +188,7 @@ class LambdaLifter : public transform::DeviceAwareExprMutator {
       // construct the "closure" function with fully annotated arguments, no longer relying
       // on type inference.
       size_t before_arity = body->params.size();
-      VLOG(1) << "Binding " << rebinding_map << " into\n" << PrettyPrint(body->body);
-      // I think the problem is in here!
+      VLOG(9) << "Binding " << rebinding_map << " into\n" << PrettyPrint(body->body);
       auto rebound_body = WithFields(func, func->params, Bind(body->body, rebinding_map));
       size_t after_arity = rebound_body->params.size();
       CHECK_EQ(before_arity, after_arity);
