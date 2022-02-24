@@ -190,17 +190,18 @@ class DiamondGraphTir:
         weight_buffer2 = T.buffer_decl([736], "uint8")
         bias_buffer2 = T.buffer_decl([240], "uint8")
 
-        placeholder_global = T.allocate([2608], "uint8", "global", annotations={"disable_lower_builtin":True})
-        placeholder_d_global = T.allocate([240], "uint8", "global", annotations={"disable_lower_builtin":True})
+        weight_global = T.allocate([2608], "uint8", "global", annotations={"disable_lower_builtin":True})
+        weight_global2 = T.buffer_decl([736], "uint8", data=weight_global.data)
+        bias_global = T.allocate([240], "uint8", "global", annotations={"disable_lower_builtin":True})
         featuremap_buffer = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin": True})
         featuremap_buffer2 = T.allocate([75264], "int8", "global", annotations={"disable_lower_builtin": True})
 
-        T.evaluate(T.call_extern("ethosu_copy", weight_buffer[0], 2608, placeholder_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", bias_buffer[0], 240, placeholder_d_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 96, 56, 0, 56, input_buffer[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 5376, 96, 1, "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 2608, 12, placeholder_d_global[0], 240, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", weight_buffer2[0], 736, placeholder_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_copy", bias_buffer2[0], 240, placeholder_d_global[0], dtype="handle"))
-        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, placeholder_global[0], 736, 12, placeholder_d_global[0], 240, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", weight_buffer[0], 2608, weight_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", bias_buffer[0], 240, bias_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 96, 56, 0, 56, input_buffer[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 5376, 96, 1, "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, weight_global[0], 2608, 12, bias_global[0], 240, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", weight_buffer2[0], 736, weight_global2[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_copy", bias_buffer2[0], 240, bias_global[0], dtype="handle"))
+        T.evaluate(T.call_extern("ethosu_conv2d", "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer2[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 1344, 24, 1, 1, 1, 1, 1, 1, 1, weight_global2[0], 736, 12, bias_global[0], 240, 0, 0, 0, 0, "NONE", 0, 0, "TFL", "NONE", dtype="handle"))
         T.evaluate(T.call_extern("ethosu_binary_elementwise", "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, featuremap_buffer2[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "int8", 56, 56, 24, 56, 0, 56, output_buffer[0], 0, 0, 0, T.float32(1), 0, "NHWC", 1344, 24, 1, "ADD", 0, "NONE", 0, 0, "TFL", dtype="handle"))
     __tvm_meta__ = None
 # fmt: on
