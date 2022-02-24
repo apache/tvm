@@ -498,13 +498,6 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
     for (const auto& v : FreeVars(ret)) {
       if (set.count(v) == 0) {
         new_params.push_back(v);
-        if (!v->virtual_device()->IsFullyUnconstrained()) {
-          // TODO(mbs): The function has been annotated with a device, which means we are supposed
-          // to be preserving device annotations on every transformation. However there's no
-          // such context for the free vars in args_map.
-          LOG(WARNING) << "introduced free var '" << PrettyPrint(v)
-                       << "' into function body but no device is known for it";
-        }
       }
     }
 
