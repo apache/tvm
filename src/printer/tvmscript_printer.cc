@@ -22,6 +22,7 @@
  * \brief Printer class to print Tensor IR to python syntax script
  */
 
+#include <tvm/arith/analyzer.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/registry.h>
@@ -34,7 +35,6 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/arith/analyzer.h>
 
 #include <algorithm>
 #include <utility>
@@ -199,7 +199,7 @@ class TVMScriptPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * than in the header.
    */
   Map<Var, Array<Buffer>> buffer_var_usage_;
-  /* \brief Analyzer to simplify some expressions. */
+  /*! \brief Analyzer to simplify some expressions. */
   arith::Analyzer ana_;
 
   Doc VisitExpr_(const CastNode* op, ExprPrecedence* out_precedence) override;
