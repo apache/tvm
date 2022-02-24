@@ -112,7 +112,6 @@ def test_tune_matmul_cuda_tensor_core():
                 M.AutoInline(
                     into_producer=False,
                     into_consumer=True,
-                    # into_cache_only=False,
                     inline_const_tensor=True,
                     disallow_if_then_else=False,
                     require_injective=False,
@@ -122,7 +121,7 @@ def test_tune_matmul_cuda_tensor_core():
                 M.MultiLevelTiling(
                     structure="SSSRRSRS",
                     tile_binds=["blockIdx.x", "blockIdx.y", "threadIdx.y"],
-                    # use_tensor_core=True,
+                    use_tensor_core=True,
                     max_innermost_factor=64,
                     vector_load_lens=[1, 2, 3, 4],
                     reuse_read=schedule_rule.ReuseType(
@@ -139,7 +138,6 @@ def test_tune_matmul_cuda_tensor_core():
                 M.AutoInline(
                     into_producer=True,
                     into_consumer=True,
-                    # into_cache_only=True,
                     inline_const_tensor=True,
                     disallow_if_then_else=False,
                     require_injective=False,
@@ -161,10 +159,10 @@ def test_tune_matmul_cuda_tensor_core():
             )
 
             return [
-                # M.RewriteCooperativeFetch(),
+                M.RewriteCooperativeFetch(),
                 M.RewriteParallelVectorizeUnroll(),
                 M.RewriteReductionBlock(),
-                # M.RewriteTensorCore(),
+                M.RewriteTensorCore(),
                 M.VerifyGPUCode(),
             ]
 
