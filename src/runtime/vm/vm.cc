@@ -244,7 +244,8 @@ void VirtualMachine::SetInput(std::string func_name, TVMArgs args, int offset) {
   inputs_.emplace(func_name, func_args);
 }
 
-void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag, const TVMArgValue& tensor) {
+void VirtualMachine::SetOneInput(std::string func_name, const TVMArgValue& tag,
+                                 const TVMArgValue& tensor) {
   const auto& vm_func = CheckAndGetVMFunction(func_name);
   size_t params_num = vm_func.params.size();
 
