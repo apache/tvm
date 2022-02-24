@@ -346,22 +346,23 @@ def leaky_relu(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
 
+    arg = relay.op.cast(arg, "int32")
     z_p = t.zero_point
-    zero = relay.op.cast(z_p, t.dtype)
+    zero = relay.op.cast(z_p, "int32")
 
     alpha = expr.attrs.alpha
     q_val, shift = math.frexp(alpha)
     q_alpha = int(q_val * (1 << 31))
-
-    alpha2 = 1 - alpha
-    q_val2, shift2 = math.frexp(alpha2)
-    q_alpha2 = int(q_val2 * (1 << 31))
-
     prod = relay.op.fixed_point_multiply(arg, q_alpha, shift)
-    scaled_z = relay.op.fixed_point_multiply(zero, q_alpha2, shift2)
+
+    zq_val, zshift = math.frexp(1 - alpha)
+    zq_alpha = int(zq_val * (1 << 31))
+    scaled_z = relay.op.fixed_point_multiply(zero, zq_alpha, zshift)
+
     val = relay.op.add(prod, scaled_z)
 
     output = relay.op.where(relay.op.less(arg, fold_constant(zero)), val, arg)
+    output = relay.op.cast(output, t.dtype)
     return [output, t]
 
 @register_fake_quantization_to_integer("nn.pad")
