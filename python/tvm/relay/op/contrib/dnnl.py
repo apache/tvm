@@ -211,13 +211,13 @@ def pattern_table():
     return dnnl_patterns
 
 
-def get_optimal_layout_for_conv(input_size, weight_shape, out_shape, paddings, strides, dilates, G):
+def get_optimal_layout_for_conv(input_size, weight_shape, out_shape, paddings, strides, dilates, groups):
     """Get the optimal layout of dnnl, given shape of conv2d.
 
     Parameters
     ----------
-    input_size, weight_shape, out_shape, paddings, strides, dilates, G : Int, String
-                                                                         Input argument.
+    input_size, weight_shape, out_shape, paddings, strides, dilates, groups : Int, String
+                                                                              Input argument.
 
     Returns
     -------
@@ -231,18 +231,18 @@ def get_optimal_layout_for_conv(input_size, weight_shape, out_shape, paddings, s
         paddings,
         strides,
         dilates,
-        G,
+        groups,
     )
 
 
 def get_optimal_layout_for_conv_transpose(
-    input_size, weight_shape, out_shape, paddings, output_paddings, strides, dilates, G
+    input_size, weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
 ):
     """Get the optimal layout of dnnl, given shape of tranposed conv2d.
 
     Parameters
     ----------
-    input_size, weight_shape, out_shape, paddings, output_paddings, strides, dilates, G
+    input_size, weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
         : Int, String
           Input argument.
 
@@ -259,7 +259,7 @@ def get_optimal_layout_for_conv_transpose(
         output_paddings,
         strides,
         dilates,
-        G,
+        groups,
     )
 
 
@@ -279,18 +279,18 @@ def get_shape(tensor):
         raise TypeError("Unsupport data type: %s" % type(tensor))
 
 
-def validate_layout_for_tvm(input_data, is_weight=False, conv_type=1):
+def tag2layout(input_data, is_weight=False, conv_type="Conv1D"):
     """Transfer layout, denoted with `a, b, c, d, e`,
     into valid layout (NCHW / OIHW) of TVM."""
-    if conv_type == 1:
+    if conv_type == "Conv1D":
         data_dic = {"a": "N", "b": "C", "c": "W"}
         weight_dic = {"a": "O", "b": "I", "c": "W", "d": "G"}
-    elif conv_type == 2:
+    elif conv_type == "Conv2D":
         data_dic = {"a": "N", "b": "C", "c": "H", "d": "W"}
         weight_dic = {"a": "O", "b": "I", "c": "H", "d": "W"}
         if "e" in input_data:
             weight_dic = {"a": "G", "b": "O", "c": "I", "d": "H", "e": "W"}
-    elif conv_type == 3:
+    elif conv_type == "Conv3D":
         data_dic = {"a": "N", "b": "C", "c": "D", "d": "H", "e": "W"}
         weight_dic = {"a": "O", "b": "I", "c": "D", "d": "H", "e": "W", "f": "G"}
 
@@ -312,61 +312,51 @@ def validate_layout_for_tvm(input_data, is_weight=False, conv_type=1):
 
 
 def legalize_group_conv(attrs, inputs, types):
-    """Legalize group conv's calculation.
-    Alter weight layout from OIHW to GOIHW"""
-    G = attrs.groups
-    if G == 1:
+    """Legalize group conv / conv_transpose calculation.
+    Alter weight layout from OIHW to GOIHW / IOHW to GIOHW"""
+    groups = attrs.groups
+    if groups == 1:
         return
     data, weight = inputs
     OC, IC, H, W = get_shape(weight)
     new_attrs = dict(attrs)
-    weight = relay.reshape(weight, (G, OC // G, IC, H, W))
-    new_attrs["kernel_layout"] = "GOIHW"
-    return relay.nn.conv2d(data, weight, **new_attrs)
-
-
-def legalize_group_conv_transpose(attrs, inputs, types):
-    """Legalize group conv_transpose's calculation.
-    Alter weight layout from IOHW to GIOHW"""
-    G = attrs.groups
-    if G == 1:
-        return
-    data, weight = inputs
-    IC, OC, H, W = get_shape(weight)
-    new_attrs = dict(attrs)
-    new_attrs["kernel_layout"] = "GIOHW"
-    weight = relay.reshape(weight, (G, IC // G, OC, H, W))
-    return relay.nn.conv2d_transpose(data, weight, **new_attrs)
+    weight = relay.reshape(weight, (groups, OC // groups, IC, H, W))
+    if "Transpose" not in type(attrs).__name__:
+        new_attrs["kernel_layout"] = "GOIHW"
+        return relay.nn.conv2d(data, weight, **new_attrs)
+    else:
+        new_attrs["kernel_layout"] = "GIOHW"
+        return relay.nn.conv2d_transpose(data, weight, **new_attrs)
 
 
 def alter_conv(attrs, inputs, tinfos, out_type):
     """The convolution's layout auto-query func for dnnl."""
 
     data, weight = inputs
-    G = str(attrs.groups)
+    groups = str(attrs.groups)
     weight_shape = ",".join([str(x) for x in get_shape(weight)])
     out_shape = ",".join([str(x) for x in get_shape(out_type)])
     paddings = ",".join([str(x) for x in attrs.get_int_tuple("padding")])
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
     new_attrs = dict(attrs)
-    conv_type = len(get_shape(out_type)) - 2
+    conv_type = type(attrs).__name__.split("Attrs")[0]
 
     res = get_optimal_layout_for_conv(
-        len(get_shape(out_type)), weight_shape, out_shape, paddings, strides, dilates, G
+        len(get_shape(out_type)), weight_shape, out_shape, paddings, strides, dilates, groups
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = validate_layout_for_tvm(src_df, is_weight=False, conv_type=conv_type)
-    new_attrs["kernel_layout"] = validate_layout_for_tvm(
+    new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
+    new_attrs["kernel_layout"] = tag2layout(
         weight_df, is_weight=True, conv_type=conv_type
     )
-    new_attrs["out_layout"] = validate_layout_for_tvm(dst_df, is_weight=False, conv_type=conv_type)
+    new_attrs["out_layout"] = tag2layout(dst_df, is_weight=False, conv_type=conv_type)
 
-    if conv_type == 1:
+    if conv_type == "Conv1D":
         return relay.nn.conv1d(data, weight, **new_attrs)
-    elif conv_type == 2:
+    elif conv_type == "Conv2D":
         return relay.nn.conv2d(data, weight, **new_attrs)
-    elif conv_type == 3:
+    elif conv_type == "Conv3D":
         return relay.nn.conv3d(data, weight, **new_attrs)
 
 
@@ -380,9 +370,9 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     output_paddings = ",".join([str(x) for x in attrs.get_int_tuple("output_padding")])
     strides = ",".join([str(x) for x in attrs.get_int_tuple("strides")])
     dilates = ",".join([str(x) for x in attrs.get_int_tuple("dilation")])
-    G = str(attrs.groups)
+    groups = str(attrs.groups)
     new_attrs = dict(attrs)
-    conv_type = len(get_shape(out_type)) - 2
+    conv_type = type(attrs).__name__.split("Attrs")[0]
 
     res = get_optimal_layout_for_conv_transpose(
         len(get_shape(out_type)),
@@ -392,20 +382,20 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
         output_paddings,
         strides,
         dilates,
-        G,
+        groups,
     )
     src_df, weight_df, dst_df = res.split(",")
-    new_attrs["data_layout"] = validate_layout_for_tvm(src_df, is_weight=False, conv_type=conv_type)
-    new_attrs["kernel_layout"] = validate_layout_for_tvm(
+    new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
+    new_attrs["kernel_layout"] = tag2layout(
         weight_df, is_weight=True, conv_type=conv_type
     )
-    new_attrs["out_layout"] = validate_layout_for_tvm(dst_df, is_weight=False, conv_type=conv_type)
+    new_attrs["out_layout"] = tag2layout(dst_df, is_weight=False, conv_type=conv_type)
 
-    if conv_type == 1:
+    if conv_type == "Conv1DTranspose":
         return relay.nn.conv1d_transpose(data, weight, **new_attrs)
-    elif conv_type == 2:
+    elif conv_type == "Conv2DTranspose":
         return relay.nn.conv2d_transpose(data, weight, **new_attrs)
-    elif conv_type == 3:
+    elif conv_type == "Conv3DTranspose":
         return relay.nn.conv3d_transpose(data, weight, **new_attrs)
 
 
@@ -429,7 +419,7 @@ def partition_for_dnnl(mod, params=None, alter_layout=True):
     from tvm.relay.testing.temp_op_attr import TempOpAttr
 
     with TempOpAttr("nn.conv2d", "FTVMLegalize", legalize_group_conv):
-        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", legalize_group_conv_transpose):
+        with TempOpAttr("nn.conv2d_transpose", "FTVMLegalize", legalize_group_conv):
             seq = tvm.transform.Sequential(
                 [
                     transform.CanonicalizeOps(),

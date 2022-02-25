@@ -327,14 +327,6 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dim groups = std::stoi(node.GetAttr<std::vector<std::string>>("groups")[0]);
     std::string data_layout = node.GetAttr<std::vector<std::string>>("data_layout")[0];
     std::string kernel_layout = node.GetAttr<std::vector<std::string>>("kernel_layout")[0];
-    std::string out_layout = "";
-    if (node.HasAttr("out_layout")) {
-      if (node.GetAttr<std::vector<std::string>>("out_layout")[0] != "") {
-        out_layout = node.GetAttr<std::vector<std::string>>("out_layout")[0];
-      } else {
-        out_layout = data_layout;
-      }
-    }
 
     // Check layout.
     if (layout_dict.find(data_layout) == layout_dict.end() ||
@@ -376,7 +368,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     auto conv_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[data_layout]);
     auto conv_weights_md = dnnl::memory::desc(weights_dims, dt::f32, layout_dict[kernel_layout]);
     auto conv_bias_md = dnnl::memory::desc(bias_dims, dt::f32, tag::any);
-    auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, layout_dict[out_layout]);
+    auto conv_dst_md = dnnl::memory::desc(dst_dims, dt::f32, tag::any);
 
     // Covn2d description.
     auto conv_desc =
@@ -390,37 +382,37 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                                                    dilates_dims, padding_dims_l, padding_dims_r);
 
     // Enable elementwise post-ops.
-    auto conv2d_prim_desc = dnnl::convolution_forward::primitive_desc(conv_desc, attr, engine_);
+    auto conv_prim_desc = dnnl::convolution_forward::primitive_desc(conv_desc, attr, engine_);
 
     // Push to the network.
-    auto conv = dnnl::convolution_forward(conv2d_prim_desc);
+    auto conv = dnnl::convolution_forward(conv_prim_desc);
     net_.push_back(conv);
 
     // Data memory.
-    auto conv2d_src_memory = BindDNNLMemory(data_entry, conv_src_md);
+    auto conv_src_memory = BindDNNLMemory(data_entry, conv_src_md);
 
     // Weight memory.
-    auto conv2d_weights_memory = BindDNNLMemory(weight_entry, conv_weights_md);
+    auto conv_weights_memory = BindDNNLMemory(weight_entry, conv_weights_md);
 
     // Output memory.
-    auto conv2d_dst_memory = BindDNNLMemory(out_entry, conv2d_prim_desc.dst_desc());
+    auto conv_dst_memory = BindDNNLMemory(out_entry, conv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto conv2d_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto conv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
-      BindDNNLMemory(bias_entry, conv2d_bias_memory);
+      BindDNNLMemory(bias_entry, conv_bias_memory);
 
       // Bind memory buffers.
-      net_args_.push_back({{DNNL_ARG_SRC, conv2d_src_memory},
-                           {DNNL_ARG_WEIGHTS, conv2d_weights_memory},
-                           {DNNL_ARG_BIAS, conv2d_bias_memory},
-                           {DNNL_ARG_DST, conv2d_dst_memory}});
+      net_args_.push_back({{DNNL_ARG_SRC, conv_src_memory},
+                           {DNNL_ARG_WEIGHTS, conv_weights_memory},
+                           {DNNL_ARG_BIAS, conv_bias_memory},
+                           {DNNL_ARG_DST, conv_dst_memory}});
     } else {
       // Bind memory buffers.
-      net_args_.push_back({{DNNL_ARG_SRC, conv2d_src_memory},
-                           {DNNL_ARG_WEIGHTS, conv2d_weights_memory},
-                           {DNNL_ARG_DST, conv2d_dst_memory}});
+      net_args_.push_back({{DNNL_ARG_SRC, conv_src_memory},
+                           {DNNL_ARG_WEIGHTS, conv_weights_memory},
+                           {DNNL_ARG_DST, conv_dst_memory}});
     }
   }
 
@@ -513,38 +505,38 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
                        padding_dims_l, padding_dims_r);
 
     // Enable elementwise post-ops.
-    auto deconv2d_prim_desc =
+    auto deconv_prim_desc =
         dnnl::deconvolution_forward::primitive_desc(deconv_desc, attr, engine_);
 
     // Push to the network.
-    auto deconv = dnnl::deconvolution_forward(deconv2d_prim_desc);
+    auto deconv = dnnl::deconvolution_forward(deconv_prim_desc);
     net_.push_back(deconv);
 
     // Data memory.
-    auto deconv2d_src_memory = BindDNNLMemory(data_entry, deconv_src_md);
+    auto deconv_src_memory = BindDNNLMemory(data_entry, deconv_src_md);
 
     // Weight memory.
-    auto deconv2d_weights_memory = BindDNNLMemory(weight_entry, deconv_weights_md);
+    auto deconv_weights_memory = BindDNNLMemory(weight_entry, deconv_weights_md);
 
     // Output memory.
-    auto deconv2d_dst_memory = BindDNNLMemory(out_entry, deconv2d_prim_desc.dst_desc());
+    auto deconv_dst_memory = BindDNNLMemory(out_entry, deconv_prim_desc.dst_desc());
 
     // Bias memory.
-    auto deconv2d_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
+    auto deconv_bias_memory = dnnl::memory({bias_dims, dt::f32, tag::x}, engine_);
     if (has_bias) {
       auto bias_entry = node.GetInputs()[2];
-      BindDNNLMemory(bias_entry, deconv2d_bias_memory);
+      BindDNNLMemory(bias_entry, deconv_bias_memory);
 
       // Bind memory buffers.
-      net_args_.push_back({{DNNL_ARG_SRC, deconv2d_src_memory},
-                           {DNNL_ARG_WEIGHTS, deconv2d_weights_memory},
-                           {DNNL_ARG_BIAS, deconv2d_bias_memory},
-                           {DNNL_ARG_DST, deconv2d_dst_memory}});
+      net_args_.push_back({{DNNL_ARG_SRC, deconv_src_memory},
+                           {DNNL_ARG_WEIGHTS, deconv_weights_memory},
+                           {DNNL_ARG_BIAS, deconv_bias_memory},
+                           {DNNL_ARG_DST, deconv_dst_memory}});
     } else {
       // Bind memory buffers.
-      net_args_.push_back({{DNNL_ARG_SRC, deconv2d_src_memory},
-                           {DNNL_ARG_WEIGHTS, deconv2d_weights_memory},
-                           {DNNL_ARG_DST, deconv2d_dst_memory}});
+      net_args_.push_back({{DNNL_ARG_SRC, deconv_src_memory},
+                           {DNNL_ARG_WEIGHTS, deconv_weights_memory},
+                           {DNNL_ARG_DST, deconv_dst_memory}});
     }
   }
 
