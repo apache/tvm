@@ -190,16 +190,6 @@ constexpr const char* kTarget = "target";
  */
 constexpr const char* kGlobalSymbol = "global_symbol";
 
-/*!
- * \brief The \p VirtualDevice which will hold each of the functions parameters.
- *
- * Only supported on Relay \p Functions. Generally added by the \p PlanDevices pass, but
- * may be included as an annotation on user programs.
- *
- * Type: Array<VirtualDevice>
- */
-constexpr const char* kParamVirtualDevice = "param_virtual_devices";
-
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_
