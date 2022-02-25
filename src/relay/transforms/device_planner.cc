@@ -876,7 +876,6 @@ class DeviceDefaulter : public ExprVisitor {
 };
 
 /* =============== Phase 3 =============== */
-// TODO(@electriclilies): rewrite this comment
 /*!
  * \brief Inserts missing "device_copy" CallNodes, and ensures the device type of every
  * sub-expression in a module can be easily recovered by a later transformation using simple
@@ -885,8 +884,9 @@ class DeviceDefaulter : public ExprVisitor {
  * - Discard any existing "on_device" CallNodes since their job is done. Similarly, discard
  *   any existing "device_copy" CallNodes which are no-ops.
  *
- * - Functions are given "param_virtual_devices" and "result_virtual_device" attributes to capture
- *   the device type for its parameters and result.
+ * - The result virtual device for a function is stored in the function's virtual_device_ field
+ *   and the virtual devices of the function's parameters are stored in the parameter's
+ *   virtual_device_ field.
  *
  * - Additional "device_copy" CallNodes are inserted wherever there's a transition between
  *   storage device types. Since the DeviceAnalyzer phase succeeded this can only happen
@@ -1031,7 +1031,7 @@ class DeviceCapturer : public ExprMutator {
     VLOG(4) << "Visited body: " << body;
     Function func = WithFields(GetRef<Function>(function_node), function_node->params, body);
     VLOG(4) << "New function: " << func;
-    func = Downcast<Function>(SubstituteVars(func, annotated_bind_map));
+    func = SubstituteBoundVars(func, annotated_bind_map);
     VLOG(4) << "Func with bound params: " << func;
     func->virtual_device_ = result_virtual_device;
     VLOG(4) << "Func with bound params & result vid set: " << func;
