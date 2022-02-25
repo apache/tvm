@@ -211,13 +211,14 @@ def pattern_table():
     return dnnl_patterns
 
 
-def get_optimal_layout_for_conv(weight_shape, out_shape, paddings, strides, dilates, groups):
+def get_optimal_layout_for_conv(data_layout, kernel_layout, weight_shape,
+                                out_shape, paddings, strides, dilates, groups):
     """Get the optimal layout of dnnl, given shape of conv2d.
 
     Parameters
     ----------
-    weight_shape, out_shape, paddings, strides, dilates, groups : Int, String
-                                                                  Input argument.
+    data_layout, kernel_layout,weight_shape, out_shape, paddings, strides, dilates, groups :String
+                                                                                            Input argument.
 
     Returns
     -------
@@ -225,6 +226,8 @@ def get_optimal_layout_for_conv(weight_shape, out_shape, paddings, strides, dila
               The result.
     """
     return _ffi_api.get_optimal_layout_for_conv(
+        data_layout,
+        kernel_layout,
         weight_shape,
         out_shape,
         paddings,
@@ -235,13 +238,13 @@ def get_optimal_layout_for_conv(weight_shape, out_shape, paddings, strides, dila
 
 
 def get_optimal_layout_for_conv_transpose(
-    weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
+    data_layout, kernel_layout, weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
 ):
     """Get the optimal layout of dnnl, given shape of tranposed conv2d.
 
     Parameters
     ----------
-    weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
+    data_layout, kernel_layout, weight_shape, out_shape, paddings, output_paddings, strides, dilates, groups
         : Int, String
           Input argument.
 
@@ -251,6 +254,8 @@ def get_optimal_layout_for_conv_transpose(
               The result.
     """
     return _ffi_api.get_optimal_layout_for_conv_transpose(
+        data_layout,
+        kernel_layout, 
         weight_shape,
         out_shape,
         paddings,
@@ -341,7 +346,8 @@ def alter_conv(attrs, inputs, tinfos, out_type):
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
     res = get_optimal_layout_for_conv(
-        weight_shape, out_shape, paddings, strides, dilates, groups
+        attrs["data_layout"], attrs["kernel_layout"], weight_shape, out_shape, paddings,
+        strides, dilates, groups,
     )
     src_df, weight_df, dst_df = res.split(",")
     new_attrs["data_layout"] = tag2layout(src_df, is_weight=False, conv_type=conv_type)
@@ -373,6 +379,8 @@ def alter_conv_transpose(attrs, inputs, tinfos, out_type):
     conv_type = type(attrs).__name__.split("Attrs")[0]
 
     res = get_optimal_layout_for_conv_transpose(
+        attrs["data_layout"],
+        attrs["kernel_layout"], 
         weight_shape,
         out_shape,
         paddings,

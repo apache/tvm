@@ -172,9 +172,32 @@ dnnl::memory::dims str2dims(const std::string& str_shape,
   return out_dims;
 }
 
-std::string get_optimal_layout_for_conv(std::string weight_shape,
-                                        std::string out_shape, std::string paddings,
-                                        std::string strides, std::string dilates, std::string G) {
+void check_shapes(const std::vector<std::string> shapes) {
+  std::regex valid_pat("(\\d*)(,(\\d*))*");
+  bool checked = std::regex_match(shapes[0], valid_pat);
+  for (size_t i = 1; i < shapes.size()-1; i++) {
+    checked &= std::regex_match(shapes[i], valid_pat);
+  }
+  checked &= std::regex_match(shapes[shapes.size()-1], std::regex("\\d*"));
+  if (!checked) {
+    LOG(FATAL) << "Invalid input args for query dnnl optimal layout.";
+  }
+}
+
+void check_layout(bool var, bool ref) {
+  if (var != ref) {
+    LOG(FATAL) << "Invalid input layout for query dnnl optimal layout.";
+  }
+}
+
+std::string get_optimal_layout_for_conv(std::string data_layout, std::string kernel_layout,
+                                        std::string weight_shape, std::string out_shape,
+                                        std::string paddings, std::string strides,
+                                        std::string dilates, std::string G) {   
+  check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
+  check_layout(std::regex_match(kernel_layout, std::regex("(G?)OI(D?)(H?)W")), true);
+  check_shapes({weight_shape, out_shape, paddings, strides, dilates, G});
+
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
@@ -249,10 +272,15 @@ std::string get_optimal_layout_for_conv(std::string weight_shape,
   return res;
 }
 
-std::string get_optimal_layout_for_conv_transpose(std::string weight_shape,
-                                                  std::string out_shape, std::string paddings,
-                                                  std::string output_paddings, std::string strides,
-                                                  std::string dilates, std::string G) {
+std::string get_optimal_layout_for_conv_transpose(std::string data_layout, std::string kernel_layout,
+                                                  std::string weight_shape, std::string out_shape,
+                                                  std::string paddings, std::string output_paddings,
+                                                  std::string strides, std::string dilates,
+                                                  std::string G) {
+  check_layout(std::regex_match(data_layout, std::regex("NC(D?)(H?)W")), true);
+  check_layout(std::regex_match(kernel_layout, std::regex("(G?)((IO)|(OI))(D?)(H?)W")), true);
+  check_shapes({weight_shape, out_shape, paddings, output_paddings, strides, dilates, G});
+
   dnnl::engine eng(dnnl::engine::kind::cpu, 0);
   dnnl::stream s(eng);
   using tag = dnnl::memory::format_tag;
@@ -335,13 +363,14 @@ std::string get_optimal_layout_for_conv_transpose(std::string weight_shape,
 
 TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      *rv = get_optimal_layout_for_conv(args[0], args[1], args[2], args[3], args[4], args[5]);
+      *rv = get_optimal_layout_for_conv(args[0], args[1], args[2], args[3], args[4], args[5],
+                                        args[6], args[7]);
     });
 
 TVM_REGISTER_GLOBAL("relay.ir.get_optimal_layout_for_conv_transpose")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       *rv = get_optimal_layout_for_conv_transpose(args[0], args[1], args[2], args[3], args[4],
-                                                  args[5], args[6]);
+                                                  args[5], args[6], args[7], args[8]);
     });
 
 }  // namespace contrib
