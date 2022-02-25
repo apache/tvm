@@ -215,7 +215,12 @@ class Database(Object):
 
 @register_object("meta_schedule.PyDatabase")
 class _PyDatabase(Database):
-    """An abstract Database with customized methods on the python-side."""
+    """
+    A TVM object database to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
+
+    See also: PyDatabase
+    """
 
     def __init__(self, methods: List[Callable]):
         """Constructor."""
@@ -228,7 +233,7 @@ class _PyDatabase(Database):
 
 class PyDatabase:
     """
-    An abstract runner with customized run method on the python-side.
+    An abstract database with customized methods on the python-side.
     This is the user facing class for function overloading inheritance.
 
     Note: @derived_object is required for proper usage of any inherited class.
