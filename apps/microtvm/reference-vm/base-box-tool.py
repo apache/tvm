@@ -98,24 +98,19 @@ def parse_virtualbox_devices():
 
 
 VIRTUALBOX_USB_DEVICE_RE = (
-    "UUID:.*([0-9a-z-]{36}).*\nVendorId:.*\(([0-9A-Z]{4})\).*\nProductId:.*\(([0-9A-Z]{4})\)\n"
+    "USBAttachVendorId[0-9]+=0x([0-9a-z]{4})\n" +
+    "USBAttachProductId[0-9]+=0x([0-9a-z]{4})"
 )
 
 
 def parse_virtualbox_attached_usb_devices(vm_uuid):
-    output = subprocess.check_output(["VBoxManage", "showvminfo", vm_uuid], encoding="utf-8")
+    output = subprocess.check_output(["VBoxManage", "showvminfo", "--machinereadable", vm_uuid], encoding="utf-8")
 
     r = re.compile(VIRTUALBOX_USB_DEVICE_RE)
+    attached_usb_devices = r.findall(output, re.MULTILINE)
 
-    devices = []
-    m = r.findall(output, re.MULTILINE)
-    # Transform a list of tuples (UUID, VendorId, ProductId) to a list of dicts
-    if m is not None:
-        for t in m:
-            device = {"UUID": t[0], "VendorId": t[1].lower(), "ProductId": t[2].lower()}
-            devices.append(device)
-
-    return devices
+    # List of couples (VendorId, ProductId) for all attached USB devices
+    return attached_usb_devices
 
 
 VIRTUALBOX_VID_PID_RE = re.compile(r"0x([0-9A-Fa-f]{4}).*")
@@ -144,8 +139,8 @@ def attach_virtualbox(vm_uuid, vid_hex=None, pid_hex=None, serial=None):
             and (serial is None or serial == dev["SerialNumber"])
         ):
             attached_devices = parse_virtualbox_attached_usb_devices(vm_uuid)
-            for attached_dev in attached_devices:
-                if vid_hex == attached_dev["VendorId"] and pid_hex == attached_dev["ProductId"]:
+            for vid, pid in parse_virtualbox_attached_usb_devices(vm_uuid):
+                if vid_hex == vid and pid_hex == pid:
                     print(f"USB dev {vid_hex}:{pid_hex} already attached. Skipping attach.")
                     return
 
