@@ -216,9 +216,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     return out_dims;
   }
 
-  dnnl::memory::dims TransformStr2Dims(std::vector<std::string> strs, std::string str_name) {
+  dnnl::memory::dims TransformStr2Dims(std::vector<std::string> strs, bool dilates = false) {
     dnnl::memory::dims out_dims;
-    if (str_name == "dilates") {
+    if (dilates) {
       std::transform(strs.begin(), strs.end(), std::back_inserter(out_dims),
                      [](const std::string& str) { return std::stoi(str) - 1; });
     } else {
@@ -338,10 +338,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     dnnl::memory::dims src_dims = TransDims2Plain(input_shape, data_layout);
     dnnl::memory::dims weights_dims_ = TransDims2Plain(weight_shape, kernel_layout);
     dnnl::memory::dims bias_dims = {channels};
-    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides, "strides");
-    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, "dilates");
-    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l, "padding");
-    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r, "padding");
+    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides);
+    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, true);
+    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l);
+    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r);
     dnnl::memory::dims dst_dims = src_dims;
     dst_dims[1] = channels;
     weights_dims_[0] = channels;
@@ -463,11 +463,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
       }
     }
     dnnl::memory::dims bias_dims = {channels};
-    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides, "strides");
-    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, "dilates");
-    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l, "padding");
-    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r, "padding");
-    dnnl::memory::dims out_padding = TransformStr2Dims(str_out_padding, "padding");
+    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides);
+    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, true);
+    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l);
+    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r);
+    dnnl::memory::dims out_padding = TransformStr2Dims(str_out_padding);
     dnnl::memory::dims dst_dims = src_dims;
     dst_dims[1] = channels;
     for (int i = 2; i < src_dims.size(); i++) {
@@ -675,11 +675,11 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
     dnnl::memory::dims src_dims = TransDims2Plain(input_shape, layout);
     dnnl::memory::dims dst_dims = TransDims2Plain(out_shape, layout);
-    dnnl::memory::dims kernel_dims = TransformStr2Dims(str_kernel, "kernel");
-    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides, "strides");
-    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, "dilates");
-    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l, "padding");
-    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r, "padding");
+    dnnl::memory::dims kernel_dims = TransformStr2Dims(str_kernel);
+    dnnl::memory::dims strides_dims = TransformStr2Dims(str_strides);
+    dnnl::memory::dims dilates_dims = TransformStr2Dims(str_dilates, true);
+    dnnl::memory::dims padding_dims_l = TransformStr2Dims(str_padding_l);
+    dnnl::memory::dims padding_dims_r = TransformStr2Dims(str_padding_r);
 
     // Memory descriptions.
     auto pool_src_md = dnnl::memory::desc(src_dims, dt::f32, layout_dict[layout]);
