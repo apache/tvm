@@ -38,6 +38,7 @@ from tvm.meta_schedule.search_strategy import (
 )
 from tvm.meta_schedule.space_generator import ScheduleFn
 from tvm.meta_schedule.task_scheduler import RoundRobin
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule, Trace
 
@@ -126,6 +127,7 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
         def apply(self, trace: Trace) -> Optional[Trace]:
             return Trace(trace.insts, {})
 
+    @derived_object
     class DummyDatabase(PyDatabase):
         """Dummy Database for testing"""
 

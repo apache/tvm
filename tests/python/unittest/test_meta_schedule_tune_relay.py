@@ -21,6 +21,8 @@ import pytest
 import numpy as np
 from typing import Tuple, List
 
+from tvm.meta_schedule.utils import derived_object
+
 try:
     import torch
 except ModuleNotFoundError:
@@ -41,6 +43,7 @@ logging.basicConfig()
 logging.getLogger("tvm.meta_schedule").setLevel(logging.DEBUG)
 
 
+@derived_object
 class DummyDatabase(PyDatabase):
     def __init__(self):
         super().__init__()

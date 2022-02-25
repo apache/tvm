@@ -23,6 +23,7 @@ import math
 import pytest
 
 import tvm
+from tvm.meta_schedule.utils import derived_object
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
 from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion
@@ -83,6 +84,15 @@ def test_meta_schedule_design_space_generator_union():
     assert len(design_spaces) == 2
     for design_space in design_spaces:
         _check_correct(design_space)
+
+
+def test_meta_schedule_design_space_generator_NIE():
+    @derived_object
+    class TestPySpaceGenerator(PySpaceGenerator):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        TestPySpaceGenerator()
 
 
 if __name__ == "__main__":

@@ -142,6 +142,7 @@ class DummyRunner(PyRunner):
         return [DummyRunnerFuture() for _ in runner_inputs]
 
 
+@derived_object
 class DummyDatabase(PyDatabase):
     def __init__(self):
         super().__init__()
@@ -254,6 +255,15 @@ def test_meta_schedule_task_scheduler_multiple():
             )
             == num_trials_total
         )
+
+
+def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
+    @derived_object
+    class MyTaskScheduler(PyTaskScheduler):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
 
 
 def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name

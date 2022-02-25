@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Tuning record database"""
-from typing import Any, List
+from typing import Any, Callable, List
 
 from tvm._ffi import register_object
 from tvm.ir.module import IRModule
@@ -25,7 +25,7 @@ from tvm.tir.schedule import Trace
 
 from .. import _ffi_api
 from ..arg_info import ArgInfo
-from ..utils import _json_de_tvm, check_override
+from ..utils import _json_de_tvm
 
 
 @register_object("meta_schedule.Workload")
@@ -214,37 +214,105 @@ class Database(Object):
 
 
 @register_object("meta_schedule.PyDatabase")
-class PyDatabase(Database):
+class _PyDatabase(Database):
     """An abstract Database with customized methods on the python-side."""
 
-    def __init__(self):
+    def __init__(self, methods: List[Callable]):
         """Constructor."""
-
-        @check_override(self.__class__, Database)
-        def f_has_workload(mod: IRModule) -> bool:
-            return self.has_workload(mod)
-
-        @check_override(self.__class__, Database)
-        def f_commit_workload(mod: IRModule) -> Workload:
-            return self.commit_workload(mod)
-
-        @check_override(self.__class__, Database)
-        def f_commit_tuning_record(record: TuningRecord) -> None:
-            self.commit_tuning_record(record)
-
-        @check_override(self.__class__, Database)
-        def f_get_top_k(workload: Workload, top_k: int) -> List[TuningRecord]:
-            return self.get_top_k(workload, top_k)
-
-        @check_override(self.__class__, Database, func_name="__len__")
-        def f_size() -> int:
-            return len(self)
 
         self.__init_handle_by_constructor__(
             _ffi_api.DatabasePyDatabase,  # type: ignore  # pylint: disable=no-member
-            f_has_workload,
-            f_commit_workload,
-            f_commit_tuning_record,
-            f_get_top_k,
-            f_size,
+            *methods,
         )
+
+
+class PyDatabase:
+    """
+    An abstract runner with customized run method on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyDatabase,
+        "methods": [
+            "has_workload",
+            "commit_workload",
+            "commit_tuning_record",
+            "get_top_k",
+            "__len__",
+        ],
+        "required": {
+            "has_workload",
+            "commit_workload",
+            "commit_tuning_record",
+            "get_top_k",
+            "__len__",
+        },
+    }
+
+    def has_workload(self, mod: IRModule) -> bool:
+        """Check if the database has the given workload.
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for.
+        Returns
+        -------
+        result : bool
+            Whether the database has the given workload.
+        """
+        raise NotImplementedError
+
+    def commit_workload(self, mod: IRModule) -> Workload:
+        """Commit a workload to the database if missing.
+
+        Parameters
+        ----------
+        mod : IRModule
+            The IRModule to be searched for or added.
+
+        Returns
+        -------
+        workload : Workload
+            The workload corresponding to the given IRModule.
+        """
+        raise NotImplementedError
+
+    def commit_tuning_record(self, record: TuningRecord) -> None:
+        """Commit a tuning record to the database.
+
+        Parameters
+        ----------
+        record : TuningRecord
+            The tuning record to add.
+        """
+        raise NotImplementedError
+
+    def get_top_k(self, workload: Workload, top_k: int) -> List[TuningRecord]:
+        """Get the top K tuning records of given workload from the database.
+
+        Parameters
+        ----------
+        workload : Workload
+            The workload to be searched for.
+        top_k : int
+            The number of top records to get.
+
+        Returns
+        -------
+        top_k_records : List[TuningRecord]
+            The top K records.
+        """
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        """Get the number of records in the database.
+
+        Returns
+        -------
+        num_records : int
+            The number of records in the database
+        """
+        raise NotImplementedError
