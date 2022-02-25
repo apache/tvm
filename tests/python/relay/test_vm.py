@@ -35,8 +35,6 @@ from tvm.relay.testing import mlp
 from tvm.relay.dataflow_pattern import wildcard, is_op
 from tvm.relay.backend.vm import VMCompiler
 
-from onnx import helper, checker, mapping
-
 
 def check_result(target, dev, args, expected_result, mod):
     """
@@ -924,55 +922,27 @@ def test_get_input_index(target, dev):
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
 
-def get_one_input_onnx_model(weight_data, tensor_type, shape, data_name):
-    constant = helper.make_node(
-        "Constant",
-        inputs=[],
-        outputs=["constant"],
-        value=helper.make_tensor(
-            name="const_tensor",
-            data_type=tensor_type,
-            dims=shape,
-            vals=weight_data.flatten(),
-        ),
-    )
-    add_layer = helper.make_node("Add", [data_name, "constant"], ["out"])
-
-    graph = helper.make_graph(
-        [constant, add_layer],
-        "one_input_test",
-        inputs=[
-            helper.make_tensor_value_info(data_name, tensor_type, shape),
-        ],
-        outputs=[
-            helper.make_tensor_value_info(
-                "out", tensor_type, shape
-            )
-        ],
-    )
-    onnx_model = helper.make_model(graph, producer_name="one_input_test")
-    checker.check_model(onnx_model, full_check=True)
-    return onnx_model
+def get_one_input_relay_mod(tensor_type, shape, data_name):
+    x = relay.var(data_name, shape = shape, dtype = tensor_type)
+    y = relay.exp(x)
+    f = relay.Function([x], y)
+    return IRModule.from_expr(f)
 
 @tvm.testing.parametrize_targets("llvm")
 def test_one_set_input(target, dev):
     dtype = "float32"
-    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     in_shape = [1, 2, 3, 3]
     in_data_name_0 = "d0"
 
-    weight_data = np.random.uniform(size=in_shape).astype(dtype)
-    onnx_model = get_one_input_onnx_model(weight_data, tensor_type, in_shape, in_data_name_0)
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
 
     # Compile to VMExecutable.
-    shape_dict = {in_data_name_0: in_shape}
-    mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     vm_exec = vm.compile(mod, target=target)
     exe = runtime.vm.VirtualMachine(vm_exec, dev)
 
     data0_core = np.random.uniform(size=in_shape).astype(dtype)
     data0 = tvm.nd.array(data0_core)
-    ref_res_core = data0_core + weight_data
+    ref_res_core = np.exp(data0_core)
     ref_res = tvm.nd.array(ref_res_core)
 
     exe.set_input("main", data0)
@@ -986,53 +956,21 @@ def test_one_set_input(target, dev):
     assert output.dtype == ref_res.dtype
     tvm.testing.assert_allclose(ref_res_core, output.numpy())
 
-def get_multiple_input_onnx_model(weight_data, tensor_type, shape, data_name0, data_name1):
-    constant = helper.make_node(
-        "Constant",
-        inputs=[],
-        outputs=["constant"],
-        value=helper.make_tensor(
-            name="const_tensor",
-            data_type=tensor_type,
-            dims=shape,
-            vals=weight_data.flatten(),
-        ),
-    )
-    add_layer_0 = helper.make_node("Add", [data_name0, "constant"], ["out0"])
-    add_layer_1 = helper.make_node("Add", [data_name1, "constant"], ["out1"])
-    add_layer_2 = helper.make_node("Add", ["out0", "out1"], ["out"])
-
-    graph = helper.make_graph(
-        [constant, add_layer_0, add_layer_1, add_layer_2],
-        "multiple_input_test",
-        inputs=[
-            helper.make_tensor_value_info(data_name0, tensor_type, shape),
-            helper.make_tensor_value_info(data_name1, tensor_type, shape),
-        ],
-        outputs=[
-            helper.make_tensor_value_info(
-                "out", tensor_type, shape
-            )
-        ],
-    )
-    onnx_model = helper.make_model(graph, producer_name="multiple_input_test")
-    checker.check_model(onnx_model, full_check=True)
-    return onnx_model
+def get_multiple_input_relay_mod(tensor_type, shape, data_name0, data_name1):
+    x, y = [relay.var(c, shape=shape, dtype = tensor_type) for c in [data_name0, data_name1]]
+    f = relay.Function([x, y], x + y)
+    return IRModule.from_expr(f)
 
 @tvm.testing.parametrize_targets("llvm")
 def test_multiple_set_input(target, dev):
     dtype = "float32"
-    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     in_shape = [1, 2, 3, 3]
     in_data_name_0 = "d0"
     in_data_name_1 = "d1"
 
-    weight_data = np.random.uniform(size=in_shape).astype(dtype)
-    onnx_model = get_multiple_input_onnx_model(weight_data, tensor_type, in_shape, in_data_name_0, in_data_name_1)
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
 
     # Compile to VMExecutable.
-    shape_dict = {in_data_name_0: in_shape, in_data_name_1: in_shape}
-    mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     vm_exec = vm.compile(mod, target=target)
     exe = runtime.vm.VirtualMachine(vm_exec, dev)
 
@@ -1040,7 +978,7 @@ def test_multiple_set_input(target, dev):
     data0 = tvm.nd.array(data0_core)
     data1_core = np.random.uniform(size=in_shape).astype(dtype)
     data1 = tvm.nd.array(data1_core)
-    ref_res_core = (data0_core + weight_data) + (data1_core + weight_data)
+    ref_res_core = data0_core + data1_core
     ref_res = tvm.nd.array(ref_res_core)
 
     exe.set_input("main", data0, data1)
@@ -1057,22 +995,18 @@ def test_multiple_set_input(target, dev):
 @tvm.testing.parametrize_targets("llvm")
 def test_one_set_one_input(target, dev):
     dtype = "float32"
-    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     in_shape = [1, 2, 3, 3]
     in_data_name_0 = "d0"
 
-    weight_data = np.random.uniform(size=in_shape).astype(dtype)
-    onnx_model = get_one_input_onnx_model(weight_data, tensor_type, in_shape, in_data_name_0)
+    mod = get_one_input_relay_mod(dtype, in_shape, in_data_name_0)
 
     # Compile to VMExecutable.
-    shape_dict = {in_data_name_0: in_shape}
-    mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     vm_exec = vm.compile(mod, target=target)
     exe = runtime.vm.VirtualMachine(vm_exec, dev)
 
     data0_core = np.random.uniform(size=in_shape).astype(dtype)
     data0 = tvm.nd.array(data0_core)
-    ref_res_core = data0_core + weight_data
+    ref_res_core = np.exp(data0_core)
     ref_res = tvm.nd.array(ref_res_core)
 
     exe.set_one_input("main", 0, data0)
@@ -1094,17 +1028,13 @@ def test_one_set_one_input(target, dev):
 @tvm.testing.parametrize_targets("llvm")
 def test_multiple_set_one_input(target, dev):
     dtype = "float32"
-    tensor_type = mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dtype)]
     in_shape = [1, 2, 3, 3]
     in_data_name_0 = "d0"
     in_data_name_1 = "d1"
 
-    weight_data = np.random.uniform(size=in_shape).astype(dtype)
-    onnx_model = get_multiple_input_onnx_model(weight_data, tensor_type, in_shape, in_data_name_0, in_data_name_1)
+    mod = get_multiple_input_relay_mod(dtype, in_shape, in_data_name_0, in_data_name_1)
 
     # Compile to VMExecutable.
-    shape_dict = {in_data_name_0: in_shape, in_data_name_1: in_shape}
-    mod, _ = relay.frontend.from_onnx(onnx_model, shape_dict, freeze_params=True)
     vm_exec = vm.compile(mod, target=target)
     exe = runtime.vm.VirtualMachine(vm_exec, dev)
 
@@ -1112,7 +1042,7 @@ def test_multiple_set_one_input(target, dev):
     data0 = tvm.nd.array(data0_core)
     data1_core = np.random.uniform(size=in_shape).astype(dtype)
     data1 = tvm.nd.array(data1_core)
-    ref_res_core = (data0_core + weight_data) + (data1_core + weight_data)
+    ref_res_core = data0_core + data1_core
     ref_res = tvm.nd.array(ref_res_core)
 
     exe.set_one_input("main", 1, data1)
