@@ -132,7 +132,8 @@ void ResetThreadPool();
 
 /*!
  * \brief Configuring the CPU affinity mode for the working threads.
- * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify).
+ * \param mode The preferred CPU type (1 = big, -1 = little, -2 = kSpecifyOneCorePerThread,
+ *  -3 = kSpecifyThreadShareAllCore).
  * \param nthreads The number of threads to use (0 = use all).
  * \param cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  */

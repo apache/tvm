@@ -164,19 +164,21 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
   for (auto mode : modes) {
     for (int thread_pool_idx = 0; thread_pool_idx < threads_num; thread_pool_idx++) {
       ts.emplace_back(new std::thread(
-          [&](int thread_pool_index, int sys_max_concurrency) {
+          [&](int thread_pool_index, int sys_max_concurrency,
+              tvm::runtime::threading::ThreadGroup::AffinityMode affinity_mode) {
             std::atomic<size_t> acc(0);
             AffinityCheck ac(thread_pool_index, sys_max_concurrency, &acc);
             std::vector<unsigned int> cpus;
+            std::cout << affinity_mode << std::endl;
             for (int k = 0; k < cpus_num_per_thread; k++) {
               cpus.push_back(thread_pool_index * cpus_num_per_thread + k);
             }
-            tvm::runtime::threading ::Configure(mode, 0, cpus);
+            tvm::runtime::threading ::Configure(affinity_mode, 0, cpus);
             TVMBackendParallelLaunch(affinity_check_task_id, &ac, 0);
             EXPECT_EQ(ac.GetComputeResult(), N * (N - 1) / 2);
             EXPECT_EQ(ac.VerifyAffinity(cpus), true);
           },
-          thread_pool_idx, max_concurrency));
+          thread_pool_idx, max_concurrency, mode));
     }
   }
   for (auto& t : ts) {
