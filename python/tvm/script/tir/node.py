@@ -20,7 +20,7 @@
 from typing import Optional, Union, List, Callable
 import synr
 
-from tvm.runtime import ObjectGeneric
+from tvm.runtime import ObjectGeneric, convert
 from tvm.tir import PrimExpr, Buffer, BufferLoad
 from tvm.ir import Span
 
@@ -111,6 +111,7 @@ class BufferSlice(ObjectGeneric):
         slices: List[Union[Slice, BufferSlice]] = []
         for index in indices:
             if isinstance(index, Slice):
+                index.start, index.stop = [convert(_) for _ in [index.start, index.stop]]
                 check_index(index.start)
                 check_index(index.stop)
                 slices.append(index)
