@@ -570,64 +570,42 @@ def test_explicit_partition_hint():
 
 @T.prim_func
 def partitioned_concat_3(
-    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
-    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
-    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
-    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+    placeholder: T.Buffer[(50176,), "int8"],
+    placeholder_1: T.Buffer[(25088,), "int8"],
+    placeholder_2: T.Buffer[(25088,), "int8"],
+    T_concat: T.Buffer[(100352,), "int8"],
 ) -> None:
+    T.preflattened_buffer(placeholder, [1, 64, 28, 28], "int8", data=placeholder.data)
+    T.preflattened_buffer(placeholder_1, [1, 32, 28, 28], "int8", data=placeholder_1.data)
+    T.preflattened_buffer(placeholder_2, [1, 32, 28, 28], "int8", data=placeholder_2.data)
+    T.preflattened_buffer(T_concat, [1, 128, 28, 28], "int8", data=T_concat.data)
     for i1, i2, i3 in T.grid(64, 28, 28):
-        T.store(
-            T_concat.data,
-            i1 * 784 + i2 * 28 + i3,
-            T.load("int8", placeholder.data, i1 * 784 + i2 * 28 + i3),
-            True,
-        )
+        T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
-        T.store(
-            T_concat.data,
-            i1 * 784 + i2 * 28 + i3 + 50176,
-            T.load("int8", placeholder_1.data, i1 * 784 + i2 * 28 + i3),
-            True,
-        )
+        T_concat[i1 * 784 + i2 * 28 + i3 + 50176] = placeholder_1[i1 * 784 + i2 * 28 + i3]
     for i1, i2, i3 in T.grid(32, 28, 28):
-        T.store(
-            T_concat.data,
-            i1 * 784 + i2 * 28 + i3 + 75264,
-            T.load("int8", placeholder_2.data, i1 * 784 + i2 * 28 + i3),
-            True,
-        )
+        T_concat[i1 * 784 + i2 * 28 + i3 + 75264] = placeholder_2[i1 * 784 + i2 * 28 + i3]
 
 
 @T.prim_func
 def concat_func_3(
-    placeholder: T.Buffer[(1, 64, 28, 28), "int8"],
-    placeholder_1: T.Buffer[(1, 32, 28, 28), "int8"],
-    placeholder_2: T.Buffer[(1, 32, 28, 28), "int8"],
-    T_concat: T.Buffer[(1, 128, 28, 28), "int8"],
+    placeholder: T.Buffer[(50176,), "int8"],
+    placeholder_1: T.Buffer[(25088,), "int8"],
+    placeholder_2: T.Buffer[(25088,), "int8"],
+    T_concat: T.Buffer[(100352,), "int8"],
 ) -> None:
+    T.preflattened_buffer(placeholder, (1, 64, 28, 28), "int8", data=placeholder.data)
+    T.preflattened_buffer(placeholder_1, (1, 32, 28, 28), "int8", data=placeholder_1.data)
+    T.preflattened_buffer(placeholder_2, (1, 32, 28, 28), "int8", data=placeholder_2.data)
+    T.preflattened_buffer(T_concat, (1, 128, 28, 28), "int8", data=T_concat.data)
     for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:
-                T.store(
-                    T_concat.data,
-                    i1 * 784 + i2 * 28 + i3,
-                    T.load("int8", placeholder_2.data, i1 * 784 + i2 * 28 + i3 - 75264),
-                    True,
-                )
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_2[i1 * 784 + i2 * 28 + i3 - 75264]
             if 64 <= i1 and i1 < 96:
-                T.store(
-                    T_concat.data,
-                    i1 * 784 + i2 * 28 + i3,
-                    T.load("int8", placeholder_1.data, i1 * 784 + i2 * 28 + i3 - 50176),
-                    True,
-                )
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder_1[i1 * 784 + i2 * 28 + i3 - 50176]
             if i1 < 64:
-                T.store(
-                    T_concat.data,
-                    i1 * 784 + i2 * 28 + i3,
-                    T.load("int8", placeholder.data, i1 * 784 + i2 * 28 + i3),
-                    True,
-                )
+                T_concat[i1 * 784 + i2 * 28 + i3] = placeholder[i1 * 784 + i2 * 28 + i3]
 
 
 def test_condition_mutually_exclusive():

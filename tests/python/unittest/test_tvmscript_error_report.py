@@ -332,8 +332,7 @@ def opaque_access_during_complete(a: T.handle) -> None:  # error
     A = T.match_buffer(a, (16, 16), "float32")
     for i, j in T.grid(16, 16):
         with T.block():
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.evaluate(A[vi * 16 + vj])
+            T.evaluate(T.call_extern("dummy_extern_function", A.data, dtype="int32"))
 
 
 def test_opaque_access_during_complete():
