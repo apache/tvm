@@ -513,11 +513,11 @@ TVM_DLL Pass PlanDevices(CompilationConfig config);
 TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 
 /*!
- * \brief Substitute variables with new variables (including function parameters).
+ * \brief Substitute variables with new variables (including function parameters) in a function.
  * This is a helper function usually called by other pass functions to help optimizations.
  * Expects all values in the bind map to be Vars.
  *
- * \param expr The input expression.
+ * \param func The input function.
  * \param binds The variable to expression map that will be used to help the
  *        binding.
  *
