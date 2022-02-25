@@ -62,6 +62,7 @@ struct Optional : public dmlc::optional<T> {
   using dmlc::optional<T>::optional;
   using dmlc::optional<T>::operator=;
   Optional(const T& val) : dmlc::optional<T>(val) {}  // NOLINT(*)
+  Optional() = default;
 
   T* operator->() { return &this->operator*(); }
   const T* operator->() const { return &this->operator*(); }
