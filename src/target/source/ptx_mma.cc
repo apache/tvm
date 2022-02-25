@@ -216,35 +216,61 @@ const MMAConfig valid_mma_configs[] = {
 /*!
  * \brief Check whether the multiplicand data type and accumulator data type is valid for MMA
  * computation.
- * \param mul The multiplicand data type.
- * \param acc The accumulator data type.
+ * \param dtype_a The data type of multiplicand a.
+ * \param dtype_b The data type of multiplicand b.
+ * \param dtype_c The data type of accumulator c.
  */
-void CheckMMADTypeCompatible(DataType mul, DataType acc) {
-  switch (mul) {
+void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_c) {
+  std::string ab_not_match_err_str = "The multiplicands' data type " + DTypeToString(dtype_a) +
+                                     DTypeToString(dtype_b) + " do not match.";
+  // check a and b
+  switch (dtype_a) {
+    case DataType::kBit1:
+    case DataType::kFloat16:
+    case DataType::kBFloat16:
+    case DataType::kTensorFloat32:
+    case DataType::kFloat64:
+      CHECK(dtype_a == dtype_b) << ab_not_match_err_str;
+      break;
+    case DataType::kInt4:
+    case DataType::kUInt4:
+      CHECK(dtype_b == DataType::kInt4 || dtype_b == DataType::kUInt4) << ab_not_match_err_str;
+      break;
+    case DataType::kInt8:
+    case DataType::kUInt8:
+      CHECK(dtype_b == DataType::kInt8 || dtype_b == DataType::kUInt8) << ab_not_match_err_str;
+      break;
+    default:
+      CHECK(false) << "Invalid multiplicand data types: " << DTypeToString(dtype_a)
+                   << DTypeToString(dtype_b);
+  }
+  // check a,b and c
+  switch (dtype_a) {
     case DataType::kBit1:
     case DataType::kInt4:
     case DataType::kUInt4:
     case DataType::kInt8:
     case DataType::kUInt8:
-      CHECK(acc == DataType::kInt32) << "For multiplicand data type " << DTypeToString(mul)
-                                     << ", accumulator data type should be s32.";
+      CHECK(dtype_c == DataType::kInt32)
+          << "For multiplicand data type " << DTypeToString(dtype_a) << DTypeToString(dtype_b)
+          << ", accumulator data type should be s32.";
       break;
     case DataType::kFloat16:
-      CHECK(acc == DataType::kFloat16 || acc == DataType::kFloat32)
+      CHECK(dtype_c == DataType::kFloat16 || dtype_c == DataType::kFloat32)
           << "For multiplicand data type f16, accumulator data type should be f16/f32.";
       break;
     case DataType::kBFloat16:
     case DataType::kTensorFloat32:
-      CHECK(acc == DataType::kFloat32)
-          << "For multiplicand data type bf16/tf32, accumulator data type can only be f32";
+      CHECK(dtype_c == DataType::kFloat32)
+          << "For multiplicand data type bf16/tf32, accumulator data type can only be f32.";
       break;
     case DataType::kFloat64:
-      CHECK(acc == DataType::kFloat64)
-          << "For multiplicand data type f64, accumulator data type can only be f64";
+      CHECK(dtype_c == DataType::kFloat64)
+          << "For multiplicand data type f64, accumulator data type can only be f64.";
       break;
     default:
-      CHECK(false) << "Invalid multiplicand/accumulator data type pair: " << DTypeToString(mul)
-                   << ", " << DTypeToString(acc) << ".";
+      CHECK(false) << "Invalid multiplicand/accumulator data types: " << DTypeToString(dtype_a)
+                   << DTypeToString(dtype_b) << DTypeToString(dtype_c) << ".";
   }
 }
 
@@ -272,10 +298,7 @@ void CheckMMAConfigValidity(int m, int n, int k, LayoutType layout_a, LayoutType
   if (use_bit_op) {
     CHECK(dtype_a == DataType::kBit1) << "Bit operator is only compatible with 1bit multiplicand.";
   }
-  CHECK(dtype_a == dtype_b) << "The multiplicand data type must be equal, found "
-                            << DTypeToString(dtype_a) << " and " << ptx::DTypeToString(dtype_b)
-                            << ".";
-  CheckMMADTypeCompatible(dtype_a, dtype_c);
+  CheckMMADTypeCompatible(dtype_a, dtype_b, dtype_c);
   if (saturate) {
     CHECK(dtype_a == DataType::kInt4 || dtype_a == DataType::kUInt4 || dtype_a == DataType::kInt8 ||
           dtype_a == DataType::kUInt8)
@@ -389,23 +412,26 @@ inline uint32_t GetNumMMAComputations(int m, int n, int k, ptx::DataType dtype) 
  * \param m The M in mMnNkK of MMA instructions.
  * \param n The N in mMnNkK of MMA instructions.
  * \param k The K in mMnNkK of MMA instructions.
- * \param dtype_mul The data type of multiplicand.
- * \param dtype_acc The data type of accumulator.
+ * \param dtype_a The data type of multiplicand a.
+ * \param dtype_b The data type of multiplicand b.
+ * \param dtype_c The data type of accumulator c.
  * \param sparse Whether it's Sparse MMA or not.
  */
 inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, int n, int k,
-                                                                        ptx::DataType dtype_mul,
-                                                                        ptx::DataType dtype_acc,
+                                                                        ptx::DataType dtype_a,
+                                                                        ptx::DataType dtype_b,
+                                                                        ptx::DataType dtype_c,
                                                                         bool sparse) {
   std::stringstream templates, inputs, outputs;
-  const ptx::FragAttrs frag_attr_mul = ptx::GetFragAttrs(dtype_mul),
-                       frag_attr_acc = ptx::GetFragAttrs(dtype_acc);
+  const ptx::FragAttrs frag_attr_a = ptx::GetFragAttrs(dtype_a),
+                       frag_attr_b = ptx::GetFragAttrs(dtype_b),
+                       frag_attr_c = ptx::GetFragAttrs(dtype_c);
   constexpr uint32_t warp_size = 32;
-  const uint32_t threads = warp_size / GetNumMMAComputations(m, n, k, dtype_mul);
-  const int num_operands_a = (m * k) * ptx::DTypeBits(dtype_mul) / frag_attr_acc.size / threads /
-                             (sparse ? 2 : 1),
-            num_operands_b = (k * n) * ptx::DTypeBits(dtype_mul) / frag_attr_mul.size / threads,
-            num_operands_c = (m * n) * ptx::DTypeBits(dtype_acc) / frag_attr_acc.size / threads;
+  const uint32_t threads = warp_size / GetNumMMAComputations(m, n, k, dtype_a);
+  const int num_operands_a =
+                (m * k) * ptx::DTypeBits(dtype_a) / frag_attr_a.size / threads / (sparse ? 2 : 1),
+            num_operands_b = (k * n) * ptx::DTypeBits(dtype_b) / frag_attr_b.size / threads,
+            num_operands_c = (m * n) * ptx::DTypeBits(dtype_c) / frag_attr_c.size / threads;
 
   // generate templates;
   int arg_counter = 0;
@@ -440,15 +466,14 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       inputs << ", ";
     }
-    inputs << "\"" << frag_attr_mul.reg_type << "\"((" << frag_attr_mul.ptr_sig << "(A))[" << i
-           << "])";
+    inputs << "\"" << frag_attr_a.reg_type << "\"((" << frag_attr_a.ptr_sig << "(A))[" << i << "])";
   }
   for (int i = 0; i < num_operands_b; ++i) {
-    inputs << ", \"" << frag_attr_mul.reg_type << "\"((" << frag_attr_mul.ptr_sig << "(B))[" << i
+    inputs << ", \"" << frag_attr_b.reg_type << "\"((" << frag_attr_b.ptr_sig << "(B))[" << i
            << "])";
   }
   for (int i = 0; i < num_operands_c; ++i) {
-    inputs << ", \"" << frag_attr_acc.reg_type << "\"((" << frag_attr_acc.ptr_sig << "(C))[" << i
+    inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_sig << "(C))[" << i
            << "])";
   }
   // input of metadata for sparse mma.
@@ -461,7 +486,7 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       outputs << ",";
     }
-    outputs << " \"=" << frag_attr_acc.reg_type << "\"((" << frag_attr_acc.ptr_sig << "(D))[" << i
+    outputs << " \"=" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_sig << "(D))[" << i
             << "])";
   }
   return std::make_tuple(templates.str(), inputs.str(), outputs.str());
@@ -495,7 +520,7 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
 )";
   std::string templates_str, inputs_str, outputs_str;
   std::tie(templates_str, inputs_str, outputs_str) =
-      GetMMAOperands(m, n, k, dtype_a, dtype_c, sparse);
+      GetMMAOperands(m, n, k, dtype_a, dtype_b, dtype_c, sparse);
 
   // replace patterns
   Replacer replacer;
