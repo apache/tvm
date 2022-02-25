@@ -105,6 +105,8 @@ class RuntimeNode : public Object {
   }
 
   static constexpr const char* _type_key = "Runtime";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RuntimeNode, Object);
 };
 

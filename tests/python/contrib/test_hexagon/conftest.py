@@ -27,8 +27,8 @@ from tvm import rpc
 HEXAGON_TOOLCHAIN = "HEXAGON_TOOLCHAIN"
 TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
 TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
-ANDROID_TRACKER_KEY = "ANDROID_TRACKER_KEY"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
+ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
 
 
 @tvm.testing.fixture
@@ -49,8 +49,8 @@ def _compose(args, decs):
 def requires_hexagon_toolchain(*args):
     _requires_hexagon_toolchain = [
         pytest.mark.skipif(
-            os.environ.get("HEXAGON_TOOLCHAIN") == None,
-            reason="HEXAGON_TOOLCHAIN environment variable is required to run this test.",
+            os.environ.get(HEXAGON_TOOLCHAIN) == None,
+            reason=f"Missing environment variable {HEXAGON_TOOLCHAIN}.",
         ),
     ]
 
@@ -58,74 +58,17 @@ def requires_hexagon_toolchain(*args):
 
 
 @tvm.testing.fixture
-def android_tracker_key():
-    return os.environ["ANDROID_TRACKER_KEY"]
+def android_serial_number():
+    return os.getenv(ANDROID_SERIAL_NUMBER, default=None)
 
 
 @tvm.testing.fixture
 def tvm_tracker_host():
-    return os.environ["TVM_TRACKER_HOST"]
+    return os.getenv(TVM_TRACKER_HOST, default=None)
 
 
 @tvm.testing.fixture
 def tvm_tracker_port():
-    return int(os.environ["TVM_TRACKER_PORT"])
-
-
-@tvm.testing.fixture
-def remote_path():
-    dso_binary = "test_binary.so"
-    return os.path.join(os.environ["ANDROID_REMOTE_DIR"], dso_binary)
-
-
-@tvm.testing.fixture
-def rpc_sess(android_tracker_key, tvm_tracker_host, tvm_tracker_port):
-    from tvm import rpc
-
-    tracker = rpc.connect_tracker(tvm_tracker_host, tvm_tracker_port)
-    remote = tracker.request(android_tracker_key, priority=0, session_timeout=600)
-    return remote
-
-
-def requires_rpc_tracker_and_android_key(*args):
-    """Mark a test as requiring an RPC tracker to exist in
-    the host environment to run."""
-    _requires_rpc_tracker = [
-        *tvm.testing.requires_rpc(),
-        pytest.mark.skipif(
-            os.environ.get(TVM_TRACKER_HOST) == None,
-            reason="Missing environment variable, TVM_TRACKER_HOST",
-        ),
-        pytest.mark.skipif(
-            os.environ.get(TVM_TRACKER_PORT) == None,
-            reason="Missing environment variable, TVM_TRACKER_PORT",
-        ),
-        pytest.mark.skipif(
-            os.environ.get(ANDROID_TRACKER_KEY) == None,
-            reason="Missing environment variable, ANDROID_TRACKER_KEY",
-        ),
-        pytest.mark.skipif(
-            os.environ.get(ANDROID_REMOTE_DIR) == None,
-            reason="Missing environment variable, ANDROID_REMOTE_DIR",
-        ),
-    ]
-
-    return _compose(args, _requires_rpc_tracker)
-
-
-def requires_rpc_tracker(*args):
-    """Mark a test as requiring an RPC tracker to exist in
-    the host environment to run."""
-    _requires_rpc_tracker = [
-        *tvm.testing.requires_rpc(),
-        pytest.mark.skipif(
-            os.environ.get("TVM_TRACKER_HOST") == None,
-            reason="Missing environment variable, TVM_TRACKER_HOST",
-        ),
-        pytest.mark.skipif(
-            os.environ.get("TVM_TRACKER_PORT") == None,
-            reason="Missing environment variable, TVM_TRACKER_PORT",
-        ),
-    ]
-
-    return _compose(args, _requires_rpc_tracker)
+    port = os.getenv(TVM_TRACKER_PORT, default=None)
+    port = int(port) if port else None
+    return port

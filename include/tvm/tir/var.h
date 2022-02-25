@@ -38,7 +38,7 @@ namespace tir {
  *
  * A variable is uniquely identified by its address.
  *
- * Each variable is only binded once in the following nodes:
+ * Each variable is only bound once in the following nodes:
  * - Allocate
  * - For
  * - Let

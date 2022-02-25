@@ -66,14 +66,11 @@ void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::
     }
   }
 
-  int elements_per_row = ComputeNumElementsPerRow(one_element_size_bytes, indent_chars);
+  size_t elements_per_row = ComputeNumElementsPerRow(one_element_size_bytes, indent_chars);
   std::string indent_str(indent_chars, ' ');
 
   for (size_t i = 0; i < num_elements; i++) {
     if ((i % elements_per_row) == 0) {
-      if (i != 0) {
-        os << std::endl;
-      }
       os << indent_str;
     }
     int64_t elem = static_cast<T*>(data)[i];
@@ -99,6 +96,9 @@ void PrintIntegralArray(void* data, size_t num_elements, int indent_chars, std::
     if (i < num_elements - 1) {
       os << ", ";
     }
+    if ((i % elements_per_row) == elements_per_row - 1) {
+      os << "\n";
+    }
   }
 
   if ((num_elements % elements_per_row) != 0) {
@@ -117,7 +117,7 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
     one_element_size_bytes += 1; /* extra decimal digit in exponent, relative to bits / 4 */
   }
 
-  int elements_per_row = ComputeNumElementsPerRow(one_element_size_bytes, indent_chars);
+  size_t elements_per_row = ComputeNumElementsPerRow(one_element_size_bytes, indent_chars);
   std::string indent_str(indent_chars, ' ');
 
   std::stringstream ss;
@@ -130,9 +130,6 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
   }
   for (size_t i = 0; i < num_elements; i++) {
     if ((i % elements_per_row) == 0) {
-      if (i != 0) {
-        os << std::endl;
-      }
       os << indent_str;
     }
 
@@ -150,6 +147,9 @@ void PrintFloatingPointArray(void* data, size_t num_elements, int indent_chars, 
     }
     if (i < num_elements - 1) {
       os << ", ";
+    }
+    if ((i % elements_per_row) == elements_per_row - 1) {
+      os << "\n";
     }
   }
 
