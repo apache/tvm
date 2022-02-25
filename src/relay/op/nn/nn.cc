@@ -1165,7 +1165,8 @@ bool NLLLossRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                                      << ", weights shape = " << weights->shape);
     return false;
   }
-  if (!(predictions->dtype == weights->dtype && predictions->dtype.is_float())) {
+  if (!(predictions->dtype == weights->dtype &&
+        (predictions->dtype.is_float() || predictions->dtype.is_bfloat16()))) {
     reporter->GetDiagCtx().EmitFatal(Diagnostic::Error(reporter->GetSpan())
                                      << "NLLLossRel: predictions and weights should"
                                      << " be of the same floating type.");

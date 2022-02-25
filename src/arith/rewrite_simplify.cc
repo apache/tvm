@@ -461,7 +461,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
-    ICHECK(op->dtype.is_float() ||
+    ICHECK(op->dtype.is_float() || op->dtype.is_bfloat16() ||
            datatype::Registry::Global()->GetTypeRegistered(op->dtype.code()));
     return op->a * make_const(op->b.dtype(), 1.0 / ptr->value);
   }
