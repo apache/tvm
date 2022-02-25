@@ -25,7 +25,7 @@ import tvm
 from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.builder import LocalBuilder
-from tvm.meta_schedule.cost_model import PyCostModel
+from tvm.meta_schedule.cost_model import RandomModel
 from tvm.meta_schedule.database import PyDatabase, TuningRecord, Workload
 from tvm.meta_schedule.mutator.mutator import PyMutator
 from tvm.meta_schedule.runner import LocalRunner, RunnerResult
@@ -166,47 +166,6 @@ def test_meta_schedule_evolutionary_search():  # pylint: disable = invalid-name
 
         def print_results(self) -> None:
             print("\n".join([str(r) for r in self.records]))
-
-    class RandomModel(PyCostModel):
-        """Random cost model for testing"""
-
-        random_state: Union[Tuple[str, np.ndarray, int, int, float], dict]
-        path: Optional[str]
-
-        def __init__(
-            self,
-            *,
-            seed: Optional[int] = None,
-            path: Optional[str] = None,
-            max_range: Optional[int] = 100,
-        ):
-            super().__init__()
-            if path is not None:
-                self.load(path)
-            else:
-                np.random.seed(seed)
-                self.random_state = np.random.get_state()
-            self.max_range = max_range
-
-        def load(self, path: str) -> None:
-            self.random_state = tuple(np.load(path, allow_pickle=True))
-
-        def save(self, path: str) -> None:
-            np.save(path, np.array(self.random_state, dtype=object), allow_pickle=True)
-
-        def update(
-            self,
-            context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
-        ) -> None:
-            pass
-
-        def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
-            np.random.set_state(self.random_state)
-            result = np.random.rand(len(candidates)) * self.max_range
-            self.random_state = np.random.get_state()
-            return result
 
     num_trials_per_iter = 10
     num_trials_total = 100

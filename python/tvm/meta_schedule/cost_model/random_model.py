@@ -19,7 +19,8 @@ Random cost model
 """
 from typing import List, Optional, Tuple, Union
 
-import numpy as np  # type: ignore
+import numpy as np
+from tvm.meta_schedule.utils import derived_object  # type: ignore
 
 from ..cost_model import PyCostModel
 from ..runner import RunnerResult
@@ -27,6 +28,7 @@ from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
 
 
+@derived_object
 class RandomModel(PyCostModel):
     """Random cost model
 

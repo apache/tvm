@@ -190,9 +190,7 @@ class PyTaskScheduler:
             "join_running_task",
             "next_task_id",
         ],
-        "required": {
-            "next_task_id"
-        }
+        "required": {"next_task_id"},
     }
 
     def __init__(
@@ -213,6 +211,7 @@ class PyTaskScheduler:
 
     def tune(self) -> None:
         """Auto-tuning."""
+        # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerTune(self._outer)  # type: ignore # pylint: disable=no-member
 
     def next_task_id(self) -> int:
@@ -233,6 +232,7 @@ class PyTaskScheduler:
         task_id : int
             The task id to be joined.
         """
+        # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerJoinRunningTask(self._outer, task_id)  # type: ignore # pylint: disable=no-member
 
     def initialize_task(self, task_id: int) -> None:
@@ -243,6 +243,7 @@ class PyTaskScheduler:
         task_id : int
             The task id to be initialized.
         """
+        # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerInitializeTask(self._outer, task_id)  # type: ignore # pylint: disable=no-member
 
     def set_task_stopped(self, task_id: int) -> None:
@@ -253,6 +254,7 @@ class PyTaskScheduler:
         task_id : int
             The task id to be stopped.
         """
+        # Using self._outer to replace the self pointer
         _ffi_api.TaskSchedulerSetTaskStopped(self._outer, task_id)  # type: ignore # pylint: disable=no-member
 
     def is_task_running(self, task_id: int) -> bool:
@@ -268,4 +270,5 @@ class PyTaskScheduler:
         running : bool
             Whether the task is running.
         """
+        # Using self._outer to replace the self pointer
         return _ffi_api.TaskSchedulerIsTaskRunning(self._outer, task_id)  # type: ignore # pylint: disable=no-member

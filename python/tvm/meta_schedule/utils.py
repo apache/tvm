@@ -115,6 +115,15 @@ def derived_object(cls: Any) -> type:
             """Bridge the attribute function."""
             return self._inst.__getattribute__(name)
 
+        def __setattr__(self, name, value):
+            if name not in ["_inst", "key", "handle"]:
+                self._inst.__setattr__(name, value)
+            else:
+                super(TVMDerivedObject, self).__setattr__(name, value)
+
+        def __str__(self) -> str:
+            return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
+
     functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)
     TVMDerivedObject.__name__ = cls.__name__
     TVMDerivedObject.__doc__ = cls.__doc__

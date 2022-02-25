@@ -16,7 +16,7 @@
 # under the License.
 """Meta Schedule CostModel."""
 import ctypes
-from typing import List
+from typing import Callable, List
 
 import numpy as np  # type: ignore
 from tvm._ffi import register_object
@@ -99,41 +99,31 @@ class CostModel(Object):
 
 
 @register_object("meta_schedule.PyCostModel")
-class PyCostModel(CostModel):
-    """An abstract CostModel with customized methods on the python-side."""
+class _PyCostModel(CostModel):
+    """
+    A TVM object cost model to support customization on the python side.
+    This is NOT the user facing class for function overloading inheritance.
 
-    def __init__(self):
+    See also: PyCostModel
+    """
+
+    def __init__(self, methods: List[Callable]):
         """Constructor."""
 
-        @check_override(self.__class__, CostModel)
-        def f_load(path: str) -> None:
-            self.load(path)
-
-        @check_override(self.__class__, CostModel)
-        def f_save(path: str) -> None:
-            self.save(path)
-
-        @check_override(self.__class__, CostModel)
-        def f_update(
-            context: TuneContext,
-            candidates: List[MeasureCandidate],
-            results: List[RunnerResult],
-        ) -> None:
-            self.update(context, candidates, results)
-
-        @check_override(self.__class__, CostModel)
         def f_predict(context: TuneContext, candidates: List[MeasureCandidate], return_ptr) -> None:
             n = len(candidates)
             return_ptr = ctypes.cast(return_ptr, ctypes.POINTER(ctypes.c_double))
             array_wrapper = np.ctypeslib.as_array(return_ptr, shape=(n,))
-            array_wrapper[:] = self.predict(context, candidates)
+            res = predict_func(context, candidates)
+            array_wrapper[:] = res
             assert (
                 array_wrapper.dtype == "float64"
             ), "ValueError: Invalid data type returned from CostModel Predict!"
 
-        def f_as_string() -> str:
-            return str(self)
+        def f_as_string():
+            return self.__str__()
 
+        f_load, f_save, f_update, predict_func = methods
         self.__init_handle_by_constructor__(
             _ffi_api.CostModelPyCostModel,  # type: ignore # pylint: disable=no-member
             f_load,
@@ -143,5 +133,73 @@ class PyCostModel(CostModel):
             f_as_string,
         )
 
-    def __str__(self) -> str:
-        return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"
+
+class PyCostModel:
+    """
+    An abstract cost model with customized methods on the python-side.
+    This is the user facing class for function overloading inheritance.
+
+    Note: @derived_object is required for proper usage of any inherited class.
+    """
+
+    _tvm_metadata = {
+        "cls": _PyCostModel,
+        "methods": ["load", "save", "update", "predict"],
+        "required": {"load", "save", "update", "predict"},
+    }
+
+    def load(self, path: str) -> None:
+        """Load the cost model from given file location.
+
+        Parameters
+        ----------
+        path : str
+            The file path.
+        """
+        raise NotImplementedError
+
+    def save(self, path: str) -> None:
+        """Save the cost model to given file location.
+
+        Parameters
+        ----------
+        path : str
+            The file path.
+        """
+        raise NotImplementedError
+
+    def update(
+        self,
+        context: TuneContext,
+        candidates: List[MeasureCandidate],
+        results: List[RunnerResult],
+    ) -> None:
+        """Update the cost model given running results.
+
+        Parameters
+        ----------
+        context : TuneContext,
+            The tuning context.
+        candidates : List[MeasureCandidate]
+            The measure candidates.
+        results : List[RunnerResult]
+            The running results of the measure candidates.
+        """
+        raise NotImplementedError
+
+    def predict(self, context: TuneContext, candidates: List[MeasureCandidate]) -> np.ndarray:
+        """Update the cost model given running results.
+
+        Parameters
+        ----------
+        context : TuneContext,
+            The tuning context.
+        candidates : List[MeasureCandidate]
+            The measure candidates.
+
+        Return
+        ------
+        result : np.ndarray
+            The predicted normalized score.
+        """
+        raise NotImplementedError
