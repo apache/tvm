@@ -33,12 +33,13 @@
 #include <tvm/runtime/c_runtime_api.h>
 #ifdef __cplusplus
 #include <tvm/runtime/metadata_base.h>
-#endif
 #include <tvm/support/span.h>
+#endif
 
 // Version number recorded in emitted artifacts for runtime checking.
 #define TVM_METADATA_VERSION 1
 
+#ifdef __cplusplus
 namespace tvm {
 namespace runtime {
 namespace metadata {
@@ -51,7 +52,6 @@ static const constexpr int64_t kMetadataVersion = TVM_METADATA_VERSION;
 }  // namespace runtime
 }  // namespace tvm
 
-#ifdef __cplusplus
 extern "C" {
 #endif
 
