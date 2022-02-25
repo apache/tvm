@@ -423,10 +423,13 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
     def replace_npu_address_range_with_address(npu_addr_range):
         assert isinstance(npu_addr_range.address, tvm.tir.Load)
         buffer = npu_addr_range.address.buffer_var
+        index = int(
+            npu_addr_range.address.index * (np.iinfo(np.dtype(npu_addr_range.address)).bits // 8)
+        )
         if buffer in scratch_region_map.keys():
             return vapi.NpuAddressRange(
                 scratch_region_map[buffer].region,
-                scratch_region_map[buffer].offset,
+                scratch_region_map[buffer].offset + index,
                 npu_addr_range.length,
             )
         assert buffer in buffer_addresses.keys(), f"searching for buffer : {buffer}, but not found"
