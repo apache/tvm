@@ -37,7 +37,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-int hexagon_user_dma_1d_sync(void* src, void* dst, uint32_t length);
+int hexagon_user_dma_1d_sync(void* dst, void* src, uint32_t length);
 
 struct Allocation {
   Allocation(size_t allocation_nbytes, size_t alignment)

@@ -307,11 +307,20 @@ def test_ping_reviewers(tmpdir_factory):
 
         assert check in proc.stdout
 
+    def all_time_keys(time):
+        return {
+            "updatedAt": time,
+            "lastEditedAt": time,
+            "createdAt": time,
+            "publishedAt": time,
+        }
+
     run(
         {
             "isDraft": True,
+            "number": 2,
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     run(
@@ -319,7 +328,7 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "number": 2,
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     run(
@@ -330,7 +339,7 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {"nodes": []},
         },
         "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
@@ -345,14 +354,14 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user2"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                    {**all_time_keys("2022-01-19T17:54:19Z"), "bodyText": "abc"},
                 ]
             },
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     # Old comment, ping
@@ -364,10 +373,13 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                    {
+                        **all_time_keys("2022-01-18T17:54:19Z"),
+                        "bodyText": "abc",
+                    },
                 ]
             },
         },
@@ -383,10 +395,10 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-27T17:54:19Z", "bodyText": "abc"},
+                    {**all_time_keys("2022-01-27T17:54:19Z"), "bodyText": "abc"},
                 ]
             },
         },

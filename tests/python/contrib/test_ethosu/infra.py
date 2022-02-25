@@ -216,6 +216,8 @@ def create_test_runner(accel="ethos-u55-256", enable_usmp=True):
                 "accelerator_config": accel,
             },
             "tir.usmp.enable": enable_usmp,
+            "tir.usmp.algorithm": "hill_climb",
+            "tir.disable_storage_rewrite": enable_usmp,
         },
     )
 

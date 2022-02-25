@@ -180,8 +180,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                        IntImm(DataType::UInt(8), buffer->dtype.bits()) &&
                    TVMArrayGet(DataType::UInt(16), handle, builtin::kArrTypeLanes) ==
                        IntImm(DataType::UInt(16), buffer->dtype.lanes()));
-  if (!(buffer->dtype == DataType::Int(4) || buffer->dtype == DataType::UInt(4) ||
-        buffer->dtype == DataType::Int(1))) {
+  if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
+        buffer->dtype == DataType::UInt(4) || buffer->dtype == DataType::UInt(16))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
     asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
