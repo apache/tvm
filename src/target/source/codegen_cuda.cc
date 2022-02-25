@@ -34,7 +34,6 @@
 
 #include "literal/cuda_half_t.h"
 #include "ptx_mma.h"
-#include "ptx_mma_sp.h"
 
 namespace tvm {
 namespace codegen {
@@ -745,7 +744,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // arg 10: C accumulator
     // arg 11: C accumulator index
     // arg 12: saturate
-    ICHECK_EQ(op->args.size(), 13U);
+    // arg 13: (optional) 1-bit operator (xor or and)
+    ICHECK(op->args.size() == 13U || op->args.size() == 14U);
     std::string shape = Downcast<StringImm>(op->args[0])->value;
     std::string A_layout = Downcast<StringImm>(op->args[1])->value;
     std::string B_layout = Downcast<StringImm>(op->args[2])->value;
@@ -758,9 +758,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string b_bias = this->PrintExpr(op->args[9]);
     std::string c_ref = this->PrintExpr(op->args[10]);
     std::string c_bias = this->PrintExpr(op->args[11]);
-    bool saturate = (Downcast<IntImm>(op->args[12])->value != 0);
-    std::string asm_code = PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype,
-                                            a_ref, a_bias, b_ref, b_bias, c_ref, c_bias, saturate);
+    bool saturate = Downcast<Bool>(op->args[12])->value;
+    std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
+    std::string asm_code =
+        PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_bias, b_ref,
+                         b_bias, c_ref, c_bias, "", "", "", bit_op, false, saturate);
 
     this->stream << asm_code;
   } else if (op->op.same_as(builtin::ptx_mma_sp())) {
@@ -797,9 +799,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string metadata_offset = this->PrintExpr(op->args[13]);
     std::string sparse_selector = this->PrintExpr(op->args[14]);
     bool saturate = Downcast<Bool>(op->args[15])->value;
-    std::string asm_code = PrintMMASparseAssembly(
+    std::string asm_code = PrintMMAAssembly(
         shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
-        c_ref, c_offset, metadata, metadata_offset, sparse_selector, saturate);
+        c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
     this->stream << asm_code;
   } else {
     CodeGenC::VisitExpr_(op, os);

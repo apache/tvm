@@ -35,9 +35,12 @@ namespace codegen {
 std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layout,
                              const std::string& B_layout, const std::string& A_dtype,
                              const std::string& B_dtype, const std::string& C_dtype,
-                             const std::string& a_ref, const std::string& a_bias,
-                             const std::string& b_ref, const std::string& b_bias,
-                             const std::string& c_ref, const std::string& c_bias, bool saturate);
+                             const std::string& a_ref, const std::string& a_offset,
+                             const std::string& b_ref, const std::string& b_offset,
+                             const std::string& c_ref, const std::string& c_offset,
+                             const std::string& metadata, const std::string& metadata_offset,
+                             const std::string& sparsity_selector, const std::string& single_bit_op,
+                             bool sparse, bool saturate);
 
 }  // namespace codegen
 }  // namespace tvm

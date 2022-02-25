@@ -15,9 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-import pytest
-
 import tvm
 from tvm.script import tir as T
 import numpy as np
