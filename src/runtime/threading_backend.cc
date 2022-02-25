@@ -63,16 +63,21 @@ class ThreadGroup::Impl {
   int Configure(AffinityMode mode, int nthreads, bool exclude_worker0,
                 std::vector<unsigned int> cpus) {
     int num_workers_used = 0;
-    if (mode == kLittle) {
-      num_workers_used = little_count_;
-    } else if (mode == kBig) {
-      num_workers_used = big_count_;
-    } else if (mode == kSpecify) {
-      num_workers_used = cpus.size();
-      sorted_order_ = cpus;
-    } else {
-      // use default
-      num_workers_used = threading::MaxConcurrency();
+    switch (mode) {
+      case kLittle:
+        num_workers_used = little_count_;
+        break;
+      case kBig:
+        num_workers_used = big_count_;
+        break;
+      case kSpecifyOneCorePerThread:
+      case kSpecifyThreadShareAllCore:
+        num_workers_used = cpus.size();
+        sorted_order_ = cpus;
+        break;
+      default:
+        // use default
+        num_workers_used = threading::MaxConcurrency();
     }
     // if a specific number was given, use that
     if (nthreads) {
@@ -115,13 +120,13 @@ class ThreadGroup::Impl {
     if (val != nullptr && atoi(val) != 1) {
       return;
     }
-    // Do not set affinity if there are more workers than found cores and mode is not kSpecify.
+    // Do not set affinity if there are more workers than found cores and mode is not kSpecify*.
     if (sorted_order_.size() < static_cast<unsigned int>(num_workers_)) {
       switch (mode) {
-        case kSpecifyPerCorePerThread:
-        case kSepcifyAllThreadAllCore:
-          // if give a list of cpus and set mode as kSpecify need to restrict the threads
-          // on the said cpu list
+        // When the mode is kSpecifyOneCorePerThread or kSpecifyThreadShareAllCore, we should
+        // let the threads share all the cpu cores.
+        case kSpecifyOneCorePerThread:
+        case kSpecifyThreadShareAllCore:
           for (unsigned i = 0; i < threads_.size(); ++i) {
             SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
           }
@@ -138,14 +143,14 @@ class ThreadGroup::Impl {
     } else {
       ICHECK_GE(sorted_order_.size(), num_workers_);
       switch (mode) {
-        case kSepcifyAllThreadAllCore:
+        case kSpecifyThreadShareAllCore:
           for (unsigned i = 0; i < threads_.size(); ++i) {
             SetThreadFullCpuAffinity(threads_[i].native_handle(), mode);
           }
           break;
         case kLittle:
         case kBig:
-        case kSpecifyPerCorePerThread:
+        case kSpecifyOneCorePerThread:
           for (unsigned i = 0; i < threads_.size(); ++i) {
             bool reverse = mode == kLittle;
             unsigned core_id;
@@ -180,9 +185,9 @@ class ThreadGroup::Impl {
     // our implementation will use kBig mode by default and will let main thread
     // run on intended cores.
     std::vector<unsigned> ids;
-    switch(mode) {
-      case kSpecifyPerCorePerThread:
-      case kSepcifyAllThreadAllCore:
+    switch (mode) {
+      case kSpecifyOneCorePerThread:
+      case kSpecifyThreadShareAllCore:
         for (size_t i = 0; i < sorted_order_.size(); ++i) {
           ids.push_back(sorted_order_[i]);
         }

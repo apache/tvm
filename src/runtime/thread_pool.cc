@@ -374,14 +374,12 @@ class ThreadPool {
 
 /*!
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
- *  args[2](optional) is a list id of CPU which is used to set CPU affinity.
+ *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
 TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
   threading::ThreadGroup::AffinityMode mode =
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
   int nthreads = args[1];
-  // The maximum number of available cores.
-  int max_concurrency = 0;
   std::vector<unsigned int> cpus;
   if (args.num_args >= 3) {
     Array<String> cpu_array = args[2];
@@ -390,9 +388,8 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
       cpus.push_back(std::stoi(cpu));
       std::cout << "cpu is " << cpu << std::endl;
     }
-    max_concurrency = args[3];
   }
-  threading::Configure(mode, nthreads, cpus, max_concurrency);
+  threading::Configure(mode, nthreads, cpus);
 });
 
 namespace threading {
@@ -405,8 +402,8 @@ void ResetThreadPool() { tvm::runtime::ThreadPool::ThreadLocal()->Reset(); }
  *
  */
 void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
-               std::vector<unsigned int> cpus, int max_concurrency) {
-  tvm::runtime::threading::SetMaxConcurrency(max_concurrency);
+               std::vector<unsigned int> cpus) {
+  tvm::runtime::threading::SetMaxConcurrency(cpus.size());
   tvm::runtime::ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads, cpus);
 }
 }  // namespace threading

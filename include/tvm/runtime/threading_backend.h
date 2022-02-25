@@ -85,15 +85,15 @@ class ThreadGroup {
   enum AffinityMode : int {
     kBig = 1,
     kLittle = -1,
-    /*Different thread will get different affinity.*/
-    kSpecifyPerCorePerThread = -2,
-    /*All threads get same core group affinity.*/
-    kSepcifyAllThreadAllCore = -3,
+    /*Different threads will get different affinities.*/
+    kSpecifyOneCorePerThread = -2,
+    /*All threads will get the same core group affinity.*/
+    kSpecifyThreadShareAllCore = -3,
   };
   /*!
    * \brief configure the CPU id affinity
    *
-   * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify).
+   * \param mode The preferred CPU type (1 = big, -1 = little ...).
    * \param nthreads The number of threads to use (0 = use all).
    * \param exclude_worker0 Whether to use the main thread as a worker.
    *        If  `true`, worker0 will not be launched in a new thread and
@@ -119,7 +119,7 @@ void Yield();
  */
 int MaxConcurrency();
 /*!
- * \bief Set the maximum number of available cores.
+ * \brief Setting the maximum number of available cores.
  */
 void SetMaxConcurrency(int value);
 /*!
@@ -131,10 +131,10 @@ void SetMaxConcurrency(int value);
 void ResetThreadPool();
 
 /*!
- * \brief configure the CPU id affinity
+ * \brief Configuring the CPU affinity mode for the working threads.
  * \param mode The preferred CPU type (1 = big, -1 = little, -2 = specify).
  * \param nthreads The number of threads to use (0 = use all).
- * \param cpus A list of CPU used to set 'cpu affinity'.
+ * \param cpus A list of CPUs is used to set the 'cpu affinity' for the worker threads.
  */
 void Configure(tvm::runtime::threading::ThreadGroup::AffinityMode mode, int nthreads,
                std::vector<unsigned int> cpus);

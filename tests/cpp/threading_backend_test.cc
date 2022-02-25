@@ -155,35 +155,28 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
   }
   // Creating two threads to test the 'CPU list affinity' feature.
   const int threads_num = 2;
-  // Getting the maximum number of CPU which is available to each thread.
+  // Getting the maximum number of CPUs which are available to each thread.
   const int cpus_num_per_thread = max_concurrency / threads_num;
-  // Testing two scenario of concurrency. The '0' means there is no concurrency limitaion,
-  // The '3' means the value of maximium concurrency is '3'.
-  std::vector<int> concurrency = {0, 3};
-  for (auto concurrency_value : concurrency) {
+  // Testing two mode of affinity.,
+  std::vector<tvm::runtime::threading::ThreadGroup::AffinityMode> modes = {
+      tvm::runtime::threading::ThreadGroup::kSpecifyOneCorePerThread,
+      tvm::runtime::threading::ThreadGroup::kSpecifyThreadShareAllCore};
+  for (auto mode : modes) {
     for (int thread_pool_idx = 0; thread_pool_idx < threads_num; thread_pool_idx++) {
       ts.emplace_back(new std::thread(
-          [&](int thread_pool_index, int sys_max_concurrency, int concurrency_config) {
+          [&](int thread_pool_index, int sys_max_concurrency) {
             std::atomic<size_t> acc(0);
             AffinityCheck ac(thread_pool_index, sys_max_concurrency, &acc);
             std::vector<unsigned int> cpus;
             for (int k = 0; k < cpus_num_per_thread; k++) {
               cpus.push_back(thread_pool_index * cpus_num_per_thread + k);
             }
-            if (concurrency_config > 0) {
-              // Testing the 'Configure' functin with the 'max_concurrency' parameter.
-              tvm::runtime::threading ::Configure(tvm::runtime::threading::ThreadGroup::kSpecify, 0,
-                                                  cpus, concurrency_config);
-            } else {
-              // Testing the 'Configure' function without the 'max_concurrency' parameter.
-              tvm::runtime::threading ::Configure(tvm::runtime::threading::ThreadGroup::kSpecify, 0,
-                                                  cpus);
-            }
+            tvm::runtime::threading ::Configure(mode, 0, cpus);
             TVMBackendParallelLaunch(affinity_check_task_id, &ac, 0);
             EXPECT_EQ(ac.GetComputeResult(), N * (N - 1) / 2);
             EXPECT_EQ(ac.VerifyAffinity(cpus), true);
           },
-          thread_pool_idx, max_concurrency, concurrency_value));
+          thread_pool_idx, max_concurrency));
     }
   }
   for (auto& t : ts) {
