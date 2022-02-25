@@ -153,7 +153,9 @@ static const char* layout_type_str[] = {"row", "col"};
 /*!
  * \brief Convert layout type to string.
  */
-inline std::string LayoutTypeToString(LayoutType ltype) { return layout_type_str[int(ltype)]; }
+inline std::string LayoutTypeToString(LayoutType layout) {
+  return layout_type_str[static_cast<int>(layout)];
+}
 
 /*!
  * \brief MMA Configurations, used to determine validity.
