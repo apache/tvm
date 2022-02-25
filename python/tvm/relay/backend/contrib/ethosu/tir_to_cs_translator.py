@@ -425,6 +425,8 @@ def assign_addresses(buffer_info, npu_ops, scratch_region_map):
         return npu_fm
 
     def replace_npu_address_range_with_address(npu_addr_range):
+        assert isinstance(npu_addr_range.address, tvm.tir.BufferLoad)
+        buffer = npu_addr_range.address.buffer.data
         index = int(
             npu_addr_range.address.indices[0]
             * (np.iinfo(np.dtype(npu_addr_range.address)).bits // 8)
