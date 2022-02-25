@@ -174,20 +174,20 @@ class ScalarToTensorConstantMutator : public MixedModeMutator {
 
 IRModule ScalarToTensorConstant(const IRModule& mod) {
   for (auto gv : mod->GetGlobalVars()) {
-    Function main_func = Downcast<Function>(mod->Lookup(gv));
+    Function func = Downcast<Function>(mod->Lookup(gv));
 
     // only mutate CMSIS-NN external functions
-    auto compiler_name = main_func->GetAttr<String>(attr::kCompiler);
+    auto compiler_name = func->GetAttr<String>(attr::kCompiler);
     if (!compiler_name.defined() || compiler_name != "cmsis-nn") {
       continue;
     }
 
     auto mutator = ScalarToTensorConstantMutator(mod);
-    auto new_main_body = mutator.VisitExpr(main_func->body);
-    if (!new_main_body.same_as(main_func->body)) {
-      Function new_main_func = Function(main_func->params, new_main_body, main_func->ret_type,
-                                        main_func->type_params, main_func->attrs);
-      mod->Update(gv, new_main_func);
+    auto new_func_body = mutator.VisitExpr(func->body);
+    if (!new_func_body.same_as(func->body)) {
+      Function new_func =
+          Function(func->params, new_func_body, func->ret_type, func->type_params, func->attrs);
+      mod->Update(gv, new_func);
     }
   }
   return mod;
