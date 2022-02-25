@@ -26,7 +26,6 @@ from .. import _ffi_api
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
 from ..tune_context import TuneContext
-from ..utils import _get_hex_address, check_override
 
 
 @register_object("meta_schedule.CostModel")
