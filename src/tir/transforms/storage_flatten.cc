@@ -501,6 +501,11 @@ class BufferStrideLegalize : public StmtExprMutator {
     return StmtExprMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
   Stmt VisitStmt_(const BufferRealizeNode* op) final {
     Buffer key = op->buffer;
     Buffer with_strides = WithStrides(op->buffer);
@@ -843,6 +848,11 @@ class BufferBindUnwrapper : public StmtExprMutator {
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.
   Stmt VisitStmt_(const AllocateNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
     allocate_node_var_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
@@ -1295,6 +1305,11 @@ class StorageFlattener : public StmtExprMutator {
   // be simplified in the future by having AllocateNode hold a buffer,
   // rather than a buffer_var.
   Stmt VisitStmt_(const AllocateNode* op) final {
+    allocate_node_var_.insert(op->buffer_var.get());
+    return StmtExprMutator::VisitStmt_(op);
+  }
+
+  Stmt VisitStmt_(const AllocateConstNode* op) final {
     allocate_node_var_.insert(op->buffer_var.get());
     return StmtExprMutator::VisitStmt_(op);
   }
