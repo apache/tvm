@@ -190,6 +190,7 @@ def test_rpc_graph():
     assert len(report.calls) > 0
 
 
+@pytest.mark.xfail(strict=False, reason="See https://github.com/apache/tvm/issues/10382")
 def test_report_serialization():
     mod, params = mlp.get_workload(1)
 
