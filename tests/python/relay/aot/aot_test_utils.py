@@ -240,6 +240,7 @@ def subprocess_check_log_output(cmd, cwd, logfile):
         stderr=subprocess.STDOUT,
         encoding="utf-8",
     )
+    stdout = ""
     with open(logfile, "a") as f:
         msg = (
             "\n"
@@ -247,9 +248,11 @@ def subprocess_check_log_output(cmd, cwd, logfile):
             + f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Execute ({cwd}): {cmd}\n"
             + "-" * 80
         )
-        f.write(msg.encode())
+        f.write(msg)
+        stdout += msg + "\n"
         while True:
             data = proc.stdout.readline()
+            stdout += data
             _LOG.debug("%s: %s", cmd_base, data.rstrip("\n"))
             f.write(data)
 
@@ -260,7 +263,7 @@ def subprocess_check_log_output(cmd, cwd, logfile):
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError(
-            f"Subprocess failed: {cmd}\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+            f"Subprocess failed: {cmd}\nstdout:\n{stdout}"
         )
 
 
