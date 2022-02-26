@@ -226,6 +226,43 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Union(a, b);
   }
 
+  Entry ModByConst(const PrimExpr& lhs, int64_t val, bool round_down) {
+    Entry a = VisitExpr(lhs);
+    ICHECK_NE(val, 0);
+    if (a.coeff % val == 0) {
+      if (a.base == 0) {
+        return Entry(std::abs(val), 0);
+      }
+      // positive modulo have a clear rounding mode.
+      // Only handle case where we clearly know we need to round down for the division.
+      if (a.base > 0 && val > 0 && (round_down || parent_->CanProveGreaterEqual(lhs, round_down))) {
+        return Entry(val, a.base % val);
+      }
+    } else if (val % a.coeff == 0) {
+      if (a.base == 0 || (a.base > 0 && val > 0 &&
+                          (round_down || parent_->CanProveGreaterEqual(lhs, round_down)))) {
+        return a;
+      }
+    }
+    return Everything();
+  }
+
+  Entry VisitExpr_(const FloorModNode* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      return ModByConst(op->a, b.base, true);
+    }
+    return Everything();
+  }
+
+  Entry VisitExpr_(const ModNode* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      return ModByConst(op->a, b.base, false);
+    }
+    return Everything();
+  }
+
   Entry VisitExpr_(const CallNode* op) final {
     // only special handle >> which can be
     // used for index calculation.
