@@ -1595,7 +1595,7 @@ Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
-    return PointerValueTypeRewrite(std::move(f), true, false, false, true, false, true);
+    return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
 }
