@@ -42,6 +42,7 @@ class BuilderInput(Object):
 
     mod: IRModule
     target: Target
+    params: Optional[Dict[str, NDArray]]
 
     def __init__(
         self,
