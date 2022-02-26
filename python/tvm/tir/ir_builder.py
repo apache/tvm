@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Developer API of IR node builder make function."""
+import tvm
 from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, DataType, convert, const
 from tvm.ir import container as _container
@@ -96,6 +97,12 @@ class BufferVar(ObjectGeneric):
             index[-1] = _expr.Ramp(base, stride, t.lanes)
 
         index = [x.var if isinstance(x, _expr.IterVar) else x for x in index]
+
+        # Workaround to support previous behavior of ir_builder
+        # indexing by a single index, treating the buffer as if were
+        # already flattened.
+        if len(index) == 1 and len(self._buffer.shape) != 1:
+            index = tvm.topi.utils.unravel_index(index[0], self._buffer.shape)
 
         return index
 
