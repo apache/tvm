@@ -515,8 +515,8 @@ class BackendRuntime {
   std::unordered_map<int, ModuleInputPairList> children_;
   /*\brief A map including the runtime input index and the notification data structure.*/
   std::unordered_map<int, std::shared_ptr<DataNotify>> parents_notify_;
-  /*\brief The times of using pipeline function. */
-  uint32_t statistic_pipeline_execute_times_ = 0;
+  /*\brief The execution count of the 'RunPipeline' function. */
+  uint32_t pipeline_execution_count_ = 0;
   /*!
    *\brief In order to transfer data from one backend runtime to another, we need a local
    * tensor variable as a medium. "input_tensor_local_copy_" is a map including
@@ -691,7 +691,7 @@ class BackendRuntime {
    * \brief Getting the times of using pipeline function.
    * \return The times of using pipeline function.
    */
-  int GetExecutionCount() const { return statistic_pipeline_execute_times_; }
+  int GetExecutionCount() const { return pipeline_execution_count_; }
   /*!
    * \brief Initializing data structures for the pipeline execution.
    * \param config The pipeline configueration.
@@ -768,7 +768,7 @@ class BackendRuntime {
   void RunPipeline() {
     Run();
     ForwardingOutputDataToChildren();
-    statistic_pipeline_execute_times_++;
+    pipeline_execution_count_++;
   }
 };
 /*!
