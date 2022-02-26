@@ -300,7 +300,7 @@ def conv2d_transpose_cudnn(
         padding,
         stride,
         (1, 1),
-        groups,
+        1,
         tensor_format,
         out_dtype,
         groups=groups,
