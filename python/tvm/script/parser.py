@@ -676,7 +676,10 @@ class TVMScriptParser(Transformer):
         self.current_col_offset = node.span.start_column
         self.context.enter_scope(nodes=node.body.stmts)
         # for scope handler process the scope
-        arg_list = [tvm.runtime.convert(arg, span=node.rhs.span) for arg in self.parse_arg_list(func, node.rhs)]
+        arg_list = [
+            tvm.runtime.convert(arg, span=node.rhs.span)
+            for arg in self.parse_arg_list(func, node.rhs)
+        ]
         func.enter_scope(node, self.context, arg_list, node.rhs.func_name.span)
         func.body = self.parse_body(node)
         res = func.exit_scope(node, self.context, arg_list, node.rhs.func_name.span)

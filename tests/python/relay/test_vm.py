@@ -922,11 +922,13 @@ def test_get_input_index(target, dev):
     assert vm_factory.get_input_index(data_0) == 0
     assert vm_factory.get_input_index("invalid") == -1
 
+
 def get_one_input_relay_mod(tensor_type, shape, data_name):
-    x = relay.var(data_name, shape = shape, dtype = tensor_type)
+    x = relay.var(data_name, shape=shape, dtype=tensor_type)
     y = relay.exp(x)
     f = relay.Function([x], y)
     return IRModule.from_expr(f)
+
 
 @tvm.testing.parametrize_targets("llvm")
 def test_one_set_input(target, dev):
@@ -956,10 +958,12 @@ def test_one_set_input(target, dev):
     assert output.dtype == ref_res.dtype
     tvm.testing.assert_allclose(ref_res_core, output.numpy())
 
+
 def get_multiple_input_relay_mod(tensor_type, shape, data_name0, data_name1):
-    x, y = [relay.var(c, shape=shape, dtype = tensor_type) for c in [data_name0, data_name1]]
+    x, y = [relay.var(c, shape=shape, dtype=tensor_type) for c in [data_name0, data_name1]]
     f = relay.Function([x, y], x + y)
     return IRModule.from_expr(f)
+
 
 @tvm.testing.parametrize_targets("llvm")
 def test_multiple_set_input(target, dev):
@@ -991,6 +995,7 @@ def test_multiple_set_input(target, dev):
     output = exe.invoke("main")
     assert output.dtype == ref_res.dtype
     tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
 
 @tvm.testing.parametrize_targets("llvm")
 def test_one_set_one_input(target, dev):
@@ -1024,6 +1029,7 @@ def test_one_set_one_input(target, dev):
     output = exe.invoke("main")
     assert output.dtype == ref_res.dtype
     tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
 
 @tvm.testing.parametrize_targets("llvm")
 def test_multiple_set_one_input(target, dev):
@@ -1064,6 +1070,7 @@ def test_multiple_set_one_input(target, dev):
     output = exe.invoke("main")
     assert output.dtype == ref_res.dtype
     tvm.testing.assert_allclose(ref_res_core, output.numpy())
+
 
 @tvm.testing.parametrize_targets("llvm")
 def test_benchmark(target, dev):
