@@ -50,9 +50,10 @@ class TVMBackendRep(BackendRep):
 
         result = relay.create_executor("vm", mod=model, device=self._device, target=self._target).evaluate()(*inputs, *params)
 
+
         if isinstance(result, tvm.runtime.NDArray):
             return [result.numpy()]
-        return [r.numpy for r in result]
+        return [r.numpy() for r in result]
 
 class TVMBackend(Backend):
 
@@ -88,5 +89,4 @@ class TVMBackend(Backend):
         Checks whether the backend is compiled with particular device support.
         In particular it's used in the testing suite.
         """
-        print(device)
         return device == "CPU" or device == "CUDA"
