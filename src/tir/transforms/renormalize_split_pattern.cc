@@ -110,7 +110,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
+          return RecursiveRewrite(
+              floordiv(x.Eval() * c1_div + floordiv(y.Eval() + z.Eval(), c3), c2_div));
         }
       }
     }
@@ -122,10 +123,11 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
         if (c3 > 1) {
           IntImm c1_div = IntImm(c1.Eval().dtype(), c1_val / c3);
           IntImm c2_div = IntImm(c2.Eval().dtype(), c2_val / c3);
-          return RecursiveRewrite(floordiv(
-              x.Eval() * Broadcast(c1_div, lanes.Eval()) +
-                  floordiv(y.Eval() + z.Eval(), Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
-              Broadcast(c2_div, lanes.Eval())));
+          return RecursiveRewrite(
+              floordiv(x.Eval() * Broadcast(c1_div, lanes.Eval()) +
+                           floordiv(y.Eval() + z.Eval(),
+                                    Broadcast(IntImm(c1.Eval().dtype(), c3), lanes.Eval())),
+                       Broadcast(c2_div, lanes.Eval())));
         }
       }
     }
@@ -148,7 +150,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var match IntImm
     PVar<IntImm> c1, c2;
     // x < c2 <=> x/c2 < 1 <=> floor(x / c2) < 1
-    TVM_TRY_RECURSIVE_REWRITE_IF(x < c2, floordiv(x, c2) < 1, c2.Eval()->value > 0);
+    TVM_TRY_RECURSIVE_REWRITE_IF(x<c2, floordiv(x, c2) < 1, c2.Eval()->value> 0);
     return ret;
   }
 
