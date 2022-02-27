@@ -1092,7 +1092,7 @@ def test_forward_conv2d_transpose_group():
     styles = torch.rand(b)
 
     # cuda not supported for group > 1 conv2d_transpose
-    targets = []
+    targets = ["llvm"]
 
     if cudnn.exists():
         targets.append("cuda -libs=cudnn")
@@ -4205,5 +4205,4 @@ def test_list_tuple():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    test_forward_conv2d_transpose_group()
+    pytest.main([__file__])
