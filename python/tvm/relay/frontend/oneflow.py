@@ -284,7 +284,6 @@ class Conv(OneFlowOpConverter):
                 kernel = i
             else:
                 data = i
-        input_shape = infer_shape(data)
 
         # Use shape of input to determine convolution type.
         kernel_type = infer_type(kernel)
@@ -349,8 +348,6 @@ class ConvTranspose(OneFlowOpConverter):
         # get number of channels
         attrs["channels"] = attrs.get("filters", 1)
         attrs["groups"] = attrs.get("group", 1)
-
-        input_shape = infer_shape(data)
 
         kernel_type = infer_type(kernel)
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
@@ -1373,6 +1370,7 @@ class oneflow_input(object):
         raise StopIteration
 
 def deal_with_input_convert(node_input, node_input_shape, node_input_dtype, node_path, _nodes, _input_path_2_name):
+    """deal with input convert in oneflow."""
     if node_input not in _nodes:
         if (
             node_path not in _input_path_2_name
@@ -1398,6 +1396,7 @@ def deal_with_input_convert(node_input, node_input_shape, node_input_dtype, node
 
 
 def deal_parameter_convert(node_input_paths, model_dir_path, _input_path_2_name, _model_array, _params, _nodes):
+    """deal with parameter(weight) convert in oneflow."""
     for node_input_path in node_input_paths:
         node_path = os.path.join(model_dir_path, node_input_path.replace("m.", ""))
         node_input_name = node_input_path.split("/")[0]
@@ -1464,14 +1463,6 @@ class OneflowGraph(object):
             layer_node['params'] = array.reshape(shape)
             self._model_array[layer_name] = layer_node
 
-        """
-        The names of node_outputs do not appear directly in node.user_conf.input, 
-        so the connection between layers will be cut off when building the graph
-        steps:
-        1. find out the names of node_outputs
-        2. match names and node.user_conf.input, see the self._parse_output
-        3. If two nodes have the same name after parsing, then both correspond to the same op
-        """
         for node_name in nodes:
             node = nodes[node_name]
             if is_user_op(node):
