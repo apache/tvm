@@ -16,7 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
-"""OF: OneFlow frontend"""
+"""OneFlow: OneFlow is a performance-centered and open-source deep learning framework."""
+
 import os
 import re
 import copy
@@ -36,12 +37,10 @@ from .common import (
     AttrCvt,
     Renamer,
     fold_constant,
-    get_name,
     get_relay_op,
     infer_channels,
     infer_shape,
     infer_type,
-    infer_value,
     new_var,
 )
 
@@ -286,7 +285,6 @@ class Conv(OneFlowOpConverter):
             else:
                 data = i
         input_shape = infer_shape(data)
-        ndim = len(input_shape)
 
         # Use shape of input to determine convolution type.
         kernel_type = infer_type(kernel)
@@ -353,7 +351,6 @@ class ConvTranspose(OneFlowOpConverter):
         attrs["groups"] = attrs.get("group", 1)
 
         input_shape = infer_shape(data)
-        ndim = len(input_shape)
 
         kernel_type = infer_type(kernel)
         kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
@@ -461,7 +458,7 @@ class Conv2d(Conv):
 
 class ConvTranspose2d(ConvTranspose):
     """Operator converter for ConvTranspose2d"""
-    
+
     name = "conv2d_transpose"
 
 class BatchNorm(OneFlowOpConverter):
@@ -679,7 +676,6 @@ class BroadcastMath(OneFlowOpConverter):
             else:
                 input_a = i
 
-        # TODO(hujiakui): no info about which is a
         if cls.name == "divide":
             length = []
             for i in inputs:
@@ -792,14 +788,15 @@ class ScalarAdd(OneFlowOpConverter):
         assert len(inputs) == 1, "add_scalar take == 1 inputs, but {} given.".format(len(inputs))
 
         if attrs.get("has_int_operand", True):
-            return inputs[0] + _expr.const(attrs["int_operand"])
-        if attrs.get("has_float_operand", True):
-            return inputs[0] + _expr.const(attrs["float_operand"])
+            res = inputs[0] + _expr.const(attrs["int_operand"])
+        elif attrs.get("has_float_operand", True):
+            res = inputs[0] + _expr.const(attrs["float_operand"])
         else:
             raise AttributeError(
                 "please check if has_int_operand or has_float_operand in your attrs"
             )
 
+        return res
 
 class ScalarMul(OneFlowOpConverter):
     """Operator convert for Mul_scalar"""
@@ -809,14 +806,15 @@ class ScalarMul(OneFlowOpConverter):
         assert len(inputs) == 1, "add_scalar take == 1 inputs, but {} given.".format(len(inputs))
 
         if attrs.get("has_int_operand", True):
-            return inputs[0] * _expr.const(attrs["int_operand"], dtype="float32")
-        if attrs.get("has_float_operand", True):
-            return inputs[0] * _expr.const(attrs["float_operand"])
+            res = inputs[0] * _expr.const(attrs["int_operand"], dtype="float32")
+        elif attrs.get("has_float_operand", True):
+            res = inputs[0] * _expr.const(attrs["float_operand"])
         else:
             raise AttributeError(
                 "please check if has_int_operand or has_float_operand in your attrs"
             )
 
+        return res
 
 class ScalarPow(OneFlowOpConverter):
     """Operator convert for Pow_scalar"""
@@ -1075,7 +1073,6 @@ class Scatter(OneFlowOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attrs, params):
-        # TODO(hujiakui): sort the inputs
         axis = attrs.get("axis", 0)
         return _op.scatter(inputs[0], inputs[1], inputs[2], axis)
 
@@ -1331,6 +1328,7 @@ class oneflow_input(object):
     def __init__(self):
         self.input_keys = []
         self.input_dict = {}
+        self.n = 0
 
     def __getitem__(self, item):
         if isinstance(item, int):
@@ -1374,6 +1372,47 @@ class oneflow_input(object):
 
         raise StopIteration
 
+def deal_with_input_convert(node_input, node_input_shape, node_input_dtype, node_path, _nodes, _input_path_2_name):
+    if node_input not in _nodes:
+        if (
+            node_path not in _input_path_2_name
+            or "-input_" in node_input
+            or "FreeEagerTensor" in node_input
+        ):
+            _nodes[node_input] = new_var(
+                node_input,
+                shape=node_input_shape,
+                dtype=node_input_dtype,
+            )
+        else:
+            names = _input_path_2_name[node_path]
+            node_replace = None
+            for k in names:
+                if k in _nodes:
+                    node_replace = k
+            if node_replace is not None:
+                op_replace = copy.deepcopy(_nodes[node_replace])
+                _nodes[node_input] = op_replace
+            else:
+                print("{} will not be in _nodes".format(node_input))
+
+
+def deal_parameter_convert(node_input_paths, model_dir_path, _input_path_2_name, _model_array, _params, _nodes):
+    for node_input_path in node_input_paths:
+        node_path = os.path.join(model_dir_path, node_input_path.replace("m.", ""))
+        node_input_name = node_input_path.split("/")[0]
+        _input_path_2_name[node_path] = node_input_name
+        for param_name in _model_array:
+            node_p = _model_array[param_name]
+            if node_path == node_p['path']:
+                node_array = node_p['params']
+                _params[node_input_name] = node_array
+                _nodes[node_input_name] = new_var(
+                    node_input_name,
+                    shape=node_array.shape,
+                    dtype=str(node_array.dtype)
+                )
+                break
 
 class OneflowGraph(object):
     """
@@ -1392,7 +1431,7 @@ class OneflowGraph(object):
     3. node inputs: m.layer4.1.bn1-input_0
     4. node outputs: m.layer4.1.bn1-output_0
     """
-    def __init__(self, shape, dtype, nodes, model_dir_path) -> None:
+    def __init__(self, shape, dtype, nodes, model_dir_path):
         self._nodes = {}
         self._params = {}
         self._inputs = {}
@@ -1406,6 +1445,7 @@ class OneflowGraph(object):
         self._shape = shape
         self._dtype = dtype
         self._identity_list = []
+        self._sort_inputs = {}
 
         import oneflow
 
@@ -1437,21 +1477,7 @@ class OneflowGraph(object):
             if is_user_op(node):
                 for input_name in node.user_conf.input:
                     node_input_paths = getattr(node.user_conf.input[input_name], 's')
-                    for node_input_path in node_input_paths:
-                        node_path = os.path.join(model_dir_path, node_input_path.replace("m.", ""))
-                        node_input_name = node_input_path.split("/")[0]
-                        self._input_path_2_name[node_path] = node_input_name
-                        for param_name in self._model_array:
-                            node_p = self._model_array[param_name]
-                            if node_path == node_p['path']:
-                                node_array = node_p['params']
-                                self._params[node_input_name] = node_array
-                                self._nodes[node_input_name] = new_var(
-                                    node_input_name,
-                                    shape=node_array.shape,
-                                    dtype=str(node_array.dtype)
-                                )
-                                break
+                    deal_parameter_convert(node_input_paths, model_dir_path, self._input_path_2_name, self._model_array, self._params, self._nodes)
                 for output_name in node.user_conf.output:
                     node_output_paths = getattr(node.user_conf.output[output_name], 's')
                     for node_output_path in node_output_paths:
@@ -1483,29 +1509,7 @@ class OneflowGraph(object):
                 node_input_shape = self._shape[node_input]
                 node_input_dtype = self._dtype[node_input]
                 node_path = os.path.join(model_dir_path, i.replace("m.", ""))
-
-                if node_input not in self._nodes:
-                    if (
-                        node_path not in self._input_path_2_name
-                        or "-input_" in node_input
-                        or "FreeEagerTensor" in node_input
-                    ):
-                        self._nodes[node_input] = new_var(
-                            node_input,
-                            shape=node_input_shape,
-                            dtype=node_input_dtype,
-                        )
-                    else:
-                        names = self._input_path_2_name[node_path]
-                        node_replace = None
-                        for k in names:
-                            if k in self._nodes:
-                                node_replace = k
-                        if node_replace is not None:
-                            op_replace = copy.deepcopy(self._nodes[node_replace])
-                            self._nodes[node_name] = op_replace
-                        else:
-                            print("{} will not be in self._nodes".format(node_input))
+                deal_with_input_convert(node_input, node_input_shape, node_input_dtype, node_path, self._nodes, self._input_path_2_name)
 
 
     def _parse_output(self, op_name, outputs, cnt_init=0):
@@ -1523,9 +1527,8 @@ class OneflowGraph(object):
             elif len(outputs) > 1:
                 outputs.remove(o)
         if op_name.lower() == "dropout":
-            if len(output) == 1:
+            if len(outputs) == 1:
                 return outputs
-            # TODO(zhreshold): support dropout mask? `form onnx.py`
             outputs = outputs[:-1]
         elif op_name.lower() == "constant":
             outputs = [self._init_variable_node[cnt_init]]
@@ -1580,12 +1583,11 @@ class OneflowGraph(object):
                         "user_input['name'] should contain '-input_' " +
                         "to let program know that this is input node"
                     )
-                else:
-                    self._nodes[node_init_name] = new_var(
-                        node_init_name,
-                        shape=user_input[node_init_name]["shape"],
-                        dtype=user_input[node_init_name]["dtype"]
-                    )
+                self._nodes[node_init_name] = new_var(
+                    node_init_name,
+                    shape=user_input[node_init_name]["shape"],
+                    dtype=user_input[node_init_name]["dtype"]
+                )
                 self._inputs[node_init_name] = self._nodes[node_init_name]
 
         # step 2: find out if unsupported ops are used
@@ -1664,7 +1666,7 @@ class OneflowGraph(object):
 
                 op_temp = []
                 op_temp.append(op)
-                for i in range(len(node_outputs)):
+                for i, _ in enumerate(node_outputs):
                     if isinstance(node_outputs[i], list):
                         for k in node_outputs[i]:
                             self._nodes[k] = op_temp[i]
@@ -1695,14 +1697,13 @@ class OneflowGraph(object):
                 self._inputs[free_var] = self._nodes[free_var]
 
         input_names = list(self._inputs.keys())
-        for i in range(len(input_names)):
+        for i, _ in enumerate(input_names):
             if i != 0 and '-input_0' in input_names[i]:
                 str_buffer = copy.deepcopy(input_names[i])
                 del input_names[i]
                 input_names.insert(0, str_buffer)
                 break
 
-        self._sort_inputs = {}
         for input_name in input_names:
             if input_name in self._inputs:
                 self._sort_inputs[input_name] = self._inputs[input_name]
@@ -1760,7 +1761,6 @@ def from_oneflow(graph, model_dir_path, freeze_params=True, user_input=None):
     shape = {}
     dtype = {}
     graph_str = repr(graph)
-    DTYPE = 2
     size_where = 2
     if "cuda" in graph_str:
         size_where = 3

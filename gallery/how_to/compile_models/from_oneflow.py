@@ -35,24 +35,22 @@ https://github.com/Oneflow-Inc/oneflow
 
 Currently, TVM supports OneFlow 0.6.0. Other versions may be unstable.
 """
-
-import tvm
-from tvm import relay
-from tvm.contrib.download import download_testdata
-
 import os, math
+from matplotlib import pyplot as plt
 import numpy as np
 from PIL import Image
 
 # oneflow imports
 import oneflow as flow
 import oneflow.nn as nn
-from oneflow import Tensor
-from typing import Type, Any, Callable, Union, List, Optional
 
 # prepare for psnr and ssim
 from skimage.metrics import peak_signal_noise_ratio
 from skimage.metrics import structural_similarity
+
+import tvm
+from tvm import relay
+from tvm.contrib.download import download_testdata
 
 ######################################################################
 # OneFlow model: SRGAN
@@ -184,15 +182,13 @@ mod, params = relay.frontend.from_oneflow(graph, model_path)
 target = "cuda"
 with tvm.transform.PassContext(opt_level=10):
     intrp = relay.build_module.create_executor("graph", mod, tvm.cuda(0), target)
-dtype="float32"
-tvm_output = intrp.evaluate()(tvm.nd.array(img.astype(dtype)), **params).numpy()
+
+tvm_output = intrp.evaluate()(tvm.nd.array(img.astype('float32')), **params).numpy()
 
 ######################################################################
 # Display results
 # ---------------------------------------------
 # show the SR result.
-from matplotlib import pyplot as plt
-
 
 tvm_output = flow.Tensor(tvm_output).squeeze(0).permute(1, 2, 0) * 255
 tvm_img = tvm_output.numpy().astype(np.uint8)
