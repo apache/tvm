@@ -196,6 +196,18 @@ class ModularSetAnalyzer::Impl : public ExprFunctor<ModularSetAnalyzer::Entry(co
     return Everything();
   }
 
+  Entry VisitExpr_(const FloorModNode* op) final {
+    Entry b = VisitExpr(op->b);
+    if (b.is_const()) {
+      int64_t c2 = b.base;
+      ICHECK(c2 != 0) << "MathError: the divisor is 0";
+      Entry a = VisitExpr(op->a);
+      int64_t coeff = ZeroAwareGCD(a.coeff, c2);
+      return Entry(coeff, a.base % c2);
+    }
+    return Everything();
+  }
+
   Entry VisitExpr_(const MinNode* op) final {
     Entry a = VisitExpr(op->a);
     Entry b = VisitExpr(op->b);

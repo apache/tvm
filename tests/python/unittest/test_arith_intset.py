@@ -105,7 +105,10 @@ def test_mod():
     ck.verify(
         flm(y, 8),
         {y: tvm.arith.IntervalSet(z * 8 + x * 4, z * 8 + x * 4 + 3)},
-        (x * 4 - 8 * fld(x * 4, 8), x * 4 - 8 * fld(x * 4, 8) + 3),
+        (
+            z * 8 + x * 4 - 8 * fld(z * 8 + x * 4, 8),
+            z * 8 + x * 4 + 3 - 8 * fld(z * 8 + x * 4, 8),
+        ),
     )
     ck1 = IntSetChecker()
     ck1.analyzer.bind(x, tvm.ir.Range.from_min_extent(0, 2))
