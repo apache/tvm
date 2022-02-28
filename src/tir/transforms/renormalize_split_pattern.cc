@@ -37,13 +37,13 @@ namespace tir {
 using namespace arith;
 
 // macro for doing simple rewrite
-#define TVM_TRY_REWRITE(SrcExpr, ResExpr) \
+#define TRY_REWRITE(SrcExpr, ResExpr) \
   if ((SrcExpr).Match(ret)) {             \
     return (ResExpr).Eval();              \
   }
 
-// macro rewrite + recursive_rewrite only if CondExor is true after match.
-#define TVM_TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
+// macro rewrite + recursive_rewrite only if CondExpr is true after match.
+#define TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
   if ((SrcExpr).Match(ret) && (CondExpr)) {                      \
     return RecursiveRewrite((ResExpr).Eval());                   \
   }
@@ -64,10 +64,10 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     PVar<int> lanes;
 
     // floordiv(floormod(x, c1 * c2), c2) = floormod(floordiv(x, c2), c1)
-    TVM_TRY_RECURSIVE_REWRITE_IF(floordiv(floormod(x, c3), c2),
+    TRY_RECURSIVE_REWRITE_IF(floordiv(floormod(x, c3), c2),
                                  floormod(floordiv(x, c2), floordiv(c3, c2)),
                                  c3.Eval()->value % c2.Eval()->value == 0);
-    TVM_TRY_RECURSIVE_REWRITE_IF(
+    TRY_RECURSIVE_REWRITE_IF(
         floordiv(floormod(x, broadcast(c3, lanes)), broadcast(c2, lanes)),
         floormod(floordiv(x, broadcast(c2, lanes)), broadcast(floordiv(c3, c2), lanes)),
         c3.Eval()->value % c2.Eval()->value == 0);
@@ -150,7 +150,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var match IntImm
     PVar<IntImm> c1, c2;
     // x < c2 <=> x/c2 < 1 <=> floor(x / c2) < 1
-    TVM_TRY_RECURSIVE_REWRITE_IF(x<c2, floordiv(x, c2) < 1, c2.Eval()->value> 0);  // NOLINT
+    TRY_RECURSIVE_REWRITE_IF(x<c2, floordiv(x, c2) < 1, c2.Eval()->value> 0);  // NOLINT
     return ret;
   }
 
@@ -158,11 +158,11 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
     // Pattern var to match any expression
     PVar<PrimExpr> x, y;
-    TVM_TRY_REWRITE(!(!x), x);
-    TVM_TRY_REWRITE(!(x <= y), y < x);
-    TVM_TRY_REWRITE(!(x >= y), x < y);
-    TVM_TRY_REWRITE(!(x < y), y <= x);
-    TVM_TRY_REWRITE(!(x > y), x <= y);
+    TRY_REWRITE(!(!x), x);
+    TRY_REWRITE(!(x <= y), y < x);
+    TRY_REWRITE(!(x >= y), x < y);
+    TRY_REWRITE(!(x < y), y <= x);
+    TRY_REWRITE(!(x > y), x <= y);
     return ret;
   }
 
