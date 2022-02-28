@@ -455,11 +455,9 @@ def test_strided_slice():
 
         # Resolve unknown dimensions to create test case:
         dshape = list(dshape)
-        contains_unknown_dims = False
         for i, d in enumerate(dshape):
             if not isinstance(d, int):
                 dshape[i] = unknown_dim_value
-                contains_unknown_dims = True
         x_data = np.random.uniform(size=dshape).astype("float32")
 
         ref_res = tvm.topi.testing.strided_slice_python(
@@ -503,6 +501,7 @@ def test_strided_slice():
         (1, 120, 120, 3),
         dtype="int64",
     )
+
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
@@ -511,6 +510,7 @@ def test_strided_slice():
     verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
     verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+
     # Test backwards slicing.
     verify((3, 4, 3), [-1, -1, -1], [-5, -5, -5], [-1, -1, -1], (3, 4, 3))
     # Test slicing with overlarge indices.
@@ -519,6 +519,7 @@ def test_strided_slice():
     verify(
         (3, 4, 3), [1, 0, 0], [3, -1, 3], [1, 1, 1], (2, 4, 3), slice_mode="size", test_ref=False
     )
+
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
     verify((3, 4, 3), [1], [4], None, None, axes=[1])
 
