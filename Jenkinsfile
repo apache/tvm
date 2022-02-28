@@ -92,6 +92,7 @@ def per_exec_ws(folder) {
 
 // initialize source codes
 def init_git() {
+  sh "exit 1"
   checkout scm
   // Add more info about job node
   sh (
