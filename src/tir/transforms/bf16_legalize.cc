@@ -199,11 +199,11 @@ class BF16LowerRewriter : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<BufferStoreNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferStore(it->second, op->value, op->indices);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferStore(new_buf, op->value, op->indices);
     }
   }
 
@@ -229,11 +229,11 @@ class BF16LowerRewriter : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<BufferRealizeNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferRealize(it->second, op->bounds, op->condition, op->body);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferRealize(new_buf, op->bounds, op->condition, op->body);
     }
   }
 
@@ -246,11 +246,11 @@ class BF16LowerRewriter : public StmtExprMutator {
     PrimExpr ret = StmtExprMutator::VisitExpr_(op);
     op = ret.as<BufferLoadNode>();
 
-    auto it = buffer_remap_.find(op->buffer);
-    if (it != buffer_remap_.end()) {
-      return BufferLoad(it->second, op->indices);
-    } else {
+    Buffer new_buf = GetRemappedBuffer(op->buffer);
+    if (new_buf.same_as(op->buffer)) {
       return ret;
+    } else {
+      return BufferLoad(new_buf, op->indices);
     }
   }
 
@@ -322,6 +322,28 @@ class BF16LowerRewriter : public StmtExprMutator {
   }
 
  private:
+  Buffer GetRemappedBuffer(Buffer buf) {
+    auto buf_it = buffer_remap_.find(buf);
+    if (buf_it != buffer_remap_.end()) {
+      return buf_it->second;
+    }
+
+    Buffer new_buf = buf;
+
+    auto var_it = var_remap_.find(buf->data);
+    if (var_it != var_remap_.end()) {
+      DataType dtype =
+          buf->dtype.is_bfloat16() ? DataType::UInt(16, buf->dtype.lanes()) : buf->dtype;
+      new_buf = Buffer(var_it->second, dtype, buf->shape, buf->strides, buf->elem_offset, buf->name,
+                       buf->data_alignment, buf->offset_factor, buf->buffer_type,
+                       buf->axis_separators, buf->span);
+    }
+
+    buffer_remap_[buf] = new_buf;
+
+    return new_buf;
+  }
+
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
   std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
 };
