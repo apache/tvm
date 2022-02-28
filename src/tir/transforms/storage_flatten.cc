@@ -1281,7 +1281,8 @@ class StorageFlattener : public StmtExprMutator {
     PrimExpr value = op->value;
     if (value.dtype() == DataType::Bool()) {
       ICHECK_EQ(e.flattened_buffer->dtype, DataType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
+          << "Expected int8 backing array for boolean tensor, but received "
+          << e.flattened_buffer->dtype;
       value = tir::Cast(DataType::Int(8), value);
     }
 
@@ -1408,7 +1409,8 @@ class StorageFlattener : public StmtExprMutator {
 
     if (op->dtype == DataType::Bool()) {
       ICHECK_EQ(e.flattened_buffer->dtype, DataType::Int(8))
-          << "Expected int8 backing array for boolean tensor";
+          << "Expected int8 backing array for boolean tensor, but received "
+          << e.flattened_buffer->dtype;
       val = tir::Cast(DataType::Bool(), val);
     }
 
@@ -1531,6 +1533,11 @@ class StorageFlattener : public StmtExprMutator {
       BufferEntry entry;
       entry.buffer = buffer;
       entry.flattened_buffer = buffer.GetFlattenedBuffer();
+      // Boolean tensors are backed by a Int8 array.
+      if (entry.flattened_buffer->dtype == DataType::Bool()) {
+        auto writer = entry.flattened_buffer.CopyOnWrite();
+        writer->dtype = DataType::Int(8);
+      }
       buf_map_[buffer] = std::move(entry);
     }
 
