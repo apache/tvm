@@ -84,6 +84,8 @@ from tvm.error import TVMError
 from tvm.relay.op.contrib.ethosn import ethosn_available
 from tvm.relay.op.contrib import cmsisnn
 
+SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
+
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     """Version of np.testing.assert_allclose with `atol` and `rtol` fields set
@@ -514,6 +516,17 @@ def _compose(args, decs):
             f = d(f)
         return f
     return decs
+
+
+def slow(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        if SKIP_SLOW_TESTS:
+            pytest.skip("Skipping slow test since RUN_SLOW_TESTS environment variables is 'true'")
+        else:
+            fn(*args, **kwargs)
+
+    return wrapper
 
 
 def uses_gpu(*args):
