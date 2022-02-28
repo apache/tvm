@@ -520,7 +520,10 @@ def _build_func_common(measure_input, runtime=None, check_gpu=None, build_option
             func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
-                func = build(s, args, target_host=task.target_host, runtime=runtime)
+                import warnings
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    func = build(s, args, target_host=task.target_host, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
