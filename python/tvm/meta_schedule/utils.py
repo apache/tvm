@@ -68,6 +68,7 @@ def derived_object(cls: Any) -> type:
     """
 
     import functools  # pylint: disable=import-outside-toplevel
+    import weakref  # pylint: disable=import-outside-toplevel
 
     def _extract(inst: Any, name: str, required: Set[str]):
         """Extract function from intrinsic class."""
@@ -103,7 +104,8 @@ def derived_object(cls: Any) -> type:
             self._inst = cls(*args, **kwargs)
             # make sure the inner class can access the outside
             # used in task scheduler for hybrid funcs in c++ & python side
-            self._inst._outer = self
+            # using weakref to avoid cyclic dependency
+            self._inst._outer = weakref.ref(self)
             super().__init__(
                 # the constructor's parameters, builder, runner, etc.
                 *[getattr(self._inst, name) for name in members],
