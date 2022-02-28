@@ -44,10 +44,6 @@ from PIL import Image
 import oneflow as flow
 import oneflow.nn as nn
 
-# prepare for psnr and ssim
-from skimage.metrics import peak_signal_noise_ratio
-from skimage.metrics import structural_similarity
-
 import tvm
 from tvm import relay
 from tvm.contrib.download import download_testdata
@@ -211,6 +207,5 @@ for mode in ["oneflow", "tvm"]:
         _img = tvm_img
     if hr_path != "":
         image_hr = np.array(Image.open(hr_path))
-        psnr = peak_signal_noise_ratio(image_hr, _img)
-        ssim = structural_similarity(image_hr, _img, multichannel=True)
-        print("{}: psnr:{},ssim:{} \n".format(mode, psnr, ssim))
+        plt.imshow(image_hr.astype(np.uint8))
+        plt.show()

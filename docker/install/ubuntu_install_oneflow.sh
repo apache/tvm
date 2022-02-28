@@ -20,5 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install scikit-image
 python3 -m pip install -f https://release.oneflow.info oneflow==0.6.0+cpu
