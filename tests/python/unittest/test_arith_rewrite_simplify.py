@@ -81,6 +81,10 @@ def test_vector_simplify():
     ck.verify(fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8), fld(tvm.tir.Ramp(x * 8 + 15, 1, 4), 8))
     ck.verify(fld(tvm.tir.Ramp(x, 8, 5), tvm.tir.Broadcast(4, 5)), tvm.tir.Ramp(fld(x, 4), 2, 5))
     ck.verify(
+        fld(tvm.tir.Ramp(flm(x * 4, 256), 1, 4), tvm.tir.Broadcast(8, 4)),
+        tvm.tir.Broadcast(fld(flm(x * 4, 256), 8), 4)
+    )
+    ck.verify(
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
         fld(tvm.tir.Ramp(x, 7, 4), tvm.tir.Broadcast(4, 4)),
     )
@@ -277,6 +281,7 @@ def test_add_index_simplify():
     flm = tvm.te.floormod
     ck.verify(y * flm(x, 8) + 10 * flm(x, 8), flm(x, 8) * (y + 10))
     ck.verify(fld(x, 8) * 8 + flm(x, 8), x)
+    ck.verify(fld(flm(x, 2) + 7, 2) + fld(x, 2), fld(x + 7, 2))
 
 
 def test_sub_index_simplify():
