@@ -449,8 +449,11 @@ inline const CallNode* GetRootCall(const CallNode* current_call, int depth,
   }
 
   ICHECK_GT(current_call->args.size(), 0);
-
-  const auto* next_call = current_call->args[0].as<CallNode>();
+  int i = 0;
+  while (i < current_call->args.size() && current_call->args[i].as<VarNode>()) {
+      i++;
+  }
+  const auto* next_call = current_call->args[i].as<CallNode>();
   return GetRootCall(next_call, depth - 1, expected_op_names);
 }
 
