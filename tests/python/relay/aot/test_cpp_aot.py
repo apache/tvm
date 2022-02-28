@@ -24,20 +24,8 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import relay, TVMError
-from tvm.ir.module import IRModule
-from tvm.relay import backend, testing, transform
-from tvm.relay.testing import byoc
-from tvm.relay.op.annotation import compiler_begin, compiler_end
-from aot_test_utils import (
-    AOTTestModel,
-    AOT_DEFAULT_RUNNER,
-    generate_ref_data,
-    convert_to_relay,
-    compile_and_run,
-    compile_models,
-    parametrize_aot_options,
-)
+from tvm.relay import backend, testing
+from aot_test_utils import generate_ref_data
 
 
 def test_error_c_interface():
@@ -67,9 +55,10 @@ def test_error_c_interface():
 
 
 enable_usmp = tvm.testing.parameter(True, False)
+target_kind = tvm.testing.parameter("c", "llvm")
 
 
-def test_conv2d(enable_usmp):
+def test_conv2d(enable_usmp, target_kind):
     RELAY_MODEL = textwrap.dedent(
         """\
         #[version = "0.0.5"]
@@ -117,7 +106,7 @@ def test_conv2d(enable_usmp):
         mod = tvm.relay.build(
             ir_mod,
             params=params,
-            target="c",
+            target=target_kind,
             executor=backend.Executor("aot", {"interface-api": "packed"}),
         )
 

@@ -23,6 +23,7 @@
  */
 #ifndef TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
+#include <llvm/IR/GlobalValue.h>
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/arith/analyzer.h>
@@ -141,7 +142,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param e The expression to be created value for.
    * \return created value.
    */
-  llvm::Value* MakeValue(const PrimExpr& e) { return VisitExpr(e); }
+  llvm::Value* MakeValue(const PrimExpr& e) {
+    auto a = VisitExpr(e); /* LOG(INFO) << "MakeValue (" << e << "): " << a; */
+    return a;
+  }
   // Short hande code to get a constant int 32
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
@@ -189,6 +193,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
+
+  // Get constant string
+  llvm::Constant* GetConstString(const std::string& str);
+
+  llvm::Constant* GetGlobalConstant(
+      llvm::Constant* const_data, const std::string& name = "",
+      llvm::GlobalValue::LinkageTypes linkage_type = llvm::GlobalValue::InternalLinkage);
 
  protected:
   /*!
@@ -342,6 +353,14 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type* ret_type,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   /*!
+   * \brief Lookup or create a GlobalVariable whose content is the data field of a DLTensor for a
+   * given linked_param() CallNode.
+   * \param param_name Parameter name (e.g. unmangled, from lookup_param node).
+   * \return the GlobalVariable indicated in the brief.
+   */
+  llvm::GlobalVariable* GetLinkedParamSymbol(const ::std::string& param_name,
+                                             llvm::ConstantArray* array);
+  /*!
    * \brief Get the number of elements in the given vector value.
    * \param vec The value, must be of a vector type.
    */
@@ -353,8 +372,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                     int* p_native_bits);
   // Returns whether the LLVM type has padding for alignment
   bool HasAlignmentPadding(DataType dtype);
-  // Get constant string
-  llvm::Constant* GetConstString(const std::string& str);
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
@@ -388,6 +405,16 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::GlobalVariable* AllocateSharedMemory(DataType dtype, size_t size,
                                              unsigned int shared_address_space, int alignment,
                                              llvm::GlobalValue::LinkageTypes linkage);
+
+  llvm::Argument* GetArg(const llvm::Function* function, int i) const {
+#if TVM_LLVM_VERSION >= 100
+    return function->getArg(i);
+#elif TVM_LLVM_VERSION >= 50
+    return const_cast<llvm::Argument*>(&function->arg_begin()[i]);
+#else
+    return const_cast<llvm::Argument*>(&*std::next(function->arg_begin(), i));
+#endif
+  }
 
   // The IRBuilder.
   using IRBuilder = llvm::IRBuilder<llvm::ConstantFolder, llvm::IRBuilderDefaultInserter>;
@@ -447,6 +474,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
   const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
   const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+  const Op& builtin_lookup_param_ = builtin::lookup_param();
+  const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
@@ -481,6 +510,8 @@ void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfu
     return name_a < name_b;
   });
   for (auto& f : funcs) {
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    LOG(INFO) << "Adding " << static_cast<std::string>(global_symbol.value());
     AddFunction(f);
   }
 }
