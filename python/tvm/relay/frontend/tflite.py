@@ -1974,9 +1974,9 @@ class OperatorConverter(object):
         # Change the output shape calculation based on keep_dim option
         if keep_num_dims:
             input_shape = _infer_shape(self.get_tensor_expr(input_tensor))
-            output_shape = input_shape
+            output_shape = list(input_shape)
             output_shape[-1] = weight_tensor_shape[0]
-            out = _op.reshape(out, output_shape)
+            out = _op.reshape(out, tuple(output_shape))
 
         return out
 
