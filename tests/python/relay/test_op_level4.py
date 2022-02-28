@@ -19,11 +19,9 @@ import sys
 import numpy as np
 import numpy.random
 import pytest
-
 import tvm
 import tvm.testing
 import tvm.topi.testing
-
 from tvm import relay, te
 from tvm.relay import transform
 from tvm.relay.testing import run_infer_type
@@ -448,14 +446,22 @@ def test_strided_slice():
         slice_mode="end",
         test_ref=True,
         dtype="int32",
+        unknown_dim_value=10,
     ):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
         end = end if end else list(dshape)
 
-        # target numpy result
+        # Resolve unknown dimensions to create test case:
+        dshape = list(dshape)
+        contains_unknown_dims = False
+        for i, d in enumerate(dshape):
+            if not isinstance(d, int):
+                dshape[i] = unknown_dim_value
+                contains_unknown_dims = True
         x_data = np.random.uniform(size=dshape).astype("float32")
+
         ref_res = tvm.topi.testing.strided_slice_python(
             x_data,
             begin,
@@ -484,9 +490,8 @@ def test_strided_slice():
         if not test_ref:
             return
         for target, dev in tvm.testing.enabled_targets():
-            op_res = relay.create_executor("graph", device=dev, target=target).evaluate(func)(
-                x_data
-            )
+            # Need VM to run tests with non-static dimensions
+            op_res = relay.create_executor("vm", device=dev, target=target).evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.numpy(), ref_res)
 
     verify((1, 3, 10, 10), [0, 0, 0, 0], [-1, 3, 10, 10], [1], (0, 3, 10, 10), dtype="int64")
@@ -516,6 +521,18 @@ def test_strided_slice():
     )
     verify((3, 4, 3), [1, 0, 0], [-1, 2, 3], [1, 1, 1], (2, 2, 3), slice_mode="size", test_ref=True)
     verify((3, 4, 3), [1], [4], None, None, axes=[1])
+
+    # Test Any dims for simple cases
+    verify((3, relay.Any()), [0], [1], [1], None, axes=[1], unknown_dim_value=10)
+    verify((relay.Any(), 3), [0], [1], [1], None, axes=[1], unknown_dim_value=10)
+    verify(
+        (relay.Any(), relay.Any(), relay.Any()),
+        [0, 1, 2],
+        [5, 5, 5],
+        [1, 2, 1],
+        None,
+        unknown_dim_value=10,
+    )
 
 
 @tvm.testing.uses_gpu
