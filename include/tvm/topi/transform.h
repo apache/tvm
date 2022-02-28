@@ -1566,7 +1566,11 @@ inline Array<Tensor> meshgrid(const Array<Tensor>& inputs, const std::string& in
         out_shape,
         [&](const Array<Var>& indices) {
           const int src_index = (cartesian_indexing && i < 2) ? 1 - i : i;
-          Array<PrimExpr> real_indices = {indices[src_index]};
+          auto ndim = inputs[i]->GetShape().size();
+          Array<PrimExpr> real_indices = {};
+          if (ndim > 0) {
+            real_indices = {indices[src_index]};
+          }
           return inputs[i](real_indices);
         },
         name, tag));
