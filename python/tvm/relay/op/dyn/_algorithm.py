@@ -42,12 +42,12 @@ def _topk_shape_func_input_data(data, k, axis):
             val_out[i] = int64(data.shape[i])
             indices_out[i] = int64(data.shape[i])
         else:
-            if k[()] < 1:
+            if k[0] < 1:
                 val_out[i] = int64(data.shape[i])
                 indices_out[i] = int64(data.shape[i])
             else:
-                val_out[i] = int64(k[()])
-                indices_out[i] = int64(k[()])
+                val_out[i] = int64(k[0])
+                indices_out[i] = int64(k[0])
     return val_out, indices_out
 
 

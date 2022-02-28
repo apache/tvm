@@ -121,7 +121,7 @@ class TensorToBufferMapper : public StmtExprMutator {
     auto ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<ProducerStoreNode>();
 
-    return BufferStore(buffer, op->value, op->indices);
+    return BufferStore(buffer, op->value, GetIndices(op->indices, buffer->shape));
   }
 
   PrimExpr VisitExpr_(const ProducerLoadNode* op) final {
@@ -129,7 +129,7 @@ class TensorToBufferMapper : public StmtExprMutator {
     op = ret.as<ProducerLoadNode>();
     Tensor tensor = Downcast<Tensor>(op->producer);
     Buffer buffer = GetBuffer(tensor);
-    return tir::BufferLoad(buffer, op->indices);
+    return tir::BufferLoad(buffer, GetIndices(op->indices, buffer->shape));
   }
 
  private:
@@ -145,6 +145,30 @@ class TensorToBufferMapper : public StmtExprMutator {
     auto buffer = CreateBufferFor(tensor, storage_scope);
     buffer_map_[tensor] = buffer;
     return buffer;
+  }
+
+  Array<PrimExpr> GetIndices(const Array<PrimExpr>& tensor_indices,
+                             const Array<PrimExpr>& buffer_shape) {
+    if (tensor_indices.size() == buffer_shape.size()) {
+      return tensor_indices;
+    } else if (tensor_indices.size() == 1) {
+      // Workaround to support previous behavior of tensor indexing by
+      // a single index, treating the tensor as if were already
+      // flattened by a row-major traversal.
+      PrimExpr unravel = tensor_indices[0];
+      Array<PrimExpr> rev_indices;
+      for (size_t i = buffer_shape.size(); i > 0; i--) {
+        PrimExpr dim = buffer_shape[i - 1];
+        rev_indices.push_back(indexmod(unravel, dim));
+        unravel = indexdiv(unravel, dim);
+      }
+      return Array<PrimExpr>(rev_indices.rbegin(), rev_indices.rend());
+    } else {
+      LOG(FATAL) << "Cannot produce indices for " << buffer_shape.size()
+                 << "-dimensional TIR buffer using " << tensor_indices.size()
+                 << "-dimensional tensor indices.";
+      return {};
+    }
   }
 
   // Maps tensor to buffer.
