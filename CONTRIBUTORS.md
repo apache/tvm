@@ -56,6 +56,7 @@ We do encourage everyone to work anything they are interested in.
 - [Kazutaka Morita](https://github.com/kazum): @kazum - frontends, opencl
 - [Trevor Morris](https://github.com/trevor-m): @trevor-m - byoc, compiler
 - [Leandro Nunes](https://github.com/leandron): @leandron - tvmc
+- [Lily Orth-Smith](https://github.com/electriclilies): @electriclilies - relay
 - [Krzysztof Parzyszek](https://github.com/kparzysz-quic): @kparzysz-quic - hexagon, llvm
 - [Andrew Reusch](https://github.com/areusch): (PMC) @areusch - runtime, microTVM
 - [Jared Roesch](https://github.com/jroesch) (PMC): @jroesch - relay
@@ -107,7 +108,7 @@ We do encourage everyone to work anything they are interested in.
 - [Manupa Karunaratne](https://github.com/manupa-arm): @manupa-arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige
-- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 
+- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Andrew Liu](https://github.com/hypercubestart): @hypercubestart
 - [Henry Liu](https://github.com/optima2005): @optima2005
