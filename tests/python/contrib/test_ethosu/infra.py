@@ -251,13 +251,23 @@ def verify_source(
     """
     interface_api = "c"
     test_runner = create_test_runner(accel, enable_usmp)
-    run_and_check(
-        models,
-        test_runner,
-        interface_api,
-        workspace_byte_alignment=16,
-        data_linkage=AOTDataLinkage(section="ethosu_scratch", alignment=16),
-    )
+
+    def run_mod():
+        run_and_check(
+            models,
+            test_runner,
+            interface_api,
+            workspace_byte_alignment=16,
+            data_linkage=AOTDataLinkage(section="ethosu_scratch", alignment=16),
+        )
+
+    # TODO(lhutton1) This is a quick and dirty work around to help temporarily reduce
+    # the flakyness of the tests. Will remove once #10300 is resolved.
+    try:
+        run_mod()
+    except AssertionError:
+        print("Failed to compile or run the module, having a second attempt...")
+        run_mod()
 
 
 def flatten_numpy_data(data):
