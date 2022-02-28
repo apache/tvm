@@ -2950,8 +2950,9 @@ class PyTorchOpConverter:
             msg = f"padding_mode {padding_mode} is not surpportted"
             raise ValueError(msg)
 
-        return _op.image.grid_sample(inputs[0], grid, interpolate_str,
-                                    layout, padding_mode_str, align_corners)
+        return _op.image.grid_sample(
+            inputs[0], grid, interpolate_str, layout, padding_mode_str, align_corners
+        )
 
 
     # Operator mappings

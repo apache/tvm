@@ -390,8 +390,6 @@ def _grid_sample_func(data, grid):
         out[1] = int64(data[1])
         out[2] = int64(grid[2])
         out[3] = int64(grid[3])
-        return out
-
     elif len(data) == 5:
         out = output_tensor((5,), "int64")
         out[0] = int64(data[0])
@@ -399,11 +397,11 @@ def _grid_sample_func(data, grid):
         out[2] = int64(grid[2])
         out[3] = int64(grid[3])
         out[4] = int64(grid[4])
-        return out
-
     else:
         msg = f"dimension is not surpported"
         raise ValueError(msg)
+
+    return out
 
 
 @reg.register_shape_func("image.grid_sample", False)

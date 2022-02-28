@@ -455,7 +455,9 @@ def affine_grid(data, target_shape=None):
     return _make.affine_grid(data, target_shape)
 
 
-def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode="zeros"):
+def grid_sample(
+    data, grid, method="bilinear", layout="NCHW", padding_mode="zeros", align_corners=True
+):
     """Applies grid sampling to input feature map.
 
     Given :math:`data` and :math:`grid`, then the output is computed by

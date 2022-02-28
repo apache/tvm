@@ -35,7 +35,7 @@ def grid_sample_2d(
     padding_mode='zeros',
     align_corners=True
     ):
-    r''''''
+    r'''grid_sample_2d for NCHW layout'''
 
     assert method in ("bilinear", "nearest", "bicubic"), f"{method} is not supported"
     assert padding_mode in ("zeros", "border", "reflection"), f"{padding_mode} is not supported"
@@ -47,8 +47,8 @@ def grid_sample_2d(
     out_shape = [batch, channel, out_height, out_width]
     out = np.zeros(out_shape)
 
-    def _get_pixel_value(b, c, h, w):
-        if h >= 0 and h <= in_height - 1 and w >= 0 and w <= in_width - 1:
+    def _get_pixel(b, c, h, w):
+        if 0 <= h <= in_height - 1 and 0 <= w <= in_width - 1:
             return data[b, c, h, w]
         return 0
 
@@ -73,15 +73,17 @@ def grid_sample_2d(
                 extra = index_align_corner - size_times * size
                 return extra + corner_start if even else size - extra + corner_start
 
-            if i >= corner_start and i <= size + corner_start:
-                return i
+            if corner_start <= i <= size + corner_start:
+                new_i = i
             else:
-                return __reflect(i, size, corner_start)
+                new_i = __reflect(i, size, corner_start)
+            return new_i
 
         if align_corners:
-            return __refelection(i, size - 1, 0)
+            x = __refelection(i, size - 1, 0)
         else:
-            return __refelection(i, size, -0.5)
+            x = __refelection(i, size, -0.5)
+        return x
 
     def _compute_source_index(b, h, w):
         y = grid[b, 1, h, w]
@@ -107,7 +109,7 @@ def grid_sample_2d(
                         y, x = _compute_source_index(_b, _h, _w)
                         new_y = int(y + 0.5) if y > 0 else int(y - 0.5)
                         new_x = int(x + 0.5) if x > 0 else int(x - 0.5)
-                        out[_b, _c, _h, _w] = _get_pixel_value(_b, _c, new_y, new_x)
+                        out[_b, _c, _h, _w] = _get_pixel(_b, _c, new_y, new_x)
 
     def _bilinear_sample():
         for _b in range(batch):
@@ -121,10 +123,10 @@ def grid_sample_2d(
                         x1 = x0 + 1
 
                         out[_b, _c, _h, _w] = \
-                                _get_pixel_value(_b, _c, y0, x0) * (1.0 - (y - y0)) * (1.0 - (x - x0)) + \
-                                _get_pixel_value(_b, _c, y0, x1) * (1.0 - (y - y0)) * (x - x0)         + \
-                                _get_pixel_value(_b, _c, y1, x0) * (y - y0)         * (1.0 - (x - x0)) + \
-                                _get_pixel_value(_b, _c, y1, x1) * (y - y0)         * (x - x0)
+                            _get_pixel(_b, _c, y0, x0) * (1.0 - (y - y0)) * (1.0 - (x - x0)) + \
+                            _get_pixel(_b, _c, y0, x1) * (1.0 - (y - y0)) * (x - x0)         + \
+                            _get_pixel(_b, _c, y1, x0) * (y - y0)         * (1.0 - (x - x0)) + \
+                            _get_pixel(_b, _c, y1, x1) * (y - y0)         * (x - x0)
 
     def _bicubic_sample():
         A = -0.75
@@ -141,7 +143,50 @@ def grid_sample_2d(
             weights[1] = cubic_weight_1(x_fraction)
             weights[2] = cubic_weight_1(1 - x_fraction)
             weights[3] = cubic_weight_2(2 - x_fraction)
-            return pixel_0 * weights[0] + pixel_1 * weights[1] + pixel_2 * weights[2] + pixel_3 * weights[3]
+
+            return pixel_0 * weights[0] + \
+                pixel_1 * weights[1] + \
+                pixel_2 * weights[2] + \
+                pixel_3 * weights[3]
+
+        def coefficients_along_x(x_floor, y_floor, x_fraction):
+            coefficients = [0] * 4
+
+            for i in range(4):
+                y_ = y_floor - 1 + i
+                x_0 = x_floor - 1
+                x_1 = x_floor + 0
+                x_2 = x_floor + 1
+                x_3 = x_floor + 2
+
+                if padding_mode == "border":
+                    y_ = _clip_coordinates(y_, in_height)
+                    x_0 = _clip_coordinates(x_0, in_width)
+                    x_1 = _clip_coordinates(x_1, in_width)
+                    x_2 = _clip_coordinates(x_2, in_width)
+                    x_3 = _clip_coordinates(x_3, in_width)
+
+                elif padding_mode == "reflection":
+                    y_ = _reflect_coordinates(y_, in_height)
+                    x_0 = _reflect_coordinates(x_0, in_width)
+                    x_1 = _reflect_coordinates(x_1, in_width)
+                    x_2 = _reflect_coordinates(x_2, in_width)
+                    x_3 = _reflect_coordinates(x_3, in_width)
+
+                    y_ = int(_clip_coordinates(y_, in_height))
+                    x_0 = int(_clip_coordinates(x_0, in_width))
+                    x_1 = int(_clip_coordinates(x_1, in_width))
+                    x_2 = int(_clip_coordinates(x_2, in_width))
+                    x_3 = int(_clip_coordinates(x_3, in_width))
+
+                coefficients[i] = cubic_interp_1d(
+                    _get_pixel(_b, _c, y_, x_0),
+                    _get_pixel(_b, _c, y_, x_1),
+                    _get_pixel(_b, _c, y_, x_2),
+                    _get_pixel(_b, _c, y_, x_3),
+                    x_fraction
+                )
+            return coefficients
 
         for _b in range(batch):
             for _c in range(channel):
@@ -155,42 +200,7 @@ def grid_sample_2d(
                         y_fraction = y - y_floor
                         x_fraction = x - x_floor
 
-                        coefficients = [0] * 4
-
-                        for i in range(4):
-                            y_ = y_floor - 1 + i
-                            x_0 = x_floor - 1
-                            x_1 = x_floor + 0
-                            x_2 = x_floor + 1
-                            x_3 = x_floor + 2
-
-                            if padding_mode == "border":
-                                y_ = _clip_coordinates(y_, in_height)
-                                x_0 = _clip_coordinates(x_0, in_width)
-                                x_1 = _clip_coordinates(x_1, in_width)
-                                x_2 = _clip_coordinates(x_2, in_width)
-                                x_3 = _clip_coordinates(x_3, in_width)
-
-                            elif padding_mode == "reflection":
-                                y_ = _reflect_coordinates(y_, in_height)
-                                x_0 = _reflect_coordinates(x_0, in_width)
-                                x_1 = _reflect_coordinates(x_1, in_width)
-                                x_2 = _reflect_coordinates(x_2, in_width)
-                                x_3 = _reflect_coordinates(x_3, in_width)
-
-                                y_ = int(_clip_coordinates(y_, in_height))
-                                x_0 = int(_clip_coordinates(x_0, in_width))
-                                x_1 = int(_clip_coordinates(x_1, in_width))
-                                x_2 = int(_clip_coordinates(x_2, in_width))
-                                x_3 = int(_clip_coordinates(x_3, in_width))
-
-                            coefficients[i] = cubic_interp_1d(
-                                _get_pixel_value(_b, _c, y_, x_0),
-                                _get_pixel_value(_b, _c, y_, x_1),
-                                _get_pixel_value(_b, _c, y_, x_2),
-                                _get_pixel_value(_b, _c, y_, x_3),
-                                x_fraction
-                            )
+                        coefficients = coefficients_along_x(x_floor, y_floor, x_fraction)
 
                         out[_b, _c, _h, _w] = cubic_interp_1d(
                             coefficients[0],
@@ -216,7 +226,7 @@ def grid_sample_3d(
     padding_mode='zeros',
     align_corners=True
     ):
-    r''''''
+    r'''grid_sample_3d for NCDHW layout'''
 
     assert method in ("bilinear", "nearest"), f"{method} is not supported"
     assert padding_mode in ("zeros", "border", "reflection"), f"{padding_mode} is not supported"
@@ -228,10 +238,10 @@ def grid_sample_3d(
     out_shape = [batch, channel, out_depth, out_height, out_width]
     out = np.zeros(out_shape)
 
-    def _get_pixel_value(b, c, d, h, w):
-        if d >= 0 and d <= in_depth - 1 and \
-            h >= 0 and h <= in_height - 1 and \
-            w >= 0 and w <= in_width - 1:
+    def _get_pixel(b, c, d, h, w):
+        if 0 <= d <= in_depth - 1 and \
+            0 <= h <= in_height - 1 and \
+            0 <= w <= in_width - 1:
             return data[b, c, d, h, w]
         return 0
 
@@ -258,15 +268,17 @@ def grid_sample_3d(
                 extra = index_align_corner - size_times * size
                 return extra + corner_start if even else size - extra + corner_start
 
-            if i >= corner_start and i <= size + corner_start:
-                return i
+            if corner_start <= i <= size + corner_start:
+                new_i = i
             else:
-                return __reflect(i, size, corner_start)
+                new_i = __reflect(i, size, corner_start)
+            return new_i
 
         if align_corners:
-            return __refelection(i, size - 1, 0)
+            x = __refelection(i, size - 1, 0)
         else:
-            return __refelection(i, size, -0.5)
+            x = __refelection(i, size, -0.5)
+        return x
 
     def _compute_source_index(b, d, h, w):
         z = grid[b, 2, d, h, w]
@@ -285,7 +297,6 @@ def grid_sample_3d(
             z = _clip_coordinates(z, in_depth)
             y = _clip_coordinates(y, in_height)
             x = _clip_coordinates(x, in_width)
-
         return (z, y, x)
 
     def _nearest_sample():
@@ -298,7 +309,7 @@ def grid_sample_3d(
                             new_z = int(z + 0.5) if z > 0 else int(z - 0.5)
                             new_y = int(y + 0.5) if y > 0 else int(y - 0.5)
                             new_x = int(x + 0.5) if x > 0 else int(x - 0.5)
-                            out[_b, _c, _d, _h, _w] = _get_pixel_value(_b, _c, new_z, new_y, new_x)
+                            out[_b, _c, _d, _h, _w] = _get_pixel(_b, _c, new_z, new_y, new_x)
 
     def _triilinear_sample():
         for _b in range(batch):
@@ -315,14 +326,22 @@ def grid_sample_3d(
                             x1 = x0 + 1
 
                             out[_b, _c, _d, _h, _w] = \
-                                _get_pixel_value(_b, _c, z0, y0, x0) * (1 - (x - x0)) * (1 - (y - y0)) * (1 - (z - z0)) + \
-                                _get_pixel_value(_b, _c, z0, y0, x1) * (x - x0)       * (1 - (y - y0)) * (1 - (z - z0)) + \
-                                _get_pixel_value(_b, _c, z1, y1, x0) * (1 - (x - x0)) * (y - y0)       * (z - z0)       + \
-                                _get_pixel_value(_b, _c, z1, y1, x1) * (x - x0)       * (y - y0)       * (z - z0)       + \
-                                _get_pixel_value(_b, _c, z0, y1, x0) * (1 - (x - x0)) * (y - y0)       * (1 - (z - z0)) + \
-                                _get_pixel_value(_b, _c, z1, y0, x1) * (x - x0)       * (1 - (y - y0)) * (z - z0)       + \
-                                _get_pixel_value(_b, _c, z1, y0, x0) * (1 - (x - x0)) * (1 - (y - y0)) * (z - z0)       + \
-                                _get_pixel_value(_b, _c, z0, y1, x1) * (x - x0)       * (y - y0)       * (1 - (z - z0))
+                                _get_pixel(_b, _c, z0, y0, x0) * \
+                                    (1 - (x - x0)) * (1 - (y - y0)) * (1 - (z - z0)) + \
+                                _get_pixel(_b, _c, z0, y0, x1) * \
+                                    (x - x0) * (1 - (y - y0)) * (1 - (z - z0)) + \
+                                _get_pixel(_b, _c, z1, y1, x0) * \
+                                    (1 - (x - x0)) * (y - y0) * (z - z0) + \
+                                _get_pixel(_b, _c, z1, y1, x1) * \
+                                    (x - x0) * (y - y0) * (z - z0) + \
+                                _get_pixel(_b, _c, z0, y1, x0) * \
+                                    (1 - (x - x0)) * (y - y0) * (1 - (z - z0)) + \
+                                _get_pixel(_b, _c, z1, y0, x1) * \
+                                    (x - x0) * (1 - (y - y0)) * (z - z0) + \
+                                _get_pixel(_b, _c, z1, y0, x0) * \
+                                    (1 - (x - x0)) * (1 - (y - y0)) * (z - z0) + \
+                                _get_pixel(_b, _c, z0, y1, x1) * \
+                                    (x - x0) * (y - y0) * (1 - (z - z0))
 
     if method == "bilinear":
         _triilinear_sample()
@@ -333,8 +352,10 @@ def grid_sample_3d(
 
 def grid_sample_python(data, grid, method="bilinear", padding_mode="zeros", align_corners=True):
     if len(data.shape) == 4:
-        return grid_sample_2d(data, grid, method, padding_mode, align_corners)
+        grid_sample = grid_sample_2d
     elif len(data.shape) == 5:
-        return grid_sample_3d(data, grid, method, padding_mode, align_corners)
+        grid_sample = grid_sample_3d
+    else:
+        raise ValueError("invalid shape")
 
-    raise ValueError("invalid shape")
+    return grid_sample(data, grid, method, padding_mode, align_corners)

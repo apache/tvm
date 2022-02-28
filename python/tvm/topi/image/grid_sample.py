@@ -59,11 +59,13 @@ def affine_grid(data, target_shape):
     return te.compute(oshape, _compute, tag="affine_grid")
 
 
-def _grid_sample_2d(data, grid, method="bilinear", layout="NCHW", padding_mode='zeros', align_corners=True):
+def _grid_sample_2d(
+    data, grid, method="bilinear", layout="NCHW", padding_mode='zeros', align_corners=True
+):
     """Applies bilinear/nearest/bicubic sampling to input feature map.
 
-    Given :math:`data` assuming NCHW layout, :math:`grid` assuming NCHW layout or NHWC layout(for pytorch),
-    then the output is computed by
+    Given :math:`data` assuming NCHW layout, :math:`grid` assuming NCHW layout
+    or NHWC layout(for pytorch), then the output is computed by
 
     .. math::
 
@@ -170,19 +172,21 @@ def _grid_sample_2d(data, grid, method="bilinear", layout="NCHW", padding_mode='
                 size_times = te.truncdiv(index_align_corner.astype("int32"), size).astype("int32")
                 t = tir.Mod(size_times, 2)
                 extra = index_align_corner - size_times * size
-                return tir.if_then_else(tir.EQ(t, 0), extra + corner_start, size - extra + corner_start)
+                return tir.if_then_else(
+                    tir.EQ(t, 0), extra + corner_start, size - extra + corner_start
+                )
 
-            new_x = tir.if_then_else(
+            return tir.if_then_else(
                 tir.all(x >= corner_start, x <= size + corner_start),
                 x,
                 __reflect(x, size, corner_start)
             )
-            return new_x
 
         if align_corners:
-            return __refelection(x, size - 1, 0)
+            new_x = __refelection(x, size - 1, 0)
         else:
-            return __refelection(x, size, -0.5)
+            new_x = __refelection(x, size, -0.5)
+        return new_x
 
     def _bilinear_sample(n, c, h, w):
         y, x = _compute_source_index(n, h, w)
@@ -220,7 +224,10 @@ def _grid_sample_2d(data, grid, method="bilinear", layout="NCHW", padding_mode='
             weights[1] = cubic_weight_1(fraction)
             weights[2] = cubic_weight_1(1 - fraction)
             weights[3] = cubic_weight_2(2 - fraction)
-            return pixel_0 * weights[0] + pixel_1 * weights[1] + pixel_2 * weights[2] + pixel_3 * weights[3]
+            return pixel_0 * weights[0] + \
+                pixel_1 * weights[1] + \
+                pixel_2 * weights[2] + \
+                pixel_3 * weights[3]
 
         y = grid[n, 1, h, w]
         x = grid[n, 0, h, w]
@@ -287,27 +294,32 @@ def _grid_sample_2d(data, grid, method="bilinear", layout="NCHW", padding_mode='
     )
 
 
-def _grid_sample_3d(data, grid, method="bilinear", layout="NCDHW", padding_mode='zeros', align_corners=True):
+def _grid_sample_3d(
+    data, grid, method="bilinear", layout="NCDHW", padding_mode='zeros', align_corners=True
+):
     """Applies bilinear/nearest sampling to input feature map.
 
-    Given :math:`data` assuming NCDHW layout, :math:`grid` assuming NCDHW layout or NDHWC layout(for pytorch),
-    then the output is computed by
+    Given :math:`data` assuming NCDHW layout, :math:`grid` assuming NCDHW layout
+    or NDHWC layout(for pytorch), then the output is computed by
 
     .. math::
 
         x_{src} = grid[batch, 0, z_{dst}, y_{dst}, x_{dst}] \\
         y_{src} = grid[batch, 1, z_{dst}, y_{dst}, x_{dst}] \\
         z_{src} = grid[batch, 2, z_{dst}, y_{dst}, x_{dst}] \\
-        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, z_{src}, y_{src}, x_{src})
+        output[batch, channel, y_{dst}, x_{dst}] =
+            G(data[batch, channel, z_{src}, y_{src}, x_{src})
 
         or for pytorch:
 
         x_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 0] \\
         y_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 1] \\
         z_{src} = grid[batch, z_{dst}, y_{dst}, x_{dst}, 2] \\
-        output[batch, channel, y_{dst}, x_{dst}] = G(data[batch, channel, z_{src}, y_{src}, x_{src})
+        output[batch, channel, y_{dst}, x_{dst}] =
+            G(data[batch, channel, z_{src}, y_{src}, x_{src})
 
-    :math:`x_{dst}`, :math:`y_{dst}`, :math:`z_{dst}` enumerate all spatial locations in :math:`output`, and
+    :math:`x_{dst}`, :math:`y_{dst}`, :math:`z_{dst}`
+        enumerate all spatial locations in :math:`output`, and
     :math:`G()` denotes the interpolation method.
     The out-boundary points will be padded with zeros. The shape of the output will be
     (data.shape[0], data.shape[1], grid.shape[2], grid.shape[3], grid.shape[4]),
@@ -405,19 +417,21 @@ def _grid_sample_3d(data, grid, method="bilinear", layout="NCDHW", padding_mode=
                 size_times = te.truncdiv(index_align_corner.astype("int32"), size).astype("int32")
                 t = tir.Mod(size_times, 2)
                 extra = index_align_corner - size_times * size
-                return tir.if_then_else(tir.EQ(t, 0), extra + corner_start, size - extra + corner_start)
+                return tir.if_then_else(
+                    tir.EQ(t, 0), extra + corner_start, size - extra + corner_start
+                )
 
-            new_x = tir.if_then_else(
+            return tir.if_then_else(
                 tir.all(x >= corner_start, x <= size + corner_start),
                 x,
                 __reflect(x, size, corner_start)
             )
-            return new_x
 
         if align_corners:
-            return __refelection(x, size - 1, 0)
+            new_x = __refelection(x, size - 1, 0)
         else:
-            return __refelection(x, size, -0.5)
+            new_x = __refelection(x, size, -0.5)
+        return new_x
 
     def _bilinear_sample(n, c, d, h, w):
         z, y, x = _compute_source_index(n, d, h, w)
@@ -457,7 +471,9 @@ def _grid_sample_3d(data, grid, method="bilinear", layout="NCDHW", padding_mode=
     )
 
 
-def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode='zeros', align_corners=True):
+def grid_sample(
+    data, grid, method="bilinear", layout="NCHW", padding_mode='zeros', align_corners=True
+):
     """Applies grid sampling to input feature map.
 
     Given :math:`data` and :math:`grid`, then the output is computed by
@@ -547,9 +563,11 @@ def grid_sample(data, grid, method="bilinear", layout="NCHW", padding_mode='zero
     """
 
     if len(layout) == 4:
-        return _grid_sample_2d(data, grid, method, layout, padding_mode, align_corners)
+        compute = _grid_sample_2d
     elif len(layout) == 5:
-        return _grid_sample_3d(data, grid, method, layout, padding_mode, align_corners)
+        compute = _grid_sample_3d
     else:
         msg = f"layout {layout} is not surpported"
         raise ValueError(msg)
+
+    return compute(data, grid, method, layout, padding_mode, align_corners)
