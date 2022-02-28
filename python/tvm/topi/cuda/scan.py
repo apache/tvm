@@ -64,13 +64,6 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
     batch_size = prod(data.shape[:-1])
     scan_axis_size = data.shape[-1]
 
-    def indices(index):
-        out = []
-        for dim in reversed(shape):
-            out.append(tvm.tir.indexmod(index, dim))
-            index = tvm.tir.indexdiv(index, dim)
-        return reversed(out)
-
     ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
@@ -103,9 +96,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
             ib.scope_attr(by, "thread_extent", nthread_by)
             tid = bx * nthread_tx + tx
             with ib.if_scope(tid < scan_axis_size):
-                output[indices(by * scan_axis_size + tid)] = cast(
-                    data[indices(by * scan_axis_size + tid)], out_dtype
-                )
+                output[by * scan_axis_size + tid] = cast(data[by * scan_axis_size + tid], out_dtype)
 
         nthread_tx = max_threads
         nthread_bx = ceil_div(scan_axis_size, max_threads)
@@ -139,9 +130,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
                     end[0] = tvm.te.min(start[0] + width, scan_axis_size)
                     with ib.if_scope(middle[0] < scan_axis_size):
-                        output[indices(by * scan_axis_size + end[0] - 1)] = binop(
-                            output[indices(by * scan_axis_size + end[0] - 1)],
-                            output[indices(by * scan_axis_size + middle[0] - 1)],
+                        output[by * scan_axis_size + end[0] - 1] = binop(
+                            output[by * scan_axis_size + end[0] - 1],
+                            output[by * scan_axis_size + middle[0] - 1],
                         )
 
         # Down Sweep of exclusive scan
@@ -150,8 +141,8 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
             ib.scope_attr(bx, "thread_extent", batch_size)
             with ib.if_scope(bx < batch_size):
                 if reduction is not None:
-                    reduction[indices(bx)[:-1]] = output[indices((bx + 1) * scan_axis_size - 1)]
-                output[indices((bx + 1) * scan_axis_size - 1)] = cast(identity_value, out_dtype)
+                    reduction[bx] = output[(bx + 1) * scan_axis_size - 1]
+                output[(bx + 1) * scan_axis_size - 1] = cast(identity_value, out_dtype)
 
         with ib.for_range(0, lim, dtype="int64") as l2_width:
             width = 2 << (lim - l2_width - 1)
@@ -178,12 +169,12 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
                     middle[0] = start[0] + tvm.tir.indexdiv(width, 2)
                     end[0] = tvm.tir.min(start[0] + width, scan_axis_size)
                     with ib.if_scope(middle[0] < scan_axis_size):
-                        tmp[0] = output[indices(by * scan_axis_size + middle[0] - 1)]
-                        output[indices(by * scan_axis_size + middle[0] - 1)] = output[
-                            indices(by * scan_axis_size + end[0] - 1)
+                        tmp[0] = output[by * scan_axis_size + middle[0] - 1]
+                        output[by * scan_axis_size + middle[0] - 1] = output[
+                            by * scan_axis_size + end[0] - 1
                         ]
-                        output[indices(by * scan_axis_size + end[0] - 1)] = binop(
-                            output[indices(by * scan_axis_size + end[0] - 1)], tmp[0]
+                        output[by * scan_axis_size + end[0] - 1] = binop(
+                            output[by * scan_axis_size + end[0] - 1], tmp[0]
                         )
     return ib.get()
 

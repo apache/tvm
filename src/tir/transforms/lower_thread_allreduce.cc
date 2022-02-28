@@ -227,8 +227,13 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     std::vector<Buffer> buffers(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      auto dummy_load = Downcast<BufferLoad>(call->args[2 + size + idx]);
-      buffers[idx] = dummy_load->buffer;
+      PrimExpr arg = call->args[2 + size + idx];
+      // Loads from boolean buffers may have cast nodes inserted by
+      // earlier passes.
+      if (auto cast = arg.as<CastNode>()) {
+        arg = cast->value;
+      }
+      buffers[idx] = Downcast<BufferLoad>(arg)->buffer;
     }
 
     std::unordered_set<const VarNode*> reduce_set;

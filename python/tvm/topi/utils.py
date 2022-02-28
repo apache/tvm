@@ -310,9 +310,12 @@ def unravel_index(idx, shape):
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
     indices = []
-    for i in range(len(shape) - 1, -1, -1):
-        indices.append(idxm(idx, shape[i]))
-        idx = idxd(idx, shape[i])
+    for dim in reversed(shape):
+        if dim == 0:
+            indices.append(0)
+        else:
+            indices.append(idxm(idx, dim))
+            idx = idxd(idx, dim)
     indices = indices[::-1]
     return indices
 
