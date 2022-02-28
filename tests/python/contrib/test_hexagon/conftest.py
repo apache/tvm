@@ -29,6 +29,7 @@ TVM_TRACKER_HOST = "TVM_TRACKER_HOST"
 TVM_TRACKER_PORT = "TVM_TRACKER_PORT"
 ANDROID_REMOTE_DIR = "ANDROID_REMOTE_DIR"
 ANDROID_SERIAL_NUMBER = "ANDROID_SERIAL_NUMBER"
+ADB_SERVER_SOCKET = "ADB_SERVER_SOCKET"
 
 
 @tvm.testing.fixture
@@ -58,17 +59,22 @@ def requires_hexagon_toolchain(*args):
 
 
 @tvm.testing.fixture
-def android_serial_number():
+def android_serial_number() -> str:
     return os.getenv(ANDROID_SERIAL_NUMBER, default=None)
 
 
 @tvm.testing.fixture
-def tvm_tracker_host():
+def tvm_tracker_host() -> str:
     return os.getenv(TVM_TRACKER_HOST, default=None)
 
 
 @tvm.testing.fixture
-def tvm_tracker_port():
+def tvm_tracker_port() -> int:
     port = os.getenv(TVM_TRACKER_PORT, default=None)
     port = int(port) if port else None
     return port
+
+
+@tvm.testing.fixture
+def adb_server_socket() -> str:
+    return os.getenv(ADB_SERVER_SOCKET, default="tcp:5037")
