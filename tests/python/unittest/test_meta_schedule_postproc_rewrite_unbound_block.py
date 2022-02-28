@@ -99,7 +99,7 @@ class After_norm_bmn:
                     with T.block("C"):
                         b = T.axis.S(1, 0)
                         i, j = T.axis.remap("RR", [i1, i2])
-                        T.where(i0_fused_0 * 32 + i0_fused_1 < 1)
+                        T.where(i0_fused_1 < 1)
                         with T.init():
                             C[b] = T.float32(0)
                         C[b] = C[b] + A[b, i, j] * A[b, i, j]
@@ -107,7 +107,7 @@ class After_norm_bmn:
             for i0_fused_1 in T.thread_binding(32, thread="threadIdx.x"):
                 with T.block("D"):
                     b = T.axis.S(1, 0)
-                    T.where(i0_fused_0 * 32 + i0_fused_1 < 1)
+                    T.where(i0_fused_1 < 1)
                     D[b] = T.sqrt(C[b], dtype="float32")
 
 
