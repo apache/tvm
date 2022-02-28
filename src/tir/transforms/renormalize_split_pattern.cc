@@ -38,14 +38,14 @@ using namespace arith;
 
 // macro for doing simple rewrite
 #define TRY_REWRITE(SrcExpr, ResExpr) \
-  if ((SrcExpr).Match(ret)) {             \
-    return (ResExpr).Eval();              \
+  if ((SrcExpr).Match(ret)) {         \
+    return (ResExpr).Eval();          \
   }
 
 // macro rewrite + recursive_rewrite only if CondExpr is true after match.
 #define TRY_RECURSIVE_REWRITE_IF(SrcExpr, ResExpr, CondExpr) \
-  if ((SrcExpr).Match(ret) && (CondExpr)) {                      \
-    return RecursiveRewrite((ResExpr).Eval());                   \
+  if ((SrcExpr).Match(ret) && (CondExpr)) {                  \
+    return RecursiveRewrite((ResExpr).Eval());               \
   }
 
 class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
@@ -65,8 +65,8 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
 
     // floordiv(floormod(x, c1 * c2), c2) = floormod(floordiv(x, c2), c1)
     TRY_RECURSIVE_REWRITE_IF(floordiv(floormod(x, c3), c2),
-                                 floormod(floordiv(x, c2), floordiv(c3, c2)),
-                                 c3.Eval()->value % c2.Eval()->value == 0);
+                             floormod(floordiv(x, c2), floordiv(c3, c2)),
+                             c3.Eval()->value % c2.Eval()->value == 0);
     TRY_RECURSIVE_REWRITE_IF(
         floordiv(floormod(x, broadcast(c3, lanes)), broadcast(c2, lanes)),
         floormod(floordiv(x, broadcast(c2, lanes)), broadcast(floordiv(c3, c2), lanes)),
