@@ -27,8 +27,7 @@ A quick solution is to install via pip
 
 .. code-block:: bash
 
-    
-python3 -m pip install -f https://release.oneflow.info oneflow==0.6.0+[PLATFORM]
+    python3 -m pip install -f https://release.oneflow.info oneflow==0.6.0+[PLATFORM]
 
 All available [PLATFORM] could be seen at official site:
 https://github.com/Oneflow-Inc/oneflow
