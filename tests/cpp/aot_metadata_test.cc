@@ -150,8 +150,8 @@ TEST(Metadata, Visitor) {
 
   // Just identify the tensor.
   auto input_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[1]);
-  EXPECT_THAT(input_array->type_index, Eq(tvm::runtime::metadata::MetadataTypeIndex::kMetadata));
-  EXPECT_THAT(input_array->struct_name, StrEq("TVMTensorInfo"));
+  EXPECT_THAT(input_array->kind, Eq(tvm::runtime::metadata::MetadataKind::kMetadata));
+  EXPECT_THAT(input_array->type_key, StrEq("metadata.TensorInfoNode"));
   EXPECT_THAT(input_array->array.size(), Eq(2));
 
   auto input1 = Downcast<tvm::runtime::metadata::TensorInfo>(input_array->array[0]);
@@ -168,8 +168,8 @@ TEST(Metadata, Visitor) {
   EXPECT_THAT(num_inputs->value, Eq(2));
 
   auto output_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[3]);
-  EXPECT_THAT(output_array->type_index, Eq(tvm::runtime::metadata::MetadataTypeIndex::kMetadata));
-  EXPECT_THAT(output_array->struct_name, StrEq("TVMTensorInfo"));
+  EXPECT_THAT(output_array->kind, Eq(tvm::runtime::metadata::MetadataKind::kMetadata));
+  EXPECT_THAT(output_array->type_key, StrEq("metadata.TensorInfoNode"));
   auto output1 = Downcast<tvm::runtime::metadata::TensorInfo>(output_array->array[0]);
 
   EXPECT_THAT(output1->name(), Eq("output1"));
@@ -178,8 +178,8 @@ TEST(Metadata, Visitor) {
   EXPECT_THAT(num_outputs->value, Eq(1));
 
   auto pool_array = Downcast<tvm::runtime::metadata::MetadataArray>(v.values[5]);
-  EXPECT_THAT(pool_array->type_index, Eq(tvm::runtime::metadata::MetadataTypeIndex::kMetadata));
-  EXPECT_THAT(pool_array->struct_name, StrEq("TVMTensorInfo"));
+  EXPECT_THAT(pool_array->kind, Eq(tvm::runtime::metadata::MetadataKind::kMetadata));
+  EXPECT_THAT(pool_array->type_key, StrEq("metadata.TensorInfoNode"));
   auto pool1 = Downcast<tvm::runtime::metadata::TensorInfo>(pool_array->array[0]);
 
   EXPECT_THAT(pool1->name(), Eq("pool1"));
