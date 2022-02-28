@@ -1196,7 +1196,7 @@ class StorageFlattener : public StmtExprMutator {
 
       // use small alignment for small arrays
       auto dtype = op->buffer->dtype;
-      int32_t const_size = AllocateNode::constant_allocation_size(shape);
+      size_t const_size = AllocateNode::ConstantAllocationSize(shape);
       int align = GetTempAllocaAlignment(dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());

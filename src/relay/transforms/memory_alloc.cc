@@ -140,6 +140,9 @@ class DialectRewriter : public transform::DeviceAwareExprMutator {
 
     VirtualDevice virtual_device = GetVirtualDevice(call);
     ICHECK(!virtual_device->IsFullyUnconstrained());
+    ICHECK(!scopes_.empty())
+        << "Calls out of a let block are not supported, do you forget to transform "
+        << "with ToANormalForm or set opt_level >= 1 in the pass context?";
     LetList& scope = scopes_.back();
 
     std::vector<Expr> new_args;

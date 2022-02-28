@@ -20,6 +20,7 @@ import collections
 import collections.abc
 import enum
 import fcntl
+import json
 import logging
 import os
 import os.path
@@ -35,7 +36,7 @@ import tarfile
 import tempfile
 import threading
 import time
-import json
+import usb
 
 import serial
 import serial.tools.list_ports
@@ -178,8 +179,6 @@ def openocd_serial(options):
     """Find the serial port to use for a board with OpenOCD flash strategy."""
     if "openocd_serial" in options:
         return options["openocd_serial"]
-
-    import usb  # pylint: disable=import-outside-toplevel
 
     find_kw = BOARD_USB_FIND_KW[CMAKE_CACHE["BOARD"]]
     boards = usb.core.find(find_all=True, **find_kw)
@@ -588,6 +587,13 @@ def _set_nonblock(fd):
 
 
 class ZephyrSerialTransport:
+
+    NRF5340_VENDOR_ID = 0x1366
+
+    # NRF5340_DK v1.0.0 uses VCOM2
+    # NRF5340_DK v2.0.0 uses VCOM1
+    NRF5340_DK_BOARD_VCOM_BY_PRODUCT_ID = {0x1055: "VCOM2", 0x1051: "VCOM1"}
+
     @classmethod
     def _lookup_baud_rate(cls, options):
         # TODO(mehrdadh): remove this hack once dtlib.py is a standalone project
@@ -625,7 +631,17 @@ class ZephyrSerialTransport:
             parts = line.split()
             ports_by_vcom[parts[2]] = parts[1]
 
-        return ports_by_vcom["VCOM2"]
+        nrf_board = usb.core.find(idVendor=cls.NRF5340_VENDOR_ID)
+
+        if nrf_board == None:
+            raise Exception("_find_nrf_serial_port: unable to find NRF5340DK")
+
+        if nrf_board.idProduct in cls.NRF5340_DK_BOARD_VCOM_BY_PRODUCT_ID:
+            vcom_port = cls.NRF5340_DK_BOARD_VCOM_BY_PRODUCT_ID[nrf_board.idProduct]
+        else:
+            raise Exception("_find_nrf_serial_port: unable to find known NRF5340DK product ID")
+
+        return ports_by_vcom[vcom_port]
 
     @classmethod
     def _find_openocd_serial_port(cls, options):

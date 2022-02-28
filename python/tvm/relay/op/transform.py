@@ -704,7 +704,6 @@ def tile(data, reps):
 
 def reverse(data, axis):
     """Reverses the order of elements along given axis while preserving array shape.
-    By default, repeat flattens the input array into 1-D and then repeats the elements.
 
     Parameters
     ----------

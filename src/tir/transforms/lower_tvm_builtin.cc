@@ -126,7 +126,7 @@ class BuiltinLower : public StmtExprMutator {
       if (const auto* dev_type = device_type_.as<IntImmNode>()) {
         auto storage_scope = Downcast<PointerType>(op->buffer_var->type_annotation)->storage_scope;
         if (dev_type->value == kDLCPU && storage_scope == "global") {
-          int32_t constant_size = op->constant_allocation_size();
+          size_t constant_size = op->ConstantAllocationSize();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;
           }
@@ -209,10 +209,26 @@ class BuiltinLower : public StmtExprMutator {
       return MakeArray(op);
     } else if (op->op.same_as(builtin::tvm_context_id())) {
       return make_zero(op->dtype);
+    } else if (op->op.same_as(builtin::mem_copy())) {
+      return MakeMemCopy(op);
     } else {
       return StmtExprMutator::VisitExpr_(op);
     }
   }
+
+  PrimExpr MakeMemCopy(const CallNode* op) {
+    PrimExpr dst = op->args[0];
+    PrimExpr src = op->args[1];
+    PrimExpr size = op->args[2];
+
+    std::string fdevapi_prefix =
+        "device_api." + std::string(runtime::DeviceName(device_type_.as<IntImmNode>()->value));
+
+    Call call_packed = Call(DataType::Int(32), builtin::tvm_call_packed(),
+                            {StringImm(fdevapi_prefix + ".mem_copy"), dst, src, size});
+    return VisitExpr(call_packed);
+  }
+
   // call shape
   PrimExpr MakeShape(const CallNode* op) {
     // if args.size() == 0, it represents a scalar shape ()

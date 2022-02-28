@@ -114,12 +114,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var) {
+AllocatedPoolInfo::AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                                     Integer pool_var_idx) {
   auto allocated_poolinfo_node = make_object<AllocatedPoolInfoNode>();
   allocated_poolinfo_node->pool_info = pool_info;
   allocated_poolinfo_node->allocated_size = allocated_size;
-  if (pool_var.defined()) {
-    allocated_poolinfo_node->pool_var = pool_var;
+  if (pool_var_idx.defined()) {
+    allocated_poolinfo_node->pool_var_idx = pool_var_idx;
   }
   data_ = std::move(allocated_poolinfo_node);
 }
@@ -180,7 +181,7 @@ class ModuleWorkspaceSizeCalculator : public StmtExprVisitor {
     for (const auto& gv_func : mod_->functions) {
       functions_.Set(gv_func.first->name_hint, Downcast<PrimFunc>(gv_func.second));
     }
-    main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_run_func_suffix));
+    main_func_ = Downcast<PrimFunc>(module->Lookup(::tvm::runtime::symbol::tvm_module_main));
     ICHECK(main_func_.defined()) << "main function is not in the module";
     Optional<Target> target_host = main_func_->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target_host) << "main function does not have a target attr";

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,4 +16,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Testing infrastructure for Hexagon RPC"""
+set -e
+set -u
+
+source tests/scripts/setup-pytest-env.sh
+
+make cython3
+
+# unset because hardware does not exist in CI.
+unset ANDROID_SERIAL_NUMBER
+run_pytest ctypes python-contrib-hexagon-no-hwardware tests/python/contrib/test_hexagon/test_launcher.py

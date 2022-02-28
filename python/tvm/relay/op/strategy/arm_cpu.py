@@ -94,12 +94,18 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="conv2d_nchw_spatial_pack.arm_cpu",
                 )
 
-                # Intel x86 conv2d schedule.
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.x86.conv2d_nchw),
-                    wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
-                    name="conv2d_nchw.x86",
-                )
+                if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_int8),
+                        wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_int8),
+                        name="conv2d_nchw_int8.arm_cpu",
+                    )
+                else:
+                    strategy.add_implementation(
+                        wrap_compute_conv2d(topi.x86.conv2d_nchw),
+                        wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
+                        name="conv2d_nchw.x86",
+                    )
 
                 # check if winograd algorithm is applicable
                 _, _, kh, kw = get_const_tuple(kernel.shape)
@@ -256,11 +262,19 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
 def conv2d_NCHWc_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d_NCHWc adopted from x86"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_conv2d(topi.x86.conv2d_NCHWc, True, True),
-        wrap_topi_schedule(topi.x86.schedule_conv2d_NCHWc),
-        name="conv2d_NCHWc.x86",
-    )
+    data, kernel = inputs
+    if topi.arm_cpu.is_int8_hw_support(data.dtype, kernel.dtype):
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.arm_cpu.conv2d_NCHWc_int8, True, True),
+            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NCHWc_int8),
+            name="conv2d_NCHWc_int8.arm_cpu",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_conv2d(topi.x86.conv2d_NCHWc, True, True),
+            wrap_topi_schedule(topi.x86.schedule_conv2d_NCHWc),
+            name="conv2d_NCHWc.x86",
+        )
     return strategy
 
 

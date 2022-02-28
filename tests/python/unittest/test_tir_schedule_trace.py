@@ -82,6 +82,15 @@ def _make_compute_inline(input):  # pylint: disable=redefined-builtin
     )
 
 
+def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
+    return Instruction(
+        kind=InstructionKind.get("Split"),
+        inputs=inputs,
+        attrs=[],
+        outputs=outputs,
+    )
+
+
 def _make_enter_postproc():
     return Instruction(
         kind=InstructionKind.get("EnterPostproc"),
@@ -127,6 +136,17 @@ def _make_trace_3(b0, b1, add_postproc):  # pylint: disable=invalid-name
             _make_get_block(name="C", output=b1),
         ]
     return Trace(insts=insts, decisions={})
+
+
+def _make_trace_4(b0, l1, l2, l3):  # pylint: disable=invalid-name
+    return Trace(
+        insts=[
+            _make_get_block(name="B", output=b0),
+            _make_get_loops(input=b0, outputs=[l1]),
+            _make_split([l1, None, 32], [l2, l3]),
+        ],
+        decisions={},
+    )
 
 
 def test_trace_construct_1():
@@ -231,6 +251,17 @@ def test_trace_simplified_2():
             'b1 = sch.get_block(name="C", func_name="main")',
             "sch.enter_postproc()",
             "sch.compute_inline(block=b1)",
+        )
+    )
+
+
+def test_trace_simplified_3():
+    trace = _make_trace_4(BlockRV(), LoopRV(), LoopRV(), LoopRV()).simplified(remove_postproc=False)
+    assert str(trace) == "\n".join(
+        (
+            'b0 = sch.get_block(name="B", func_name="main")',
+            "l1, = sch.get_loops(block=b0)",
+            "l2, l3 = sch.split(loop=l1, factors=[None, 32])",
         )
     )
 

@@ -17,8 +17,8 @@
 # pylint: disable=invalid-name, unused-argument
 """Backend QNN related feature registration"""
 import numpy as np
-import tvm
 from scipy import special
+import tvm
 from tvm import relay
 from tvm._ffi.base import TVMError
 from tvm.relay.qnn.op.canonicalizations import create_integer_lookup_op
@@ -195,7 +195,7 @@ def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
 
         shift_kernel = relay.nn.bias_add(
             relay.cast(kernel, dtype="int16"),
-            relay.cast(kernel_zero_point, dtype="int16"),
+            -relay.cast(kernel_zero_point, dtype="int16"),
             output_axis,
         )
     new_attrs = {k: attrs[k] for k in attrs.keys()}

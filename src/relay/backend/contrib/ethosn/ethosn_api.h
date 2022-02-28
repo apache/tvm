@@ -179,6 +179,9 @@ class EthosnError {
  */
 class EthosnAPI {
  public:
+  /*! \brief Create a default input tensor */
+  static sl::TensorInfo DefaultInputTensor(const Expr& expr);
+
   /*! \brief Extract the Support Library convolution params from an ethos-n.qnn_conv2d func */
   static EthosnError QnnConv2d(const Expr& expr, ConvolutionParams* params);
   /*! \brief Extract the Support Library dense params from an ethos-n.qnn_fc func */
@@ -235,8 +238,8 @@ class EthosnAPI {
   // Convert an array of IntImmNodes into ValueT
   // IndexT type of Array indexing variable
   // ValueT type of resulting value
-  template <typename IndexT, typename ValueT>
-  static EthosnError AsArray(const Array<IndexT>& arr, std::array<ValueT, 4>* v);
+  template <typename IndexT, typename ValueT, size_t N>
+  static EthosnError AsArray(const Array<IndexT>& arr, std::array<ValueT, N>* v);
 
   // Get a T from a constant represented by a NDArray.
   template <typename T>

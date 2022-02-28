@@ -19,12 +19,12 @@
 HexagonLauncher is a class to handle interactions with an Android phone which includes Hexagon DSP to run a TVMModule(function/operation/graph) on Hexagon. HexagonLauncher reuses minRPC implementation to setup an RPC connection from host (your local machine) to Hexagon target which is passed through Android RPC server.
 
 ## Build Required Tools/Libraries
-Here are the steps that are taken to prepare a runtime on a Hexagon device to test any model.
+To build TVM for Hexagon and run tests you can follow these steps to prepare a runtime on a Hexagon device to test any model. Alternatively, you can skip these instructions and use docker image which has pre-installed required tools. Instructions for using docker image [here](#use-hexagon-docker-image).
 
 - Build TVMRuntime library and C++ RPC server for Android.
 - Build minRPC server along with FastRPC for Hexagon.
 - Build TVM library with Hexagon support for host machine.
-- Build TVMRuntime library and C++ RPC server for host machine.
+- Build TVMRuntime library and RPC server for host machine.
 
 Note: First, ensure to export Clang libraries to `LD_LIBRARY_PATH` and Hexagon toolchain to `HEXAGON_TOOLCHAIN`:
 
@@ -58,12 +58,31 @@ cd tvm
 mkdir build
 cd build
 cmake -DUSE_LLVM="path to `llvm/bin/llvm-config`" \
-        -DUSE_CPP_RPC=ON \
+        -DUSE_RPC=ON \
         -DCMAKE_CXX_COMPILER="path to `clang++` executable" \
         -DCMAKE_CXX_FLAGS='-stdlib=libc++' \
         -DUSE_HEXAGON_SDK="path to Hexagon SDK" \
         -DUSE_HEXAGON_ARCH="choose from v65|v66|v68" \
         -DUSE_HEXAGON_DEVICE=sim ..
+```
+
+## Use Hexagon Docker Image
+To use this docker image, install TVM and tools follow these steps.
+
+```bash
+# Log in to docker image
+cd tvm
+./docker/bash.sh tlcpack/ci-hexagon:v0.01
+
+# Build TVM
+./tests/scripts/task_config_build_hexagon.sh 
+cd build
+cmake ..
+make -j2
+
+# Build Hexagon API
+cd ..
+./tests/scripts/task_build_hexagon_api.sh 
 ```
 
 ## Testing Using HexagonLauncher

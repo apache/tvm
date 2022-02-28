@@ -68,6 +68,107 @@ def test_cc_reviewers(tmpdir_factory):
     )
 
 
+def test_update_branch(tmpdir_factory):
+    update_script = REPO_ROOT / "tests" / "scripts" / "update_branch.py"
+
+    def run(statuses, expected_rc, expected_output):
+        git = TempGit(tmpdir_factory.mktemp("tmp_git_dir"))
+        git.run("init")
+        git.run("checkout", "-b", "main")
+        git.run("remote", "add", "origin", "https://github.com/apache/tvm.git")
+        commit = {
+            "statusCheckRollup": {"contexts": {"nodes": statuses}},
+            "oid": "123",
+            "messageHeadline": "hello",
+        }
+        data = {
+            "data": {
+                "repository": {
+                    "defaultBranchRef": {"target": {"history": {"edges": [], "nodes": [commit]}}}
+                }
+            }
+        }
+        proc = subprocess.run(
+            [str(update_script), "--dry-run", "--testonly-json", json.dumps(data)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            cwd=git.cwd,
+        )
+
+        if proc.returncode != expected_rc:
+            raise RuntimeError(
+                f"Wrong return code:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
+            )
+
+        if expected_output not in proc.stdout:
+            raise RuntimeError(
+                f"Missing {expected_output}:\nstdout:\n{proc.stdout}\n\nstderr:\n{proc.stderr}"
+            )
+
+    # Missing expected tvm-ci/branch test
+    run(
+        statuses=[
+            {
+                "context": "test",
+                "state": "SUCCESS",
+            }
+        ],
+        expected_rc=1,
+        expected_output="No good commits found in the last 1 commits",
+    )
+
+    # Only has the right passing test
+    run(
+        statuses=[
+            {
+                "context": "tvm-ci/branch",
+                "state": "SUCCESS",
+            }
+        ],
+        expected_rc=0,
+        expected_output="Found last good commit: 123: hello",
+    )
+
+    # Check with many statuses
+    run(
+        statuses=[
+            {
+                "context": "tvm-ci/branch",
+                "state": "SUCCESS",
+            },
+            {
+                "context": "tvm-ci/branch2",
+                "state": "SUCCESS",
+            },
+            {
+                "context": "tvm-ci/branch3",
+                "state": "FAILED",
+            },
+        ],
+        expected_rc=1,
+        expected_output="No good commits found in the last 1 commits",
+    )
+    run(
+        statuses=[
+            {
+                "context": "tvm-ci/branch",
+                "state": "SUCCESS",
+            },
+            {
+                "context": "tvm-ci/branch2",
+                "state": "SUCCESS",
+            },
+            {
+                "context": "tvm-ci/branch3",
+                "state": "SUCCESS",
+            },
+        ],
+        expected_rc=0,
+        expected_output="Found last good commit: 123: hello",
+    )
+
+
 def test_skip_ci(tmpdir_factory):
     skip_ci_script = REPO_ROOT / "tests" / "scripts" / "git_skip_ci.py"
 
@@ -206,11 +307,20 @@ def test_ping_reviewers(tmpdir_factory):
 
         assert check in proc.stdout
 
+    def all_time_keys(time):
+        return {
+            "updatedAt": time,
+            "lastEditedAt": time,
+            "createdAt": time,
+            "publishedAt": time,
+        }
+
     run(
         {
             "isDraft": True,
+            "number": 2,
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     run(
@@ -218,7 +328,7 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "number": 2,
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     run(
@@ -229,7 +339,7 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {"nodes": []},
         },
         "Pinging reviewers ['someone'] on https://github.com/apache/tvm/pull/123",
@@ -244,14 +354,14 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user2"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                    {**all_time_keys("2022-01-19T17:54:19Z"), "bodyText": "abc"},
                 ]
             },
         },
-        "Checking 0 PRs",
+        "Checking 0 of 1 fetched",
     )
 
     # Old comment, ping
@@ -263,10 +373,13 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-19T17:54:19Z", "bodyText": "abc"},
+                    {
+                        **all_time_keys("2022-01-18T17:54:19Z"),
+                        "bodyText": "abc",
+                    },
                 ]
             },
         },
@@ -282,10 +395,10 @@ def test_ping_reviewers(tmpdir_factory):
             "isDraft": False,
             "author": {"login": "user"},
             "reviews": {"nodes": []},
-            "publishedAt": "2022-01-18T17:54:19Z",
+            **all_time_keys("2022-01-18T17:54:19Z"),
             "comments": {
                 "nodes": [
-                    {"updatedAt": "2022-01-27T17:54:19Z", "bodyText": "abc"},
+                    {**all_time_keys("2022-01-27T17:54:19Z"), "bodyText": "abc"},
                 ]
             },
         },

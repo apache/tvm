@@ -803,7 +803,7 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
   } else {
-    int32_t constant_size = op->constant_allocation_size();
+    size_t constant_size = op->ConstantAllocationSize();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
     if (scope.find("wmma.") == 0) {

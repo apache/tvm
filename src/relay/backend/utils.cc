@@ -179,14 +179,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ExecutorCodegenMetadata::ExecutorCodegenMetadata(
-    Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices, Integer num_outputs,
+    Array<tir::Var> inputs, Array<tir::Var> pools, Array<String> devices, Array<String> outputs,
     String executor, String mod_name, String interface_api, bool unpacked_api,
     Map<tir::Var, tir::usmp::AllocatedPoolInfo> pool_inputs) {
   auto n = make_object<ExecutorCodegenMetadataNode>();
   n->inputs = inputs;
   n->pools = pools;
   n->devices = devices;
-  n->num_outputs = num_outputs;
+  n->outputs = outputs;
   n->executor = executor;
   n->interface_api = interface_api;
   n->unpacked_api = unpacked_api;

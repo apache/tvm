@@ -16,7 +16,6 @@
 # under the License.
 
 # CI docker CPU env
-# tag: v0.62
 FROM ubuntu:18.04
 
 RUN apt-get update --fix-missing
@@ -99,6 +98,10 @@ COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_downloa
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 
 # Caffe deps
+COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
+RUN bash /install/ubuntu_install_boost.sh
+
+# Caffe
 COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
 RUN bash /install/ubuntu_install_caffe.sh
 

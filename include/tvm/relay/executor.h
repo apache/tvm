@@ -113,6 +113,8 @@ class ExecutorNode : public Object {
   }
 
   static constexpr const char* _type_key = "Executor";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecutorNode, Object);
 };
 
@@ -122,8 +124,6 @@ class ExecutorNode : public Object {
  */
 class Executor : public ObjectRef {
  public:
-  Executor() = default;
-
   /*!
    * \brief Create a new Executor object using the registry
    * \throws Error if name is not registered
@@ -147,7 +147,8 @@ class Executor : public ObjectRef {
   TVM_DLL static Map<String, String> ListExecutorOptions(const String& name);
 
   /*! \brief specify container node */
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Executor, ObjectRef, ExecutorNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(Executor, ObjectRef, ExecutorNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(ExecutorNode)
 
  private:
   /*!

@@ -185,24 +185,24 @@ struct AllocatedPoolInfoNode : public Object {
   PoolInfo pool_info;
   /*! \brief The allocated size into this pool */
   Integer allocated_size;
-  /*! \brief An optional associated pool Var*/
-  Optional<Var> pool_var;
+  /*! \brief An optional associated pool Var index of PrimFunc params*/
+  Optional<Integer> pool_var_idx;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("pool_info", &pool_info);
     v->Visit("allocated_size", &allocated_size);
-    v->Visit("pool_var", &pool_var);
+    v->Visit("pool_var_idx", &pool_var_idx);
   }
 
   bool SEqualReduce(const AllocatedPoolInfoNode* other, SEqualReducer equal) const {
     return equal(pool_info, other->pool_info) && equal(allocated_size, other->allocated_size) &&
-           equal(pool_var, other->pool_var);
+           equal(pool_var_idx, other->pool_var_idx);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(pool_info);
     hash_reduce(allocated_size);
-    hash_reduce(pool_var);
+    hash_reduce(pool_var_idx);
   }
 
   static constexpr const char* _type_key = "tir.usmp.AllocatedPoolInfo";
@@ -211,7 +211,8 @@ struct AllocatedPoolInfoNode : public Object {
 
 class AllocatedPoolInfo : public ObjectRef {
  public:
-  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size, Var pool_var = Var());
+  TVM_DLL AllocatedPoolInfo(PoolInfo pool_info, Integer allocated_size,
+                            Integer pool_var_idx = Integer());
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AllocatedPoolInfo, ObjectRef, AllocatedPoolInfoNode);
 };
 
