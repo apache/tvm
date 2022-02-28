@@ -259,7 +259,7 @@ def conv_output_shape(
 
 
 def conv_dgrad_shape(
-    tensor_format, pad, stride, dilation, dy_shape, w_shape, output_padding=(0, 0)
+    tensor_format, pad, stride, dilation, dy_shape, w_shape, output_padding=(0, 0), groups=1
 ):
     """Get output shape of conv2d gradient with respect to data
 
@@ -296,12 +296,12 @@ def conv_dgrad_shape(
 
     if tensor_format == 0:
         N = dy_shape[0]
-        C = w_shape[1]
+        C = w_shape[1] * groups
         dy_shape = dy_shape[2:]
         w_shape = w_shape[2:]
     elif tensor_format == 1:
         N = dy_shape[0]
-        C = w_shape[-1]
+        C = w_shape[-1] * groups
         dy_shape = dy_shape[1:-1]
         w_shape = w_shape[1:-1]
     else:
@@ -738,7 +738,7 @@ def conv_backward_data(
     ), "Dynamic batch is not supported for cudnn conv2d backwad data yet."
 
     dx_shape = conv_dgrad_shape(
-        tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding
+        tensor_format, pad, stride, dilation, dy.shape, w.shape, output_padding, groups
     )
 
     algo = conv_backward_data_find_algo(
