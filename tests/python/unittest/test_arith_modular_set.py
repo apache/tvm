@@ -50,6 +50,14 @@ def test_mul():
     assert m.base == 2
 
 
+def test_floormod():
+    analyzer = tvm.arith.Analyzer()
+    x, y = te.var("x"), te.var("y")
+    m = analyzer.modular_set(tvm.tir.floormod(x * 128 + y * 4, 256))
+    assert m.coeff == 4
+    assert m.base == 0
+
+
 def test_div_shift():
     analyzer = tvm.arith.Analyzer()
     x, y = te.var("x"), te.var("y")
@@ -175,6 +183,7 @@ if __name__ == "__main__":
     test_add_sub()
     test_mul()
     test_div_shift()
+    test_floormod()
     test_min_max_select()
     test_mix_index()
     test_constraint_scope()
