@@ -33,6 +33,7 @@ from tvm.tir import FloatImm, IntImm
 
 def derived_object(cls: Any) -> type:
     """A decorator to register derived subclasses for TVM objects.
+
     Parameters
     ----------
     cls : type
@@ -55,8 +56,7 @@ def derived_object(cls: Any) -> type:
         class PyRunner():
             _tvm_metadata = {
                 "cls": _PyRunner,
-                "methods": ["run"],
-                "required": {"run"}
+                "methods": ["run"]
             }
             def run(self, runner_inputs):
                 raise NotImplementedError
@@ -70,17 +70,16 @@ def derived_object(cls: Any) -> type:
     import functools  # pylint: disable=import-outside-toplevel
     import weakref  # pylint: disable=import-outside-toplevel
 
-    def _extract(inst: Any, name: str, required: Set[str]):
+    def _extract(inst: Any, name: str):
         """Extract function from intrinsic class."""
 
         def method(*args, **kwargs):
             return getattr(inst, name)(*args, **kwargs)
 
-        if getattr(base, name) is getattr(cls, name):
-            # return nullptr to use default function on the c++ side
-            # for task scheduler use only
-            if name in required:
-                raise NotImplementedError(f"{cls}'s {name} method is not implemented!")
+        if getattr(base, name) is getattr(cls, name) and name != "__str__":
+            # for task scheduler return None means calling default function
+            # otherwise it will trigger a TVMError of method not implemented
+            # on the c++ side when you call the method, __str__ not required
             return None
         return method
 
@@ -93,7 +92,6 @@ def derived_object(cls: Any) -> type:
     metadata = getattr(base, "_tvm_metadata")
     members = metadata.get("members", [])
     methods = metadata.get("methods", [])
-    required = metadata.get("required", {})
 
     class TVMDerivedObject(metadata["cls"]):  # type: ignore
         """The derived object to avoid cyclic dependency."""
@@ -110,8 +108,9 @@ def derived_object(cls: Any) -> type:
                 # the constructor's parameters, builder, runner, etc.
                 *[getattr(self._inst, name) for name in members],
                 # the function methods, init_with_tune_context, build, run, etc.
-                [_extract(self._inst, name, required) for name in methods],
+                [_extract(self._inst, name) for name in methods],
             )
+            self._inst.handle = self.handle
 
         def __getattr__(self, name: str):
             """Bridge the attribute function."""
@@ -122,9 +121,6 @@ def derived_object(cls: Any) -> type:
                 self._inst.__setattr__(name, value)
             else:
                 super(TVMDerivedObject, self).__setattr__(name, value)
-
-        def __str__(self) -> str:
-            return f"meta_schedule.{self.__class__.__name__}({_get_hex_address(self.handle)})"
 
     functools.update_wrapper(TVMDerivedObject.__init__, cls.__init__)
     TVMDerivedObject.__name__ = cls.__name__
@@ -382,7 +378,7 @@ def check_override(
     return inner
 
 
-def _get_hex_address(handle: ctypes.c_void_p) -> str:
+def get_hex_address(handle: ctypes.c_void_p) -> str:
     """Get the hexadecimal address of a handle.
     Parameters
     ----------

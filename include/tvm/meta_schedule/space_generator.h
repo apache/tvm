@@ -114,7 +114,7 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     ICHECK(f_initialize_with_tune_context != nullptr)
-        << "PySpaceGenerator's InitializeWithTuneContext !";
+        << "PySpaceGenerator's InitializeWithTuneContext method not implemented!";
     f_initialize_with_tune_context(context);
   }
 

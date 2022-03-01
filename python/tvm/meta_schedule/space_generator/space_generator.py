@@ -92,7 +92,6 @@ class PySpaceGenerator:
     _tvm_metadata = {
         "cls": _PySpaceGenerator,
         "methods": ["initialize_with_tune_context", "generate_design_space"],
-        "required": {"initialize_with_tune_context", "generate_design_space"},
     }
 
     def initialize_with_tune_context(self, context: "TuneContext") -> None:

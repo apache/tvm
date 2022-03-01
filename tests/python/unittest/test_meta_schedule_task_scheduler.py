@@ -22,6 +22,7 @@ from typing import List
 
 import pytest
 import tvm
+from tvm._ffi.base import TVMError
 from tvm.ir import IRModule
 from tvm.meta_schedule import TuneContext, measure_callback
 from tvm.meta_schedule.builder import BuilderInput, BuilderResult, PyBuilder
@@ -262,8 +263,9 @@ def test_meta_schedule_task_scheduler_NIE():  # pylint: disable=invalid-name
     class MyTaskScheduler(PyTaskScheduler):
         pass
 
-    with pytest.raises(NotImplementedError):
-        MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
+    with pytest.raises(TVMError, match="PyTaskScheduler's NextTaskId method not implemented!"):
+        scheduler = MyTaskScheduler([], DummyBuilder(), DummyRunner(), DummyDatabase())
+        scheduler.next_task_id()
 
 
 def test_meta_schedule_task_scheduler_override_next_task_id_only():  # pylint: disable=invalid-name

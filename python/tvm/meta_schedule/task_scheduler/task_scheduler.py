@@ -190,7 +190,6 @@ class PyTaskScheduler:
             "join_running_task",
             "next_task_id",
         ],
-        "required": {"next_task_id"},
     }
 
     def __init__(

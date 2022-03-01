@@ -24,9 +24,11 @@ import pytest
 
 import tvm
 from tvm.meta_schedule.utils import derived_object
+from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion
+from tvm.meta_schedule.tune_context import TuneContext
+from tvm._ffi.base import TVMError
 from tvm.script import tir as T
 from tvm.tir.schedule import Schedule
-from tvm.meta_schedule.space_generator import ScheduleFn, PySpaceGenerator, SpaceGeneratorUnion
 
 
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
@@ -91,8 +93,11 @@ def test_meta_schedule_design_space_generator_NIE():
     class TestPySpaceGenerator(PySpaceGenerator):
         pass
 
-    with pytest.raises(NotImplementedError):
-        TestPySpaceGenerator()
+    with pytest.raises(
+        TVMError, match="PySpaceGenerator's InitializeWithTuneContext method not implemented!"
+    ):
+        generator = TestPySpaceGenerator()
+        generator.initialize_with_tune_context(TuneContext())
 
 
 if __name__ == "__main__":

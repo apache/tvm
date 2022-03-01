@@ -25,7 +25,7 @@ from .. import _ffi_api
 from ..builder import BuilderResult
 from ..runner import RunnerResult
 from ..search_strategy import MeasureCandidate
-from ..utils import _get_hex_address, check_override
+from ..utils import get_hex_address, check_override
 
 if TYPE_CHECKING:
     from ..task_scheduler import TaskScheduler
@@ -101,4 +101,4 @@ class PyMeasureCallback(MeasureCallback):
         )
 
     def __str__(self) -> str:
-        return f"PyMeasureCallback({_get_hex_address(self.handle)})"
+        return f"PyMeasureCallback({get_hex_address(self.handle)})"

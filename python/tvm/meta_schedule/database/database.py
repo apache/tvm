@@ -248,13 +248,6 @@ class PyDatabase:
             "get_top_k",
             "__len__",
         ],
-        "required": {
-            "has_workload",
-            "commit_workload",
-            "commit_tuning_record",
-            "get_top_k",
-            "__len__",
-        },
     }
 
     def has_workload(self, mod: IRModule) -> bool:

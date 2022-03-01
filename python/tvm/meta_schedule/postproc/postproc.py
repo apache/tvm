@@ -23,7 +23,7 @@ from tvm.runtime import Object
 from tvm.tir.schedule import Schedule
 
 from .. import _ffi_api
-from ..utils import _get_hex_address, check_override
+from ..utils import get_hex_address, check_override
 
 if TYPE_CHECKING:
     from ..tune_context import TuneContext
@@ -87,4 +87,4 @@ class PyPostproc(Postproc):
         )
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__}({_get_hex_address(self.handle)})"
+        return f"{self.__class__.__name__}({get_hex_address(self.handle)})"

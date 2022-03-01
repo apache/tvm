@@ -171,13 +171,6 @@ class PySearchStrategy:
             "generate_measure_candidates",
             "notify_runner_results",
         ],
-        "required": {
-            "initialize_with_tune_context",
-            "pre_tuning",
-            "post_tuning",
-            "generate_measure_candidates",
-            "notify_runner_results",
-        },
     }
 
     def initialize_with_tune_context(self, context: "TuneContext") -> None:

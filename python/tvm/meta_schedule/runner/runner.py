@@ -146,7 +146,6 @@ class PyRunnerFuture:
     _tvm_metadata = {
         "cls": RunnerFuture,
         "methods": ["done", "result"],
-        "required": {"done", "result"},
     }
 
     def done(self) -> bool:
@@ -204,7 +203,10 @@ class PyRunner:
     Note: @derived_object is required for proper usage of any inherited class.
     """
 
-    _tvm_metadata = {"cls": _PyRunner, "methods": ["run"], "required": {"run"}}
+    _tvm_metadata = {
+        "cls": _PyRunner,
+        "methods": ["run"],
+    }
 
     def run(self, runner_inputs: List[RunnerInput]) -> List[RunnerFuture]:
         """Run the built artifact and get runner futures.

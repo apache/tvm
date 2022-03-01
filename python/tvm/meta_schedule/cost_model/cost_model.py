@@ -20,6 +20,7 @@ from typing import Callable, List
 
 import numpy as np  # type: ignore
 from tvm._ffi import register_object
+from tvm.meta_schedule.utils import get_hex_address
 from tvm.runtime import Object
 
 from .. import _ffi_api
@@ -119,10 +120,7 @@ class _PyCostModel(CostModel):
                 array_wrapper.dtype == "float64"
             ), "ValueError: Invalid data type returned from CostModel Predict!"
 
-        def f_as_string():
-            return self.__str__()
-
-        f_load, f_save, f_update, predict_func = methods
+        f_load, f_save, f_update, predict_func, f_as_string = methods
         self.__init_handle_by_constructor__(
             _ffi_api.CostModelPyCostModel,  # type: ignore # pylint: disable=no-member
             f_load,
@@ -143,8 +141,7 @@ class PyCostModel:
 
     _tvm_metadata = {
         "cls": _PyCostModel,
-        "methods": ["load", "save", "update", "predict"],
-        "required": {"load", "save", "update", "predict"},
+        "methods": ["load", "save", "update", "predict", "__str__"],
     }
 
     def load(self, path: str) -> None:
@@ -202,3 +199,20 @@ class PyCostModel:
             The predicted normalized score.
         """
         raise NotImplementedError
+
+    def __str__(self) -> str:
+        """Update the cost model given running results.
+
+        Parameters
+        ----------
+        context : TuneContext,
+            The tuning context.
+        candidates : List[MeasureCandidate]
+            The measure candidates.
+
+        Return
+        ------
+        result : np.ndarray
+            The predicted normalized score.
+        """
+        return f"meta_schedule.{self.__class__.__name__}({get_hex_address(self.handle)})"

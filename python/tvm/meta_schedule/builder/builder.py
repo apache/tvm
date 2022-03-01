@@ -149,7 +149,7 @@ class PyBuilder:
     Note: @derived_object is required for proper usage of any inherited class.
     """
 
-    _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"], "required": {"build"}}
+    _tvm_metadata = {"cls": _PyBuilder, "methods": ["build"]}
 
     def build(self, build_inputs: List[BuilderInput]) -> List[BuilderResult]:
         """Build the given inputs.
