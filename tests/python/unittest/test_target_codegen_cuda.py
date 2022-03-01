@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import re
+
 import tvm
 from tvm import te
 import numpy as np
@@ -811,14 +813,18 @@ def vcf_check_common(s, args):
             inside_broadcast[0] = True
             # Check Broadcast[Imm numbers] or Broadcast[Load] patterns
             assert isinstance(stmt.value, (tvm.tir.IntImm, tvm.tir.FloatImm, tvm.tir.BufferLoad))
-        if isinstance(stmt, tvm.tir.Store):
-            # Check Store[Ramp] pattern
-            assert isinstance(stmt.index, tvm.tir.Ramp)
-        if isinstance(stmt, tvm.tir.BufferLoad):
-            # Check Broadcast[BufferLoad] or BufferLoad[Ramp] patterns
-            assert inside_broadcast[0] or isinstance(stmt.indices[-1], tvm.tir.Ramp)
-            # Skip the rest
-            return stmt
+
+        if isinstance(stmt, (tvm.tir.BufferStore, tvm.tir.BufferLoad)):
+            is_ramp_index = isinstance(stmt.indices[-1], tvm.tir.Ramp)
+            is_vectorized_buffer = re.match(r"^.*x\d+$", stmt.buffer.dtype)
+            if isinstance(stmt, tvm.tir.BufferLoad):
+                # Check Broadcast[BufferLoad] or BufferLoad[Ramp] patterns
+                assert inside_broadcast[0] or is_ramp_index or is_vectorized_buffer
+                # Skip the rest of the BufferLoad
+                return stmt
+            else:
+                assert is_ramp_index or is_vectorized_buffer
+
         return None
 
     def post_visit(stmt):
