@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
 import datetime
 import itertools
 import json
@@ -262,9 +263,7 @@ def subprocess_check_log_output(cmd, cwd, logfile):
 
     proc.wait()
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"Subprocess failed: {cmd}\nstdout:\n{stdout}"
-        )
+        raise RuntimeError(f"Subprocess failed: {cmd}\nstdout:\n{stdout}")
 
 
 # TODO: Move to linker script with list of symbols rather than coding into source
@@ -893,8 +892,9 @@ def compile_and_run(
     # the flakyness of the tests. Will remove once #10314 is resolved.
     try:
         run_mod()
-    except AssertionError:
-        print("Failed to compile or run the module, having a second attempt...")
+    except RuntimeError as err:
+        print("Failed to run the module, having a second attempt...", file=sys.stderr)
+        print(err, file=sys.stderr)
         run_mod()
 
 

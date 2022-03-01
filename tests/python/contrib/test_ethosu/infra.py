@@ -25,6 +25,7 @@ test cases.
 """
 from typing import List
 
+import sys
 import os
 import struct
 import numpy
@@ -265,8 +266,9 @@ def verify_source(
     # the flakyness of the tests. Will remove once #10300 is resolved.
     try:
         run_mod()
-    except AssertionError:
-        print("Failed to compile or run the module, having a second attempt...")
+    except RuntimeError as err:
+        print("Failed to run the module, having a second attempt...", file=sys.stderr)
+        print(err, file=sys.stderr)
         run_mod()
 
 
