@@ -26,7 +26,7 @@ from tvm.topi.utils import get_const_tuple
 
 _group_conv2d_nchw_implement = {
     "generic": (topi.nn.group_conv2d_transpose_nchw, topi.generic.schedule_group_conv2d_transpose_nchw),
-    "cuda": (topi.cuda.group_conv2d_transpose_nchw, topi.cuda.schedule_group_conv2d_transpose_nchw),
+    "cuda": (topi.cuda.conv2d_transpose_nchw, topi.cuda.schedule_conv2d_transpose_nchw),
 }
 
 
