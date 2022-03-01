@@ -28,6 +28,7 @@ import json
 import shutil
 import grp
 import subprocess
+import textwrap
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -75,6 +76,11 @@ def cmd(commands: List[Any], **kwargs: Any):
     if proc.returncode != 0:
         raise RuntimeError(f"Command failed: '{command_str}'")
     return proc
+
+
+def get_build_dir(type: str) -> str:
+    build_dir = REPO_ROOT / f"build-{type}"
+    return str(build_dir.relative_to(REPO_ROOT))
 
 
 def check_docker():
@@ -136,7 +142,7 @@ def check_build():
         )
 
 
-def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
+def docker(name: str, image: str, scripts: List[str], env: Dict[str, str], interactive: bool):
     """
     Invoke a set of bash scripts through docker/bash.sh
 
@@ -158,6 +164,11 @@ def docker(name: str, image: str, scripts: List[str], env: Dict[str, str]):
 
     docker_bash = REPO_ROOT / "docker" / "bash.sh"
     command = [docker_bash, "--name", name]
+    if interactive:
+        command.append("-i")
+        command.append("-t")
+        scripts.append("bash")
+
     for key, value in env.items():
         command.append("--env")
         command.append(f"{key}={value}")
@@ -196,6 +207,7 @@ def docs(
     cpu -- Run with the ci-cpu image and use CMake defaults for building TVM (if no GPUs are available)
     """
     config = "./tests/scripts/task_config_build_gpu.sh"
+    build_dir = get_build_dir("gpu")
     if cpu and full:
         clean_exit("--full cannot be used with --cpu")
 
@@ -203,6 +215,7 @@ def docs(
     image = "ci_gpu"
     if cpu:
         image = "ci_cpu"
+        build_dir = get_build_dir("cpu")
         config = " && ".join(
             [
                 "mkdir -p build",
@@ -237,8 +250,8 @@ def docs(
         check_gpu()
 
     scripts = extra_setup + [
-        config,
-        f"./tests/scripts/task_build.sh build -j{NPROC}",
+        config + f" {build_dir}",
+        f"./tests/scripts/task_build.sh {build_dir} -j{NPROC}",
         "./tests/scripts/task_ci_setup.sh",
         "./tests/scripts/task_python_docs.sh",
     ]
@@ -264,7 +277,7 @@ def serve_docs(directory: str = "_docs") -> None:
     """
     directory = Path(directory)
     if not directory.exists():
-        clean_exit("Docs have not been build, run 'ci.py docs' first")
+        clean_exit("Docs have not been built, run 'ci.py docs' first")
     cmd([sys.executable, "-m", "http.server"], cwd=directory)
 
 
@@ -278,6 +291,276 @@ def lint() -> None:
         scripts=["./tests/scripts/task_lint.sh"],
         env={},
     )
+
+
+def cpu(
+    tests: Optional[List[str]] = None,
+    interactive: bool = False,
+    frontend: bool = False,
+    integration: bool = False,
+    unittest: bool = False,
+) -> None:
+    """
+    Run CPU build and test(s)
+
+    arguments:
+    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+    interactive -- start a shell after running build / test scripts
+    frontend -- run frontend tests
+    integration -- run integration tests
+    unittest -- run unit tests
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_cpu.sh {get_build_dir('cpu')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('cpu')} -j{NPROC}",
+        "./tests/scripts/task_ci_setup.sh",
+    ]
+    if any([frontend, integration, unittest]) and tests is not None:
+        clean_exit("--frontend, --integration, and --unittest cannot be used with --tests")
+
+    if tests is not None:
+        scripts.append(f"python3 -m pytest {' '.join(tests)}")
+
+    if frontend:
+        scripts.append("./tests/scripts/task_python_frontend_cpu.sh")
+
+    if integration:
+        scripts.append("./tests/scripts/task_python_integration.sh")
+
+    if unittest:
+        scripts.append("./tests/scripts/task_python_unittest.sh")
+        scripts.append("./tests/scripts/task_python_vta_fsim.sh")
+        scripts.append("./tests/scripts/task_python_vta_tsim.sh")
+
+    docker(
+        name="ci-cpu",
+        image="ci_cpu",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def gpu(
+    tests: Optional[List[str]] = None,
+    interactive: bool = False,
+    frontend: bool = False,
+    topi: bool = False,
+    unittest: bool = False,
+) -> None:
+    """
+    Run GPU build and test(s)
+
+    arguments:
+    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+    interactive -- start a shell after running build / test scripts
+    frontend -- run frontend tests
+    topi -- run topi tests
+    unittest -- run unit tests
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_gpu.sh {get_build_dir('gpu')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('gpu')} -j{NPROC}",
+        "./tests/scripts/task_ci_setup.sh",
+    ]
+    if any([frontend, topi, unittest]) and tests is not None:
+        clean_exit("--frontend, --topi, and --unittest cannot be used with --tests")
+
+    if tests is not None:
+        scripts.append(f"python3 -m pytest {' '.join(tests)}")
+
+    if frontend:
+        scripts.append("./tests/scripts/task_python_frontend.sh")
+
+    if topi:
+        scripts.append("./tests/scripts/task_python_topi.sh")
+
+    if unittest:
+        scripts.append("./tests/scripts/task_java_unittest.sh")
+        scripts.append("./tests/scripts/task_python_unittest_gpuonly.sh")
+        scripts.append("./tests/scripts/task_python_integration_gpuonly.sh")
+
+    docker(
+        name="ci-gpu",
+        image="ci_gpu",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def i386(
+    tests: Optional[List[str]] = None,
+    interactive: bool = False,
+    integration: bool = False,
+) -> None:
+    """
+    Run i386 build and test(s)
+
+    arguments:
+    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+    interactive -- start a shell after running build / test scripts
+    integration -- run unit and integration tests
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_i386.sh {get_build_dir('i386')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('i386')} -j{NPROC}",
+        "./tests/scripts/task_ci_setup.sh",
+    ]
+    if integration and tests is not None:
+        clean_exit("--integration cannot be used with --tests")
+
+    if tests is not None:
+        scripts.append(f"python3 -m pytest {' '.join(tests)}")
+
+    if integration:
+        scripts.append("./tests/scripts/task_python_unittest.sh")
+        scripts.append("./tests/scripts/task_python_integration_i386only.sh")
+
+    docker(
+        name="ci-i386",
+        image="ci_i386",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def wasm(
+    interactive: bool = False,
+) -> None:
+    """
+    Run WASM build and test(s)
+
+    arguments:
+    interactive -- start a shell after running build / test scripts
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_wasm.sh {get_build_dir('wasm')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('wasm')} -j{NPROC}",
+        "./tests/scripts/task_web_wasm.sh",
+    ]
+
+    docker(
+        name="ci-wasm",
+        image="ci_wasm",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def qemu(
+    interactive: bool = False,
+) -> None:
+    """
+    Run QEMU test(s)
+
+    arguments:
+    interactive -- start a shell after running build / test scripts
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_qemu.sh {get_build_dir('qemu')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('qemu')} -j{NPROC}",
+        "./tests/scripts/task_python_microtvm.sh",
+        "./tests/scripts/task_demo_microtvm.sh",
+    ]
+
+    docker(
+        name="ci-qemu",
+        image="ci_qemu",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def hexagon(
+    interactive: bool = False,
+) -> None:
+    """
+    Run Hexagon build and test(s)
+
+    arguments:
+    interactive -- start a shell after running build / test scripts
+    """
+    scripts = [
+        f"./tests/scripts/task_config_build_hexagon.sh {get_build_dir('hexagon')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('hexagon')} -j{NPROC}",
+        "./tests/scripts/task_build_hexagon_api.sh",
+        "./tests/scripts/task_python_hexagon.sh",
+    ]
+
+    docker(
+        name="ci-hexagon",
+        image="ci_hexagon",
+        scripts=scripts,
+        env={},
+        interactive=interactive,
+    )
+
+
+def arm(
+    tests: Optional[List[str]] = None,
+    python: bool = False,
+    interactive: bool = False,
+) -> None:
+    """
+    Run ARM build and test(s) via QEMU (x86 only)
+
+    arguments:
+    tests -- pytest test IDs (e.g. tests/python or tests/python/a_file.py::a_test[param=1])
+    python -- run full Python tests
+    interactive -- start a shell after running build / test scripts
+    """
+    binfmt = Path("/proc/sys/fs/binfmt_misc")
+    if not binfmt.exists() or len(list(binfmt.glob("qemu-*"))) == 0:
+        clean_exit(
+            textwrap.dedent(
+                """
+        You must run a one-time setup to use ARM containers on x86:
+
+            sudo apt install -y sudo apt-get install qemu binfmt-support qemu-user-static
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+        See https://www.stereolabs.com/docs/docker/building-arm-container-on-x86/ for details""".strip(
+                    "\n"
+                )
+            )
+        )
+
+    scripts = [
+        f"./tests/scripts/task_config_build_arm.sh {get_build_dir('arm')}",
+        f"./tests/scripts/task_build.sh {get_build_dir('arm')} -j{NPROC}",
+        f"./tests/scripts/task_ci_setup.sh",
+    ]
+
+    if tests is not None:
+        scripts.append(f"python3 -m pytest {' '.join(tests)}")
+
+    if python:
+        scripts.append(f"./tests/scripts/task_python_unittest.sh")
+        scripts.append(f"./tests/scripts/task_python_arm_compute_library.sh")
+
+    docker(
+        name="ci-arm",
+        image="ci_arm",
+        scripts=scripts,
+        env={"USE_SCCACHE": "1"},
+        interactive=interactive,
+    )
+
+
+def arm_native(
+    interactive: bool = False,
+) -> None:
+    """
+    Run ARM build and test(s)
+
+    arguments:
+    interactive -- start a shell after running build / test scripts
+    """
+    clean_exit("ARM native builds not yet implemented")
 
 
 def cli_name(s: str) -> str:
@@ -315,23 +598,42 @@ def add_subparser(func, subparsers) -> Any:
     for name, value in signature.parameters.items():
         kwargs = {"help": arg_help_texts[cli_name(name)]}
 
+        arg_type = value.annotation
+        is_optional = False
+        if str(value.annotation).startswith("typing.Optional"):
+
+            is_optional = True
+            arg_type = value.annotation.__args__[0]
+
         # Grab the default value if present
         if value.default is not value.empty:
             kwargs["default"] = value.default
 
         # Check if it should be a flag
-        if value.annotation is bool:
+        if arg_type is bool:
             kwargs["action"] = "store_true"
+        else:
+            kwargs["required"] = not is_optional
+
+        if str(arg_type).startswith("typing.List"):
+            kwargs["nargs"] = "+"
+
         subparser.add_argument(f"--{cli_name(name)}", **kwargs)
 
     return subparser
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run CI scripts locally via Docker")
+    description = """
+    Run CI jobs locally via Docker. This facilitates reproducing CI failures for
+    fast iteration. Note that many of the Docker images required are large (the
+    CPU and GPU images are both over 25GB) and may take some time to download on first use.
+    """
+    parser = argparse.ArgumentParser(description=description)
     subparsers = parser.add_subparsers(dest="command")
 
-    subparser_functions = {cli_name(func.__name__): func for func in [docs, serve_docs, lint]}
+    commands = [docs, serve_docs, lint, cpu, gpu, i386, wasm, qemu, hexagon, arm, arm_native]
+    subparser_functions = {cli_name(func.__name__): func for func in commands}
     for func in subparser_functions.values():
         add_subparser(func, subparsers)
 
