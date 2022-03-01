@@ -1543,7 +1543,7 @@ class FullyConnectedParams:
     function and extract the parameter information.
     """
 
-    composite_name = "ethosu.fully_connected"
+    composite_name = "ethos-u.fully_connected"
     activation_map = {"clip": "CLIP"}
 
     @requires_vela
@@ -1552,34 +1552,42 @@ class FullyConnectedParams:
         from tvm.relay.backend.contrib.ethosu.util import BiasAddArgs
         from tvm.relay.backend.contrib.ethosu.util import RequantArgs
 
-        activation = None
+        self.activation = None
         if str(func_body.op) in self.activation_map.keys():
             activation = func_body
             requantize_op = activation.args[0]
         else:
             requantize_op = func_body
 
-        bias_add = requantize_op.args[0]
-        qnn_dense = bias_add.args[0]
+        call = func_body.args[0]
+        if str(requantize_op.op) == "nn.bias_add":
+            bias_add = call
+        else:
+            bias_add = None
+        qnn_dense = call
 
-        # We consider the weights & biases as params as they should be constant
+        # weights & biases are params as they should be constant
         self.weights = TensorParams(
-            qnn_dense.args[QDenseArgs.weights.value],
-            "OI",
-            qnn_dense.args[QDenseArgs.weights_scale.value],
-            qnn_dense.args[QDenseArgs.weights_zero_point.value],
-        )
-        self.biases = TensorParams(
-            bias_add.args[BiasAddArgs.BIASES.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS.value],
             None,
-            requantize_op.args[RequantArgs.IFM_SCALE.value],
-            requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_SCALE.value],
+            qnn_dense.args[QDenseArgs.WEIGHTS_ZERO_POINT.value],
+        )
+        self.biases = (
+            TensorParams(
+                bias_add.args[BiasAddArgs.BIASES.value],
+                None,
+                requantize_op.args[RequantArgs.IFM_SCALE.value],
+                requantize_op.args[RequantArgs.IFM_ZERO_POINT.value],
+            )
+            if bias_add
+            else None
         )
         self.ifm = TensorParams(
-            qnn_dense.args[QDenseArgs.ifm.value],
+            qnn_dense.args[QDenseArgs.IFM.value],
             None,
-            qnn_dense.args[QDenseArgs.ifm_scale.value],
-            qnn_dense.args[QDenseArgs.ifm_zero_point.value],
+            qnn_dense.args[QDenseArgs.IFM_SCALE.value],
+            qnn_dense.args[QDenseArgs.IFM_ZERO_POINT.value],
         )
         self.ofm = TensorParams(
             func_body,
@@ -1588,9 +1596,11 @@ class FullyConnectedParams:
             requantize_op.args[RequantArgs.OFM_ZERO_POINT.value],
         )
 
-        self.activation = activation
+        self.strides = (1, 1)
+        self.dilation = (1, 1)
+        self.padding = (0, 0, 0, 0)
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """
         Checks whether Fully Connected has compatible attributes with HW
         """
@@ -1606,7 +1616,7 @@ class FullyConnectedParams:
                 return False
             return True
 
-        if not check_valid_dtypes([self.input, self.output], supported_dtypes=[np.int8]):
+        if not check_valid_dtypes([self.ifm, self.ofm], supported_dtypes=[np.int8]):
             return False
         if not check_weights_fc(self.weights):
             return False

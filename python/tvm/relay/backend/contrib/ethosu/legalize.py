@@ -1589,26 +1589,33 @@ class FullyConnectedRewriter(DFPatternCallback):
     def callback(self, pre, post, node_map):
         params = ethosu_patterns.FullyConnectedParams(post.op.body)
         params.ifm.tensor = post.args[0]
-        activation_map = {"clip": "CLIP"}
+        activation = None
 
         # IFM reshapes
         ifm = post.args[0]
         if len(params.ifm.shape) != 4 or not params.ifm.shape[1] == params.ifm.shape[2] == 1:
-            ifm = relay.reshape(ifm, (-1, 1, 1, params.ifm.shape[-1]))
+            ifm = relay.reshape(ifm, (1, 1, 1, params.ifm.shape[-1]))
 
         # Weight transformations
         weights_values = params.weights.values
         weights_values_ohwi = np.expand_dims(weights_values, axis=(1, 2))
         if params.activation:
-            activation = activation_map[params.activation.op.name]
-            clip_min = int(params.activation.attrs.a_min)
-            clip_max = int(params.activation.attrs.a_max)
+            activation = ethosu_patterns.FullyConnectedParams.activation_map[
+                params.activation.op.name
+            ]
+            if params.activation:
+                clip_min = int(params.activation.attrs.a_min)
+                clip_max = int(params.activation.attrs.a_max)
         else:
-            activation = "NONE"
             clip_min = 0
             clip_max = 0
+        bias_values = (
+            params.biases.tensor.data.asnumpy()
+            if params.biases
+            else np.zeros((params.ifm.shape[-1]))
+        )
         scale_bias = vela_api.pack_biases(
-            biases=params.biases.tensor.data.asnumpy(),
+            biases=bias_values,
             ifm_scale=params.ifm.q_params.scale_f32,
             ifm_dtype=np.dtype(params.ifm.dtype),
             weight_scales=params.weights.q_params.scale_f32,
@@ -1627,9 +1634,9 @@ class FullyConnectedRewriter(DFPatternCallback):
             ofm_zero_point=int(params.ofm.q_params.zero_point),
             kernel_shape=[1, 1],
             ofm_channels=params.weights.shape[0],
-            strides=(1, 1),
-            padding=(0, 0, 0, 0),
-            dilation=(1, 1),
+            strides=params.strides,
+            padding=params.padding,
+            dilation=params.dilation,
             activation=activation,
             clip_min=clip_min,
             clip_max=clip_max,
@@ -1645,7 +1652,7 @@ class FullyConnectedRewriter(DFPatternCallback):
 
 @ir.transform.module_pass(opt_level=1)
 class LegalizeFullyConnected:
-    """This is the pass that wraps the AddRewriter"""
+    """This is the pass that wraps the FullyConnectedRewriter"""
 
     def transform_module(
         self, mod: tvm.ir.IRModule, ctx: tvm.ir.transform.PassContext
@@ -1696,8 +1703,8 @@ class LegalizeEthosU:
         mod = LegalizeSqueeze()(mod)
         mod = LegalizeReshape()(mod)
         mod = LegalizeStridedSlice()(mod)
-        mod = LegalizeNoOps()(mod)
         mod = LegalizeFullyConnected()(mod)
+        mod = LegalizeNoOps()(mod)
         return mod
 
     def __call__(self, *args, **kwargs):
