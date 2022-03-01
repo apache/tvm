@@ -167,6 +167,24 @@ bool IsDominantBlock(const BlockScope& scope, const StmtSRef& block_sref) {
   return true;
 }
 
+bool ContainsOnlyDataParBlockIter(const Array<IterVar>& iters) {
+  for (const IterVar& iter_var : iters) {
+    if (iter_var->iter_type != kDataPar) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters) {
+  for (const IterVar& iter_var : iters) {
+    if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /*!
  * \brief A helper function that checks whether a given block is a complete block under the scope,
  * or return the condition it violates if it is not a complete block
@@ -181,10 +199,8 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   // Cond 1. All block vars are data parallel
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  for (const IterVar& iter_var : block->iter_vars) {
-    if (iter_var->iter_type != kDataPar) {
-      return 1;
-    }
+  if (!ContainsOnlyDataParBlockIter(block->iter_vars)) {
+    return 1;
   }
   // Cond 2. Dominant: the block is the only writer of its output,
   // dominating the reader of its output buffers
@@ -211,7 +227,11 @@ static const char* kCompleteBlockDefinition = R"(Definition of a complete block:
 3) No overlap between the buffers the block reads and writes)";
 
 static const char* kReductionBlockDefinition = R"(Definition of a reduction block:
-1) The block has the `init` statement
+1) The block has the `init` statement, or 
+  - all block iter vars are data-parallel
+  - there are sub-blocks
+  - each sub-block is complete/reduction,
+  - there is a least a reduction sub-block.
 2) All the block bindings are quasi-affine expressions
 3) All block vars are either data parallel block vars or reduction block vars
 4) Dominant: the block is the only writer of its output, dominating the reader of its output buffers
@@ -262,10 +282,6 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
                                  const StmtSRef& scope_root_sref) {
   BlockScope scope = self->GetBlockScope(scope_root_sref);
   const BlockNode* block = TVM_SREF_TO_BLOCK(block, block_sref);
-  // Cond 1. The block has the `init` statement.
-  if (!block->init.defined()) {
-    return 1;
-  }
   // Cond 2. All the block bindings are quasi-affine expressions.
   if (!self->IsAffineBlockBinding(block_sref)) {
     return 2;
@@ -281,7 +297,45 @@ int CheckReductionBlockErrorCode(const ScheduleState& self, const StmtSRef& bloc
     return 4;
   }
   // Cond 5. The reduction block vars are not used to index the output buffers.
-  return ReductionIterNotIndexOutputBuffer(GetRef<Block>(block)) ? 0 : 5;
+  if (!ReductionIterNotIndexOutputBuffer(GetRef<Block>(block))) {
+    return 5;
+  }
+  // Cond 1. The block has the `init` statement, or
+  // - all block iter vars are data-parallel,
+  // - there are sub-blocks,
+  // - each sub-block is complete/reduction
+  // - there is a least a reduction sub-block.
+  if (!block->init.defined()) {
+    Array<StmtSRef> child_block_srefs = GetChildBlockSRefOnSRefTree(self, block_sref);
+    if (child_block_srefs.empty()) {
+      return 1;
+    } else {  // have sub-blocks.
+      // all block iter vars are data-parallel
+      if (!ContainsOnlyDataParBlockIter(block->iter_vars)) {
+        return 1;
+      }
+      // all sub-blocks are complete
+      bool has_reduction = false;
+      bool all_complete_reduction = true;
+      for (const StmtSRef& child_block_sref : child_block_srefs) {
+        int complete_code = CheckCompleteBlockErrorCode(self, child_block_sref, scope_root_sref);
+        int reduction_code = CheckReductionBlockErrorCode(self, child_block_sref, scope_root_sref);
+        if (complete_code != 0 && reduction_code != 0) {
+          all_complete_reduction = false;
+          break;
+        }
+        if (reduction_code == 0) {
+          has_reduction = true;
+        }
+      }
+      if (has_reduction && all_complete_reduction) {
+        return 0;
+      } else {
+        return 1;
+      }
+    }
+  }
+  return 0;
 }
 
 bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
@@ -1415,15 +1469,6 @@ std::pair<BufferStore, BufferStore> GetBufferStoresFromReductionBlock(
     }
   }
   return std::make_pair(GetRef<BufferStore>(init), GetRef<BufferStore>(body));
-}
-
-bool ContainsOnlyDataParAndReductionBlockIter(const Array<IterVar>& iters) {
-  for (const IterVar& iter_var : iters) {
-    if (iter_var->iter_type != kDataPar && iter_var->iter_type != kCommReduce) {
-      return false;
-    }
-  }
-  return true;
 }
 
 bool ReductionIterNotIndexOutputBuffer(const Block& block) {
