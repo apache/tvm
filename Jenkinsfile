@@ -194,6 +194,7 @@ stage('Sanity Check') {
   }
 }
 
+
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
 // build from scratch.
@@ -259,17 +260,10 @@ def fsim_test(image) {
 }
 
 def cmake_build(image, path, make_flag) {
-  // Note: This isn't really a secret, but its stored as a Jenkins credential
-  // so it can be easily configured
-  withCredentials([string(
-    credentialsId: 'tvm-sccache-bucket',
-    variable: 'SCCACHE_BUCKET',
-    )]) {
-    sh (
-      script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag} $SCCACHE_BUCKET",
-      label: 'Run cmake build',
-    )
-  }
+  sh (
+    script: "${docker_run} ${image} ./tests/scripts/task_build.sh ${path} ${make_flag} tvm-sccache-prod",
+    label: 'Run cmake build',
+  )
 }
 
 def cpp_unittest(image) {

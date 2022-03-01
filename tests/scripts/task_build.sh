@@ -39,7 +39,7 @@ fi
 
 # Send this out through a side channel, the bucket name is not actually secret
 # so it's OK to leak it in this way
-echo "$SCCACHE_BUCKET" | base64
+echo "sccache bucket: $SCCACHE_BUCKET"
 
 if [ "$HAS_SCCACHE" -eq "1" ]; then
     sccache --start-server || echo failed
