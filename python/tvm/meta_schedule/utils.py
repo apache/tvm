@@ -100,16 +100,19 @@ def derived_object(cls: Any) -> type:
             """Constructor."""
             self.handle = None
             self._inst = cls(*args, **kwargs)
-            # make sure the inner class can access the outside
-            # used in task scheduler for hybrid funcs in c++ & python side
-            # using weakref to avoid cyclic dependency
-            self._inst._outer = weakref.ref(self)
+
             super().__init__(
                 # the constructor's parameters, builder, runner, etc.
                 *[getattr(self._inst, name) for name in members],
                 # the function methods, init_with_tune_context, build, run, etc.
                 [_extract(self._inst, name) for name in methods],
             )
+
+            # for task scheduler hybrid funcs in c++ & python side
+            # using weakref to avoid cyclic dependency
+            self._inst._outer = weakref.ref(self)
+            # keep track of the handle in self
+            # won't cause cyclic dependency because handle type is c_void_p
             self._inst.handle = self.handle
 
         def __getattr__(self, name: str):

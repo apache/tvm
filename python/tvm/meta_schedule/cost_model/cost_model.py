@@ -201,18 +201,11 @@ class PyCostModel:
         raise NotImplementedError
 
     def __str__(self) -> str:
-        """Update the cost model given running results.
-
-        Parameters
-        ----------
-        context : TuneContext,
-            The tuning context.
-        candidates : List[MeasureCandidate]
-            The measure candidates.
+        """Get the cost model as string with name.
 
         Return
         ------
-        result : np.ndarray
-            The predicted normalized score.
+        result : str
+            Get the cost model as string with name.
         """
         return f"meta_schedule.{self.__class__.__name__}({get_hex_address(self.handle)})"
