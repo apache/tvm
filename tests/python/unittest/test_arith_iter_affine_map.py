@@ -633,7 +633,7 @@ def test_subspace_division():
     tvm.ir.assert_structural_equal(res[0][0], j0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(l0[0] * 6 + l1[0], 6))
     tvm.ir.assert_structural_equal(res[1][0], 0)
-    tvm.ir.assert_structural_equal(res[1][1], floormod(floordiv(l0[0] * 6 + l1[0], 3), 2))
+    tvm.ir.assert_structural_equal(res[1][1], floordiv(floormod(l0[0] * 6 + l1[0], 6), 3))
     tvm.ir.assert_structural_equal(res[2][0], 0)
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l0[0] * 6 + l1[0], 3) * 3) + j3[0])
 

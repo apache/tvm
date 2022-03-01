@@ -413,7 +413,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
   for (int i = 0; i < n; i++) {
     const PrimExpr& factor = factors[i];
     Var var = loop->loop_var.copy_with_suffix("_" + std::to_string(i));
-    substitute_value = substitute_value * factor + var;
+    if (!is_one(factor)) substitute_value = substitute_value * factor + var;
     analyzer.Bind(var, Range::FromMinExtent(0, factor));
     new_loop_vars.emplace_back(std::move(var));
   }
@@ -505,11 +505,14 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   Var fused_var = loops[0]->loop_var.copy_with_suffix(suffix);
   Array<PrimExpr> substitute_value;
   substitute_value.resize(loops.size());
-  PrimExpr tot = fused_var;
-  for (int i = static_cast<int>(loops.size()) - 1; i >= 0; i--) {
-    substitute_value.Set(i, floormod(tot, loops[i]->extent));
-    tot = floordiv(tot, loops[i]->extent);
+  PrimExpr lower = 1;
+  for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
+    substitute_value.Set(i, is_one(loops[i]->extent)
+                                ? 0
+                                : floordiv(floormod(fused_var, lower * loops[i]->extent), lower));
+    lower = lower * loops[i]->extent;
   }
+  substitute_value.Set(0, is_one(loops[0]->extent) ? 0 : floordiv(fused_var, lower));
   Stmt new_stmt = loops.back()->body;
   Map<Block, Block> opaque_block_reuse;
   auto f_substitute = [&](const Var& v) -> Optional<PrimExpr> {
@@ -534,6 +537,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs) {
   self->Replace(loop_srefs[0], new_stmt, opaque_block_reuse);
   return self->stmt2ref.at(new_stmt.get());
 }
+
 /*!
  * \brief Collect an array of loop srefs into a set
  * \param self The schedule state
