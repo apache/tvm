@@ -68,7 +68,7 @@ class TensorRTBuilder {
    * \param logger TensorRT logger to use for errors and warnings.
    * \param max_workspace_size Workspace size parameter for TensorRT engine build phase.
    * \param use_implicit_batch Whether to use implicit batch mode (default)
-   * \param use_fp16 Whether to use implicit batch mode (default)
+   * \param use_fp16 Whether to automatically convert a model to fp16
    * \param batch_size If use_implicit_batch,
    */
   TensorRTBuilder(TensorRTLogger* logger, const std::vector<const DLTensor*>& data_entry,

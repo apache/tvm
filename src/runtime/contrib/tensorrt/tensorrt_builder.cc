@@ -85,8 +85,10 @@ void TensorRTBuilder::AddInput(int nid, uint32_t entry_id, const JSONGraphNode& 
       shape.erase(shape.begin());
     }
     nvinfer1::Dims dims = VectorToTrtDims(shape);
-    ICHECK(TypeMatch(dtypes[i], kDLFloat, 32)) << "Only FP32 inputs are supported.";
-    auto input_tensor = network_->addInput(name.c_str(), nvinfer1::DataType::kFLOAT, dims);
+    auto tensor_dtype =
+        (dtypes[i].bits == 16) ? nvinfer1::DataType::kHALF : nvinfer1::DataType::kFLOAT;
+
+    auto input_tensor = network_->addInput(name.c_str(), tensor_dtype, dims);
     node_output_map_[nid].push_back(TensorRTOpInput(input_tensor));
     network_input_names_.push_back(name);
     entry_id_map_[name] = entry_id + i;
@@ -139,6 +141,7 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
                    << " requires weights but got a tensor.";
       }
     }
+    VLOG(1) << "INT " << input.type;
     params.inputs.push_back(input);
   }
   ICHECK(converter->variable_input_count || converter->input_types.size() == params.inputs.size())
@@ -150,6 +153,10 @@ void TensorRTBuilder::AddLayer(int nid, const JSONGraphNode& node) {
   // Get outputs.
   node_output_map_[nid] = {};
   for (auto out : params.outputs) {
+    // out->setType(params.inputs.at(1).weight.type);
+    // out->setType(nvinfer1::DataType::kFLOAT);
+    out->setType(nvinfer1::DataType::kHALF);
+
     node_output_map_[nid].push_back(TensorRTOpInput(out));
   }
 }
@@ -205,18 +212,16 @@ TensorRTEngineAndContext TensorRTBuilder::BuildEngine() {
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(const DLTensor* dptr,
                                                         DLDeviceType src_device) {
   ICHECK_EQ(dptr->device.device_type, src_device);
-  ICHECK(static_cast<int>(dptr->dtype.code) == kDLFloat ||
-         static_cast<int>(dptr->dtype.code) == kDLInt);
-  const auto trt_dtype = static_cast<int>(dptr->dtype.code) == kDLFloat
-                             ? nvinfer1::DataType::kFLOAT
-                             : nvinfer1::DataType::kINT32;
+
+  const auto trt_dtype = (static_cast<int>(dptr->dtype.bits) == 16) ? nvinfer1::DataType::kHALF
+                                                                    : nvinfer1::DataType::kFLOAT;
+
   const size_t weight_bytes = GetDataSize(*dptr);
   nvinfer1::Weights weight{trt_dtype, nullptr, 0};
   size_t count = 1;
   for (tvm_index_t i = 0; i < dptr->ndim; ++i) {
     count *= dptr->shape[i];
   }
-  ICHECK_EQ(count * 4, weight_bytes);
   weight.count = count;
   weight.values = new float[count];
   ICHECK_EQ(TVMArrayCopyToBytes(const_cast<DLTensor*>(dptr), const_cast<void*>(weight.values),
@@ -250,7 +255,7 @@ void TensorRTBuilder::CleanUp() {
 #endif
   builder_->destroy();
   for (auto weight : trt_weights_) {
-    if (weight.type == nvinfer1::DataType::kFLOAT) {
+    if (static_cast<int>(weight.type) <= 1) {
       delete[] static_cast<const float*>(weight.values);
     } else {
       delete[] static_cast<const uint16_t*>(weight.values);
