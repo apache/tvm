@@ -22,6 +22,7 @@ from .schedules import *
 from .passes import *
 from .patterns import *
 
+
 class UltraTrailBackend(UMABackend):
     def __init__(self):
         super(UltraTrailBackend, self).__init__()
@@ -43,6 +44,20 @@ class UltraTrailBackend(UMABackend):
 
         self._register_tir_pass(0, CodegenGenerateConfig())
         self._register_tir_pass(0, CodegenGenerateConstants())
+
+        #######################################################################
+        # TIR to runtime function registration
+        #######################################################################
+        self._register_codegen(
+            fmt="c", includes=self.gen_includes, constants=None, replace_call_extern=None
+        )
+
+    def gen_includes(self) -> str:
+        includes = ""
+        includes += "#include <cmem.h>\n"
+        includes += "#include <archi.h>\n"
+        includes += "#include <hal.h>\n"
+        return includes
 
     @property
     def target_name(self):

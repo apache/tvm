@@ -38,8 +38,9 @@ def main():
     mod, params = relay.frontend.from_pytorch(scripted_model, [("input_data", input_shape)])
 
     # Relay target specific partitioning
-    UltraTrailBackend().register()
-    mod = UltraTrailBackend().partition(mod)
+    ut_backend = UltraTrailBackend()
+    ut_backend.register()
+    mod = ut_backend.partition(mod)
 
     # Relay build (AOT C target)
     TARGET = tvm.target.Target("c")

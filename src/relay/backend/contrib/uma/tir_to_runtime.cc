@@ -23,23 +23,23 @@
 #include <string>
 #include <vector>
 
-#include "../../../../../runtime/file_utils.h"
-#include "../../../../../target/source/codegen_c.h"
-#include "../../../../../target/source/codegen_c_host.h"
+#include "../../../../runtime/file_utils.h"
+#include "../../../../target/source/codegen_c.h"
+#include "../../../../target/source/codegen_c_host.h"
 
 namespace tvm {
 using namespace tir;
 namespace relay {
 namespace contrib {
 namespace uma {
-namespace ultra_trail {
 
-class CodeGenUltraTrail : public codegen::CodeGenCHost {
+class UMACodegen : public codegen::CodeGenCHost {
  public:
   void Init(bool output_ssa, bool emit_asserts, std::string target_str) {
-    decl_stream << "#include <cmem.h>\n";
-    decl_stream << "#include <archi_hwpe.h>\n";
-    decl_stream << "#include <hal_hwpe.h>\n";
+    auto includes_pf = tvm::runtime::Registry::Get("relay.ext.uma.codegen_c_includes_" + target_str);
+    ICHECK(includes_pf);
+    String includes = (*includes_pf)();
+    decl_stream << includes;
     CodeGenCHost::Init(output_ssa, emit_asserts, target_str);
   }
 
@@ -54,7 +54,7 @@ class CodeGenUltraTrail : public codegen::CodeGenCHost {
 runtime::Module TIRToRuntime(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
-  CodeGenUltraTrail codegen;
+  UMACodegen codegen;
   Array<String> function_names;
   codegen.Init(output_ssa, emit_asserts, target->str());
   for (auto kv : mod->functions) {
@@ -67,7 +67,6 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   return codegen::CSourceModuleCreate(code, "c", function_names);
 }
 
-}  // namespace ultra_trail
 }  // namespace uma
 }  // namespace contrib
 }  // namespace relay

@@ -23,6 +23,7 @@ from typing import List, Dict, Callable, Optional
 
 from tvm.relay.backend.contrib.uma.partitioner import UMAPartitioner
 from tvm.relay.backend.contrib.uma.lower import UMALower
+from tvm.relay.backend.contrib.uma.codegen import UMACodegen
 
 
 class UMABackend(object):
@@ -31,6 +32,7 @@ class UMABackend(object):
 
         self._relay_to_relay = UMAPartitioner(self.target_name, self.variant)
         self._relay_to_tir = UMALower(self.target_name)
+        self._tir_to_runtime = UMACodegen(self.target_name)
 
     @property
     @abstractmethod
@@ -82,6 +84,8 @@ class UMABackend(object):
     ############################################################################
     # TIR to runtime function registration
     ############################################################################
+    def _register_codegen(self, fmt: str = "c", **kwargs) -> None:
+        self._tir_to_runtime._register_codegen(fmt, **kwargs)
 
     ############################################################################
     # Backend functions
@@ -89,6 +93,7 @@ class UMABackend(object):
     def register(self) -> None:
         self._relay_to_relay.register()
         self._relay_to_tir.register()
+        self._tir_to_runtime.register()
 
     def partition(
         self, mod: tvm.IRModule, params: Optional[Dict[str, tvm.runtime.NDArray]] = None
