@@ -147,6 +147,14 @@ def should_skip_ci(pr_number) {
   return git_skip_ci_code == 0
 }
 
+// skips builds from branch indexing; sourced from https://www.jvt.me/posts/2020/02/23/jenkins-multibranch-skip-branch-index/
+// execute this before anything else, including requesting any time on an agent
+if (currentBuild.getBuildCauses().toString().contains('BranchIndexingCause')) {
+  print "INFO: Build skipped due to trigger being Branch Indexing"
+  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+  return
+}
+
 cancel_previous_build()
 
 stage('Prepare') {
