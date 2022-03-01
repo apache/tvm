@@ -141,17 +141,17 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // %3 = qnn.requantize(%2, %input_scale_const_4, %cmsisnn_shift_const_5,
     //                     %output_scale_scalar, %output_zero_point_scalar)
     // clip(%3, a_min=%min_scalar, a_max=%max_scalar)
-    BufferCreator buffer_creator_;
-    tir::Var input = buffer_creator_.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var filter = buffer_creator_.CreateBufferVar("filter", DataType::Handle(8));
-    tir::Var multiplier = buffer_creator_.CreateBufferVar("multiplier", DataType::Handle(32));
-    tir::Var filter_scale = buffer_creator_.CreateBufferVar("filter_scale", DataType::Handle(32));
+    BufferCreator buffer_creator;
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
+    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
+    tir::Var multiplier = buffer_creator.CreateBufferVar("multiplier", DataType::Handle(32));
+    tir::Var filter_scale = buffer_creator.CreateBufferVar("filter_scale", DataType::Handle(32));
     if (bias_add_call) {
-      buffer_creator_.CreateBufferVar("bias", DataType::Handle(32));
+      buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
     }
-    tir::Var input_scale = buffer_creator_.CreateBufferVar("input_scale", DataType::Handle(32));
-    tir::Var shift = buffer_creator_.CreateBufferVar("shift", DataType::Handle(32));
-    tir::Var output = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var input_scale = buffer_creator.CreateBufferVar("input_scale", DataType::Handle(32));
+    tir::Var shift = buffer_creator.CreateBufferVar("shift", DataType::Handle(32));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     // Individual arguments to the structs arguments of the CMSIS-NN API are filled into call_extern
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
@@ -227,13 +227,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, filter, multiplier};
     if (bias_add_call) {
-      tir::Var bias = buffer_creator_.GetBufferVar("bias");
+      tir::Var bias = buffer_creator.GetBufferVar("bias");
       call_ext_args.push_back(bias);
     }
     call_ext_args.push_back(shift);
     call_ext_args.push_back(output);
 
-    PrimExpr buffer_var = tir::StringImm("NULL");
+    PrimExpr context_buffer_var = tir::StringImm("NULL");
     CMSISNNFlags flags = GetCompilerFlags(transform::PassContext::Current());
     size_t context_buffer_size;
     if (is_depthwise) {
@@ -247,10 +247,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     if (context_buffer_size) {
       String context_buffer_name = "context_buffer_" + std::to_string(context_buffer_id_++);
-      buffer_var = tir::Var(context_buffer_name,
-                            PointerType(PrimType(DataType::Int(8)), "global.workspace"));
+      context_buffer_var = tir::Var(context_buffer_name,
+                                    PointerType(PrimType(DataType::Int(8)), "global.workspace"));
     }
-    tvm::Array<PrimExpr> context_buffer_args = {buffer_var, ToArg(context_buffer_size)};
+    tvm::Array<PrimExpr> context_buffer_args = {context_buffer_var, ToArg(context_buffer_size)};
 
     scalar_args = tvm::runtime::Concat(context_buffer_args, scalar_args);
     scalar_args = tvm::runtime::Concat(scalar_args, input_shape);
@@ -259,8 +259,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     scalar_args = tvm::runtime::Concat(scalar_args, output_shape);
     call_ext_args = tvm::runtime::Concat(call_ext_args, scalar_args);
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), call_ext_args, buffer_var,
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), call_ext_args, context_buffer_var,
                             context_buffer_size);
   }
 
@@ -293,13 +293,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
     // %3 = qnn.requantize(%2, %req_input_scale_scalar, %req_input_zero_point_scalar,
     //                     %output_scale_scalar, %output_zero_point_scalar)
     // clip(%3, a_min=%min_scalar, a_max=%max_scalar)
-    BufferCreator buffer_creator_;
-    tir::Var input = buffer_creator_.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var filter = buffer_creator_.CreateBufferVar("filter", DataType::Handle(8));
+    BufferCreator buffer_creator;
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
+    tir::Var filter = buffer_creator.CreateBufferVar("filter", DataType::Handle(8));
     if (bias_add_call) {
-      buffer_creator_.CreateBufferVar("bias", DataType::Handle(32));
+      buffer_creator.CreateBufferVar("bias", DataType::Handle(32));
     }
-    tir::Var output = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     // Individual arguments to the structs arguments of the CMSIS-NN API are filled into call_extern
     // https://github.com/ARM-software/CMSIS_5/blob/def6f800f95661eb3451d317f7d0dde504f6020d/CMSIS/NN/Source/ConvolutionFunctions/arm_convolve_wrapper_s8.c#L50
@@ -345,13 +345,13 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm("arm_fully_connected_s8"), input, filter};
     if (bias_add_call) {
-      call_ext_args.push_back(buffer_creator_.GetBufferVar("bias"));
+      call_ext_args.push_back(buffer_creator.GetBufferVar("bias"));
     }
     call_ext_args.push_back(output);
 
     int context_buffer_size = 0;
-    PrimExpr buffer_var = tir::StringImm("NULL");
-    tvm::Array<PrimExpr> context_buffer_args = {buffer_var, ToArg(context_buffer_size)};
+    PrimExpr context_buffer_var = tir::StringImm("NULL");
+    tvm::Array<PrimExpr> context_buffer_args = {context_buffer_var, ToArg(context_buffer_size)};
 
     scalar_args = tvm::runtime::Concat(context_buffer_args, scalar_args);
     scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_input_shape);
@@ -360,8 +360,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_output_shape);
     call_ext_args = tvm::runtime::Concat(call_ext_args, scalar_args);
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), call_ext_args, buffer_var,
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), call_ext_args, context_buffer_var,
                             context_buffer_size);
   }
 
@@ -427,9 +427,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     Array<PrimExpr> output_shape = pool->type_as<TensorTypeNode>()->shape;
     Array<PrimExpr> cmsisnn_output_shape{1, output_shape[1], output_shape[2], output_shape[3]};
 
-    BufferCreator buffer_creator_;
-    tir::Var input = buffer_creator_.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var output = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    BufferCreator buffer_creator;
+    tir::Var input = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
     tvm::Array<PrimExpr> call_ext_args = {tir::StringImm(cmsisnn_api), input, output};
 
     int context_buffer_size = 0;
@@ -450,8 +450,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
     scalar_args = tvm::runtime::Concat(scalar_args, cmsisnn_output_shape);
     call_ext_args = tvm::runtime::Concat(call_ext_args, scalar_args);
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), call_ext_args, context_buffer_var,
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), call_ext_args, context_buffer_var,
                             context_buffer_size);
   }
 
@@ -485,9 +485,9 @@ class RelayToTIRVisitor : public MixedModeMutator {
     diff_min >>= shift;
     diff_min *= -1;
 
-    BufferCreator buffer_creator_;
-    tir::Var in_var = buffer_creator_.CreateBufferVar("input", DataType::Handle(8));
-    tir::Var out_var = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    BufferCreator buffer_creator;
+    tir::Var in_var = buffer_creator.CreateBufferVar("input", DataType::Handle(8));
+    tir::Var out_var = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
         tir::StringImm("arm_softmax_s8"),
@@ -500,8 +500,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         out_var,
     };
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), args);
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), args);
   }
 
   void EmitMul(const GlobalVar& global_var, const Expr& expr) {
@@ -523,10 +523,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     PrimExpr tensor_size = mul_call->type_as<TensorTypeNode>()->Size();
 
-    BufferCreator buffer_creator_;
-    tir::Var input_0 = buffer_creator_.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator_.CreateBufferVar("input_1", DataType::Handle(8));
-    tir::Var output = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    BufferCreator buffer_creator;
+    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
+    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
         tir::StringImm("arm_elementwise_mul_s8"),
@@ -543,8 +543,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         tensor_size,
     };
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), args);
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), args);
   }
 
   void EmitAdd(const GlobalVar& global_var, const Expr& expr) {
@@ -585,10 +585,10 @@ class RelayToTIRVisitor : public MixedModeMutator {
 
     PrimExpr tensor_size = add_call->type_as<TensorTypeNode>()->Size();
 
-    BufferCreator buffer_creator_;
-    tir::Var input_0 = buffer_creator_.CreateBufferVar("input_0", DataType::Handle(8));
-    tir::Var input_1 = buffer_creator_.CreateBufferVar("input_1", DataType::Handle(8));
-    tir::Var output = buffer_creator_.CreateBufferVar("output", DataType::Handle(8));
+    BufferCreator buffer_creator;
+    tir::Var input_0 = buffer_creator.CreateBufferVar("input_0", DataType::Handle(8));
+    tir::Var input_1 = buffer_creator.CreateBufferVar("input_1", DataType::Handle(8));
+    tir::Var output = buffer_creator.CreateBufferVar("output", DataType::Handle(8));
 
     tvm::Array<PrimExpr> args = {
         tir::StringImm("arm_elementwise_add_s8"),
@@ -610,8 +610,8 @@ class RelayToTIRVisitor : public MixedModeMutator {
         tensor_size,
     };
 
-    CreatePrimFuncForExtern(global_var, buffer_creator_.GetPrimFuncParams(),
-                            buffer_creator_.GetBufferMap(), args);
+    CreatePrimFuncForExtern(global_var, buffer_creator.GetPrimFuncParams(),
+                            buffer_creator.GetBufferMap(), args);
   }
 
   Expr Rewrite_(const CallNode* pre, const Expr& post) override {
