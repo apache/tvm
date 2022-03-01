@@ -60,7 +60,6 @@ def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, i
         your operation.
     """
 
-    shape = data.shape
     batch_size = prod(data.shape[:-1])
     scan_axis_size = data.shape[-1]
 
