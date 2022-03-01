@@ -366,7 +366,7 @@ def make_inputs_dict(
         if input_name not in shape_dict.keys():
             raise TVMCException(
                 "the input tensor '{}' is not in the graph. Expected inputs: '{}'".format(
-                    input_name, shape_dict.keys()
+                    input_name, list(shape_dict.keys())
                 )
             )
 

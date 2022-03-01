@@ -97,10 +97,26 @@ def parse_virtualbox_devices():
     return devices
 
 
+VIRTUALBOX_USB_DEVICE_RE = (
+    "USBAttachVendorId[0-9]+=0x([0-9a-z]{4})\n" +
+    "USBAttachProductId[0-9]+=0x([0-9a-z]{4})"
+)
+
+
+def parse_virtualbox_attached_usb_devices(vm_uuid):
+    output = subprocess.check_output(["VBoxManage", "showvminfo", "--machinereadable", vm_uuid], encoding="utf-8")
+
+    r = re.compile(VIRTUALBOX_USB_DEVICE_RE)
+    attached_usb_devices = r.findall(output, re.MULTILINE)
+
+    # List of couples (VendorId, ProductId) for all attached USB devices
+    return attached_usb_devices
+
+
 VIRTUALBOX_VID_PID_RE = re.compile(r"0x([0-9A-Fa-f]{4}).*")
 
 
-def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
+def attach_virtualbox(vm_uuid, vid_hex=None, pid_hex=None, serial=None):
     usb_devices = parse_virtualbox_devices()
     for dev in usb_devices:
         m = VIRTUALBOX_VID_PID_RE.match(dev["VendorId"])
@@ -122,6 +138,12 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             and pid_hex == dev_pid_hex
             and (serial is None or serial == dev["SerialNumber"])
         ):
+            attached_devices = parse_virtualbox_attached_usb_devices(vm_uuid)
+            for vid, pid in parse_virtualbox_attached_usb_devices(vm_uuid):
+                if vid_hex == vid and pid_hex == pid:
+                    print(f"USB dev {vid_hex}:{pid_hex} already attached. Skipping attach.")
+                    return
+
             rule_args = [
                 "VBoxManage",
                 "usbfilter",
@@ -132,7 +154,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
                 "--name",
                 "test device",
                 "--target",
-                uuid,
+                vm_uuid,
                 "--vendorid",
                 vid_hex,
                 "--productid",
@@ -141,8 +163,7 @@ def attach_virtualbox(uuid, vid_hex=None, pid_hex=None, serial=None):
             if serial is not None:
                 rule_args.extend(["--serialnumber", serial])
             subprocess.check_call(rule_args)
-            # TODO(mehrdadh): skip usb attach if it's already attached
-            subprocess.check_call(["VBoxManage", "controlvm", uuid, "usbattach", dev["UUID"]])
+            subprocess.check_call(["VBoxManage", "controlvm", vm_uuid, "usbattach", dev["UUID"]])
             return
 
     raise Exception(

@@ -1701,5 +1701,18 @@ def test_axis_semantic_change():
         relay.build(mod, target="llvm")
 
 
+def test_alter_with_subfunc():
+    v1 = relay.var("v", shape=[1, 256, 10, 10], dtype="float32")
+    v2 = relay.image.resize2d(v1, size=[16, 16], roi=[0.0, 0.0, 0.0, 0.0], rounding_method="")
+    sub_func = relay.Function([v1], v2)
+    x1 = relay.var("x", shape=[1, 256, 10, 10], dtype="float32")
+    x2 = sub_func(x1)
+    x3 = relay.image.resize2d(x2, size=[8, 8], roi=[0.0, 0.0, 0.0, 0.0], rounding_method="")
+    func = relay.Function([x1], x3)
+    mod = tvm.IRModule.from_expr(func)
+    mod = relay.transform.InferType()(mod)
+    assert tvm.ir.structural_equal(relay.transform.AlterOpLayout()(mod), mod)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

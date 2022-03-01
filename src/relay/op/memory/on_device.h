@@ -154,33 +154,6 @@ const NodeType* AsIgnoringOnDevice(const Expr& expr) {
   return props.body.as<NodeType>();
 }
 
-/*!
- * \brief Returns \p function annotated with "param_virtual_devices" and "result_virtual_device"
- * attributes capturing parameter and result \p VirtualDevices respectively.
- */
-Function FunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                          VirtualDevice body_virtual_device);
-
-/*!
- * \brief As for \p FunctionOnDevice, but returns \p function unchanged if all parameters and
- * result \p VirtualDevices are unconstrained.
- */
-Function MaybeFunctionOnDevice(Function function, Array<VirtualDevice> param_virtual_devices,
-                               VirtualDevice result_virtual_device);
-
-/*!
- * \brief Returns the \p VirtualDevice for the resut of \p function_node, or the unconstrained
- * \p VirtualDevice if function does not have the "result_virtual_device" annotation.
- */
-VirtualDevice GetFunctionResultVirtualDevice(const FunctionNode* function_node);
-
-/*!
- * \brief Returns the \p VirtualDevice for the \p i'th parameter of \p function_node, or
- * the unconstrained \p VirtualDevice if function does not have the "param_virtual_devices"
- * annotation.
- */
-VirtualDevice GetFunctionParamVirtualDevice(const FunctionNode* function_node, size_t i);
-
 }  // namespace relay
 }  // namespace tvm
 

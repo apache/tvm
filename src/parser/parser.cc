@@ -456,9 +456,13 @@ class Parser {
    *
    * "x" -> Var("x"), these are needed to map from the raw string names
    * to unique variable nodes.
+   * If a virtual device is specified, sets the virtual device of the variable.
    */
-  Var BindVar(const std::string& name, const relay::Type& type_annotation) {
+  Var BindVar(const std::string& name, const relay::Type& type_annotation,
+              Optional<VirtualDevice> virtual_device = Optional<VirtualDevice>()) {
     auto var = Var(name, type_annotation);
+    var->virtual_device_ = virtual_device.value_or(VirtualDevice::FullyUnconstrained());
+    VLOG(1) << "Binding var named " << name << " to variable node " << PrettyPrint(var);
     this->expr_scopes.Add(name, var);
     return var;
   }
@@ -1113,11 +1117,26 @@ class Parser {
           [&]() {
             auto token = Match(TokenType::kLocal);
             auto string = token.ToString();
+
+            // The fake attributes where the virtual device is specified.
+            VirtualDevice virtual_device;
+            if (WhenMatch(TokenType::kLCurly)) {
+              Map<String, ObjectRef> fake_attrs = ParseAttrs();
+              VLOG(9) << "Fake attributes for function parameter: " << fake_attrs;
+              Match(TokenType::kRCurly);
+              if (fake_attrs.size() == 1 && fake_attrs.count(kVirtualDevice)) {
+                ICHECK(fake_attrs[kVirtualDevice].as<VirtualDeviceNode>())
+                    << "Expected the " << kVirtualDevice
+                    << " to have type VirtualDeviceNode, but got " << virtual_device->GetTypeKey();
+                virtual_device = Downcast<VirtualDevice>(fake_attrs[kVirtualDevice]);
+              }
+            }
+
             Type type;
             if (WhenMatch(TokenType::kColon)) {
               type = ParseType();
             }
-            return BindVar(string, type);
+            return BindVar(string, type, virtual_device);
           },
           [&] {
             auto is_ident = Lookahead(1)->token_type == TokenType::kIdentifier;
@@ -1150,8 +1169,15 @@ class Parser {
           ICHECK(vid.as<VirtualDeviceNode>())
               << "Expected the " << kVirtualDevice << " to have type VirtualDeviceNode, but got "
               << vid->GetTypeKey();
-          raw_attrs.erase(kVirtualDevice);
-          Function func = relay::Function(params, body, ret_type, generics, DictAttrs(raw_attrs));
+
+          DictAttrs attrs;
+          // Don't fill the raw_attrs in if there's nothing other than kVirtualDevice in the
+          // attributes
+          if (raw_attrs.size() > 1) {
+            raw_attrs.erase(kVirtualDevice);
+            attrs = DictAttrs(raw_attrs);
+          }
+          Function func = relay::Function(params, body, ret_type, generics, attrs);
           func->virtual_device_ = vid;
           return func;
         } else {
