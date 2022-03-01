@@ -920,5 +920,36 @@ def test_workspace_calculation_cmsis_nn():
     assert mlf_memory_map["main"][0]["workspace_size_bytes"] == 9904
 
 
+def test_aot_codegen_checks_returns():
+    """This test checks whether AoT lowering creates calls that check the return value correctly"""
+    x = relay.var("x", shape=(1, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    func = relay.Function([x, y], z)
+
+    compiled_test_mods = compile_models(
+        models=AOTTestModel(module=IRModule.from_expr(func), inputs=None, outputs=None),
+        interface_api="c",
+        use_unpacked_api=True,
+    )
+    source = compiled_test_mods[0].executor_factory.lib.imported_modules[0].get_source()
+
+    main_ir_module = compiled_test_mods[0].executor_factory.lowered_ir_mods.items()[0][1]
+    main_func = main_ir_module["__tvm_main__"]
+
+    # Check operator call is wrapped properly
+    assert (
+        str(main_func.body[1])
+        == "tir.tvm_check_return(0, -1, tir.call_extern("
+        + '"tvmgen_default_fused_add",'
+        + " x_buffer_var, y_buffer_var, output_buffer_var))\n"
+    )
+    # TODO(Mousius) - Create a better place for C codegen tests
+    assert (
+        "if (tvmgen_default_fused_add(x_buffer_var, y_buffer_var, output_buffer_var) != 0 ) return -1;"
+        in source
+    )
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__] + sys.argv[1:]))

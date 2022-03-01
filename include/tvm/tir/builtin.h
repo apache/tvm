@@ -385,6 +385,20 @@ TVM_DLL const Op& tvm_call_cpacked();
 TVM_DLL const Op& tvm_call_trace_packed();
 
 /*!
+ * \brief Checks the return value of another call is correct or returns a given value.
+ *
+ * \note  This is meant to serve a specific case for AOT code generator whilst this
+ *        cannot be fully represented in TIR.
+ *
+ *  Type tvm_check_return(expected, return_unexpected, nested_call) {
+ *     if (nested_call() != expected) {
+ *         return return_unexpected;
+ *     }
+ *  }
+ */
+TVM_DLL const Op& tvm_check_return();
+
+/*!
  * \brief See pesudo code
  *  Mark the content as thread local context, can get optimized
  *  by only call the call once at thread start.
