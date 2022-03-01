@@ -1448,6 +1448,10 @@ struct Type2Str<DataType> {
   static std::string v() { return "DataType"; }
 };
 template <>
+struct Type2Str<DLDataType> {
+  static std::string v() { return "DLDataType"; }
+};
+template <>
 struct Type2Str<TVMRetValue> {
   static std::string v() { return "TVMRetValue"; }
 };
